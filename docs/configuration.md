@@ -1763,12 +1763,19 @@ ace:
   agent_decks:
     spread_max_screens: 1.5
     block_spread_max_screens: 1.5
+    final_tail_delay_seconds: 5.0
 ```
+
+Jump to any deck with `p` then its picker letter: `m` Main, `f` Files, `t` Tools, `n`
+FINAL (capitals open it in the other panel). See
+[Agent data decks and cards](ace.md#agent-data-decks-and-cards) and
+[Finalizers on the Agents tab](ace.md#finalizers-on-the-agents-tab).
 
 | Field                      | Type   | Default | Description                                                                                                                                                                                                                                                                                                                       |
 | -------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `spread_max_screens`       | number | `1.5`   | A multi-card deck renders spread when its cards fit within this many panel viewport heights ("screens"), and paged otherwise. `0` means always paged. Applies to the automatic deck view only; a fixed view bypasses measurement.                                                                                                 |
 | `block_spread_max_screens` | number | `1.5`   | A card shown alone renders its card blocks spread (all inline) when the card fits within this many panel heights, and paged (one block per page) otherwise. `0` means always one block per page. Applies to the session Reply card's per-turn blocks. Applies to the automatic deck view only; a fixed view bypasses measurement. |
+| `final_tail_delay_seconds` | number | `5.0`   | Seconds a finalizer op must run before its live tail renders in the ⊛ FINAL deck. `0` renders immediately; fast ops go straight from running to done with no tail. Non-numbers, negatives, and booleans fall back to the default.                                                                                                 |
 
 Source: `src/sase/ace/tui/agent_decks_settings.py`
 

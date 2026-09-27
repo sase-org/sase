@@ -1295,30 +1295,30 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 
 ### Navigation
 
-| Key                       | Action                                                                                                                                                           |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead      |
-| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                |
-| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                  |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                     |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                      |
-| `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                          |
-| `(` / `)`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                               |
-| `P`                       | Cycle the focused panel's deck view wider, pinning it fixed (wraps; Main and Files only, only when there is more than one distinct layout)                       |
-| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                            |
-| `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                               |
-| `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
-| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                          |
-| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                    |
-| `g`                       | Scroll to top (focused deck panel)                                                                                                                               |
-| `G`                       | Scroll to bottom (focused deck panel)                                                                                                                            |
-| `Ctrl+D` / `Ctrl+U`       | Scroll focused deck panel down / up (half page)                                                                                                                  |
-| `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                          |
-| `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `M`/`F`/`T` show it in the other panel (opening one below if needed); `pp`/`Esc` close            |
-| `\` / `                   | `                                                                                                                                                                | Split deck panels top-bottom / left-right; press again to close the second panel, or press the other key to rotate |
-| `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                        |
-| `Ctrl+F`                  | Move focus to the other deck panel (split layouts only)                                                                                                          |
-| `Ctrl+S`                  | Collapse / expand the node panel                                                                                                                                 |
+| Key                       | Action                                                                                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead          |
+| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                    |
+| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                      |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                         |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                          |
+| `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                              |
+| `(` / `)`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                                   |
+| `P`                       | Cycle the focused panel's deck view wider, pinning it fixed (wraps; Main and Files only, only when there is more than one distinct layout)                           |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                                |
+| `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                                   |
+| `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels)     |
+| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                              |
+| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                        |
+| `g`                       | Scroll to top (focused deck panel)                                                                                                                                   |
+| `G`                       | Scroll to bottom (focused deck panel)                                                                                                                                |
+| `Ctrl+D` / `Ctrl+U`       | Scroll focused deck panel down / up (half page)                                                                                                                      |
+| `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools → FINAL, wraps)                                                                                      |
+| `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools, `n` FINAL; `M`/`F`/`T`/`N` show it in the other panel (opening one below if needed); `pp`/`Esc` close |
+| `\` / `                   | `                                                                                                                                                                    | Split deck panels top-bottom / left-right; press again to close the second panel, or press the other key to rotate |
+| `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                            |
+| `Ctrl+F`                  | Move focus to the other deck panel (split layouts only)                                                                                                              |
+| `Ctrl+S`                  | Collapse / expand the node panel                                                                                                                                     |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
 > the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
@@ -2573,30 +2573,31 @@ semantics for plan approval, questions, and workflow input.
 To keep rows compact, agent statuses and types are rendered as one- or two-character
 badges instead of verbose text:
 
-| Glyph | Meaning                                                                                             |
-| ----- | --------------------------------------------------------------------------------------------------- |
-| `▶`   | RUNNING                                                                                             |
-| `✓`   | DONE                                                                                                |
-| `✓P`  | PLAN DONE                                                                                           |
-| `▶P`  | PLAN APPROVED                                                                                       |
-| `★E`  | EPIC CREATED                                                                                        |
-| `✎`   | PLAN                                                                                                |
-| `✗`   | FAILED                                                                                              |
-| `…`   | QUEUED                                                                                              |
-| `⏳`  | WAITING                                                                                             |
-| `?`   | QUESTION                                                                                            |
-| `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)                                                     |
-| `≡`   | Workflow row (top-level)                                                                            |
-| `❑`   | Patch / Patch row (top-level)                                                                       |
-| `⚡`  | Autonomous (`%auto`) agent                                                                          |
-| `◌`   | Hidden agent (visible only when `.` toggles them in)                                                |
-| `⚙`   | Monitor turn (row label)                                                                            |
-| `⚙N`  | N running monitors in a session/clan subtree, or in a tribe panel title for its whole tribe (amber) |
-| `⚙N`  | N finished monitors in a session/clan subtree, or in a tribe panel title for its whole tribe (grey) |
-| `⋔`   | Gate turn; its gate accent while pending/running, grey when settled, red on failure                 |
-| `⋔N`  | N gates in a session/clan subtree or tribe panel title, colored by lifecycle bucket                 |
-| `▣`   | Stand-alone `%proc` named proc (row label; beta, `typed_launch_units`)                              |
-| `▣N`  | N stand-alone named procs in a panel title's separate proc chip                                     |
+| Glyph | Meaning                                                                                                                                                                                                                                                                                                           |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `▶`   | RUNNING                                                                                                                                                                                                                                                                                                           |
+| `✓`   | DONE                                                                                                                                                                                                                                                                                                              |
+| `✓P`  | PLAN DONE                                                                                                                                                                                                                                                                                                         |
+| `▶P`  | PLAN APPROVED                                                                                                                                                                                                                                                                                                     |
+| `★E`  | EPIC CREATED                                                                                                                                                                                                                                                                                                      |
+| `✎`   | PLAN                                                                                                                                                                                                                                                                                                              |
+| `✗`   | FAILED                                                                                                                                                                                                                                                                                                            |
+| `…`   | QUEUED                                                                                                                                                                                                                                                                                                            |
+| `⏳`  | WAITING                                                                                                                                                                                                                                                                                                           |
+| `?`   | QUESTION                                                                                                                                                                                                                                                                                                          |
+| `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)                                                                                                                                                                                                                                                                   |
+| `⊛`   | Finalizer chip: the most severe finalizer state since the newest successful run (failed > refused > interrupted > deferred > running), with `k of n runs` when several runs are in play; the row word reads `FINALIZING` while finalizers run (see [Finalizers on the Agents tab](#finalizers-on-the-agents-tab)) |
+| `≡`   | Workflow row (top-level)                                                                                                                                                                                                                                                                                          |
+| `❑`   | Patch / Patch row (top-level)                                                                                                                                                                                                                                                                                     |
+| `⚡`  | Autonomous (`%auto`) agent                                                                                                                                                                                                                                                                                        |
+| `◌`   | Hidden agent (visible only when `.` toggles them in)                                                                                                                                                                                                                                                              |
+| `⚙`   | Monitor turn (row label)                                                                                                                                                                                                                                                                                          |
+| `⚙N`  | N running monitors in a session/clan subtree, or in a tribe panel title for its whole tribe (amber)                                                                                                                                                                                                               |
+| `⚙N`  | N finished monitors in a session/clan subtree, or in a tribe panel title for its whole tribe (grey)                                                                                                                                                                                                               |
+| `⋔`   | Gate turn; its gate accent while pending/running, grey when settled, red on failure                                                                                                                                                                                                                               |
+| `⋔N`  | N gates in a session/clan subtree or tribe panel title, colored by lifecycle bucket                                                                                                                                                                                                                               |
+| `▣`   | Stand-alone `%proc` named proc (row label; beta, `typed_launch_units`)                                                                                                                                                                                                                                            |
+| `▣N`  | N stand-alone named procs in a panel title's separate proc chip                                                                                                                                                                                                                                                   |
 
 A monitor turn (a session member whose work is a supervised command, started with
 `sase monitor start`) renders an amber `⚙` glyph and omits a left-side title — identity
@@ -5416,9 +5417,9 @@ meaning. The palette offers the same jumps as
 The Agents tab detail column shows one or two deck panels between the sticky header
 panel and the jump panel. Each deck panel shows one agent data deck, a named ordered set
 of agent data cards about the selected node. `Ctrl+N` / `Ctrl+P` cycle the focused panel
-through the Main, Files, and Tools decks (wrapping, nothing skipped), and `p` opens the
-[deck picker](#agents-deck-picker) for a two-key jump to any deck; `Ctrl+J` / `Ctrl+K`
-move to the next / previous card in the focused panel.
+through the Main, Files, Tools, and FINAL decks (wrapping, nothing skipped), and `p`
+opens the [deck picker](#agents-deck-picker) for a two-key jump to any deck; `Ctrl+J` /
+`Ctrl+K` move to the next / previous card in the focused panel.
 
 - **Main deck.** `Context` (details and prompt; the default card) and `Reply` — titled
   `Output` for named procs, monitors, gates, and workflow steps — plus a leading
@@ -5431,6 +5432,9 @@ move to the next / previous card in the focused panel.
   the file view always chose.
 - **Tools deck.** The `LLM Calls` card with the selected agent's tool-call timeline (see
   [Agents Tab LLM Calls Panel](#agents-tab-llm-calls-panel)).
+- **FINAL deck.** The `⊛ FINAL` deck shows how the selected node's turns landed: an
+  `Overview` card plus one card per finalizer instance (see
+  [Finalizers on the Agents tab](#finalizers-on-the-agents-tab)).
 
 A multi-card deck renders **spread** — every card on one scrollable page separated by
 titled rules — when its cards fit within `ace.agent_decks.spread_max_screens` panel
@@ -5439,9 +5443,10 @@ time — otherwise. In spread mode `Ctrl+J` / `Ctrl+K` scroll the next / previou
 header to the top. The deck panel's border title names the deck, its
 [deck view](#deck-views) badge (Main and Files decks only), and its cards with the
 active card highlighted (and an `N/M` position when there is more than one card); the
-border subtitle is a `main · files · tools` switcher showing each deck's card, file, or
-LLM-call count when known, dimming decks with no content. A deck with no content for the
-selection shows an empty-state card instead, so the layout never jumps.
+border subtitle is a `main · files · tools · final` switcher showing each deck's card,
+file, LLM-call, or finalizer count when known, dimming decks with no content. A deck
+with no content for the selection shows an empty-state card instead, so the layout never
+jumps.
 
 #### Deck Views
 
@@ -5449,7 +5454,10 @@ Each Main and Files deck panel has a **deck view**: `spread` (every card on one
 scrollable page), `page cards` (one whole card per page), or `page blocks` (one card
 block per page). The view is normally **automatic** — resolved from the content through
 the `ace.agent_decks` spread thresholds — or **fixed** to one layout by you. The Tools
-deck has no views: it always pages automatically and shows no badge.
+and FINAL decks have no views: they always page automatically, show no badge, and `P`
+does not apply there. Deck views stay a Main-and-Files feature; FINAL's spread/paged and
+block paging resolve automatically from the `ace.agent_decks` thresholds like every
+other automatic deck.
 
 **The badge.** The top border title shows the effective view right after the deck name,
 for example `◆ MAIN  page blocks · auto` or `◆ MAIN  spread · fixed`. The layout word
@@ -5463,10 +5471,10 @@ a panel that has never painted a full Main document.
 The first press from automatic starts after the effective layout, so it always changes
 what is on screen; layouts that would render identically for the current content are
 skipped. `P` is unavailable when there is nothing to choose (a one-card deck, the Tools
-deck, an empty deck, or while a Main document is still partial). The footer shows a
-`P view` entry and the help modal an `Agents › Navigation` row only while the cycle is
-available. The first press that fixes a view posts one teaching toast naming the palette
-reset; routine presses stay silent because the badge changes in place.
+or FINAL deck, an empty deck, or while a Main document is still partial). The footer
+shows a `P view` entry and the help modal an `Agents › Navigation` row only while the
+cycle is available. The first press that fixes a view posts one teaching toast naming
+the palette reset; routine presses stay silent because the badge changes in place.
 
 **Palette.** The command palette offers `Cycle deck view` plus four direct choices:
 `Deck view: automatic`, `Deck view: spread (fixed)`, `Deck view: page cards (fixed)`,
@@ -5534,7 +5542,7 @@ override of `prev_card_block` / `next_card_block` (see
 (left-right); the new panel takes focus and shows the next deck with content, or a
 duplicate deck when every other deck is empty or already shown. Pressing the same split
 key again closes the second panel; pressing the other split key rotates the layout. `p`
-plus a capital deck letter (`M` / `F` / `T`) opens or fills the other panel with a
+plus a capital deck letter (`M` / `F` / `T` / `N`) opens or fills the other panel with a
 chosen deck without moving focus (see the [deck picker](#agents-deck-picker)). `Ctrl+F`
 moves focus to the other panel (split layouts only) and every deck, card, scroll,
 search, and fold key acts on the focused panel. `}` / `{` grow / shrink the focused
@@ -5544,6 +5552,72 @@ The layout, split ratio, focus, node-panel collapse, and each panel's deck, pref
 card, and deck views persist across restarts in `~/.sase/ace_agents_deck_state.json`.
 See the [key tables](#navigation) for the full deck keymap and
 [configuration](configuration.md#aceagent_decks) for the spread setting.
+
+### Finalizers on the Agents Tab
+
+Host-owned finalizers (commit, check, tasks, plugin finalizers) run after the model
+turn, and the Agents tab shows them at four zoom levels over one shared state
+vocabulary: at a glance on the row, in context in Reply, to diagnose in the ⊛ FINAL
+deck, and for authorship in the Overview card and `sase final status`. Every surface
+agrees because glyph, word, and color for each state live in one mapping. The view is
+read-only: there are no retry, cancel, or bypass controls.
+
+**At a glance: FINALIZING rows and ⊛ chips.** While a node's finalizers run, its row
+status word reads `FINALIZING` in the Running bucket. This is a presentation overlay
+only: `agent.status`, buckets, ordering, filters, capacity, and row actions are
+untouched. A `⊛` chip names the most severe finalizer state. On a session container the
+chip considers only runs after the newest successful settled run, picks the highest
+severity (failed > refused > interrupted > deferred > running), and appends
+`k of n runs` when more than one run is in play. The collapsed header panel carries the
+same signal as an activity chip (`⊛ finalizing · <id> · <label>`, or `⊛ declaration`
+while the declaration turn runs).
+
+**In context: the ⊛ FINAL receipt.** Each shell's Reply phase ends with a short
+`⊛ FINAL` receipt: one line per finalizer instance with its state glyph, per-instance
+detail (step or op label, `attempt n/m` when retries are budgeted, failure reason or
+headline), and duration. Success lines stay quiet; success with warnings gains a dim
+`⚠N` suffix (detail lives in FINAL, never on the row), and failed or refused instances
+add a dim reason line. When anything needs attention the receipt ends with a
+`p n  open FINAL deck` hint. There is no receipt before finalization begins (the
+`planned` phase), none for shells skipped by a plan handoff, and none for legacy runs
+with no finalizer summary.
+
+**To diagnose: the ⊛ FINAL deck.** Press `p n` (`p N` opens it in the other panel) or
+cycle with `Ctrl+N` / `Ctrl+P`. The deck accent is rose `#FF87D7`; the count noun is
+`finalizer`/`finalizers`. Cards are `Overview` plus one per selected finalizer instance,
+and FINAL cards stick while `j`/`k` move (the status strip and subtitle carry the signal
+instead). Every FINAL card on a session container holds one card block per shell that
+ran finalizers, with the same roster-matched ids Reply uses; skipped and not-triggered
+shells appear only in the ledger. The rail, `(` / `)`, and newest-block landing all work
+as on Reply.
+
+- **Overview card.** The run plan in DAG order with per-instance selection reasons,
+  configured-but-unselected instances dimmed with their reason (`%final:!lint`,
+  `%final:none`, not default), the declaration timeline, controller cycles (only when
+  above one), drift, run-level diagnostics, the runs ledger, and pointers to
+  `sase final status`.
+- **Instance cards.** Why, trigger, and declared lines; one section per finalizer
+  attempt with the latest (or failing) attempt expanded; operations with outcomes;
+  structured steps; typed evidence (`sha`, `url`, `bead`); deduped diagnostics; and log
+  and protocol hint targets for export and search.
+- **States.** Planned `◌`, declaration/running `▶` (gold), success `✓` (green, plus a
+  dim amber `⚠N` in deck and receipt only), failed `✗` (red), refused `⊘` (purple),
+  deferred `⏸` (amber), not triggered / handoff-skipped `○` (dim), blocked / not reached
+  `–` (dim), interrupted `!` (amber), unavailable `⚠` (dim amber). An interrupted or
+  unavailable state never spins.
+- **Live tails.** A running op shows a sanitized in-card tail of at most 12 lines, but
+  only once the op has run longer than `ace.agent_decks.final_tail_delay_seconds`
+  (default `5.0`; `0` renders immediately). The tail follows the newest run and latest
+  attempt with an arrival marker, pauses while scrolled up, and refreshes on a 1 Hz tick
+  that runs only while FINAL shows the selected agent's active finalization. Fast ops go
+  straight from `▶` to `✓` with no tail.
+
+**For authors: `sase final status`.** `sase final status [<agent>]` projects the same
+run view the FINAL deck renders — reconciling the sealed plan, progress journal,
+operation records, steps, and typed evidence — and prints it pretty (colored, default)
+or as JSON (`-f json`). With `-d/--artifacts-dir` it reads finalizer artifacts directly.
+Inside a SASE turn it defaults to the calling agent. See the
+[CLI docs](cli.md#review-and-delivery).
 
 ## Agents Tab Main Deck
 

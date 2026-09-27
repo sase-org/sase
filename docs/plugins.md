@@ -1138,3 +1138,38 @@ The provider implements hooks from `LLMHookSpec` using `@hookimpl`, including
 `llm_usage_capabilities()` (static, no I/O) and `llm_usage_probe(context)` collect
 subscription usage; omitting them leaves invoke unchanged. See
 [docs/llms.md](llms.md#external-provider-plugins) for the full provider contract.
+
+### Example: Turn-Finalizer Plugin
+
+Turn-finalizer providers declare a `sase_finalizers` provider object:
+
+```toml
+[project.entry-points."sase_finalizers"]
+my_checks = "my_sase_plugin.finalizers:MyChecksProvider"
+```
+
+The provider implements `describe()`, `validate()`, `execute()`, and `verify()`, each
+taking a JSON request mapping and returning a JSON result mapping; stdout stays the
+result channel. See `src/sase/finalizers/sdk.py` (`FinalizerProvider`,
+`dispatch_provider_request`) for the accepted entry-point shapes.
+
+**Run visibility.** Everything a finalizer reports also feeds the Agents tab ⊛ FINAL
+deck and `sase final status` (see
+[Finalizers on the Agents tab](ace.md#finalizers-on-the-agents-tab)):
+
+- **Step channel.** While an attempt runs, the host sets `SASE_FINALIZER_STEPS_FILE` to
+  an `attempt-<N>.<op>.steps.jsonl` path. Report structured progress with
+  `sase.finalizers.sdk.step(name, state=...)` (`state` is `start`, `ok`, `warn`, or
+  `fail`; text caps at 120 characters, detail at 500, file at 64 KiB). The helper does
+  nothing outside a finalizer attempt and never raises, so progress stays best-effort
+  observability that cannot change a verdict. Never scrape progress from stdout.
+- **Typed evidence.** Each result mapping may carry an `evidence` list of `kind`/`value`
+  records. The shared projection types them (`sha`, `url`, `bead`) and the FINAL deck
+  renders them on the instance card (commit SHAs, links, beads), picking one as the
+  headline.
+- **Operation records.** Every operation inside an attempt writes one uniform schema-v1
+  `attempt-<N>.<op>.outcome.json` record (`kind` is `subprocess`, `model_turn`,
+  `validation`, or `internal`) and emits `op_started`/`op_finished` journal events; work
+  before an attempt exists (plugin `describe`/`validate`) lands in
+  `preflight.<op>.outcome.json` instead. Records are write-once and exclusive, exactly
+  like the commit outcome record.
