@@ -238,29 +238,17 @@ def get_gate_turn_reclaim_grace_seconds() -> int:
         return DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
     if not isinstance(gate, dict):
         return DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
-    turn = gate.get("turn", {}) if isinstance(gate.get("turn", {}), dict) else {}
-    if "reclaim_grace_seconds" in turn:
-        value = turn.get(
-            "reclaim_grace_seconds", DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
-        )
-    else:
-        # legacy sase-shell spelling: gate.shell.reclaim_grace_seconds reads
-        # only while the sunset flag accepts retired syntax.
-        from sase.agent.legacy_sase_shell_syntax import (
-            legacy_sase_shell_syntax_enabled,
-        )
+    # Authored config follows the sunset flag: a retired
+    # ``gate.shell.reclaim_grace_seconds`` maps to the turn key while the
+    # flag is on and raises naming ``gate.turn.reclaim_grace_seconds``
+    # while it is off, matching unknown-key reporting.
+    from sase.agent.legacy_sase_shell_syntax import normalize_reclaim_config
 
-        shell = gate.get("shell", {})
-        if (
-            isinstance(shell, dict)
-            and "reclaim_grace_seconds" in shell
-            and legacy_sase_shell_syntax_enabled()
-        ):
-            value = shell.get(
-                "reclaim_grace_seconds", DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
-            )
-        else:
-            value = DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
+    gate = normalize_reclaim_config({"gate": gate}).get("gate", {})
+    if not isinstance(gate, dict):
+        return DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
+    turn = gate.get("turn", {}) if isinstance(gate.get("turn", {}), dict) else {}
+    value = turn.get("reclaim_grace_seconds", DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS)
     if type(value) is int and value >= 0:
         return value
     return DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS

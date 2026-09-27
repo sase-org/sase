@@ -117,7 +117,7 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "of their sase-turn replacements: `sase gate create --shell`, "
             "`--shell-status`, `--shell-stop-status`, and `--next-fork shell`; "
             'a gate spec\'s `"shell"` block, `"fork": "shell"`, and '
-            '`"continuation_mode": "gate_turn"`; `sase proc list/run --shell`; '
+            '`"continuation_mode": "gate_shell"`; `sase proc list/run --shell`; '
             "and the `gate.shell.reclaim_grace_seconds` config key."
         ),
         bead="sase-1ar",

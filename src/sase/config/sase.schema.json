@@ -5380,7 +5380,7 @@
         },
         "legacy_sase_shell_syntax": {
           "type": "boolean",
-          "description": "SASE silently accepts the retired sase-shell spellings as aliases of their sase-turn replacements: `sase gate create --shell`, `--shell-status`, `--shell-stop-status`, and `--next-fork shell`; a gate spec's `\"shell\"` block, `\"fork\": \"shell\"`, and `\"continuation_mode\": \"gate_turn\"`; `sase proc list/run --shell`; and the `gate.shell.reclaim_grace_seconds` config key.",
+          "description": "SASE silently accepts the retired sase-shell spellings as aliases of their sase-turn replacements: `sase gate create --shell`, `--shell-status`, `--shell-stop-status`, and `--next-fork shell`; a gate spec's `\"shell\"` block, `\"fork\": \"shell\"`, and `\"continuation_mode\": \"gate_shell\"`; `sase proc list/run --shell`; and the `gate.shell.reclaim_grace_seconds` config key.",
           "default": true,
           "deprecated": true
         },

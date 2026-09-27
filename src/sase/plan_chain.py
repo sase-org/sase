@@ -21,13 +21,10 @@ LEGACY_AGENT_FAMILY_KEY = "agent_family"
 LEGACY_AGENT_FAMILY_ROLE_KEY = "agent_family_role"
 LEGACY_AGENT_FAMILY_PARALLEL_KEY = "agent_family_parallel"
 LEGACY_AGENT_FAMILY_SHELL_KEY = "family_shell"
-LEGACY_AGENT_SESSION_TURN_KEY = "agent_session_turn"
 # legacy sase-shell spelling: the pinned pre-cutover Rust core still emits the
 # nested turn object under this key (and ``shell_kind`` for the member kind).
 LEGACY_AGENT_SESSION_SHELL_KEY = "agent_session_shell"
 LEGACY_SHELL_KIND_KEY = "shell_kind"
-# Deprecated alias kept for importers not yet moved to the turn spelling.
-AGENT_SESSION_TURN_KEY = LEGACY_AGENT_SESSION_TURN_KEY
 PLAN_CHAIN_PLAN_SUFFIX = f"{AGENT_SESSION_SEPARATOR}plan"
 PLAN_CHAIN_CODER_SUFFIX = f"{AGENT_SESSION_SEPARATOR}code"
 PLAN_CHAIN_EPIC_SUFFIX = f"{AGENT_SESSION_SEPARATOR}epic"
@@ -133,7 +130,6 @@ def _agent_session_turn_field(source: object) -> Any:
     if isinstance(source, Mapping):
         for key in (
             AGENT_SESSION_TURN_KEY,
-            LEGACY_AGENT_SESSION_TURN_KEY,
             LEGACY_AGENT_SESSION_SHELL_KEY,
             LEGACY_AGENT_FAMILY_SHELL_KEY,
         ):
@@ -143,7 +139,6 @@ def _agent_session_turn_field(source: object) -> Any:
         return None
     for key in (
         AGENT_SESSION_TURN_KEY,
-        LEGACY_AGENT_SESSION_TURN_KEY,
         LEGACY_AGENT_SESSION_SHELL_KEY,
         LEGACY_AGENT_FAMILY_SHELL_KEY,
     ):
@@ -153,12 +148,7 @@ def _agent_session_turn_field(source: object) -> Any:
             continue
         if value is not None:
             return value
-    # Fall back to the deprecated alias attribute for very old rows.
-    try:
-        value = getattr(source, AGENT_SESSION_TURN_KEY)
-    except AttributeError:
-        return None
-    return value
+    return None
 
 
 def agent_session_turn_value(meta: object) -> Any:
@@ -215,7 +205,6 @@ def _strip_legacy_shell_keys(meta: dict[str, object]) -> dict[str, object]:
     """Remove legacy sase-shell keys from *meta* and return it."""
     # legacy sase-shell spelling
     for key in (
-        LEGACY_AGENT_SESSION_TURN_KEY,
         LEGACY_AGENT_SESSION_SHELL_KEY,
         LEGACY_SHELL_KIND_KEY,
     ):

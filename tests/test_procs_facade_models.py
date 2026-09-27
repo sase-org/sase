@@ -114,6 +114,28 @@ def test_proc_reserve_service_block_round_trips() -> None:
     }
 
 
+def test_proc_reserve_legacy_proc_shell_origin_maps_to_named_proc() -> None:
+    """A pre-rename ``procs.jsonl`` row reads as ``named-proc`` (sase-1ab.10.1)."""
+    reserve = ProcReserve.from_dict(
+        {
+            "proc_id": "0123456789ab",
+            "label": "Gateway",
+            "argv": ["sleep", "1"],
+            "cwd": "/tmp",
+            "created_at": "2026-07-25T12:00:00Z",
+            "log_path": "/tmp/gateway.log",
+            "request_fingerprint": "fp",
+            "reserved_by": "agent-one",
+            "origin": "proc-shell",
+            "shell_name": "Gateway",
+            "shell_kind": "proc",
+        }
+    )
+    assert reserve.origin == "named-proc"
+    assert reserve.proc_name == "Gateway"
+    assert reserve.proc_role == "proc"
+
+
 def test_legacy_task_wire_payloads_parse_as_proc_models() -> None:
     proc = _proc("0123456789ab")
     task_payload = proc.to_dict()

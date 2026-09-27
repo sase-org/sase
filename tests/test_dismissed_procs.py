@@ -120,7 +120,8 @@ def test_legacy_file_reads_when_no_new_file(tmp_path: Path) -> None:
     from sase.ace import dismissed_procs as dismissed
 
     new_file = tmp_path / "dismissed_procs.json"
-    legacy_file = tmp_path / "dismissed_named_procs.json"
+    # legacy sase-shell spelling: pre-rename hosts carry dismissed_proc_shells.json.
+    legacy_file = tmp_path / "dismissed_proc_shells.json"
     legacy_file.write_text(
         json.dumps({"schema_version": 1, "proc_ids": ["old-id"]}), encoding="utf-8"
     )

@@ -29,10 +29,10 @@ from ._agent_monitor_section import (
 from ._agent_named_proc_section import (
     LEGACY_NAMED_PROC_SECTION_ID,
     NAMED_PROC_SECTION_ID,
-    resolve_named_proc_fold_level,
     build_named_proc_output,
     build_named_proc_preview,
     build_named_proc_section,
+    resolve_named_proc_fold_level,
 )
 
 

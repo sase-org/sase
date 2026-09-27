@@ -28,7 +28,6 @@ from sase.plan_chain import (
     LEGACY_AGENT_FAMILY_ROLE_KEY,
     LEGACY_AGENT_FAMILY_SHELL_KEY,
     LEGACY_AGENT_SESSION_SHELL_KEY,
-    LEGACY_AGENT_SESSION_TURN_KEY,
     TURN_KIND_KEY,
     agent_session_base,
     agent_session_parallel_value,
@@ -49,7 +48,6 @@ LEGACY_KEYS = (
     "agent_family_role",
     "agent_family_parallel",
     "family_shell",
-    "agent_session_turn",
     "agent_session_shell",
     "shell_kind",
 )
@@ -61,7 +59,6 @@ def test_canonical_constants_match_wire_spellings() -> None:
     assert AGENT_SESSION_PARALLEL_KEY == "agent_session_parallel"
     assert AGENT_SESSION_TURN_KEY == "agent_session_turn"
     assert TURN_KIND_KEY == "turn_kind"
-    assert LEGACY_AGENT_SESSION_TURN_KEY == "agent_session_turn"
     assert AGENT_SESSION_SEPARATOR == "--"
     assert LEGACY_AGENT_FAMILY_KEY == "agent_family"
     assert LEGACY_AGENT_FAMILY_ROLE_KEY == "agent_family_role"
@@ -98,9 +95,9 @@ def test_accessors_fall_back_to_legacy_keys() -> None:
     assert agent_session_parallel_value(meta) is True
     assert agent_session_turn_value(meta) == {"kind": "gate"}
     assert agent_session_turn_value(meta) == {"kind": "gate"}
-    # legacy sase-shell spelling: ``agent_session_turn`` and ``shell_kind``.
+    # legacy sase-shell spelling: ``agent_session_shell`` and ``shell_kind``.
     shell_meta = {
-        "agent_session_turn": {"kind": "monitor", "id": "m"},
+        "agent_session_shell": {"kind": "monitor", "id": "m"},
         "shell_kind": "proc",
     }
     assert agent_session_turn_value(shell_meta) == {"kind": "monitor", "id": "m"}
@@ -175,6 +172,21 @@ def test_set_agent_session_fields_writes_new_and_drops_legacy() -> None:
         assert key not in meta
 
 
+def test_set_agent_session_fields_writes_and_preserves_turn() -> None:
+    """The turn stripper must keep the canonical key (sase-1ab.10.1)."""
+    meta: dict[str, object] = {}
+    set_agent_session_fields(meta, turn={"kind": "monitor", "id": "m"})
+    assert meta["agent_session_turn"] == {"kind": "monitor", "id": "m"}
+    # A legacy shell key alongside the canonical turn is dropped on write,
+    # while the canonical turn object survives the strip.
+    meta["agent_session_shell"] = {"kind": "gate", "id": "old"}
+    meta["shell_kind"] = "gate"
+    set_agent_session_fields(meta, session="acme")
+    assert meta["agent_session_turn"] == {"kind": "monitor", "id": "m"}
+    assert "agent_session_shell" not in meta
+    assert "shell_kind" not in meta
+
+
 def test_set_agent_session_fields_none_clears_and_strips() -> None:
     meta: dict[str, object] = {
         "agent_session": "acme",
@@ -227,7 +239,7 @@ def test_done_json_nested_shell_reads_either_spelling() -> None:
     legacy = {"outcome": "MONITOR", "family_shell": {"kind": "monitor", "id": "m"}}
     shell_legacy = {
         "outcome": "MONITOR",
-        "agent_session_turn": {"kind": "monitor", "id": "m"},
+        "agent_session_shell": {"kind": "monitor", "id": "m"},
     }
     new = {"outcome": "MONITOR", "agent_session_turn": {"kind": "monitor", "id": "m"}}
     for done_data in (legacy, shell_legacy, new):
@@ -291,7 +303,7 @@ def test_wire_bridge_backfills_new_spellings_for_legacy_fields() -> None:
     )
     # legacy shell spelling also bridges
     shell_bridged = with_agent_session_keys(
-        {"agent_session_turn": {"kind": "gate", "id": "g"}}
+        {"agent_session_shell": {"kind": "gate", "id": "g"}}
     )
     assert shell_bridged["agent_session_turn"] == {"kind": "gate", "id": "g"}
     done = DoneMarkerWire(

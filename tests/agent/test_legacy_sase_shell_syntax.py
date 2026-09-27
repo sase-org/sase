@@ -11,10 +11,14 @@ from sase.agent.legacy_sase_shell_syntax import (
     normalize_gate_fork,
     normalize_gate_shell_bool_args,
     normalize_gate_spec_block,
+    normalize_persisted_continuation_mode,
     normalize_proc_name_args,
+    normalize_reclaim_config,
 )
 from sase.feature_flags import override_flags
 from sase.main.parser_gate import register_gate_parser
+from sase.notification_gates.models import GateError, GateSpec
+from tests._notification_gates_fixtures import custom_gate_spec
 
 
 def _gate_parser() -> argparse.ArgumentParser:
@@ -68,6 +72,69 @@ def test_legacy_proc_shell_is_enabled_alias_and_disabled_error() -> None:
     with override_flags(legacy_sase_shell_syntax=False):
         with pytest.raises(ValueError, match=r"--shell is retired; use --name"):
             normalize_proc_name_args({"name": None, "shell": "b"})
+
+
+def test_legacy_continuation_mode_is_enabled_alias_and_disabled_error() -> None:
+    with override_flags(legacy_sase_shell_syntax=True):
+        assert normalize_continuation_mode("gate_shell") == "gate_turn"
+    with override_flags(legacy_sase_shell_syntax=False):
+        with pytest.raises(ValueError, match=r"gate_shell.*retired"):
+            normalize_continuation_mode("gate_shell")
+    # Stored bundles map unconditionally, regardless of the flag.
+    with override_flags(legacy_sase_shell_syntax=False):
+        assert normalize_persisted_continuation_mode("gate_shell") == "gate_turn"
+    with override_flags(legacy_sase_shell_syntax=True):
+        assert normalize_persisted_continuation_mode("gate_shell") == "gate_turn"
+
+
+def test_gate_spec_legacy_shell_block_and_continuation_follow_the_flag() -> None:
+    """A pre-rename authored gate spec reads through the flag (sase-1ab.10.1)."""
+    with override_flags(legacy_sase_shell_syntax=True):
+        raw = custom_gate_spec(request_id="legacy-shell-on")
+        raw["shell"] = {"next": {"fork": "session"}}
+        raw["continuation_mode"] = "gate_shell"
+        spec = GateSpec.from_mapping(raw)
+    assert spec.turn is not None
+    assert spec.turn.next.fork == "session"
+    assert spec.continuation_mode == "gate_turn"
+
+    with override_flags(legacy_sase_shell_syntax=False):
+        raw = custom_gate_spec(request_id="legacy-shell-off")
+        raw["shell"] = {"next": {"fork": "session"}}
+        with pytest.raises(GateError, match=r"turn"):
+            GateSpec.from_mapping(raw)
+        raw = custom_gate_spec(request_id="legacy-continuation-off")
+        raw["continuation_mode"] = "gate_shell"
+        with pytest.raises(GateError, match=r"continuation_mode"):
+            GateSpec.from_mapping(raw)
+
+
+def test_reclaim_config_legacy_shell_key_follows_the_flag() -> None:
+    with override_flags(legacy_sase_shell_syntax=True):
+        normalized = normalize_reclaim_config(
+            {"gate": {"shell": {"reclaim_grace_seconds": 60}}}
+        )
+        assert normalized["gate"]["turn"] == {"reclaim_grace_seconds": 60}  # type: ignore[index]
+    with override_flags(legacy_sase_shell_syntax=False):
+        with pytest.raises(ValueError, match=r"gate\.turn\.reclaim_grace_seconds"):
+            normalize_reclaim_config({"gate": {"shell": {"reclaim_grace_seconds": 60}}})
+
+
+def test_gate_turn_reclaim_grace_seconds_reads_legacy_key_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The config getter honors the flag instead of silently ignoring (sase-1ab.10.1)."""
+    from sase.config import get_gate_turn_reclaim_grace_seconds
+
+    monkeypatch.setattr(
+        "sase.config.core.load_merged_config",
+        lambda: {"gate": {"shell": {"reclaim_grace_seconds": 60}}},
+    )
+    with override_flags(legacy_sase_shell_syntax=True):
+        assert get_gate_turn_reclaim_grace_seconds() == 60
+    with override_flags(legacy_sase_shell_syntax=False):
+        with pytest.raises(ValueError, match=r"gate\.turn\.reclaim_grace_seconds"):
+            get_gate_turn_reclaim_grace_seconds()
 
 
 def test_gate_create_parses_canonical_turn_flags() -> None:

@@ -237,6 +237,21 @@ class GateSpec:
                     "continuation_mode must be a non-empty string",
                 )
             continuation = raw_continuation.strip()
+            # Authored requests follow the sunset flag: a retired
+            # ``gate_shell`` spelling maps to ``gate_turn`` while the flag
+            # is on and raises naming ``gate_turn`` while it is off.
+            from sase.agent.legacy_sase_shell_syntax import (
+                normalize_continuation_mode,
+            )
+
+            try:
+                normalized_continuation = normalize_continuation_mode(continuation)
+            except ValueError as exc:
+                raise GateError(
+                    "invalid_request", "continuation_mode", str(exc)
+                ) from exc
+            assert isinstance(normalized_continuation, str)
+            continuation = normalized_continuation
         timeout = data.get("gate_timeout_seconds")
         if timeout is not None:
             if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
@@ -263,12 +278,16 @@ class GateSpec:
         )
         primary_branch = normalize_primary_branch(data.get("primary_branch"), branches)
         from sase.agent.legacy_agent_family_syntax import normalize_agent_session_fork
+        from sase.agent.legacy_sase_shell_syntax import normalize_gate_spec_block
 
-        # Readers prefer the new spelling and fall back to all old spellings.
-        turn_data = data.get("turn")
-        if turn_data is None:
-            # legacy sase-shell spelling
-            turn_data = data.get("shell")
+        # Authored specs follow the sunset flag: a retired ``shell`` block
+        # maps to ``turn`` while the flag is on and raises naming ``turn``
+        # while it is off.
+        try:
+            normalized_spec = normalize_gate_spec_block(data)
+        except ValueError as exc:
+            raise GateError("invalid_request", "turn", str(exc)) from exc
+        turn_data = normalized_spec.get("turn")
         shell = (
             GateTurnSpec.from_mapping(
                 turn_data,
@@ -279,9 +298,6 @@ class GateSpec:
             if turn_data is not None
             else None
         )
-        # legacy sase-shell spelling: pre-rename bundles carry ``gate_turn``.
-        if continuation == "gate_turn":
-            continuation = "gate_turn"
         if shell is not None and timeout is None:
             timeout = GATE_TURN_DEFAULT_TIMEOUT_SECONDS
         if shell is not None:

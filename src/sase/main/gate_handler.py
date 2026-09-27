@@ -147,11 +147,13 @@ def _merge_shell_cli_overrides(
         )
     ):
         return
-    from sase.agent.legacy_sase_shell_syntax import (
-        normalize_persisted_gate_spec_block,
-    )
+    from sase.agent.legacy_sase_shell_syntax import normalize_gate_spec_block
 
-    _normalized_spec = normalize_persisted_gate_spec_block(dict(data))
+    try:
+        _normalized_spec = normalize_gate_spec_block(dict(data))
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     data.clear()
     data.update(_normalized_spec)
     raw_turn = data.get("turn", {})

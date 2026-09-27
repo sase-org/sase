@@ -26,12 +26,13 @@ from sase.procs.names import (
 
 
 def test_legacy_agent_meta_proc_kind_normalizes_to_monitor() -> None:
+    # legacy sase-shell spelling: pre-rename meta carries agent_session_shell.
     legacy_meta = {
         "name": "acme--mon",
         "agent_session": "acme",
         "agent_session_role": "monitor",
         "shell_kind": "proc",
-        "agent_session_turn": {"kind": "monitor", "id": "m1"},
+        "agent_session_shell": {"kind": "monitor", "id": "m1"},
     }
     assert turn_kind_value(legacy_meta) == "monitor"
     turn = agent_session_turn_from_mapping(legacy_meta)
@@ -50,14 +51,16 @@ def test_legacy_done_marker_family_shell_hydrates() -> None:
 def test_new_writer_omits_legacy_member_keys() -> None:
     from sase.plan_chain import set_agent_session_fields
 
+    # legacy sase-shell spelling: pre-rename meta carries agent_session_shell.
     meta: dict[str, object] = {
-        "agent_session_turn": {"kind": "monitor"},
+        "agent_session_shell": {"kind": "monitor"},
         "shell_kind": "proc",
         "family_shell": {"kind": "monitor"},
         "agent_family": "acme",
     }
     set_agent_session_fields(meta, turn={"kind": "monitor", "id": "m"})
-    assert "agent_session_turn" not in meta
+    assert meta["agent_session_turn"] == {"kind": "monitor", "id": "m"}
+    assert "agent_session_shell" not in meta
     assert "shell_kind" not in meta
     assert "family_shell" not in meta
     assert "agent_family" not in meta
@@ -101,7 +104,11 @@ def test_proc_concurrency_legacy_and_new_prefixes_compare_equal() -> None:
 
 
 def test_both_wire_spellings_hydrate() -> None:
-    for key in ("agent_session_turn", "agent_session_shell", "family_shell"):
+    # Canonical spelling hydrates, and each legacy spelling backfills it.
+    canonical = {"agent_session_turn": {"kind": "gate", "id": "g9"}}
+    turn = agent_session_turn_from_mapping(canonical)
+    assert turn is not None and turn.kind == "gate" and turn.id == "g9"
+    for key in ("agent_session_shell", "family_shell"):
         data = {key: {"kind": "gate", "id": "g9"}}
         turn = agent_session_turn_from_mapping(data)
         assert turn is not None and turn.kind == "gate" and turn.id == "g9"
@@ -125,11 +132,10 @@ def test_gate_fork_shell_normalizes_to_turn() -> None:
 
 
 def test_gate_continuation_shell_normalizes_to_turn() -> None:
-    # Continuation mode normalization lives in GateSpec.from_mapping; exercise
-    # the value mapping directly so the test does not depend on adapters.
-    assert "gate_shell" != "gate_turn"
-    # The mapping itself is covered by test_gate_fork_shell_normalizes_to_turn
-    # and the GateSpec turn/shell bridge; this asserts the intended values.
-    from sase.notification_gates import model_request as model_request_module
+    from sase.agent.legacy_sase_shell_syntax import (
+        normalize_persisted_continuation_mode,
+    )
 
-    assert hasattr(model_request_module.GateSpec, "turn")
+    # legacy sase-shell spelling: pre-rename bundles carry gate_shell.
+    assert normalize_persisted_continuation_mode("gate_shell") == "gate_turn"
+    assert normalize_persisted_continuation_mode("gate_turn") == "gate_turn"

@@ -31,8 +31,13 @@ def _dismissed_procs_file() -> Path:
 
 
 def _legacy_dismissed_named_procs_file() -> Path:
-    """Return the legacy dismissed-named-proc JSON path."""
-    return _DISMISSED_NAMED_PROCS_FILE or sase_home() / "dismissed_named_procs.json"
+    """Return the legacy dismissed-proc JSON path, honoring the test hook.
+
+    The true pre-rename file is ``dismissed_proc_shells.json``; the
+    ``dismissed_named_procs.json`` spelling was an intermediate rename
+    artifact that never shipped as canonical.
+    """
+    return _DISMISSED_NAMED_PROCS_FILE or sase_home() / "dismissed_proc_shells.json"
 
 
 def _read_ids_from_path(path: Path) -> set[str] | None:
