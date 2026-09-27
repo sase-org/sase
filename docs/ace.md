@@ -6756,10 +6756,11 @@ for the exact launch, conversion, and naming rules.
 
 `Ctrl+G p` opens the Prompts overlay on the Stash tab from the prompt bar. From the main
 sase's TUI tabs, even when the prompt bar is not active, `@` restores a lone stashed
-draft directly and opens the overlay when several are stashed; `,@` or clicking the
-`stash:` chip always opens the overlay on Stash, and an empty Stash still opens it (the
-empty state explains how to save a draft and points at Trash when Trash has rows). In
-the Stash tab, `space` toggles a row's persistent pin, `Tab` toggles a row's restore
+draft directly and opens the overlay when several are stashed. A lone pinned draft stays
+in Stash after that direct restore; a lone unpinned draft is consumed. `,@` or clicking
+the `stash:` chip always opens the overlay on Stash, and an empty Stash still opens it
+(the empty state explains how to save a draft and points at Trash when Trash has rows).
+In the Stash tab, `space` toggles a row's persistent pin, `Tab` toggles a row's restore
 mark, `d` marks one row for discard, `D` marks every row for discard, `a` toggles
 restore marks on all rows, and `Enter` confirms the marked set; restores are pin-aware,
 so marked pinned rows stay stashed. With no explicit marks, `Enter` restores the
@@ -6786,10 +6787,11 @@ entry-count limit, not a byte quota): a discard batch that would overflow it nam
 expected permanent-loss count up front, and the success toast names the actual
 evictions. Setting the limit to `0` disables recovery: Stash `d`/`D` plus `Enter` then
 delete permanently, and a partial discard is applied without a confirmation prompt. A
-lowered limit is enforced the next time the overlay opens, and any evictions are
-surfaced. Trash recovers only drafts deliberately discarded from Stash; successful
-unpinned Stash restores consume their rows without entering Trash, and there is no
-history deletion action.
+lowered limit is enforced the next time the overlay opens, and a toast reports any
+evictions. That first overlay can still display the pre-reconciliation Trash rows and
+count; close and reopen it to see the updated list. Trash recovers only drafts
+deliberately discarded from Stash; successful unpinned Stash restores consume their rows
+without entering Trash, and there is no history deletion action.
 
 Compact demo — discard `fix flaky parser test`, then recover it:
 

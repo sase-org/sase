@@ -133,6 +133,12 @@ sase's TUI has three top-level tabs:
   scheduled work below `scheduler`. sase's TUI starts the active controller unless you
   pass `--no-service`.
 
+To revisit the prompt you launched, press `,.` from any TUI tab to open the **Prompts**
+overlay on History. The same overlay has Stash for drafts saved with `Ctrl+S` in the
+prompt input and Trash for drafts discarded from Stash. Use `[` and `]` to switch tabs;
+see [Prompts Overlay](ace.md#prompt-history-modal) for what each action restores or
+launches.
+
 The colored `project: +<project>` chip at the right of each tab's status row is the
 [current project](ace.md#current-project) — the project you most recently launched an
 agent on (or promoted with `sase project set-current`). After the `+home` run above,
