@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.core.agent_scan_facade import scan_agent_artifacts
-from sase.core.agent_scan_wire import AGENT_SCAN_WIRE_SCHEMA_VERSION
+from sase.core.agent_scan_wire_records import SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS
 
 from .agent_scan_golden import (
     EXPECTED_DECODE_ERRORS,
@@ -20,7 +20,7 @@ def test_scan_returns_one_record_per_artifact_dir(fixture_root: Path) -> None:
     timestamps = [r.timestamp for r in snapshot.records]
     # Every fixture artifact directory must show up exactly once.
     assert sorted(timestamps) == sorted(EXPECTED_TIMESTAMPS)
-    assert snapshot.schema_version == AGENT_SCAN_WIRE_SCHEMA_VERSION
+    assert snapshot.schema_version in SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS
     assert snapshot.projects_root == str(fixture_root)
 
 

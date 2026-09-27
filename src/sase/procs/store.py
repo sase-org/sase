@@ -13,6 +13,7 @@ from sase.core.rust import require_rust_binding
 from ._migration import ensure_procs_migrated
 from .logs import delete_proc_logs
 from .models import (
+    PROC_WIRE_SCHEMA_VERSION,
     Proc,
     ProcAppendOutcome,
     ProcFinish,
@@ -119,6 +120,21 @@ def append_proc(
     return outcome
 
 
+def _reserve_request_schema_version() -> int:
+    """Schema version the installed core's reserve endpoint requires.
+
+    The sase-turn contract flip (sase-1ab.7) bumped the proc wire to 4 and
+    added the ``proc_wire_schema_version`` binding; older cores have neither
+    and require the pre-flip mirror. Reading the version from the installed
+    core keeps one sase tree working against either core until pin-bump
+    (sase-1ab.8) moves the mirror.
+    """
+    try:
+        return int(require_rust_binding("proc_wire_schema_version")())
+    except (AttributeError, ImportError, ValueError):
+        return PROC_WIRE_SCHEMA_VERSION
+
+
 def reserve_proc(
     reserve: ProcReserve | Mapping[str, Any],
     *,
@@ -129,6 +145,7 @@ def reserve_proc(
     record = (
         reserve if isinstance(reserve, ProcReserve) else ProcReserve.from_dict(reserve)
     )
+    record = replace(record, schema_version=_reserve_request_schema_version())
     payload: Mapping[str, Any] = _call_binding(
         "reserve_proc",
         str(path or proc_store_path()),

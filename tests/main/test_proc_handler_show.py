@@ -144,9 +144,9 @@ def test_show_resolves_named_named_proc_before_id(
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["proc"]["proc_id"] == "bbbbbbbbbbbb"
-    assert payload["proc"]["named_named_proc"] == "agent--build"
+    assert payload["proc"]["named_proc"] == "agent--build"
 
     assert dispatch(["proc", "show", "agent--build"]) == 0
     rendered = capsys.readouterr().out
-    assert "Named proc shell" in rendered
+    assert "Named proc" in rendered
     assert "agent--build" in rendered

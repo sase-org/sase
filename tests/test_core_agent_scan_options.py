@@ -8,10 +8,10 @@ import pytest
 
 from sase.core.agent_scan_facade import scan_agent_artifact_dirs, scan_agent_artifacts
 from sase.core.agent_scan_wire import (
-    AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactScanOptionsWire,
     agent_scan_wire_to_json_dict,
 )
+from sase.core.agent_scan_wire_records import SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS
 
 from .agent_scan_golden.fixture_builder import (
     TS_ACE_RUN_DONE,
@@ -356,7 +356,7 @@ def test_snapshot_serializes_to_json(fixture_root: Path) -> None:
     raw = json.dumps(payload)
     assert isinstance(raw, str)
     decoded = json.loads(raw)
-    assert decoded["schema_version"] == AGENT_SCAN_WIRE_SCHEMA_VERSION
+    assert decoded["schema_version"] in SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS
     assert decoded["projects_root"] == str(fixture_root)
     assert isinstance(decoded["records"], list)
     assert all("timestamp" in r for r in decoded["records"])

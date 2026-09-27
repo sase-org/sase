@@ -6,7 +6,10 @@ from collections.abc import Mapping
 from typing import Any, Final
 
 PROC_WIRE_SCHEMA_VERSION: Final = 3
-SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS: Final = frozenset({1, 2, PROC_WIRE_SCHEMA_VERSION})
+# Schema 4 is the sase-turn contract flip (sase-1ab.7) emission; the mirror
+# above still names the pre-flip version until pin-bump (sase-1ab.8) moves
+# it. Readers accept both so one sase tree works against either core.
+SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS: Final = frozenset({1, 2, 3, 4})
 
 ACTIVE_PROC_STATUSES: Final = frozenset({"pending", "running", "settling"})
 TERMINAL_PROC_STATUSES: Final = frozenset({"success", "error", "killed"})

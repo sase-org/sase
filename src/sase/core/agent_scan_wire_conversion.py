@@ -28,7 +28,7 @@ from sase.core.agent_scan_wire_markers import (
     WorkflowStepStateWire,
 )
 from sase.core.agent_scan_wire_records import (
-    AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS,
     AgentArtifactIndexCompletenessWire,
     AgentArtifactIndexDismissalReconcileWire,
     AgentArtifactIndexStatusWire,
@@ -514,10 +514,11 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
     the wire schema version, not constructor ``TypeError``.
     """
     schema_version = int(data["schema_version"])
-    if schema_version != AGENT_SCAN_WIRE_SCHEMA_VERSION:
+    if schema_version not in SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS:
         raise ValueError(
             "agent scan wire schema mismatch: "
-            f"got {schema_version}, expected {AGENT_SCAN_WIRE_SCHEMA_VERSION}"
+            f"got {schema_version}, expected one of "
+            f"{sorted(SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS)}"
         )
     options = _options_from_dict(data.get("options") or {})
     stats = _stats_from_dict(data.get("stats") or {})

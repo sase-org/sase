@@ -10,7 +10,6 @@ from typing import Any
 import pytest
 
 from sase.procs import (
-    PROC_WIRE_SCHEMA_VERSION,
     ProcFinish,
     ProcSettlement,
     ProcStopRequest,
@@ -26,6 +25,7 @@ from sase.procs import (
     reserve_proc,
     update_proc,
 )
+from sase.procs.models import SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS
 
 from tests._procs_facade_helpers import _proc, _reserve
 
@@ -43,7 +43,7 @@ def test_rust_facade_round_trip_update_and_get(tmp_path: Path) -> None:
         pid=4321,
     )
 
-    assert appended.schema_version == PROC_WIRE_SCHEMA_VERSION
+    assert appended.schema_version in SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS
     assert updated.matched is True
     assert updated.proc is not None
     assert updated.proc.status == "running"
@@ -94,7 +94,7 @@ def test_named_proc_reserve_conflicts_and_lifecycle_facade(tmp_path: Path) -> No
     reserved = reserve_proc(_reserve("reserved-one"), path=store, history_limit=10)
     assert reserved.reserved is True
     assert reserved.replayed is False
-    assert reserved.proc.schema_version == PROC_WIRE_SCHEMA_VERSION
+    assert reserved.proc.schema_version in SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS
     assert reserved.proc.lifecycle == "named-proc"
     assert reserved.proc.argv == ["just", "docs"]
 
@@ -107,7 +107,9 @@ def test_named_proc_reserve_conflicts_and_lifecycle_facade(tmp_path: Path) -> No
     assert replay.replayed is True
     assert replay.proc.proc_id == "reserved-one"
 
-    with pytest.raises(ValueError, match="shell_name"):
+    # Pre-flip cores report the conflict on `shell_name`; the contract flip
+    # (sase-1ab.7) reports it on `proc_name`. Accept either spelling.
+    with pytest.raises(ValueError, match="shell_name|proc_name"):
         reserve_proc(
             _reserve("conflict-one", fingerprint="different"),
             path=store,

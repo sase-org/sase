@@ -201,6 +201,18 @@ def _scan_file(path: Path) -> _FileScan:
     return scan
 
 
+# Legacy sase-shell binding spellings removed by the sase-turn contract flip
+# (sase-1ab.7). They are referenced only from old-core fallback handlers, so
+# the static scan exempts them; the installed core only needs the canonical
+# names. Pin-bump (sase-1ab.8) owns removing the fallbacks.
+LEGACY_FALLBACK_BINDINGS = frozenset(
+    {
+        "find_gate_shell_by_gate_id",
+        "validate_standalone_proc_shell_name",
+    }
+)
+
+
 def collect_binding_names(src_root: Path) -> tuple[set[str], list[str]]:
     """Return (binding names, unanalyzable-call-site problems) for a tree."""
     names: set[str] = set()
@@ -209,6 +221,7 @@ def collect_binding_names(src_root: Path) -> tuple[set[str], list[str]]:
         scan = _scan_file(path)
         names.update(scan.names)
         problems.extend(scan.problems)
+    names -= LEGACY_FALLBACK_BINDINGS
     return names, problems
 
 

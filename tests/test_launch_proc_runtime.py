@@ -21,6 +21,7 @@ from sase.core.agent_hold_facade import (
 )
 from sase.core.agent_launch_facade import (
     parse_proc_duration_seconds,
+    proc_dispatch_wire_schema_version,
     resolve_proc_execution_cwd,
     sanitized_proc_env,
     validate_proc_workspace_intent,
@@ -651,7 +652,7 @@ def test_prepared_script_mode_is_private(tmp_path: Path) -> None:
     code = make_code_value("echo ready", "bash", "bash")
     prepared = prepare_proc_script(
         {
-            "schema_version": 1,
+            "schema_version": proc_dispatch_wire_schema_version(),
             "logical_id": "unit-1",
             "fingerprint": "fp",
             "code": {

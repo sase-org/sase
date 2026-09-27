@@ -161,7 +161,9 @@ def test_named_named_proc_reuse_is_project_scoped_and_waits_for_settlement(
         project="sase",
         proc_name="agent--docs",
     )
-    with pytest.raises(ProcSubmitError, match="shell_name"):
+    # Pre-flip cores report the conflict on `shell_name`; the contract flip
+    # (sase-1ab.7) reports it on `proc_name`. Accept either spelling.
+    with pytest.raises(ProcSubmitError, match="shell_name|proc_name"):
         submit_proc(
             argv,
             label="Conflict",

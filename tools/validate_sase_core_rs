@@ -1125,10 +1125,12 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
     if not isinstance(snapshot, dict):
         _error("scan_agent_artifacts probe returned a non-dict payload")
         return False
-    if snapshot.get("schema_version") != 10:
+    # Accept the pre-flip (10) and contract-flip (11) schemas so this probe
+    # passes against either core; pin-bump moves the mirrors afterwards.
+    if snapshot.get("schema_version") not in (10, 11):
         _error(
             "scan_agent_artifacts probe returned stale schema: "
-            f"got {snapshot.get('schema_version')!r}, expected 10"
+            f"got {snapshot.get('schema_version')!r}, expected 10 or 11"
         )
         return False
 
@@ -1647,9 +1649,21 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
     return True
 
 
-def _proc_lifecycle_probe_reserve() -> dict[str, Any]:
+def _proc_lifecycle_probe_schema_version(module: ModuleType) -> int:
+    """Proc wire version the installed core's reserve endpoint requires.
+
+    The sase-turn contract flip (sase-1ab.7) bumped the schema to 4; older
+    cores have no ``proc_wire_schema_version`` binding and require 3.
+    """
+    try:
+        return int(module.proc_wire_schema_version())
+    except Exception:
+        return 3
+
+
+def _proc_lifecycle_probe_reserve(schema_version: int = 3) -> dict[str, Any]:
     return {
-        "schema_version": 3,
+        "schema_version": schema_version,
         "proc_id": "validator-proc",
         "label": "Validator proc",
         "kind": "command",
@@ -1675,24 +1689,26 @@ def _proc_lifecycle_probe_reserve() -> dict[str, Any]:
     }
 
 
-def _proc_from_outcome(outcome: Any, binding_name: str) -> dict[str, Any] | None:
+def _proc_from_outcome(
+    outcome: Any, binding_name: str, schema_version: int = 3
+) -> dict[str, Any] | None:
     if not isinstance(outcome, dict):
         _error(f"{binding_name} probe returned a non-dict payload")
         return None
-    if outcome.get("schema_version") != 3:
+    if outcome.get("schema_version") != schema_version:
         _error(
             f"{binding_name} probe returned stale schema: "
-            f"got {outcome.get('schema_version')!r}, expected 3"
+            f"got {outcome.get('schema_version')!r}, expected {schema_version}"
         )
         return None
     proc = outcome.get("proc")
     if not isinstance(proc, dict):
         _error(f"{binding_name} probe payload has no proc dict")
         return None
-    if proc.get("schema_version") != 3:
+    if proc.get("schema_version") != schema_version:
         _error(
             f"{binding_name} probe returned stale proc schema: "
-            f"got {proc.get('schema_version')!r}, expected 3"
+            f"got {proc.get('schema_version')!r}, expected {schema_version}"
         )
         return None
     return proc
@@ -1729,7 +1745,13 @@ def _call_proc_lifecycle_binding(
 
 
 def _validate_proc_lifecycle_contract(module: ModuleType) -> bool:
-    """Exercise the schema-v3 proc-shell lifecycle used by the Python service."""
+    """Exercise the named-proc lifecycle used by the Python service.
+
+    Pre-flip cores reserve schema 3 with a ``proc-shell`` lifecycle; the
+    contract flip (sase-1ab.7) reserves schema 4 with ``named-proc``. Either
+    spelling passes so this probe works against either core.
+    """
+    schema_version = _proc_lifecycle_probe_schema_version(module)
     with tempfile.TemporaryDirectory(
         prefix="sase-core-rs-proc-lifecycle-probe-"
     ) as tmp:
@@ -1738,10 +1760,10 @@ def _validate_proc_lifecycle_contract(module: ModuleType) -> bool:
             module,
             "reserve_proc",
             str(store),
-            _proc_lifecycle_probe_reserve(),
+            _proc_lifecycle_probe_reserve(schema_version),
             10,
         )
-        proc = _proc_from_outcome(reserve, "reserve_proc")
+        proc = _proc_from_outcome(reserve, "reserve_proc", schema_version)
         if proc is None or not isinstance(reserve, dict):
             return False
         valid = True
@@ -1757,12 +1779,18 @@ def _validate_proc_lifecycle_contract(module: ModuleType) -> bool:
             {
                 "status": "pending",
                 "phase": "reserved",
-                "lifecycle": "proc-shell",
                 "reserved_by": "validate_sase_core_rs",
                 "reserved_at": "2026-08-15T00:00:00Z",
                 "request_fingerprint": "validator-fingerprint",
             },
         )
+        if proc.get("lifecycle") not in ("proc-shell", "named-proc"):
+            _error(
+                "reserve_proc probe returned stale proc fields: "
+                f"lifecycle={proc.get('lifecycle')!r} "
+                "(expected 'proc-shell' or 'named-proc')"
+            )
+            valid = False
 
         claim = _call_proc_lifecycle_binding(
             module,
@@ -1776,7 +1804,7 @@ def _validate_proc_lifecycle_contract(module: ModuleType) -> bool:
                 "pgid": 123,
             },
         )
-        proc = _proc_from_outcome(claim, "claim_proc_supervisor")
+        proc = _proc_from_outcome(claim, "claim_proc_supervisor", schema_version)
         if proc is None or not isinstance(claim, dict):
             return False
         valid &= claim.get("matched") is True
@@ -1804,7 +1832,7 @@ def _validate_proc_lifecycle_contract(module: ModuleType) -> bool:
                 "reason": "probe",
             },
         )
-        proc = _proc_from_outcome(stop, "request_proc_stop")
+        proc = _proc_from_outcome(stop, "request_proc_stop", schema_version)
         if proc is None or not isinstance(stop, dict):
             return False
         valid &= stop.get("matched") is True
@@ -1831,7 +1859,7 @@ def _validate_proc_lifecycle_contract(module: ModuleType) -> bool:
                 "message": "settling",
             },
         )
-        proc = _proc_from_outcome(settlement, "begin_proc_settlement")
+        proc = _proc_from_outcome(settlement, "begin_proc_settlement", schema_version)
         if proc is None or not isinstance(settlement, dict):
             return False
         valid &= settlement.get("matched") is True
@@ -1860,7 +1888,7 @@ def _validate_proc_lifecycle_contract(module: ModuleType) -> bool:
                 "result": {"ok": True},
             },
         )
-        proc = _proc_from_outcome(finish, "finish_proc")
+        proc = _proc_from_outcome(finish, "finish_proc", schema_version)
         if proc is None or not isinstance(finish, dict):
             return False
         valid &= finish.get("matched") is True
@@ -2063,11 +2091,18 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
         agent_session="target.agent",
         created_at=1767226800.0,
     )
+    # Pre-flip cores read hold schema 2; the contract flip (sase-1ab.7)
+    # bumped it to 3. Read the installed core's version so this probe
+    # passes against either core.
+    try:
+        hold_schema_version = int(module.agent_hold_wire_schema_version())
+    except Exception:
+        hold_schema_version = 2
     held_request = {
         "effective_limit": 2.0,
         "holds": [
             {
-                "schema_version": 2,
+                "schema_version": hold_schema_version,
                 "armer": {
                     "kind": "agent",
                     "key": "agent:hold-a",

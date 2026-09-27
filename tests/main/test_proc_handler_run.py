@@ -295,7 +295,7 @@ def test_run_named_named_proc_derives_and_does_not_conflate_keys(
 
     proc = json.loads(capsys.readouterr().out)["proc"]
     assert proc["proc_name"] == "foo--build"
-    assert proc["named_named_proc"] == "foo--build"
+    assert proc["named_proc"] == "foo--build"
     assert proc["concurrency_keys"] == []
 
 
