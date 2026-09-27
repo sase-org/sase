@@ -54,6 +54,13 @@ class ObjectSharingResult:
 
     @property
     def reclaimed_bytes(self) -> int:
+        """Bytes actually freed.
+
+        ``before_bytes`` and ``after_bytes`` count only exclusively owned
+        object files (``st_nlink == 1``), so hardlinks into the primary's
+        object store never inflate this figure.
+        """
+
         return max(0, self.before_bytes - self.after_bytes)
 
 

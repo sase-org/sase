@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -456,3 +457,32 @@ def test_clean_reuse_preserves_unique_local_history_without_repoint(
     assert _git(target, "rev-parse", "HEAD") == local_head
     assert _git(target, "status", "--porcelain") == ""
     _git(target, "log", "--oneline", "-1")
+
+
+def test_checkout_object_bytes_counts_only_exclusive_objects(
+    tmp_path: Path,
+) -> None:
+    """Hardlinks into the primary's object store are not compact savings.
+
+    A borrower cloned with ``--local`` shares object files by hardlink, so
+    ``checkout_object_bytes`` must count only ``st_nlink == 1`` files;
+    otherwise ``sase workspace compact`` reports the shared bytes as
+    reclaimed while ``df`` barely moves.
+    """
+    primary, _remote = _make_primary(tmp_path)
+    before = git_objects.checkout_object_bytes(str(primary))
+    assert before > 0
+    loose_files = [
+        path
+        for path in (primary / ".git" / "objects").rglob("*")
+        if path.is_file() and not path.is_symlink()
+    ]
+    assert loose_files
+    victim = loose_files[0]
+    victim_size = victim.stat().st_size
+    assert victim_size > 0
+    os.link(victim, tmp_path / "shared-copy")
+
+    after = git_objects.checkout_object_bytes(str(primary))
+
+    assert after == before - victim_size

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import subprocess
 from pathlib import Path
 
@@ -137,7 +138,14 @@ def clear_borrower_config(checkout_dir: str) -> None:
 
 
 def _object_dir_bytes(object_dir: str | Path) -> int:
-    """Measure local object storage without following symlinks."""
+    """Measure exclusive local object storage without following symlinks.
+
+    Only regular files with ``st_nlink == 1`` are counted. Files cloned
+    with ``--local`` are hardlinks into the primary's object store, so
+    counting them would report bytes the checkout does not exclusively
+    own and ``sase workspace compact`` would over-report reclaimed bytes
+    relative to ``df``.
+    """
 
     root = Path(object_dir)
     if not root.exists():
@@ -151,13 +159,13 @@ def _object_dir_bytes(object_dir: str | Path) -> int:
             with os.scandir(current) as entries:
                 for entry in entries:
                     try:
-                        stat = entry.stat(follow_symlinks=False)
+                        entry_stat = entry.stat(follow_symlinks=False)
                     except OSError:
                         continue
                     if entry.is_dir(follow_symlinks=False):
                         stack.append(Path(entry.path))
-                    else:
-                        total += stat.st_size
+                    elif stat.S_ISREG(entry_stat.st_mode) and entry_stat.st_nlink == 1:
+                        total += entry_stat.st_size
         except OSError:
             continue
     return total

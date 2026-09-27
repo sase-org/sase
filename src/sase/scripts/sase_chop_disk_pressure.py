@@ -71,22 +71,26 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             f"{row['owner']} {format_bytes(int(row['size_bytes']))} {row['path']}"
         )
     if top_rows:
+        details = [
+            (
+                "SASE disk pressure: "
+                f"{format_bytes(int(pressure_row['free_bytes']))} free "
+                f"on {pressure_row['label']} ({free_percent:.1f}%)"
+            ),
+            "Top owners: "
+            + "; ".join(
+                f"{row['owner']} {format_bytes(int(row['size_bytes']))}"
+                for row in top_rows
+            ),
+        ]
+        unattributed_lead = _unattributed_lead_line(report, top_rows)
+        if unattributed_lead is not None:
+            details.insert(0, unattributed_lead)
         notify_workflow_complete(
             "disk_pressure",
             None,
             False,
-            [
-                (
-                    "SASE disk pressure: "
-                    f"{format_bytes(int(pressure_row['free_bytes']))} free "
-                    f"on {pressure_row['label']} ({free_percent:.1f}%)"
-                ),
-                "Top owners: "
-                + "; ".join(
-                    f"{row['owner']} {format_bytes(int(row['size_bytes']))}"
-                    for row in top_rows
-                ),
-            ],
+            details,
             tags=["disk", "housekeeping"],
         )
 
@@ -120,6 +124,43 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "failed": failed,
         },
         reason="pressure",
+    )
+
+
+def _unattributed_lead_line(
+    report: Any,
+    top_rows: tuple[dict[str, Any], ...],
+) -> str | None:
+    """Lead the pressure notification with unattributed bytes when dominant.
+
+    Returns a lead sentence when the inventory's ``unattributed`` row
+    exceeds the largest attributed owner, otherwise ``None``.
+    """
+
+    unattributed_bytes = 0
+    for row in report.rows:
+        payload = row.to_json_dict() if hasattr(row, "to_json_dict") else row
+        if payload.get("owner") != "unattributed":
+            continue
+        size = payload.get("exclusive_size_bytes")
+        if size is None:
+            size = payload.get("size_bytes") or 0
+        unattributed_bytes = max(unattributed_bytes, int(size))
+    if unattributed_bytes <= 0:
+        return None
+    largest_attributed = max(
+        (
+            int(row["size_bytes"])
+            for row in top_rows
+            if row.get("owner") != "unattributed"
+        ),
+        default=0,
+    )
+    if unattributed_bytes <= largest_attributed:
+        return None
+    return (
+        f"Unattributed {format_bytes(unattributed_bytes)} on the SASE_HOME "
+        "filesystem falls outside every inventoried owner; see sase disk list"
     )
 
 

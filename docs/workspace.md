@@ -549,8 +549,10 @@ it as `Workspace preparation failed: …` (or
 reports omits the step: `Failed to prepare workspace <dir>: <reason>`.
 
 `sase workspace compact -n` previews eligible existing checkouts and reports local
-object bytes without changing Git config or objects. Pass one or more workspace numbers
-to restrict the operation to those registered checkouts, and `-j/--json` for a
+object bytes without changing Git config or objects. Before/after/reclaimed bytes count
+only exclusively owned object files (`st_nlink == 1`), so objects a checkout shares with
+the primary by hardlink are never reported as reclaimed. Pass one or more workspace
+numbers to restrict the operation to those registered checkouts, and `-j/--json` for a
 per-checkout result object (status, reason, and before/after/reclaimed bytes). Apply
 mode skips the primary, missing or non-Git paths, RUNNING claims, live occupant records,
 dirty checkouts, unexpected alternates, and broken alternates that SASE does not own. It

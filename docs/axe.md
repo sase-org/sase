@@ -593,15 +593,18 @@ disk-pressure policy: a filesystem is under pressure when its free space falls b
 larger of 3 GiB and [`disk.pressure.warn_free_percent`](configuration.md#disk) of its
 size. With no pressure, the job exits with reason `space_ok` without scanning the disk
 footprint. Under pressure, it logs the largest owners from `sase disk list` and, when
-any qualify, sends a notification naming them; it then runs unattended owner-safe
-cleanup early: the managed-temp reaper, using the measured free space and warn threshold
-as its pressure floor and recovery target, and the proc cleanup owner (proc-row and log
-retention plus the rowless runtime sweep). Those owners encode their own deletion
-policy, and one owner's failure is reported without skipping the next. Workspace
-Git-object compaction is left to an explicit `sase disk reap --apply`, and artifact run
-directories, backups, and unowned Cargo-shaped strays are reported for human action;
-this job never touches them. The summary reports the free percentage, effective warn
-threshold, owner and step counts, and how many steps changed or failed.
+any qualify, sends a notification naming them; when the inventory's `unattributed` row
+(filesystem used minus attributed bytes on the `SASE_HOME` filesystem) exceeds the
+largest attributed owner, the notification leads with that row instead of pointing at a
+small owner. The job then runs unattended owner-safe cleanup early: the managed-temp
+reaper, using the measured free space and warn threshold as its pressure floor and
+recovery target, and the proc cleanup owner (proc-row and log retention plus the rowless
+runtime sweep). Those owners encode their own deletion policy, and one owner's failure
+is reported without skipping the next. Workspace Git-object compaction is left to an
+explicit `sase disk reap --apply`, and artifact run directories, backups, and unowned
+Cargo-shaped strays are reported for human action; this job never touches them. The
+summary reports the free percentage, effective warn threshold, owner and step counts,
+and how many steps changed or failed.
 
 The `bead_stale_cleanup` job is the other half of the task-bead `+1` bar. Ready task
 beads that never clear their [effective `+1` bar](beads.md#per-type-triage-bar) stay

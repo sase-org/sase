@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
@@ -11,7 +12,12 @@ from typing import Any
 
 from sase.config import (
     get_artifact_retention_keep_recent_run_months,
+    get_disk_pressure_warn_free_percent,
     get_managed_tmp_handoff_horizon_seconds,
+)
+from sase.core.disk_pressure import ABSOLUTE_WARN_FREE_BYTES
+from sase.core.managed_tmp_roots import (
+    effective_managed_tmp_roots as _effective_managed_tmp_roots,
 )
 from sase.core.disk_footprint_models import (
     DISK_COVERAGE_COMPLETE,
@@ -39,11 +45,25 @@ from sase.procs.paths import procs_dir
 from sase.workspace_provider.inventory import collect_workspace_inventory
 
 
+effective_managed_tmp_roots = _effective_managed_tmp_roots
+
 _GIB = 1024**3
 _DEFAULT_STRAY_MAX_DEPTH = 6
 _DEFAULT_STRAY_MAX_VISITED = 50_000
 _DEFAULT_STRAY_SCAN_SECONDS = 5.0
 _UNRESOLVED_PATH = ""
+
+#: Heavy sub-trees sized per workspace checkout so a clipped scan still
+#: attributes bytes to the owning project instead of only the stray walk.
+_WORKSPACE_HEAVY_CHILDREN = (
+    ".git/objects",
+    ".pytest_cache",
+    "sase/repos",
+    ".venv",
+    "target",
+)
+
+_UNATTRIBUTED_OWNER = "unattributed"
 
 
 def collect_disk_footprint(
@@ -53,8 +73,16 @@ def collect_disk_footprint(
     tree_size_fn: Callable[[Path], int] | None = None,
     workspace_inventory_fn: Callable[..., Any] = collect_workspace_inventory,
     now: datetime | None = None,
+    disk_usage_fn: Callable[[str], Any] | None = None,
 ) -> DiskFootprintReport:
-    """Collect SASE-owned and SASE-shaped disk usage rows."""
+    """Collect SASE-owned and SASE-shaped disk usage rows.
+
+    SASE-known heavy locations (managed roots, state, workspaces, rust
+    targets) are always sized before the generic stray walk, so an
+    exhausted shared scan budget can only clip the stray walk. When the
+    scan is partial or the ``SASE_HOME`` filesystem is under pressure, an
+    ``unattributed`` row accounts for ``df`` used minus attributed bytes.
+    """
 
     rows: list[DiskFootprintRow] = []
     diagnostics: list[str] = []
@@ -113,13 +141,30 @@ def collect_disk_footprint(
             )
 
     diagnostics.extend(tuple(bounded_sizer.diagnostics) if bounded_sizer else ())
-    return _classified_report(
+    report = _classified_report(
         rows,
         generated_at=generated,
         stray_scan_visited=stray_visited,
         stray_scan_truncated=stray_truncated or budget.truncated,
         scan_diagnostics=diagnostics,
     )
+    unattributed = _unattributed_row(
+        report,
+        disk_usage_fn=disk_usage_fn or shutil.disk_usage,
+    )
+    if unattributed is not None:
+        diagnostics.append(
+            f"unattributed {unattributed.size_bytes} bytes on the SASE_HOME "
+            "filesystem fall outside inventoried rows"
+        )
+        report = _classified_report(
+            (*rows, unattributed),
+            generated_at=generated,
+            stray_scan_visited=stray_visited,
+            stray_scan_truncated=stray_truncated or budget.truncated,
+            scan_diagnostics=diagnostics,
+        )
+    return report
 
 
 def largest_unowned_rows(
@@ -175,6 +220,85 @@ def _classified_report(
     )
 
 
+def _unattributed_row(
+    report: DiskFootprintReport,
+    *,
+    disk_usage_fn: Callable[[str], Any],
+) -> DiskFootprintRow | None:
+    """Explain ``df`` used bytes that no inventoried row attributes.
+
+    The row is emitted only when coverage is partial or the filesystem
+    holding ``SASE_HOME`` is under pressure; otherwise attribution already
+    accounts for the disk. It carries an empty path so the classifier
+    cannot nest it under (or over) inventoried rows and double-count.
+    """
+
+    try:
+        home = sase_home()
+    except Exception:  # noqa: BLE001 - inventory must stay fail-open.
+        return None
+    try:
+        usage = disk_usage_fn(str(home))
+        total_bytes = int(usage.total)
+        used_bytes = int(usage.used)
+        free_bytes = int(usage.free)
+    except Exception:  # noqa: BLE001 - inventory must stay fail-open.
+        return None
+    unattributed_bytes = used_bytes - _attributed_bytes_on(report, home)
+    if unattributed_bytes <= 0:
+        return None
+    warn_threshold = max(
+        ABSOLUTE_WARN_FREE_BYTES,
+        int(total_bytes * get_disk_pressure_warn_free_percent() / 100.0),
+    )
+    partial = report.coverage_status != DISK_COVERAGE_COMPLETE
+    if not partial and free_bytes > warn_threshold:
+        return None
+    return DiskFootprintRow(
+        section="filesystem",
+        name=_UNATTRIBUTED_OWNER,
+        path=_UNRESOLVED_PATH,
+        size_bytes=unattributed_bytes,
+        owner=_UNATTRIBUTED_OWNER,
+        horizon=(
+            f"{'partial inventory coverage' if partial else 'filesystem pressure'}"
+            "; bytes on the SASE_HOME filesystem outside inventoried rows"
+        ),
+        reclaim="sase disk list",
+        coverage=(DISK_COVERAGE_PARTIAL if partial else DISK_COVERAGE_COMPLETE),
+        diagnostics=(
+            f"filesystem used {used_bytes} bytes; inventoried rows on this "
+            f"filesystem attribute {used_bytes - unattributed_bytes} bytes",
+        ),
+    )
+
+
+def _attributed_bytes_on(report: DiskFootprintReport, home: Path) -> int:
+    """Sum attributed physical bytes residing on *home*'s filesystem."""
+
+    try:
+        home_dev = home.stat().st_dev
+    except OSError:
+        home_dev = None
+    attributed = 0
+    for row in report.rows:
+        size = (
+            row.exclusive_size_bytes
+            if row.exclusive_size_bytes is not None
+            else row.size_bytes
+        )
+        if not row.path or home_dev is None:
+            attributed += size
+            continue
+        try:
+            same_filesystem = Path(row.path).stat().st_dev == home_dev
+        except OSError:
+            same_filesystem = True
+        if same_filesystem:
+            attributed += size
+    return attributed
+
+
 def _row_from_wire(raw: Mapping[str, Any]) -> DiskFootprintRow:
     return DiskFootprintRow(
         section=str(raw["section"]),
@@ -199,13 +323,60 @@ def managed_tmp_rows(
     tree_size_fn: Callable[[Path], int],
     budget: InventoryScanBudget | None = None,
     diagnostics: list[str] | None = None,
+    roots: Sequence[Path] | None = None,
 ) -> tuple[DiskFootprintRow, ...]:
-    root = managed_tmpdir_root()
-    rows: list[DiskFootprintRow] = []
+    """Size one row per bucket under every managed temp root writers used.
+
+    The roots are the effective root unioned with every registered root
+    from the root-registry phase, so a reaper running under a stale
+    environment still attributes the bytes agents actually wrote.
+    """
+
+    resolved_roots = (
+        tuple(roots) if roots is not None else tuple(_all_managed_tmp_roots())
+    )
     horizons = current_managed_tmp_horizons()
     default_horizon = get_managed_tmp_handoff_horizon_seconds()
+    rows: list[DiskFootprintRow] = []
+    for root in resolved_roots:
+        rows.extend(
+            _managed_tmp_root_rows(
+                root,
+                tree_size_fn=tree_size_fn,
+                budget=budget,
+                diagnostics=diagnostics,
+                horizons=horizons,
+                default_horizon=default_horizon,
+                qualify_name=len(resolved_roots) > 1,
+            )
+        )
+    return tuple(rows)
+
+
+def _all_managed_tmp_roots() -> list[Path]:
+    """Return every managed temp root one inventory pass must cover."""
+
+    try:
+        return effective_managed_tmp_roots(
+            effective_root=managed_tmpdir_root(),
+            sase_home=sase_home(),
+        )
+    except Exception:  # noqa: BLE001 - inventory must stay fail-open.
+        return [managed_tmpdir_root()]
+
+
+def _managed_tmp_root_rows(
+    root: Path,
+    *,
+    tree_size_fn: Callable[[Path], int],
+    budget: InventoryScanBudget | None,
+    diagnostics: list[str] | None,
+    horizons: Mapping[str, float],
+    default_horizon: float,
+    qualify_name: bool,
+) -> list[DiskFootprintRow]:
     if not root.exists():
-        return (
+        return [
             DiskFootprintRow(
                 section="managed_tmp",
                 name="<root>",
@@ -216,7 +387,7 @@ def managed_tmp_rows(
                 reclaim="sase disk reap --apply",
                 physical_path=str(normalize_path_no_follow(root)),
             ),
-        )
+        ]
 
     listing = iter_children_bounded(root, budget) if budget is not None else None
     children = listing.children if listing is not None else tuple(iter_children(root))
@@ -230,6 +401,7 @@ def managed_tmp_rows(
                 f"managed tmp root partial listing: {root_diagnostics[0]}"
             )
 
+    rows: list[DiskFootprintRow] = []
     for entry in children:
         horizon_seconds = (
             horizons.get(entry.name, default_horizon)
@@ -239,7 +411,7 @@ def managed_tmp_rows(
         rows.append(
             DiskFootprintRow(
                 section="managed_tmp",
-                name=entry.name,
+                name=(f"{root.name}/{entry.name}" if qualify_name else entry.name),
                 path=str(entry),
                 physical_path=str(normalize_path_no_follow(entry)),
                 size_bytes=tree_size_fn(entry),
@@ -265,7 +437,7 @@ def managed_tmp_rows(
                 diagnostics=root_diagnostics,
             )
         )
-    return tuple(rows)
+    return rows
 
 
 def sase_state_rows(
@@ -385,14 +557,12 @@ def workspace_rows(
         key = str(normalize_path_no_follow(root_dir))
         if key in seen:
             continue
-        seen.add(key)
-        rows.append(
-            DiskFootprintRow(
-                section="workspaces",
-                name=str(project.project),
-                path=str(root_dir),
-                physical_path=key,
-                size_bytes=tree_size_fn(root_dir),
+        rows.extend(
+            _workspace_checkout_rows(
+                label=str(project.project),
+                checkout_dir=root_dir,
+                tree_size_fn=tree_size_fn,
+                seen=seen,
                 owner="workspace_cleanup_and_compact",
                 horizon=f"cleanup TTL {project.cleanup_ttl_days} day(s)",
                 reclaim="sase workspace cleanup --stale; sase workspace compact",
@@ -403,20 +573,79 @@ def workspace_rows(
         if bool(getattr(project, "share_git_objects", True)) and raw_primary_dir:
             primary_key = str(normalize_path_no_follow(primary_dir))
             if primary_key not in seen:
-                seen.add(primary_key)
-                rows.append(
-                    DiskFootprintRow(
-                        section="workspaces",
-                        name=f"{project.project} primary",
-                        path=str(primary_dir),
-                        physical_path=primary_key,
-                        size_bytes=tree_size_fn(primary_dir),
+                rows.extend(
+                    _workspace_checkout_rows(
+                        label=f"{project.project} primary",
+                        checkout_dir=primary_dir,
+                        tree_size_fn=tree_size_fn,
+                        seen=seen,
                         owner="workspace_git_object_source",
                         horizon="shared Git object source; gc.pruneExpire=never",
                         reclaim=None,
                     )
                 )
     return tuple(rows)
+
+
+def _workspace_checkout_rows(
+    *,
+    label: str,
+    checkout_dir: Path,
+    tree_size_fn: Callable[[Path], int],
+    seen: set[str],
+    owner: str,
+    horizon: str,
+    reclaim: str | None,
+) -> list[DiskFootprintRow]:
+    """Size one workspace checkout plus its heavy sub-trees.
+
+    The sub-rows nest under the checkout path, so the classifier reports
+    each checkout once in the aggregate while still naming `.git/objects`,
+    `.pytest_cache` (including `sase-visual`), `sase/repos`, `.venv`, and
+    in-tree `target/` when they exist. Callers size these known locations
+    before the generic stray walk, so a clipped scan still attributes the
+    bytes to the owning project.
+    """
+
+    key = str(normalize_path_no_follow(checkout_dir))
+    seen.add(key)
+    rows = [
+        DiskFootprintRow(
+            section="workspaces",
+            name=label,
+            path=str(checkout_dir),
+            physical_path=key,
+            size_bytes=tree_size_fn(checkout_dir),
+            owner=owner,
+            horizon=horizon,
+            reclaim=reclaim,
+        )
+    ]
+    for child in _WORKSPACE_HEAVY_CHILDREN:
+        child_dir = checkout_dir / child
+        try:
+            exists = child_dir.exists()
+        except OSError:
+            continue
+        if not exists:
+            continue
+        child_key = str(normalize_path_no_follow(child_dir))
+        if child_key in seen:
+            continue
+        seen.add(child_key)
+        rows.append(
+            DiskFootprintRow(
+                section="workspaces",
+                name=f"{label} {child}",
+                path=str(child_dir),
+                physical_path=child_key,
+                size_bytes=tree_size_fn(child_dir),
+                owner=owner,
+                horizon=horizon,
+                reclaim=reclaim,
+            )
+        )
+    return rows
 
 
 _RUST_DEV_BUILD_PROFILE = "dev-update"

@@ -6237,9 +6237,15 @@ Unowned Cargo-shaped strays are listed for human action and are never deleted by
 `sase disk reap`.
 
 The `sase disk list` table shows each row's owner, section, size, coverage, horizon, and
-path. Unowned rows are highlighted; a row whose coverage is `partial` or `unresolved`
-means the owner could not account for every byte. When rows share physical storage (for
-example workspaces that borrow primary Git objects), the size cell also shows the
+path. Managed-temp rows cover every registered root writers actually used, not only the
+effective one. Workspace checkouts get one row per project plus sub-rows for
+`.git/objects`, `.pytest_cache` (including `sase-visual`), `sase/repos`, `.venv`, and
+in-tree `target/`, sized before the generic stray walk so budget exhaustion can only
+clip that walk. Unowned rows are highlighted; a row whose coverage is `partial` or
+`unresolved` means the owner could not account for every byte. When coverage is partial
+or the filesystem is under pressure, an `unattributed` row reports filesystem used minus
+attributed bytes on the filesystem holding `SASE_HOME`. When rows share physical storage
+(for example workspaces that borrow primary Git objects), the size cell also shows the
 exclusively counted bytes, and the footer reports the physical total, the logical row
 total when it differs, the overall coverage status, and any partial-scan diagnostics.
 

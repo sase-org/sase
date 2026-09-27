@@ -34,6 +34,7 @@ from sase.core.disk_footprint_utils import (
     format_bytes,
 )
 from sase.core.managed_tmp_reaper import reap_managed_tmpdir
+from sase.core.managed_tmp_roots import effective_managed_tmp_roots
 from sase.core.paths import managed_tmpdir_root, sase_home, sase_projects_dir
 from sase.core.time import local_now
 from sase.procs.paths import procs_dir
@@ -77,6 +78,7 @@ def collect_disk_footprint(
     tree_size_fn: Callable[[Path], int] | None = None,
     workspace_inventory_fn: Callable[..., Any] | None = None,
     now: datetime | None = None,
+    disk_usage_fn: Callable[[str], Any] | None = None,
 ) -> DiskFootprintReport:
     """Collect SASE-owned and SASE-shaped disk usage rows."""
 
@@ -87,6 +89,7 @@ def collect_disk_footprint(
         tree_size_fn=tree_size_fn,
         workspace_inventory_fn=workspace_inventory_fn or collect_workspace_inventory,
         now=now,
+        disk_usage_fn=disk_usage_fn,
     )
 
 
@@ -151,6 +154,7 @@ def _sync_inventory_patchables() -> None:
     _inventory.format_horizon_seconds = _format_horizon_seconds
     _inventory.resolve_soft = _resolve_soft
     _inventory.is_relative_to = _is_relative_to
+    _inventory.effective_managed_tmp_roots = effective_managed_tmp_roots
     _inventory.managed_tmp_rows = _managed_tmp_rows
     _inventory.sase_state_rows = _sase_state_rows
     _inventory.workspace_rows = _workspace_rows
