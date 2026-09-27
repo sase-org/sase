@@ -127,6 +127,45 @@ class CommandLineScreenNavigationMixin:
         if callable(open_palette):
             app.call_later(open_palette)
 
+    def scroll_transcript(self, direction: int) -> None:
+        """Scroll the transcript half a page with explicit anchor handling."""
+        try:
+            transcript = self.transcript
+        except Exception:  # noqa: BLE001 - unmounted screen cannot scroll.
+            return
+        try:
+            step = max(1, transcript.scrollable_content_region.height // 2)
+        except Exception:  # noqa: BLE001 - viewport reads are best effort.
+            step = 1
+        try:
+            max_y = transcript.max_scroll_y
+        except Exception:  # noqa: BLE001 - scroll reads are best effort.
+            return
+        if max_y == 0:
+            return
+        try:
+            scroll_y = transcript.scroll_y
+        except Exception:  # noqa: BLE001 - scroll reads are best effort.
+            return
+        if direction > 0 and scroll_y + step >= max_y:
+            try:
+                transcript.anchor()
+            except Exception:  # noqa: BLE001 - anchor is best effort.
+                pass
+            return
+        try:
+            transcript.scroll_relative(y=direction * step, animate=False)
+        except Exception:  # noqa: BLE001 - scroll is best effort.
+            pass
+
+    def action_scroll_transcript_down(self) -> None:
+        """Scroll the transcript down half a page (``ctrl+d``)."""
+        self.scroll_transcript(1)
+
+    def action_scroll_transcript_up(self) -> None:
+        """Scroll the transcript up half a page (``ctrl+u``)."""
+        self.scroll_transcript(-1)
+
     def action_toggle_full_height(self) -> None:
         """Toggle the full-height frame (``ctrl+t``)."""
         session = self.session
@@ -229,6 +268,19 @@ class CommandLineScreenNavigationMixin:
         if block is not None:
             self._ensure_block_tail(block)
         self._refresh_transcript()
+        if block is not None:
+            block_id = block.block_id
+
+            def _scroll() -> None:
+                try:
+                    self.transcript.scroll_block_into_view(block_id)
+                except Exception:  # noqa: BLE001 - scroll is best effort.
+                    pass
+
+            try:
+                self.call_after_refresh(_scroll)
+            except Exception:  # noqa: BLE001 - scheduling is best effort.
+                pass
         self._update_hints()
 
     def selected_block(self) -> CommandLineBlock | None:

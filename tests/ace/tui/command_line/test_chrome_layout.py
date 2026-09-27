@@ -1,8 +1,8 @@
 """Chrome-layout tests for the ``:`` Command Line (phase sase-17x.13.8).
 
 Covers the border chrome (title, chip, key hints and running count on the
-frame borders, recomposed on resize) and the floating completion popup
-(anchored above the input at the replace-span column, never reflowing the
+frame borders, recomposed on resize) and the completion popup in its tray
+beneath the input (aligned at the replace-span column, never covering the
 transcript).
 """
 
@@ -25,11 +25,14 @@ from sase.ace.tui.command_line.context import (
     middle_truncate,
     working_context_chip,
 )
+from sase.ace.tui.command_line.popup import POPUP_MAX_VISIBLE_ROWS
 from sase.ace.tui.command_line.popup_layout import (
+    COMPLETION_TRAY_MAX_ROWS,
     PEEK_GAP,
     POPUP_MAX_WIDTH,
     POPUP_MIN_WIDTH,
     POPUP_TEXT_INSET,
+    completion_tray_rows,
     popup_content_width,
     popup_geometry,
 )
@@ -311,15 +314,28 @@ async def test_chrome_recomposes_and_stays_aligned_on_resize(
         assert chips[2] == chips[0]
 
 
+def test_completion_tray_rows_reserves_at_most_one_card() -> None:
+    """The tray holds at most one full card, halves the leftover, floors at 3."""
+    assert COMPLETION_TRAY_MAX_ROWS == POPUP_MAX_VISIBLE_ROWS + 5
+    assert completion_tray_rows(30) == 13
+    assert completion_tray_rows(17) == 6
+    assert completion_tray_rows(6) == 3
+    assert completion_tray_rows(0) == 3
+
+
 async def test_frame_width_cap_and_full_height_toggle_keep_the_labels(
     grammar_handle: Any,
 ) -> None:
-    """The frame is 96% wide (max 160), 65% tall, and ``ctrl+t`` fills the height."""
-    async with _panel(grammar_handle, size=(200, 40)) as (page, screen):
+    """The frame is 96% wide (max 200), 80% tall, centered; ``ctrl+t`` fills."""
+    async with _panel(grammar_handle, size=(240, 40)) as (page, screen):
         frame = _frame(screen)
-        assert frame.outer_size.width == 160
-        assert frame.outer_size.height == 26  # 65% of 40 rows
+        assert frame.outer_size.width == 200
+        assert frame.outer_size.height == 32  # 80% of 40 rows
+        assert frame.region.y == 4
+        below = 40 - (frame.region.y + frame.outer_size.height)
+        assert below == frame.region.y == 4
         await page._pilot.resize_terminal(100, 40)
+        await page.pause()
         await page.pause()
         assert frame.outer_size.width == 96
         await page.press("ctrl+t")
@@ -329,40 +345,69 @@ async def test_frame_width_cap_and_full_height_toggle_keep_the_labels(
         assert cell_len(frame.bottom_label.plain) == frame.outer_size.width - 6
         await page.press("ctrl+t")
         await page.pause()
-        assert frame.outer_size.height == 26
+        assert frame.outer_size.height == 32
 
 
-# -- pilot: floating popup -----------------------------------------------------------
+# -- pilot: tray popup -----------------------------------------------------------
 
 
-async def test_popup_floats_over_the_transcript_without_reflowing_it(
+async def test_popup_sits_in_tray_below_input_without_covering_transcript(
     grammar_handle: Any,
 ) -> None:
-    """Opening and closing the popup never moves the frame or the transcript."""
+    """The tray is reserved below the input; the card never covers the output."""
     from sase.ace.tui.command_line.popup import CommandLinePopup
 
     async with _panel(grammar_handle) as (page, screen):
         await _type(page, screen, "zzzzzz")
         frame, transcript = _frame(screen), screen.transcript
         popup_float = screen.query_one("#command-line-popup-float")
+        tray = screen.query_one("#command-line-completion-tray")
         assert popup_float.display is False
-        before = (frame.region, transcript.region)
+        before = (
+            frame.region,
+            transcript.region,
+            screen.query_one("#command-line-input-row").region,
+            tray.region,
+        )
 
         await _type(page, screen, "bead ")
         popup = screen.query_one(CommandLinePopup)
         card = screen.query_one("#command-line-popup-card")
+        hint_row = screen.query_one("#command-line-hint-row")
         assert popup.display is True and popup_float.display is True
-        assert (frame.region, transcript.region) == before
-        # The card overlaps the transcript's rows and sits right above the input.
-        assert card.region.overlaps(transcript.region)
         assert (
-            card.region.bottom == screen.query_one("#command-line-input-row").region.y
-        )
+            frame.region,
+            transcript.region,
+            screen.query_one("#command-line-input-row").region,
+            tray.region,
+        ) == before
+        # The card starts at or below the hint row and never overlaps output.
+        assert card.region.y >= hint_row.region.bottom
+        assert not card.region.overlaps(transcript.region)
         assert frame.content_region.contains_region(card.region)
 
         await _type(page, screen, "zzzzzz")
         assert popup_float.display is False
-        assert (frame.region, transcript.region) == before
+        assert (
+            frame.region,
+            transcript.region,
+            screen.query_one("#command-line-input-row").region,
+            tray.region,
+        ) == before
+
+
+async def test_popup_card_fits_inside_the_tray(grammar_handle: Any) -> None:
+    """A full 8-row window plus headings still fits inside the reserved tray."""
+    from sase.ace.tui.command_line.popup import CommandLinePopup
+
+    async with _panel(grammar_handle, size=(120, 40)) as (page, screen):
+        await _type(page, screen, "bead ")
+        popup = screen.query_one(CommandLinePopup)
+        card = screen.query_one("#command-line-popup-card")
+        tray = screen.query_one("#command-line-completion-tray")
+        assert popup.display is True
+        assert card.region.height <= tray.region.height
+        assert tray.region.contains_region(card.region)
 
 
 async def test_popup_column_tracks_the_replace_span(grammar_handle: Any) -> None:

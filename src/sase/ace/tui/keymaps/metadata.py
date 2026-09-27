@@ -300,6 +300,8 @@ _GATE_INPUT_PANEL_BINDING_META: tuple[tuple[str, str], ...] = (
 _COMMAND_LINE_BINDING_META: tuple[tuple[str, str], ...] = (
     ("toggle_full_height", "Full Height"),
     ("clear_transcript", "Clear Transcript"),
+    ("scroll_transcript_down", "Scroll Output Down"),
+    ("scroll_transcript_up", "Scroll Output Up"),
     ("hide_panel", "Hide Panel"),
     ("block_next", "Next Block"),
     ("block_prev", "Previous Block"),

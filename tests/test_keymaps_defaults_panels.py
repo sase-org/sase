@@ -229,6 +229,8 @@ def test_default_config_covers_all_command_line_keymaps() -> None:
     assert defaults == {
         "toggle_full_height": "ctrl+t",
         "clear_transcript": "ctrl+l",
+        "scroll_transcript_down": "ctrl+d",
+        "scroll_transcript_up": "ctrl+u",
         "hide_panel": "escape",
         "hop_to_palette": "semicolon",
         "history_prev": "up",

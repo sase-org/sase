@@ -77,8 +77,10 @@ def test_hint_builders_render_live_names_and_omit_unbound() -> None:
     keymaps = load_keymap_registry({}).command_line
     assert "↑↓ history" in command_line_input_hints(keymaps)
     assert "^R search" in command_line_input_hints(keymaps)
+    assert "^D/^U scroll" in command_line_input_hints(keymaps)
     assert "esc hide" in command_line_input_hints(keymaps)
     assert "j/k move" in command_line_block_hints(keymaps)
+    assert "^D/^U scroll" in command_line_block_hints(keymaps)
     assert "; Command Palette" in command_line_idle_hint(keymaps)
 
     rebound = dataclasses.replace(
@@ -94,6 +96,16 @@ def test_hint_builders_render_live_names_and_omit_unbound() -> None:
     block_hints = command_line_block_hints(rebound)
     assert "^J/k move" in block_hints
     assert "remove" not in block_hints
+    assert "^D/^U scroll" in input_hints
+    assert "^D/^U scroll" in block_hints
+    single = dataclasses.replace(keymaps, scroll_transcript_up="unbound")
+    assert "^D scroll" in command_line_input_hints(single)
+    assert "^D scroll" in command_line_block_hints(single)
+    neither = dataclasses.replace(
+        keymaps, scroll_transcript_down="unbound", scroll_transcript_up="unbound"
+    )
+    assert "scroll" not in command_line_input_hints(neither)
+    assert "scroll" not in command_line_block_hints(neither)
     assert "f9 Command Palette" in command_line_idle_hint(rebound)
     assert (
         command_line_idle_hint(dataclasses.replace(keymaps, hop_to_palette="unbound"))

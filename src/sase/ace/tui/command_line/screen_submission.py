@@ -212,6 +212,10 @@ class CommandLineScreenSubmissionMixin:
         if select:
             session.select_block(block.block_id)
         self._refresh_transcript()
+        try:
+            self.transcript.anchor()
+        except Exception:  # noqa: BLE001 - anchor is best effort.
+            pass
         self._update_running()
         self._update_hints()
         run_worker = getattr(self.app, "run_worker", None)
@@ -303,6 +307,10 @@ class CommandLineScreenSubmissionMixin:
             session.draft_cursor = 0
             self._walk_anchor = None
         self._refresh_transcript()
+        try:
+            self.transcript.anchor()
+        except Exception:  # noqa: BLE001 - anchor is best effort.
+            pass
         self._update_running()
         self._update_hints()
         if record_history:

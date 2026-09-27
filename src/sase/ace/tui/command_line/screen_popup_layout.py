@@ -1,9 +1,10 @@
-"""Floating-popup layout for ``CommandLineScreen``.
+"""Completion-tray layout for ``CommandLineScreen``.
 
-The popup card and the doc-peek beside it live in one float on the frame's
-overlay layer, docked above the input row, so opening and closing them never
-reflows the transcript. Layout is synchronous and in memory (tui_perf rule
-1): it reads widget geometry and assigns styles, nothing more.
+The popup card and the doc-peek beside it live in a fixed-height tray
+beneath the input bar, so opening and closing them never covers the
+transcript nor moves the input. Layout is synchronous and in memory
+(tui_perf rule 1): it reads widget geometry and assigns styles, nothing
+more.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from sase.ace.tui.command_line.chrome import CommandLineFrame
 from sase.ace.tui.command_line.input import CommandLineInput
 from sase.ace.tui.command_line.popup import CommandLinePopup
 from sase.ace.tui.command_line.popup_layout import (
-    POPUP_BOTTOM_RESERVE,
+    completion_tray_rows,
     popup_content_width,
     popup_geometry,
 )
@@ -32,14 +33,12 @@ _PEEK_MAX_ROWS = 12
 #: Rows of chrome around the popup list: the card border (2).
 _CARD_BORDER_ROWS = 2
 
-#: Fewest rows a clamped popup card may keep (border plus one line).
-_MIN_CARD_ROWS = 3
-
 
 class CommandLineScreenPopupLayoutMixin:
     """Behavior mixed into the public command-line screen."""
 
     _doc_peek_text: str
+    _last_tray_rows: int
 
     if TYPE_CHECKING:
 
@@ -53,7 +52,7 @@ class CommandLineScreenPopupLayoutMixin:
         return origin + cell_len(line[:start]) - frame.content_region.x
 
     def _layout_popup(self) -> None:
-        """Place the floating popup above the input at the replace column.
+        """Place the tray popup below the input at the replace column.
 
         Idempotent and cheap: callers repaint the popup, footer, or doc-peek
         and then call this to resize and reposition the float.
@@ -65,16 +64,25 @@ class CommandLineScreenPopupLayoutMixin:
             popup = self.query_one(CommandLinePopup)
             footer = self.query_one("#command-line-popup-footer", Static)
             peek = self.query_one("#command-line-doc-peek", Static)
+            tray = self.query_one("#command-line-completion-tray", Vertical)
             widget = self.query_one(CommandLineInput)
         except Exception:  # noqa: BLE001 - unmounted screen has no popup.
             return
+        tray_rows = completion_tray_rows(frame.content_region.height)
+        try:
+            if tray_rows != self._last_tray_rows:
+                tray.styles.height = tray_rows
+                self._last_tray_rows = tray_rows
+        except AttributeError:
+            tray.styles.height = tray_rows
+            self._last_tray_rows = tray_rows
         peek_shown = peek.display and popup.display
         if not (popup.display or footer.display):
             float_.display = False
             return
         float_.display = True
         available = frame.content_region.width
-        room = max(frame.content_region.height - POPUP_BOTTOM_RESERVE, _MIN_CARD_ROWS)
+        room = tray_rows
         rows = popup.option_count if popup.display else 0
         card_rows = rows + (1 if footer.display else 0) + _CARD_BORDER_ROWS
         peek_natural = 0
@@ -94,7 +102,6 @@ class CommandLineScreenPopupLayoutMixin:
             peek=peek_natural,
             available=available,
         )
-        float_.styles.margin = (0, 0, POPUP_BOTTOM_RESERVE, 0)
         float_.styles.offset = (geometry.x, 0)
         card.styles.width = geometry.card_width
         card.styles.height = min(card_rows, room)

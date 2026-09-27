@@ -1,9 +1,9 @@
-"""Bottom-anchored Command Line panel screen (bound to ``:``).
+"""Centered Command Line panel screen (bound to ``:``).
 
 View-only composition over the app-held
 :class:`~sase.ace.tui.command_line.session.CommandLineSession`: transcript,
 input row with the implicit ``❯ sase `` prefix, a signature/hint row, and the
-completion popup floating over the transcript. The title, working-context
+completion popup in a tray beneath the input. The title, working-context
 chip, key hints and running count live on the frame's borders (see
 :class:`~sase.ace.tui.command_line.chrome.CommandLineFrame`). Submission
 creates an optimistic block plus an observer placeholder at once, then
@@ -151,7 +151,7 @@ class CommandLineScreen(
     CommandLineScreenPopupLayoutMixin,
     ModalScreen[None],
 ):
-    """Bottom-anchored ``:`` Command Line drawer."""
+    """Centered ``:`` Command Line panel."""
 
     #: Instance bindings replace this: they are built from the live
     #: ``ace.keymaps.command_line`` scope (see :meth:`__init__` and
@@ -160,14 +160,12 @@ class CommandLineScreen(
 
     DEFAULT_CSS = """
     CommandLineScreen {
-        align: center bottom;
+        align: center middle;
     }
     #command-line-frame {
-        layers: base overlay;
         width: 96%;
-        max-width: 160;
-        height: auto;
-        max-height: 65%;
+        max-width: 200;
+        height: 80%;
         border: round $primary;
         border-title-color: $text;
         border-subtitle-color: $text;
@@ -175,13 +173,10 @@ class CommandLineScreen(
     }
     #command-line-frame.full-height {
         height: 100%;
-        max-height: 100%;
     }
     #command-line-transcript {
-        layer: base;
     }
     #command-line-input-row {
-        layer: base;
         height: 3;
     }
     #command-line-prefix {
@@ -193,14 +188,15 @@ class CommandLineScreen(
         height: 3;
     }
     #command-line-hint-row {
-        layer: base;
         height: 1;
     }
-    /* The popup floats over the transcript, docked above the input row; its
-       size, margin and offset are set from the geometry helpers at layout. */
+    /* The popup sits in the tray beneath the input; its size and offset
+       are set from the geometry helpers at layout. */
+    #command-line-completion-tray {
+        width: 100%;
+        height: 13;
+    }
     #command-line-popup-float {
-        layer: overlay;
-        dock: bottom;
         width: auto;
         height: auto;
     }
@@ -257,6 +253,7 @@ class CommandLineScreen(
         self._empty_state_active = False
         self._last_completion_kind = ""
         self._doc_peek_text = ""
+        self._last_tray_rows = -1
 
     @property
     def session(self) -> CommandLineSession:
@@ -272,7 +269,7 @@ class CommandLineScreen(
         return session.command_history
 
     def compose(self) -> ComposeResult:
-        """Compose the frame: transcript, input, hint, and the floating popup.
+        """Compose the frame: transcript, input, hint, and the tray popup.
 
         The title, chip, key hints and running count live on the frame's
         borders (see :class:`CommandLineFrame`).
@@ -285,22 +282,23 @@ class CommandLineScreen(
                 )
                 yield CommandLineInput()
             yield Static(COMMAND_LINE_IDLE_HINT, id="command-line-hint-row")
-            float_ = Horizontal(id="command-line-popup-float")
-            float_.display = False
-            with float_:
-                with Vertical(id="command-line-popup-card"):
-                    popup = CommandLinePopup()
-                    popup.display = False
-                    yield popup
-                    footer = Static("", id="command-line-popup-footer")
-                    footer.display = False
-                    yield footer
-                peek = Static("", id="command-line-doc-peek")
-                peek.display = False
-                yield peek
+            with Vertical(id="command-line-completion-tray"):
+                float_ = Horizontal(id="command-line-popup-float")
+                float_.display = False
+                with float_:
+                    with Vertical(id="command-line-popup-card"):
+                        popup = CommandLinePopup()
+                        popup.display = False
+                        yield popup
+                        footer = Static("", id="command-line-popup-footer")
+                        footer.display = False
+                        yield footer
+                    peek = Static("", id="command-line-doc-peek")
+                    peek.display = False
+                    yield peek
 
     def on_command_line_frame_resized(self) -> None:
-        """Re-place the floating popup when the frame's size changes."""
+        """Re-size the completion tray when the frame's size changes."""
         self._layout_popup()
 
     async def on_mount(self) -> None:
@@ -339,6 +337,10 @@ class CommandLineScreen(
                         self._ensure_focus_worker(pending_focus), exclusive=False
                     )
         self._refresh_transcript()
+        try:
+            self.transcript.anchor()
+        except Exception:  # noqa: BLE001 - anchor is best effort.
+            pass
         self._update_running()
         self._update_hints()
         restored_input.focus()

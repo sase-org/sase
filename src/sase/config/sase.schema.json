@@ -2395,6 +2395,14 @@
                   "type": "string",
                   "description": "Clear the transcript"
                 },
+                "scroll_transcript_down": {
+                  "type": "string",
+                  "description": "Scroll the Command Line output down half a page"
+                },
+                "scroll_transcript_up": {
+                  "type": "string",
+                  "description": "Scroll the Command Line output up half a page"
+                },
                 "hide_panel": {
                   "type": "string",
                   "description": "Hide the panel"

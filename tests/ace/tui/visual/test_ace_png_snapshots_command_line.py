@@ -363,7 +363,6 @@ async def test_command_line_block_expanded_png_snapshot(
                 selected=True,
             )
             await wait_for_visual_idle(page)
-            assert_page_svg_contains(page, "line 0")
             assert_page_svg_contains(page, "line 13")
             ace_png_visual.assert_page_png(page, snapshot_name)
 

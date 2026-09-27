@@ -1,10 +1,11 @@
-"""Geometry for the floating completion popup (pure, Textual-free).
+"""Geometry for the completion popup tray (pure, Textual-free).
 
-The popup floats over the transcript, docked just above the input row, and
-its left edge follows the completion slot: the candidate text lines up with
-the span it will replace, as in Helix. Widths come from the candidates
-themselves, so the card is as wide as its widest row; the whole float (card
-plus the doc-peek beside it) is then clamped inside the frame.
+The popup sits in a fixed-height completion tray beneath the input bar, so
+it never covers command output, and its left edge still follows the
+completion slot: the candidate text lines up with the span it will replace,
+as in Helix. Widths come from the candidates themselves, so the card is as
+wide as its widest row; the whole float (card plus the doc-peek beside it)
+is then clamped inside the frame.
 """
 
 from __future__ import annotations
@@ -18,9 +19,18 @@ from rich.cells import cell_len
 #: border (1) plus the entity glyph and its space (2).
 POPUP_TEXT_INSET = 3
 
-#: Rows below the popup that it must never cover: the input row (3) and the
+#: Rows in the input block above the tray: the input row (3) plus the
 #: signature/hint row (1).
-POPUP_BOTTOM_RESERVE = 4
+INPUT_BLOCK_ROWS = 4
+
+#: Tallest the completion tray may grow: the popup's 8-row window
+#: (popup.POPUP_MAX_VISIBLE_ROWS), 2 section headings, the footer, and the
+#: card border. The comment names POPUP_MAX_VISIBLE_ROWS without importing
+#: popup.py, which pulls in Textual.
+COMPLETION_TRAY_MAX_ROWS = 13
+
+#: Fewest rows the tray may keep (border plus one line).
+COMPLETION_TRAY_MIN_ROWS = 3
 
 #: Card width bounds, in cells (border included).
 POPUP_MIN_WIDTH = 34
@@ -39,7 +49,7 @@ _MEASURED_ROWS = 200
 
 @dataclass(frozen=True, slots=True)
 class _PopupGeometry:
-    """Where the floating popup sits, in frame-content cells."""
+    """Where the completion popup sits, in frame-content cells."""
 
     #: Left edge of the float (the popup card).
     x: int
@@ -47,6 +57,17 @@ class _PopupGeometry:
     card_width: int
     #: Doc-peek width, border included; ``0`` when it does not fit.
     peek_width: int
+
+
+def completion_tray_rows(content_height: int) -> int:
+    """Return the reserved tray height for a frame *content_height* in rows.
+
+    At most one full popup card (see ``COMPLETION_TRAY_MAX_ROWS``), never
+    more than half of the rows left after the input and hint rows, and
+    never below ``COMPLETION_TRAY_MIN_ROWS``.
+    """
+    room = (content_height - INPUT_BLOCK_ROWS) // 2
+    return max(COMPLETION_TRAY_MIN_ROWS, min(COMPLETION_TRAY_MAX_ROWS, room))
 
 
 def popup_content_width(items: list[dict[str, Any]]) -> int:
@@ -95,11 +116,14 @@ def popup_geometry(
 
 
 __all__ = [
+    "COMPLETION_TRAY_MAX_ROWS",
+    "COMPLETION_TRAY_MIN_ROWS",
+    "INPUT_BLOCK_ROWS",
     "PEEK_GAP",
-    "POPUP_BOTTOM_RESERVE",
     "POPUP_MAX_WIDTH",
     "POPUP_MIN_WIDTH",
     "POPUP_TEXT_INSET",
+    "completion_tray_rows",
     "popup_content_width",
     "popup_geometry",
 ]

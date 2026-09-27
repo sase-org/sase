@@ -49,6 +49,17 @@ def _compact_key_display(binding: str) -> str:
     return key_display_name(first)
 
 
+def _scroll_hint_part(keymaps: CommandLineKeymaps) -> str:
+    """Render the ``^D/^U scroll`` hint part, or ``""`` when unbound."""
+    down = _compact_key_display(keymaps.scroll_transcript_down)
+    up = _compact_key_display(keymaps.scroll_transcript_up)
+    if down and up:
+        return f"{down}/{up} scroll"
+    if down or up:
+        return f"{down or up} scroll"
+    return ""
+
+
 def command_line_input_hints(keymaps: CommandLineKeymaps) -> str:
     """Render the input key row from live key names, skipping unbound."""
     parts = ["⏎ run", "⇥ complete"]
@@ -61,6 +72,9 @@ def command_line_input_hints(keymaps: CommandLineKeymaps) -> str:
     search = _compact_key_display(keymaps.history_search)
     if search:
         parts.append(f"{search} search")
+    scroll = _scroll_hint_part(keymaps)
+    if scroll:
+        parts.append(scroll)
     hide = _compact_key_display(keymaps.hide_panel)
     if hide:
         parts.append(f"{hide} hide")
@@ -90,6 +104,9 @@ def command_line_block_hints(keymaps: CommandLineKeymaps) -> str:
         display = _compact_key_display(getattr(keymaps, field))
         if display:
             parts.append(f"{display} {label}")
+    scroll = _scroll_hint_part(keymaps)
+    if scroll:
+        parts.append(scroll)
     hide = _compact_key_display(keymaps.hide_panel)
     if hide:
         parts.append(f"{hide} hide")

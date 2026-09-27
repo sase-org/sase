@@ -181,6 +181,16 @@ class CommandLineTranscript(VerticalScroll):
             if block_id not in by_id:
                 self._cursors.pop(block_id, None)
 
+    def scroll_block_into_view(self, block_id: str) -> None:
+        """Scroll the block widget for *block_id* into view, if mounted."""
+        for widget in self.query(_CommandLineBlockWidget):
+            if widget.block.block_id == block_id:
+                try:
+                    self.scroll_to_widget(widget, animate=False)
+                except Exception:  # noqa: BLE001 - scroll is best effort.
+                    pass
+                return
+
     def start_tail_task(self) -> None:
         """Poll visible running blocks in a pump-free task (cancelled at teardown)."""
         spawn_pump_free_task(

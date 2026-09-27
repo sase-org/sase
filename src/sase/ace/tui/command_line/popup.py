@@ -1,7 +1,8 @@
-"""Floating fuzzy completion popup for the ``:`` Command Line panel.
+"""Fuzzy completion popup for the ``:`` Command Line panel.
 
-The popup floats over the transcript, anchored just above the input (as in
-Helix), and shows a scrolling window of at most
+The popup sits in the completion tray beneath the input, with its left edge
+following the completion slot (as in Helix), and shows a scrolling window of
+at most
 :data:`POPUP_MAX_VISIBLE_ROWS` candidates (plus the section headings among
 them) over every candidate. Ranking is the
 Rust ``complete()`` response; this module owns the row rendering, the
@@ -287,7 +288,7 @@ def _build_entries(items: list[dict[str, Any]]) -> list[_PopupEntry]:
 
 
 class CommandLinePopup(OptionList):
-    """The floating completion list, anchored just above the input.
+    """The tray completion list, sitting beneath the input.
 
     The widget renders only the window of :data:`POPUP_MAX_VISIBLE_ROWS`
     display rows around the highlight, so per-keystroke cost stays bounded

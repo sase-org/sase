@@ -333,10 +333,12 @@ class MachinesPaneKeymaps:
 
 @dataclass
 class CommandLineKeymaps:
-    """Panel-scoped actions for the ``:`` Command Line drawer."""
+    """Panel-scoped actions for the ``:`` Command Line panel."""
 
     toggle_full_height: str = "ctrl+t"
     clear_transcript: str = "ctrl+l"
+    scroll_transcript_down: str = "ctrl+d"
+    scroll_transcript_up: str = "ctrl+u"
     hide_panel: str = "escape"
     hop_to_palette: str = "semicolon"
     history_prev: str = "up"

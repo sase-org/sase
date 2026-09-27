@@ -3610,9 +3610,8 @@ keys in that setting are treated as alternate bindings for the same action.
 
 ## Command Line
 
-Press `:` from any tab to open the **Command Line** — a bottom-anchored drawer where you
-type `sase` commands (the `sase` prefix is implicit) and run them without leaving the
-TUI.
+Press `:` from any tab to open the **Command Line** — a centered panel where you type
+`sase` commands (the `sase` prefix is implicit) and run them without leaving the TUI.
 
 **Behavior:**
 
@@ -3624,12 +3623,16 @@ TUI.
   (`⌂ +<project> · <path>`) on the top border, the key hints for the current context and
   the `N running` count on the bottom one. Both borders recompose when the terminal
   resizes, so their ends stay aligned: the chip is middle-truncated first, and the hints
-  give way to the running count. The frame is 96% of the terminal wide (at most 160
-  columns) and grows to 65% of its height; `Ctrl+T` toggles full height.
-- The completion popup floats over the transcript, just above the input row, with its
-  candidate text lined up under the slot being completed (clamped to the frame). Opening
-  and closing it never reflows the transcript. On terminals at least 140 columns wide
-  the doc peek sits beside it.
+  give way to the running count. The frame is 96% of the terminal wide (at most 200
+  columns) and 80% of its height, centered; `Ctrl+T` toggles full height.
+- The completion popup (and, on terminals at least 140 columns wide, the doc peek) sits
+  in a completion tray beneath the input and signature line. It never covers command
+  output. The tray keeps a fixed height (up to 13 rows), so the input never moves as
+  candidates change. The candidate text still lines up under the slot being completed.
+- The transcript follows new output. `Ctrl+D` / `Ctrl+U` scroll it by half a page from
+  the input in INSERT or NORMAL mode, taking over the input's delete-char /
+  delete-to-line-start keys in this panel. Scrolling back to the bottom (or running a
+  command) resumes following.
 - The completion popup shows an 8-row window that scrolls through every candidate; its
   footer counts the highlighted row (`N of M`) and shows the one key that fits the menu
   state. An empty line offers `RECENT` history and `FOR <selection>` suggestions under
@@ -3655,11 +3658,12 @@ TUI.
   `y`/`Y` copy output/command, `p` open in Procs, `x` remove, `i` back to input.
 
 Panel keys are configurable under `ace.keymaps.command_line` in
-`~/.config/sase/sase.yml`: history (`up`/`down`, `Ctrl+R`), the `;` palette hop, and
-every Block key above. Set an action to `unbound` to disable it; it also leaves the key
-hints. The completion-menu keys follow the zsh menu-select contract and stay fixed:
-`Tab` / `Shift+Tab` / `Ctrl+N` / `Ctrl+P` / `↑` / `↓` to move, `Enter` or `Ctrl+F` to
-accept, `Esc` to leave the menu, `→` to accept ghost text at the end of the line.
+`~/.config/sase/sase.yml`: history (`up`/`down`, `Ctrl+R`), the `;` palette hop,
+`scroll_transcript_down` / `scroll_transcript_up` (`Ctrl+D` / `Ctrl+U`), and every Block
+key above. Set an action to `unbound` to disable it; it also leaves the key hints. The
+completion-menu keys follow the zsh menu-select contract and stay fixed: `Tab` /
+`Shift+Tab` / `Ctrl+N` / `Ctrl+P` / `↑` / `↓` to move, `Enter` or `Ctrl+F` to accept,
+`Esc` to leave the menu, `→` to accept ghost text at the end of the line.
 
 The `:` binding follows your configured keymap. To rebind it, set
 `ace.keymaps.app.open_command_line` in `~/.config/sase/sase.yml`.

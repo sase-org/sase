@@ -13,6 +13,8 @@ approach from ``widgets/_jinja_highlight.py``. Popup keys (Tab, Shift-Tab,
 ``ctrl+n``/``ctrl+p``, ``↑``/``↓`` while the menu is active, ``ctrl+f``, and
 menu-active Enter/Escape) are routed to the screen's popup state machine
 before vim handling. ``ctrl+r`` toggles fuzzy history search the same way.
+``ctrl+d`` / ``ctrl+u`` scroll the transcript half a page in either vim mode,
+taking over the input's delete-char / delete-to-line-start keys in this panel.
 """
 
 from __future__ import annotations
@@ -348,6 +350,24 @@ class CommandLineInput(SingleLineVimTextArea):
             # so the completion probe starts here, not at the refresh.
             self._keypress_stamp = (time.perf_counter(), self.text)
         keymaps = command_line_keymaps_for(self)
+        for scroll_action, direction in (
+            ("scroll_transcript_down", 1),
+            ("scroll_transcript_up", -1),
+        ):
+            if binding_matches_key(
+                getattr(keymaps, scroll_action, "") or "",
+                event.key or "",
+                event.character or "",
+            ):
+                handler = getattr(self.screen, "scroll_transcript", None)
+                if callable(handler):
+                    try:
+                        handler(direction)
+                    except Exception:  # noqa: BLE001 - scroll is best effort.
+                        pass
+                    event.stop()
+                    event.prevent_default()
+                    return
         if getattr(self, "_vim_mode", "insert") != "normal" and (
             (event.key or "") in _MENU_KEYS
             or self._history_key_match(keymaps, event.key or "")
