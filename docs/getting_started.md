@@ -133,11 +133,34 @@ sase's TUI has three top-level tabs:
   scheduled work below `scheduler`. sase's TUI starts the active controller unless you
   pass `--no-service`.
 
-To revisit the prompt you launched, press `,.` from any TUI tab to open the **Prompts**
-overlay on History. The same overlay has Stash for drafts saved with `Ctrl+S` in the
-prompt input and Trash for drafts discarded from Stash. Use `[` and `]` to switch tabs;
-see [Prompts Overlay](ace.md#prompt-history-modal) for what each action restores or
-launches.
+The Step 3 prompt is kept in prompt history when it is at least five words long.
+`sase prompt list` shows it. Project tags are expanded before they are stored, so the
+`+home` tag in that launch is stored as `#git:home`.
+
+In sase's TUI, that history shares the **Prompts** overlay with saved and discarded
+drafts. From the Agents, Artifacts, or Services tab, press `Space` to open the prompt
+input. When every launch so far used `home`, `Space` opens a blank home prompt. If any
+other project has been launched, `Space` prefills the most recent of those workspace
+prefixes; press `Ctrl+U` (the cursor is already at the end of the line) to clear it.
+Then press `Ctrl+K`. That shortcut works only while the prompt is a single line, and it
+opens the overlay on **History** without a project filter when the input is blank.
+`Enter` launches the highlighted prompt as stored. `Tab` loads it into the prompt input
+for editing. `Esc` closes the overlay.
+
+Pressing `,` then `.` does not reopen this home launch. `#git:home` is the default
+workspace prefix, and sase does not keep it on the list of recently launched workspace
+prefixes that `,.` reads. With nothing else on that list, sase warns
+`No previously launched VCS xprompt` and stays on the current tab. After you have
+launched some other project, `,.` opens History from a main tab (not from inside a text
+field) and rewrites the workspace prefix of a prompt you submit or edit to that most
+recent non-home prefix.
+
+**Stash** holds drafts saved with `Ctrl+S` from a non-empty prompt pane. `Ctrl+S` on an
+empty prompt opens Stash instead of saving. **Trash** holds drafts you discarded from
+Stash, not launched prompts. Restoring a Trash row puts it back in Stash and does not
+launch it. `[` and `]` cycle the tabs in the order Stash, History, Trash, wrapping at
+either end, so `[` from Stash opens Trash and `]` opens History. See
+[Prompts Overlay](ace.md#prompt-history-modal).
 
 The colored `project: +<project>` chip at the right of each tab's status row is the
 [current project](ace.md#current-project) — the project you most recently launched an

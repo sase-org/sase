@@ -27,9 +27,9 @@ isolated workspaces, with every run tracked, reviewable, and repeatable.
 
 **Status:** sase is alpha software, and its interfaces and workflows are still evolving.
 It supports POSIX systems (Linux and macOS) only; Windows is not supported. sase assumes
-you have access to at least one authenticated agent CLI and prefer opinionated
-git-based, workspace-per-agent workflows; if you want a standalone agent instead of a
-coordination layer, use those CLIs directly.
+you have at least one supported agent CLI installed and authenticated for production
+work, and that you prefer opinionated git-based, workspace-per-agent workflows; if you
+want a standalone agent instead of a coordination layer, use those CLIs directly.
 
 ## Why sase
 
@@ -121,8 +121,8 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 
 - [Getting Started](https://sase.sh/getting_started/) — the guided beginner path
 - [sase's TUI](https://sase.sh/ace/) — the interactive control surface
-- [Prompt history and stashes](https://sase.sh/ace/#prompt-history-modal) — find past
-  launches and recover saved drafts
+- [Prompts overlay](https://sase.sh/ace/#prompt-history-modal) — past launches, saved
+  drafts, and drafts discarded from Stash
 - [XPrompts](https://sase.sh/xprompt/) — reusable prompts and multi-step workflows
 - [Patches](https://sase.sh/change_spec/) — tracked PR-sized units of work
 - [Scheduler and Service Host](https://sase.sh/axe/) — scheduled and background agent

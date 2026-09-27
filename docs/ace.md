@@ -6755,16 +6755,25 @@ literal throughout. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placehol
 for the exact launch, conversion, and naming rules.
 
 `Ctrl+G p` opens the Prompts overlay on the Stash tab from the prompt bar. From the main
-sase's TUI tabs, even when the prompt bar is not active, `@` restores a lone stashed
-draft directly and opens the overlay when several are stashed. A lone pinned draft stays
-in Stash after that direct restore; a lone unpinned draft is consumed. `,@` or clicking
-the `stash:` chip always opens the overlay on Stash, and an empty Stash still opens it
-(the empty state explains how to save a draft and points at Trash when Trash has rows).
+sase's TUI tabs, when you are not typing in a text field, `@` acts on Stash. If the open
+bar is Plan Feedback or Coder Prompt, `@` warns
+`Restore is only available for agent prompts` and stops. Otherwise a lone pinned draft
+is loaded into the prompt bar and stays in Stash. A lone unpinned draft is loaded and
+then removed from Stash; it is not moved to Trash. When Stash is empty or holds more
+than one draft, `@` opens the overlay on Stash instead of loading one. `,@` or clicking
+the `stash:` chip always opens that overlay, including when exactly one draft is stashed
+and when Stash is empty. The empty placeholder says to stash the current prompt. When
+Trash has rows, it also names that count and says to switch with `]`. Tab order is
+Stash, then History, then Trash, so `]` from Stash opens History. Press `[` to wrap from
+Stash to Trash.
+
 In the Stash tab, `space` toggles a row's persistent pin, `Tab` toggles a row's restore
 mark, `d` marks one row for discard, `D` marks every row for discard, `a` toggles
 restore marks on all rows, and `Enter` confirms the marked set; restores are pin-aware,
 so marked pinned rows stay stashed. With no explicit marks, `Enter` restores the
-highlighted row; pinned rows stay stashed when restored, while unpinned rows are popped.
+highlighted row; pinned rows stay stashed when restored, while unpinned rows are removed
+from Stash and are not moved to Trash.
+
 Number keys `1`-`9` and `0` restore rows 1-10 directly with the same pin-aware behavior.
 `Escape` or `q` closes the overlay and discards unconfirmed marks. Confirming discards
 for only some rows keeps the overlay open and repaints it in place; discarding every
@@ -6787,13 +6796,23 @@ entry-count limit, not a byte quota): a discard batch that would overflow it nam
 expected permanent-loss count up front, and the success toast names the actual
 evictions. Setting the limit to `0` disables recovery: Stash `d`/`D` plus `Enter` then
 delete permanently, and a partial discard is applied without a confirmation prompt. A
-lowered limit is enforced the next time the overlay opens, and a toast reports any
-evictions. That first overlay can still display the pre-reconciliation Trash rows and
-count; close and reopen it to see the updated list. Trash recovers only drafts
-deliberately discarded from Stash; successful unpinned Stash restores consume their rows
-without entering Trash, and there is no history deletion action.
+lowered limit is applied the next time the overlay opens, before that window is shown.
+Over-limit rows are permanently deleted, oldest discarded first. The toast reads
+`Trash limit lowered to N: permanently deleted K oldest draft` (or `drafts`). The Trash
+tab in the window that just opened still lists the rows and `Trash M/N` count from
+before that deletion, so the count can be higher than the new limit. Close the overlay
+and open it again to see the rows that remain. `Enter` on a row that was already deleted
+does not restore it and does not show a success toast. The Trash tab then repaints from
+the store, so every already-deleted row disappears. If applying the limit fails, the
+stored Trash is left unchanged and the overlay still opens. The error toast is
+`Failed to reconcile Trash limit: ...`, or `Prompt stash is busy — retry` when the stash
+lock times out. Trash recovers only drafts deliberately discarded from Stash. A
+successful restore of an unpinned Stash row removes that row without putting it in
+Trash. This overlay has no action that deletes History rows.
 
-Compact demo — discard `fix flaky parser test`, then recover it:
+Compact demo — discard `fix flaky parser test`, then recover it. Leave at least one
+other Stash row unmarked. Discarding every Stash row closes the overlay, so the later
+steps would start by opening Stash again:
 
 1. Stash tab: highlight the row, press `d`, then `Enter`; confirm
    `Move 1 draft to Trash?`. The toast reads `Moved 1 draft to Trash` and the tab strip
@@ -7853,17 +7872,23 @@ first active workspace reference (e.g. `+sase`) becomes an initial `project:<nam
 filter scope once the project-identity snapshot resolves, with the remaining text
 preserved as a literal search (see Filtering below). A `+<project>` tag counts when it
 names a known project or leads the line, a `#` VCS reference always counts, whichever
-comes first wins, and references inside code spans are skipped. Press `,.` (leader +
-`.`) to open the same tab unscoped from the main sase's TUI UI; like `Space`, it uses
-the most recently launched VCS xprompt's workspace prefix, replacing the workspace tag
-of any entry you submit or edit, and it only warns `No previously launched VCS xprompt`
-(opening nothing) when there is no such prefix. `,>` opens it with cancelled prompts
-visible, and `,Ctrl+G` skips the overlay and opens the newest history entry directly in
-`$EDITOR` (with the same prefix rule). The History tab loads prompts previously launched
-from sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default 100).
-Normal launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do
-not clutter the list, while failed-launch recovery can still preserve a short submitted
-prompt. The same history is available from the shell through [`sase prompt`](prompt.md).
+comes first wins, and references inside code spans are skipped. A blank prompt opens
+History with no project filter. Press `,` then `.` (written `,.`) from a main tab, when
+you are not typing in a text field, to open that same unfiltered History tab. `,.` reads
+the most recently launched workspace prefix other than the built-in `#git:home` default.
+Submitting or editing a row replaces that row's workspace prefix with that recorded
+prefix. A `+home` launch does not create a qualifying prefix. When none is recorded,
+sase warns `No previously launched VCS xprompt` and opens nothing. `,>` opens History
+with cancelled prompts visible, and `,Ctrl+G` skips the overlay and opens the newest
+history entry in `$EDITOR`. Both use that same prefix check and the same prefix
+replacement, so with no qualifying prefix they warn and open nothing. `Space` on a main
+tab is separate: it prefills the prompt input with that same non-home prefix, or opens a
+blank home prompt when none is recorded. The History tab loads prompts previously
+launched from sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default
+100). Normal launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they
+do not clutter the list, while failed-launch recovery can still preserve a short
+submitted prompt. The same history is available from the shell through
+[`sase prompt`](prompt.md).
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace

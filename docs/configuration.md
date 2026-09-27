@@ -1737,10 +1737,15 @@ ace:
 | ------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `trash_limit` | int  | `20`    | Maximum Trash rows kept. An entry-count limit, not a byte quota. `0` disables recovery and permanently discards rows marked for Trash. Must be an integer >= 0; booleans and malformed values fall back to `20`. |
 
-A lowered limit is enforced the next time the overlay opens (over-limit rows are
-permanently deleted oldest-first and the evictions surfaced). Trash requires the current
-stash core binding: restart old TUI processes before the new behavior takes effect,
-since mixed-version operation is unsupported.
+A lowered limit is applied the next time the overlay opens. Over-limit rows are
+permanently deleted, oldest discarded first, and a toast reports how many were deleted.
+The Trash list in that same window still shows the rows from before the deletion.
+`Enter` on one of those already-deleted rows does not bring it back. The Trash tab then
+repaints from the store, so every already-deleted row disappears. Close the overlay and
+open it again to see the rows that remain without pressing `Enter`. See
+[Prompts Overlay](ace.md#prompt-history-modal) for the toast text and the failure case.
+Trash requires the current stash core binding: restart old TUI processes before the new
+behavior takes effect, since mixed-version operation is unsupported.
 
 Source: `src/sase/ace/config.py`, `src/sase/core/prompt_stash_facade.py`,
 `src/sase/ace/tui/actions/agent_workflow/_prompt_bar_stash_restore.py`
