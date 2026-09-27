@@ -169,7 +169,7 @@ project/xprompt/directive hint chips, and a one-line preview — never the full 
 
 Inside [sase's TUI](ace.md), the same history is one keystroke away: press `Ctrl+K` in
 the prompt bar (or `,.` from any tab) to open the
-[prompt history modal](ace.md#prompt-history-modal). Its filter accepts a leading
+[Prompts overlay](ace.md#prompt-history-modal). Its filter accepts a leading
 `project:<name>` qualifier, and `Ctrl+K` pre-scopes it to the project named by the
 current prompt's workspace reference.
 

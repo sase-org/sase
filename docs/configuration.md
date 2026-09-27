@@ -1724,8 +1724,8 @@ Source: `src/sase/history/prompt_misspellings.py`, `src/sase/core/word_lookup.py
 #### `ace.prompt_stash`
 
 Controls Stash Trash recovery in sase's TUI Prompts overlay (see
-[Prompt History Modal](ace.md#prompt-history-modal)). Trash recovers only drafts
-deliberately discarded from Stash, up to the configured row limit.
+[Prompts Overlay](ace.md#prompt-history-modal)). Trash recovers only drafts deliberately
+discarded from Stash, up to the configured row limit.
 
 ```yaml
 ace:
@@ -1757,10 +1757,10 @@ ace:
     block_spread_max_screens: 1.5
 ```
 
-| Field                      | Type   | Default | Description                                                                                                                                                                                                                                            |
-| -------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `spread_max_screens`       | number | `1.5`   | A multi-card deck renders spread when its cards fit within this many panel viewport heights ("screens"), and paged otherwise. `0` means always paged.                                                                                                  |
-| `block_spread_max_screens` | number | `1.5`   | A card shown alone renders its card blocks spread (all inline) when the card fits within this many panel heights, and paged (one block per page) otherwise. `0` means always one block per page. Applies to the session Reply card's per-shell blocks. |
+| Field                      | Type   | Default | Description                                                                                                                                                                                                                                           |
+| -------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spread_max_screens`       | number | `1.5`   | A multi-card deck renders spread when its cards fit within this many panel viewport heights ("screens"), and paged otherwise. `0` means always paged.                                                                                                 |
+| `block_spread_max_screens` | number | `1.5`   | A card shown alone renders its card blocks spread (all inline) when the card fits within this many panel heights, and paged (one block per page) otherwise. `0` means always one block per page. Applies to the session Reply card's per-turn blocks. |
 
 Source: `src/sase/ace/tui/agent_decks_settings.py`
 
@@ -6241,20 +6241,21 @@ subcommands; [Beads](beads.md#cli-commands) documents every subcommand.
 
 #### `sase bead create`
 
-| Flag                          | Values                                         | Default    | Description                                                                                                                                     |
-| ----------------------------- | ---------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-t, --title`                 | string                                         | (required) | Issue title                                                                                                                                     |
-| `-T, --type`                  | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or `task(<slug>)`. Feature flags use `sase flag new`                             |
-| `-f, --field`                 | `k=v`                                          | -          | Task-type field value; repeatable. `@<path>` reads the value from a file                                                                        |
-| `-d, --description`           | string                                         | -          | Issue description                                                                                                                               |
-| `-a, --assignee`              | string                                         | -          | Assignee name                                                                                                                                   |
-| `-m, --model`                 | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                                                             |
-| `-R, --ref`                   | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                                                        |
-| `-z, --size`                  | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; required for new task beads and rejected for plan beads. Phases use model and plan-first routing, tasks use model routing only |
-| `-r, --tier`                  | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                                                |
-| `-c, --patch`, `--changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                                                       |
-| `-b, --bug-id`                | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                             |
-| `-x, --external-ref`          | string                                         | -          | Project-qualified external issue identity, e.g. `bug:sase#42`                                                                                   |
+| Flag                          | Values                                         | Default    | Description                                                                                                                                                 |
+| ----------------------------- | ---------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`                 | string                                         | (required) | Issue title                                                                                                                                                 |
+| `-w, --reason`                | string                                         | (required) | Why the bead was filed. Trimmed, non-blank, at most 2000 characters. `@<path>` reads the text from a file. See [Creation Reason](beads.md#creation-reason). |
+| `-T, --type`                  | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or `task(<slug>)`. Feature flags use `sase flag new`                                         |
+| `-f, --field`                 | `k=v`                                          | -          | Task-type field value; repeatable. `@<path>` reads the value from a file                                                                                    |
+| `-d, --description`           | string                                         | -          | Issue description                                                                                                                                           |
+| `-a, --assignee`              | string                                         | -          | Assignee name                                                                                                                                               |
+| `-m, --model`                 | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                                                                         |
+| `-R, --ref`                   | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                                                                    |
+| `-z, --size`                  | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; required for new task beads and rejected for plan beads. Phases use model and plan-first routing, tasks use model routing only             |
+| `-r, --tier`                  | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                                                            |
+| `-c, --patch`, `--changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                                                                   |
+| `-b, --bug-id`                | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                                         |
+| `-x, --external-ref`          | string                                         | -          | Project-qualified external issue identity, e.g. `bug:sase#42`                                                                                               |
 
 #### `sase bead list`
 
@@ -6314,7 +6315,7 @@ With no subcommand, `sase bead task-type` defaults to `sase bead task-type list`
 | `-P, --project`  | project key, name, or alias        | current project | Resolve every ID against one enabled project's bead store, including shorthand suffixes |
 | `-r, --reason`   | string                             | (required)      | Non-empty reason for the audited bead read                                              |
 | `-s, --style`    | `auto`, `plain`, `rich`            | `auto`          | Styling level for `--format full`                                                       |
-| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | `88`            | Prose wrap width for description, notes, link reasons, and evidence                     |
+| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | `88`            | Prose wrap width for the filing reason, description, notes, link reasons, and evidence  |
 
 #### `sase bead touched`
 
@@ -6336,7 +6337,7 @@ With no subcommand, `sase bead task-type` defaults to `sase bead task-type list`
 | `-p, --pager`    | `auto`, `always`, `never`          | `auto`          | Page long terminal output                                                               |
 | `-P, --project`  | project key, name, or alias        | current project | Resolve every ID against one enabled project's bead store, including shorthand suffixes |
 | `-s, --style`    | `auto`, `plain`, `rich`            | `auto`          | Styling level for `--format full`                                                       |
-| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | `88`            | Prose wrap width for description, notes, link reasons, and evidence                     |
+| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | `88`            | Prose wrap width for the filing reason, description, notes, link reasons, and evidence  |
 
 #### `sase bead open`
 

@@ -27,6 +27,7 @@ DAG.
   - [Discovered Follow-Up Capture and Triage](#discovered-follow-up-capture-and-triage)
   - [External Issue Mirroring](#external-issue-mirroring)
   - [Artifact References](#artifact-references)
+  - [Creation Reason](#creation-reason)
   - [Creation Time Presentation](#creation-time-presentation)
 - [Storage](#storage)
   - [Directory Structure](#directory-structure)
@@ -45,10 +46,14 @@ DAG.
 ```bash
 PLANS_ROOT=$(sase repo path plans)
 sase bead init                                          # Initialize beads in current project
-sase bead create -t "New feature" --type "plan(${PLANS_ROOT}/202605/feature.md)" --tier plan
-sase bead create -t "Epic" --type "plan(${PLANS_ROOT}/202605/epic.md)" --tier epic
-sase bead create -t "Sub-task" --type "phase(beads-001)" --size small # Create a sized epic phase
+sase bead create -t "New feature" --type "plan(${PLANS_ROOT}/202605/feature.md)" --tier plan \
+  -w "Track the feature plan before implementation starts"
+sase bead create -t "Epic" --type "plan(${PLANS_ROOT}/202605/epic.md)" --tier epic \
+  -w "Break the feature into phased work"
+sase bead create -t "Sub-task" --type "phase(beads-001)" --size small \
+  -w "The epic plan calls for this phase" # Create a sized epic phase
 sase bead create -t "Fix flaky test" --type 'task(flake)' --size small \
+  -w "CI flakes on the retry path" \
   -f node_id=tests/foo.py::test_bar -f evidence='failed then passed' # Create a typed draft task
 sase bead +1 beads-002 --note "Independent reproduction" # Corroborate an existing task
 sase bead update beads-002 --status=ready               # Offer the task for human triage
@@ -196,7 +201,8 @@ storage layout.
 Epics use the plan syntax:
 
 ```bash
-sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.md)" --tier epic
+sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.md)" --tier epic \
+  -w "Planning the feature breakdown"
 ```
 
 ### Task Types
@@ -209,6 +215,7 @@ a catalog slug; existing untyped legacy tasks stay readable and render as a dim
 
 ```bash
 sase bead create -T 'task(flake)' -t "Fix flaky retry" -z medium \
+  -w "CI flakes on the retry path three times this week" \
   -f node_id=tests/foo.py::test_bar -f evidence=@evidence.md
 sase bead task-type                  # agent-creatable catalog
 sase bead task-type show flake       # fields, template, triage, provenance
@@ -435,7 +442,8 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
 
    ```bash
    sase bead create -T 'task(bug)' -t "Remove the compatibility shim" \
-     -d "The new parser has shipped; verify callers and remove the old path." \
+     -w "The new parser has shipped and the old path is still imported" \
+     -d "Verify callers and remove the old path." \
      -z medium -f location=src/compat.py -f repro='old path still imported'
    sase bead note <task-id> "Found while landing sase-123"
    sase bead dep add <task-id> <blocking-bead-id>
@@ -714,7 +722,8 @@ all in-progress epic plans before allowing a new task:
 
 ```bash
 sase bead create -T 'task(flake)' -t "Fix flaky integration test" \
-  -d "The retry test flakes under parallel pytest; discovered while landing sase-xy." \
+  -w "The retry test flakes under parallel pytest" \
+  -d "Discovered while landing sase-xy." \
   --size small -f node_id=tests/retry.py::test_retry -f evidence='failed then passed'
 sase bead update <task-id> -s ready
 ```
@@ -840,6 +849,49 @@ sase artifact link add bead:<task-id> related bead:<other-bead-id> "<why>"
 ```
 
 Use `sase bead dep add` only when the relationship blocks work scheduling.
+
+### Creation Reason
+
+Every new bead stores a filing reason: why the bead exists. The title names the work,
+and the description holds scope and evidence. Close text from `sase bead close -r` and
+the audited reason on `sase bead read -r` are separate fields.
+
+`sase bead create` requires `-w/--reason` on plan, phase, and task beads. The value is
+trimmed, must be non-blank, and may be at most 2000 characters. A value of `@<path>` is
+read from that file, the same way `--description` works. A missing, blank, or over-long
+reason is rejected before the store changes.
+
+The reason is fixed when the bead is filed. `sase bead update` has no flag for it, and
+the Beads pane editor does not offer the field.
+
+Beads filed before this field existed store an empty reason. Human detail output omits
+the section for those beads, and JSON omits the key.
+
+`sase bead show` and `sase bead read` print a `CREATION REASON` section immediately
+before `DESCRIPTION` when the reason is non-empty. That prose wraps with `--wrap` and
+takes the same rich highlighting as the description. `--format json` includes
+`issue.creation_reason` only when the stored reason is non-empty.
+[`sase bead search`](#sase-bead-search-query) indexes the same text as the
+`creation_reason` field. A hit that matches only that field still lists the bead, and
+JSON reports `creation_reason` in `matched_fields`. Compact search output does not print
+a `creation_reason:` snippet line for that hit.
+
+In sase's TUI, the Beads pane detail shows a `Creation reason` property and a
+`**Creation reason:**` line in the preview. `n` opens the create modal for a standalone
+task in the selected project; its "Why this bead was filed" field is required and uses
+the same 2000-character limit (`Ctrl+S` creates, `Esc` cancels). On the Agents tab, a
+bead the selected agent created shows the reason as a `why:` line under that bead in
+`SASE CONTEXT / ARTIFACTS`. A truncated index copy adds `… full reason in bead detail`.
+An assigned bead the agent did not create has no filing-reason line.
+
+Some flows file beads without asking you for `-w`. Approving an epic records
+`Approved epic plan <plan-ref> requests this work` on the epic bead and
+`Epic plan <plan-ref> defines phase <id> as one work unit` on each phase.
+`sase flag new` records `Flag '<key>' needs a removal-tracked bead`. External-issue
+mirroring records `Mirror upstream <ref> as a tracked bead`.
+
+The TaskTriage gate preview does not include the filing reason. Open the bead with
+`sase bead show` or the Beads pane to read it.
 
 ### Creation Time Presentation
 
@@ -1246,11 +1298,13 @@ batching bead mutations, then publish the batch with a later `sase bead sync`.
 
 ### `sase bead create`
 
-Create a new issue.
+Create a new issue. Every create requires `-w/--reason`; see
+[Creation Reason](#creation-reason).
 
 | Flag                           | Required             | Description                                                                                                                                                                                                                                                         |
 | ------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-t, --title`                  | yes                  | Issue title                                                                                                                                                                                                                                                         |
+| `-w, --reason`                 | yes                  | Why this bead was filed. Trimmed, non-blank, at most 2000 characters. `@<path>` reads it from that file. Distinct from the title and from `-d/--description`.                                                                                                       |
 | `-T, --type`                   | yes                  | Bead type: `task(<slug>)`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand. New tasks require a catalog slug; list them with `sase bead task-type`. Feature flags use `sase flag new`, not this grammar.      |
 | `-f, --field`                  | no                   | Task-type field value as `k=v` (repeatable). A value of `@<path>` is read from that file. Valid only with `-T 'task(<slug>)'`                                                                                                                                       |
 | `-d, --description`            | no                   | Issue description; `@<path>` reads it from that file and `@@` escapes a literal leading `@`                                                                                                                                                                         |
@@ -1668,11 +1722,15 @@ search is case-insensitive unless the pattern starts with `(?-i)`. Regex matchin
 unanchored, and `^`/`$` anchor the whole field unless the pattern uses `(?m)`. A pattern
 that starts with `-` needs the `--` separator, such as
 `sase bead search --regex -- '-x'`. Current indexed fields include ID, title,
-description, notes, design/plan path, artifact references, external issue reference,
-owner, assignee, model, phase/task size, Patch name/bug ID, status, type, and tier;
-timestamps are not searched. Unlike `sase bead list`, search includes `open`, `claimed`,
-`ready`, `snoozed`, `in_progress`, and `closed` beads by default, so it is the quickest
-way to recover older context.
+description, the filing reason (`creation_reason`), notes, design/plan path, artifact
+references, external issue reference, owner, assignee, model, phase/task size, Patch
+name/bug ID, status, type, and tier; timestamps are not searched. Compact output prints
+a field-labeled snippet for matches outside the title and description when the renderer
+has that field's text. A match that hits only `creation_reason` still returns the bead,
+and `--format json` lists `creation_reason` in `matched_fields`, but the compact snippet
+line for that field is omitted. Unlike `sase bead list`, search includes `open`,
+`claimed`, `ready`, `snoozed`, `in_progress`, and `closed` beads by default, so it is
+the quickest way to recover older context.
 
 Compact output prints each matching bead with the same type/status/size gutter as
 `sase bead list`, followed by a short snippet. For multi-line fields such as
@@ -1728,14 +1786,15 @@ still print.
 ### `sase bead show <id> [<id2> ...]`
 
 Display complete details for one or more issues including status, type, task type, tier,
-parent lineage, dependencies, blockers, typed artifact links, description, the rendered
-task-type body block, notes, Patch metadata, model, linked plan path, artifact
-references, external issue reference, creator, and the hosted page URL when one resolves
-locally. Full IDs and shorthand suffixes are accepted. Multiple IDs render in the order
-given, and duplicates collapse after resolution, so a full ID and its shorthand render
-one block. If one ID in a batch is missing, the beads that resolved still print first;
-after output or the pager exits, stderr gets one `Error: issue not found: <id>` line per
-miss and the command exits 1.
+parent lineage, dependencies, blockers, typed artifact links, the filing reason when one
+was stored, description, the rendered task-type body block, notes, Patch metadata,
+model, linked plan path, artifact references, external issue reference, creator, and the
+hosted page URL when one resolves locally. See [Creation Reason](#creation-reason). Full
+IDs and shorthand suffixes are accepted. Multiple IDs render in the order given, and
+duplicates collapse after resolution, so a full ID and its shorthand render one block.
+If one ID in a batch is missing, the beads that resolved still print first; after output
+or the pager exits, stderr gets one `Error: issue not found: <id>` line per miss and the
+command exits 1.
 
 Run inside a SASE agent run with an identity (and without `SASE_BEAD_SKIP_VIEW_LOG=1`),
 `show` refuses before printing anything: it exits `2`, prints nothing to stdout, records
@@ -1889,8 +1948,10 @@ own per-result `notes` key in `matched_fields`, unrelated to this detail-envelop
 
 The `issue.size` key is always present and is `null` for a bead with no stored size. The
 `issue.external_ref` key is always present and is an empty string for a bead with no
-external reference set. `sase bead list --format json` and
-`sase bead search --format json` include the same `external_ref` key on every issue.
+external reference set. `issue.creation_reason` is included only when the stored filing
+reason is non-empty. `sase bead list --format json` and `sase bead search --format json`
+use this same issue object, so they follow the same rules for `size`, `external_ref`,
+and `creation_reason`.
 
 `--format full` renders a semantically colored, syntax-highlighted detail block
 controlled by `-s/--style`. Styling is purely additive ANSI: stripping SGR escapes from
@@ -1898,11 +1959,11 @@ any styled output reproduces the exact `plain` bytes, so piping to a non-TTY (as
 agent does) is unaffected. `--color` decides **whether** ANSI may be emitted; `--style`
 decides **how much** styling to apply once that gate is open:
 
-| `--style` | Meaning                                                                                              |
-| --------- | ---------------------------------------------------------------------------------------------------- |
-| `auto`    | Resolve to `rich` when color is enabled, else `plain`. Default.                                      |
-| `plain`   | No ANSI at all, regardless of `--color`.                                                             |
-| `rich`    | Semantic palette plus markdown/code syntax highlighting inside `DESCRIPTION`, `NOTES`, and evidence. |
+| `--style` | Meaning                                                                                                                 |
+| --------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `auto`    | Resolve to `rich` when color is enabled, else `plain`. Default.                                                         |
+| `plain`   | No ANSI at all, regardless of `--color`.                                                                                |
+| `rich`    | Semantic palette plus markdown/code syntax highlighting inside `CREATION REASON`, `DESCRIPTION`, `NOTES`, and evidence. |
 
 `--style` has no effect on `--format json`, which is never styled. For
 `--format compact`, `plain` forces no ANSI while `auto`/`rich` enable the compact row's
@@ -1931,14 +1992,14 @@ pipelines remain plain stdout.
 sase bead show sase-64 --pager always
 ```
 
-`DESCRIPTION`, `NOTES`, and task `+1 EVIDENCE` notes wrap at the configured
-`markdown.print_width` total columns by default (`88` unless you configure otherwise);
-`NOTES` appears only when the bead has notes. The budget includes the rendered indent:
-with `--wrap 60`, no line in a description block exceeds 60 columns unless it contains a
-single token that is longer than the budget. Wrapping is break-only: short lines are
-emitted byte-for-byte, existing line breaks are not reflowed into longer paragraphs, and
-`--wrap none` or `--wrap 0` disables wrapping. `--wrap auto` uses the current terminal
-width, floored at 20 columns.
+`CREATION REASON`, `DESCRIPTION`, `NOTES`, and task `+1 EVIDENCE` notes wrap at the
+configured `markdown.print_width` total columns by default (`88` unless you configure
+otherwise); `NOTES` appears only when the bead has notes. The budget includes the
+rendered indent: with `--wrap 60`, no line in a description block exceeds 60 columns
+unless it contains a single token that is longer than the budget. Wrapping is
+break-only: short lines are emitted byte-for-byte, existing line breaks are not reflowed
+into longer paragraphs, and `--wrap none` or `--wrap 0` disables wrapping. `--wrap auto`
+uses the current terminal width, floored at 20 columns.
 
 The wrapper never splits URLs, inline code spans, Markdown links, autolinks, or ordinary
 non-whitespace tokens. Fenced code blocks, indented code, tables, tab-bearing lines,
@@ -2108,7 +2169,8 @@ unaffected — same syntax, output line, and commit message as before.
 | `-z, --size`               | Change a phase or task bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size.                                                                        |
 
 `task_type` is immutable: `sase bead update` has no `--task-type`. An attempt is
-rejected with a message pointing at close-and-recreate.
+rejected with a message pointing at close-and-recreate. The filing reason is immutable
+the same way: update has no flag for it. See [Creation Reason](#creation-reason).
 
 `sase bead update --notes` was removed: it used to replace the whole note field,
 destroying every earlier note. Notes are append-only now, and `--note` appends the same
@@ -2495,8 +2557,11 @@ with an orchid `◆` type marker and mint `◇ ready` state. The detail view lab
 as `task`. The `s` action only changes status; it cycles a task through
 `open → ready → in_progress → closed → open` (`claimed → ready`) but does not launch a
 worker when it reaches `in_progress`. The `e` action edits its title and description.
-The pane's `w` action remains epic-only; launch tasks from their `TaskTriage`
-notification or with `sase bead work <task-id>`.
+The filing reason stays as filed. `n` creates a task and requires that reason in the
+modal. `w` launches an open or ready task immediately, and asks before launching an epic
+that has phase beads. A phase row says to launch the epic instead. Closed beads, blocked
+epics, and epics with no phases are refused with a toast. The same launch is also
+available from a `TaskTriage` notification or `sase bead work <task-id>`.
 
 Generated bead pages and the mobile bead bridge expose the same literal type and status.
 Default non-closed mobile listings include ready tasks. sase's TUI task detail exposes

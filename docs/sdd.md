@@ -637,7 +637,7 @@ Plan-like beads carry a `tier` value:
 
 Standalone task beads live in the same store and carry no tier or parent. Their creation
 and launch paths are plan-free: agents use `/sase_new_task` first, then use
-`sase bead create --type 'task(bug)' --title "Follow up" --size small -f location=src/foo.py -f repro='fails on retry'`
+`sase bead create --type 'task(bug)' --title "Follow up" --size small -w "Independent follow-up that does not belong on the current epic" -f location=src/foo.py -f repro='fails on retry'`
 only for an independent follow-up. See the
 [standalone task workflow](beads.md#standalone-task-workflow) for ready-state triage and
 one-worker launch behavior. The generic bead update command currently accepts design

@@ -76,10 +76,11 @@ typed [task bead](https://sase.sh/beads/), not something you file with the stand
 sase bead onboard
 sase bead task-type            # catalog of agent-creatable types
 sase bead create -T 'task(bug)' -t "Description" -z small \
+  -w "Reproduced while working in this checkout" \
   -f location=src/foo.py -f repro='fails on retry'
 sase bead ready                # unblocked task beads awaiting triage
 ```
 
-New task beads require an explicit size and a catalog slug in `-T 'task(<slug>)'`. See
-[Beads](https://sase.sh/beads/) for snooze, corroboration, and the rest of the
-lifecycle.
+New task beads require an explicit size, a catalog slug in `-T 'task(<slug>)'`, and
+`-w/--reason` explaining why the bead was filed. See [Beads](https://sase.sh/beads/) for
+snooze, corroboration, and the rest of the lifecycle.

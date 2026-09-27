@@ -642,6 +642,11 @@ loaded but hidden by the visible `-status:closed limit:<page_size>` default; pre
 to edit or clear that query. Section headings report matched and total counts while a
 filter is active.
 
+`n` collects a standalone task for the selected project. Title, filing reason, size, and
+task type are required. The reason is one or two sentences, at most 2000 characters, and
+is stored separately from the title and description. `Ctrl+S` creates the bead and `Esc`
+cancels. See [Creation Reason](beads.md#creation-reason).
+
 The pane supports the full bead workflow:
 
 | Key                 | Action                                                                          |
@@ -655,7 +660,7 @@ The pane supports the full bead workflow:
 | `z`                 | Snooze the selected task bead (or edit/cancel an existing snooze)               |
 | `e`                 | Edit the bead's valid fields                                                    |
 | `N`                 | Append a note without replacing prior notes                                     |
-| `n`                 | Create a task bead in the selected project                                      |
+| `n`                 | Create a task bead in the selected project (filing reason required)             |
 | `c`                 | Close with a required reason and optional note, or reopen a closed bead         |
 | `w`                 | Launch an epic or launchable task; phase work launches with its epic            |
 | `E`                 | Open a linked external issue                                                    |
@@ -4874,6 +4879,7 @@ isolated tribe panels, and the Agents query. Every jumpable row carries a jump h
 | `"`                          | Jump back (same as `Ctrl+O`)                      | Types `"`                     |
 | `Backspace`                  | Cancel a pending prefix; otherwise swallow        | Delete a character            |
 | `Esc`                        | Cancel a pending prefix; otherwise close          | Back to HINTS, query kept     |
+| `PgUp` / `PgDn`              | Scroll the preview pane                           | Scroll the preview pane       |
 | Any other key                | Swallow; the footer flashes `no hint ‹x›`         | Types                         |
 
 The why-hidden glyph legend: blank means visible, `◆` you are here, `⊘` hidden by the
@@ -4886,6 +4892,29 @@ query-hidden node clears the Agents query (recorded in query history, announced 
 toast); restore it with the query-history keys. The one-line jobs of the sibling
 surfaces: `'` jumps by hint on the current tab, `` ` `` jumps across all tabs, digits
 jump roster members, and `"` in the finder jumps back.
+
+The preview sits beside the list. On a terminal at least 140 columns wide the list also
+keeps a status column. From 100 columns up to that width the two panes split evenly and
+the status column is hidden. Below 100 columns the preview stacks under the list. `PgUp`
+and `PgDn` scroll the preview in both modes.
+
+The preview paints from the snapshot taken when the finder opened. The highlighted row
+shows its kind and name, a compact identity block, and a breadcrumb from the tribe panel
+through ancestor names to the row (`@default ▸ parent ▸ name`). It also says whether the
+row is visible, and what `Enter` will do: `⏎ selects it` when the row is already
+visible, or the reveals it will perform first (clearing the Agents query, opening a
+hidden panel, opening a collapsed group, expanding folds) and then selecting it. A
+session row lists its turns. A clan lists a status tally and up to twelve members, then
+`… N more members` when the clan is larger. A monitor or named proc shows its command
+and an output tail. A gate turn shows its label and state. A workflow root shows a
+step-status tally. A non-node row says `Select a node to inspect it.`
+
+Agent turns then fill two more sections from that turn's artifacts: a `PROMPT` head and
+a `REPLY · tail`. A session container uses its newest agent turn for those sections and
+labels the prompt with that turn's name. Clans, monitors, gates, and named procs stop
+after the in-memory preview. The prompt and reply slots read `⋯ loading` until that read
+finishes, then `(no prompt recorded)` or `(no reply recorded)` when the artifact is
+empty. The reply tail names how many earlier lines were left off.
 
 ## Mentor Comment Stats in PR List
 
@@ -5405,19 +5434,19 @@ selection shows an empty-state card instead, so the layout never jumps.
 #### Card Blocks
 
 Cards gain a third level — **deck → card → card block** — for the session Reply card. An
-agent session's Reply card holds one block per concrete sase shell (`AGENT (role)`,
-`⚙ MONITOR`, `⋔ GATE` phases, matching the `SESSION SHELLS` jump-panel roster); the
+agent session's Reply card holds one block per concrete session turn (`AGENT (role)`,
+`⚙ MONITOR`, `⋔ GATE` phases, matching the `SESSION TURNS` jump-panel roster); the
 still-reachable legacy non-session `followup_agents` Reply path gets one block per
 followup the same way. Every other card renders exactly as before.
 
 **Newest-block landing and the triage loop.** Selecting a node lands on its newest
-block, so the first thing you see is the latest shell's output. The working loop is:
-read the newest block, press `[` to step one shell older, repeat, and press `]` to walk
-back toward the newest. Block state is ephemeral and panel-local (kept per deck panel
-for the current selection); changing nodes, toggling attempts, or losing a vanished
-block id re-lands on the newest. While you sit on an older block and a new shell starts,
-the view stays put and the newcomer only gains an arrival dot — a following view
-(sitting on the newest block) advances to it automatically.
+block, so the first thing you see is the latest turn's output. The working loop is: read
+the newest block, press `[` to step one turn older, repeat, and press `]` to walk back
+toward the newest. Block state is ephemeral and panel-local (kept per deck panel for the
+current selection); changing nodes, toggling attempts, or losing a vanished block id
+re-lands on the newest. While you sit on an older block and a new turn starts, the view
+stays put and the newcomer only gains an arrival dot — a following view (sitting on the
+newest block) advances to it automatically.
 
 **Block-spread vs block-paged.** Only a card shown alone pages its blocks; a spread deck
 always shows every block inline. A lone card renders **block-spread** (all blocks on one
@@ -5431,11 +5460,11 @@ sits docked under the Main deck panel's top border showing the session timeline:
 roster-numbered entries with status colors, an accent pill on the active block, arrival
 dots on unseen newcomers, and a `[ ] blocks` key hint at wide widths. Clicking an entry
 selects that block; in a spread deck the rail stays hidden because the phase dividers
-already mark each shell.
+already mark each turn.
 
 **Keys.** `[` steps to the older block and `]` to the newer block (both wrap); in a
-spread deck they top-align the target shell's header, in a block-paged card they swap
-the page. The footer shows a `[/] blocks` entry and the help modal a matching
+spread deck they top-align the target turn's header, in a block-paged card they swap the
+page. The footer shows a `[/] blocks` entry and the help modal a matching
 `Older / newer card block` row only while the focused card has 2+ navigable blocks.
 `Ctrl+Shift+J` / `Ctrl+Shift+K` are not bound by default: in common terminal chains
 (tmux + kitty included) they arrive as plain `Ctrl+J` / `Ctrl+K` and would cycle cards,
@@ -5650,7 +5679,8 @@ the preferred card.
   `created` chip instead), and verb chips (`assigned` first for assignment-only rows,
   then durable verbs such as `noted` or `closed`, then `read`, then `viewed`; repeats
   render `×N`). Indented `↳` lines show the bead title when available, then a labeled
-  `why:` filing-reason line for created rows, then the standing-close reason and the
+  `why:` filing-reason line for created rows (the bead's
+  [creation reason](beads.md#creation-reason)), then the standing-close reason and the
   newest audited read reason with explicit `closed:`/`read:` labels; rows with none of
   these omit `↳` lines. `assigned` marks the agent's assigned phase, epic, or
   `sase bead work` bead even when it was never touched (such rows show the
@@ -6424,7 +6454,7 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                                             |
 | `Ctrl+G p`                   | Open the Prompts overlay on Stash                                                                                                                         |
 | `Ctrl+Y`                     | Open the workflow YAML editor                                                                                                                             |
-| `Ctrl+K`                     | Open the Prompts overlay on History from a single-line prompt, scoped to that prompt's project (see [Prompt History Modal](#prompt-history-modal))        |
+| `Ctrl+K`                     | Open the Prompts overlay on History from a single-line prompt, scoped to that prompt's project (see [Prompts Overlay](#prompt-history-modal))             |
 | `Ctrl+P`                     | Cycle toward older workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its last row             |
 | `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its first row            |
 | `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion))                                                |
@@ -7794,7 +7824,7 @@ shape. `Escape` or `Ctrl+X` cancels a pending delimiter without replacing the pr
 dot-repeat action. Lowercase `s` keeps its change-selection behavior. V-LINE operators
 always apply to whole selected lines regardless of the cursor column.
 
-## Prompt History Modal
+## Prompts Overlay { #prompt-history-modal }
 
 Stash, History, and Trash live in one **Prompts** overlay: a single frame with a
 `Stash N` / `History` / `Trash M/N` tab strip, a consistent list/preview split, and one
