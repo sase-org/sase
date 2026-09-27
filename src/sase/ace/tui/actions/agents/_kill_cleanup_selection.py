@@ -10,6 +10,37 @@ if TYPE_CHECKING:
     from ...modals.agent_cleanup_modal import AgentCleanupAgentIdentity
 
 
+def _tribe_cleanup_header(
+    owner: object, tribes: tuple[str, ...], *, label: str | None = None
+) -> str:
+    """Return the tribe cleanup confirmation header with tab scope wording.
+
+    Tribe cleanup targets the active tab's rows, so the header names the tab
+    (``Tribe: @deploy on sase``) when a bulk scope label exists. None keeps
+    today's header byte-identical.
+    """
+    from ._agent_tabs import bulk_scope_label_for_owner
+
+    if label is None:
+        label = f"Tribe: @{tribes[0]}" if tribes else "Tribe"
+    scope = bulk_scope_label_for_owner(owner)
+    return f"{label} {scope}" if scope else label
+
+
+def _custom_cleanup_header(owner: object) -> str:
+    """Return the custom cleanup confirmation header with scope wording.
+
+    The custom selector resolves against the whole roster, so it reads
+    ``across all tabs`` whenever a bulk scope label exists (flag on with the
+    strip visible). Otherwise today's header is byte-identical.
+    """
+    from ._agent_tabs import bulk_scope_label_for_owner
+
+    if bulk_scope_label_for_owner(owner) is None:
+        return "Custom selection"
+    return "Custom selection across all tabs"
+
+
 class AgentCleanupSelectionMixin:
     """Mixin providing tribe and custom agent cleanup selection."""
 
@@ -87,7 +118,7 @@ class AgentCleanupSelectionMixin:
         )
         self._present_planned_cleanup(  # type: ignore[attr-defined]
             request,
-            header=f"Tribe: @{tribe}",
+            header=_tribe_cleanup_header(self, (tribe,)),
             targets=self._agent_cleanup_current_scope_targets(),  # type: ignore[attr-defined]
         )
 
@@ -134,7 +165,7 @@ class AgentCleanupSelectionMixin:
         tribe_label = ", ".join(f"@{tribe}" for tribe in tribes)
         self._present_planned_cleanup(  # type: ignore[attr-defined]
             request,
-            header=f"Tribes: {tribe_label}",
+            header=_tribe_cleanup_header(self, tribes, label=f"Tribes: {tribe_label}"),
             targets=cleanup_targets,
         )
 
@@ -185,4 +216,4 @@ class AgentCleanupSelectionMixin:
             identities=selected_wire,
             include_pidless_as_dismissable=True,
         )
-        self._present_planned_cleanup(request, header="Custom selection")  # type: ignore[attr-defined]
+        self._present_planned_cleanup(request, header=_custom_cleanup_header(self))  # type: ignore[attr-defined]

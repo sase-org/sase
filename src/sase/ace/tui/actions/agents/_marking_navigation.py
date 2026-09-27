@@ -385,7 +385,13 @@ class AgentMarkNavigationMixin:
             refresh_footer = getattr(self, "_refresh_agent_footer_bindings_only", None)
             if callable(refresh_footer):
                 refresh_footer()
-        self.notify(f"Cleared {count} mark(s)")  # type: ignore[attr-defined]
+        from ._agent_tabs import bulk_scope_label_for_owner
+
+        # Marks stay global: name the cross-tab reach when the strip shows it.
+        suffix = (
+            " across all tabs" if bulk_scope_label_for_owner(self) is not None else ""
+        )
+        self.notify(f"Cleared {count} mark(s){suffix}")  # type: ignore[attr-defined]
 
     def _prune_stale_marked_agents(self) -> None:
         """Drop marked identities that no longer appear in the agent list."""

@@ -54,6 +54,7 @@ class AgentCleanupPanelState:
     marked_count: int
     group_count: int
     tribe_count: int
+    scope_label: str | None = None
 
 
 __all__ = [

@@ -20,13 +20,20 @@ class AgentKillAllActionsMixin:
 
     def _kill_and_dismiss_all_agents_global(self) -> None:
         """Kill running and dismiss done agents across all loaded panels."""
+        from ._agent_tabs import bulk_scope_label_for_owner
+
         self._kill_and_dismiss_agents_from(
             list(self._agents),  # type: ignore[attr-defined]
             empty_message="No agents to kill or dismiss",
+            scope_label=bulk_scope_label_for_owner(self),
         )
 
     def _kill_and_dismiss_agents_from(
-        self, agents: list[Agent], *, empty_message: str
+        self,
+        agents: list[Agent],
+        *,
+        empty_message: str,
+        scope_label: str | None = None,
     ) -> None:
         """Kill running and dismiss done agents from a candidate list."""
         from ._clan_cleanup import expand_clan_containers_for_cleanup
@@ -99,4 +106,6 @@ class AgentKillAllActionsMixin:
             if named_procs:
                 self._dismiss_named_proc_rows(named_procs)  # type: ignore[attr-defined]
 
-        self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmKillAllModal(agent_description, scope_label), on_dismiss
+        )

@@ -66,7 +66,7 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
                 yield Static(
                     self._summary_block(
                         "All",
-                        "loaded panels",
+                        self._state.scope_label or "loaded panels",
                         self._state.all_running_count,
                         self._state.all_completed_count,
                         self._state.all_failed_count,
@@ -192,6 +192,7 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
     def _build_rows(state: AgentCleanupPanelState) -> list[_ActionRow]:
         panel_cleanup_count = state.panel_running_count + state.panel_completed_count
         all_cleanup_count = state.all_running_count + state.all_completed_count
+        scope = state.scope_label
         return [
             _ActionRow(
                 "dismiss_panel_done",
@@ -203,8 +204,12 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
             _ActionRow(
                 "dismiss_all_done",
                 "D",
-                "Dismiss completed everywhere",
-                f"{state.all_completed_count} completed across loaded panels",
+                f"Dismiss completed {scope}"
+                if scope
+                else "Dismiss completed everywhere",
+                f"{state.all_completed_count} completed {scope}"
+                if scope
+                else f"{state.all_completed_count} completed across loaded panels",
                 state.all_completed_count > 0,
             ),
             _ActionRow(
@@ -217,8 +222,10 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
             _ActionRow(
                 "kill_all",
                 "K",
-                "Kill and dismiss everywhere",
-                f"{all_cleanup_count} affected across loaded panels",
+                f"Kill and dismiss {scope}" if scope else "Kill and dismiss everywhere",
+                f"{all_cleanup_count} affected {scope}"
+                if scope
+                else f"{all_cleanup_count} affected across loaded panels",
                 all_cleanup_count > 0,
             ),
             _ActionRow(

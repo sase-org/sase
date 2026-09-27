@@ -76,7 +76,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
             return
 
-        self._present_bulk_kill_modal(marked_agents)
+        self._present_bulk_kill_modal(marked_agents, marked_total=len(marked_agents))
 
     def _bulk_kill_marked_agents_and_edit(self) -> None:
         """Kill / dismiss marked agents, then edit each one's prompt.
@@ -235,7 +235,9 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                     return
                 mount_prompt_stack()
 
-            self._present_bulk_kill_modal(present_agents, on_confirm=on_confirm)
+            self._present_bulk_kill_modal(
+                present_agents, on_confirm=on_confirm, marked_total=len(present_agents)
+            )
 
         schedule_relaunch_prompt_resolution(
             self,
@@ -254,6 +256,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             Callable[[list[Agent], list[Agent], list[Agent], list[Agent]], None] | None
         ) = None,
         on_cancel: Callable[[], None] | None = None,
+        marked_total: int | None = None,
     ) -> None:
         """Show the kill/dismiss confirmation modal for an arbitrary agent set.
 
@@ -266,7 +269,9 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         marked-set path.  The kill-and-edit flow passes a wrapper that kills
         first and then mounts the prompt stack.  Selected members covered by
         none of the four buckets are named in the modal instead of being
-        silently kept.
+        silently kept.  *marked_total*, given only on the marked-set paths,
+        appends an "N of M marked agents are on other tabs" line when any
+        marked agent sits off the active tab.
         """
         from ._clan_cleanup import clan_members_for_container
         from ._core import DISMISSABLE_STATUSES
@@ -310,6 +315,12 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             )
             self._confirm_remote_stop(remote_agents)  # type: ignore[attr-defined]
             agents = local_agents
+
+        off_tab_marked = 0
+        if marked_total is not None:
+            from ._agent_tabs import marked_off_tab_count_for_owner
+
+            off_tab_marked = marked_off_tab_count_for_owner(self, agents)
 
         from ._named_proc_dismiss import (
             partition_named_procs,
@@ -380,6 +391,10 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 leftover, list(self._agents_with_children)
             )
             desc_parts.append(leftover_line)
+        if marked_total is not None and off_tab_marked:
+            desc_parts.append(
+                f"{off_tab_marked} of {marked_total} marked agents are on other tabs"
+            )
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmDismissAllModal, ConfirmKillAllModal

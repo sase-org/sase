@@ -112,13 +112,20 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
 
     def _dismiss_all_done_agents_global(self) -> None:
         """Dismiss all done/failed agents across all loaded panels."""
+        from ._agent_tabs import bulk_scope_label_for_owner
+
         self._dismiss_done_agents_from(
             list(self._agents),
             empty_message="No agents to dismiss",
+            scope_label=bulk_scope_label_for_owner(self),
         )
 
     def _dismiss_done_agents_from(
-        self, agents: list[Agent], *, empty_message: str
+        self,
+        agents: list[Agent],
+        *,
+        empty_message: str,
+        scope_label: str | None = None,
     ) -> None:
         """Dismiss all done/failed agents from a candidate list."""
         from ._clan_cleanup import expand_clan_containers_for_cleanup
@@ -169,7 +176,9 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             if named_procs:
                 self._dismiss_named_proc_rows(named_procs)  # type: ignore[attr-defined]
 
-        self.push_screen(ConfirmDismissAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmDismissAllModal(agent_description, scope_label), on_dismiss
+        )
 
     def _do_dismiss_all(self, agents: list[Agent]) -> None:
         """Perform batch dismissal of done/failed agents."""

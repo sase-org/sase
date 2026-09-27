@@ -1304,6 +1304,8 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                          |
 | `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                              |
 | `(` / `)`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                                   |
+| `]` / `[`                 | Next / previous agent tab (wraps; only while the `agent_tabs` beta flag is on and the strip shows two or more tabs; see [Agent Tabs (beta)](#agent-tabs-beta))       |
+| _(palette)_               | Pick an agent tab from the command palette (`Agents: go to tab…`; same flag/strip gating as `]`/`[`)                                                                 |
 | `P`                       | Cycle the focused panel's deck view wider, pinning it fixed (wraps; Main and Files only, only when there is more than one distinct layout)                           |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                                |
 | `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                                   |
@@ -1360,6 +1362,22 @@ ancestor chain, switches tribe panels when needed, and participates in the norma
 `Ctrl+O` jump-back history. A digit on a dismissed neighbor revives that agent instead
 of jumping. If the roster or the neighbor relationship changed since the panel was
 drawn, the jump is cancelled with a warning rather than landing somewhere stale.
+
+#### Agent Tabs (beta)
+
+Behind the `agent_tabs` beta flag (`feature_flags.agent_tabs: true`), the Agents tab
+shows one agent tab at a time instead of the whole roster. Tabs come from each root's
+recorded tab (local roots land on `main`; remote roots land on a per-machine tab), and a
+minimal strip beside the fleet status names the tabs. `]` / `[` cycle tabs, every
+cross-tab jump switches tabs first and then reveals its target, and selection, folds,
+and sticky panels are remembered per tab; the active tab persists across restarts.
+
+Bulk confirmations name their scope while the strip is visible: panel-wide actions read
+`on <tab>` (for example `on sase`), the custom selector reads `across all tabs`, and a
+marked cleanup that spans tabs adds an `N of M marked agents are on other tabs` line.
+Marks themselves stay global. Tab styling, ordering, and machine-mode behavior live
+under `ace.agent_tabs` (see `docs/configuration.md`). With the flag off, the Agents tab
+is exactly today's single roster: no strip, no tab keys, and unchanged wording.
 
 ### Agent Actions
 

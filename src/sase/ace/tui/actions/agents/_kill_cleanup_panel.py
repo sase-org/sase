@@ -82,6 +82,8 @@ class AgentCleanupPanelMixin:
                 and not self._agents[idx].is_workflow_child
             )
 
+        from ._agent_tabs import bulk_scope_label_for_owner
+
         return AgentCleanupPanelState(
             focused_panel_label=self._focused_panel_label(),
             panel_running_count=running_count(panel_agents),
@@ -93,6 +95,7 @@ class AgentCleanupPanelMixin:
             marked_count=len(self._marked_agents),
             group_count=group_count,
             tribe_count=len(self._known_agent_cleanup_tribes()),
+            scope_label=bulk_scope_label_for_owner(self),
         )
 
     def _run_agent_cleanup_panel_action(self, action: AgentCleanupAction) -> None:

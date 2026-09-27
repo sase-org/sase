@@ -85,6 +85,63 @@ def strip_visible_for_owner(owner: Any) -> bool:
     return len(catalog_view_for_owner(owner)) >= 2
 
 
+def _active_tab_label_for_owner(owner: Any) -> str:
+    """Return the active tab's strip label, falling back to a default."""
+    active = getattr(owner, "_active_agent_tab", None)
+    for entry in catalog_view_for_owner(owner):
+        if entry.key == active and isinstance(entry.label, str) and entry.label:
+            return entry.label
+    known = getattr(owner, "_agent_tab_known_labels", None)
+    if isinstance(known, dict):
+        label = known.get(active)
+        if isinstance(label, str) and label:
+            return label
+    if isinstance(active, AgentTabKey):
+        return _fallback_label(active)
+    return "main"
+
+
+def bulk_scope_label_for_owner(owner: Any) -> str | None:
+    """Return the bulk-confirmation scope wording, or None for today's text.
+
+    Returns ``on <tab label>`` (for example ``on sase``) when the flag is on
+    and the strip is visible, ``across all tabs`` at the ``ALL_AGENT_TABS``
+    scope, and None otherwise. None keeps every confirmation byte-identical.
+    """
+    if not agent_tabs_enabled():
+        return None
+    from ...models.agent_tab_index import ALL_AGENT_TABS
+
+    if getattr(owner, "_active_agent_tab", None) is ALL_AGENT_TABS:
+        return "across all tabs"
+    if not strip_visible_for_owner(owner):
+        return None
+    return f"on {_active_tab_label_for_owner(owner)}"
+
+
+def marked_off_tab_count_for_owner(owner: Any, agents: list[Any]) -> int:
+    """Return how many of *agents* sit off the owner's active tab.
+
+    Returns 0 with the flag off (or without an index), so flag-off
+    confirmations stay byte-identical.
+    """
+    if not agent_tabs_enabled():
+        return 0
+    index = getattr(owner, "_agent_tab_index", None)
+    active = getattr(owner, "_active_agent_tab", None)
+    key_for = getattr(index, "key_for", None)
+    if index is None or active is None or not callable(key_for):
+        return 0
+    count = 0
+    for agent in agents:
+        try:
+            if key_for(agent) != active:
+                count += 1
+        except Exception:
+            continue
+    return count
+
+
 def _strip_id_for_key(key: AgentTabKey) -> str:
     """Return the ``PanelTabStrip`` id for *key*.
 
@@ -227,6 +284,15 @@ class AgentTabsMixin:
     def _agent_tab_strip_visible(self) -> bool:
         """Return True when the minimal tab strip should render."""
         return strip_visible_for_owner(self)
+
+    def _agent_bulk_scope_label(self) -> str | None:
+        """Return the bulk-confirmation scope wording for the active tab.
+
+        ``on <tab label>`` when the flag is on and the strip is visible,
+        ``across all tabs`` at the ``ALL_AGENT_TABS`` scope, else None (which
+        keeps today's confirmation text byte-identical).
+        """
+        return bulk_scope_label_for_owner(self)
 
     def _remember_active_tab_memory(self) -> None:
         """Save the active tab's selection, panel, and scroll memory."""
