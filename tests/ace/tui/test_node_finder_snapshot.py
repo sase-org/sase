@@ -925,9 +925,11 @@ def _describe_shapes() -> list[Agent]:
 
 def test_batched_description_matches_single_row() -> None:
     """The batched describer matches the single-row contract for every shape."""
+    from sase.ace.tui.models._node_finder_describe import (
+        _describe_node_finder_row_for_snapshot,
+    )
     from sase.ace.tui.models.node_finder import (
         describe_node_finder_row,
-        _describe_node_finder_row_for_snapshot,
         describe_node_finder_row_from_facts,
         kind_styles,
     )
