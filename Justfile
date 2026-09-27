@@ -386,6 +386,11 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
+        --epic-symbol 'sase-1bd.3(begin_update_attempt)' \
+        --epic-symbol 'sase-1bd.3(settle_update_attempt)' \
+        --epic-symbol 'sase-1bd.3(dismiss_update_failure)' \
+        --epic-symbol 'sase-1bd.3(load_update_attempts)' \
+        --epic-symbol 'sase-1bd.3(UpdateFailure)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
