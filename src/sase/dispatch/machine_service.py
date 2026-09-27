@@ -39,11 +39,11 @@ from .models import (
     EnrollmentBundleError,
     EnrollmentResult,
     FLEET_API_WIRE_SCHEMA_VERSION,
-    FLEET_PROTOCOL_VERSION,
     GatewayServiceVersion,
     MachineRecord,
     MachineRegistryError,
     MachineStatus,
+    SUPPORTED_FLEET_PROTOCOL_VERSIONS,
     is_installation_id,
     validate_machine_alias,
 )
@@ -106,7 +106,7 @@ class MachineService:
         request: dict[str, object] = {
             "schema_version": FLEET_API_WIRE_SCHEMA_VERSION,
             "requested_scopes": [str(scope) for scope in scopes],
-            "supported_protocol_versions": [FLEET_PROTOCOL_VERSION],
+            "supported_protocol_versions": sorted(SUPPORTED_FLEET_PROTOCOL_VERSIONS),
             "expires_at_unix": expires_at_unix,
             "installation_pin": None,
         }
@@ -202,7 +202,7 @@ class MachineService:
             return replace(result, record=quarantined)
         if credential is None:
             raise MachineRegistryError("gateway enrollment did not return credentials")
-        if result.protocol_version != FLEET_PROTOCOL_VERSION:
+        if result.protocol_version not in SUPPORTED_FLEET_PROTOCOL_VERSIONS:
             raise MachineRegistryError(
                 "gateway selected an unsupported protocol version"
             )
@@ -288,7 +288,7 @@ class MachineService:
             return replace(result, record=repaired)
         if credential is None:
             raise MachineRegistryError("gateway repair did not return credentials")
-        if result.protocol_version != FLEET_PROTOCOL_VERSION:
+        if result.protocol_version not in SUPPORTED_FLEET_PROTOCOL_VERSIONS:
             raise MachineRegistryError(
                 "gateway selected an unsupported protocol version"
             )
@@ -399,7 +399,7 @@ def _parse_enrollment_bundle(text: str) -> BootstrapBundle:
     )
     protocols = _int_tuple(
         payload.get("supported_protocol_versions", payload.get("protocol_versions")),
-        default=(FLEET_PROTOCOL_VERSION,),
+        default=tuple(sorted(SUPPORTED_FLEET_PROTOCOL_VERSIONS)),
     )
     scopes = tuple(
         str(item)
@@ -434,7 +434,7 @@ def _issue_result_from_response(response: Mapping[str, Any]) -> BootstrapIssueRe
     expires_at_unix = _float_field(response, "expires_at_unix")
     protocols = _int_tuple(
         response.get("protocol_versions", response.get("supported_protocol_versions")),
-        default=(FLEET_PROTOCOL_VERSION,),
+        default=tuple(sorted(SUPPORTED_FLEET_PROTOCOL_VERSIONS)),
     )
     scopes = _string_tuple(
         response.get("allowed_scopes", response.get("requested_scopes", ())),
@@ -565,7 +565,7 @@ def _status_from_hello(
         return _identity_error(record, "hello installation identity mismatch")
     capabilities = payload.get("capabilities")
     protocol = payload.get("protocol_version")
-    if protocol != FLEET_PROTOCOL_VERSION:
+    if protocol not in SUPPORTED_FLEET_PROTOCOL_VERSIONS:
         return _hello_error(record, "hello response protocol version is unsupported")
     if not _valid_capabilities(capabilities):
         return _hello_error(record, "hello response capabilities are invalid")

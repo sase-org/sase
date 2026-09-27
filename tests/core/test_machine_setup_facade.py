@@ -7,7 +7,10 @@ from sase.core.machine_setup_facade import (
     classify_tailnet_health,
     reconcile_machine_enrollments,
 )
-from sase.dispatch.models import FLEET_PROTOCOL_VERSION
+
+# Simulated gateways advertise the whole supported set so these tests pass
+# against both the pre-flip core (protocol 2) and the flipped core (protocol 3).
+from sase.dispatch.models import SUPPORTED_FLEET_PROTOCOL_VERSIONS
 
 
 def test_classify_tailnet_health_distinguishes_unrelated_from_legacy() -> None:
@@ -57,7 +60,9 @@ def test_classify_tailnet_discovery_never_infers_pin() -> None:
                     "payload": {
                         "status": "ok",
                         "fleet": {
-                            "supported_protocol_versions": [FLEET_PROTOCOL_VERSION]
+                            "supported_protocol_versions": sorted(
+                                SUPPORTED_FLEET_PROTOCOL_VERSIONS
+                            )
                         },
                     },
                 }

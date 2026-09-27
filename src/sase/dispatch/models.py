@@ -12,6 +12,11 @@ DISPATCH_SCHEMA_VERSION = 1
 # gateway requires on bootstrap-issue, enroll, and revoke requests.
 FLEET_API_WIRE_SCHEMA_VERSION = 2
 FLEET_PROTOCOL_VERSION = 2
+# Fleet protocol versions this sase tree negotiates. The pre-flip core speaks
+# 2 and the flipped core speaks 3; offer and accept both so one sase tree
+# works against either core. The pin-bump (sase-1ab.10.4) moves the canonical
+# version to 3 after the flip lands; it keeps this set.
+SUPPORTED_FLEET_PROTOCOL_VERSIONS = frozenset({FLEET_PROTOCOL_VERSION, 3})
 FLEET_API_BASE_PATH = "/api/fleet/v1"
 FLEET_INSTALLATION_ID_PREFIX = "sase_inst_v1_"
 
@@ -350,7 +355,9 @@ class BootstrapBundle:
     bootstrap_id: str
     bootstrap_secret: str
     pinned_installation_id: str
-    supported_protocol_versions: tuple[int, ...] = (FLEET_PROTOCOL_VERSION,)
+    supported_protocol_versions: tuple[int, ...] = tuple(
+        sorted(SUPPORTED_FLEET_PROTOCOL_VERSIONS)
+    )
     requested_scopes: tuple[str, ...] = ()
 
 
@@ -519,6 +526,7 @@ __all__ = [
     "MachineRegistryError",
     "MachineStatus",
     "ProviderSettings",
+    "SUPPORTED_FLEET_PROTOCOL_VERSIONS",
     "coerce_string_tuple",
     "is_installation_id",
     "is_reference_id",

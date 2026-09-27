@@ -10,7 +10,10 @@ import pytest
 
 from sase.dispatch import tailnet_discovery as tailnet_module
 from sase.dispatch.config import load_dispatch_config
-from sase.dispatch.models import FLEET_PROTOCOL_VERSION
+
+# Simulated gateways advertise the whole supported set so these tests pass
+# against both the pre-flip core (protocol 2) and the flipped core (protocol 3).
+from sase.dispatch.models import SUPPORTED_FLEET_PROTOCOL_VERSIONS
 from sase.dispatch.providers import discover_dispatch_result
 
 FIXTURES = Path(__file__).with_name("fixtures")
@@ -69,7 +72,11 @@ def test_tailnet_discovery_parses_status_and_probes_candidates(
                 endpoint=endpoint,
                 payload={
                     "status": "ok",
-                    "fleet": {"supported_protocol_versions": [FLEET_PROTOCOL_VERSION]},
+                    "fleet": {
+                        "supported_protocol_versions": sorted(
+                            SUPPORTED_FLEET_PROTOCOL_VERSIONS
+                        )
+                    },
                 },
             )
         return tailnet_module._HealthObservation(
@@ -123,7 +130,11 @@ def test_tailnet_discovery_defensively_handles_missing_and_extra_fields(
             endpoint=endpoint,
             payload={
                 "status": "ok",
-                "fleet": {"supported_protocol_versions": [FLEET_PROTOCOL_VERSION]},
+                "fleet": {
+                    "supported_protocol_versions": sorted(
+                        SUPPORTED_FLEET_PROTOCOL_VERSIONS
+                    )
+                },
             },
         ),
     )
@@ -208,7 +219,9 @@ def test_tailnet_health_classifies_fleet_advertisement() -> None:
     compatible = tailnet_module._classify_tailnet_health_payload(
         {
             "status": "ok",
-            "fleet": {"supported_protocol_versions": [FLEET_PROTOCOL_VERSION]},
+            "fleet": {
+                "supported_protocol_versions": sorted(SUPPORTED_FLEET_PROTOCOL_VERSIONS)
+            },
         },
         alias="apollo",
     )

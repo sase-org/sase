@@ -31,7 +31,7 @@ AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 34
 # above still name the pre-flip versions until pin-bump (sase-1ab.8) moves
 # them; readers accept both so one sase tree works against either core.
 SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS = frozenset({10, 11})
-SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS = frozenset({33, 34})
+SUPPORTED_AGENT_ARTIFACT_INDEX_SCHEMA_VERSIONS = frozenset({33, 34, 35})
 AgentArtifactRecordShape = Literal["full", "list"]
 AgentArtifactCandidateField = Literal[
     "project", "cl", "model", "provider", "machine", "type"

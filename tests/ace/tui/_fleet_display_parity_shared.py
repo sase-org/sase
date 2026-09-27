@@ -101,13 +101,22 @@ def _tree_signature(rows: list[Agent]) -> list[tuple[object, ...]]:
     ]
 
 
+# Dual-core window: the pre-flip core passes legacy session-role spellings
+# through while the flipped core normalizes them to the canonical turn
+# spellings. Canonicalize here so the parity comparison ignores that skew.
+_LEGACY_SESSION_ROLES = {
+    "agent_shell": "agent_turn",
+    "historical_shell": "historical_turn",
+}
+
+
 def _row_key(row: Agent) -> tuple[object, ...]:
     if row.is_clan_container:
         return ("clan", row.agent_clan, row.agent_clan_generation)
     return (
         "row",
         row.agent_name,
-        row.agent_session_role,
+        _LEGACY_SESSION_ROLES.get(row.agent_session_role, row.agent_session_role),
         row.agent_clan,
         row.agent_clan_generation,
     )

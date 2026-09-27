@@ -13,6 +13,7 @@ from sase.dispatch.machine_service import MachineService, _parse_enrollment_bund
 from sase.dispatch.models import (
     FLEET_API_WIRE_SCHEMA_VERSION,
     FLEET_PROTOCOL_VERSION,
+    SUPPORTED_FLEET_PROTOCOL_VERSIONS,
     CredentialRecord,
 )
 from tests.conftest import redirect_sase_home
@@ -251,7 +252,9 @@ def test_issue_bootstrap_builds_parseable_bundle_with_injected_binding(
             {
                 "schema_version": FLEET_API_WIRE_SCHEMA_VERSION,
                 "requested_scopes": ["fleet.summary.read"],
-                "supported_protocol_versions": [FLEET_PROTOCOL_VERSION],
+                "supported_protocol_versions": sorted(
+                    SUPPORTED_FLEET_PROTOCOL_VERSIONS
+                ),
                 "expires_at_unix": 1_060.0,
                 "installation_pin": None,
             },

@@ -13,7 +13,7 @@ from .models import (
     DISPATCH_SCHEMA_VERSION,
     FLEET_API_BASE_PATH,
     FLEET_API_WIRE_SCHEMA_VERSION,
-    FLEET_PROTOCOL_VERSION,
+    SUPPORTED_FLEET_PROTOCOL_VERSIONS,
     BootstrapBundle,
     CredentialRecord,
     EnrollmentResult,
@@ -78,7 +78,9 @@ class FleetGatewayClient:
         *,
         endpoint: str,
         credential: CredentialRecord,
-        supported_protocol_versions: Sequence[int] = (FLEET_PROTOCOL_VERSION,),
+        supported_protocol_versions: Sequence[int] = tuple(
+            sorted(SUPPORTED_FLEET_PROTOCOL_VERSIONS)
+        ),
     ) -> Mapping[str, Any]:
         return self._request_json(
             "GET",
@@ -94,7 +96,9 @@ class FleetGatewayClient:
         *,
         json_body: Mapping[str, Any] | None = None,
         bearer_token: str | None = None,
-        supported_protocol_versions: Sequence[int] = (FLEET_PROTOCOL_VERSION,),
+        supported_protocol_versions: Sequence[int] = tuple(
+            sorted(SUPPORTED_FLEET_PROTOCOL_VERSIONS)
+        ),
     ) -> Mapping[str, Any]:
         parsed = urllib.parse.urlsplit(url)
         if parsed.scheme != "https":

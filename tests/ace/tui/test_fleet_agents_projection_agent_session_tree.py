@@ -155,7 +155,9 @@ def test_project_fleet_agents_drops_container_plus_concrete_duplicates() -> None
     assert names.count("sase-zr.1") == 1
     root = next(row for row in projection.fleet_rows if row.agent_name == "sase-zr.1")
     assert root.fleet_current_instance is True
-    assert root.fleet_row_kind == "agent_shell"
+    # Dual-core window: the pre-flip core passes the legacy row kind through
+    # while the flipped core normalizes it to the canonical turn spelling.
+    assert root.fleet_row_kind in ("agent_shell", "agent_turn")
     assert root.is_agent_session_container_row is True
 
 

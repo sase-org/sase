@@ -61,7 +61,9 @@ FLEET_BINDINGS = {
 def test_fleet_contract_bindings_are_reachable_through_strict_loader() -> None:
     for name in sorted(FLEET_BINDINGS):
         assert callable(require_rust_binding(name))
-    assert _binding("fleet_contract_schema_version")() == 6
+    # Dual-core window: the pre-flip core reports 6, the flipped core reports 7.
+    # The pin-bump (sase-1ab.10.4) narrows this to 7 after the flip lands.
+    assert _binding("fleet_contract_schema_version")() in (6, 7)
 
 
 def test_installation_identity_bindings_persist_and_fence_changes(
