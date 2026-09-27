@@ -30,6 +30,7 @@ from sase.finalizers.executor_support import (
     sanitized_env,
 )
 from sase.finalizers.ledger import InstanceLedger, run_budgeted_attempts
+from sase.finalizers.operation_records import OperationRecorder
 from sase.finalizers.providers import (
     CommandFinalizerConfig,
     fatal_provider_diagnostics,
@@ -115,6 +116,11 @@ def _run_command_attempt(
     context: FinalizerExecutionContext,
     attempt: int,
 ) -> dict[str, Any]:
+    recorder = OperationRecorder.for_context(context, instance.instance_id)
+    label = " ".join(command_config.command)[:120] or "command"
+    started_at = recorder.start(
+        "command", kind="subprocess", label=label, attempt=attempt
+    )
     started = time.monotonic()
     completed = run_subprocess(
         list(command_config.command),
@@ -124,7 +130,16 @@ def _run_command_attempt(
         timeout=clamp_timeout_seconds(command_config.timeout_seconds),
     )
     duration = completed.duration_seconds or (time.monotonic() - started)
-    _write_command_attempt_artifacts(instance, attempt, context, completed)
+    _write_command_attempt_artifacts(
+        instance,
+        attempt,
+        context,
+        completed,
+        recorder,
+        started_at,
+        label,
+        argv=list(command_config.command),
+    )
     evidence = [
         FinalizerOutcomeEvidenceWire(kind="exit_code", value=str(completed.returncode)),
         FinalizerOutcomeEvidenceWire(kind="duration_seconds", value=f"{duration:.3f}"),
@@ -153,6 +168,10 @@ def _write_command_attempt_artifacts(
     attempt: int,
     context: FinalizerExecutionContext,
     completed: BoundedCompletedProcess,
+    recorder: OperationRecorder | None = None,
+    started_at: float | None = None,
+    label: str = "command",
+    argv: list[str] | None = None,
 ) -> None:
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance.instance_id)
     if artifact_dir is None:
@@ -177,6 +196,27 @@ def _write_command_attempt_artifacts(
             artifact_dir / f"attempt-{attempt}.diagnostics.json",
             payload,
             exclusive=True,
+        )
+    except FileExistsError as exc:
+        raise FinalizerExecutionError(str(exc)) from exc
+    active = recorder or OperationRecorder.for_context(context, instance.instance_id)
+    try:
+        active.finish(
+            "command",
+            kind="subprocess",
+            label=label,
+            attempt=attempt,
+            started_at=started_at,
+            duration_seconds=completed.duration_seconds,
+            argv=argv,
+            returncode=completed.returncode,
+            timed_out=completed.timed_out,
+            stdout_truncated=completed.stdout_truncated,
+            stderr_truncated=completed.stderr_truncated,
+            logs={
+                "stdout": f"attempt-{attempt}.stdout",
+                "stderr": f"attempt-{attempt}.stderr",
+            },
         )
     except FileExistsError as exc:
         raise FinalizerExecutionError(str(exc)) from exc

@@ -94,6 +94,7 @@ def resolve_commit_conflict(
     before_markers: Sequence[Mapping[str, Any]],
     attempt_id: int,
     bead_action: str | None = None,
+    instance_id: str = "commit",
 ) -> ConflictRepairResult:
     """Run the one-shot conflict-repair turn and resume the same stitch."""
 
@@ -112,6 +113,7 @@ def resolve_commit_conflict(
         before_markers=before_markers,
         attempt_id=attempt_id,
         bead_action=bead_action,
+        instance_id=instance_id,
         git_changed_files_fn=git_changed_files,
         git_head_commit_id_fn=git_head_commit_id,
     )

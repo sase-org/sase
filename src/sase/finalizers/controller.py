@@ -38,6 +38,8 @@ from sase.finalizers.controller_results import (
     result_failure_message as _result_failure_message,
     write_aggregate_result as _write_aggregate_result,
 )
+from dataclasses import replace as _replace_context
+
 from sase.finalizers.executor import (
     FinalizerExecutionContext,
     execute_non_commit_finalizer,
@@ -93,6 +95,21 @@ def _runner_fact() -> dict[str, Any]:
     """Return the runner identity fact for ``phase_started`` records."""
     pid = os.getpid()
     return {"pid": pid, "identity": process_identity_token(pid) or None}
+
+
+def _bind_observed_context(
+    artifacts_dir: str | None,
+    plan: Any,
+    publication: Any,
+    journal: ProgressJournal,
+    tracker: Any,
+) -> FinalizerExecutionContext:
+    """Bind an execution context carrying the shared journal and tracker."""
+    context = _bind_execution_context(artifacts_dir, plan, publication)
+    try:
+        return _replace_context(context, journal=journal, tracker=tracker)
+    except Exception:
+        return context
 
 
 def _ensure_declaration_with_events(
@@ -369,7 +386,9 @@ def run_finalizers(
             _remember_drift(drift_by_key, authenticated.drift)
             entries = _entries_from_plan(plan)
             publication = publish_final_context(artifacts_dir=artifacts_dir)
-            context = _bind_execution_context(artifacts_dir, plan, publication)
+            context = _bind_observed_context(
+                artifacts_dir, plan, publication, journal, tracker
+            )
             pending = _pending_instance_ids(
                 entries,
                 publication.payload,
@@ -399,7 +418,9 @@ def run_finalizers(
                 _remember_drift(drift_by_key, authenticated.drift)
                 entries = _entries_from_plan(plan)
                 config = authenticated.config
-                context = _bind_execution_context(artifacts_dir, plan, publication)
+                context = _bind_observed_context(
+                    artifacts_dir, plan, publication, journal, tracker
+                )
                 provider_ref = entry["provider_ref"]
                 instance = config.instances.get(instance_id)
                 if instance is None:
@@ -532,7 +553,9 @@ def run_finalizers(
             _remember_drift(drift_by_key, authenticated.drift)
             entries = _entries_from_plan(plan)
             publication = publish_final_context(artifacts_dir=artifacts_dir)
-            context = _bind_execution_context(artifacts_dir, plan, publication)
+            context = _bind_observed_context(
+                artifacts_dir, plan, publication, journal, tracker
+            )
             if not _pending_instance_ids(
                 entries,
                 publication.payload,

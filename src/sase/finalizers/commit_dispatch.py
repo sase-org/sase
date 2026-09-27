@@ -369,6 +369,7 @@ def dispatch_commit_decisions(
                     before_markers=before_markers,
                     attempt_id=consumed_attempt,
                     bead_action=bead_action,
+                    instance_id=instance_id,
                 )
                 current_result = repair_result.invoke_result
                 repaired_conflict = True

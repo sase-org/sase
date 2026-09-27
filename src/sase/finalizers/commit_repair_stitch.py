@@ -29,6 +29,10 @@ from sase.finalizers.commit_types import (
     failed_result,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
+from sase.finalizers.operation_records import (
+    OPERATION_RECORD_SCHEMA_VERSION,
+    OperationRecorder,
+)
 from sase.llm_provider.commit_finalizer_git import (
     dirty_path_fingerprints,
     normalize_path,
@@ -108,12 +112,22 @@ def record_stitch_artifacts(
     *,
     label: str = "stitch",
     inputs: Mapping[str, Any] | None = None,
+    started_at: float | None = None,
 ) -> None:
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance_id)
     if artifact_dir is None:
         return
     safe_label = artifact_label(label)
     prefix = f"attempt-{attempt}.{safe_label}"
+    human_label = f"stitch {label}"[:120]
+    recorder = OperationRecorder.for_context(context, instance_id)
+    if started_at is None:
+        op_started_at = recorder.start(
+            label, kind="subprocess", label=human_label, attempt=attempt
+        )
+    else:
+        op_started_at = started_at
+        recorder.start(label, kind="subprocess", label=human_label, attempt=attempt)
     try:
         write_text_artifact(
             artifact_dir / f"{prefix}.stdout",
@@ -128,6 +142,12 @@ def record_stitch_artifacts(
         write_json_atomic(
             artifact_dir / f"{prefix}.outcome.json",
             {
+                "schema_version": OPERATION_RECORD_SCHEMA_VERSION,
+                "op": safe_label,
+                "kind": "subprocess",
+                "label": human_label,
+                "attempt": attempt,
+                "started_at": op_started_at,
                 "returncode": result.returncode,
                 "duration_seconds": result.duration_seconds,
                 "timed_out": result.timed_out,
@@ -135,6 +155,10 @@ def record_stitch_artifacts(
                 "stderr_truncated": result.stderr_truncated,
                 "argv": list(result.argv),
                 "message_file": result.message_file,
+                "logs": {
+                    "stdout": f"{prefix}.stdout",
+                    "stderr": f"{prefix}.stderr",
+                },
             },
             exclusive=True,
         )
@@ -149,6 +173,26 @@ def record_stitch_artifacts(
                 json.dumps(payload, indent=2, sort_keys=True),
                 exclusive=True,
             )
+        if recorder.journal is not None:
+            try:
+                recorder.journal.record(
+                    "op_finished",
+                    instance_id=instance_id,
+                    attempt=attempt,
+                    op=safe_label,
+                    kind="subprocess",
+                    label=human_label,
+                    duration_seconds=float(result.duration_seconds or 0.0),
+                    timed_out=bool(result.timed_out),
+                    returncode=result.returncode,
+                )
+            except Exception:  # noqa: BLE001 - journaling is best-effort
+                pass
+        if recorder.tracker is not None:
+            try:
+                recorder.tracker.flush_pending_step(instance_id)
+            except Exception:  # noqa: BLE001 - observability is best-effort
+                pass
     except FileExistsError as exc:
         raise BuiltinCommitFinalizerError(
             str(exc),

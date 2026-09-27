@@ -55,6 +55,8 @@ class FinalizerExecutionContext:
     attempt: int | None = None
     assigned_bead_id: str | None = None
     assigned_bead_primary_repo_id: str | None = None
+    journal: Any = None
+    tracker: Any = None
 
 
 ProviderOperationRunner = Callable[

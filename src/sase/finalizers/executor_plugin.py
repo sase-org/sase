@@ -35,6 +35,7 @@ from sase.finalizers.executor_support import (
     run_subprocess,
     sanitized_env,
 )
+from sase.finalizers.operation_records import OperationRecorder
 from sase.finalizers.ledger import InstanceLedger, run_budgeted_attempts
 from sase.finalizers.providers import FinalizerProviderRecord
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
@@ -86,6 +87,11 @@ def run_provider_operation(
         "--operation",
         operation,
     ]
+    kind = "validation" if operation in {"describe", "validate"} else "subprocess"
+    recorder = OperationRecorder.for_context(context, instance.instance_id)
+    started_at = recorder.start(
+        operation, kind=kind, label=operation, attempt=context.attempt
+    )
     payload = json.dumps(dict(request), sort_keys=True).encode("utf-8")
     if len(payload) > STDOUT_CAP_BYTES:
         raise FinalizerExecutionError("provider request exceeded size cap")
@@ -98,7 +104,9 @@ def run_provider_operation(
             PROVIDER_OPERATION_TIMEOUT_SECONDS, HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS
         ),
     )
-    _write_provider_attempt_artifacts(instance, operation, context, completed)
+    _write_provider_attempt_artifacts(
+        instance, operation, context, completed, recorder, started_at, argv
+    )
     if completed.timed_out:
         raise FinalizerExecutionError(
             f"provider operation {operation!r} timed out after "
@@ -231,6 +239,9 @@ def _write_provider_attempt_artifacts(
     operation: str,
     context: FinalizerExecutionContext,
     completed: BoundedCompletedProcess,
+    recorder: OperationRecorder | None = None,
+    started_at: float | None = None,
+    argv: list[str] | None = None,
 ) -> None:
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance.instance_id)
     if artifact_dir is None:
@@ -251,6 +262,28 @@ def _write_provider_attempt_artifacts(
             artifact_dir / f"{prefix}.stderr",
             completed.stderr.decode("utf-8", errors="replace"),
             exclusive=exclusive,
+        )
+    except FileExistsError as exc:
+        raise FinalizerExecutionError(str(exc)) from exc
+    active = recorder or OperationRecorder.for_context(context, instance.instance_id)
+    kind = "validation" if operation in {"describe", "validate"} else "subprocess"
+    try:
+        active.finish(
+            operation,
+            kind=kind,
+            label=operation,
+            attempt=context.attempt,
+            started_at=started_at,
+            duration_seconds=completed.duration_seconds,
+            argv=argv,
+            returncode=completed.returncode,
+            timed_out=completed.timed_out,
+            stdout_truncated=completed.stdout_truncated,
+            stderr_truncated=completed.stderr_truncated,
+            logs={
+                "stdout": f"{prefix}.stdout",
+                "stderr": f"{prefix}.stderr",
+            },
         )
     except FileExistsError as exc:
         raise FinalizerExecutionError(str(exc)) from exc

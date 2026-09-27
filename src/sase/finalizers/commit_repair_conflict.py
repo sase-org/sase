@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 import inspect
+import time
 from typing import Any, cast
 
 from sase.core.finalizer_wire import (
@@ -30,6 +31,7 @@ from sase.finalizers.commit_types import (
     failed_result,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
+from sase.finalizers.operation_records import OperationRecorder
 from sase.finalizers.owned_turn import finalizer_owned_turn
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.commit_finalizer_git import git_changed_files
@@ -69,16 +71,17 @@ def resolve_commit_conflict(
     before_markers: Sequence[Mapping[str, Any]],
     attempt_id: int,
     bead_action: str | None = None,
+    instance_id: str = "commit",
     git_changed_files_fn: _GitChangedFiles = git_changed_files,
     git_head_commit_id_fn: _GitHeadCommitId = git_head_commit_id,
 ) -> ConflictRepairResult:
     """Run the one-shot conflict-repair turn and resume the same stitch."""
 
-    if _conflict_repair_spent(context.artifacts_dir, repo):
+    if _conflict_repair_spent(context.artifacts_dir, repo, instance_id=instance_id):
         raise BuiltinCommitFinalizerError(
             f"commit finalizer hit a second unresolved conflict in {repo.name}",
             result=failed_result(
-                "commit",
+                instance_id,
                 "second_unresolved_conflict",
                 f"commit finalizer hit a second unresolved conflict in {repo.name}",
                 attempts=attempts,
@@ -95,6 +98,9 @@ def resolve_commit_conflict(
         artifacts_dir=context.artifacts_dir,
         options=options,
         repo=repo,
+        instance_id=instance_id,
+        attempt=attempt_id,
+        context=context,
     )
     repaired_markers = [
         marker
@@ -117,7 +123,7 @@ def resolve_commit_conflict(
         bead_action=bead_action,
     )
     record_stitch_artifacts(
-        context, "commit", attempt_id, resumed, label=f"{repo.name}-conflict-repair"
+        context, instance_id, attempt_id, resumed, label=f"{repo.name}-conflict-repair"
     )
     if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
         code = "stitch_timeout" if resumed.timed_out else "stitch_output_cap"
@@ -131,7 +137,7 @@ def resolve_commit_conflict(
         raise BuiltinCommitFinalizerError(
             message_text,
             result=failed_result(
-                "commit",
+                instance_id,
                 code,
                 message_text,
                 attempts=attempts,
@@ -143,7 +149,7 @@ def resolve_commit_conflict(
         raise BuiltinCommitFinalizerError(
             f"commit finalizer hit a second unresolved conflict in {repo.name}",
             result=failed_result(
-                "commit",
+                instance_id,
                 "second_unresolved_conflict",
                 f"commit finalizer hit a second unresolved conflict in {repo.name}",
                 attempts=attempts,
@@ -158,7 +164,7 @@ def resolve_commit_conflict(
         raise BuiltinCommitFinalizerError(
             message_text,
             result=failed_result(
-                "commit",
+                instance_id,
                 "stale_conflict_checkpoint",
                 message_text,
                 attempts=attempts,
@@ -205,7 +211,7 @@ def resolve_commit_conflict(
     raise BuiltinCommitFinalizerError(
         message_text,
         result=failed_result(
-            "commit",
+            instance_id,
             "missing_commit_result",
             message_text,
             attempts=attempts,
@@ -271,8 +277,13 @@ def _conflict_repair_filename(stem: str, repo: DirtyRepo) -> str:
     return f"{stem}.{artifact_label(repo.name)}.md"
 
 
-def _conflict_repair_spent(artifacts_dir: str | None, repo: DirtyRepo) -> bool:
-    artifact_dir = instance_artifact_dir(artifacts_dir, "commit")
+def _conflict_repair_spent(
+    artifacts_dir: str | None,
+    repo: DirtyRepo,
+    *,
+    instance_id: str = "commit",
+) -> bool:
+    artifact_dir = instance_artifact_dir(artifacts_dir, instance_id)
     if artifact_dir is None:
         return False
     return (
@@ -290,6 +301,9 @@ def run_conflict_repair_turn(
     artifacts_dir: str | None,
     options: LLMInvocationOptions | None,
     repo: DirtyRepo,
+    instance_id: str = "commit",
+    attempt: int | None = None,
+    context: Any | None = None,
 ) -> InvokeResult:
     prompt = (
         "The built-in SASE commit finalizer hit a merge/rebase conflict while "
@@ -348,7 +362,23 @@ def run_conflict_repair_turn(
         "the host executes remaining declared repository obligations once in a "
         "bounded continuation and will not start another conflict-repair turn."
     )
-    artifact_dir = instance_artifact_dir(artifacts_dir, "commit")
+    recorder: OperationRecorder | None = None
+    if context is not None:
+        recorder = OperationRecorder.for_context(context, instance_id)
+    elif artifacts_dir is not None:
+        recorder = OperationRecorder(artifacts_dir, instance_id)
+    op_name = f"conflict-repair-{artifact_label(repo.name)}"
+    started_at: float | None = None
+    wall_start = time.time()
+    if recorder is not None:
+        started_at = recorder.start(
+            op_name,
+            kind="model_turn",
+            label=f"conflict repair {repo.name}"[:120],
+            attempt=attempt,
+        )
+        wall_start = started_at
+    artifact_dir = instance_artifact_dir(artifacts_dir, instance_id)
     if artifact_dir is not None:
         write_text_artifact(
             artifact_dir / _conflict_repair_filename(_CONFLICT_PROMPT_STEM, repo),
@@ -367,6 +397,23 @@ def run_conflict_repair_turn(
             artifact_dir / _conflict_repair_filename(_CONFLICT_RESPONSE_STEM, repo),
             follow_up.content,
         )
+    if recorder is not None:
+        try:
+            recorder.finish(
+                op_name,
+                kind="model_turn",
+                label=f"conflict repair {repo.name}"[:120],
+                attempt=attempt,
+                started_at=started_at or wall_start,
+                duration_seconds=max(0.0, time.time() - wall_start),
+                prompt=prompt,
+                response=follow_up.content,
+                logs={
+                    "stdout": _conflict_repair_filename(_CONFLICT_RESPONSE_STEM, repo),
+                },
+            )
+        except Exception:  # noqa: BLE001 - observability is best-effort
+            pass
     return InvokeResult(
         content=append_response(invoke_result.content, follow_up.content),
         usage=merge_usage(invoke_result.usage, follow_up.usage),
