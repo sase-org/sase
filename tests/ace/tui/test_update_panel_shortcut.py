@@ -284,3 +284,89 @@ def test_shortcut_dispatch_does_not_call_cached_status_accessors(
 
     assert isinstance(harness.pushed_modals[0], UpdatePanel)
     assert harness.pushed_modals[0]._state == build_update_panel_state(None, now=_NOW)
+
+
+def test_failure_result_opens_failure_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace._update_attempts_model import UpdateFailure
+
+    monkeypatch.setattr("time.time", lambda: _NOW)
+    harness = _ShortcutHarness()
+    harness._update_attempts_view = type(
+        "_View",
+        (),
+        {
+            "failure": UpdateFailure(
+                attempt_id="abc123",
+                label="update everything",
+                proc_type="comprehensive-update",
+                stage="apply",
+                started_at=_NOW - 10.0,
+                finished_at=_NOW,
+                error="boom",
+                output_tail="",
+            ),
+            "revision": 1,
+        },
+    )()
+    opened: list[None] = []
+    harness.action_open_update_failure = lambda: opened.append(None)  # type: ignore[method-assign]
+    harness.action_update_sase_shortcut()
+    callback = harness.pushed_callbacks[0]
+    assert callback is not None
+
+    callback(UpdatePanelResult(scope="failure"))
+
+    assert len(opened) == 1
+    assert harness.submitted is None
+
+
+def test_shortcut_panel_carries_failure_row_when_view_has_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace._update_attempts_model import UpdateFailure
+
+    monkeypatch.setattr("time.time", lambda: _NOW)
+    harness = _ShortcutHarness()
+    harness._update_attempts_view = type(
+        "_View",
+        (),
+        {
+            "failure": UpdateFailure(
+                attempt_id="abc123",
+                label="update everything",
+                proc_type="comprehensive-update",
+                stage="apply",
+                started_at=_NOW - 10.0,
+                finished_at=_NOW,
+                error="boom",
+                output_tail="",
+            ),
+            "revision": 1,
+        },
+    )()
+    harness.action_update_sase_shortcut()
+
+    assert isinstance(harness.pushed_modals[0], UpdatePanel)
+    assert harness.pushed_modals[0]._state.rows[0].scope == "failure"
+
+
+def test_dismiss_failure_request_refreshes_open_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("time.time", lambda: _NOW)
+    harness = _PanelHarness()
+    harness.screen = UpdatePanel(
+        build_update_panel_state(None, now=_NOW, last_failure=None)
+    )
+    dismissed: list[str] = []
+    harness._dismiss_update_failure = dismissed.append  # type: ignore[attr-defined]
+
+    harness.on_update_panel_dismiss_failure_requested(
+        UpdatePanel.DismissFailureRequested("abc123")
+    )
+
+    assert dismissed == ["abc123"]
+    assert isinstance(harness.screen, UpdatePanel)
+    assert all(row.scope != "failure" for row in harness.screen._state.rows)

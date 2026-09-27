@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
+from sase.ace._update_attempts_model import UpdateFailure
 from sase.ace.tui.update_panel_state import (
     _PROVIDER_DETAIL_LIMIT,
     _PROVIDER_NAME_LIMIT,
@@ -11,6 +14,7 @@ from sase.ace.tui.stale_running_code import RunningCodeRoot, RunningCodeState
 from sase.ace.tui.widgets.update_accents import (
     AGENT_CLI_ACCENT,
     UPDATE_CAUTION_ACCENT,
+    UPDATE_FAILED_ACCENT,
     UPDATE_GLYPH,
     UPDATES_ACCENT,
 )
@@ -477,3 +481,115 @@ def test_core_rebuild_never_marks_providers_or_failed_rows() -> None:
         now=_NOW,
     )
     assert all(row.chip.core_rebuild is False for row in failed.rows)
+
+
+def _failure(
+    *,
+    finished_at: float = _NOW,
+    interrupted: bool = False,
+    label: str = "update everything",
+    error: str = "boom",
+    attempt_id: str = "abc123",
+) -> UpdateFailure:
+    return UpdateFailure(
+        attempt_id=attempt_id,
+        label=label,
+        proc_type="comprehensive-update",
+        stage="apply",
+        started_at=finished_at - 10.0,
+        finished_at=finished_at,
+        error=error,
+        output_tail="",
+        interrupted=interrupted,
+    )
+
+
+def test_no_failure_row_without_recorded_failure() -> None:
+    state = build_update_panel_state(_status(checked_at=_NOW), now=_NOW)
+
+    assert [row.scope for row in state.rows] == ["everything", "sase", "providers"]
+    assert state.failure_attempt_id is None
+
+
+def test_failure_row_is_first_with_today_chip() -> None:
+    failure = _failure()
+    state = build_update_panel_state(
+        _status(checked_at=_NOW), now=_NOW, last_failure=failure
+    )
+
+    assert [row.scope for row in state.rows] == [
+        "failure",
+        "everything",
+        "sase",
+        "providers",
+    ]
+    row = state.rows[0]
+    assert row.key == "f"
+    assert row.title == "Last update failed"
+    assert row.description == "Open the failure report · d dismisses it."
+    assert row.details == ("update everything: boom",)
+    assert row.accent == UPDATE_FAILED_ACCENT
+    assert row.chip.kind == "update_failed"
+    expected_clock = datetime.fromtimestamp(_NOW).strftime("%H:%M")
+    assert row.chip.text == f"✗ failed {expected_clock}"
+    assert state.failure_attempt_id == "abc123"
+
+
+def test_interrupted_failure_row_and_older_chip() -> None:
+    finished_at = _NOW - 3 * 24 * 3600
+    failure = _failure(finished_at=finished_at, interrupted=True)
+    state = build_update_panel_state(
+        _status(checked_at=_NOW), now=_NOW, last_failure=failure
+    )
+
+    row = state.rows[0]
+    assert row.scope == "failure"
+    assert row.title == "Last update interrupted"
+    expected_day = datetime.fromtimestamp(finished_at).strftime("%b %d")
+    assert row.chip.text == f"✗ failed {expected_day}"
+
+
+def test_failure_row_sits_above_restart_row() -> None:
+    state = build_update_panel_state(
+        _status(checked_at=_NOW),
+        now=_NOW,
+        running_code=RunningCodeState(
+            roots=(
+                RunningCodeRoot(
+                    label="sase",
+                    git_root="/repo/sase",
+                    imported_sha="1" * 40,
+                    current_sha="2" * 40,
+                    git_dir="/repo/sase/.git",
+                    head_path="/repo/sase/.git/refs/heads/main",
+                    packed_refs_path="/repo/sase/.git/packed-refs",
+                    token=object(),  # type: ignore[arg-type]
+                    incoming=None,
+                ),
+            )
+        ),
+        last_failure=_failure(),
+    )
+
+    assert [row.scope for row in state.rows][:2] == ["failure", "restart"]
+
+
+def test_failure_detail_is_truncated_to_row_width() -> None:
+    failure = _failure(label="update everything", error="x" * 200)
+    state = build_update_panel_state(
+        _status(checked_at=_NOW), now=_NOW, last_failure=failure
+    )
+
+    (detail,) = state.rows[0].details
+    assert len(detail) <= 64
+    assert detail.endswith("…")
+
+
+def test_panel_refresh_after_dismissal_removes_the_row() -> None:
+    with_failure = build_update_panel_state(
+        _status(checked_at=_NOW), now=_NOW, last_failure=_failure()
+    )
+    assert with_failure.rows[0].scope == "failure"
+
+    cleared = build_update_panel_state(_status(checked_at=_NOW), now=_NOW)
+    assert all(row.scope != "failure" for row in cleared.rows)

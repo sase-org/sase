@@ -481,3 +481,136 @@ def test_core_rebuild_row_appends_tag_and_keeps_chip_right_aligned() -> None:
     plain_first = plain_prompt.plain.split("\n")[0]
     core_first = core_prompt.plain.split("\n")[0]
     assert len(plain_first) == len(core_first)
+
+
+def _failure_row(
+    *,
+    attempt_id: str = "abc123",
+) -> UpdateOptionRow:
+    from sase.ace.tui.widgets.update_accents import UPDATE_FAILED_ACCENT
+
+    return UpdateOptionRow(
+        scope="failure",
+        key="f",
+        title="Last update failed",
+        description="Open the failure report · d dismisses it.",
+        chip=UpdateOptionChip(kind="update_failed", text="✗ failed 00:16", count=0),
+        accent=UPDATE_FAILED_ACCENT,
+        details=("update everything: boom",),
+    )
+
+
+def _state_with_failure(
+    attempt_id: str = "abc123",
+) -> UpdatePanelState:
+    state = _state(
+        rows=(
+            _failure_row(attempt_id=attempt_id),
+            *tuple(_row(scope) for scope in _SCOPES),
+        )
+    )
+    return UpdatePanelState(
+        rows=state.rows,
+        freshness_label=state.freshness_label,
+        stale=state.stale,
+        rechecking=state.rechecking,
+        failure_attempt_id=attempt_id,
+    )
+
+
+async def test_f_key_dismisses_with_failure_scope() -> None:
+    for key in ("f", "F"):
+        async with _TestApp().run_test(size=(100, 40)) as pilot:
+            dismissed = await _push(pilot, UpdatePanel(_state_with_failure()))
+            await pilot.press(key)
+            await pilot.pause()
+        assert dismissed == [UpdatePanelResult(scope="failure", auto_approve=False)]
+
+
+async def test_f_key_without_failure_row_does_nothing() -> None:
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        dismissed = await _push(pilot, UpdatePanel(_state()))
+        await pilot.press("f")
+        await pilot.pause()
+        modal = pilot.app.screen
+        assert isinstance(modal, UpdatePanel)
+        modal.action_cancel()
+        await pilot.pause()
+    assert dismissed == [None]
+
+
+async def test_d_posts_dismiss_failure_without_closing() -> None:
+    posted: list[object] = []
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        modal = UpdatePanel(_state_with_failure())
+        dismissed = await _push(pilot, modal)
+        original = modal.post_message
+
+        def _capture(message: object) -> bool:
+            posted.append(message)
+            return original(message)
+
+        modal.post_message = _capture  # type: ignore[method-assign]
+        await pilot.press("d")
+        await pilot.pause()
+        assert modal.query_one("#update-panel-list", OptionList).option_count == 4
+    assert dismissed == []
+    requests = [
+        message
+        for message in posted
+        if isinstance(message, UpdatePanel.DismissFailureRequested)
+    ]
+    assert [request.attempt_id for request in requests] == ["abc123"]
+
+
+async def test_d_without_failure_row_posts_nothing() -> None:
+    posted: list[object] = []
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        modal = UpdatePanel(_state())
+        dismissed = await _push(pilot, modal)
+        original = modal.post_message
+
+        def _capture(message: object) -> bool:
+            posted.append(message)
+            return original(message)
+
+        modal.post_message = _capture  # type: ignore[method-assign]
+        await pilot.press("d")
+        await pilot.pause()
+        modal.action_cancel()
+        await pilot.pause()
+    assert dismissed == [None]
+    assert not any(
+        isinstance(message, UpdatePanel.DismissFailureRequested) for message in posted
+    )
+
+
+async def test_hint_text_toggles_dismiss_failure() -> None:
+    from sase.ace.tui.modals.update_panel import _hint_text
+
+    assert "d dismiss failure" not in _hint_text(False).plain
+    assert "d dismiss failure" in _hint_text(True).plain
+
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        modal = UpdatePanel(_state_with_failure())
+        await _push(pilot, modal)
+        hints = modal.query_one("#update-panel-hints", Static)
+        assert "d dismiss failure" in _plain(hints.content)
+        modal.action_cancel()
+        await pilot.pause()
+
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        modal = UpdatePanel(_state())
+        await _push(pilot, modal)
+        hints = modal.query_one("#update-panel-hints", Static)
+        assert "d dismiss failure" not in _plain(hints.content)
+        modal.action_cancel()
+        await pilot.pause()
+
+
+def test_failure_chip_style_uses_failed_accent() -> None:
+    from sase.ace.tui.modals.update_panel import _chip_style
+    from sase.ace.tui.widgets.update_accents import UPDATE_FAILED_ACCENT
+
+    chip = UpdateOptionChip(kind="update_failed", text="✗ failed 00:16", count=0)
+    assert _chip_style(chip, UPDATE_FAILED_ACCENT) == f"bold {UPDATE_FAILED_ACCENT}"

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from datetime import datetime
+from typing import TYPE_CHECKING, Literal
 
 from sase.ace.tui.stale_running_code import RunningCodeRoot, RunningCodeState
 from sase.updates import UpdateSourceStatus, UpdateStatus
@@ -11,12 +12,18 @@ from sase.updates import UpdateSourceStatus, UpdateStatus
 from .widgets.update_accents import (
     AGENT_CLI_ACCENT,
     UPDATE_CAUTION_ACCENT,
+    UPDATE_FAILED_ACCENT,
     UPDATE_GLYPH,
     UPDATES_ACCENT,
 )
 
-UpdateOptionChipKind = Literal["available", "current", "unknown", "failed", "stale"]
-UpdateOptionScope = Literal["everything", "sase", "providers", "restart"]
+if TYPE_CHECKING:
+    from sase.ace._update_attempts_model import UpdateFailure
+
+UpdateOptionChipKind = Literal[
+    "available", "current", "unknown", "failed", "stale", "update_failed"
+]
+UpdateOptionScope = Literal["everything", "sase", "providers", "restart", "failure"]
 
 _EVERYTHING_ACCENT = "$primary"
 _STALE_AFTER_SECONDS = 30 * 60
@@ -78,6 +85,7 @@ class UpdatePanelState:
     freshness_label: str
     stale: bool
     rechecking: bool
+    failure_attempt_id: str | None = None
 
 
 def build_update_panel_state(
@@ -86,21 +94,62 @@ def build_update_panel_state(
     now: float,
     rechecking: bool = False,
     running_code: RunningCodeState | None = None,
+    last_failure: UpdateFailure | None = None,
 ) -> UpdatePanelState:
-    """Project the cached update-status snapshot into three option rows."""
+    """Project the cached update-status snapshot into option rows."""
     sase_row = _sase_row(status)
     providers_row = _providers_row(status)
     everything_row = _everything_row(status, sase_row, providers_row)
     rows: tuple[UpdateOptionRow, ...] = (everything_row, sase_row, providers_row)
     if running_code is not None and running_code.is_stale:
         rows = (_restart_row(running_code), *rows)
+    failure_attempt_id: str | None = None
+    if last_failure is not None:
+        rows = (_failure_row(last_failure, now=now), *rows)
+        failure_attempt_id = last_failure.attempt_id
     freshness_label, stale = _freshness(status, now)
     return UpdatePanelState(
         rows=rows,
         freshness_label=freshness_label,
         stale=stale or (running_code is not None and running_code.is_stale),
         rechecking=rechecking,
+        failure_attempt_id=failure_attempt_id,
     )
+
+
+_FAILURE_DETAIL_LIMIT = 64
+
+
+def _failure_row(failure: UpdateFailure, *, now: float) -> UpdateOptionRow:
+    title = "Last update interrupted" if failure.interrupted else "Last update failed"
+    detail = _truncate_detail(f"{failure.label}: {failure.error}")
+    return UpdateOptionRow(
+        scope="failure",
+        key="f",
+        title=title,
+        description="Open the failure report · d dismisses it.",
+        chip=UpdateOptionChip(
+            kind="update_failed",
+            text=_failure_chip_text(failure, now=now),
+            count=0,
+        ),
+        accent=UPDATE_FAILED_ACCENT,
+        details=(detail,) if detail else (),
+    )
+
+
+def _failure_chip_text(failure: UpdateFailure, *, now: float) -> str:
+    moment = datetime.fromtimestamp(failure.finished_at)
+    reference = datetime.fromtimestamp(now)
+    if moment.date() == reference.date():
+        return f"✗ failed {moment.strftime('%H:%M')}"
+    return f"✗ failed {moment.strftime('%b %d')}"
+
+
+def _truncate_detail(text: str) -> str:
+    if len(text) <= _FAILURE_DETAIL_LIMIT:
+        return text
+    return text[: _FAILURE_DETAIL_LIMIT - 1].rstrip() + "…"
 
 
 def _restart_row(running_code: RunningCodeState) -> UpdateOptionRow:

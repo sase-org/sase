@@ -27,6 +27,12 @@ class UpdateAttemptStateMixin:
             return
         self._update_attempts_view = view
         try:
+            refresh = getattr(self, "_refresh_open_update_panel", None)
+            if callable(refresh):
+                refresh()
+        except Exception:
+            log.debug("Failed to refresh open Update panel", exc_info=True)
+        try:
             from ..widgets.updates_indicator import UpdatesAvailableIndicator
 
             indicator = self.query_one(  # type: ignore[attr-defined]

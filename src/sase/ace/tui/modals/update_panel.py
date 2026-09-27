@@ -21,6 +21,7 @@ from sase.ace.tui.update_panel_state import (
 )
 from sase.ace.tui.widgets.update_accents import (
     UPDATE_CAUTION_ACCENT,
+    UPDATE_FAILED_ACCENT,
     UPDATE_GLYPH,
     build_core_tag,
 )
@@ -52,6 +53,13 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
     class RecheckRequested(Message):
         """Ask the app to refresh cached update evidence."""
 
+    class DismissFailureRequested(Message):
+        """Ask the app to dismiss the recorded update failure in place."""
+
+        def __init__(self, attempt_id: str) -> None:
+            super().__init__()
+            self.attempt_id = attempt_id
+
     _option_list_id = "update-panel-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
@@ -63,6 +71,9 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
         ("P", "apply_providers", "Apply providers"),
         ("x", "choose_restart", "Restart"),
         ("X", "choose_restart", "Restart"),
+        ("f", "choose_failure", "Failure"),
+        ("F", "choose_failure", "Failure"),
+        ("d", "dismiss_failure", "Dismiss failure"),
         ("enter", "choose_highlighted", "Run"),
         ("r", "recheck", "Re-check"),
     ]
@@ -75,7 +86,7 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
     def compose(self) -> ComposeResult:
         with Container(id="update-panel-container"):
             yield OptionList(*self._options(), id="update-panel-list")
-            yield Static(_hint_text(), id="update-panel-hints")
+            yield Static(_hint_text(self._has_failure_row()), id="update-panel-hints")
 
     def on_mount(self) -> None:
         self._paint_chrome()
@@ -92,7 +103,21 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
         count = option_list.option_count
         if highlighted is not None and count:
             option_list.highlighted = min(highlighted, count - 1)
+        try:
+            hints = self.query_one("#update-panel-hints", Static)
+            hints.update(_hint_text(self._has_failure_row()))
+        except Exception:
+            pass
         self._paint_chrome()
+
+    def _has_failure_row(self) -> bool:
+        return any(row.scope == "failure" for row in self._state.rows)
+
+    def _failure_attempt_id(self) -> str | None:
+        for row in self._state.rows:
+            if row.scope == "failure":
+                return self._state.failure_attempt_id
+        return None
 
     def action_choose_everything(self) -> None:
         self._choose_scope("everything")
@@ -114,6 +139,15 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
 
     def action_choose_restart(self) -> None:
         self._choose_scope("restart")
+
+    def action_choose_failure(self) -> None:
+        self._choose_scope("failure")
+
+    def action_dismiss_failure(self) -> None:
+        attempt_id = self._failure_attempt_id()
+        if attempt_id is None:
+            return
+        self.post_message(self.DismissFailureRequested(attempt_id))
 
     def action_choose_highlighted(self) -> None:
         option_list = self.query_one("#update-panel-list", OptionList)
@@ -212,6 +246,8 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
 def _chip_style(chip: UpdateOptionChip, accent: str) -> str:
     if chip.kind == "stale":
         return f"bold {UPDATE_CAUTION_ACCENT}"
+    if chip.kind == "update_failed":
+        return f"bold {UPDATE_FAILED_ACCENT}"
     if chip.kind == "available":
         return f"bold {accent}".strip()
     if chip.kind == "current":
@@ -221,7 +257,7 @@ def _chip_style(chip: UpdateOptionChip, accent: str) -> str:
     return "dim"
 
 
-def _hint_text() -> Text:
+def _hint_text(has_failure: bool = False) -> Text:
     """Two-line legend: preview vs apply-now, then secondary navigation."""
     hints = Text()
     hints.append("e s p", style="bold")
@@ -232,7 +268,10 @@ def _hint_text() -> Text:
     hints.append(_AUTO_APPROVE_GLYPH, style=f"bold {UPDATE_CAUTION_ACCENT}")
     hints.append(" apply now · no prompt", style=UPDATE_CAUTION_ACCENT)
     hints.append("\n")
-    hints.append("j/k move · ⏎ run · r re-check · q close", style="dim")
+    nav = "j/k move · ⏎ run · r re-check · q close"
+    if has_failure:
+        nav = "j/k move · ⏎ run · r re-check · d dismiss failure · q close"
+    hints.append(nav, style="dim")
     return hints
 
 

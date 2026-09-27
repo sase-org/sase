@@ -66,6 +66,17 @@ class UpdateRunActionsMixin:
         if callable(schedule_update):
             schedule_update(periodic=True, force=True)
 
+    def on_update_panel_dismiss_failure_requested(self, event: object) -> None:
+        """Dismiss the recorded failure, then refresh the open panel in place."""
+        from sase.ace.tui.modals.update_panel import UpdatePanel
+
+        if not isinstance(event, UpdatePanel.DismissFailureRequested):
+            return
+        dismiss = getattr(self, "_dismiss_update_failure", None)
+        if callable(dismiss):
+            dismiss(event.attempt_id)
+        self._refresh_open_update_panel()
+
     def _refresh_open_update_panel(self, *, rechecking: bool | None = None) -> None:
         """Rebuild the active Update panel from cached snapshots; otherwise no-op."""
         from sase.ace.tui.modals.update_panel import UpdatePanel
@@ -79,12 +90,14 @@ class UpdateRunActionsMixin:
             return
         if rechecking is None:
             rechecking = bool(getattr(self, "_automatic_update_check_in_flight", False))
+        view = getattr(self, "_update_attempts_view", None)
         screen.set_state(
             build_update_panel_state(
                 getattr(self, "_automatic_update_status", None),
                 now=time.time(),
                 rechecking=rechecking,
                 running_code=getattr(self, "_running_code_state", None),
+                last_failure=getattr(view, "failure", None),
             )
         )
 

@@ -50,6 +50,7 @@ class BaseUpdateActionsMixin(BaseActionsHost):
             getattr(self, "_automatic_update_status", None),
             now=time.time(),
             running_code=getattr(self, "_running_code_state", None),
+            last_failure=self._cached_update_failure(),  # type: ignore[arg-type]
         )
 
         def on_result(result: UpdatePanelResult | None) -> None:
@@ -57,6 +58,11 @@ class BaseUpdateActionsMixin(BaseActionsHost):
                 return
             if result.scope == "restart":
                 self._restart_running_code_when_ready()
+                return
+            if result.scope == "failure":
+                opener = getattr(self, "action_open_update_failure", None)
+                if callable(opener):
+                    opener()
                 return
             self._submit_scoped_update_request(
                 scope=UpdateScope(result.scope),
@@ -71,6 +77,11 @@ class BaseUpdateActionsMixin(BaseActionsHost):
             scope=UpdateScope.EVERYTHING,
             auto_approve=True,
         )
+
+    def _cached_update_failure(self) -> object | None:
+        """Return the recorded update failure, or None when unavailable."""
+        view = getattr(self, "_update_attempts_view", None)
+        return getattr(view, "failure", None) if view is not None else None
 
     def _set_pending_update_restart(self, pending: object | None) -> None:
         """Publish one coalesced pending-restart record to the badge."""

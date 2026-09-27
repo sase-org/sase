@@ -8370,14 +8370,18 @@ previews still do not mutate. `,E` is the global direct alias for `,U` then capi
 it uses the same cached snapshots, preview planning, no-op handling, and error reporting
 without mounting the panel. The providers row lists each captured provider with its
 installed-to-latest version transition and marks manual-only providers by name, and the
-Everything row summarizes both legs on one line. `r` re-checks in place; `q` / `Esc`
-cancel. An Everything confirmation groups SASE and Agent CLI work into labeled sections
-with update/current/skipped glyphs, counts, and commands. The tracked proc runs Agent
-CLI commands first and the SASE/core/plugin leg second. A failure in one leg is reported
-alongside the independent earlier results. After a changed core/plugin update restarts
-sase's TUI, the one-shot result toast can show applied commits grouped by repository as
-well as file/line statistics. Configure the toast with
-`ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and
+Everything row summarizes both legs on one line. While a recorded update failure exists,
+the panel adds **Last update failed** (or **Last update interrupted**) as its first row,
+above **Restart ACE**, with an `✗ failed` chip and the failure's label and error; `f` /
+`F` opens the failure report and `d` dismisses the failure in place without closing the
+panel, and the open panel refreshes when the journal view changes. `r` re-checks in
+place; `q` / `Esc` cancel. An Everything confirmation groups SASE and Agent CLI work
+into labeled sections with update/current/skipped glyphs, counts, and commands. The
+tracked proc runs Agent CLI commands first and the SASE/core/plugin leg second. A
+failure in one leg is reported alongside the independent earlier results. After a
+changed core/plugin update restarts sase's TUI, the one-shot result toast can show
+applied commits grouped by repository as well as file/line statistics. Configure the
+toast with `ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and
 `post_update_toast_diffstat`.
 
 The providers leg still captures the agent-CLI candidates from the latest completed
