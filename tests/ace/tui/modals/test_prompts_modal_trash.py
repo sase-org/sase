@@ -16,11 +16,11 @@ from sase.ace.tui.modals.stash_pane import (
     StashPane,
     StashRestoreResult,
     TrashRequested,
-    _stash_empty_text,
     preview_trash_commit,
     trash_commit_confirm_text,
     trash_outcome_text,
 )
+from sase.ace.tui.modals.stash_pane_widget import _stash_empty_text
 from sase.ace.tui.modals.trash_pane import TrashPane
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from tests.ace.tui.modals.stashed_prompts_modal_test_helpers import make_entry
