@@ -20,8 +20,8 @@ from ._prompt_stash_restore_helpers import (
     _point_store_at,
     _restore_pairs,
     _seed,
+    _skip_without_lifecycle_bindings,
     _skip_without_pinned_binding,
-    _skip_without_prompt_stash_bindings,
     _wait_prompt_stash_tasks,
 )
 
@@ -48,7 +48,7 @@ async def test_empty_store_opens_overlay_on_stash(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """An empty Stash still opens the overlay (empty state points at Trash)."""
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     harness = _RestoreHarness()
@@ -65,7 +65,7 @@ async def test_empty_store_opens_overlay_on_stash(
 async def test_open_pushes_modal_with_snapshot_entries(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     _seed(
@@ -91,7 +91,7 @@ async def test_action_restore_prompt_stash_opens_modal(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The global ``@`` action opens the overlay for multiple entries."""
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     _seed(
@@ -116,7 +116,7 @@ async def test_action_open_prompt_stash_single_entry_opens_without_restoring(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Leader panel action keeps a lone entry available for inspection."""
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "model: c")])
@@ -144,7 +144,7 @@ async def test_action_restore_prompt_stash_single_unpinned_restores_and_pops(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A lone unpinned stash entry restores directly and is removed."""
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "model: c")])
@@ -167,7 +167,7 @@ async def test_action_restore_prompt_stash_single_pinned_restores_and_keeps(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A lone pinned stash entry restores directly and stays stashed."""
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     _skip_without_pinned_binding()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
@@ -192,7 +192,7 @@ async def test_action_restore_prompt_stash_single_unpinned_mounts_home_and_pops(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A lone unpinned stash entry restores into a new home prompt bar."""
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])
@@ -215,7 +215,7 @@ async def test_action_restore_prompt_stash_single_bundle_restores_panes_and_pops
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A lone bundle row counts as one stash entry and restores all panes."""
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     _seed(
@@ -241,7 +241,7 @@ async def test_action_restore_prompt_stash_empty_store_toasts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The global ``@`` action opens the overlay even when fully empty."""
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     harness = _RestoreHarness()
@@ -262,7 +262,7 @@ async def test_restore_requested_single_entry_still_opens_modal(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Prompt-local ``Ctrl+G p`` stays the panel path for a single entry."""
-    _skip_without_prompt_stash_bindings()
+    _skip_without_lifecycle_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
     _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])

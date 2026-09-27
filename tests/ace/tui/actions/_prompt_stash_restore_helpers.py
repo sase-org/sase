@@ -26,6 +26,24 @@ def _skip_without_pinned_binding() -> None:
         pytest.skip("sase_core_rs is too old (no set_prompt_stash_pinned binding).")
 
 
+def _skip_without_lifecycle_bindings() -> None:
+    """Skip unless the Rust trash-lifecycle bindings are available.
+
+    Overlay opens read the authoritative lifecycle snapshot and fail closed
+    without it, so any test that opens the overlay needs these bindings.
+    """
+    _skip_without_prompt_stash_bindings()
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    for name in (
+        "read_prompt_stash_lifecycle",
+        "trash_prompt_stash",
+        "restore_prompt_stash",
+        "purge_prompt_stash",
+    ):
+        if not hasattr(rust_module, name):
+            pytest.skip(f"sase_core_rs is too old (no {name} binding).")
+
+
 async def _wait_prompt_stash_tasks(harness: object) -> None:
     tasks = list(getattr(harness, "_prompt_stash_async_tasks", set()))
     if tasks:

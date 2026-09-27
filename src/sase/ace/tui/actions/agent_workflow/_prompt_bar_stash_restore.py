@@ -117,24 +117,23 @@ class PromptBarStashRestoreMixin(PromptBarStashStoreMixin):
     def _read_prompt_stash_overlay_snapshot(self) -> _PromptsOverlaySnapshot:
         """Read lifecycle collections, limit, and labels (worker-safe).
 
-        Falls back to the v1 active-only snapshot with empty Trash when the
-        lifecycle binding is unavailable (stale wheel); Trash then simply
-        shows empty until the core upgrade lands.
+        The lifecycle read is authoritative and fail-closed: a missing
+        binding (stale wheel), parse failure, or store read/lock error
+        propagates to the caller, which surfaces the actual error and never
+        opens a misleading overlay with empty Trash. A missing stash file
+        is benign inside the lifecycle binding's own contract (it reads as
+        empty). Only the display-only project labels degrade to ``None``.
         """
         from sase.ace.config import get_ace_prompt_stash_trash_limit
         from sase.project_display_names import load_project_display_snapshot
 
         trash_limit = get_ace_prompt_stash_trash_limit()
-        try:
-            from sase.core.paths import prompt_stash_path
-            from sase.core.prompt_stash_facade import read_prompt_stash_lifecycle
+        from sase.core.paths import prompt_stash_path
+        from sase.core.prompt_stash_facade import read_prompt_stash_lifecycle
 
-            lifecycle = read_prompt_stash_lifecycle(prompt_stash_path())
-            entries = tuple(lifecycle.active)
-            trash = tuple(lifecycle.trash)
-        except Exception:
-            entries = tuple(self._read_prompt_stash_entries())
-            trash = ()
+        lifecycle = read_prompt_stash_lifecycle(prompt_stash_path())
+        entries = tuple(lifecycle.active)
+        trash = tuple(lifecycle.trash)
         try:
             snapshot = load_project_display_snapshot()
         except Exception:

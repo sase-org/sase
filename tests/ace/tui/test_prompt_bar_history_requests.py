@@ -138,6 +138,13 @@ async def _open_history(
     harness: _HistoryRequestHarness, event: object
 ) -> tuple[PromptsModal, object]:
     """Open history through the overlay and return the modal + callback."""
+    from tests.ace.tui.actions._prompt_stash_restore_helpers import (
+        _skip_without_lifecycle_bindings,
+    )
+
+    # History opens through the overlay funnel, whose lifecycle snapshot
+    # read fails closed without the Rust trash-lifecycle bindings.
+    _skip_without_lifecycle_bindings()
     harness.on_prompt_input_bar_history_requested(event)
     await _wait_tasks(harness)
     assert len(harness.pushed) == 1
