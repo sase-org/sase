@@ -46,7 +46,12 @@ class KillResult:
 _KillResult = KillResult
 
 
-def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
+def kill_named_agent(
+    name: str,
+    *,
+    exact_name: bool = False,
+    retain_for_retry: bool = False,
+) -> _KillResult:
     """Kill a running agent by its assigned name.
 
     Locates the agent via find_named_agent(), derives the project context
@@ -57,6 +62,9 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
         name: The agent name to kill.
         exact_name: When true, reject workflow-name matches and only kill an
             artifact whose ``agent_meta.json`` name exactly matches ``name``.
+        retain_for_retry: When true, skip the dismissed-agents index write
+            so a fleet stop keeps its retry context. Markers, claims,
+            kill context, and notification dismissal still happen.
 
     Returns:
         A KillResult with success status and a human-readable message.
@@ -139,7 +147,8 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
                 remove_running=True,
                 remove_waiting=True,
             )
-            _record_dismissal(cl_name, timestamp)
+            if not retain_for_retry:
+                _record_dismissal(cl_name, timestamp)
             _dismiss_agent_notifications(cl_name, timestamp)
             return _KillResult(
                 True,
@@ -199,7 +208,8 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
                 remove_waiting=True,
             )
 
-    _record_dismissal(cl_name, timestamp)
+    if not retain_for_retry:
+        _record_dismissal(cl_name, timestamp)
     _dismiss_agent_notifications(cl_name, timestamp)
 
     message = (

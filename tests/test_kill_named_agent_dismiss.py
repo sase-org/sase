@@ -345,6 +345,36 @@ def test_kill_named_agent_dismissal_is_idempotent(
     assert notifications["question"].dismissed is True
 
 
+def test_kill_named_agent_retain_for_retry_skips_dismissal(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir, _ = _setup_nonhome_agent(tmp_path)
+    found = NamedAgent(
+        name="my_agent",
+        artifacts_dir=str(artifacts_dir),
+        is_done=False,
+        outcome=None,
+    )
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.agent.running.find_named_agent", return_value=found),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ),
+        patch("sase.running_field.release_workspace"),
+    ):
+        result = kill_named_agent("my_agent", retain_for_retry=True)
+
+    assert result.success is True
+    from sase.ace.dismissed_agents import load_dismissed_agents
+    from sase.ace.tui.models.agent import AgentType
+
+    dismissed = load_dismissed_agents()
+    assert (AgentType.RUNNING, "feature_x", "20260510130000") not in dismissed
+
+
 def test_dismiss_named_agent_retires_done_row_without_kill(tmp_path: Path) -> None:
     artifacts_dir = _setup_home_agent(tmp_path, with_cl_name=True)
     (artifacts_dir / "done.json").write_text('{"outcome": "completed"}')

@@ -116,7 +116,7 @@ def _submit_remote_mutation(
             "accepted",
         }:
             receipt = existing.get("receipt")
-            if isinstance(receipt, Mapping):
+            if isinstance(receipt, Mapping) and receipt.get("state") == "settled":
                 return _result_from_receipt(
                     alias,
                     kind,
@@ -140,61 +140,117 @@ def _submit_remote_mutation(
             }
         )
         update_dispatch_mutation_intent(operation_key, status="acceptance_uncertain")
-        try:
-            response = build_federation_facade().mutate_sync(
-                alias,
-                request,
-                timeout_seconds=timeout_seconds or config.request_timeout_seconds,
-            )
-        except FederationWorkerUnavailable as exc:
-            update_dispatch_mutation_intent(
-                operation_key,
-                status="unsent",
-                error=str(exc),
-            )
-            raise RemoteDispatchMutationError(
-                f"mutation was not sent to {alias}: {exc}",
-                outcome="unsent",
-            ) from exc
-        except FederationWorkerResponseError as exc:
+        acceptance_window = float(request["acceptance_window_seconds"])
+        mutate_timeout = acceptance_window
+        deadline = time.time() + acceptance_window
+        facade = build_federation_facade()
+        last_error: str | None = None
+        while True:
+            try:
+                response = facade.mutate_sync(
+                    alias,
+                    request,
+                    timeout_seconds=mutate_timeout,
+                )
+            except FederationWorkerUnavailable as exc:
+                update_dispatch_mutation_intent(
+                    operation_key,
+                    status="unsent",
+                    error=str(exc),
+                )
+                raise RemoteDispatchMutationError(
+                    f"mutation was not sent to {alias}: {exc}",
+                    outcome="unsent",
+                ) from exc
+            except FederationWorkerResponseError as exc:
+                last_error = str(exc)
+                if time.time() >= deadline:
+                    update_dispatch_mutation_intent(
+                        operation_key,
+                        status="acceptance_uncertain",
+                        error=last_error,
+                    )
+                    raise RemoteDispatchMutationError(
+                        f"mutation outcome is uncertain for {alias}: {exc}",
+                        outcome="uncertain",
+                    ) from exc
+                time.sleep(0.05)
+                continue
+            receipt, decision, reason_code = _receipt_from_response(response, alias)
+            if _is_terminal_refusal(decision, reason_code):
+                update_dispatch_mutation_intent(
+                    operation_key,
+                    status=decision,
+                    receipt=receipt,
+                    error=reason_code,
+                )
+                outcome = _decision_outcome(decision, reason_code)
+                raise RemoteDispatchMutationError(
+                    _host_named_message(alias, kind, outcome, reason_code),
+                    outcome=outcome,
+                )
+            if decision not in {"accept_new", "return_original_receipt"}:
+                update_dispatch_mutation_intent(
+                    operation_key,
+                    status=decision,
+                    receipt=receipt,
+                    error=reason_code,
+                )
+                outcome = _decision_outcome(decision, reason_code)
+                raise RemoteDispatchMutationError(
+                    _host_named_message(alias, kind, outcome, reason_code),
+                    outcome=outcome,
+                )
+            if receipt.get("state") == "settled":
+                update_dispatch_mutation_intent(
+                    operation_key,
+                    status="settled",
+                    receipt=receipt,
+                )
+                result = _result_from_receipt(
+                    alias,
+                    kind,
+                    receipt,
+                    decision=decision,
+                    reason=reason_code,
+                )
+                if follow and kind in {"retry", "fork"}:
+                    _activate_follow(receipt, operation_key=operation_key)
+                return result
+            expires_ms = receipt.get("expires_at_unix_ms")
+            if isinstance(expires_ms, (int, float)):
+                if time.time() * 1000.0 >= float(expires_ms):
+                    update_dispatch_mutation_intent(
+                        operation_key,
+                        status="acceptance_uncertain",
+                        receipt=receipt,
+                        error=reason_code or last_error or "receipt_not_settled",
+                    )
+                    raise RemoteDispatchMutationError(
+                        f"mutation outcome is uncertain for {alias}: "
+                        f"{reason_code or 'receipt_not_settled'}",
+                        outcome="uncertain",
+                    )
+            if time.time() >= deadline:
+                update_dispatch_mutation_intent(
+                    operation_key,
+                    status="acceptance_uncertain",
+                    receipt=receipt,
+                    error=reason_code or last_error or "receipt_not_settled",
+                )
+                raise RemoteDispatchMutationError(
+                    f"mutation outcome is uncertain for {alias}: "
+                    f"{reason_code or 'receipt_not_settled'}",
+                    outcome="uncertain",
+                )
             update_dispatch_mutation_intent(
                 operation_key,
                 status="acceptance_uncertain",
-                error=str(exc),
-            )
-            raise RemoteDispatchMutationError(
-                f"mutation outcome is uncertain for {alias}: {exc}",
-                outcome="uncertain",
-            ) from exc
-        receipt, decision, reason_code = _receipt_from_response(response, alias)
-        if decision not in {"accept_new", "return_original_receipt"}:
-            update_dispatch_mutation_intent(
-                operation_key,
-                status=decision,
                 receipt=receipt,
                 error=reason_code,
             )
-            outcome = _decision_outcome(decision, reason_code)
-            raise RemoteDispatchMutationError(
-                _host_named_message(alias, kind, outcome, reason_code),
-                outcome=outcome,
-            )
-        source_status = "settled" if receipt.get("state") == "settled" else "accepted"
-        update_dispatch_mutation_intent(
-            operation_key,
-            status=source_status,
-            receipt=receipt,
-        )
-        result = _result_from_receipt(
-            alias,
-            kind,
-            receipt,
-            decision=decision,
-            reason=reason_code,
-        )
-        if follow and kind in {"retry", "fork"}:
-            _activate_follow(receipt, operation_key=operation_key)
-        return result
+            time.sleep(0.05)
+            continue
     except (DispatchError, FollowStoreError, ValueError) as exc:
         raise RemoteDispatchMutationError(str(exc), outcome="unsent") from exc
 
@@ -414,6 +470,12 @@ def _receipt_from_response(
     )
 
 
+def _is_terminal_refusal(decision: str, reason: str) -> bool:
+    if "capability" in reason:
+        return True
+    return decision in {"precondition_mismatch", "conflict", "expired"}
+
+
 def _result_from_receipt(
     alias: str,
     kind: MutationKind,
@@ -422,9 +484,12 @@ def _result_from_receipt(
     decision: str,
     reason: str,
 ) -> RemoteMutationResult:
-    outcome: MutationOutcome = (
-        "already_settled" if decision == "return_original_receipt" else "applied"
-    )
+    if decision == "return_original_receipt" and receipt.get("state") == "settled":
+        outcome: MutationOutcome = "already_settled"
+    elif decision == "return_original_receipt":
+        outcome = "uncertain"
+    else:
+        outcome = "applied"
     verb = {
         "stop": "Stop requested",
         "retry": "Retry requested",

@@ -110,6 +110,42 @@ def test_kill_mobile_agent_bridge_returns_success_for_stale_cleanup(
     }
 
 
+def test_kill_mobile_agent_threads_retain_for_retry(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    agent = _agent(tmp_path, name="alpha")
+    monkeypatch.setattr(mobile_agents, "list_all_agents", lambda: [agent])
+    captured: dict[str, object] = {}
+
+    def _kill(
+        name: str, *, exact_name: bool, retain_for_retry: bool = False
+    ) -> _KillResult:
+        captured["retain_for_retry"] = retain_for_retry
+        return _KillResult(
+            True,
+            f"Killed agent '{name}' (PID 1234)",
+            status="killed",
+            pid=1234,
+            changed=True,
+            artifacts_dir=agent.artifacts_dir,
+            project="sase",
+            timestamp="20260506143000",
+        )
+
+    monkeypatch.setattr(mobile_agents, "kill_named_agent", _kill)
+    monkeypatch.setattr(lifecycle, "find_mobile_agent_summary", lambda _name: agent)
+    payload = _kill_mobile_agent(
+        {
+            "schema_version": 1,
+            "name": "alpha",
+            "retain_for_retry": True,
+        }
+    )
+    assert payload["status"] == "killed"
+    assert captured["retain_for_retry"] is True
+
+
 @pytest.mark.parametrize(
     ("result", "expected_code", "expected_message"),
     [

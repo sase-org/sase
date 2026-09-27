@@ -350,12 +350,14 @@ def test_lost_reply_reconciles_under_the_same_key(
     monkeypatch.setattr(mutations, "load_dispatch_config", lambda: _config(machine))
     monkeypatch.setattr(mutations, "require_rust_binding", _rust_binding)
     keys: list[dict[str, Any]] = []
+    timeouts: list[Any] = []
 
     class Facade:
         def mutate_sync(
             self, _target: str, request: dict[str, Any], **_kwargs: Any
         ) -> dict[str, Any]:
             keys.append(request["key"])
+            timeouts.append(_kwargs.get("timeout_seconds"))
             if len(keys) == 1:
                 raise mutations.FederationWorkerResponseError({"message": "lost reply"})
             return {
@@ -374,13 +376,7 @@ def test_lost_reply_reconciles_under_the_same_key(
             }
 
     monkeypatch.setattr(mutations, "build_federation_facade", Facade)
-    with pytest.raises(mutations.RemoteDispatchMutationError, match="uncertain"):
-        mutations._submit_remote_mutation(
-            alias="apollo",
-            kind="stop",
-            snapshot=_snapshot(machine),
-            operation_id="op-lost",
-        )
+    monkeypatch.setattr(mutations.time, "sleep", lambda _seconds: None)
     result = mutations._submit_remote_mutation(
         alias="apollo",
         kind="stop",
@@ -388,7 +384,46 @@ def test_lost_reply_reconciles_under_the_same_key(
         operation_id="op-lost",
     )
     assert result.outcome == "already_settled"
+    assert len(keys) == 2
     assert keys[0] == keys[1]
+    assert timeouts[0] is not None and timeouts[0] >= 30.0
+
+
+def test_uncertain_when_every_poll_fails_through_window(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    machine = _machine()
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setattr(mutations, "load_dispatch_config", lambda: _config(machine))
+    monkeypatch.setattr(mutations, "require_rust_binding", _rust_binding)
+    keys: list[dict[str, Any]] = []
+    current = {"now": 1000.0}
+
+    class Facade:
+        def mutate_sync(
+            self, _target: str, request: dict[str, Any], **_kwargs: Any
+        ) -> dict[str, Any]:
+            keys.append(dict(request["key"]))
+            raise mutations.FederationWorkerResponseError({"message": "lost reply"})
+
+    monkeypatch.setattr(mutations, "build_federation_facade", Facade)
+    monkeypatch.setattr(mutations.time, "time", lambda: current["now"])
+
+    def _sleep(_seconds: float) -> None:
+        current["now"] += 5.0
+
+    monkeypatch.setattr(mutations.time, "sleep", _sleep)
+    with pytest.raises(mutations.RemoteDispatchMutationError, match="uncertain") as exc:
+        mutations._submit_remote_mutation(
+            alias="apollo",
+            kind="stop",
+            snapshot=_snapshot(machine),
+            operation_id="op-lost-window",
+        )
+    assert exc.value.outcome == "uncertain"
+    assert len(keys) >= 2
+    assert all(key == keys[0] for key in keys)
 
 
 def test_fork_follow_honors_unfollow_tombstone(

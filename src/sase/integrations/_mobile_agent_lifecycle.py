@@ -41,7 +41,8 @@ def kill_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
     """Kill a named agent and persist retry context for mobile follow-up."""
     name = required_bridge_str(request.get("name"), "name")
     before = find_mobile_agent_summary(name)
-    result = kill_named_agent(name, exact_name=True)
+    retain_for_retry = request.get("retain_for_retry") is True
+    result = kill_named_agent(name, exact_name=True, retain_for_retry=retain_for_retry)
     if not result.success:
         raise_lifecycle_error(result)
 

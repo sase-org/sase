@@ -38,11 +38,21 @@ def allocate_retry_name(name: str) -> str:
     return _facade_override("allocate_retry_name", _real_allocate_retry_name)(name)
 
 
-def kill_named_agent(name: str, *, exact_name: bool) -> KillResult:
-    return _facade_override("kill_named_agent", _real_kill_named_agent)(
-        name,
-        exact_name=exact_name,
-    )
+def kill_named_agent(
+    name: str,
+    *,
+    exact_name: bool,
+    retain_for_retry: bool = False,
+) -> KillResult:
+    func = _facade_override("kill_named_agent", _real_kill_named_agent)
+    try:
+        return func(
+            name,
+            exact_name=exact_name,
+            retain_for_retry=retain_for_retry,
+        )
+    except TypeError:
+        return func(name, exact_name=exact_name)
 
 
 def list_all_agents(

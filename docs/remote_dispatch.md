@@ -272,6 +272,18 @@ Those operations are journaled through `sase machine agent` and
 `sase machine attention`. Use sase's TUI command palette or configure the corresponding
 `ace.keymaps.app` fields for direct keys.
 
+Stop, retry, and fork wait for a settled receipt inside the acceptance window (at least
+30 seconds). A lost response is recovered with the same operation key. An outcome still
+unknown when the window ends is uncertain and must not be submitted again under a new
+key.
+
+A fresh remote agent can be exact-stopped once the owner index has its record, including
+while the full fleet snapshot is still the previous cache.
+
+A remote fleet stop does not dismiss the row. Killed and other served agent turns
+advertise retry and fork until they leave the recent-terminal presentation window. Owner
+dismissal still removes them.
+
 To prove restart resilience, restart the target gateway service, then rerun:
 
 ```bash
