@@ -12,14 +12,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from rich.text import Text
-
-from sase.finalizers.view_vocabulary import FINAL_GLYPH, instance_style
+from sase.finalizers.view_vocabulary import instance_style
 
 from ..main_document import MainDeckDocument
 from ..model import RenderMode
 from .enrichers import instance_enrichments
 from .instance_card import build_instance_card_renderables
+from .overview_card import render_overview_lines
 
 #: Card id of the run-level Overview card (plan D3).
 FINAL_OVERVIEW_CARD_ID = "overview"
@@ -80,19 +79,6 @@ def decide_final_mode(card_count: int) -> RenderMode:
     return RenderMode.PAGED
 
 
-def _overview_header(node_view: Any) -> Text:
-    instances = list(getattr(node_view, "instances", ()) or ())
-    status = getattr(node_view, "status", "") or ""
-    glyph = getattr(node_view, "glyph", "") or FINAL_GLYPH
-    selected = f"{len(instances)} selected" if instances else "nothing selected"
-    return Text(f"{glyph} {status or 'finalizers'} · {selected}".strip())
-
-
-def _instance_row(instance_id: str, status: str | None) -> Text:
-    style = instance_style(status)
-    return Text(f"{style.glyph} {instance_id} · {style.word}", style=style.color)
-
-
 def build_final_deck_document(
     node_view: Any,
     *,
@@ -105,22 +91,10 @@ def build_final_deck_document(
     if subject is None or node_view is None:
         return MainDeckDocument(cards=(), subject=None, partial=False, digest=digest)
     instances = list(getattr(node_view, "instances", ()) or ())
-    header = _overview_header(node_view)
-    rows = [
-        _instance_row(
-            str(getattr(item, "instance_id", "")),
-            getattr(item, "status", None),
-        )
-        for item in instances
-    ]
-    unselected = list(getattr(node_view, "unselected", ()) or ())
-    tail = (
-        [Text(f"{len(unselected)} configured but not selected", style="dim")]
-        if unselected
-        else []
-    )
     overview = CardPart(
-        FINAL_OVERVIEW_CARD_ID, FINAL_OVERVIEW_TITLE, header, *rows, *tail
+        FINAL_OVERVIEW_CARD_ID,
+        FINAL_OVERVIEW_TITLE,
+        *render_overview_lines(node_view),
     )
     cards: list[CardPart] = [overview]
     runs = list(getattr(node_view, "runs", ()) or ())
