@@ -211,6 +211,10 @@ def _container_for_clan(
     imported_owner = _common_imported_source_owner(runtime_members)
     fleet_origin_alias = _common_fleet_origin_alias(runtime_members)
     fleet_origin_installation_id = _common_fleet_origin_installation_id(runtime_members)
+    agent_tab = next(
+        (row.agent_tab for row in rows if row.agent_tab),
+        None,
+    )
 
     container = Agent(
         agent_type=AgentType.RUNNING,
@@ -235,6 +239,7 @@ def _container_for_clan(
         imported_source_owner=imported_owner,
         fleet_origin_alias=fleet_origin_alias,
         fleet_origin_installation_id=fleet_origin_installation_id,
+        agent_tab=agent_tab,
     )
     container.runtime_children.extend(runtime_members)
     apply_clan_container_status(container, runtime_members, fallback="RUNNING")

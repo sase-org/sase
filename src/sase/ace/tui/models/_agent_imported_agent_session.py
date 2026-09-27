@@ -131,6 +131,7 @@ def _imported_agent_session_container(
         agent_clan=anchor.agent_clan,
         agent_clan_generation=anchor.agent_clan_generation,
         tribe=next(iter(tribes)) if len(tribes) == 1 else None,
+        agent_tab=anchor.agent_tab,
     )
     container.refresh_presented_agent_name()
     return container

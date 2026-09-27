@@ -2247,6 +2247,55 @@
             }
           }
         },
+        "agent_tabs": {
+          "type": "object",
+          "description": "Agent tab settings for sase's TUI Agents tab (beta flag agent_tabs)",
+          "additionalProperties": false,
+          "properties": {
+            "machine_tabs": {
+              "type": "string",
+              "description": "auto shows one machine tab per dispatch machine when machines are configured, and a single roster otherwise. on always uses machine tabs, off never does.",
+              "enum": ["auto", "on", "off"],
+              "default": "auto"
+            },
+            "launch_from_view": {
+              "type": "boolean",
+              "description": "Launch new agents onto the currently visible tab.",
+              "default": true
+            },
+            "tabs": {
+              "type": "object",
+              "description": "Per-tab styling and ordering, keyed by canonical tab name. Invalid names are dropped.",
+              "default": {},
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string",
+                    "description": "Tab label color.",
+                    "default": ""
+                  },
+                  "icon": {
+                    "type": "string",
+                    "description": "Tab label icon.",
+                    "default": ""
+                  },
+                  "order": {
+                    "type": ["integer", "null"],
+                    "description": "Sort order for named tabs, ascending. Omit to inherit the default order.",
+                    "default": null
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Tab description.",
+                    "default": ""
+                  }
+                }
+              }
+            }
+          }
+        },
         "agent_header": {
           "type": "object",
           "description": "Sticky agent header settings for sase's TUI Agents tab",
@@ -5358,6 +5407,11 @@
         "agent_sudo_requests": {
           "type": "boolean",
           "description": "Gate the typed sudo request workflow while the runner, TUI modal, skill guard, and SSH relay phases land.",
+          "default": false
+        },
+        "agent_tabs": {
+          "type": "boolean",
+          "description": "The Agents tab shows one agent tab at a time with a tab strip, [/] tab cycling, and cross-tab navigation.",
           "default": false
         },
         "agents_unified_query": {

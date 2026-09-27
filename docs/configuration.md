@@ -850,6 +850,7 @@ ace:
 | `prompt_stash`                      | dict         | see below | Stash Trash recovery settings for sase's TUI Prompts overlay.                                                                                                |
 | `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab.                                                                                   |
 | `agent_header`                      | dict         | see below | Collapsed Agents-tab header panel XPROMPT preview budget.                                                                                                    |
+| `agent_tabs`                        | dict         | see below | Agent tab machine mode and per-tab styling for the Agents tab (beta flag `agent_tabs`).                                                                      |
 | `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                    |
 | `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`).   |
 | `snippet_config_path`               | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                                |
@@ -1791,6 +1792,36 @@ ace:
 | `collapsed_preview_max_rows` | integer | `3`     | Most xprompt preview rows the collapsed header shows (at least 1). The `collapsed_max_share` budget can lower it on short columns. `d` expands to the full prompt.                                 |
 
 Source: `src/sase/ace/tui/agent_header_settings.py`
+
+#### `ace.agent_tabs`
+
+Agent tab settings for the Agents tab, gated by the `agent_tabs` beta flag.
+`machine_tabs` selects machine-tab mode: `auto` shows one machine tab per configured
+dispatch machine (and a single roster when no machines are configured), `on` always uses
+machine tabs, and `off` never does. `tabs` holds per-tab styling and ordering keyed by
+canonical tab name; invalid names are dropped. `launch_from_view` and the styling keys
+are consumed by later agent-tabs phases.
+
+```yaml
+ace:
+  agent_tabs:
+    machine_tabs: "auto"
+    launch_from_view: true
+    tabs:
+      sase:
+        color: "#AF87FF"
+        icon: "◈"
+        order: 0
+        description: "SASE project agents."
+```
+
+| Field              | Type   | Default  | Description                                                                                                                    |
+| ------------------ | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `machine_tabs`     | string | `"auto"` | `auto` uses machine tabs when dispatch machines exist, `on` always does, `off` never does. Unknown values fall back to `auto`. |
+| `launch_from_view` | bool   | `true`   | Launch new agents onto the currently visible tab. Non-boolean values fall back to `true`.                                      |
+| `tabs`             | dict   | `{}`     | Per-tab `color`, `icon`, `order` (integer or null), and `description`, keyed by canonical tab name.                            |
+
+Source: `src/sase/ace/tui/agent_tabs_settings.py`
 
 #### `ace.prompt_submission`
 
@@ -4857,6 +4888,7 @@ flags deprecated. The currently registered flags are:
 | `admin_center_flags`           | sunset  | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                      |
 | `agent_decks`                  | retired | —       | The Agents tab always shows agent data decks and cards now; the beta flag is removed. See [Agent data decks and cards](ace.md#agent-data-decks-and-cards). |
 | `agent_sudo_requests`          | beta    | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                        |
+| `agent_tabs`                   | beta    | `false` | The Agents tab shows one agent tab at a time with a tab strip, `]`/`[` tab cycling, and cross-tab navigation.                                              |
 | `agents_unified_query`         | sunset  | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                 |
 | `axe_routine_job_contract`     | sunset  | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                      |
 | `bgcmd_legacy_slots`           | sunset  | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                             |

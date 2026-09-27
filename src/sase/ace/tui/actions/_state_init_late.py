@@ -218,6 +218,10 @@ def init_late_startup_state(
         AgentDecksSettings,
         parse_agent_decks_settings,
     )
+    from ..agent_tabs_settings import (
+        AgentTabsSettings,
+        parse_agent_tabs_settings,
+    )
     from ..agent_header_settings import (
         AgentHeaderSettings,
         parse_agent_header_settings,
@@ -235,6 +239,8 @@ def init_late_startup_state(
     self._prompt_submission_settings = prompt_submission_settings
     agent_decks_settings: AgentDecksSettings = parse_agent_decks_settings(ace_cfg)
     self._agent_decks_settings = agent_decks_settings
+    agent_tabs_settings: AgentTabsSettings = parse_agent_tabs_settings(ace_cfg)
+    self._agent_tabs_settings = agent_tabs_settings
     agent_header_settings: AgentHeaderSettings = parse_agent_header_settings(ace_cfg)
     self._agent_header_settings = agent_header_settings
     self._agents_repro_output_dir = (

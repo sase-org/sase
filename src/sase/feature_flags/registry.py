@@ -27,6 +27,7 @@ class FeatureFlag(StrEnum):
     axe_routine_job_contract = "axe_routine_job_contract"
     agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
+    agent_tabs = "agent_tabs"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
     legacy_agent_family_syntax = "legacy_agent_family_syntax"
     legacy_sase_shell_syntax = "legacy_sase_shell_syntax"
@@ -96,6 +97,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "skill guard, and SSH relay phases land."
         ),
         bead="sase-111",
+    ),
+    FeatureFlag.agent_tabs: FeatureFlagDefinition(
+        key=FeatureFlag.agent_tabs,
+        kind="beta",
+        description=(
+            "The Agents tab shows one agent tab at a time with a tab strip, "
+            "[/] tab cycling, and cross-tab navigation."
+        ),
+        bead="sase-1be",
     ),
     FeatureFlag.legacy_agent_family_syntax: FeatureFlagDefinition(
         key=FeatureFlag.legacy_agent_family_syntax,

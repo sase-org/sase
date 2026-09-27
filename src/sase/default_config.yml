@@ -434,6 +434,27 @@ ace:
     # Seconds a finalizer op must run before its live tail renders in the FINAL
     # deck. 0 renders immediately. Fast ops go straight from running to done.
     final_tail_delay_seconds: 5.0
+  # Agent tabs (beta flag `agent_tabs`). Keys are canonical tab names
+  # (lowercase letters, digits, underscore, dot, dash; at most 32 characters).
+  # Invalid names are dropped. `launch_from_view` and the styling keys are
+  # consumed by later agent-tabs phases.
+  agent_tabs:
+    # auto shows one machine tab per dispatch machine when machines are
+    # configured, and a single roster otherwise. on always uses machine tabs,
+    # off never does.
+    machine_tabs: "auto"
+    # Launch new agents onto the currently visible tab.
+    launch_from_view: true
+    # Per-tab styling and ordering, keyed by canonical tab name. `order`
+    # sorts named tabs ascending; omit it to inherit the default order.
+    tabs: {}
+    # Example:
+    # tabs:
+    #   sase:
+    #     color: "#AF87FF"
+    #     icon: "◈"
+    #     order: 0
+    #     description: "SASE project agents."
   agent_header:
     # Fraction of the Agents tab detail column's height that the collapsed
     # header may occupy in total (border, chip rows, and the XPROMPT tab row
