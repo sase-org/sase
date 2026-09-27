@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal, cast
 
 from textual.document._edit import Edit
@@ -43,6 +44,7 @@ class SnippetExpansionMixin(_MixinBase):
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
+        def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]
         ) -> EditResult | None: ...
@@ -134,15 +136,51 @@ class SnippetExpansionMixin(_MixinBase):
             return False
 
         template = snippets[trigger]
+        variables: dict[str, str] | None = None
+        if "#{" in template:
+            project = self._snippet_project_name()
+            if project:
+                variables = {"project": project}
         expanded = self._expand_snippet_template_at_range(
             template,
             (row, word_start),
             (row, col),
             session_policy="nest",
+            variables=variables,
         )
         if expanded:
             self._try_auto_placeholder_completion()
         return expanded
+
+    def _snippet_project_name(self) -> str | None:
+        """Resolve the ``#{project}`` snippet variable for this prompt.
+
+        Prefers the prompt's own explicit target (a leading ``+<project>``
+        tag or ``#`` VCS ref, then a non-home prompt context), then the
+        cached current project, else ``None``. Reads only already-warm
+        in-memory state -- no disk I/O, subprocess, or catalog build -- so
+        this stays safe on the Tab keystroke path.
+        """
+        try:
+            project = self._xprompt_arg_assist_project_from_text()
+        except Exception:  # noqa: BLE001 - keystroke path degrades to None.
+            project = None
+        if project:
+            return project
+        try:
+            if not self.is_attached:
+                return None
+            from sase.ace.tui.widgets.launch_context_source import (
+                LaunchContextSource,
+            )
+
+            source = self.app.query_one("#launch-context-source", LaunchContextSource)
+            snapshot = source.state.project_snapshot
+            current = None if snapshot is None else snapshot.project
+            name = None if current is None else current.display_name
+        except Exception:  # noqa: BLE001 - keystroke path degrades to None.
+            return None
+        return name or None
 
     def _expand_snippet_template_at_range(
         self,
@@ -151,6 +189,7 @@ class SnippetExpansionMixin(_MixinBase):
         end: tuple[int, int],
         *,
         session_policy: SnippetExpansionPolicy,
+        variables: Mapping[str, str] | None = None,
     ) -> bool:
         """Expand a snippet template at an explicit document range.
 
@@ -168,7 +207,14 @@ class SnippetExpansionMixin(_MixinBase):
             template,
             indent,
             indent_continuation_lines=bool(indent),
+            variables=variables,
         )
+
+        if "#{project}" in template and "#{project}" in plan.text:
+            self.notify(
+                "Snippet left #{project} unresolved; add a +<project> tag",
+                severity="warning",
+            )
 
         range_start = self._absolute_offset(start)
 

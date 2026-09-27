@@ -27,7 +27,11 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from textual.widgets import TextArea as _MixinBase
+
+    from sase.ace.tui.widgets._snippets import SnippetExpansionPolicy
 else:
     _MixinBase = object
 
@@ -91,7 +95,8 @@ class PromptSoftCompletionMixin(_MixinBase):
             start: tuple[int, int],
             end: tuple[int, int],
             *,
-            session_policy: str,
+            session_policy: SnippetExpansionPolicy,
+            variables: Mapping[str, str] | None = None,
         ) -> bool: ...
         def _replace_absolute_range(
             self,

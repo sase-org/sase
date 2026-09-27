@@ -48,6 +48,9 @@ from sase.xprompt.model_completion import peek_cached_model_completion_catalog
 from sase.xprompt.vcs_project_completion import build_vcs_project_completion_entries
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from sase.ace.tui.widgets._snippets import SnippetExpansionPolicy
     from sase.artifact_refs import ArtifactRefContext
     from sase.ace.tui.agent_completion import AgentCompletionCandidate
     from sase.ace.tui.widgets.artifact_ref_completion import (
@@ -187,7 +190,8 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
             start: tuple[int, int],
             end: tuple[int, int],
             *,
-            session_policy: str,
+            session_policy: SnippetExpansionPolicy,
+            variables: Mapping[str, str] | None = None,
         ) -> bool: ...
 
     def _prompt_word_completion_result(

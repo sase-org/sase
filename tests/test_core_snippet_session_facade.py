@@ -225,6 +225,64 @@ def test_snippet_session_facade_rejects_malformed_payloads(
         facade.advance_snippet_session(facade.empty_snippet_session())
 
 
+def test_plan_snippet_expansion_includes_variables_only_when_non_empty(
+    monkeypatch,
+) -> None:
+    events: list[dict[str, object]] = []
+
+    def binding(
+        state_payload: object,
+        event_payload: dict[str, object],
+    ) -> object:
+        events.append(event_payload)
+        return {
+            "state": facade.empty_snippet_session().to_wire(),
+            "cursor_offset": None,
+            "text": "x",
+            "tabstop_offsets": [],
+        }
+
+    monkeypatch.setattr(
+        facade,
+        "require_rust_binding",
+        lambda _name: binding,
+    )
+
+    facade.plan_snippet_expansion(
+        "the #{project}-$1 bead",
+        "",
+        indent_continuation_lines=False,
+        variables={"project": "sase"},
+    )
+    assert events[-1]["variables"] == {"project": "sase"}
+
+    facade.plan_snippet_expansion(
+        "the #{project}-$1 bead",
+        "",
+        indent_continuation_lines=False,
+    )
+    assert "variables" not in events[-1]
+
+    facade.plan_snippet_expansion(
+        "the #{project}-$1 bead",
+        "",
+        indent_continuation_lines=False,
+        variables={},
+    )
+    assert "variables" not in events[-1]
+
+
+def test_plan_snippet_expansion_substitutes_variables_through_real_binding() -> None:
+    plan = facade.plan_snippet_expansion(
+        "the #{project}-$1 bead",
+        "",
+        indent_continuation_lines=False,
+        variables={"project": "sase"},
+    )
+    assert plan.text == "the sase- bead"
+    assert plan.tabstop_offsets == (9, 14)
+
+
 def test_plan_event_rejects_missing_text(monkeypatch) -> None:
     payload: dict[str, Any] = {
         "state": facade.empty_snippet_session().to_wire(),

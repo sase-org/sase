@@ -385,6 +385,11 @@ Snippet templates can reuse other snippets by trigger with `#[trigger]`. Positio
 forms such as `#[trigger(value)]` and `#[trigger:value]` fill the referenced snippet's
 tabstops before the composed template is renumbered.
 
+Snippet templates can also reference the prompt's target project with `#{project}` (for
+example `the #{project}-$1 bead`). The LSP resolves it from the document's leading
+`+<project>` tag or `#gh:`/`#git:` VCS ref, then the SASE current project; when nothing
+resolves, the token stays verbatim. Unknown `#{name}` tokens are never touched.
+
 When the composed registry is used in sase's TUI, `Tab` moves forward through `$1`,
 `$2`, ... and `$0`, while `Shift+Tab` retreats through visited tabstops. Expanding a
 second trigger from inside an active snippet nests it instead of discarding the

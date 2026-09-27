@@ -8391,6 +8391,36 @@ splice another snippet by trigger with `#[trigger]`. `#[trigger(value)]` and
 splicing. The final template is renumbered so tabstops from the caller and referenced
 snippets do not collide.
 
+### Snippet variables
+
+Snippet templates can reference the prompt's target project with the `#{project}`
+variable, which is substituted when the snippet expands on `Tab`:
+
+```yaml
+ace:
+  snippets:
+    epic: "the #{project}-$1 epic bead"
+```
+
+With `+sase` leading the prompt, `epic<Tab>` inserts `the sase-` and leaves the cursor
+at `$1`; with `+bob-cli` it inserts `the bob-cli-`. The value is the project's display
+name (its `PROJECT_NAME`, the same prefix bead IDs use), never the directory key.
+
+Resolution order on expansion:
+
+1. The prompt's own explicit target: a leading `+<project>` tag or `#gh:`/`#git:` VCS
+   ref, then a non-home prompt context.
+2. The SASE current project (the TUI's `+<project>` chip value).
+3. Otherwise the token stays unresolved.
+
+Only a known variable with a resolved value is replaced. Any other `#{name}` (for
+example Ruby's `"#{x}"`) passes through verbatim, as does an unresolved `#{project}` --
+in that case the TUI shows a warning suggesting a `+<project>` tag. There is no escape
+syntax. Because substitution happens at expansion time, composed callers inherit the
+variable for free: a `repic` snippet built on `#[epic]` resolves `#{project}` the same
+way. Capitalized aliases uppercase only the template's first character before
+substitution, so a substituted project name keeps its own case.
+
 ### Capitalized aliases
 
 Every effective snippet also gains a generated initial-capital alias. For each explicit

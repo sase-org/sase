@@ -85,15 +85,19 @@ def plan_snippet_expansion(
     *,
     indent_continuation_lines: bool,
     state: SnippetSessionState | None = None,
+    variables: Mapping[str, str] | None = None,
 ) -> _SnippetExpansionPlan:
+    event: dict[str, object] = {
+        "kind": "plan",
+        "template": template,
+        "line_indent": line_indent,
+        "indent_continuation_lines": indent_continuation_lines,
+    }
+    if variables:
+        event["variables"] = dict(variables)
     result = _apply_snippet_session_event(
         state or empty_snippet_session(),
-        {
-            "kind": "plan",
-            "template": template,
-            "line_indent": line_indent,
-            "indent_continuation_lines": indent_continuation_lines,
-        },
+        event,
     )
     if result.text is None:
         raise ValueError("snippet session plan event returned no text")
