@@ -639,11 +639,11 @@ def test_fused_facets_keep_counts_ancestors_and_reasons_across_grouping_modes() 
 
 
 def _facet_tables(complete: list) -> tuple:
-    from sase.ace.tui.actions.agents._node_finder_snapshot import (
-        _snapshot_all_facets,
+    from sase.ace.tui.actions.agents._node_finder_facets import (
+        snapshot_all_facets,
     )
 
-    return _snapshot_all_facets(complete)[:5]
+    return snapshot_all_facets(complete)[:5]
 
 
 def _fold_states() -> list[str]:
@@ -697,7 +697,7 @@ def _hidden_step_shape() -> list:
 
 def test_fused_unmet_matches_reveal_walk() -> None:
     """The facet-driven unmet walk matches the reveal preflight exactly."""
-    from sase.ace.tui.actions.agents._node_finder_snapshot import _unmet_with_facets
+    from sase.ace.tui.actions.agents._node_finder_folds import unmet_with_facets
     from sase.ace.tui.actions.navigation._agent_reveal import unmet_ancestor_folds
     from sase.ace.tui.models._agent_tree import tree_parent_lookup
 
@@ -718,7 +718,7 @@ def test_fused_unmet_matches_reveal_walk() -> None:
             expected = unmet_ancestor_folds(
                 complete, app._fold_manager, parent_lookup=parents
             )
-            actual = _unmet_with_facets(
+            actual = unmet_with_facets(
                 complete, app._fold_manager, parents, parent_keys, hidden_steps
             )
             assert actual == expected, (complete[0].agent_name, state)
@@ -971,7 +971,7 @@ def test_batched_description_matches_single_row() -> None:
 
 def test_plain_row_describer_matches_single_row() -> None:
     """The plain-row fast path matches the single-row contract exactly."""
-    from sase.ace.tui.actions.agents._node_finder_snapshot import _describe_plain_row
+    from sase.ace.tui.actions.agents._node_finder_facets import _describe_plain_row
     from sase.ace.tui.models.node_finder import (
         describe_node_finder_row,
         kind_styles,
