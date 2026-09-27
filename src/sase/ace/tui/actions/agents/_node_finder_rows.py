@@ -157,6 +157,10 @@ def build_snapshot_rows(
     saw_empty_panel = False
     saw_dupe_skip = False
 
+    # Emptiness is loop-invariant: an empty container never contains a
+    # row, so the per-row membership probes below are skipped outright.
+    _has_collapsed_panels = bool(collapsed_panels)
+    _has_hidden_by_i = bool(hidden_by_i)
     single_panel = len(panel_group.panel_keys) == 1 and not merged
     for panel_key in panel_group.panel_keys:
         if single_panel:
@@ -221,6 +225,9 @@ def build_snapshot_rows(
                     continue
                 for local_idx in entry.group.agent_indices:
                     enclosing.setdefault(local_idx, []).append(entry.group.group_key)
+        # Loop-invariant like the snapshot-level guards above: an empty
+        # enclosing map (the fast no-banner path) skips the per-row probe.
+        _has_enclosing = bool(enclosing)
 
         registry = panel_fold_registry(owner, panel_key)
         is_collapsed = getattr(registry, "is_collapsed", None)
@@ -266,12 +273,13 @@ def build_snapshot_rows(
             # sharing one combination reuse an interned frozenset instead
             # of allocating a set plus a frozenset per row.
             reason_mask = 0
-            if panel_key in collapsed_panels:
+            if _has_collapsed_panels and panel_key in collapsed_panels:
                 reason_mask |= 1
             collapsed_key: tuple[str, ...] | None = None
-            for key in enclosing.get(entry.agent_idx, _NO_ENCLOSING):
-                if callable(is_collapsed) and is_collapsed(key):
-                    collapsed_key = key
+            if _has_enclosing:
+                for key in enclosing.get(entry.agent_idx, _NO_ENCLOSING):
+                    if callable(is_collapsed) and is_collapsed(key):
+                        collapsed_key = key
             group_label = ""
             if collapsed_key is not None:
                 reason_mask |= 2
@@ -281,7 +289,7 @@ def build_snapshot_rows(
                 reason_mask |= 4
             if query_set is not None and identity not in query_set:
                 reason_mask |= 8
-            if identity in hidden_by_i:
+            if _has_hidden_by_i and identity in hidden_by_i:
                 reason_mask |= 16
             if identity in rendered:
                 if reason_mask:

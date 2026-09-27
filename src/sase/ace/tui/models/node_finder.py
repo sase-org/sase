@@ -582,13 +582,19 @@ def filter_node_finder(
 
     tokens = _tokenize(query)
     rows = snapshot.rows
-    node_positions = [
-        i for i, row in enumerate(rows) if row.role is NodeFinderRole.NODE
-    ]
+    # Empty queries never narrow by refinement (a refinement needs a longer
+    # or extended token tuple), so the node scan below covers the whole
+    # roster and the position list is never built.
+    node_positions: list[int] = []
+    if tokens:
+        node_positions = [
+            i for i, row in enumerate(rows) if row.role is NodeFinderRole.NODE
+        ]
 
     candidates = node_positions
     if (
-        previous is not None
+        tokens
+        and previous is not None
         and _is_refinement(previous.tokens, tokens)
         and previous.any_match
     ):
@@ -617,7 +623,19 @@ def filter_node_finder(
         ) = _score_tokens(rows, candidates, tokens)
 
     if not tokens:
-        matched_positions = {pos for pos in candidates if rows[pos].jumpable}
+        # One pass over the roster replaces the position list plus the
+        # matched/identity scans: without tokens every candidate is a node
+        # position and refinement never narrows, so jumpable nodes are
+        # exactly the matched set and their identities the any-match set.
+        matched_positions = set()
+        _any_list: list[AgentIdentity] = []
+        for _pos, _row in enumerate(rows):
+            if _row.role is NodeFinderRole.NODE and _row.jumpable:
+                matched_positions.add(_pos)
+                _identity = _row.identity
+                if _identity is not None:
+                    _any_list.append(_identity)
+        any_identities = frozenset(_any_list)
         matched: dict[int, _RowScore] = {}
         relaxed = False
     elif contiguous:
@@ -635,12 +653,7 @@ def filter_node_finder(
             for pos in any_match
             if (identity := rows[pos].identity) is not None
         )
-    else:
-        any_identities = frozenset(
-            identity
-            for pos in candidates
-            if rows[pos].jumpable and (identity := rows[pos].identity) is not None
-        )
+    # Without tokens the fused scan above already set ``any_identities``.
 
     best_pos: int | None
     if tokens:
@@ -819,7 +832,10 @@ def _full_keep_view(
         return None
     from sase.ace.tui.actions.navigation.jump_hints import build_jump_hint_maps
 
-    context = frozenset(pos for pos in range(total) if pos not in matched_positions)
+    # The partition check above proved every non-matched position is a
+    # header or a non-jumpable node, so their union is exactly the
+    # context set without scanning the range against the match set.
+    context = frozenset(headers | non_jumpable)
     hint_identities = [
         row.identity
         for pos, row in enumerate(rows)

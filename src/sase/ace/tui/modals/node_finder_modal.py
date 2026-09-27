@@ -90,6 +90,12 @@ class NodeFinderResult:
 class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
     """Large responsive Node Finder. Snapshot is fixed for the modal lifetime."""
 
+    # Focus the list during compose so the open never transiently focuses
+    # the query input (the app-wide ``"*"`` fallback) only to move focus
+    # again in ``on_mount``. The steady state is unchanged: the list ends
+    # focused either way, and ``on_mount`` still focuses it explicitly.
+    AUTO_FOCUS = "#node-finder-list"
+
     BINDINGS = [
         Binding("tab", "toggle_search", "Search", priority=True, show=False),
         Binding("shift+tab", "toggle_search", "Search", priority=True, show=False),
@@ -140,7 +146,19 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         self._node_finder_preview_tasks: set[asyncio.Task[None]] = set()
 
     def compose(self) -> ComposeResult:
-        with Container(id="node-finder-container"):
+        # The border title is set before mount so showing the screen never
+        # schedules a second restyle for it after the first layout.
+        container = Container(id="node-finder-container")
+        container.border_title = "✦ Jump to Node ✦"
+        # The responsive class is assigned before mount for the same
+        # reason: adding it after mount re-applies the stylesheet across
+        # the whole subtree. The app size at compose time equals the
+        # screen size seen in ``on_mount`` (no resize can interleave the
+        # mount sequence), and ``on_mount`` still reconciles a mismatch.
+        self._layout_class = layout_class_for_width(self.app.size.width)
+        if self._layout_class:
+            self.add_class(self._layout_class)
+        with container:
             yield Static("✦ Jump to Node ✦", id="node-finder-title")
             with Horizontal(id="node-finder-top"):
                 yield FilterInput(
@@ -160,12 +178,16 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
     def on_mount(self) -> None:
         with tui_trace("node_finder.open"):
             self._debouncer = DetailPanelDebouncer(self.app, delay_s=_PREVIEW_DELAY_S)
-            self._layout_class = layout_class_for_width(self.size.width)
-            if self._layout_class:
-                self.add_class(self._layout_class)
-            self.query_one(
-                "#node-finder-container", Container
-            ).border_title = "✦ Jump to Node ✦"
+            # ``compose`` already assigned the class from the app width;
+            # only a resize interleaved with the mount changes anything,
+            # in which case this falls back to the exact resize path.
+            desired_class = layout_class_for_width(self.size.width)
+            if desired_class != self._layout_class:
+                if self._layout_class:
+                    self.remove_class(self._layout_class)
+                self._layout_class = desired_class
+                if desired_class:
+                    self.add_class(desired_class)
             self._paint_chrome()
             self._rebuild_options(highlight=self._view.best_index)
             self.query_one("#node-finder-list", OptionList).focus()
@@ -513,7 +535,10 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
                         disabled=disabled,
                     )
                 )
-        option_list.clear_options()
+        # A fresh list holds no options, so clearing it would only post
+        # another refresh cycle for no visible change.
+        if option_list.option_count:
+            option_list.clear_options()
         option_list.add_options(options)
         if resolved is not None and self._window_base <= resolved < self._window_end:
             self._set_highlighted(resolved)
