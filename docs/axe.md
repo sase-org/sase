@@ -493,7 +493,7 @@ Periodic maintenance:
 | ---------------------------- | ------------------------------------------------------------------------------- |
 | `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action) |
 | `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                 |
-| `managed_tmp_reap`           | Prune stale scratch under the managed SASE temp root                            |
+| `managed_tmp_reap`           | Prune stale scratch under every registered managed SASE temp root               |
 | `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                    |
 | `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                        |
 | `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
@@ -517,20 +517,24 @@ and still-actionable rows stay in the live file. sase's TUI snapshot reads are m
 against an mtime+size token, so this pass lives on `housekeeping` rather than the TUI
 refresh cadence that previously re-parsed the whole store every tick.
 
-The `managed_tmp_reap` job bounds the managed SASE temp root (`$SASE_TMPDIR`, else
-`~/.sase/tmp`) that `get_sase_managed_tmpdir()` hands out. The actual age/pressure
-decision runs in `sase_core_rs` (`sase-core`'s `managed_tmp` crate); this Python job
-resolves the configured horizons and thresholds and calls that binding. Horizons are per
-subdirectory: command scratch (`editors/`, `wrappers/`, `viewers/`, `commit-messages/`,
-`agent-tmp/`, …) goes after 12 hours by default, handoff files (`handoff/`, `gh-diffs/`,
-`muse-prompts/` — a provider re-reads the latter mid-run) after 3 days, build targets
-(`cargo-targets/`) after 3 days, and artifacts sase's TUI and screenshot tooling reads
-back (`launch-prompts/`, `screenshots/`, `workflow-artifacts/`) after 14 days. Launched
-agents default `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to
-per-launch directories under those managed buckets, so shell scratch and Cargo targets
-no longer fall back to host-global `/tmp`. Launched agents also get line-tables-only
-debug info for the dev and test Cargo profiles, which keeps per-launch targets small.
-They get `CARGO_INCREMENTAL=0` by default, or `CARGO_INCREMENTAL=1` when
+The `managed_tmp_reap` job bounds every managed SASE temp root writers actually used.
+Each `get_sase_managed_tmpdir()` call registers its resolved root (`$SASE_TMPDIR`, else
+`~/.sase/tmp`) in a Rust-owned registry at `$SASE_HOME/managed_tmp/roots.json`
+(`sase-core`'s `managed_tmp_roots` module), and this job reaps the effective root plus
+every registered root that still exists instead of only the root its own environment
+resolves. The actual age/pressure decision runs in `sase_core_rs` (`sase-core`'s
+`managed_tmp` crate); this Python job resolves the configured horizons and thresholds
+and calls that binding once per root. Horizons are per subdirectory: command scratch
+(`editors/`, `wrappers/`, `viewers/`, `commit-messages/`, `agent-tmp/`, …) goes after 12
+hours by default, handoff files (`handoff/`, `gh-diffs/`, `muse-prompts/` — a provider
+re-reads the latter mid-run) after 3 days, build targets (`cargo-targets/`) after 3
+days, and artifacts sase's TUI and screenshot tooling reads back (`launch-prompts/`,
+`screenshots/`, `workflow-artifacts/`) after 14 days. Launched agents default
+`TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to per-launch
+directories under those managed buckets, so shell scratch and Cargo targets no longer
+fall back to host-global `/tmp`. Launched agents also get line-tables-only debug info
+for the dev and test Cargo profiles, which keeps per-launch targets small. They get
+`CARGO_INCREMENTAL=0` by default, or `CARGO_INCREMENTAL=1` when
 [`managed_tmp.agent_cargo_incremental`](configuration.md#managed_tmp) is enabled (athena
 only, where the splitting rustc wrapper runs metadata-only units incrementally direct
 and strips incremental from codegen units before sccache). A runner also removes its own
@@ -563,13 +567,10 @@ with fresh descendants are not early pressure candidates. The job summary report
 split into `ordinary_*`, `launch_*`, and `pressure_*` passes, `pressure_trigger`,
 `pressure_available_bytes`, `pressure_recovery_available_bytes`,
 `pressure_min_age_seconds`, `deindexed`, `skipped`, `failed`, `incomplete_observations`,
-and `capped=1` when it hit that budget. Every run logs the root it scanned. When that
-root is a captured `SASE_TMPDIR` rather than the default `$SASE_HOME/tmp`, and the
-default root still holds entries, the job also logs a warning: some writer, usually an
-agent launched without that `SASE_TMPDIR`, is filling a root the reaper never scans. The
-reverse mismatch (agents writing to a `SASE_TMPDIR` the service host never captured) is
-not detected here, because the reaper then scans only the default root. Either way,
-align `SASE_TMPDIR` and refresh the capture with `sase service init --yes`. Reaped
+and `capped=1` when it hit that budget, plus the `roots` it scanned and their count as
+`roots_scanned`. Every run logs one line per root it scanned plus an informational line
+listing all scanned roots. A mismatch between the effective root and the default
+`$SASE_HOME/tmp` is harmless — both are reaped — so there is no warning for it. Reaped
 directories are dropped from the agent artifact index too, since a workflow launched
 without an explicit `artifacts_dir` gets one under `workflow-artifacts/`. It lives on
 `housekeeping` rather than an interactive path because the first pass over a neglected

@@ -170,6 +170,7 @@ def test_managed_tmp_reap_emits_noop_summary(
         "pressure_selected": 0,
         "removed": 0,
         "removed_bytes": 0,
+        "roots_scanned": 1,
         "scanned": 0,
         "selected": 0,
         "selected_bytes": 0,
@@ -228,6 +229,7 @@ def test_managed_tmp_reap_emits_action_summary(
         "pressure_selected": 0,
         "removed": 1,
         "removed_bytes": 7,
+        "roots_scanned": 1,
         "scanned": 1,
         "selected": 1,
         "selected_bytes": 7,
@@ -243,13 +245,22 @@ def test_managed_tmp_reap_reports_pressure_min_age(
     script = importlib.import_module("sase.scripts.sase_chop_managed_tmp_reap")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
+    managed_root = tmp_path / "managed"
+    managed_root.mkdir()
+    monkeypatch.setattr(
+        script,
+        "effective_managed_tmp_roots",
+        lambda *, effective_root, sase_home: [managed_root],
+    )
     monkeypatch.setattr(
         script,
         "reap_managed_tmpdir",
         lambda **_kwargs: SimpleNamespace(
+            root=managed_root,
             scanned=3,
             selected=1,
             removed=1,
+            selected_by_subdir={"cargo-targets": 1},
             removed_by_subdir={"cargo-targets": 1},
             selected_bytes=4096,
             removed_bytes=4096,

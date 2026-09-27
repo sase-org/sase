@@ -20,6 +20,9 @@ from sase.core.agent_artifact_run_retention import (
 from sase.core.disk_footprint_models import DiskReapResult, DiskReapStep
 from sase.core.disk_pressure import filesystem_pressure_policy
 from sase.core.managed_tmp_reaper import reap_managed_tmpdir
+from sase.core.managed_tmp_roots import (
+    effective_managed_tmp_roots as _effective_managed_tmp_roots,
+)
 from sase.core.paths import managed_tmpdir_root as _paths_managed_tmpdir_root
 from sase.core.time import local_now
 from sase.procs.runtime import sweep_orphan_proc_runtime_dirs
@@ -27,6 +30,7 @@ from sase.procs.store import prune_procs
 from sase.workspace_provider.inventory import collect_workspace_inventory
 
 managed_tmpdir_root = _paths_managed_tmpdir_root
+effective_managed_tmp_roots = _effective_managed_tmp_roots
 
 
 def run_disk_reap(
@@ -125,6 +129,7 @@ def _sync_managed_tmp_patchables() -> None:
     _managed_tmp.managed_tmpdir_root = managed_tmpdir_root
     _managed_tmp.filesystem_pressure_policy = filesystem_pressure_policy
     _managed_tmp.reap_managed_tmpdir = reap_managed_tmpdir
+    _managed_tmp.effective_managed_tmp_roots = effective_managed_tmp_roots
 
 
 def _sync_proc_patchables() -> None:

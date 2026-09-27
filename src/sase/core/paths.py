@@ -44,6 +44,9 @@ from sase.core.time import local_now
 PYTEST_SANDBOX_MANAGED_TMPDIR_NAME = "managed-tmp"
 """Sandbox child that stands in for the managed temp root under pytest."""
 
+_REGISTERED_MANAGED_TMP_ROOTS: set[str] = set()
+"""Unsandboxed roots already offered to the registry in this process."""
+
 
 def get_sase_managed_tmpdir(*parts: str) -> str:
     """Return a managed SASE temp directory.
@@ -65,15 +68,32 @@ def get_sase_managed_tmpdir(*parts: str) -> str:
     pytest process with no published sandbox fails closed.
     """
     sandbox = require_pytest_sandbox_root(purpose="managed SASE temp directory")
-    root = (
-        sandbox / PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
-        if sandbox is not None
-        else _unsandboxed_managed_tmpdir_root()
-    )
+    if sandbox is not None:
+        base = sandbox / PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
+    else:
+        base = _unsandboxed_managed_tmpdir_root()
+    root = base
     for part in parts:
         root /= part
     root.mkdir(parents=True, exist_ok=True)
+    if sandbox is None:
+        _register_unsandboxed_managed_tmp_root(base)
     return str(root)
+
+
+def _register_unsandboxed_managed_tmp_root(root: Path) -> None:
+    """Offer the resolved production root to the managed-tmp-roots registry.
+
+    Once per process per root; fail-open so registration can never break a
+    launch. Never called for the pytest sandbox root.
+    """
+    key = str(root)
+    if key in _REGISTERED_MANAGED_TMP_ROOTS:
+        return
+    _REGISTERED_MANAGED_TMP_ROOTS.add(key)
+    from sase.core.managed_tmp_roots import try_register_managed_tmp_root
+
+    try_register_managed_tmp_root(root, sase_home=sase_home())
 
 
 def managed_tmpdir_root() -> Path:

@@ -4352,6 +4352,15 @@ managed root grows past `pressure.max_bytes` or the filesystem's free space drop
 `pressure.min_available_bytes`. It never prunes generic agent scratch, handoff data,
 unknown buckets, or build trees with fresh descendants.
 
+Every root `get_sase_managed_tmpdir()` writes into is recorded in a Rust-owned registry
+at `$SASE_HOME/managed_tmp/roots.json` (schema version plus
+`{path, first_seen_epoch, last_seen_epoch}` entries, written atomically under a lock
+file). The hourly `managed_tmp_reap` job, the `disk_pressure` cleanup, and
+`sase disk reap` each reap the effective root plus every registered root that still
+exists, so scratch is bounded no matter which environment its writer resolved.
+Registration is fail-open and never breaks a launch; only absolute, non-symlink
+directories enroll, and broad roots such as `/tmp` or `$HOME` are refused.
+
 In practice, the housekeeping `managed_tmp_reap` job, the `disk_pressure` job, and
 `sase disk reap` all pass the shared [`disk.pressure`](#disk) warn threshold (the larger
 of 3 GiB and `disk.pressure.warn_free_percent`) as both the free-space floor and the
