@@ -9,8 +9,11 @@ never shifts.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Literal
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from sase.ace._update_attempts_model import UpdateFailure
 
 UpdateGearState = Literal["updating", "restart_pending", "failed"]
 
@@ -41,7 +44,11 @@ def resolve_update_gear(
     return None
 
 
-def restart_pending_tooltip(pending: PendingUpdateRestart) -> str:
+def restart_pending_tooltip(
+    pending: PendingUpdateRestart,
+    *,
+    failure: UpdateFailure | None = None,
+) -> str:
     """Return the yellow-gear tooltip with absolute times."""
     labels = tuple(pending.blocker_labels)
     count = len(labels)
@@ -57,11 +64,45 @@ def restart_pending_tooltip(pending: PendingUpdateRestart) -> str:
             f"{verb}: {shown}{suffix}."
         )
     restart_at = _format_hms(pending.restart_by)
+    lines = [
+        "New SASE code installed · restart queued",
+        wait_line,
+        f"If they are still running at {restart_at}, ACE restarts anyway.",
+    ]
+    if failure is not None and failure.finished_at >= pending.queued_at:
+        lines.append("The update also reported a failure; details after the restart.")
+    lines.append("Click to see what it is waiting on.")
+    return "\n".join(lines)
+
+
+def format_failure_when(epoch: float, *, now: float | None = None) -> str:
+    """Return ``today at 14:32`` style copy for a failure timestamp."""
+    moment = datetime.fromtimestamp(epoch)
+    reference = datetime.fromtimestamp(now) if now is not None else datetime.now()
+    clock = moment.strftime("%H:%M")
+    day = moment.date()
+    today = reference.date()
+    if day == today:
+        return f"today at {clock}"
+    if day == today - timedelta(days=1):
+        return f"yesterday at {clock}"
+    return moment.strftime("%b %d") + f" at {clock}"
+
+
+def failure_tooltip(failure: UpdateFailure) -> str:
+    """Return the red-gear tooltip with absolute times."""
+    when = format_failure_when(failure.finished_at)
+    if failure.interrupted:
+        return (
+            f"Last update was interrupted · {when}\n"
+            f'ACE exited before "{failure.label}" finished; '
+            "the install may be incomplete.\n"
+            "Click for the failure report."
+        )
     return (
-        "New SASE code installed · restart queued\n"
-        f"{wait_line}\n"
-        f"If they are still running at {restart_at}, ACE restarts anyway.\n"
-        "Click to see what it is waiting on."
+        f"Last update failed · {when}\n"
+        f"{failure.label}: {failure.error}\n"
+        "Click for the failure report."
     )
 
 
@@ -73,6 +114,8 @@ def _format_hms(epoch: float) -> str:
 __all__ = [
     "PendingUpdateRestart",
     "UpdateGearState",
+    "failure_tooltip",
+    "format_failure_when",
     "resolve_update_gear",
     "restart_pending_tooltip",
 ]

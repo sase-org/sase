@@ -33,6 +33,10 @@ _LAZY_EXPORTS = {
     "StatusActionsMixin": (".status", "StatusActionsMixin"),
     "SyncMixin": (".sync", "SyncMixin"),
     "ProcActionsMixin": (".proc_actions", "ProcActionsMixin"),
+    "UpdateAttemptStateMixin": (
+        "._update_attempt_state",
+        "UpdateAttemptStateMixin",
+    ),
     "UpdateRunActionsMixin": (".update_run", "UpdateRunActionsMixin"),
     "UpdateToastMixin": (".update_toast", "UpdateToastMixin"),
     "WorkspaceActionsMixin": (".workspace", "WorkspaceActionsMixin"),
@@ -66,6 +70,7 @@ __all__ = [
     "StatusActionsMixin",
     "SyncMixin",
     "ProcActionsMixin",
+    "UpdateAttemptStateMixin",
     "UpdateRunActionsMixin",
     "UpdateToastMixin",
     "WorkspaceActionsMixin",

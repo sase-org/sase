@@ -1998,6 +1998,48 @@ GateActionOutputModal > #gate-action-output-container {
     padding: 0 1;
 }
 
+UpdateFailureModal {
+    align: center middle;
+}
+
+UpdateFailureModal > #update-failure-container {
+    width: 90;
+    max-width: 94%;
+    height: auto;
+    max-height: 86%;
+    background: $surface;
+    border: double #FF5F5F;
+    padding: 0 1;
+}
+
+UpdateFailureModal #update-failure-meta {
+    height: auto;
+    margin-bottom: 1;
+}
+
+UpdateFailureModal #update-failure-error {
+    height: auto;
+    margin-bottom: 1;
+}
+
+UpdateFailureModal #update-failure-output-label {
+    height: auto;
+    margin-bottom: 1;
+}
+
+UpdateFailureModal #update-failure-scroll {
+    height: auto;
+    max-height: 20;
+    border: solid $secondary;
+}
+
+UpdateFailureModal #update-failure-footer {
+    height: auto;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
 GateRetryModal {
     align: center middle;
 }

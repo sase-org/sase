@@ -92,6 +92,12 @@ class UpdateToastMixin:
     def _on_periodic_update_check(self) -> None:
         """Handle a timer tick using only mounted UI and in-memory state."""
         self._schedule_automatic_update_check(periodic=True)
+        refresh = getattr(self, "_schedule_update_attempts_refresh", None)
+        if callable(refresh):
+            try:
+                refresh()
+            except Exception:
+                log.debug("Failed to schedule update attempts refresh", exc_info=True)
 
     def _schedule_automatic_update_check(
         self, *, periodic: bool, force: bool = False

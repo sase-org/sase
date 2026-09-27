@@ -375,6 +375,14 @@ _LAZY_EXPORTS = {
         ".unified_xprompt_save_modal",
         "UnifiedXPromptSaveResult",
     ),
+    "UpdateFailureChoice": (
+        ".update_failure_modal",
+        "UpdateFailureChoice",
+    ),
+    "UpdateFailureModal": (
+        ".update_failure_modal",
+        "UpdateFailureModal",
+    ),
     "UpdatePanel": (".update_panel", "UpdatePanel"),
     "UpdatePanelResult": (".update_panel", "UpdatePanelResult"),
     "UpdatePinnedStashModal": (

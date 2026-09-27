@@ -7,6 +7,8 @@ from typing import Any
 
 from textual.worker import Worker, WorkerState
 
+from sase.ace._update_attempts_model import UpdateAttempt
+from sase.ace.update_attempts import settle_update_attempt
 from sase.project_display_names import humanize_cl_name, humanize_cl_names_in_text
 
 from ..proc_observer import (
@@ -15,6 +17,7 @@ from ..proc_observer import (
     ProcObserverSnapshot,
     ProcProjection,
 )
+from ..update_attempt_tracking import update_attempt_for
 from ._proc_action_submission import ProcSubmissionActionsMixin
 from ._proc_action_types import (
     DurableSubmitWorkerResult,
@@ -283,6 +286,18 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
                 reload_on_complete=True,
                 notify_on_complete=True,
             )
+        # Durable update procs get no in-flight marker (they outlive ACE),
+        # so only the settle is recorded, off-thread. If ACE restarts
+        # mid-run, that attempt is never recorded.
+        if not result.collision:
+            attempt = update_attempt_for(proc_info)
+            if attempt is not None:
+                self._schedule_update_attempt_settle(
+                    attempt,
+                    success=result.success,
+                    error=result.error or result.message,
+                    output=output,
+                )
         try:
             if config.notify_on_complete:
                 self._notify_tracked_proc_result(proc_info, result)
@@ -347,6 +362,44 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
             started_at=local_now(),
         )
 
+    def _schedule_update_attempt_settle(
+        self,
+        attempt: UpdateAttempt,
+        *,
+        success: bool,
+        error: str | None,
+        output: str = "",
+    ) -> None:
+        """Settle one journal attempt off the UI thread and apply its view."""
+
+        def _settle() -> None:
+            try:
+                view = settle_update_attempt(
+                    attempt,
+                    success=success,
+                    error=error,
+                    output=output,
+                )
+            except Exception:
+                log.exception("Update attempt settle failed")
+                return
+            apply = getattr(self, "_apply_update_attempts_view", None)
+            if not callable(apply):
+                return
+            deliver = getattr(self, "call_from_thread", None)
+            if not callable(deliver):
+                log.debug("Update attempt view has no UI thread to reach")
+                return
+            try:
+                deliver(apply, view)
+            except Exception:
+                log.debug("Update attempt view delivery failed", exc_info=True)
+
+        try:
+            self.run_worker(_settle, thread=True)  # type: ignore[attr-defined]
+        except Exception:
+            log.debug("Failed to schedule update attempt settle", exc_info=True)
+
     def _on_session_worker_completed(self, worker: Worker[Any]) -> None:
         """Deliver a session-local worker result on the UI thread."""
         result = worker.result
@@ -356,7 +409,16 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
         recorded = callbacks.pop(result.proc_id, None)
         workers = getattr(self, "_session_workers", {})
         workers.pop(result.proc_id, None)
+        attempts = getattr(self, "_session_update_attempts", {})
+        attempts.pop(result.proc_id, None)
         self._update_proc_indicator()
+        if result.update_attempts is not None:
+            apply = getattr(self, "_apply_update_attempts_view", None)
+            if callable(apply):
+                try:
+                    apply(result.update_attempts)
+                except Exception:
+                    log.exception("Failed to apply update attempt view")
         if recorded is None:
             return
         on_complete, proc_info = recorded
@@ -384,7 +446,16 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
         workers.pop(proc_id, None)
         callbacks = getattr(self, "_session_completion_callbacks", {})
         recorded = callbacks.pop(proc_id, None)
+        attempts = getattr(self, "_session_update_attempts", {})
+        attempt = attempts.pop(proc_id, None)
         self._update_proc_indicator()
+        if attempt is not None:
+            error_msg = str(worker.error) if worker.error else "Unknown error"
+            self._schedule_update_attempt_settle(
+                attempt,
+                success=False,
+                error=error_msg,
+            )
         if recorded is None:
             return
         on_complete, proc_info = recorded

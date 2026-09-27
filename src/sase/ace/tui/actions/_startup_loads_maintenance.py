@@ -101,6 +101,10 @@ class StartupLoadsMaintenanceMixin:
             self._schedule_startup_update_toast_check()
         except Exception:
             log.debug("Failed to schedule startup update toast", exc_info=True)
+        try:
+            self._schedule_update_attempts_refresh()
+        except Exception:
+            log.debug("Failed to schedule update attempts refresh", exc_info=True)
         if just_updated:
             try:
                 self._maybe_show_keymap_unification_toast()

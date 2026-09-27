@@ -5,10 +5,12 @@ from typing import Any
 
 from rich.text import Text
 
+from sase.ace._update_attempts_model import UpdateFailure
 from sase.ace.tui.proc_gear_chips import update_gear_chip
 from sase.ace.tui.update_gear import (
     PendingUpdateRestart,
     UpdateGearState,
+    failure_tooltip,
     resolve_update_gear,
     restart_pending_tooltip,
 )
@@ -34,8 +36,9 @@ class UpdatesAvailableIndicator(TopBarGroup):
     chip. The gear inset leads the badge in one of three states (green
     updating, yellow restart queued, red last update failed) with
     precedence green > yellow > red. Clicking opens the Admin Center's
-    Updates tab, the Procs tab on the running update while one runs, or
-    the Procs tab on the first restart blocker while a restart is queued.
+    Updates tab, the Procs tab on the running update while one runs, the
+    Procs tab on the first restart blocker while a restart is queued, or
+    the failure report while a recorded failure shows.
     """
 
     GROUP_LABEL = "updates"
@@ -49,6 +52,7 @@ class UpdatesAvailableIndicator(TopBarGroup):
         self._core = False
         self._running_labels: tuple[str, ...] = ()
         self._pending_restart: PendingUpdateRestart | None = None
+        self._last_failure: UpdateFailure | None = None
         self._refresh_state()
 
     @property
@@ -87,7 +91,7 @@ class UpdatesAvailableIndicator(TopBarGroup):
         return resolve_update_gear(
             updating=bool(self._running_labels),
             restart_pending=self._pending_restart is not None,
-            failed=False,
+            failed=self._last_failure is not None,
         )
 
     def set_available(
@@ -134,6 +138,13 @@ class UpdatesAvailableIndicator(TopBarGroup):
         self._pending_restart = pending
         self._refresh_state()
 
+    def set_last_failure(self, failure: UpdateFailure | None) -> None:
+        """Update the recorded-failure gear state, ignoring equal values."""
+        if failure == self._last_failure:
+            return
+        self._last_failure = failure
+        self._refresh_state()
+
     def _refresh_state(self) -> None:
         """Refresh body and tooltip from the independent available/running inputs."""
         self._set_body(
@@ -151,6 +162,7 @@ class UpdatesAvailableIndicator(TopBarGroup):
             manual_agent_cli_count=self._manual_agent_cli_count,
             running_labels=self._running_labels,
             pending_restart=self._pending_restart,
+            failure=self._last_failure,
         )
         if self.tooltip != tooltip:
             self.tooltip = tooltip
@@ -181,6 +193,9 @@ class UpdatesAvailableIndicator(TopBarGroup):
             return
         if gear == "restart_pending":
             await self.app.run_action("open_restart_blockers")
+            return
+        if gear == "failed":
+            await self.app.run_action("open_update_failure")
             return
         if self.CLICK_ACTION is None:
             return
@@ -221,6 +236,7 @@ class UpdatesAvailableIndicator(TopBarGroup):
         manual_agent_cli_count: int = 0,
         running_labels: Sequence[str] = (),
         pending_restart: PendingUpdateRestart | None = None,
+        failure: UpdateFailure | None = None,
     ) -> str:
         """Build the hover tooltip with separate, truthful domain counts."""
         labels = tuple(running_labels)
@@ -240,7 +256,18 @@ class UpdatesAvailableIndicator(TopBarGroup):
                 tooltip += f" {availability}"
             return tooltip
         if pending_restart is not None:
-            tooltip = restart_pending_tooltip(pending_restart)
+            tooltip = restart_pending_tooltip(pending_restart, failure=failure)
+            availability = UpdatesAvailableIndicator._availability_detail(
+                count,
+                core=core,
+                agent_cli_count=agent_cli_count,
+                manual_agent_cli_count=manual_agent_cli_count,
+            )
+            if availability:
+                tooltip += f" {availability}"
+            return tooltip
+        if failure is not None:
+            tooltip = failure_tooltip(failure)
             availability = UpdatesAvailableIndicator._availability_detail(
                 count,
                 core=core,

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker
+
+if TYPE_CHECKING:
+    from sase.ace._update_attempts_model import UpdateAttempt
 
 from .._proc_observer_models import proc_gear_lanes
 from ..proc_observer import (
@@ -33,6 +36,7 @@ class ProcObserverActionsMixin:
         self._durable_submit_workers: dict[str, Worker[Any]] = {}
         self._session_workers: dict[str, Worker[Any]] = {}
         self._session_completion_callbacks: dict[str, Any] = {}
+        self._session_update_attempts: dict[str, UpdateAttempt] = {}
         self._proc_completion_callbacks: dict[str, ProcCallbackConfig] = {}
         self._proc_pending_scopes: dict[str, frozenset[str]] = {}
         self._proc_session_id = _resolve_current_session_id()

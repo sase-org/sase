@@ -433,6 +433,169 @@ async def test_click_while_pending_dispatches_open_restart_blockers() -> None:
         await pilot.pause()
         assert calls == ["blockers"]
 
+
+def _failed(
+    *,
+    finished_at: float = 1700000010.0,
+    interrupted: bool = False,
+) -> object:
+    from sase.ace._update_attempts_model import UpdateFailure
+
+    return UpdateFailure(
+        attempt_id="a1",
+        label="sase update",
+        proc_type="comprehensive-update",
+        stage="apply",
+        started_at=1700000000.0,
+        finished_at=finished_at,
+        error="boom",
+        output_tail="tail",
+        interrupted=interrupted,
+    )
+
+
+def test_failed_only_badge_renders_gear_with_zero_counts() -> None:
+    indicator = UpdatesAvailableIndicator()
+    indicator.set_last_failure(_failed())  # type: ignore[arg-type]
+
+    assert indicator.gear_state == "failed"
+    assert indicator._body.plain == " ⚙ "
+    assert indicator.group_visible is True
+    assert UpdatesAvailableIndicator._build_content(0, gear="failed").plain == (" ⚙ ")
+
+
+def test_full_gear_precedence_matrix() -> None:
+    indicator = UpdatesAvailableIndicator()
+    indicator.set_available(2)
+
+    for running, pending, failed, expected in [
+        (False, False, False, None),
+        (False, False, True, "failed"),
+        (False, True, False, "restart_pending"),
+        (False, True, True, "restart_pending"),
+        (True, False, False, "updating"),
+        (True, False, True, "updating"),
+        (True, True, False, "updating"),
+        (True, True, True, "updating"),
+    ]:
+        indicator.set_running(("comprehensive update",) if running else ())
+        indicator.set_restart_pending(_pending() if pending else None)  # type: ignore[arg-type]
+        indicator.set_last_failure(_failed() if failed else None)  # type: ignore[arg-type]
+
+        assert indicator.gear_state == expected
+        assert indicator._body.plain.count("⚙") == (0 if expected is None else 1)
+
+
+def test_failed_tooltip_copy() -> None:
+    tooltip = UpdatesAvailableIndicator._build_tooltip(0, failure=_failed())  # type: ignore[arg-type]
+
+    assert "Last update failed" in tooltip
+    assert "sase update: boom" in tooltip
+    assert "Click for the failure report." in tooltip
+
+
+def test_interrupted_tooltip_copy() -> None:
+    tooltip = UpdatesAvailableIndicator._build_tooltip(  # type: ignore[arg-type]
+        0, failure=_failed(interrupted=True)
+    )
+
+    assert "Last update was interrupted" in tooltip
+    assert 'ACE exited before "sase update" finished' in tooltip
+    assert "Click for the failure report." in tooltip
+
+
+def test_red_tooltip_keeps_availability_sentence() -> None:
+    tooltip = UpdatesAvailableIndicator._build_tooltip(  # type: ignore[arg-type]
+        2, failure=_failed()
+    )
+
+    assert "Last update failed" in tooltip
+    assert "2 SASE/core/plugin updates available." in tooltip
+
+
+def test_yellow_tooltip_adds_failure_line_only_for_newer_failures() -> None:
+    from sase.ace.tui.update_gear import PendingUpdateRestart
+
+    pending = PendingUpdateRestart(
+        blocker_labels=("sync",),
+        blocker_identities=("1",),
+        queued_at=1700000000.0,
+        restart_by=1700000060.0,
+    )
+    newer = UpdatesAvailableIndicator._build_tooltip(
+        0,
+        pending_restart=pending,
+        failure=_failed(finished_at=1700000005.0),  # type: ignore[arg-type]
+    )
+    older = UpdatesAvailableIndicator._build_tooltip(
+        0,
+        pending_restart=pending,
+        failure=_failed(finished_at=1699999990.0),  # type: ignore[arg-type]
+    )
+
+    assert "The update also reported a failure; details after the restart." in newer
+    assert "also reported a failure" not in older
+
+
+def test_set_last_failure_noops_on_equal_value() -> None:
+    indicator = UpdatesAvailableIndicator()
+    indicator.set_last_failure(_failed())  # type: ignore[arg-type]
+    body_before = indicator._body.plain
+    tooltip_before = indicator.tooltip
+
+    indicator.set_last_failure(_failed())  # type: ignore[arg-type]
+
+    assert indicator._body.plain == body_before
+    assert indicator.tooltip == tooltip_before
+
+
+def test_format_failure_when_day_buckets() -> None:
+    from datetime import datetime
+
+    from sase.ace.tui.update_gear import format_failure_when
+
+    noon = datetime(2026, 9, 27, 12, 0, 0).timestamp()
+    morning = datetime(2026, 9, 27, 9, 10, 0).timestamp()
+    yesterday = datetime(2026, 9, 26, 9, 10, 0).timestamp()
+    older = datetime(2026, 9, 20, 14, 32, 0).timestamp()
+
+    assert format_failure_when(morning, now=noon) == "today at 09:10"
+    assert format_failure_when(yesterday, now=noon) == "yesterday at 09:10"
+    assert format_failure_when(older, now=noon) == "Sep 20 at 14:32"
+
+
+async def test_click_while_failed_dispatches_open_update_failure() -> None:
+    from textual.app import App, ComposeResult
+
+    calls: list[str] = []
+
+    class _TestApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield UpdatesAvailableIndicator(id="updates-indicator")
+
+        def action_open_updates_panel(self) -> None:
+            calls.append("updates")
+
+        def action_open_update_failure(self) -> None:
+            calls.append("failure")
+
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        indicator = pilot.app.query_one(
+            "#updates-indicator",
+            UpdatesAvailableIndicator,
+        )
+        indicator.set_last_failure(_failed())  # type: ignore[arg-type]
+        await pilot.click("#updates-indicator")
+        await pilot.pause()
+        assert calls == ["failure"]
+
+        calls.clear()
+        indicator.set_last_failure(None)
+        await pilot.click("#updates-indicator")
+        await pilot.pause()
+        assert calls == ["updates"]
+
         calls.clear()
         indicator.set_restart_pending(None)
         await pilot.click("#updates-indicator")

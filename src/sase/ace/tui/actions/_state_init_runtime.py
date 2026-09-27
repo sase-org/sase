@@ -132,6 +132,8 @@ def init_runtime_state(
     self._running_code_state = None
     self._pending_update_restart = None
     self._pending_restart_chain = None
+    self._update_attempts_view = None
+    self._update_attempts_refresh_in_flight = False
     self._running_code_stale_notified_signature = None
     self._heap_sampler_timer = None
     self._heap_sampler_async_tasks = set()

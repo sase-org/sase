@@ -242,6 +242,8 @@ __all__ = [
     "LaunchPaneSessionState",
     "ModelsPanel",
     "ModelsPanelResult",
+    "UpdateFailureChoice",
+    "UpdateFailureModal",
     "UpdatePanel",
     "UpdatePanelResult",
     "UpdatePinnedStashModal",

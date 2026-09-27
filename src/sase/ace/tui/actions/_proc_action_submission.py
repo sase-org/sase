@@ -11,12 +11,18 @@ from typing import Any
 
 from textual.worker import Worker
 
+from sase.ace._update_attempts_model import UpdateAttempt
+from sase.ace.update_attempts import begin_update_attempt
 from sase.core.time import local_now
 from sase.procs import ProcSubmitError
 from sase.project_display_names import humanize_cl_name
 
 from ..proc_observer import ObservedProc, ProcObserver, ProcProjection
 from ..session_proc_reporter import SessionProcReporter
+from ..update_attempt_tracking import (
+    settle_update_attempt_for_result,
+    update_attempt_for,
+)
 from ._proc_action_observer import ProcObserverActionsMixin
 from ._proc_action_types import (
     DurableSubmitWorkerResult,
@@ -269,8 +275,21 @@ class ProcSubmissionActionsMixin(ProcObserverActionsMixin):
             session_live=True,
         )
 
+        attempts: dict[str, UpdateAttempt] | None = getattr(
+            self, "_session_update_attempts", None
+        )
+        if attempts is None:
+            attempts = self._session_update_attempts = {}
+        attempt = update_attempt_for(proc_info)
+        if attempt is not None:
+            attempts[proc_info.proc_id] = attempt
+
         def _wrapped() -> SessionWorkerResult[T]:
             reporter = SessionProcReporter(proc_info)
+            if attempt is not None:
+                # Durable before on_complete: an update that re-execs ACE
+                # the moment it settles has already recorded itself.
+                begin_update_attempt(attempt)
             try:
                 result = _invoke_session_worker_body(body, reporter)
             except Exception as exc:
@@ -284,10 +303,20 @@ class ProcSubmissionActionsMixin(ProcObserverActionsMixin):
             if result.message:
                 marker = "OK" if result.success else "ERROR"
                 reporter.log(f"{marker}: {result.message}", stream="result")
+            view = (
+                settle_update_attempt_for_result(
+                    attempt,
+                    result,
+                    output=proc_info.get_live_output(),
+                )
+                if attempt is not None
+                else None
+            )
             return SessionWorkerResult(
                 proc_info.proc_id,
                 result,
                 proc_info.get_live_output(),
+                update_attempts=view,
             )
 
         self._session_completion_callbacks[proc_info.proc_id] = (

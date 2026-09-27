@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 from ..proc_observer import ObservedProc
 
 if TYPE_CHECKING:
+    from sase.ace.update_attempts import UpdateAttemptsView
+
     from ..durable_submit import DurableSubmitHandle
 
 
@@ -41,6 +43,7 @@ class SessionWorkerResult[T]:
     proc_id: str
     result: TrackedProcResult[T]
     output: str
+    update_attempts: UpdateAttemptsView | None = None
 
 
 @dataclass(frozen=True)

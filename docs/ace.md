@@ -8338,8 +8338,17 @@ full discovery waits for the longer configured recompute cadence, and provider r
 lookups retain their own cache. The top bar renders the `updates:` group as its only
 dark chip (lime `⬆ N` SASE and sage `CLI ⬆ N` segments with separate counts, plus a lime
 `core` tag for a sase-core rebuild, plus a green `⚙` gear inset at the left edge while
-SASE is updating, or a yellow `⚙` gear inset while a tracked restart waits for this
-ACE's own procs).
+SASE is updating, a yellow `⚙` gear inset while a tracked restart waits for this ACE's
+own procs, or a red `⚙` gear inset while the most recent update attempt failed).
+
+A red gear means the last update or update-planning attempt settled with an error, or
+ACE exited before it finished (an interrupted attempt, whose install may be incomplete).
+Clicking the red gear opens the failure report: the failed attempt's label, error, and
+last output, with `u` opening the Update panel, `d` dismissing the recorded failure, `y`
+copying the report, and `q` closing. A later attempt that starts after the failure
+clears the gear on success, as does dismissing it. The record lives in
+`~/.sase/update_attempts.json`, so it survives ACE restarts and every ACE instance on
+the machine converges on it at startup and on the ten-minute update-check tick.
 
 For editable host, core, and plugin checkouts, the running TUI also remembers the Git
 HEAD imported by the process and cheaply checks whether the checkout has moved on disk.
