@@ -70,7 +70,7 @@ def build_prebuilt_offthread(
     the UI thread.
     """
     from sase.ace.tui.widgets.prompt_panel._section_navigation import (
-        _segment_section_identity,
+        segment_section_identity,
     )
 
     render_width = max(1, int(width))
@@ -86,7 +86,7 @@ def build_prebuilt_offthread(
     seen: set[str] = set()
     for row, strip in enumerate(strips):
         for segment in strip:
-            resolved = _segment_section_identity(segment)
+            resolved = segment_section_identity(segment)
             if resolved is None:
                 continue
             identity, role = resolved

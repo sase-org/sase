@@ -20,13 +20,6 @@ from .view_policy import forced_block_mode
 __all__ = ["DeckPanelViewTransitionMixin"]
 
 
-def _applied_generation(owner: object) -> int:
-    try:
-        return int(getattr(owner, "_main_view_applied_generation", 0))
-    except Exception:
-        return 0
-
-
 def _set_applied_generation(owner: object, generation: int) -> None:
     try:
         owner._main_view_applied_generation = int(generation)  # type: ignore[attr-defined]

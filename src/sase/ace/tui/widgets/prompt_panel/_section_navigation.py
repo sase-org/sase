@@ -266,7 +266,7 @@ class SectionTrackingVisual(Visual):
         seen: set[str] = set()
         for row, strip in enumerate(strips):
             for segment in strip:
-                resolved = _segment_section_identity(segment)
+                resolved = segment_section_identity(segment)
                 if resolved is None:
                     continue
                 identity, role = resolved
@@ -310,7 +310,7 @@ class SectionTrackingVisual(Visual):
         seen: set[str] = set()
         row = 0
         for segment in segments:
-            resolved = _segment_section_identity(segment)
+            resolved = segment_section_identity(segment)
             if resolved is not None:
                 identity, role = resolved
                 if identity not in seen:
@@ -419,7 +419,7 @@ class SectionTrackingVisual(Visual):
             seen: set[str] = set()
             row = 0
             for segment in segments:
-                resolved = _segment_section_identity(segment)
+                resolved = segment_section_identity(segment)
                 if resolved is not None:
                     identity, role = resolved
                     if identity not in seen:
@@ -448,7 +448,7 @@ class SectionTrackingVisual(Visual):
             )
 
 
-def _segment_section_identity(
+def segment_section_identity(
     segment: Segment,
 ) -> tuple[str, PromptPanelSectionRole] | None:
     style = segment.style
@@ -482,4 +482,5 @@ __all__ = [
     "SECTION_FOLD_ONLY_META_KEY",
     "SECTION_MARKER_META_KEY",
     "SectionTrackingVisual",
+    "segment_section_identity",
 ]

@@ -23,7 +23,7 @@ from sase.ace.tui.widgets.decks.titles import deck_subtitle
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     DECK_CARD_META_KEY,
     PromptPanelSectionRole,
-    _segment_section_identity,
+    segment_section_identity,
 )
 
 
@@ -129,7 +129,7 @@ def test_settings_helper_fails_open() -> None:
 
 def test_card_meta_yields_card_anchor() -> None:
     seg = Segment("rule", Style(meta={DECK_CARD_META_KEY: "reply"}))
-    assert _segment_section_identity(seg) == (
+    assert segment_section_identity(seg) == (
         "card:reply",
         PromptPanelSectionRole.CARD,
     )
@@ -144,7 +144,7 @@ def test_card_key_wins_over_section_key() -> None:
         "x",
         Style(meta={DECK_CARD_META_KEY: "c", SECTION_MARKER_META_KEY: "s"}),
     )
-    identity, role = _segment_section_identity(seg)  # type: ignore[misc]
+    identity, role = segment_section_identity(seg)  # type: ignore[misc]
     assert identity == "card:c"
     assert role is PromptPanelSectionRole.CARD
 

@@ -41,7 +41,7 @@ from sase.ace.tui.widgets.prompt_panel._identity_header import _find_carrier
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     DECK_BLOCK_META_KEY,
     PromptPanelSectionRole,
-    _segment_section_identity,
+    segment_section_identity,
 )
 
 
@@ -254,7 +254,7 @@ def _rendered_identities(renderable: object) -> set:
     console = Console(record=True, width=120, color_system=None, file=StringIO())
     console.print(renderable, end="")
     return {
-        _segment_section_identity(segment)
+        segment_section_identity(segment)
         for segment in console.render(renderable, console.options)
     }
 

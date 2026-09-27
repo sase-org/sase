@@ -25,30 +25,37 @@ def handle_jump_to_agent(app: object, notification: Notification) -> bool:
     Returns:
         True if the agent was found and selected.
     """
+    from ._notification_navigation import (
+        enter_agents_tab,
+        jump_to_loaded_agent,
+        resolve_loaded_agent,
+    )
+
     cl_name = notification.action_data.get("cl_name")
     if not cl_name:
         app.notify("No cl_name in notification", severity="warning")  # type: ignore[attr-defined]
         return False
 
-    app.current_tab = "agents"  # type: ignore[attr-defined]
+    enter_agents_tab(app)
 
     agent_type = notification.action_data.get("agent_type")
     raw_suffix = notification.action_data.get("raw_suffix")
 
-    agents = app._agents  # type: ignore[attr-defined]
-    for idx, agent in enumerate(agents):
-        if agent.cl_name != cl_name:
-            continue
-        if agent_type and agent.agent_type.value != agent_type:
-            continue
-        if raw_suffix and agent.raw_suffix != raw_suffix:
-            continue
-        app.current_idx = idx  # type: ignore[attr-defined]
+    def _matches(agent: object) -> bool:
+        if getattr(agent, "cl_name", None) != cl_name:
+            return False
+        if agent_type and agent.agent_type.value != agent_type:  # type: ignore[attr-defined]
+            return False
+        if raw_suffix and getattr(agent, "raw_suffix", None) != raw_suffix:
+            return False
         return True
 
-    message = f"Agent '{humanize_cl_name(str(cl_name))}' not found"
-    app.notify(message, severity="warning")  # type: ignore[attr-defined]
-    return False
+    target = resolve_loaded_agent(app, _matches)
+    if target is None:
+        message = f"Agent '{humanize_cl_name(str(cl_name))}' not found"
+        app.notify(message, severity="warning")  # type: ignore[attr-defined]
+        return False
+    return jump_to_loaded_agent(app, target)
 
 
 def handle_view_error_report(app: object, notification: Notification) -> bool:

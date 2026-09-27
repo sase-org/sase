@@ -5,8 +5,8 @@ Provides agent/patch lookup by notification fields and tab navigation.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any
 from typing import Protocol
 
 from sase.notifications.agent_matching import (
@@ -170,6 +170,57 @@ def get_meta_patch_name(agent: Agent) -> str | None:
 get_meta_changespec_name = get_meta_patch_name  # legacy compatibility alias
 
 
+def resolve_loaded_agent(app: object, predicate: Callable[[Any], bool]) -> Any | None:
+    """Return the first loaded agent row satisfying ``predicate``.
+
+    Searches the visible projection first (preserving today's pick when
+    several rows match), then the complete loaded roster, then ``I``-hidden
+    rows. Clan containers are skipped in every tier. Pure, with no I/O.
+    """
+    tiers: list[Sequence[Any]] = [
+        getattr(app, "_agents", ()),
+        loaded_real_agent_roster(app),
+        getattr(app, "_hideable_agents", ()),
+    ]
+    for tier in tiers:
+        for agent in tier or ():
+            if getattr(agent, "is_clan_container", False):
+                continue
+            try:
+                if predicate(agent):
+                    return agent
+            except Exception:
+                continue
+    return None
+
+
+def enter_agents_tab(app: object) -> None:
+    """Switch to the Agents tab, preserving the tab-position contract."""
+    if getattr(app, "current_tab", None) == "agents":
+        return
+    switch = getattr(app, "_switch_to_tab", None)
+    if not callable(switch):
+        app.current_tab = "agents"  # type: ignore[attr-defined]
+        return
+    save = getattr(app, "_save_current_tab_position", None)
+    if callable(save):
+        save()
+    switch("agents")
+
+
+def jump_to_loaded_agent(app: object, target: Any) -> bool:
+    """Reveal ``target`` through the Node Finder ladder."""
+    jump = getattr(app, "_jump_to_node_identity", None)
+    if callable(jump):
+        return bool(jump(target.identity, name=target.display_name, subject="Agent"))
+    agents = getattr(app, "_agents", ()) or ()
+    for idx, agent in enumerate(agents):
+        if getattr(agent, "identity", None) == target.identity:
+            app.current_idx = idx  # type: ignore[attr-defined]
+            return True
+    return False
+
+
 def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> bool:
     """Navigate to an agent in the Agents tab.
 
@@ -183,25 +234,21 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
     Returns:
         True if the agent was found and selected.
     """
-    app.current_tab = "agents"  # type: ignore[attr-defined]
-
-    agents: list[Agent] = app._agents  # type: ignore[attr-defined]
+    enter_agents_tab(app)
 
     # Try PID match first (most precise)
+    target: Any | None = None
     if pid is not None:
-        for idx, agent in enumerate(agents):
-            if agent.pid == pid:
-                app.current_idx = idx  # type: ignore[attr-defined]
-                return True
+        target = resolve_loaded_agent(app, lambda agent: agent.pid == pid)
 
     # Fallback to cl_name match
-    for idx, agent in enumerate(agents):
-        if agent.cl_name == cl_name:
-            app.current_idx = idx  # type: ignore[attr-defined]
-            return True
+    if target is None:
+        target = resolve_loaded_agent(app, lambda agent: agent.cl_name == cl_name)
 
-    app.notify(f"Agent '{humanize_cl_name(cl_name)}' not found", severity="warning")  # type: ignore[attr-defined]
-    return False
+    if target is None:
+        app.notify(f"Agent '{humanize_cl_name(cl_name)}' not found", severity="warning")  # type: ignore[attr-defined]
+        return False
+    return jump_to_loaded_agent(app, target)
 
 
 def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bool:

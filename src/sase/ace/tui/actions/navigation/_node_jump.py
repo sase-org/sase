@@ -81,7 +81,9 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
             refresh(source="filter")
         return query
 
-    def _jump_to_node_identity(self, identity: AgentIdentity, *, name: str) -> bool:
+    def _jump_to_node_identity(
+        self, identity: AgentIdentity, *, name: str, subject: str = "Node"
+    ) -> bool:
         """Reveal ``identity`` through the I and query visibility rungs."""
         guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
@@ -104,7 +106,7 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
                 ):
                     self.notify(f"Jump to {name} cancelled — you moved")  # type: ignore[attr-defined]
                     return
-                self._jump_to_node_identity(identity, name=name)
+                self._jump_to_node_identity(identity, name=name, subject=subject)
 
             show_hidden = getattr(self, "_show_hidden_agents_for_navigation", None)
             if callable(show_hidden):
@@ -124,7 +126,7 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
 
         notify = getattr(self, "_notify_member_reveal_failure", None)
         if callable(notify):
-            notify(failure, subject="Node")
+            notify(failure, subject=subject)
         return False
 
     def _should_show_hidden_agents(

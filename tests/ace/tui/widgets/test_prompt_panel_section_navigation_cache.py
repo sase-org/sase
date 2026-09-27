@@ -132,7 +132,7 @@ def test_section_tracking_visual_caches_rich_anchor_collection_by_width(
         panel._section_generation,  # noqa: SLF001
     )
     inspected_segments = 0
-    original_resolver = _section_navigation._segment_section_identity  # noqa: SLF001
+    original_resolver = _section_navigation.segment_section_identity  # noqa: SLF001
 
     def count_resolutions(segment: Segment) -> object:
         nonlocal inspected_segments
@@ -141,7 +141,7 @@ def test_section_tracking_visual_caches_rich_anchor_collection_by_width(
 
     monkeypatch.setattr(
         _section_navigation,
-        "_segment_section_identity",
+        "segment_section_identity",
         count_resolutions,
     )
 
@@ -288,7 +288,7 @@ def test_section_tracking_visual_delegates_non_rich_height_without_anchor_collec
         panel._section_generation,  # noqa: SLF001
     )
     inspected_segments = 0
-    original_resolver = _section_navigation._segment_section_identity  # noqa: SLF001
+    original_resolver = _section_navigation.segment_section_identity  # noqa: SLF001
 
     def count_resolutions(segment: Segment) -> object:
         nonlocal inspected_segments
@@ -297,7 +297,7 @@ def test_section_tracking_visual_delegates_non_rich_height_without_anchor_collec
 
     monkeypatch.setattr(
         _section_navigation,
-        "_segment_section_identity",
+        "segment_section_identity",
         count_resolutions,
     )
 
@@ -337,7 +337,7 @@ def test_section_tracking_visual_caches_anchor_collection_by_generation_and_widt
         panel._section_generation,  # noqa: SLF001
     )
     inspected_segments = 0
-    original_resolver = _section_navigation._segment_section_identity  # noqa: SLF001
+    original_resolver = _section_navigation.segment_section_identity  # noqa: SLF001
 
     def count_resolutions(segment: Segment) -> object:
         nonlocal inspected_segments
@@ -346,7 +346,7 @@ def test_section_tracking_visual_caches_anchor_collection_by_generation_and_widt
 
     monkeypatch.setattr(
         _section_navigation,
-        "_segment_section_identity",
+        "segment_section_identity",
         count_resolutions,
     )
 

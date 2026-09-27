@@ -4704,21 +4704,21 @@ state and timing contract.
 Some notifications carry an `action` field that triggers a handler when the notification
 is selected. The following notification action types are supported:
 
-| Action                | Source          | Behavior                                                                          |
-| --------------------- | --------------- | --------------------------------------------------------------------------------- |
-| `CustomGate`          | Agent/tool      | Opens the generic choices, add-ons, and feedback modal                            |
-| `GateExecutionFailed` | Gate executor   | Opens the resume / restart / cancel dialog, or the error report when none applies |
-| `HITL`                | Workflow        | Opens the workflow human-in-the-loop response modal                               |
-| `JumpToAgent`         | Agent/workflow  | Jumps to the matching Agents-tab row                                              |
-| `JumpToPatch`         | Sync/workflow   | Jumps to the referenced Patch on the Patches sub-tab                              |
-| `JumpToMentorReview`  | Mentors         | Jumps to the Patch and opens mentor review output when available                  |
-| `LaunchApproval`      | Agent           | Opens the launch approval modal for an agent-requested launch                     |
-| `PlanApproval`        | Agent           | Opens the plan approval modal                                                     |
-| `RemoteAttention`     | Remote machine  | Opens the remote question or gate modal and submits to the owning machine         |
-| `SudoRequest`         | Agent           | Opens the [sudo review modal](sudo.md#review-ux); approving runs in a terminal    |
-| `Tmux`                | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`     |
-| `UserQuestion`        | Agent           | Opens the structured user-question response modal                                 |
-| `ViewErrorReport`     | Axe/agent       | Opens `action_data.error_report_path`, or the first attached file, in `$EDITOR`   |
+| Action                | Source          | Behavior                                                                                                                                                                                               |
+| --------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CustomGate`          | Agent/tool      | Opens the generic choices, add-ons, and feedback modal                                                                                                                                                 |
+| `GateExecutionFailed` | Gate executor   | Opens the resume / restart / cancel dialog, or the error report when none applies                                                                                                                      |
+| `HITL`                | Workflow        | Opens the workflow human-in-the-loop response modal                                                                                                                                                    |
+| `JumpToAgent`         | Agent/workflow  | Jumps to the matching Agents-tab row, revealing it first like the Node Finder: expands collapsed folds, grouping banners, and panels; shows `I`-hidden rows; clears a hiding Agents query with a toast |
+| `JumpToPatch`         | Sync/workflow   | Jumps to the referenced Patch on the Patches sub-tab                                                                                                                                                   |
+| `JumpToMentorReview`  | Mentors         | Jumps to the Patch and opens mentor review output when available                                                                                                                                       |
+| `LaunchApproval`      | Agent           | Opens the launch approval modal for an agent-requested launch                                                                                                                                          |
+| `PlanApproval`        | Agent           | Opens the plan approval modal                                                                                                                                                                          |
+| `RemoteAttention`     | Remote machine  | Opens the remote question or gate modal and submits to the owning machine                                                                                                                              |
+| `SudoRequest`         | Agent           | Opens the [sudo review modal](sudo.md#review-ux); approving runs in a terminal                                                                                                                         |
+| `Tmux`                | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`                                                                                                                          |
+| `UserQuestion`        | Agent           | Opens the structured user-question response modal                                                                                                                                                      |
+| `ViewErrorReport`     | Axe/agent       | Opens `action_data.error_report_path`, or the first attached file, in `$EDITOR`                                                                                                                        |
 
 The axe `error_digest` job creates `ViewErrorReport` notifications whose digest files
 live under `~/.sase/axe/error_digests/digest_<timestamp>.txt`; user-agent failures can
