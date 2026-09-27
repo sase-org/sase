@@ -126,6 +126,31 @@ def resolve_dispatch_target(expanded_args: dict[str, str]) -> str | None:
     return target
 
 
+def resolve_agent_tab(
+    expanded_args: dict[str, str],
+) -> tuple[str | None, bool]:
+    """Validate the optional ``%tab`` presentation-root target.
+
+    Returns ``(stored_name, explicit_default)``. Absent key means no
+    directive. Kind ``named`` sets the stored name and leaves the
+    explicit-default flag false. Kind ``default`` (explicit ``%tab:main``)
+    sets the stored name to None and the flag true. A core ``ValueError``
+    becomes ``DirectiveError`` with the same text.
+    """
+    if "tab" not in expanded_args:
+        return None, False
+    raw = expanded_args["tab"]
+    from sase.core.agent_tab import canonicalize_agent_tab
+
+    try:
+        stored = canonicalize_agent_tab(raw)
+    except ValueError as exc:
+        raise DirectiveError(str(exc)) from exc
+    if stored is None:
+        return None, True
+    return stored, False
+
+
 def resolve_wait_time_args(
     wait_time_args: list[str],
 ) -> tuple[float | None, str | None]:

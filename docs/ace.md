@@ -2790,17 +2790,17 @@ slot without changing the committed query.
 
 Property keys (closed allowlist):
 
-| Key                                                | Form                                    | Matching behavior                                                                |
-| -------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
-| `name`, `session`, `clan`, `project`               | `key:value`                             | Exact, case-insensitive identity fields; completions include observed values.    |
-| `kind`                                             | `kind:agent`, `kind:workflow`, etc.     | Enum for agent/member/session/clan/workflow rows.                                |
-| `status`, `provider`, `source`, `needs`            | `key:value`                             | Enums; `source` accepts `axe` / `manual`, and `needs` accepts `input`.           |
-| `role`, `workflow`, `model`, `cl`, `text`          | `key:value`                             | Case-insensitive substring fields; `text:` searches the full text corpus.        |
-| `machine`, `tribe`                                 | `key:value`                             | Exact live operational fields; `machine` accepts `here`, aliases, and hostnames. |
-| `pinned`, `unread`, `hidden`, `attention`, `retry` | `key:true` / `key:false`                | Boolean properties.                                                              |
-| `since`, `until`, `after`, `before`                | `key:2h`, `key:today`, `key:YYYY-MM-DD` | Start and finish bounds; `Nh` / `Nd` / `Nw` / `Nm`, `today`, and ISO dates.      |
-| `min`, `max`                                       | `key:5m`, `key:1h`                      | Runtime duration bounds.                                                         |
-| `attempt`                                          | `attempt:2`                             | Retry attempt number.                                                            |
+| Key                                                | Form                                    | Matching behavior                                                                                                               |
+| -------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `name`, `session`, `clan`, `project`               | `key:value`                             | Exact, case-insensitive identity fields; completions include observed values.                                                   |
+| `kind`                                             | `kind:agent`, `kind:workflow`, etc.     | Enum for agent/member/session/clan/workflow rows.                                                                               |
+| `status`, `provider`, `source`, `needs`            | `key:value`                             | Enums; `source` accepts `axe` / `manual`, and `needs` accepts `input`.                                                          |
+| `role`, `workflow`, `model`, `cl`, `text`          | `key:value`                             | Case-insensitive substring fields; `text:` searches the full text corpus.                                                       |
+| `machine`, `tribe`, `tab`                          | `key:value`                             | Exact live operational fields; `machine` accepts `here`, aliases, and hostnames; `tab` is exact and `main` means no stored tab. |
+| `pinned`, `unread`, `hidden`, `attention`, `retry` | `key:true` / `key:false`                | Boolean properties.                                                                                                             |
+| `since`, `until`, `after`, `before`                | `key:2h`, `key:today`, `key:YYYY-MM-DD` | Start and finish bounds; `Nh` / `Nd` / `Nw` / `Nm`, `today`, and ISO dates.                                                     |
+| `min`, `max`                                       | `key:5m`, `key:1h`                      | Runtime duration bounds.                                                                                                        |
+| `attempt`                                          | `attempt:2`                             | Retry attempt number.                                                                                                           |
 
 Boolean operators: juxtaposition is implicit `AND`; explicit `AND`, `OR`, and `NOT` (or
 `!`) are honored, and parentheses group expressions. Bare and quoted strings are
@@ -2827,7 +2827,7 @@ A committed query also decides how much agent history is loaded. When the persis
 artifact index can answer every term exactly — `cl:`, `model:`, `provider:`, `project:`,
 `kind:agent` / `kind:workflow`, and `machine:` (including a negated `machine:` filter),
 combined with `AND` / `OR` — the loader selects matching agents from the whole archive.
-Any other term (for example `status:`, `name:`, `tribe:`, or free text) is first
+Any other term (for example `status:`, `name:`, `tribe:`, `tab:`, or free text) is first
 evaluated against the bounded recent-history window, and the header adds
 `filtered on recent history; loading full history...` until a quiet-window full-history
 reconcile finishes and older matches can appear.

@@ -241,6 +241,7 @@ def _launch_unit_payload_from_dict(
             agent_session_attach_parent=agent_session_attach_value(data, "parent"),
             agent_session_attach_suffix=agent_session_attach_value(data, "suffix"),
             tribe=_optional_str(data.get("tribe")),
+            agent_tab=_optional_str(data.get("agent_tab")),
             model=_optional_str(data.get("model")),
             reasoning_effort=_optional_str(data.get("reasoning_effort")),
             bead_id=_optional_str(data.get("bead_id")),

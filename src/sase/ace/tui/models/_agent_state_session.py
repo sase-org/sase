@@ -108,6 +108,9 @@ class AgentStateSessionFields:
     # Populated from ``~/.sase/agent_tribes.json`` after agents are loaded.
     tribe: str | None = None
 
+    # Presentation-root tab placement (stored canonical name, None for main).
+    agent_tab: str | None = None
+
     # Agent-scoped output variables written by ``sase var set``.
     output_variables: dict[str, VarValue] = field(default_factory=dict)
 

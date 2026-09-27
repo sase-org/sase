@@ -41,6 +41,7 @@ SUBSTRING_PROPERTY_KEYS = frozenset(
         "provider",
         "machine",
         "tribe",
+        "tab",
         "text",
     }
 )

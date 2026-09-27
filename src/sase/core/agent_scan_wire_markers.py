@@ -322,6 +322,8 @@ class AgentMetaWire:
     imported_source_owner: dict[str, Any] | None = None
     plan_chain_root: bool = False
     tribe: str | None = None
+    agent_tab: str | None = None
+    agent_tab_source: str | None = None
     output_variables: dict[str, Any] = field(default_factory=dict)
     output_path: str | None = None
     pid: int | None = None

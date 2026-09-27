@@ -56,6 +56,11 @@ def agents_live_query_schema() -> ArtifactQuerySchema:
             exact_match=True,
             hint="user-defined live tribe",
         ),
+        QueryFieldSpec(
+            key="tab",
+            exact_match=True,
+            hint="stored tab names, or main for the default tab",
+        ),
     )
     live_bool_fields = shared_agent_bool_fields(
         (

@@ -39,7 +39,8 @@ class _CatalogMember:
     clan_generation: str | None
     clan_tribe: str | None
     tribe: str | None
-    status: str
+    agent_tab: str | None = None
+    status: str = "RUNNING"
     is_monitor: bool = False
 
 
@@ -204,7 +205,8 @@ def _derive_group_entries(snapshot: Any, agents: Iterable[Any]) -> list[dict[str
     agent_sessions = _agent_session_entries(members, snapshot)
     clans, clan_members = _clan_entries(members)
     tribes = _tribe_entries(members, clan_members)
-    return [*hoods, *agent_sessions, *clans, *tribes]
+    tabs = _tab_entries(members)
+    return [*hoods, *agent_sessions, *clans, *tribes, *tabs]
 
 
 def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMember]:
@@ -281,6 +283,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
                 clan_generation=generation,
                 clan_tribe=clan_tribe,
                 tribe=persisted_tribe or ((meta.tribe or "").strip() or None),
+                agent_tab=(getattr(meta, "agent_tab", None) or "").strip() or None,
                 status=statuses.get(record.artifact_dir) or _record_status(record),
                 is_monitor=is_monitor_member_role(
                     meta.agent_session_role,
@@ -572,6 +575,29 @@ def _tribe_entries(
                 "kind": "tribe",
                 "member_count": member_count,
                 "detail": " · ".join(detail_parts),
+            }
+        )
+    return entries
+
+
+def _tab_entries(members: list[_CatalogMember]) -> list[dict[str, Any]]:
+    tabs: dict[str, set[str]] = {}
+    for member in members:
+        if member.is_monitor:
+            continue
+        key = member.agent_tab if member.agent_tab else "main"
+        tabs.setdefault(key, set()).add(member.name)
+    if "main" not in tabs:
+        tabs["main"] = set()
+    entries: list[dict[str, Any]] = []
+    for tab in sorted(tabs):
+        names = tabs[tab]
+        entries.append(
+            {
+                "name": tab,
+                "kind": "tab",
+                "member_count": len(names),
+                "detail": "tab",
             }
         )
     return entries

@@ -57,6 +57,7 @@ KNOWN_FALLBACK_FIELDS = frozenset(
         "since",
         "source",
         "status",
+        "tab",
         "text",
         "tribe",
         "unread",

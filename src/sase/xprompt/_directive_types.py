@@ -50,6 +50,7 @@ _KNOWN_DIRECTIVES = frozenset(
         "wait",
         "if",
         "proc",
+        "tab",
     }
 )
 
@@ -175,6 +176,9 @@ class PromptDirectives:
             adapter that owns the interaction kind.
         dispatch: Remote machine alias requested via the %dispatch directive,
             or None for a local launch.
+        agent_tab: Canonical stored tab name from ``%tab``, or None for the
+            default tab (absent or explicit ``%tab:main``).
+        agent_tab_explicit_default: True only for an explicit ``%tab:main``.
     """
 
     auto_mode: str | None = None
@@ -219,6 +223,8 @@ class PromptDirectives:
     queue_weight_explicit: bool = False
     hold: Mapping[str, Any] | None = None
     dispatch: str | None = None
+    agent_tab: str | None = None
+    agent_tab_explicit_default: bool = False
     final: list[str] = field(default_factory=list)
     if_code: CodeValue | None = None
     proc_code: CodeValue | None = None

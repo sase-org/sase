@@ -423,6 +423,7 @@ def _remote_agent_session_container(
         agent_clan_generation=anchor.agent_clan_generation,
         clan_tribe=next(iter(clan_tribes)) if len(clan_tribes) == 1 else None,
         tribe=next(iter(tribes)) if len(tribes) == 1 else None,
+        agent_tab=anchor.agent_tab,
     )
     apply_clan_container_status(container, members, fallback=status)
     container.refresh_presented_agent_name()

@@ -84,6 +84,7 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             "agent_session_attach_parent",
             "agent_session_attach_suffix",
             "tribe",
+            "agent_tab",
             "model",
             "reasoning_effort",
             "bead_id",

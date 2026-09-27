@@ -208,6 +208,7 @@ def test_agents_live_profile_filterable_fields_are_all_accepted_by_parser() -> N
         "cl": "sase-zf",
         "machine": "here",
         "tribe": "pinned",
+        "tab": "main",
         "pinned": "true",
         "unread": "false",
         "needs": "input",
@@ -243,7 +244,7 @@ def test_agents_live_profile_matching_shapes_are_operational_not_archive() -> No
         if item.filterable and item.value_kind == "bool"
     }
 
-    assert exact == {"name", "session", "clan", "project", "machine", "tribe"}
+    assert exact == {"name", "session", "clan", "project", "machine", "tribe", "tab"}
     assert substring == {"role", "workflow", "model", "cl"}
     assert bool_keys == {"hidden", "attention", "retry", "pinned", "unread"}
     assert profile.field("role").static_values == ("code", "plan", "mon")

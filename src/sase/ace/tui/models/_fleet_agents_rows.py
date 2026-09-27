@@ -377,6 +377,7 @@ def _agent_from_summary(
         agent_clan_generation=optional_str(summary.get("agent_clan_generation")),
         clan_tribe=optional_str(summary.get("clan_tribe")),
         tribe=optional_str(summary.get("tribe")),
+        agent_tab=optional_str(summary.get("agent_tab")),
         monitor_id=monitor_id,
         monitor_state=monitor_state,
         monitor_command=optional_str(fact("monitor_command")),

@@ -50,6 +50,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "id": expected_id_keywords,
         "model": (),
         "repeat": (),
+        "tab": (),
         "wait": ("agent", "bead", "hood", "proc", "time", "unit"),
         "queue": ("capacity", "p", "priority", "w", "weight"),
         "if": ("should_run",),
@@ -83,6 +84,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "id": ("colon", "parenthesized", "bare"),
         "model": ("colon", "parenthesized"),
         "repeat": ("colon",),
+        "tab": ("colon", "parenthesized"),
         "wait": ("colon", "parenthesized", "bare"),
         "queue": ("colon", "parenthesized"),
         "if": ("parenthesized",),
@@ -102,6 +104,8 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     )
     assert _suggested_values(contract["queue"]) == ("0", "1")
     assert contract["dispatch"].get("feature_flag") is None
+    assert contract["tab"].get("feature_flag") is None
+    assert contract["tab"].get("alias") is None
     assert _keyword_suggested_values(contract["if"], "should_run") == ("true", "false")
     assert contract["if"]["body_kind"] == "optional_fenced_code"
     assert contract["proc"]["body_kind"] == "optional_fenced_code"

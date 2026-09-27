@@ -64,7 +64,10 @@ def build_agent_completion_candidates(
         exclude_identity=exclude_identity,
     )
     tribes = _build_tribe_completion_candidates(all_agents, clan_groups)
-    return _dedupe_completion_candidates([*tribes, *clans, *sessions, *agents, *procs])
+    tabs = _build_tab_completion_candidates(all_agents)
+    return _dedupe_completion_candidates(
+        [*tribes, *tabs, *clans, *sessions, *agents, *procs]
+    )
 
 
 def _dedupe_completion_candidates(
@@ -434,6 +437,42 @@ def _build_tribe_completion_candidates(
     return candidates
 
 
+def _build_tab_completion_candidates(
+    all_agents: Sequence[Agent],
+) -> list[AgentCompletionCandidate]:
+    """Build ``tab``-kind candidates from distinct stored tabs plus main."""
+    members_by_tab: dict[str, list[Agent]] = {}
+    for agent in all_agents:
+        if agent.is_clan_container:
+            continue
+        stored = getattr(agent, "agent_tab", None)
+        key = stored if isinstance(stored, str) and stored else "main"
+        members_by_tab.setdefault(key, []).append(agent)
+    ordered_tabs = sorted(members_by_tab)
+    if "main" not in members_by_tab:
+        ordered_tabs.append("main")
+        members_by_tab["main"] = []
+    elif "main" in ordered_tabs:
+        ordered_tabs.remove("main")
+        ordered_tabs.append("main")
+    candidates: list[AgentCompletionCandidate] = []
+    for tab in ordered_tabs:
+        members = _dedupe_real_member_rows(members_by_tab.get(tab, []))
+        status = _aggregate_completion_status(members) if members else "RUNNING"
+        candidates.append(
+            AgentCompletionCandidate(
+                name=tab,
+                label=tab,
+                status=status,
+                kind="tab",
+                member_count=len(members) if members else None,
+                aggregate_status=status,
+                member_names=_member_names(members),
+            )
+        )
+    return candidates
+
+
 def _dedupe_real_member_rows(rows: Iterable[Agent]) -> tuple[Agent, ...]:
     members: list[Agent] = []
     seen: set[object] = set()
@@ -465,7 +504,7 @@ def _candidate_from_agent(
     name: str,
     all_agents: Sequence[Agent],
     *,
-    kind: Literal["agent", "session", "clan", "tribe"] = "agent",
+    kind: Literal["agent", "session", "clan", "tribe", "tab"] = "agent",
     member_count: int | None = None,
     aggregate_status: str | None = None,
     member_names: tuple[str, ...] = (),

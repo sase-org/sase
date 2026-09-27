@@ -177,6 +177,17 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         raise DirectiveError(
                             "%dispatch accepts exactly one machine alias argument."
                         )
+                if name == "tab":
+                    if named_args:
+                        keys = ", ".join(f"{key}=" for key in sorted(named_args))
+                        raise DirectiveError(
+                            f"Unsupported keyword on %tab: {keys}. "
+                            "%tab only accepts one tab name."
+                        )
+                    if len([arg for arg in positional_args if arg]) > 1:
+                        raise DirectiveError(
+                            "%tab accepts exactly one tab name argument."
+                        )
                 if name == "model":
                     collected.model_alias_overrides = dict(named_args)
                 if name == "clan":
@@ -198,6 +209,10 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                 if name == "clan":
                     raise DirectiveError(
                         "Malformed %clan(...) directive: missing closing ')'."
+                    )
+                if name == "tab":
+                    raise DirectiveError(
+                        "Malformed %tab(...) directive: missing closing ')'."
                     )
                 raw_args = [""]
         elif colon_arg is not None:
@@ -221,6 +236,8 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                     "%clan does not support '+'; use %clan:<name> or "
                     "%clan(<name>, tribe=<tribe>)."
                 )
+            if name == "tab":
+                raise DirectiveError("%tab does not support '+'; use %tab:<name>.")
             raw_args = ["true"]
         else:
             raw_args = [""]

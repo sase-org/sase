@@ -114,6 +114,8 @@ def enrich_agent_from_meta_wire(
         agent.agent_name = meta.name
     if meta.tribe:
         agent.tribe = meta.tribe
+    if getattr(meta, "agent_tab", None):
+        agent.agent_tab = meta.agent_tab
     agent.output_variables = coerce_var_map(meta.output_variables)
     if meta.wait_for:
         agent.waiting_for = list(meta.wait_for)

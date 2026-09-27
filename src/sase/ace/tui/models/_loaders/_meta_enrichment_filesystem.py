@@ -180,6 +180,16 @@ def enrich_agent_from_meta(
     meta_tribe = valid_meta_tribe(data.get("tribe"))
     if meta_tribe:
         agent.tribe = meta_tribe
+    raw_tab = data.get("agent_tab")
+    if isinstance(raw_tab, str) and raw_tab:
+        try:
+            from sase.core.agent_tab import canonicalize_agent_tab
+
+            canonical = canonicalize_agent_tab(raw_tab)
+            if canonical:
+                agent.agent_tab = canonical
+        except Exception:  # noqa: BLE001 - bad file must not fail load.
+            pass
     if "output_variables" in data:
         agent.output_variables = coerce_var_map(data.get("output_variables"))
     if data.get("wait_for"):

@@ -179,6 +179,7 @@ class AgentUnitWire:
     agent_session_attach_parent: str | None = None
     agent_session_attach_suffix: str | None = None
     tribe: str | None = None
+    agent_tab: str | None = None
     model: str | None = None
     reasoning_effort: str | None = None
     bead_id: str | None = None

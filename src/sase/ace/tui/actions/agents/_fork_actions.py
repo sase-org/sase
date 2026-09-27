@@ -150,6 +150,14 @@ class AgentForkActionsMixin:
             return
 
         prefix = f"#fork:{scope.prompt_reference} "
+        tab_name: str | None = None
+        for member in scope.vcs_members:
+            candidate = getattr(getattr(member, "agent", None), "agent_tab", None)
+            if isinstance(candidate, str) and candidate:
+                tab_name = candidate
+                break
+        if tab_name:
+            prefix = f"%tab:{tab_name} {prefix}"
         if vcs_tag:
             prefix = f"{vcs_tag}{prefix}"
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]

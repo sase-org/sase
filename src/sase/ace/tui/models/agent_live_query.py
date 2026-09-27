@@ -65,6 +65,7 @@ def agent_live_query_entry(
     _add_field(fields, "retry", _is_retrying(agent))
     _add_field(fields, "machine", _machine_values(agent))
     _add_field(fields, "tribe", _tribe_values(agent))
+    _add_field(fields, "tab", _tab_values(agent))
     _add_field(fields, "pinned", agent.tribe == _PINNED_TRIBE)
     _add_field(fields, "unread", agent.identity in unread_agent_ids)
     _add_field(fields, "needs", ("input",) if status in _NEEDS_INPUT_STATUSES else ())
@@ -253,6 +254,13 @@ def _tribe_values(agent: Agent) -> tuple[str, ...]:
     values = (agent.tribe, agent.clan_tribe, *agent.clan_tribes)
     public_values = tuple(public_tribe_name(value) for value in values if value)
     return _distinct(*values, *public_values)
+
+
+def _tab_values(agent: Agent) -> tuple[str, ...]:
+    stored = getattr(agent, "agent_tab", None)
+    if isinstance(stored, str) and stored:
+        return (stored,)
+    return ("main",)
 
 
 def _is_retrying(agent: Agent) -> bool:

@@ -18,6 +18,7 @@ from ._directive_values import (
     normalize_model_directive,
     parse_repeat_count,
     parse_tribe_name,
+    resolve_agent_tab,
     resolve_clan_tribe,
     resolve_clan_summary,
     resolve_clan_summary_script,
@@ -253,6 +254,9 @@ def extract_prompt_directives(
         collected.model_alias_overrides,
         process_references=process_references,
     )
+    agent_tab, agent_tab_explicit_default = resolve_agent_tab(expanded_args)
+    if (agent_tab is not None or agent_tab_explicit_default) and proc_code is not None:
+        raise DirectiveError("%tab cannot be used on a stand-alone %proc unit")
 
     directives = PromptDirectives(
         auto_mode=auto_mode,
@@ -305,6 +309,8 @@ def extract_prompt_directives(
         queue_weight_explicit=queue_weight is not None,
         hold=hold_fields,
         dispatch=resolve_dispatch_target(expanded_args),
+        agent_tab=agent_tab,
+        agent_tab_explicit_default=agent_tab_explicit_default,
         final=expanded_multi.get("final", []),
         if_code=if_code,
         proc_code=proc_code,

@@ -71,6 +71,84 @@ def _metadata_tribe(metadata: dict[str, Any], key: str) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _tab_mismatch_message(root_tab: str | None) -> str:
+    root_label = root_tab if root_tab else "main"
+    return (
+        f"%tab does not match the session root tab '{root_label}'; "
+        "use sase agent tab set to move it"
+    )
+
+
+def _validate_agent_tab_directives(
+    directives: Any,
+    *,
+    agent_session_attach_plan: Any | None,
+    clan_membership_plan: Any | None,
+    artifacts_dir: str,
+) -> Any:
+    """Validate ``%tab`` against session-root and clan-generation tabs."""
+    from sase.xprompt._exceptions import DirectiveError
+
+    explicit = bool(
+        getattr(directives, "agent_tab", None) is not None
+        or getattr(directives, "agent_tab_explicit_default", False)
+    )
+    stored = getattr(directives, "agent_tab", None)
+
+    if agent_session_attach_plan is not None:
+        from sase.axe.run_agent_directive_metadata import session_root_tab
+
+        try:
+            root_tab = session_root_tab(agent_session_attach_plan)
+        except Exception:  # noqa: BLE001 - best-effort lookup.
+            root_tab = None
+        if explicit:
+            if stored != root_tab:
+                raise DirectiveError(_tab_mismatch_message(root_tab))
+        else:
+            if root_tab:
+                directives = replace(directives, agent_tab=root_tab)
+        return directives
+
+    if clan_membership_plan is not None:
+        from pathlib import Path
+
+        generation = getattr(clan_membership_plan, "generation", None)
+        is_new = bool(
+            isinstance(generation, str)
+            and generation
+            and Path(artifacts_dir).name == generation
+        )
+        if is_new:
+            return directives
+        if not isinstance(generation, str) or not generation:
+            return directives
+        workflow_dir = os.path.dirname(os.path.abspath(artifacts_dir))
+        generation_meta = os.path.join(workflow_dir, generation, "agent_meta.json")
+        try:
+            with open(generation_meta, encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return directives
+        except (json.JSONDecodeError, OSError):
+            data = None
+        generation_tab: str | None = None
+        if isinstance(data, dict):
+            value = data.get("agent_tab")
+            generation_tab = value if isinstance(value, str) and value else None
+        if explicit:
+            if stored != generation_tab:
+                root_label = generation_tab if generation_tab else "main"
+                raise DirectiveError(
+                    f"%tab does not match the clan generation tab "
+                    f"'{root_label}'; use sase agent tab set to move it"
+                )
+        else:
+            if generation_tab:
+                directives = replace(directives, agent_tab=generation_tab)
+    return directives
+
+
 def _stored_tribes_for_resolution() -> tuple[str, ...]:
     from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 
@@ -299,6 +377,13 @@ def extract_directives_and_write_meta(
             "inherited clan and must be supplied by a clan member's "
             "%clan(<clan>, tribe=<tribe>) declaration."
         )
+
+    directives = _validate_agent_tab_directives(
+        directives,
+        agent_session_attach_plan=agent_session_attach_plan,
+        clan_membership_plan=clan_membership_plan,
+        artifacts_dir=artifacts_dir,
+    )
 
     directives, pending_tribe_write = _resolve_launch_tribe_directives(
         directives,

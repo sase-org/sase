@@ -38,22 +38,23 @@ description:
 `%` directives are stripped before the model sees the prompt and use xprompt arg
 grammar.
 
-| Directive                 | Alias  | Effect                                                                                                 |
-| ------------------------- | ------ | ------------------------------------------------------------------------------------------------------ |
-| `%model:<m>`              | `%m`   | Provider/model; aliases resolve provider; `@effort` ok; quote spaces with `%m("...")`                  |
-| `%effort:<lvl>`           | `%e`   | `none/minimal/low/medium/high/xhigh/max`                                                               |
-| `%id:<n>`                 | `%i`   | Agent ID; bare auto-name; `%id(<suffix>, session=<parent>)` session child                              |
-| `%clan:<name>`            | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                                     |
-| `%wait:<n>`               | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                                   |
-| `%queue:<n>`              | `%q`   | Runner-queue admission: positional `capacity` (`N` or `<M>x`); `(capacity=, priority=/p=, weight=/w=)` |
-| `%hold:<sel>` / `%hold()` |        | Reverse-`%wait` admission hold on other queued agents and undispatched procs; running work immune      |
-| `%proc:<cmd>` / `%proc::` |        | Beta stand-alone process unit; `%queue` fields gate dispatch only, never held after dispatch           |
-| `%dispatch:<alias>`       |        | Remote launch on an enrolled machine; exactly one selector, `local` reserved; details: [[dispatch.md]] |
-| `%final[:ops]`            |        | Repeatable host-owned finalizer selectors; omit = defaults; no keywords                                |
-| `%repeat:<k>`             | `%r`   | k serial, auto-wait-chained runs                                                                       |
-| `%auto[:plan/tale/epic]`  | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                                 |
-| `%hide`                   | `%h`   | Hidden row                                                                                             |
-| `%{a \| b}`               | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                                 |
+| Directive                 | Alias  | Effect                                                                                                                              |
+| ------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `%model:<m>`              | `%m`   | Provider/model; aliases resolve provider; `@effort` ok; quote spaces with `%m("...")`                                               |
+| `%effort:<lvl>`           | `%e`   | `none/minimal/low/medium/high/xhigh/max`                                                                                            |
+| `%id:<n>`                 | `%i`   | Agent ID; bare auto-name; `%id(<suffix>, session=<parent>)` session child                                                           |
+| `%clan:<name>`            | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                                                                  |
+| `%wait:<n>`               | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                                                                |
+| `%queue:<n>`              | `%q`   | Runner-queue admission: positional `capacity` (`N` or `<M>x`); `(capacity=, priority=/p=, weight=/w=)`                              |
+| `%hold:<sel>` / `%hold()` |        | Reverse-`%wait` admission hold on other queued agents and undispatched procs; running work immune                                   |
+| `%proc:<cmd>` / `%proc::` |        | Beta stand-alone process unit; `%queue` fields gate dispatch only, never held after dispatch                                        |
+| `%dispatch:<alias>`       |        | Remote launch on an enrolled machine; exactly one selector, `local` reserved; details: [[dispatch.md]]                              |
+| `%tab:<name>`             |        | Places the launch's presentation root; `%tab:main` is the default and is stored as absent; `%t` remains the retired tribe migration |
+| `%final[:ops]`            |        | Repeatable host-owned finalizer selectors; omit = defaults; no keywords                                                             |
+| `%repeat:<k>`             | `%r`   | k serial, auto-wait-chained runs                                                                                                    |
+| `%auto[:plan/tale/epic]`  | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                                                              |
+| `%hide`                   | `%h`   | Hidden row                                                                                                                          |
+| `%{a \| b}`               | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                                                              |
 
 `%model` is single-value; fan out models with `%{%m:opus | %m:sonnet}`.
 

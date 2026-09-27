@@ -1765,6 +1765,7 @@ are extracted and stripped from the prompt before further processing.
 | `%queue`            | `%q`  | Set per-launch capacity budget or multiplier, queue priority, and/or claim weight |
 | `%hold`             |       | Declare a pre-run admission hold on selected agents and procs                     |
 | `%dispatch`         |       | Launch on one enrolled remote machine                                             |
+| `%tab`              |       | Place this launch's presentation root on a named agent tab                        |
 | `%if`               |       | Statically omit a segment, or attach a beta admission predicate                   |
 | `%proc`             |       | Define and natively dispatch a beta stand-alone process unit                      |
 | `%final`            |       | Select configured finalizer instances for this launch                             |
@@ -1782,6 +1783,28 @@ migration error that points to `%id` / `%i` and, for clan membership, the
 The retired `%tribe` and `%t` directives also raise a migration error. Use
 `%id(<id>, tribe=<tribe>)`, `%id(tribe=<tribe>)` / `#tribe:<tribe>`, or
 `%clan(<clan>, tribe=<tribe>)` according to the identity being tagged.
+
+### Tab Directive
+
+`%tab:<name>` or `%tab(<name>)` places the launch's presentation root on a named agent
+tab. There is no `%tab` alias and no keywords; the directive is single-valued, so a
+second `%tab` fails with `Duplicate directive '%tab' in prompt`, even when both values
+agree. Fan-out branches may use different tabs (`%{%tab:a | %tab:b}`) because each
+branch is its own unit.
+
+`%tab:main` is the default tab and is stored as absent. `%tab:apollo` is an ordinary
+named tab (machine aliases are ordinary names). Reserved names fail with the core
+messages:
+
+- `local`: `machine tabs are derived; omit %tab to land on the local machine tab`
+- `all`: `there is no 'all' tab; use o in the grouping picker to see all tabs`
+
+`%tab` cannot be combined with a stand-alone `%proc` unit
+(`%tab cannot be used on a stand-alone %proc unit`). It may be combined with
+`%dispatch`; the dispatch prompt still carries the tab. Session follow-ups and clan
+joiners inherit the root/generation tab; an explicit `%tab` that differs from the
+inherited tab fails and names `sase agent tab set`. The directive is stripped from the
+model prompt; the raw prompt keeps it.
 
 ### Directive Completion Matrix
 

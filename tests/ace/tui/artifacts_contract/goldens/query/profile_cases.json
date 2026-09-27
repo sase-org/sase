@@ -8,12 +8,16 @@
             "project": "sase",
             "status": "READY",
             "name": "001--2",
-            "ancestor": ["alpha"],
+            "ancestor": [
+              "alpha"
+            ],
             "sibling": "001--2",
             "origin": "unknown"
           },
           "searchable_text": "Alpha feature query work",
-          "predicates": ["running_agent"]
+          "predicates": [
+            "running_agent"
+          ]
         },
         {
           "stable_id": "patch-beta",
@@ -21,12 +25,17 @@
             "project": "sase-core",
             "status": "WIP",
             "name": "sase-r8.9.land",
-            "ancestor": ["beta", "alpha"],
+            "ancestor": [
+              "beta",
+              "alpha"
+            ],
             "sibling": "sase-r8.9.land",
             "origin": "unknown"
           },
           "searchable_text": "Beta feature rust engine",
-          "predicates": ["running_process"]
+          "predicates": [
+            "running_process"
+          ]
         },
         {
           "stable_id": "patch-gamma",
@@ -34,38 +43,58 @@
             "project": "sase",
             "status": "DRAFT",
             "name": "0b4",
-            "ancestor": ["gamma"],
+            "ancestor": [
+              "gamma"
+            ],
             "sibling": "0b4",
             "origin": "external"
           },
           "searchable_text": "Gamma migration docs 9lives",
-          "predicates": ["error_suffix"]
+          "predicates": [
+            "error_suffix"
+          ]
         }
       ],
       "queries": {
         "+sase AND %y": {
           "canonical": "project:sase AND status:READY",
-          "matches": ["patch-alpha"]
+          "matches": [
+            "patch-alpha"
+          ]
         },
         "*": {
           "canonical": "!!! OR @@@ OR $$$",
-          "matches": ["patch-alpha", "patch-beta", "patch-gamma"]
+          "matches": [
+            "patch-alpha",
+            "patch-beta",
+            "patch-gamma"
+          ]
         },
         "ancestor:alpha AND NOT status:DRAFT": {
           "canonical": "ancestor:alpha AND NOT status:DRAFT",
-          "matches": ["patch-alpha", "patch-beta"]
+          "matches": [
+            "patch-alpha",
+            "patch-beta"
+          ]
         },
         "name:sase-r8.9.land": {
           "canonical": "name:sase-r8.9.land",
-          "matches": ["patch-beta"]
+          "matches": [
+            "patch-beta"
+          ]
         },
         "name:0b4 OR name:001--2": {
           "canonical": "name:0b4 OR name:001--2",
-          "matches": ["patch-alpha", "patch-gamma"]
+          "matches": [
+            "patch-alpha",
+            "patch-gamma"
+          ]
         },
         "9lives": {
           "canonical": "\"9lives\"",
-          "matches": ["patch-gamma"]
+          "matches": [
+            "patch-gamma"
+          ]
         }
       },
       "errors": {
@@ -92,7 +121,9 @@
             "repo": "app",
             "author": "Ada Lovelace",
             "origin": "stitch",
-            "type": ["stitch"],
+            "type": [
+              "stitch"
+            ],
             "sidecar": "false",
             "merges": "hide",
             "subject": "unified query engine"
@@ -105,7 +136,10 @@
             "repo": "docs",
             "author": "Grace Hopper",
             "origin": "manual",
-            "type": ["manual", "merge"],
+            "type": [
+              "manual",
+              "merge"
+            ],
             "sidecar": "true",
             "merges": "show",
             "subject": "migration docs"
@@ -118,7 +152,11 @@
             "repo": "app",
             "author": "Ada Byron",
             "origin": "auto",
-            "type": ["automatic", "sdd", "patch"],
+            "type": [
+              "automatic",
+              "sdd",
+              "patch"
+            ],
             "sidecar": "false",
             "merges": "hide",
             "subject": "cache fix"
@@ -128,15 +166,23 @@
       "queries": {
         "project:sase repo:app query": {
           "canonical": "project:sase repo:app query",
-          "matches": ["commit-alpha"]
+          "matches": [
+            "commit-alpha"
+          ]
         },
         "origin:stitch,auto -repo:docs": {
           "canonical": "origin:stitch,auto -repo:docs",
-          "matches": ["commit-alpha", "commit-gamma"]
+          "matches": [
+            "commit-alpha",
+            "commit-gamma"
+          ]
         },
         "-author:Grace": {
           "canonical": "-author:Grace",
-          "matches": ["commit-alpha", "commit-gamma"]
+          "matches": [
+            "commit-alpha",
+            "commit-gamma"
+          ]
         },
         "type:automatic,sdd -type:patch": {
           "canonical": "type:automatic,sdd -type:patch",
@@ -144,11 +190,15 @@
         },
         "type:merge": {
           "canonical": "type:merge",
-          "matches": ["commit-beta"]
+          "matches": [
+            "commit-beta"
+          ]
         },
         "type:patch": {
           "canonical": "type:patch",
-          "matches": ["commit-gamma"]
+          "matches": [
+            "commit-gamma"
+          ]
         }
       },
       "errors": {
@@ -205,15 +255,21 @@
       "queries": {
         "type:task,phase -status:closed load": {
           "canonical": "-status:closed type:task,phase load",
-          "matches": ["bead-task"]
+          "matches": [
+            "bead-task"
+          ]
         },
         "assignee:Ada reference": {
           "canonical": "assignee:Ada reference",
-          "matches": ["bead-task"]
+          "matches": [
+            "bead-task"
+          ]
         },
         "project:sase -type:phase": {
           "canonical": "project:sase -type:phase",
-          "matches": ["bead-task"]
+          "matches": [
+            "bead-task"
+          ]
         }
       },
       "errors": {
@@ -273,19 +329,28 @@
       "queries": {
         "kind:proposal status:proposed migration": {
           "canonical": "kind:proposal status:proposed migration",
-          "matches": ["plan-proposal"]
+          "matches": [
+            "plan-proposal"
+          ]
         },
         "project:sase restore": {
           "canonical": "project:sase restore",
-          "matches": ["plan-active"]
+          "matches": [
+            "plan-active"
+          ]
         },
         "-project:other migration": {
           "canonical": "-project:other migration",
-          "matches": ["plan-proposal"]
+          "matches": [
+            "plan-proposal"
+          ]
         },
         "path:plans/": {
           "canonical": "path:plans/",
-          "matches": ["plan-proposal", "plan-active"]
+          "matches": [
+            "plan-proposal",
+            "plan-active"
+          ]
         }
       },
       "errors": {
@@ -309,7 +374,9 @@
           "stable_id": "agent-dismissed-code",
           "fields": {
             "name": "sase-r8.9.land",
-            "kind": ["agent"],
+            "kind": [
+              "agent"
+            ],
             "session": "sase-r8.9",
             "clan": "athena.sase-8t",
             "tribe": "epic",
@@ -341,7 +408,9 @@
           "stable_id": "agent-session-waiting",
           "fields": {
             "name": "0b4",
-            "kind": ["session"],
+            "kind": [
+              "session"
+            ],
             "session": "0b4",
             "clan": "athena.sase-8t",
             "tribe": "epic",
@@ -368,7 +437,10 @@
           "stable_id": "agent-workflow-child",
           "fields": {
             "name": "001--2",
-            "kind": ["member", "workflow-child"],
+            "kind": [
+              "member",
+              "workflow-child"
+            ],
             "session": "001",
             "role": "mon",
             "workflow": "cleanup",
@@ -397,7 +469,10 @@
           "stable_id": "agent-workflow-member",
           "fields": {
             "name": "research.12.cdx--plan-0",
-            "kind": ["member", "workflow"],
+            "kind": [
+              "member",
+              "workflow"
+            ],
             "session": "research.12",
             "clan": "research.12",
             "tribe": "research",
@@ -429,23 +504,33 @@
       "queries": {
         "revivable:true AND project:sase AND role:code": {
           "canonical": "revivable:true AND project:sase AND role:code",
-          "matches": ["agent-dismissed-code"]
+          "matches": [
+            "agent-dismissed-code"
+          ]
         },
         "provider:codex AND status:failed AND since:7d": {
           "canonical": "provider:codex AND status:FAILED AND since:1787068800",
-          "matches": ["agent-dismissed-code"]
+          "matches": [
+            "agent-dismissed-code"
+          ]
         },
         "session:\"research.12\" AND NOT kind:workflow-child": {
           "canonical": "session:research.12 AND NOT kind:workflow-child",
-          "matches": ["agent-workflow-member"]
+          "matches": [
+            "agent-workflow-member"
+          ]
         },
         "state:active AND (attention:true OR status:WAITING)": {
           "canonical": "state:active AND (attention:true OR status:WAITING)",
-          "matches": ["agent-session-waiting"]
+          "matches": [
+            "agent-session-waiting"
+          ]
         },
         "retry:true AND model:\"gpt-5.6-sol\" AND min:5m": {
           "canonical": "retry:true AND model:gpt-5.6-sol AND min:300",
-          "matches": ["agent-dismissed-code"]
+          "matches": [
+            "agent-dismissed-code"
+          ]
         },
         "since:2026-08-01 AND until:2026-08-31": {
           "canonical": "since:1785556800 AND until:1788235199",
@@ -457,7 +542,10 @@
         },
         "after:2026-08-01 AND before:2026-08-31": {
           "canonical": "after:1785556800 AND before:1788235199",
-          "matches": ["agent-dismissed-code", "agent-workflow-member"]
+          "matches": [
+            "agent-dismissed-code",
+            "agent-workflow-member"
+          ]
         },
         "min:5m AND max:2h": {
           "canonical": "min:300 AND max:7200",
@@ -477,11 +565,16 @@
         },
         "name:0b4 OR name:001--2": {
           "canonical": "name:0b4 OR name:001--2",
-          "matches": ["agent-session-waiting", "agent-workflow-child"]
+          "matches": [
+            "agent-session-waiting",
+            "agent-workflow-child"
+          ]
         },
         "9lives": {
           "canonical": "\"9lives\"",
-          "matches": ["agent-workflow-child"]
+          "matches": [
+            "agent-workflow-child"
+          ]
         }
       },
       "errors": {
@@ -504,11 +597,19 @@
         {
           "stable_id": "live-input-code",
           "fields": {
-            "name": ["sase-zf.1--code", "sase-zf"],
-            "kind": ["agent"],
+            "name": [
+              "sase-zf.1--code",
+              "sase-zf"
+            ],
+            "kind": [
+              "agent"
+            ],
             "session": "sase-zf.1",
             "clan": "athena.sase-zf",
-            "project": ["gh_sase-org__sase", "sase"],
+            "project": [
+              "gh_sase-org__sase",
+              "sase"
+            ],
             "role": "code",
             "workflow": "review",
             "model": "gpt-5.6-sol",
@@ -518,7 +619,10 @@
             "hidden": false,
             "attention": true,
             "retry": true,
-            "machine": ["here", "athena"],
+            "machine": [
+              "here",
+              "athena"
+            ],
             "tribe": "pinned",
             "pinned": true,
             "unread": true,
@@ -531,16 +635,24 @@
             "min": 600,
             "max": 600,
             "cl": "sase-zf",
-            "text": ["database migration", "CaseNeedle"]
+            "text": [
+              "database migration",
+              "CaseNeedle"
+            ]
           }
         },
         {
           "stable_id": "live-remote-running",
           "fields": {
             "name": "remote-run",
-            "kind": ["workflow"],
+            "kind": [
+              "workflow"
+            ],
             "session": "research.12",
-            "project": ["remote-proj", "Remote Project"],
+            "project": [
+              "remote-proj",
+              "Remote Project"
+            ],
             "role": "plan",
             "workflow": "literature",
             "model": "claude-opus-4-7",
@@ -550,7 +662,11 @@
             "hidden": false,
             "attention": false,
             "retry": false,
-            "machine": ["apollo", "apollo.local", "apollo.internal"],
+            "machine": [
+              "apollo",
+              "apollo.local",
+              "apollo.internal"
+            ],
             "tribe": "reviewed",
             "pinned": false,
             "unread": false,
@@ -567,7 +683,10 @@
           "stable_id": "live-workflow-child",
           "fields": {
             "name": "001--2",
-            "kind": ["member", "workflow-child"],
+            "kind": [
+              "member",
+              "workflow-child"
+            ],
             "session": "001",
             "project": "other",
             "role": "mon",
@@ -579,7 +698,10 @@
             "hidden": true,
             "attention": false,
             "retry": true,
-            "machine": ["apollo", "apollo.local"],
+            "machine": [
+              "apollo",
+              "apollo.local"
+            ],
             "pinned": false,
             "unread": false,
             "source": "axe",
@@ -597,7 +719,9 @@
           "stable_id": "live-plan-handoff",
           "fields": {
             "name": "handoff-plan",
-            "kind": ["member"],
+            "kind": [
+              "member"
+            ],
             "session": "handoff",
             "clan": "athena.sase-zf",
             "project": "sase",
@@ -609,7 +733,9 @@
             "hidden": false,
             "attention": false,
             "retry": false,
-            "machine": ["here"],
+            "machine": [
+              "here"
+            ],
             "tribe": "planning",
             "pinned": false,
             "unread": false,
@@ -629,27 +755,39 @@
       "queries": {
         "machine:here AND pinned:true AND unread:true AND needs:input": {
           "canonical": "machine:here AND pinned:true AND unread:true AND needs:input",
-          "matches": ["live-input-code"]
+          "matches": [
+            "live-input-code"
+          ]
         },
         "source:axe AND (attention:true OR status:\"PLAN APPROVED\")": {
           "canonical": "source:axe AND (attention:true OR status:\"PLAN APPROVED\")",
-          "matches": ["live-input-code"]
+          "matches": [
+            "live-input-code"
+          ]
         },
         "project:sase AND cl:sase-zf AND role:code": {
           "canonical": "project:sase AND cl:sase-zf AND role:code",
-          "matches": ["live-input-code"]
+          "matches": [
+            "live-input-code"
+          ]
         },
         "provider:codex AND status:question": {
           "canonical": "provider:codex AND status:QUESTION",
-          "matches": ["live-input-code"]
+          "matches": [
+            "live-input-code"
+          ]
         },
         "session:\"research.12\" AND NOT kind:workflow-child": {
           "canonical": "session:research.12 AND NOT kind:workflow-child",
-          "matches": ["live-remote-running"]
+          "matches": [
+            "live-remote-running"
+          ]
         },
         "machine:apollo.local AND source:manual": {
           "canonical": "machine:apollo.local AND source:manual",
-          "matches": ["live-remote-running"]
+          "matches": [
+            "live-remote-running"
+          ]
         },
         "since:2026-08-01 AND until:2026-08-31": {
           "canonical": "since:1785556800 AND until:1788235199",
@@ -661,7 +799,10 @@
         },
         "after:2026-08-01 AND before:2026-08-31": {
           "canonical": "after:1785556800 AND before:1788235199",
-          "matches": ["live-input-code", "live-plan-handoff"]
+          "matches": [
+            "live-input-code",
+            "live-plan-handoff"
+          ]
         },
         "min:5m AND max:2h": {
           "canonical": "min:300 AND max:7200",
@@ -673,25 +814,31 @@
         },
         "c\"CaseNeedle\"": {
           "canonical": "c\"CaseNeedle\"",
-          "matches": ["live-input-code"]
+          "matches": [
+            "live-input-code"
+          ]
         },
         "9lives": {
           "canonical": "\"9lives\"",
-          "matches": ["live-workflow-child"]
+          "matches": [
+            "live-workflow-child"
+          ]
         },
         "status:\"plan approved\" AND needs:input": {
           "canonical": "status:\"PLAN APPROVED\" AND needs:input",
-          "matches": ["live-plan-handoff"]
+          "matches": [
+            "live-plan-handoff"
+          ]
         }
       },
       "errors": {
         "age:2h": {
           "position": 0,
-          "message": "Unknown filter key 'age' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, tribe, unread, until, workflow) (at position 0)"
+          "message": "Unknown filter key 'age' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, tab, tribe, unread, until, workflow) (at position 0)"
         },
         "type:run": {
           "position": 0,
-          "message": "Unknown filter key 'type' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, tribe, unread, until, workflow) (at position 0)"
+          "message": "Unknown filter key 'type' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, tab, tribe, unread, until, workflow) (at position 0)"
         },
         "!!!": {
           "position": 0,
@@ -748,15 +895,23 @@
       "queries": {
         "kind:file -origin:ref report": {
           "canonical": "kind:file -origin:ref report",
-          "matches": ["file-report"]
+          "matches": [
+            "file-report"
+          ]
         },
         "agent:agent-a workflow:review": {
           "canonical": "agent:agent-a workflow:review",
-          "matches": ["file-report", "chat-created"]
+          "matches": [
+            "file-report",
+            "chat-created"
+          ]
         },
         "-kind:chat": {
           "canonical": "-kind:chat",
-          "matches": ["file-report", "file-ref"]
+          "matches": [
+            "file-report",
+            "file-ref"
+          ]
         }
       },
       "errors": {
@@ -801,15 +956,22 @@
       "queries": {
         "title:Alpha status:draft": {
           "canonical": "status:draft title:Alpha",
-          "matches": ["note-alpha"]
+          "matches": [
+            "note-alpha"
+          ]
         },
         "status:draft -title:Gamma": {
           "canonical": "status:draft -title:Gamma",
-          "matches": ["note-alpha"]
+          "matches": [
+            "note-alpha"
+          ]
         },
         "title:Note": {
           "canonical": "title:Note",
-          "matches": ["note-alpha", "note-beta"]
+          "matches": [
+            "note-alpha",
+            "note-beta"
+          ]
         }
       },
       "errors": {

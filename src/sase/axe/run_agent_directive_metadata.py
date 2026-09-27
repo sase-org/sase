@@ -144,6 +144,12 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         value = existing_meta.get(key)
         if isinstance(value, str) and value:
             preserved[key] = value
+    tab_value = existing_meta.get("agent_tab")
+    if isinstance(tab_value, str) and tab_value:
+        preserved["agent_tab"] = tab_value
+    tab_source = existing_meta.get("agent_tab_source")
+    if tab_source in {"prompt", "moved"}:
+        preserved["agent_tab_source"] = tab_source
     if agent_session_parallel_value(existing_meta) is True:
         for key in (
             AGENT_SESSION_KEY,
@@ -308,6 +314,7 @@ def build_agent_meta(
 
     agent_meta.update(agent_meta_from_chop_env())
     agent_meta.update(inputs.preserved)
+    _apply_agent_tab_directive(agent_meta, directives)
     if authored_queue_weight_explicit:
         agent_meta["queue_weight"] = authored_queue_weight
         agent_meta["queue_weight_explicit"] = True
@@ -329,6 +336,21 @@ def build_agent_meta(
         )
     _qualify_agent_identity_metadata(agent_meta)
     return agent_meta
+
+
+def _apply_agent_tab_directive(
+    agent_meta: dict[str, Any],
+    directives: PromptDirectives,
+) -> None:
+    """Apply the ``%tab`` directive after preserved metadata is merged."""
+    tab = getattr(directives, "agent_tab", None)
+    explicit_default = bool(getattr(directives, "agent_tab_explicit_default", False))
+    if tab:
+        agent_meta["agent_tab"] = tab
+        agent_meta["agent_tab_source"] = "prompt"
+    elif explicit_default:
+        agent_meta.pop("agent_tab", None)
+        agent_meta.pop("agent_tab_source", None)
 
 
 def _invalid_queue_weight_message(source: str, value: object) -> str:
@@ -479,6 +501,107 @@ def _add_agent_session_metadata(
             agent_meta[AGENT_CLAN_GENERATION_FIELD] = (
                 agent_session_attach_plan.parent_agent_clan_generation
             )
+    _inherit_session_root_tab(agent_meta, agent_session_attach_plan)
+
+
+def _read_tab_from_meta_file(meta_path: str) -> str | None:
+    """Return the stored ``agent_tab`` from an ``agent_meta.json`` file."""
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    value = data.get("agent_tab")
+    return value if isinstance(value, str) and value else None
+
+
+def _is_session_root_meta(data: dict[str, Any]) -> bool:
+    """Return whether an ``agent_meta.json`` payload is a session root."""
+    parent_ts = data.get("parent_timestamp")
+    if isinstance(parent_ts, str) and parent_ts:
+        return False
+    # Legacy plan-chain spelling.
+    chain_parent = data.get("plan_chain_parent_timestamp")
+    if isinstance(chain_parent, str) and chain_parent:
+        return False
+    return True
+
+
+def session_root_tab(
+    agent_session_attach_plan: AgentSessionAttachLaunchPlan,
+) -> str | None:
+    """Return the session root's stored tab, or None for the default tab."""
+    parent_dir = agent_session_attach_plan.parent_artifacts_dir
+    parent_meta_path = os.path.join(parent_dir, "agent_meta.json")
+    try:
+        with open(parent_meta_path, encoding="utf-8") as f:
+            parent_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        parent_data = None
+    if isinstance(parent_data, dict) and _is_session_root_meta(parent_data):
+        value = parent_data.get("agent_tab")
+        return value if isinstance(value, str) and value else None
+    # Otherwise locate the root member's agent_meta.json from the attach
+    # snapshot (the session's first turn, not the named parent).
+    try:
+        from sase.agent.agent_session_attach import agent_session_snapshot
+        from sase.core.agent_identity_facade import current_owner_agent_name_key
+
+        snapshot = agent_session_snapshot(agent_session_attach_plan.parent_project_name)
+        parent_key = current_owner_agent_name_key(agent_session_attach_plan.parent_base)
+
+        def _matches(record: Any) -> bool:
+            meta = getattr(record, "agent_meta", None)
+            if meta is None:
+                return False
+            for value in (
+                getattr(meta, "agent_session", None),
+                getattr(meta, "workflow_name", None),
+                getattr(meta, "name", None),
+            ):
+                if isinstance(value, str) and value:
+                    try:
+                        if current_owner_agent_name_key(value) == parent_key:
+                            return True
+                    except Exception:  # noqa: BLE001 - best-effort lookup.
+                        continue
+            return False
+
+        candidates = [
+            record for record in getattr(snapshot, "records", []) if _matches(record)
+        ]
+        if not candidates:
+            # Fall back to the attach parent's stored tab.
+            if isinstance(parent_data, dict):
+                value = parent_data.get("agent_tab")
+                return value if isinstance(value, str) and value else None
+            return None
+        candidates.sort(key=lambda record: str(getattr(record, "timestamp", "")))
+        root_dir = str(getattr(candidates[0], "artifact_dir", "") or "")
+        if not root_dir:
+            return None
+        return _read_tab_from_meta_file(os.path.join(root_dir, "agent_meta.json"))
+    except Exception:  # noqa: BLE001 - session tab inheritance is best-effort.
+        if isinstance(parent_data, dict):
+            value = parent_data.get("agent_tab")
+            return value if isinstance(value, str) and value else None
+        return None
+
+
+def _inherit_session_root_tab(
+    agent_meta: dict[str, Any],
+    agent_session_attach_plan: AgentSessionAttachLaunchPlan,
+) -> None:
+    """Copy the session root's stored tab into the child meta."""
+    root_tab = session_root_tab(agent_session_attach_plan)
+    if root_tab:
+        # Only fill when the child does not already carry an explicit tab;
+        # an explicit matching tab was validated upstream.
+        if not agent_meta.get("agent_tab"):
+            agent_meta["agent_tab"] = root_tab
+            agent_meta["agent_tab_source"] = "prompt"
 
 
 def _add_clan_metadata(

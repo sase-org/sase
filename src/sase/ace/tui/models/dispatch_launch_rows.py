@@ -175,8 +175,23 @@ def _agent_from_dispatch_parts(
         fleet_dispatch_message=message,
         fleet_dispatch_prompt=prompt,
         fleet_dispatch_payload=dict(payload) if isinstance(payload, Mapping) else None,
+        agent_tab=_dispatch_prompt_tab(prompt),
     )
     return agent
+
+
+def _dispatch_prompt_tab(prompt: str | None) -> str | None:
+    """Return the named ``%tab`` from a dispatch launch prompt, if any."""
+    if not prompt or "%tab" not in prompt:
+        return None
+    try:
+        from sase.xprompt.directives import extract_prompt_directives
+
+        _, directives = extract_prompt_directives(prompt)
+    except Exception:  # noqa: BLE001 - provisional rows never fail load.
+        return None
+    tab = getattr(directives, "agent_tab", None)
+    return tab if isinstance(tab, str) and tab else None
 
 
 def _status_from_dispatch(

@@ -393,6 +393,8 @@ class ArtifactRestorationMixin:
             data["name"] = normalize_owned_agent_name(agent.agent_name)
         if agent.tribe:
             data["tribe"] = agent.tribe
+        if getattr(agent, "agent_tab", None):
+            data["agent_tab"] = agent.agent_tab
         if agent.output_variables:
             data["output_variables"] = dict(agent.output_variables)
         if agent.waiting_for:

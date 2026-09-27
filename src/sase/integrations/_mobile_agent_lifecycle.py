@@ -37,6 +37,28 @@ from ._mobile_agent_state import (
 from ._mobile_agent_summary import find_mobile_agent_summary
 
 
+def _mobile_source_tab(source: Any) -> str | None:
+    """Return the source agent's stored tab, or None for the default tab."""
+    tab_candidate = getattr(source, "agent_tab", None)
+    if isinstance(tab_candidate, str) and tab_candidate:
+        return tab_candidate
+    artifacts_dir = getattr(source, "artifacts_dir", None)
+    if not isinstance(artifacts_dir, str) or not artifacts_dir:
+        return None
+    try:
+        import json
+
+        data = json.loads(
+            (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    value = data.get("agent_tab")
+    return value if isinstance(value, str) and value else None
+
+
 def kill_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
     """Kill a named agent and persist retry context for mobile follow-up."""
     name = required_bridge_str(request.get("name"), "name")
@@ -104,7 +126,9 @@ def fork_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
     source = find_mobile_agent_summary(source_name)
     if source is None:
         raise MobileAgentNotFoundError(f"No agent named '{source_name}'")
-    prompt = f"#fork:{source_name} {instruction}".strip()
+    tab_name = _mobile_source_tab(source)
+    base = f"#fork:{source_name} {instruction}".strip()
+    prompt = f"%tab:{tab_name} {base}".strip() if tab_name else base
     launch = launch_mobile_prompt(
         prompt,
         {

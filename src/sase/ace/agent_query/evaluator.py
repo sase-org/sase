@@ -155,6 +155,19 @@ def _match_machine(prop: PropertyMatch, agent: Agent) -> bool:
     return needle in values
 
 
+def _match_tab(prop: PropertyMatch, agent: Agent) -> bool:
+    """Exact (case-insensitive) tab match.
+
+    ``tab:main`` matches rows with no stored tab; any other value matches
+    that stored name. A named row never matches ``main``.
+    """
+    stored = (getattr(agent, "agent_tab", None) or "").casefold()
+    needle = prop.value.casefold()
+    if needle == "main":
+        return not stored
+    return bool(stored) and stored == needle
+
+
 def _match_bool_property(prop: PropertyMatch, agent: Agent) -> bool:
     """Match a boolean-shaped key (``pinned``/``hidden``/``attention``)."""
     from ..tui.models.agent_groups import _STOPPED_STATUSES
@@ -214,6 +227,8 @@ def _match_property(
         return _match_substring_property(prop, agent)
     if key == "tribe":
         return _match_tribe(prop, agent)
+    if key == "tab":
+        return _match_tab(prop, agent)
     if key == "machine":
         return _match_machine(prop, agent)
     if key in ("pinned", "hidden", "attention"):
