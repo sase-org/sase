@@ -49,7 +49,7 @@ def choose_new_panel(
             content = None
         if content is False:
             continue
-        return DeckPanelState(candidate)
+        return DeckPanelState(deck=candidate)
     return new_panel_for_deck(current_deck, current_deck, current_active_card, card_ids)
 
 
@@ -66,10 +66,11 @@ def new_panel_for_deck(
     preferred card.
     """
     if deck is DeckId.MAIN and current_deck is DeckId.MAIN:
-        return DeckPanelState(
-            deck, cycle_card_id(tuple(card_ids), current_active_card, 1)
-        )
-    return DeckPanelState(deck)
+        next_card = cycle_card_id(tuple(card_ids), current_active_card, 1)
+        if next_card is None:
+            return DeckPanelState(deck=deck)
+        return DeckPanelState(deck=deck, preferred_cards={DeckId.MAIN: next_card})
+    return DeckPanelState(deck=deck)
 
 
 def _zoom_ended(state: DeckAreaState) -> DeckAreaState:

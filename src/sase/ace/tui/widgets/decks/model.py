@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from collections.abc import Sequence
 
@@ -114,11 +114,20 @@ class DeckViewPolicies:
 
 @dataclass(frozen=True)
 class DeckPanelState:
-    """One deck panel's deck and preferred Main card."""
+    """One deck panel's deck and per-deck preferred cards."""
 
     deck: DeckId
-    preferred_card: str | None = None
+    preferred_cards: dict[DeckId, str] = field(default_factory=dict)
     views: DeckViewPolicies = DeckViewPolicies()
+
+    @property
+    def preferred_card(self) -> str | None:
+        """Return Main's preferred card (legacy single-slot view)."""
+        return self.preferred_cards.get(DeckId.MAIN)
+
+    def preferred_card_for(self, deck: DeckId) -> str | None:
+        """Return the preferred card for ``deck`` (None when unset)."""
+        return self.preferred_cards.get(deck)
 
 
 @dataclass(frozen=True)
@@ -146,13 +155,27 @@ def with_panel_deck(state: DeckAreaState, index: int, deck: DeckId) -> DeckAreaS
 
 
 def with_preferred_card(
-    state: DeckAreaState, index: int, card_id: str | None
+    state: DeckAreaState,
+    index: int,
+    card_id: str | None,
+    deck: DeckId | None = None,
 ) -> DeckAreaState:
-    """Return a new state with ``index`` preferring ``card_id``."""
+    """Return a new state with ``index`` preferring ``card_id``.
+
+    The preference is stored under ``deck``, which defaults to the panel's
+    own deck so cycling on one deck never clobbers another deck's sticky
+    card. Deck switches keep the whole mapping (see :func:`with_panel_deck`).
+    """
     panels = list(state.panels)
     if index < 0 or index >= len(panels):
         raise IndexError(index)
-    panels[index] = dataclasses.replace(panels[index], preferred_card=card_id)
+    target = deck if deck is not None else panels[index].deck
+    cards = dict(panels[index].preferred_cards)
+    if card_id is None:
+        cards.pop(target, None)
+    else:
+        cards[target] = card_id
+    panels[index] = dataclasses.replace(panels[index], preferred_cards=cards)
     return dataclasses.replace(state, panels=tuple(panels))
 
 
@@ -199,7 +222,12 @@ def resolve_active_card(
     *,
     partial: bool,
 ) -> str | None:
-    """Resolve the active card for a Main document paint."""
+    """Resolve the active card for a card-document paint.
+
+    Callers pass the shown deck's own preference (see
+    :meth:`DeckPanelState.preferred_card_for`) so each deck resolves
+    independently.
+    """
     if preferred is not None and preferred in card_ids:
         return preferred
     if partial and preferred is not None:

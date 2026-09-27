@@ -5,12 +5,16 @@ side-effect free except for its explicit load/save functions so callers can run
 all file and JSON work through ``asyncio.to_thread``.
 
 Schema version 1 stores ``{layout, ratio, focused, nodes_collapsed, panels}``
-where each panel entry is ``{deck, preferred_card, views}`` with the additive
-optional ``views`` object ``{main, files}`` holding per-deck view policies. A
+where each panel entry is ``{deck, preferred_card, preferred_cards, views}``
+with the additive optional ``preferred_cards`` object mapping deck names to
+card ids and the additive optional ``views`` object ``{main, files}`` holding
+per-deck view policies. The legacy ``preferred_card`` key is still written
+and read as Main's preference so older files keep their sticky Main card. A
 zoomed session persists its pre-zoom snapshot, so callers must pass the
 effective (unzoomed) state via :func:`snapshot_from_area_state`. Loading fails
 open: unknown decks or layouts fall back to their defaults while the rest of
-the file still applies. A missing, non-object, or unknown-valued ``views``
+the file still applies. Unknown deck keys and invalid ``preferred_cards``
+entries are skipped; a missing, non-object, or unknown-valued ``views``
 decodes to ``AUTO``; Files ``page_blocks`` decodes to ``AUTO``.
 """
 
@@ -20,7 +24,7 @@ import json
 import logging
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -47,11 +51,16 @@ MAX_CARD_ID_LENGTH = 256
 
 @dataclass(frozen=True)
 class _DeckPanelSnapshot:
-    """Persisted deck and preferred card for one deck panel."""
+    """Persisted deck and per-deck preferred cards for one deck panel."""
 
     deck: DeckId = DeckId.MAIN
-    preferred_card: str | None = None
+    preferred_cards: dict[DeckId, str] = field(default_factory=dict)
     views: DeckViewPolicies = DeckViewPolicies()
+
+    @property
+    def preferred_card(self) -> str | None:
+        """Return Main's preferred card (the legacy ``preferred_card`` key)."""
+        return self.preferred_cards.get(DeckId.MAIN)
 
 
 @dataclass(frozen=True)
@@ -108,6 +117,35 @@ def _decode_views(raw: Any) -> DeckViewPolicies:
     return DeckViewPolicies(main=main, files=files)
 
 
+def _decode_card_id(raw: Any) -> str | None:
+    """Return ``raw`` when it is a usable card id, else None."""
+    if not isinstance(raw, str) or not raw or len(raw) > MAX_CARD_ID_LENGTH:
+        return None
+    return raw
+
+
+def _decode_preferred_cards(raw: Any) -> dict[DeckId, str]:
+    """Decode the ``preferred_cards`` map, skipping unknown decks and bad ids.
+
+    Keys for decks outside the active cycle (for example a ``final`` deck
+    persisted while its flag is off) are kept so the preference survives
+    until that deck registers.
+    """
+    cards: dict[DeckId, str] = {}
+    if not isinstance(raw, dict):
+        return cards
+    for key, value in raw.items():
+        try:
+            deck = DeckId(str(key))
+        except ValueError:
+            continue
+        card_id = _decode_card_id(value)
+        if card_id is None:
+            continue
+        cards[deck] = card_id
+    return cards
+
+
 def _decode_panel(raw: Any) -> _DeckPanelSnapshot:
     from ..widgets.decks.spec import active_deck_cycle
 
@@ -117,15 +155,14 @@ def _decode_panel(raw: Any) -> _DeckPanelSnapshot:
     if deck not in active_deck_cycle():
         log.warning("Ignoring inactive deck in persisted deck state: %r", deck)
         deck = DeckId.MAIN
-    preferred = raw.get("preferred_card")
-    if preferred is not None and (
-        not isinstance(preferred, str)
-        or not preferred
-        or len(preferred) > MAX_CARD_ID_LENGTH
-    ):
+    cards = _decode_preferred_cards(raw.get("preferred_cards", None))
+    legacy = _decode_card_id(raw.get("preferred_card", None))
+    if legacy is None and "preferred_card" in raw and raw["preferred_card"] is not None:
         raise _AgentsDeckStateDecodeError("invalid preferred card")
+    if legacy is not None and DeckId.MAIN not in cards:
+        cards[DeckId.MAIN] = legacy
     views = _decode_views(raw.get("views", None))
-    return _DeckPanelSnapshot(deck, preferred, views)
+    return _DeckPanelSnapshot(deck=deck, preferred_cards=cards, views=views)
 
 
 def _decode_agents_deck_state(decoded: Any) -> AgentsDeckStateSnapshot:
@@ -175,7 +212,11 @@ def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
     """Capture ``state`` for persistence, unwrapping any zoom snapshot."""
     effective = state.zoom_snapshot if state.zoom_snapshot is not None else state
     panels = tuple(
-        _DeckPanelSnapshot(panel.deck, panel.preferred_card, panel.views)
+        _DeckPanelSnapshot(
+            deck=panel.deck,
+            preferred_cards=dict(panel.preferred_cards),
+            views=panel.views,
+        )
         for panel in effective.panels[:MAX_PANELS]
     ) or (_DeckPanelSnapshot(),)
     layout = effective.layout
@@ -197,7 +238,11 @@ def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
 def area_state_from_snapshot(snapshot: AgentsDeckStateSnapshot) -> DeckAreaState:
     """Rebuild deck-area state from ``snapshot`` (no zoom snapshot)."""
     panels = tuple(
-        DeckPanelState(item.deck, item.preferred_card, item.views)
+        DeckPanelState(
+            deck=item.deck,
+            preferred_cards=dict(item.preferred_cards),
+            views=item.views,
+        )
         for item in snapshot.panels
     ) or (DeckPanelState(DeckId.MAIN),)
     if snapshot.layout is DeckLayout.SINGLE:
@@ -225,6 +270,10 @@ def _serialize_agents_deck_state(snapshot: AgentsDeckStateSnapshot) -> str:
             {
                 "deck": item.deck.value,
                 "preferred_card": item.preferred_card,
+                "preferred_cards": {
+                    deck.value: card_id
+                    for deck, card_id in item.preferred_cards.items()
+                },
                 "views": {
                     "main": item.views.main.value,
                     "files": item.views.files.value,

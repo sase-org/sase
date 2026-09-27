@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+from collections.abc import Mapping
 from typing import Any
 
 from textual.app import ComposeResult
@@ -136,20 +138,32 @@ class DeckArea(Vertical):
         self._state = with_panel_deck(self._state, index, deck)
         self.panel(index).set_deck(deck)
 
-    def set_preferred_card(self, index: int, card_id: str | None) -> None:
-        """Update preferred card and re-show the stored Main document."""
-        self._state = with_preferred_card(self._state, index, card_id)
+    def set_preferred_card(
+        self, index: int, card_id: str | None, deck: DeckId | None = None
+    ) -> None:
+        """Update preferred card and re-show the stored Main document.
+
+        The preference is stored under ``deck`` (default: the panel's own
+        deck); the re-show always uses Main's entry.
+        """
+        self._state = with_preferred_card(self._state, index, card_id, deck)
         panel = self.panel(index)
         try:
             document = panel._main_document
         except Exception:
             return
         try:
-            panel.show_main_document(document, preferred_card=card_id)
+            preferred = self._state.panels[index].preferred_card
+        except Exception:
+            preferred = card_id
+        try:
+            panel.show_main_document(document, preferred_card=preferred)
         except Exception:
             pass
 
-    def set_preferred_card_state(self, index: int, card_id: str | None) -> None:
+    def set_preferred_card_state(
+        self, index: int, card_id: str | None, deck: DeckId | None = None
+    ) -> None:
         """Record the preferred card without re-showing the Main document.
 
         Block-only swaps (``cycle_block``/``select_block``) already show the
@@ -158,7 +172,30 @@ class DeckArea(Vertical):
         an identical frame. New subjects and deck switches still go through
         :meth:`set_preferred_card`.
         """
-        self._state = with_preferred_card(self._state, index, card_id)
+        self._state = with_preferred_card(self._state, index, card_id, deck)
+
+    def set_preferred_cards(self, index: int, cards: Mapping[DeckId, str]) -> None:
+        """Restore a whole per-deck mapping and re-show the Main document.
+
+        Used when applying persisted state so every deck's sticky card is
+        restored at once instead of one deck at a time.
+        """
+        panels = list(self._state.panels)
+        if index < 0 or index >= len(panels):
+            raise IndexError(index)
+        panels[index] = dataclasses.replace(panels[index], preferred_cards=dict(cards))
+        self._state = dataclasses.replace(self._state, panels=tuple(panels))
+        panel = self.panel(index)
+        try:
+            document = panel._main_document
+        except Exception:
+            return
+        try:
+            panel.show_main_document(
+                document, preferred_card=panels[index].preferred_card
+            )
+        except Exception:
+            pass
 
     def panels_showing(self, deck: DeckId) -> tuple[DeckPanel, ...]:
         """Return visible panels showing ``deck``."""

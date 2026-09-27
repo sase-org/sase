@@ -68,7 +68,7 @@ class AgentDetailDeckMixin:
         for panel in panels:
             try:
                 index = panel.panel_index
-                preferred = area.state.panels[index].preferred_card
+                preferred = area.state.panels[index].preferred_card_for(DeckId.MAIN)
             except Exception:
                 preferred = None
             try:
@@ -350,7 +350,7 @@ class AgentDetailDeckMixin:
             return
         if deck is DeckId.MAIN:
             try:
-                preferred = area.state.panels[panel_index].preferred_card
+                preferred = area.state.panels[panel_index].preferred_card_for(deck)
             except Exception:
                 preferred = None
             try:
@@ -424,10 +424,19 @@ class AgentDetailDeckMixin:
         except Exception:
             pass
 
-    def set_deck_preferred_card(self, panel_index: int, card_id: str | None) -> None:
-        """Delegate preferred-card updates to the deck area."""
+    def set_deck_preferred_card(
+        self,
+        panel_index: int,
+        card_id: str | None,
+        deck: DeckId | None = None,
+    ) -> None:
+        """Delegate preferred-card updates to the deck area.
+
+        The card sticks under ``deck`` (default: the panel's own deck) so
+        each deck keeps its own sticky card.
+        """
         try:
-            self.deck_area.set_preferred_card(panel_index, card_id)
+            self.deck_area.set_preferred_card(panel_index, card_id, deck)
         except Exception:
             pass
         try:
@@ -436,7 +445,7 @@ class AgentDetailDeckMixin:
             pass
 
     def cycle_focused_deck_card(self, direction: int) -> str | None:
-        """Cycle cards in the focused panel; Main choices stick."""
+        """Cycle cards in the focused panel; the shown deck's choice sticks."""
         try:
             area = self.deck_area
             panel = area.focused_panel()
@@ -455,15 +464,19 @@ class AgentDetailDeckMixin:
         return shown
 
     def _remember_deck_preferred_card(
-        self, panel_index: int, card_id: str | None
+        self,
+        panel_index: int,
+        card_id: str | None,
+        deck: DeckId | None = None,
     ) -> None:
         """Record the preferred card without re-showing the Main document.
 
         Block-only swaps already show the owning card; only the stickiness
-        record needs updating so later subjects land on this card.
+        record needs updating so later subjects land on this card. The card
+        sticks under ``deck`` (default: the panel's own deck).
         """
         try:
-            self.deck_area.set_preferred_card_state(panel_index, card_id)
+            self.deck_area.set_preferred_card_state(panel_index, card_id, deck)
         except Exception:
             pass
         try:

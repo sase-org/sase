@@ -36,8 +36,11 @@ def _full_snapshot() -> AgentsDeckStateSnapshot:
         focused=1,
         nodes_collapsed=True,
         panels=(
-            _DeckPanelSnapshot(DeckId.MAIN, "reply"),
-            _DeckPanelSnapshot(DeckId.FILES, None),
+            _DeckPanelSnapshot(
+                deck=DeckId.MAIN,
+                preferred_cards={DeckId.MAIN: "reply"},
+            ),
+            _DeckPanelSnapshot(deck=DeckId.FILES),
         ),
     )
 
@@ -62,7 +65,7 @@ def test_empty_state_round_trips_to_single_main(tmp_path: Path) -> None:
     save_agents_deck_state(EMPTY_AGENTS_DECK_STATE, path)
     assert load_agents_deck_state(path) == EMPTY_AGENTS_DECK_STATE
     assert EMPTY_AGENTS_DECK_STATE.layout is DeckLayout.SINGLE
-    assert EMPTY_AGENTS_DECK_STATE.panels == (_DeckPanelSnapshot(DeckId.MAIN, None),)
+    assert EMPTY_AGENTS_DECK_STATE.panels == (_DeckPanelSnapshot(deck=DeckId.MAIN),)
 
 
 def test_missing_file_fails_open_to_empty(tmp_path: Path) -> None:
@@ -98,7 +101,7 @@ def test_unknown_layout_fails_open_while_panels_apply(tmp_path: Path) -> None:
     )
     loaded = load_agents_deck_state(path)
     assert loaded.layout is DeckLayout.SINGLE
-    assert loaded.panels == (_DeckPanelSnapshot(DeckId.TOOLS, None),)
+    assert loaded.panels == (_DeckPanelSnapshot(deck=DeckId.TOOLS),)
 
 
 def test_unknown_deck_falls_back_to_main_panel(tmp_path: Path) -> None:
@@ -122,8 +125,10 @@ def test_unknown_deck_falls_back_to_main_panel(tmp_path: Path) -> None:
     loaded = load_agents_deck_state(path)
     assert loaded.layout is DeckLayout.LEFT_RIGHT
     assert loaded.focused == 1
-    assert loaded.panels[0] == _DeckPanelSnapshot(DeckId.MAIN, "reply")
-    assert loaded.panels[1] == _DeckPanelSnapshot(DeckId.MAIN, None)
+    assert loaded.panels[0] == _DeckPanelSnapshot(
+        deck=DeckId.MAIN, preferred_cards={DeckId.MAIN: "reply"}
+    )
+    assert loaded.panels[1] == _DeckPanelSnapshot(deck=DeckId.MAIN)
 
 
 def test_unsupported_schema_version_fails_open(tmp_path: Path) -> None:
@@ -172,7 +177,10 @@ def test_serialize_rejects_oversize_payload() -> None:
         _serialize_agents_deck_state(
             AgentsDeckStateSnapshot(
                 panels=tuple(
-                    _DeckPanelSnapshot(DeckId.MAIN, f"card-{index}")
+                    _DeckPanelSnapshot(
+                        deck=DeckId.MAIN,
+                        preferred_cards={DeckId.MAIN: f"card-{index}"},
+                    )
                     for index in range(5000)
                 ),
             )
@@ -188,11 +196,13 @@ def test_views_round_trip(tmp_path: Path) -> None:
         nodes_collapsed=False,
         panels=(
             _DeckPanelSnapshot(
-                DeckId.MAIN,
-                "reply",
-                DeckViewPolicies(main=DeckView.PAGE_BLOCKS, files=DeckView.SPREAD),
+                deck=DeckId.MAIN,
+                preferred_cards={DeckId.MAIN: "reply"},
+                views=DeckViewPolicies(
+                    main=DeckView.PAGE_BLOCKS, files=DeckView.SPREAD
+                ),
             ),
-            _DeckPanelSnapshot(DeckId.FILES, None, DeckViewPolicies()),
+            _DeckPanelSnapshot(deck=DeckId.FILES, views=DeckViewPolicies()),
         ),
     )
     save_agents_deck_state(snapshot, path)
@@ -314,3 +324,126 @@ def test_zoom_unwrap_carries_views() -> None:
     assert snapshot.panels[0].views.main is DeckView.PAGE_CARDS
     rebuilt = area_state_from_snapshot(snapshot)
     assert rebuilt.panels[0].views.main is DeckView.PAGE_CARDS
+
+
+def test_preferred_cards_round_trip_with_views(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    snapshot = AgentsDeckStateSnapshot(
+        panels=(
+            _DeckPanelSnapshot(
+                deck=DeckId.MAIN,
+                preferred_cards={DeckId.MAIN: "reply", DeckId.FILES: "notes"},
+                views=DeckViewPolicies(main=DeckView.SPREAD),
+            ),
+        ),
+    )
+    save_agents_deck_state(snapshot, path)
+    assert load_agents_deck_state(path) == snapshot
+    serialized = path.read_text()
+    assert '"preferred_card":"reply"' in serialized
+    assert '"preferred_cards":{"files":"notes","main":"reply"}' in serialized
+    rebuilt = area_state_from_snapshot(
+        snapshot_from_area_state(area_state_from_snapshot(snapshot))
+    )
+    assert rebuilt.panels[0].preferred_card == "reply"
+    assert rebuilt.panels[0].preferred_card_for(DeckId.FILES) == "notes"
+    assert rebuilt.panels[0].views.main is DeckView.SPREAD
+
+
+def test_legacy_file_without_map_decodes_legacy_as_main(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [{"deck": "main", "preferred_card": "reply"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].preferred_cards == {DeckId.MAIN: "reply"}
+    assert loaded.panels[0].preferred_card == "reply"
+
+
+def test_map_wins_for_main_when_both_keys_present(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [
+                    {
+                        "deck": "main",
+                        "preferred_card": "stale",
+                        "preferred_cards": {"main": "reply", "files": "notes"},
+                        "views": {"main": "spread", "files": "auto"},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].preferred_cards == {
+        DeckId.MAIN: "reply",
+        DeckId.FILES: "notes",
+    }
+    assert loaded.panels[0].views.main is DeckView.SPREAD
+
+
+def test_preferred_cards_skips_unknown_decks_and_bad_ids(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [
+                    {
+                        "deck": "main",
+                        "preferred_card": None,
+                        "preferred_cards": {
+                            "main": "reply",
+                            "telemetry": "x",
+                            "files": "",
+                            "tools": 42,
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].preferred_cards == {DeckId.MAIN: "reply"}
+
+
+def test_invalid_legacy_card_still_fails_panel_open(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [{"deck": "main", "preferred_card": 42}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels == (_DeckPanelSnapshot(deck=DeckId.MAIN),)

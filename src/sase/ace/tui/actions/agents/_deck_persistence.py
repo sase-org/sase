@@ -114,10 +114,10 @@ class AgentDeckPersistenceMixin:
                     detail.show_deck(index, panel_state.deck)
                 except Exception:
                     pass
-                if panel_state.preferred_card is not None:
+                if panel_state.preferred_cards:
                     try:
-                        detail.set_deck_preferred_card(
-                            index, panel_state.preferred_card
+                        detail.deck_area.set_preferred_cards(
+                            index, dict(panel_state.preferred_cards)
                         )
                     except Exception:
                         pass

@@ -74,7 +74,7 @@ def test_left_right_pipe_unsplits_keeps_first() -> None:
 def test_rotate_keeps_everything_but_layout() -> None:
     state = DeckAreaState(
         panels=(
-            DeckPanelState(DeckId.MAIN, "reply"),
+            DeckPanelState(deck=DeckId.MAIN, preferred_cards={DeckId.MAIN: "reply"}),
             DeckPanelState(DeckId.FILES),
         ),
         focused=1,
@@ -257,10 +257,10 @@ def test_new_panel_for_deck_duplicate_main_takes_next_card_with_wrap() -> None:
     cards = ("context", "prompt", "reply")
     assert new_panel_for_deck(
         DeckId.MAIN, DeckId.MAIN, "context", cards
-    ) == DeckPanelState(DeckId.MAIN, "prompt")
+    ) == DeckPanelState(deck=DeckId.MAIN, preferred_cards={DeckId.MAIN: "prompt"})
     assert new_panel_for_deck(
         DeckId.MAIN, DeckId.MAIN, "reply", cards
-    ) == DeckPanelState(DeckId.MAIN, "context")
+    ) == DeckPanelState(deck=DeckId.MAIN, preferred_cards={DeckId.MAIN: "context"})
 
 
 def test_new_panel_for_deck_non_duplicate_has_no_preferred_card() -> None:

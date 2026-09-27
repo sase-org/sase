@@ -147,9 +147,9 @@ def test_replace_helpers_keep_views() -> None:
     state = DeckAreaState(
         panels=(
             DeckPanelState(
-                DeckId.MAIN,
-                "reply",
-                DeckViewPolicies(main=DeckView.SPREAD),
+                deck=DeckId.MAIN,
+                preferred_cards={DeckId.MAIN: "reply"},
+                views=DeckViewPolicies(main=DeckView.SPREAD),
             ),
         ),
     )
@@ -160,6 +160,42 @@ def test_replace_helpers_keep_views() -> None:
     renamed = with_preferred_card(state, 0, "context")
     assert renamed.panels[0].views.main is DeckView.SPREAD
     assert renamed.panels[0].preferred_card == "context"
+
+
+def test_with_preferred_card_scopes_to_panel_deck() -> None:
+    state = DeckAreaState(
+        panels=(DeckPanelState(deck=DeckId.FILES),),
+    )
+    updated = with_preferred_card(state, 0, "reply")
+    assert updated.panels[0].preferred_card_for(DeckId.FILES) == "reply"
+    assert updated.panels[0].preferred_card is None
+    # An explicit deck stores under that deck even when the panel shows Main.
+    main_state = DeckAreaState(
+        panels=(DeckPanelState(deck=DeckId.MAIN),),
+    )
+    scoped = with_preferred_card(main_state, 0, "reply", DeckId.FILES)
+    assert scoped.panels[0].preferred_card_for(DeckId.FILES) == "reply"
+    assert scoped.panels[0].preferred_card is None
+    # Clearing one deck keeps the other deck's sticky card.
+    both = with_preferred_card(main_state, 0, "reply")
+    both = with_preferred_card(both, 0, "notes", DeckId.FILES)
+    cleared = with_preferred_card(both, 0, None)
+    assert cleared.panels[0].preferred_card is None
+    assert cleared.panels[0].preferred_card_for(DeckId.FILES) == "notes"
+
+
+def test_with_panel_deck_keeps_every_deck_preference() -> None:
+    state = DeckAreaState(
+        panels=(
+            DeckPanelState(
+                deck=DeckId.MAIN,
+                preferred_cards={DeckId.MAIN: "reply", DeckId.FILES: "notes"},
+            ),
+        ),
+    )
+    moved = with_panel_deck(state, 0, DeckId.FILES)
+    assert moved.panels[0].preferred_card == "reply"
+    assert moved.panels[0].preferred_card_for(DeckId.FILES) == "notes"
 
 
 def test_with_panel_view_updates_zoom_snapshot() -> None:
