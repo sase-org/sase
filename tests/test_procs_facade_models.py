@@ -201,3 +201,18 @@ def test_proc_id_generation_and_short_form() -> None:
     assert all(len(proc_id) == PROC_ID_LENGTH for proc_id in ids)
     assert all(set(proc_id) <= set(PROC_ID_ALPHABET) for proc_id in ids)
     assert short_proc_id("0123456789ab") == "012345"
+
+
+def test_legacy_proc_shell_lifecycle_normalizes_to_named_proc() -> None:
+    """Pre-rename rows carry lifecycle ``proc-shell``; readers canonicalize it."""
+    legacy = Proc.from_dict(
+        {**_proc("0123456789ab").to_dict(), "lifecycle": "proc-shell"}
+    )
+
+    assert legacy.lifecycle == "named-proc"
+
+    current = Proc.from_dict(
+        {**_proc("0123456789ac").to_dict(), "lifecycle": "named-proc"}
+    )
+
+    assert current.lifecycle == "named-proc"

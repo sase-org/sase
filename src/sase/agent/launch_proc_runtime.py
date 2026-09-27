@@ -69,8 +69,8 @@ def dispatch_proc_unit(
     except Exception as exc:
         return False, None, _one_line(exc), []
     current = get_proc(proc.proc_id) or proc
-    # legacy sase-shell spelling: pre-rename rows carry ``named-proc``.
-    if current.lifecycle not in ("named-proc", "named-proc"):
+    # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
+    if current.lifecycle not in ("named-proc", "proc-shell"):
         return False, current.proc_id, "proc_lifecycle_is_not_named_proc", []
     if current.origin != XPROMPT_PROC_ORIGIN:
         return False, current.proc_id, "proc_origin_is_not_xprompt_proc", []

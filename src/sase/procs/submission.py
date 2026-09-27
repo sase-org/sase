@@ -350,8 +350,8 @@ def _raise_start_hook_error(
 
 
 def _should_reconcile(proc: Proc) -> bool:
-    # legacy sase-shell spelling: pre-rename rows carry ``named-proc``.
-    if proc.lifecycle not in ("named-proc", "named-proc"):
+    # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
+    if proc.lifecycle not in ("named-proc", "proc-shell"):
         return False
     if proc.status == "settling":
         return not supervisor_is_alive(proc.pid, proc.supervisor_id)
