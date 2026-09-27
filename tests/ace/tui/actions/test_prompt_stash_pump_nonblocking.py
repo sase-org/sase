@@ -30,13 +30,13 @@ async def _assert_handler_returns_while_read_is_stuck(
         return (0, 0) if counts_read else []
 
     def _slow_overlay_read() -> object:
-        from sase.ace.tui.actions.agent_workflow._prompt_bar_stash_restore import (
-            _PromptsOverlaySnapshot,
+        from sase.ace.tui.actions.agent_workflow._prompt_bar_stash_restore_overlay import (
+            PromptsOverlaySnapshot,
         )
 
         entered.set()
         release.wait(timeout=1.0)
-        return _PromptsOverlaySnapshot(entries=(), trash=(), trash_limit=20)
+        return PromptsOverlaySnapshot(entries=(), trash=(), trash_limit=20)
 
     if overlay_read:
         # Overlay entry points batch the lifecycle read through
