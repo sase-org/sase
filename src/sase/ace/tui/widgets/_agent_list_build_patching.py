@@ -20,7 +20,7 @@ from ..models.agent_groups import (
     rendered_group_keys,
 )
 from ..models.agent_nodes import is_agents_tab_agent_node
-from ..models.group_fold import GroupFoldView
+from ..models.group_fold import GroupFoldView, group_fold_snapshot
 from ._agent_list_build_analysis import compute_tier_styles, visible_agent_indices
 from ._agent_list_build_rows import (
     agent_row_context,
@@ -587,6 +587,7 @@ def try_insert_rows(
         widget._row_render_ctx = row_contexts
         widget._row_tier_styles = row_tier_styles
         widget._unread_agents = set(inputs.unread)
+        widget._rendered_group_folds = group_fold_snapshot(fold_registry)
         widget._content_requested_width = requested_panel_width(rows)
         widget._refresh_requested_width()
     finally:

@@ -99,3 +99,19 @@ class GroupFoldRegistry:
             self.version += 1
             return True
         return False
+
+
+def group_fold_snapshot(fold_registry: object | None) -> frozenset[GroupKey]:
+    """Return the logical collapsed-key set *fold_registry* was built with.
+
+    Compares collapsed-key sets, not ``id()``/``version``: registries can be
+    re-allocated (``AgentGroupFoldRegistry.restore``, or reconcile dropping
+    and re-creating a scope), and a version bump with no net change
+    (collapse then expand) must not force a repaint.
+    """
+    if fold_registry is None:
+        return frozenset()
+    snapshot = getattr(fold_registry, "snapshot", None)
+    if callable(snapshot):
+        return frozenset(snapshot())
+    return frozenset(getattr(fold_registry, "collapsed", ()) or ())

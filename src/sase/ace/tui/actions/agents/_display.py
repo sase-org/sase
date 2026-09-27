@@ -472,6 +472,10 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         reconciled_retired = self._sync_panel_group() or set()
         self._snap_focus_after_agents_fold_restore()
 
+        group_fold_stale = self._group_fold_stale_panel_keys()  # type: ignore[attr-defined]
+        for key in sorted(group_fold_stale, key=lambda k: panel_widget_id_for_key(k)):
+            self._record_display_panel_rebuild_fallback("group_fold_change", key)
+
         affected_keys = affected_panel_keys(
             diff,
             previous_agents,
@@ -480,7 +484,9 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         )
         # Panels a whole-roster predicate concerns are rebuilt whole: never
         # patched row by row, and never given an in-place insert.
-        forced_rebuild_keys: set[Any] = scope.keys
+        # Fold-stale panels join the same forced set so the in-place
+        # row-insert shortcut is ruled out for them as well.
+        forced_rebuild_keys: set[Any] = set(scope.keys) | set(group_fold_stale)
         panel_rebuild_keys: set[Any] = set(forced_rebuild_keys)
         panel_rebuild_keys.update(
             changed_same_position_panel_membership_keys(

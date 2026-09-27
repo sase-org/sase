@@ -283,7 +283,7 @@ def _agent_session_turn_anchors(agent: Agent) -> _AgentSessionTurnAnchors:
     if planner is not None:
         candidates.append(planner)
         container_proxy = planner
-    elif _root_represents_member(agent):
+    elif root_represents_member(agent):
         candidates.append(agent)
         container_proxy = agent
 
@@ -533,7 +533,7 @@ def _concrete_planner_child(agent: Agent) -> Agent | None:
     )
 
 
-def _root_represents_member(agent: Agent) -> bool:
+def root_represents_member(agent: Agent) -> bool:
     if agent.is_imported_agent_session_container:
         return False
     if agent.is_plan_agent_session_root_entry:
@@ -602,6 +602,7 @@ __all__ = [
     "monitor_row_is_settled",
     "monitor_row_lane_bucket",
     "panel_turn_lane_counts",
+    "root_represents_member",
     "row_is_agent_session_turn",
     "turn_lane_counts",
 ]

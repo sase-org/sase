@@ -14,7 +14,7 @@ from sase.core.time import to_local
 from ....hooks.processes import is_process_running
 from ._json_cache import load_json_cached
 from ..agent import Agent
-from ..agent_session_members import _root_represents_member
+from ..agent_session_members import root_represents_member
 
 
 ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
@@ -192,7 +192,7 @@ def apply_finalizer_status(
     Both enrichment paths share this helper so snapshot and filesystem loads
     agree. Containers are never mirrored: clan, imported, and remote session
     containers are synthetic rows, and a session root that does not represent
-    a member (see ``_root_represents_member``) would double-count its members'
+    a member (see ``root_represents_member``) would double-count its members'
     summaries. Session views aggregate members in memory instead.
     """
     if status is None or not isinstance(status, FinalizerStatusSummaryWire):
@@ -203,6 +203,6 @@ def apply_finalizer_status(
         or agent.is_remote_agent_session_container
     ):
         return
-    if agent.is_agent_session_root_entry and not _root_represents_member(agent):
+    if agent.is_agent_session_root_entry and not root_represents_member(agent):
         return
     agent.finalizer_status = status

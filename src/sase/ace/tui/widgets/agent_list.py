@@ -149,6 +149,7 @@ class AgentList(OptionList, inherit_bindings=False):
         self._row_by_agent_attempt: dict[tuple[int, int | None], int] = {}
         self._row_by_agent_idx: dict[int, int] = {}
         self._banner_row_by_key: dict[tuple[str, ...], int] = {}
+        self._rendered_group_folds: frozenset[tuple[str, ...]] | None = None
 
     def update_list(
         self,
@@ -378,6 +379,7 @@ class AgentList(OptionList, inherit_bindings=False):
             self._row_by_agent_attempt = {}
             self._row_by_agent_idx = {}
             self._banner_row_by_key = {}
+            self._rendered_group_folds = None
             self._target_width = 0
             self._max_left = 0
             self._max_suffix = 0

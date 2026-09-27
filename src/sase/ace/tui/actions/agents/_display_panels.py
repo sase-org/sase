@@ -6,6 +6,7 @@ while the implementation lives in smaller, responsibility-focused modules.
 
 from __future__ import annotations
 
+from ._display_group_fold import GroupFoldStaleMixin
 from ._display_panel_patches import PanelPatchMixin
 from ._display_panel_refresh import PanelRefreshMixin
 from ._display_panel_titles import (
@@ -23,7 +24,7 @@ _agent_panel_border_title = agent_panel_border_title
 _agent_panel_counts = agent_panel_counts
 
 
-class PanelsMixin(PanelRefreshMixin, PanelPatchMixin):
+class PanelsMixin(PanelRefreshMixin, PanelPatchMixin, GroupFoldStaleMixin):
     """Aggregate panel refresh/layout and incremental patch helpers."""
 
 

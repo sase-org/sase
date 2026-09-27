@@ -10,7 +10,7 @@ from textual.widgets.option_list import Option
 
 from ..models.agent import Agent, AgentType
 from ..models.agent_groups import GroupingMode, TreeEntry, build_agent_tree
-from ..models.group_fold import GroupFoldView
+from ..models.group_fold import GroupFoldView, group_fold_snapshot
 from ._agent_list_build_analysis import (
     compute_tier_styles,
     visible_agent_indices,
@@ -156,6 +156,7 @@ def build_list(
     widget._banner_row_by_key = rows.banner_row_by_key
     widget._row_by_agent_attempt = rows.row_by_agent_attempt
     widget._row_by_agent_idx = rows.row_by_agent_idx
+    widget._rendered_group_folds = group_fold_snapshot(fold_registry)
 
     widget.add_options(rows.options)
 

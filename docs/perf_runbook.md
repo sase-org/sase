@@ -560,8 +560,10 @@ duplicated identity, a `BY_STATUS` bucket change, or a change to a panel's workf
 tree), the apply rebuilds those panels and patches the rest: `display_panel_rebuild` on
 an `incremental` frame, never `display_full_rebuild`. Each panel it names is one
 `agents.refresh_work` event with `stage: display_fallback`, the `fallback_reason`
-(`panel_membership_change`, `status_membership_change` or `workflow_tree_change`), and
-`panel`, that panel's widget id. Tally which panels a soak rebuilt, and why:
+(`panel_membership_change`, `status_membership_change`, `workflow_tree_change` or
+`group_fold_change`), and `panel`, that panel's widget id. A `group_fold_change` rebuild
+means only a grouping-banner fold changed: the roster is identical, but the panel's rows
+were built under different fold state. Tally which panels a soak rebuilt, and why:
 
 ```bash
 jq -r 'select(.event == "agents.refresh_work" and .stage == "display_fallback"
