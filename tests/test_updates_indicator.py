@@ -205,19 +205,19 @@ def test_running_only_renders_gear_and_visible_group() -> None:
     indicator.set_running(("comprehensive update",))
 
     assert indicator.running_count == 1
-    assert UpdatesAvailableIndicator._build_content(0, running=True).plain == " ⚙ "
+    assert UpdatesAvailableIndicator._build_content(0, gear="updating").plain == " ⚙ "
     assert indicator.group_visible is True
 
 
 def test_running_with_counts_renders_gear_first() -> None:
-    text = UpdatesAvailableIndicator._build_content(3, running=True)
+    text = UpdatesAvailableIndicator._build_content(3, gear="updating")
 
     assert text.plain == " ⚙  ⬆ 3 "
 
 
 def test_running_full_combination_renders_gear_core_and_cli() -> None:
     text = UpdatesAvailableIndicator._build_content(
-        3, core=True, agent_cli_count=2, running=True
+        3, core=True, agent_cli_count=2, gear="updating"
     )
 
     assert text.plain == " ⚙  ⬆ 3  core  CLI ⬆ 2 "
@@ -310,6 +310,131 @@ async def test_click_while_running_dispatches_open_update_procs() -> None:
 
         calls.clear()
         indicator.set_running(())
+        await pilot.click("#updates-indicator")
+        await pilot.pause()
+        assert calls == ["updates"]
+
+
+def _pending(
+    labels: tuple[str, ...] = ("sync", "mail"),
+    identities: tuple[str, ...] = ("sync-1", "mail-1"),
+) -> object:
+    from sase.ace.tui.update_gear import PendingUpdateRestart
+
+    return PendingUpdateRestart(
+        blocker_labels=labels,
+        blocker_identities=identities,
+        queued_at=1700000000.0,
+        restart_by=1700000060.0,
+    )
+
+
+def test_gear_precedence_green_over_yellow() -> None:
+    from sase.ace.tui.update_gear import resolve_update_gear
+
+    assert (
+        resolve_update_gear(updating=True, restart_pending=True, failed=False)
+        == "updating"
+    )
+    assert (
+        resolve_update_gear(updating=False, restart_pending=True, failed=False)
+        == "restart_pending"
+    )
+    assert resolve_update_gear(updating=False, restart_pending=False, failed=True) == (
+        "failed"
+    )
+    assert (
+        resolve_update_gear(updating=False, restart_pending=False, failed=False) is None
+    )
+
+
+def test_pending_only_badge_renders_gear_with_zero_counts() -> None:
+    indicator = UpdatesAvailableIndicator()
+    indicator.set_restart_pending(_pending())  # type: ignore[arg-type]
+
+    assert indicator.gear_state == "restart_pending"
+    assert indicator._body.plain == " ⚙ "
+    assert indicator.group_visible is True
+    assert UpdatesAvailableIndicator._build_content(
+        0, gear="restart_pending"
+    ).plain == (" ⚙ ")
+
+
+def test_pending_badge_holds_single_gear_under_precedence() -> None:
+    indicator = UpdatesAvailableIndicator()
+    indicator.set_available(2)
+    indicator.set_running(("comprehensive update",))
+    indicator.set_restart_pending(_pending())  # type: ignore[arg-type]
+
+    assert indicator.gear_state == "updating"
+    assert indicator._body.plain.count("⚙") == 1
+
+    indicator.set_running(())
+
+    assert indicator.gear_state == "restart_pending"
+    assert indicator._body.plain.count("⚙") == 1
+
+
+def test_yellow_tooltip_lists_blockers_with_more_and_time() -> None:
+    from sase.ace.tui.update_gear import PendingUpdateRestart
+
+    pending = PendingUpdateRestart(
+        blocker_labels=("sync", "mail", "a", "b"),
+        blocker_identities=("1", "2", "3", "4"),
+        queued_at=1700000000.0,
+        restart_by=1700000060.0,
+    )
+    tooltip = UpdatesAvailableIndicator._build_tooltip(0, pending_restart=pending)
+
+    assert "New SASE code installed" in tooltip
+    assert "sync, mail, a +1 more" in tooltip
+    assert "Click to see what it is waiting on." in tooltip
+    assert ":" in tooltip
+
+
+def test_set_restart_pending_noops_on_equal_value() -> None:
+    indicator = UpdatesAvailableIndicator()
+    indicator.set_restart_pending(_pending())  # type: ignore[arg-type]
+    body_before = indicator._body.plain
+    tooltip_before = indicator.tooltip
+
+    indicator.set_restart_pending(_pending())  # type: ignore[arg-type]
+
+    assert indicator._body.plain == body_before
+    assert indicator.tooltip == tooltip_before
+
+
+async def test_click_while_pending_dispatches_open_restart_blockers() -> None:
+    from textual.app import App, ComposeResult
+
+    calls: list[str] = []
+
+    class _TestApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield UpdatesAvailableIndicator(id="updates-indicator")
+
+        def action_open_updates_panel(self) -> None:
+            calls.append("updates")
+
+        def action_open_update_procs(self) -> None:
+            calls.append("procs")
+
+        def action_open_restart_blockers(self) -> None:
+            calls.append("blockers")
+
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        indicator = pilot.app.query_one(
+            "#updates-indicator",
+            UpdatesAvailableIndicator,
+        )
+        indicator.set_restart_pending(_pending())  # type: ignore[arg-type]
+        await pilot.click("#updates-indicator")
+        await pilot.pause()
+        assert calls == ["blockers"]
+
+        calls.clear()
+        indicator.set_restart_pending(None)
         await pilot.click("#updates-indicator")
         await pilot.pause()
         assert calls == ["updates"]

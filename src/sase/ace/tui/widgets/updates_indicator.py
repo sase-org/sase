@@ -6,6 +6,12 @@ from typing import Any
 from rich.text import Text
 
 from sase.ace.tui.proc_gear_chips import update_gear_chip
+from sase.ace.tui.update_gear import (
+    PendingUpdateRestart,
+    UpdateGearState,
+    resolve_update_gear,
+    restart_pending_tooltip,
+)
 
 from .top_bar_group import TopBarGroup
 from .update_accents import (
@@ -25,10 +31,11 @@ class UpdatesAvailableIndicator(TopBarGroup):
     style; a pending sase-core Rust rebuild appends the inset ``core`` tag;
     the agent-CLI segment shares the moss surface with sage ink. Each
     segment carries its own padding so it reads as its own part of the
-    chip. While SASE is updating, a green gear inset (lime fill, dark ink)
-    leads the badge so the running update reads as the updates lane's proc
-    gear. Clicking opens the Admin Center's Updates tab, or the Procs tab
-    on the running update while one runs.
+    chip. The gear inset leads the badge in one of three states (green
+    updating, yellow restart queued, red last update failed) with
+    precedence green > yellow > red. Clicking opens the Admin Center's
+    Updates tab, the Procs tab on the running update while one runs, or
+    the Procs tab on the first restart blocker while a restart is queued.
     """
 
     GROUP_LABEL = "updates"
@@ -41,6 +48,7 @@ class UpdatesAvailableIndicator(TopBarGroup):
         self._manual_agent_cli_count = 0
         self._core = False
         self._running_labels: tuple[str, ...] = ()
+        self._pending_restart: PendingUpdateRestart | None = None
         self._refresh_state()
 
     @property
@@ -72,6 +80,15 @@ class UpdatesAvailableIndicator(TopBarGroup):
     def running_count(self) -> int:
         """Number of running update procs currently shown."""
         return len(self._running_labels)
+
+    @property
+    def gear_state(self) -> UpdateGearState | None:
+        """Return the single visible gear following green > yellow > red."""
+        return resolve_update_gear(
+            updating=bool(self._running_labels),
+            restart_pending=self._pending_restart is not None,
+            failed=False,
+        )
 
     def set_available(
         self,
@@ -110,6 +127,13 @@ class UpdatesAvailableIndicator(TopBarGroup):
         self._running_labels = next_labels
         self._refresh_state()
 
+    def set_restart_pending(self, pending: PendingUpdateRestart | None) -> None:
+        """Update the restart-queued gear state, ignoring equal values."""
+        if pending == self._pending_restart:
+            return
+        self._pending_restart = pending
+        self._refresh_state()
+
     def _refresh_state(self) -> None:
         """Refresh body and tooltip from the independent available/running inputs."""
         self._set_body(
@@ -117,7 +141,7 @@ class UpdatesAvailableIndicator(TopBarGroup):
                 self._count,
                 core=self._core,
                 agent_cli_count=self._agent_cli_count,
-                running=bool(self._running_labels),
+                gear=self.gear_state,
             )
         )
         tooltip = self._build_tooltip(
@@ -126,12 +150,13 @@ class UpdatesAvailableIndicator(TopBarGroup):
             agent_cli_count=self._agent_cli_count,
             manual_agent_cli_count=self._manual_agent_cli_count,
             running_labels=self._running_labels,
+            pending_restart=self._pending_restart,
         )
         if self.tooltip != tooltip:
             self.tooltip = tooltip
 
     async def on_click(self, event: object | None = None) -> None:
-        """Open the running update in Procs while updating, else Updates.
+        """Open the gear target in Procs while a gear shows, else Updates.
 
         Textual dispatches ``on_click`` for every class in the MRO that
         defines it, so calling ``super().on_click()`` would run the base
@@ -150,8 +175,12 @@ class UpdatesAvailableIndicator(TopBarGroup):
                 stop()
             except Exception:
                 pass
-        if self.running_count > 0:
+        gear = self.gear_state
+        if gear == "updating":
             await self.app.run_action("open_update_procs")
+            return
+        if gear == "restart_pending":
+            await self.app.run_action("open_restart_blockers")
             return
         if self.CLICK_ACTION is None:
             return
@@ -163,12 +192,12 @@ class UpdatesAvailableIndicator(TopBarGroup):
         *,
         core: bool = False,
         agent_cli_count: int = 0,
-        running: bool = False,
+        gear: UpdateGearState | None = None,
     ) -> Text:
         """Build the deep-chip body: gear inset, identity segment, core tag, CLI segment."""
         text = Text()
-        if running:
-            text.append_text(update_gear_chip(True))
+        if gear is not None:
+            text.append_text(update_gear_chip(gear))
         if count > 0:
             text.append(
                 f" {_UPDATE_GLYPH} {count} ",
@@ -191,6 +220,7 @@ class UpdatesAvailableIndicator(TopBarGroup):
         agent_cli_count: int = 0,
         manual_agent_cli_count: int = 0,
         running_labels: Sequence[str] = (),
+        pending_restart: PendingUpdateRestart | None = None,
     ) -> str:
         """Build the hover tooltip with separate, truthful domain counts."""
         labels = tuple(running_labels)
@@ -200,6 +230,17 @@ class UpdatesAvailableIndicator(TopBarGroup):
             else:
                 first = f"{len(labels)} updates in progress: {', '.join(labels)}"
             tooltip = f"{first}\nClick to watch it in the Procs tab."
+            availability = UpdatesAvailableIndicator._availability_detail(
+                count,
+                core=core,
+                agent_cli_count=agent_cli_count,
+                manual_agent_cli_count=manual_agent_cli_count,
+            )
+            if availability:
+                tooltip += f" {availability}"
+            return tooltip
+        if pending_restart is not None:
+            tooltip = restart_pending_tooltip(pending_restart)
             availability = UpdatesAvailableIndicator._availability_detail(
                 count,
                 core=core,

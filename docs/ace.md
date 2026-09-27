@@ -5013,10 +5013,16 @@ mode (labels dropped together when the full cluster does not fit in the cells le
 after the tab strip and a 2-cell minimum gap; separators kept) still identifies each
 group; widening restores full labels without oscillation. Every group is clickable:
 procs opens the Admin Center Procs tab, updates opens the Updates tab (or the Procs tab
-on the running update while SASE is updating, when the badge shows its green gear
-inset), overrides, priority, and disabled open Launch settings, stash opens the Prompts
-overlay on Stash, and inbox opens the notification modal. While SASE is updating itself,
-the `updates` group shows a green `⚙` gear inset at its left edge.
+on the running update while SASE is updating, when the badge shows its green gear inset,
+or the Procs tab on the first restart blocker while a restart is queued, when the badge
+shows its yellow gear inset), overrides, priority, and disabled open Launch settings,
+stash opens the Prompts overlay on Stash, and inbox opens the notification modal. While
+SASE is updating itself, the `updates` group shows a green `⚙` gear inset at its left
+edge. While installed code waits for this ACE's own procs before restarting ACE and the
+SASE service, it shows a yellow `⚙` gear inset instead (green outranks yellow). The
+yellow tooltip names the blocking procs and the time ACE restarts anyway; clicking it
+opens the Procs tab on the first blocker. Feature-flag restarts never show the yellow
+gear.
 
 ### Proc Indicator
 
@@ -8328,7 +8334,8 @@ full discovery waits for the longer configured recompute cadence, and provider r
 lookups retain their own cache. The top bar renders the `updates:` group as its only
 dark chip (lime `⬆ N` SASE and sage `CLI ⬆ N` segments with separate counts, plus a lime
 `core` tag for a sase-core rebuild, plus a green `⚙` gear inset at the left edge while
-SASE is updating).
+SASE is updating, or a yellow `⚙` gear inset while a tracked restart waits for this
+ACE's own procs).
 
 For editable host, core, and plugin checkouts, the running TUI also remembers the Git
 HEAD imported by the process and cheaply checks whether the checkout has moved on disk.

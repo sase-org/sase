@@ -72,6 +72,22 @@ class BaseUpdateActionsMixin(BaseActionsHost):
             auto_approve=True,
         )
 
+    def _set_pending_update_restart(self, pending: object | None) -> None:
+        """Publish one coalesced pending-restart record to the badge."""
+        from ..widgets.updates_indicator import UpdatesAvailableIndicator
+
+        self._pending_update_restart = pending
+        try:
+            indicator = self.query_one(  # type: ignore[attr-defined]
+                "#updates-indicator", UpdatesAvailableIndicator
+            )
+        except Exception:
+            return
+        try:
+            indicator.set_restart_pending(pending)  # type: ignore[arg-type]
+        except Exception:
+            pass
+
     def _restart_running_code_when_ready(self) -> None:
         """Restart ACE through the existing tracked-proc-aware helper."""
         notify = getattr(self, "notify", None)

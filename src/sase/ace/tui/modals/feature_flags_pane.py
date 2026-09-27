@@ -576,6 +576,7 @@ class FeatureFlagsPane(CopyModeForwardingMixin, Vertical):
             _RESTART_MESSAGE,
             deferred=False,
             restart_purpose=_RESTART_PURPOSE,
+            track_pending=False,
         )
 
     def _notify_error(self, message: str) -> None:

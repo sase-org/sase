@@ -320,3 +320,126 @@ def test_daemon_only_projection_restarts_immediately(
     assert app.messages == [
         ("updated — restarting ACE to load new code.", "information")
     ]
+
+
+class _PendingApp(_App):
+    def __init__(self, *rows: ObservedProc) -> None:
+        super().__init__(*rows)
+        self.pending: list[object | None] = []
+        self._pending_restart_chain: dict[str, object] | None = None
+
+    def _set_pending_update_restart(self, pending: object | None) -> None:
+        self.pending.append(pending)
+
+
+def _monotonic(value: float):
+    return lambda: value
+
+
+def test_tracked_deferred_publishes_pending_and_refreshes_on_poll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _PendingApp(_ordinary_row())
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", _monotonic(100.0))
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000000.0)
+
+    restart_after_update_when_ready(app, "updated", deferred=False)
+
+    assert len(app.pending) == 1
+    first = app.pending[0]
+    assert getattr(first, "blocker_labels", ()) == ("Sync workspace",)
+    assert getattr(first, "blocker_identities", ()) == ("ordinary-work",)
+    assert getattr(first, "restart_by", 0) == 1700000060.0
+    assert app.timers != []
+
+    app._proc_projection = _projection(_ordinary_row(label="Other"), _receiver_row())
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000001.0)
+    app.timers[0][1]()
+
+    assert len(app.pending) == 2
+    second = app.pending[1]
+    assert getattr(second, "blocker_labels", ()) == ("Other", _RECEIVER_LABEL)
+    # queued_at/restart_by carried through the poll, not recomputed.
+    assert getattr(second, "queued_at", None) == getattr(first, "queued_at", None)
+    assert getattr(second, "restart_by", None) == getattr(first, "restart_by", None)
+
+
+def test_immediate_restart_publishes_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _PendingApp()
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", _monotonic(100.0))
+
+    restart_after_update_when_ready(app, "updated", deferred=False)
+
+    assert app.restart_calls == [True]
+    assert app.pending == []
+
+
+def test_untracked_chain_never_publishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _PendingApp(_ordinary_row())
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", _monotonic(100.0))
+
+    restart_after_update_when_ready(app, "updated", deferred=False, track_pending=False)
+
+    assert app.pending == []
+    assert app.timers != []
+    assert getattr(app, "_pending_restart_chain", None) is None
+
+
+def test_second_tracked_request_coalesces_into_one_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _PendingApp(_ordinary_row())
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", _monotonic(100.0))
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.time", lambda: 1700000000.0)
+
+    restart_after_update_when_ready(app, "first", deferred=False)
+    assert len(app.timers) == 1
+
+    restart_after_update_when_ready(app, "second", deferred=False)
+
+    assert len(app.timers) == 1
+    assert app.messages[0][0].startswith("first - restart queued")
+    assert app.messages[1][0].startswith("second - restart queued")
+
+    app._proc_projection = _projection()
+    app.timers[0][1]()
+
+    assert app.restart_calls == [True]
+    assert app.messages[-1][0].startswith("second — restarting ACE")
+
+
+def test_pending_cleared_when_restart_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = SimpleNamespace(
+        messages=[],
+        timers=[],
+        pending=[],
+        _pending_restart_chain=None,
+    )
+    app.notify = lambda message, *, severity="information": app.messages.append(  # type: ignore[attr-defined]
+        (message, severity)
+    )
+
+    def _set_pending(pending: object | None) -> None:
+        app.pending.append(pending)
+
+    app._set_pending_update_restart = _set_pending  # type: ignore[attr-defined]
+
+    def _set_timer(delay: float, callback: object) -> object:
+        app.timers.append((delay, callback))
+        return SimpleNamespace(stop=lambda: None)
+
+    app.set_timer = _set_timer  # type: ignore[attr-defined]
+    monkeypatch.setattr(
+        "sase.ace.tui.update_restart.running_background_procs",
+        lambda _app: [],
+    )
+
+    restart_after_update_when_ready(app, "updated", deferred=False)
+
+    assert app.pending == [None]

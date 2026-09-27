@@ -207,7 +207,7 @@ def test_stash_chip_text_meets_aa_contrast() -> None:
 
 
 def test_update_gear_inset_meets_aa_contrast() -> None:
-    badge = UpdatesAvailableIndicator._build_content(3, running=True)
+    badge = UpdatesAvailableIndicator._build_content(3, gear="updating")
     pairs = _foreground_background_pairs(badge)
     assert pairs, "updating badge has no foreground/background pairs to check"
     for fg, bg in pairs:
@@ -215,6 +215,30 @@ def test_update_gear_inset_meets_aa_contrast() -> None:
         assert ratio >= _MIN_TEXT_CONTRAST, (
             f"updating badge text {fg} on {bg} is {ratio:.2f}:1 "
             f"(need >= {_MIN_TEXT_CONTRAST}:1)"
+        )
+
+
+def test_three_gear_fills_meet_contrast_and_lightness_ladder() -> None:
+    from sase.ace.tui.proc_gear_chips import UPDATE_GEAR_HUES
+
+    fills = [
+        UPDATE_GEAR_HUES["updating"],
+        UPDATE_GEAR_HUES["restart_pending"],
+        UPDATE_GEAR_HUES["failed"],
+    ]
+    luminances = [_relative_luminance(fill) for fill in fills]
+    assert luminances[0] > luminances[1] > luminances[2]
+    for first, second in zip(luminances, luminances[1:], strict=False):
+        ratio = (first + 0.05) / (second + 0.05)
+        assert ratio >= 1.3, f"adjacent gear ratio {ratio:.2f} < 1.3"
+    for fill in fills:
+        ink_ratio = _contrast_ratio("#1a1a1a", fill)
+        assert ink_ratio >= _MIN_TEXT_CONTRAST, (
+            f"gear fill {fill} ink contrast {ink_ratio:.2f}:1"
+        )
+        surface_ratio = _contrast_ratio(fill, UPDATES_SURFACE)
+        assert surface_ratio >= _MIN_SURFACE_CONTRAST, (
+            f"gear fill {fill} surface contrast {surface_ratio:.2f}:1"
         )
 
 
@@ -237,7 +261,9 @@ def test_full_density_chip_text_is_not_dimmed() -> None:
     console = Console(color_system="truecolor", width=120)
     bodies = dict(_neighbors())
     bodies["stashed prompts count"] = StashedPromptsIndicator._build_content(4)
-    bodies["updating badge"] = UpdatesAvailableIndicator._build_content(3, running=True)
+    bodies["updating badge"] = UpdatesAvailableIndicator._build_content(
+        3, gear="updating"
+    )
     assert bodies
     for name, body in bodies.items():
         probe = _LabeledProbe()
