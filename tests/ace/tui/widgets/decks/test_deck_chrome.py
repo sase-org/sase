@@ -13,6 +13,7 @@ from textual.theme import Theme
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckId, DeckView, RenderMode
 from sase.ace.tui.widgets.decks.panel_chrome import DeckPanelChromeMixin
+from sase.ace.tui.widgets.decks.view_policy import ViewStatus
 from sase.ace.tui.widgets.decks.titles import CardTab, deck_title
 from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
 from tests.ace.tui.widgets.decks._deck_spread_test_helpers import pin_paged
@@ -286,3 +287,14 @@ def test_chrome_view_files_reports_paged_auto() -> None:
     view = host._chrome_view(DeckId.FILES)
     assert view is not None
     assert (view.policy, view.shown) == (DeckView.AUTO, DeckView.PAGE_CARDS)
+
+
+def test_chrome_view_files_media_blocked_names_unavailable() -> None:
+    host = _BadgeHost()
+    host.file_view = SimpleNamespace(_file_list=["notes.md", "shot.png"])
+    host.view_policy = lambda _deck: DeckView.SPREAD  # type: ignore[attr-defined]
+    host._files_spread_blocked = True  # type: ignore[attr-defined]
+    view = host._chrome_view(DeckId.FILES)
+    assert view is not None
+    assert view.shown is DeckView.PAGE_CARDS
+    assert view.status is ViewStatus.BLOCKED

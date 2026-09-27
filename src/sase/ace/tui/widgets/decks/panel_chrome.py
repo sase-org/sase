@@ -303,18 +303,24 @@ class DeckPanelChromeMixin:
         # The in-flight cue belongs to a fixed-spread probe; an AUTO probe
         # resolving in the background keeps the stable auto badge.
         pending = bool(probe_in_flight and policy is DeckView.SPREAD)
-        # Media-blocked wiring belongs to the files-engine phase, which owns
-        # the spread-blocked probe states; until then the badge never claims
-        # ``spread unavailable``.
+        try:
+            blocked = bool(getattr(self, "_files_spread_blocked", False))
+        except Exception:
+            blocked = False
         content = ViewContent(
             deck=DeckId.FILES,
             card_count=len(file_list),
             active_block_count=0,
-            spread_blocked=False,
+            spread_blocked=blocked,
         )
         try:
             return resolve_view(
-                DeckId.FILES, policy, effective, content, pending=pending
+                DeckId.FILES,
+                policy,
+                effective,
+                content,
+                pending=pending,
+                blocked=blocked,
             )
         except Exception:
             return None

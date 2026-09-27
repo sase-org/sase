@@ -558,3 +558,34 @@ async def test_cycle_unavailable_for_tools_empty_partial_single() -> None:
         await pilot.pause()
         assert detail.cycle_focused_deck_view() is None
         assert panel.view_policy(DeckId.MAIN) is DeckView.AUTO
+
+
+async def test_final_panel_shows_no_badge_and_no_cycle() -> None:
+    """With the FINAL flag on, a FINAL panel has no badge and P is unavailable.
+
+    Cross-epic R1 (sase-1b2.14 landed): FINAL stays permanently AUTO.
+    """
+    from sase.ace.tui.widgets.decks.titles import _badge_variants
+    from sase.feature_flags import override_flags
+
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.panel(0)
+        with override_flags(ace_final_deck=True):
+            panel.set_deck(DeckId.FINAL)
+            await pilot.pause()
+            assert panel.deck is DeckId.FINAL
+            assert panel.view_policy(DeckId.FINAL) is DeckView.AUTO
+            assert panel.next_view() is None
+            assert panel.deck_view_cycle_available is False
+            assert panel._chrome_view(DeckId.FINAL) is None
+            assert _badge_variants(
+                DeckId.FINAL,
+                panel.resolved_view(),
+                accent="#AF87FF",
+                focused=True,
+            ) == (None, None, None)
+            assert detail.cycle_focused_deck_view() is None
+            assert detail.set_focused_deck_view(DeckView.SPREAD) is False
