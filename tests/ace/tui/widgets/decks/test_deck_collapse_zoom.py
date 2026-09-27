@@ -57,7 +57,10 @@ def test_zoom_round_trip_restores_snapshot_exactly() -> None:
     assert deck_layout.is_zoomed(zoomed)
     assert zoomed.layout is DeckLayout.SINGLE
     assert zoomed.focused == 1
-    assert zoomed.nodes_collapsed is True
+    # Zoom never writes the collapse preference.
+    assert zoomed.nodes_collapsed is state.nodes_collapsed
+    assert deck_layout.sidebar_mode(zoomed) is deck_layout.SidebarMode.HIDDEN
+    assert deck_layout.sidebar_mode(state) is deck_layout.SidebarMode.EXPANDED
     # The zoomed panel keeps its deck, card preference and scroll owner:
     # both panel entries survive, only the layout changes.
     assert zoomed.panels == state.panels
@@ -70,8 +73,18 @@ def test_zoom_from_single_keeps_panel_and_collapses() -> None:
     zoomed = deck_layout.toggle_zoom(DeckAreaState())
     assert zoomed.focused == 0
     assert zoomed.panels == DeckAreaState().panels
-    assert zoomed.nodes_collapsed is True
+    assert zoomed.nodes_collapsed is DeckAreaState().nodes_collapsed
+    assert deck_layout.sidebar_mode(zoomed) is deck_layout.SidebarMode.HIDDEN
     assert deck_layout.toggle_zoom(zoomed) == DeckAreaState()
+
+
+def test_zoom_preserves_collapse_preference() -> None:
+    collapsed = deck_layout.toggle_nodes_collapsed(_split_state())
+    assert deck_layout.sidebar_mode(collapsed) is deck_layout.SidebarMode.RAIL
+    zoomed = deck_layout.toggle_zoom(collapsed)
+    assert zoomed.nodes_collapsed is True
+    assert deck_layout.sidebar_mode(zoomed) is deck_layout.SidebarMode.HIDDEN
+    assert deck_layout.toggle_zoom(zoomed) == collapsed
 
 
 def test_layout_key_ends_zoom_without_restoring() -> None:
@@ -87,12 +100,71 @@ def test_layout_key_ends_zoom_without_restoring() -> None:
 
 
 def test_collapse_key_ends_zoom_then_toggles() -> None:
-    zoomed = deck_layout.toggle_zoom(_split_state())
-    assert zoomed.nodes_collapsed is True
+    state = _split_state()
+    zoomed = deck_layout.toggle_zoom(state)
+    assert deck_layout.sidebar_mode(zoomed) is deck_layout.SidebarMode.HIDDEN
+    # Ctrl+S while zoomed restores the snapshot exactly, like Z.
     ended = deck_layout.toggle_nodes_collapsed(zoomed)
     assert not deck_layout.is_zoomed(ended)
+    assert ended == state
+
+
+def test_sidebar_mode_table() -> None:
+    expanded = DeckAreaState()
+    rail = deck_layout.toggle_nodes_collapsed(expanded)
+    assert deck_layout.sidebar_mode(expanded) is deck_layout.SidebarMode.EXPANDED
+    assert deck_layout.sidebar_mode(rail) is deck_layout.SidebarMode.RAIL
+    assert deck_layout.sidebar_mode(deck_layout.toggle_zoom(expanded)) is (
+        deck_layout.SidebarMode.HIDDEN
+    )
+    assert deck_layout.sidebar_mode(deck_layout.toggle_zoom(rail)) is (
+        deck_layout.SidebarMode.HIDDEN
+    )
+    # (mode, key) transitions: Ctrl+S flips EXPANDED<->RAIL and restores HIDDEN;
+    # Z enters HIDDEN and restores; split keys end zoom without restore.
+    assert deck_layout.toggle_nodes_collapsed(expanded) == rail
+    assert deck_layout.toggle_nodes_collapsed(rail) == expanded
+    assert deck_layout.toggle_nodes_collapsed(deck_layout.toggle_zoom(expanded)) == (
+        expanded
+    )
+    assert deck_layout.toggle_nodes_collapsed(deck_layout.toggle_zoom(rail)) == rail
+    assert deck_layout.toggle_zoom(expanded) != expanded
+    assert deck_layout.toggle_zoom(deck_layout.toggle_zoom(expanded)) == expanded
+    ended = deck_layout.toggle_split(
+        deck_layout.toggle_zoom(expanded),
+        DeckLayout.TOP_BOTTOM,
+        DeckPanelState(DeckId.TOOLS),
+    )
+    assert not deck_layout.is_zoomed(ended)
+    assert ended.nodes_collapsed is expanded.nodes_collapsed
+
+
+def test_expanded_split_zoom_ctrl_s_does_not_flip_preference() -> None:
+    state = _split_state()
+    assert state.nodes_collapsed is False
+    zoomed = deck_layout.toggle_zoom(state)
+    restored = deck_layout.toggle_nodes_collapsed(zoomed)
+    assert restored == state
+    assert restored.nodes_collapsed is False
+
+
+def test_collapsed_split_zoom_ctrl_s_keeps_rail() -> None:
+    rail = deck_layout.toggle_nodes_collapsed(_split_state())
+    assert rail.nodes_collapsed is True
+    zoomed = deck_layout.toggle_zoom(rail)
+    restored = deck_layout.toggle_nodes_collapsed(zoomed)
+    assert restored == rail
+    assert restored.nodes_collapsed is True
+
+
+def test_expanded_split_zoom_split_key_keeps_preference() -> None:
+    state = _split_state()
+    zoomed = deck_layout.toggle_zoom(state)
+    ended = deck_layout.toggle_split(
+        zoomed, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS)
+    )
+    assert not deck_layout.is_zoomed(ended)
     assert ended.nodes_collapsed is False
-    assert ended.layout is DeckLayout.SINGLE
 
 
 def test_node_spine_expand_requested_handler_name() -> None:
@@ -149,6 +221,7 @@ def test_info_chip_renders_collapse_and_zoom() -> None:
     from unittest.mock import patch
 
     from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
+    from sase.ace.tui.widgets.decks.layout import SidebarMode
     from tests.ace.tui.widgets._agent_info_panel_helpers import (
         collect_text,
         stable_state_kwargs,
@@ -160,7 +233,7 @@ def test_info_chip_renders_collapse_and_zoom() -> None:
     assert "nodes" not in collect_text(panel)
     with patch.object(panel, "update"):
         panel.update_state(
-            **stable_state_kwargs(position=12, total=47, nodes_collapsed=True)
+            **stable_state_kwargs(position=12, total=47, sidebar_mode=SidebarMode.RAIL)
         )  # type: ignore[arg-type]
     collapsed_text = collect_text(panel)
     assert "nodes 12/47" in collapsed_text
@@ -168,7 +241,7 @@ def test_info_chip_renders_collapse_and_zoom() -> None:
     with patch.object(panel, "update"):
         panel.update_state(
             **stable_state_kwargs(
-                position=12, total=47, nodes_collapsed=True, nodes_zoomed=True
+                position=12, total=47, sidebar_mode=SidebarMode.HIDDEN
             )
         )  # type: ignore[arg-type]
     zoomed_text = collect_text(panel)
@@ -215,7 +288,8 @@ async def test_zoom_round_trip_keeps_widget_and_card(tmp_path: Path) -> None:
         detail.toggle_deck_zoom()
         await pilot.pause()
         assert detail.is_deck_zoomed is True
-        assert detail.is_nodes_collapsed is True
+        assert detail.sidebar_mode is deck_layout.SidebarMode.HIDDEN
+        assert detail.is_nodes_collapsed is False
         assert area.visible_panels() == (widget_before,)
         assert area.focused_panel() is widget_before
         detail.toggle_deck_zoom()
@@ -277,12 +351,34 @@ async def test_collapse_key_ends_zoom(tmp_path: Path) -> None:
         agent = make_artifact_agent(tmp_path, status="DONE")
         detail.update_display(agent)
         await pilot.pause()
+        before = detail.deck_area.state
         detail.toggle_deck_zoom()
         await pilot.pause()
         assert detail.is_deck_zoomed is True
         detail.toggle_node_panel()
         await pilot.pause()
         assert detail.is_deck_zoomed is False
+        assert detail.deck_area.state == before
+
+
+async def test_split_key_ends_zoom_from_expanded_brings_list_back(
+    tmp_path: Path,
+) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
+        await pilot.pause()
+        assert detail.sidebar_mode is deck_layout.SidebarMode.EXPANDED
+        detail.toggle_deck_zoom()
+        await pilot.pause()
+        assert detail.sidebar_mode is deck_layout.SidebarMode.HIDDEN
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        assert detail.is_deck_zoomed is False
+        assert detail.sidebar_mode is deck_layout.SidebarMode.EXPANDED
+        assert detail.deck_area.state.nodes_collapsed is False
 
 
 async def test_spine_tracks_selection() -> None:

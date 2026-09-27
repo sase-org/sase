@@ -11,6 +11,7 @@ from textual.widgets import Static
 from ..agent_count_chip import AGENT_COUNT_CHIP_QUEUED_STYLE
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..keymaps.key_validation import is_unbound_key
+from .decks.layout import SidebarMode
 
 _ELEMENT_SEPARATOR = " · "
 
@@ -41,8 +42,7 @@ class AgentInfoPanel(Static):
         self._runner_queue_count = 0
         self._countdown = 0
         self._interval = 0
-        self._nodes_collapsed: bool = False
-        self._nodes_zoomed: bool = False
+        self._sidebar_mode: SidebarMode = SidebarMode.EXPANDED
         self._grouping_mode: str = ""
         self._search_query: str = ""
         self._search_query_seeded: bool = False
@@ -220,8 +220,7 @@ class AgentInfoPanel(Static):
         search_query_match_count: tuple[int, int] | None = None,
         search_query_partial_history: bool = False,
         runner_queue_count: int = 0,
-        nodes_collapsed: bool = False,
-        nodes_zoomed: bool = False,
+        sidebar_mode: SidebarMode | str = SidebarMode.EXPANDED,
     ) -> None:
         """Batch all logical info-panel state into one render.
 
@@ -230,6 +229,11 @@ class AgentInfoPanel(Static):
         through :meth:`update_countdown_only`, which avoids reinvalidating
         the stable cache and requests a no-layout repaint.
         """
+        if isinstance(sidebar_mode, str):
+            try:
+                sidebar_mode = SidebarMode(sidebar_mode)
+            except ValueError:
+                sidebar_mode = SidebarMode.EXPANDED
         new_stable = (
             position,
             total,
@@ -249,8 +253,7 @@ class AgentInfoPanel(Static):
             search_query_rich.plain if search_query_rich is not None else None,
             search_query_match_count,
             search_query_partial_history,
-            nodes_collapsed,
-            nodes_zoomed,
+            sidebar_mode.value,
         )
         old_stable = (
             self._position,
@@ -275,8 +278,7 @@ class AgentInfoPanel(Static):
             ),
             self._search_query_match_count,
             self._search_query_partial_history,
-            self._nodes_collapsed,
-            self._nodes_zoomed,
+            self._sidebar_mode.value,
         )
         if new_stable == old_stable:
             self.update_countdown_only(countdown, interval)
@@ -302,9 +304,9 @@ class AgentInfoPanel(Static):
             _,
             _,
             self._search_query_partial_history,
-            self._nodes_collapsed,
-            self._nodes_zoomed,
+            _sidebar_mode_value,
         ) = new_stable
+        self._sidebar_mode = SidebarMode(_sidebar_mode_value)
         self._countdown = countdown
         self._interval = interval
         self._update_display()
@@ -450,15 +452,20 @@ class AgentInfoPanel(Static):
                 "  filtered on recent history; loading full history...",
                 style="dim italic",
             )
-        if self._nodes_collapsed:
+        if self._sidebar_mode is SidebarMode.HIDDEN:
             self._append_separator(text)
-            if self._nodes_zoomed:
-                zoom_key = self._registry.app.zoom_panel
-                text.append("zoom", style="bold #FFD700")
-                if not is_unbound_key(zoom_key):
-                    text.append(_ELEMENT_SEPARATOR, style="dim")
-                    text.append(key_display_name(zoom_key), style="dim")
+            zoom_key = self._registry.app.zoom_panel
+            text.append("zoom", style="bold #FFD700")
+            if not is_unbound_key(zoom_key):
                 text.append(_ELEMENT_SEPARATOR, style="dim")
+                text.append(key_display_name(zoom_key), style="dim")
+            text.append(_ELEMENT_SEPARATOR, style="dim")
+            text.append("nodes ", style="dim")
+            text.append(
+                f"{self._position}/{self._total}", style=self._TOTAL_COUNT_STYLE
+            )
+        elif self._sidebar_mode is SidebarMode.RAIL:
+            self._append_separator(text)
             text.append("nodes ", style="dim")
             text.append(
                 f"{self._position}/{self._total}", style=self._TOTAL_COUNT_STYLE

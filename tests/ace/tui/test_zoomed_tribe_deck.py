@@ -67,7 +67,7 @@ async def test_zoomed_tribe_summary_steps_keep_zoom_and_follow_selection(
         await page.pause()
         assert detail.is_deck_zoomed is True
         assert is_zoomed(area.state) is True
-        assert area.state.nodes_collapsed is True
+        assert area.state.nodes_collapsed is before_collapsed
         assert detail._current_tribe_identity == first_tribe
 
         await page.press("j")

@@ -122,7 +122,7 @@ class AgentDeckPersistenceMixin:
                     except Exception:
                         pass
             try:
-                detail._sync_nodes_collapsed_chrome()
+                detail._sync_sidebar_chrome()
             except Exception:
                 pass
             try:

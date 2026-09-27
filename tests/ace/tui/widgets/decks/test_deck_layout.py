@@ -313,7 +313,7 @@ def test_exit_zoom_keeping_panels_restores_layout_but_keeps_current_panels() -> 
         nodes_collapsed=False,
     )
     zoomed = toggle_zoom(split)
-    assert zoomed.nodes_collapsed is True
+    assert zoomed.nodes_collapsed is split.nodes_collapsed
     # A deck changed while zoomed (Ctrl+N) must survive ending the zoom.
     zoomed = DeckAreaState(
         panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.TOOLS)),

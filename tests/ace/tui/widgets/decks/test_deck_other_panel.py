@@ -175,7 +175,7 @@ async def test_zoomed_from_single_ends_zoom_and_opens_bottom_panel(
         detail.toggle_deck_zoom()
         await pilot.pause()
         assert detail.is_deck_zoomed
-        assert area.state.nodes_collapsed is True
+        assert area.state.nodes_collapsed is before_collapsed
 
         assert detail.show_deck_in_other_panel(None, DeckId.FILES) is True
         await pilot.pause()

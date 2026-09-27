@@ -5,17 +5,19 @@ from __future__ import annotations
 from typing import Any
 
 from .decks.layout import (
+    SidebarMode,
     choose_new_panel,
     exit_zoom_keeping_panels,
     is_zoomed,
     new_panel_for_deck,
+    sidebar_mode,
     step_ratio,
     toggle_focus,
     toggle_nodes_collapsed,
     toggle_split,
     toggle_zoom,
 )
-from .decks.model import DeckId, DeckLayout
+from .decks.model import DeckAreaState, DeckId, DeckLayout
 from .decks.picker import other_panel_target
 
 
@@ -32,6 +34,26 @@ class AgentDetailDeckLayoutMixin:
             notify = getattr(self.app, "_agents_deck_state_changed", None)  # type: ignore[attr-defined]
             if callable(notify):
                 notify()
+        except Exception:
+            pass
+
+    def _apply_deck_area_state(self, new_state: DeckAreaState) -> None:
+        """Apply ``new_state`` and re-sync sidebar chrome on mode changes."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+        except Exception:
+            return
+        try:
+            old_mode = sidebar_mode(area.state)
+        except Exception:
+            old_mode = None
+        try:
+            area.apply_state(new_state)
+        except Exception:
+            return
+        try:
+            if old_mode is not None and sidebar_mode(new_state) is not old_mode:
+                self._sync_sidebar_chrome()
         except Exception:
             pass
 
@@ -54,7 +76,7 @@ class AgentDetailDeckLayoutMixin:
             self._open_deck_split(target)
             return
         try:
-            area.apply_state(toggle_split(state, target, state.panels[-1]))
+            self._apply_deck_area_state(toggle_split(state, target, state.panels[-1]))
         except Exception:
             return
         self._notify_deck_state_changed()
@@ -129,7 +151,7 @@ class AgentDetailDeckLayoutMixin:
             current_deck is DeckId.FILES and new_panel.deck is DeckId.FILES
         )
         try:
-            area.apply_state(
+            self._apply_deck_area_state(
                 toggle_split(state, target, new_panel, focus_new=focus_new)
             )
         except Exception:
@@ -189,11 +211,10 @@ class AgentDetailDeckLayoutMixin:
         ended_zoom = False
         if target.ends_zoom:
             try:
-                area.apply_state(exit_zoom_keeping_panels(area.state))
+                self._apply_deck_area_state(exit_zoom_keeping_panels(area.state))
             except Exception:
                 return False
             ended_zoom = True
-            self._sync_nodes_collapsed_chrome()
             try:
                 area.focused_panel().refresh_chrome()
             except Exception:
@@ -217,7 +238,7 @@ class AgentDetailDeckLayoutMixin:
         """Move logical focus to the other panel in a split."""
         try:
             area = self.deck_area  # type: ignore[attr-defined]
-            area.apply_state(toggle_focus(area.state))
+            self._apply_deck_area_state(toggle_focus(area.state))
         except Exception:
             return
         self._notify_deck_state_changed()
@@ -226,7 +247,7 @@ class AgentDetailDeckLayoutMixin:
         """Grow or shrink the focused panel one ratio step."""
         try:
             area = self.deck_area  # type: ignore[attr-defined]
-            area.apply_state(step_ratio(area.state, grow))
+            self._apply_deck_area_state(step_ratio(area.state, grow))
         except Exception:
             return
         self._notify_deck_state_changed()
@@ -247,79 +268,108 @@ class AgentDetailDeckLayoutMixin:
         except Exception:
             return False
 
+    @property
+    def sidebar_mode(self) -> SidebarMode:
+        """Return the derived left-column presentation mode."""
+        try:
+            return sidebar_mode(self.deck_area.state)  # type: ignore[attr-defined]
+        except Exception:
+            return SidebarMode.EXPANDED
+
+    @property
+    def is_node_rail(self) -> bool:
+        """Return whether the node panel is in rail mode."""
+        return self.sidebar_mode is SidebarMode.RAIL
+
     def toggle_node_panel(self) -> None:
-        """Collapse or expand the node panel without unmounting it."""
+        """Collapse or expand the node panel without unmounting it.
+
+        While zoomed, restore the snapshot exactly like Z.
+        """
         try:
             area = self.deck_area  # type: ignore[attr-defined]
-            area.apply_state(toggle_nodes_collapsed(area.state))
+            if is_zoomed(area.state):
+                self.toggle_deck_zoom()
+                return
+            self._apply_deck_area_state(toggle_nodes_collapsed(area.state))
         except Exception:
             return
-        self._sync_nodes_collapsed_chrome()
         self._notify_deck_state_changed()
 
     def toggle_deck_zoom(self) -> None:
         """Zoom the focused deck panel in place, or restore the snapshot."""
         try:
             area = self.deck_area  # type: ignore[attr-defined]
-            area.apply_state(toggle_zoom(area.state))
+            self._apply_deck_area_state(toggle_zoom(area.state))
         except Exception:
             return
-        self._sync_nodes_collapsed_chrome()
         try:
             area.focused_panel().refresh_chrome()
         except Exception:
             pass
         self._notify_deck_state_changed()
 
-    def _sync_nodes_collapsed_chrome(self) -> None:
-        """Sync the agents-content collapse class, spine and focus safety."""
+    def _sync_sidebar_chrome(self) -> None:
+        """Sync sidebar mode classes, spine visibility and focus safety."""
+        from ..util.trace import tui_trace
+
         try:
             area = self.deck_area  # type: ignore[attr-defined]
-            collapsed = bool(area.state.nodes_collapsed)
+            mode = sidebar_mode(area.state)
         except Exception:
             return
-        try:
-            app = self.app  # type: ignore[attr-defined]
-        except Exception:
-            return
-        try:
-            content = app.query_one("#agents-content")
-        except Exception:
-            content = None
-        if content is not None:
+        with tui_trace("agents.sidebar.sync", mode=mode.value):
             try:
-                if collapsed:
-                    content.add_class("-nodes-collapsed")
-                else:
+                app = self.app  # type: ignore[attr-defined]
+            except Exception:
+                return
+            try:
+                app._agents_sidebar_mode = mode
+            except Exception:
+                pass
+            try:
+                content = app.query_one("#agents-content")
+            except Exception:
+                content = None
+            if content is not None:
+                try:
                     content.remove_class("-nodes-collapsed")
-            except Exception:
-                pass
-        try:
-            from .decks.node_spine import NodeSpine
-
-            spine = app.query_one("#agent-node-spine", NodeSpine)
-        except Exception:
-            spine = None
-        if spine is not None:
+                    if mode is SidebarMode.RAIL:
+                        content.add_class("-nodes-rail")
+                    else:
+                        content.remove_class("-nodes-rail")
+                    if mode is SidebarMode.HIDDEN:
+                        content.add_class("-nodes-hidden")
+                    else:
+                        content.remove_class("-nodes-hidden")
+                except Exception:
+                    pass
             try:
-                if collapsed:
-                    spine.remove_class("hidden")
+                from .decks.node_spine import NodeSpine
+
+                spine = app.query_one("#agent-node-spine", NodeSpine)
+            except Exception:
+                spine = None
+            if spine is not None:
+                try:
+                    if mode is SidebarMode.RAIL:
+                        spine.remove_class("hidden")
+                    else:
+                        spine.add_class("hidden")
+                except Exception:
+                    pass
+            if mode is not SidebarMode.EXPANDED:
+                self._move_focus_off_hidden_list()
+            try:
+                info = getattr(app, "_update_agents_info_panel", None)
+                if callable(info):
+                    info()
                 else:
-                    spine.add_class("hidden")
+                    footer = getattr(app, "_refresh_agent_footer_bindings_only", None)
+                    if callable(footer):
+                        footer()
             except Exception:
                 pass
-        if collapsed:
-            self._move_focus_off_hidden_list()
-        try:
-            info = getattr(app, "_update_agents_info_panel", None)
-            if callable(info):
-                info()
-            else:
-                footer = getattr(app, "_refresh_agent_footer_bindings_only", None)
-                if callable(footer):
-                    footer()
-        except Exception:
-            pass
 
     def _move_focus_off_hidden_list(self) -> None:
         """Move Textual focus off the hidden node list when it holds it."""

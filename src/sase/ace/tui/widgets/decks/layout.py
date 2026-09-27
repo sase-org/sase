@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Mapping, Sequence
+from enum import Enum
 
 from .model import (
     DeckAreaState,
@@ -14,6 +15,23 @@ from .model import (
 )
 
 RATIO_STEPS: tuple[int, ...] = (30, 50, 70)
+
+
+class SidebarMode(Enum):
+    """Left-column presentation derived from deck-area state."""
+
+    EXPANDED = "expanded"
+    RAIL = "rail"
+    HIDDEN = "hidden"
+
+
+def sidebar_mode(state: DeckAreaState) -> SidebarMode:
+    """Derive the sidebar mode: HIDDEN when zoomed, else RAIL when collapsed."""
+    if state.zoom_snapshot is not None:
+        return SidebarMode.HIDDEN
+    if state.nodes_collapsed:
+        return SidebarMode.RAIL
+    return SidebarMode.EXPANDED
 
 
 def choose_new_panel(
@@ -128,10 +146,10 @@ def toggle_split(
 def toggle_nodes_collapsed(state: DeckAreaState) -> DeckAreaState:
     """Collapse or expand the node panel without unmounting it.
 
-    While zoomed, Ctrl+S ends the zoom (the snapshot is dropped) and then
-    toggles the collapse on the current state.
+    While zoomed, Ctrl+S restores the snapshot exactly, like Z.
     """
-    state = _zoom_ended(state)
+    if state.zoom_snapshot is not None:
+        return _exit_zoom(state)
     return dataclasses.replace(state, nodes_collapsed=not state.nodes_collapsed)
 
 
@@ -141,11 +159,12 @@ def is_zoomed(state: DeckAreaState) -> bool:
 
 
 def _enter_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:
-    """Zoom the focused panel in place, collapsing the node panel.
+    """Zoom the focused panel in place, hiding the node panel.
 
     Snapshots the deck-area state (layout, panels, focus, ratio, collapse)
-    and shows only the focused panel as SINGLE. A second ``Z`` restores the
-    snapshot exactly via :func:`_exit_zoom`.
+    and shows only the focused panel as SINGLE. The ``nodes_collapsed``
+    preference is left untouched so zoom never leaks into it. A second ``Z``
+    restores the snapshot exactly via :func:`_exit_zoom`.
     """
     if state.zoom_snapshot is not None:
         return state
@@ -158,7 +177,6 @@ def _enter_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaSta
         panels=snapshot.panels,
         focused=index,
         layout=DeckLayout.SINGLE,
-        nodes_collapsed=True,
         zoom_snapshot=snapshot,
     )
 

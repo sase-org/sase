@@ -477,3 +477,40 @@ def test_final_panel_keeps_views(tmp_path: Path) -> None:
     assert loaded.panels[0].views == DeckViewPolicies(
         main=DeckView.PAGE_CARDS, files=DeckView.SPREAD
     )
+
+
+def test_zoom_is_never_saved_and_preference_survives() -> None:
+    from sase.ace.tui.widgets.decks.layout import (
+        sidebar_mode,
+        toggle_nodes_collapsed,
+        toggle_split,
+    )
+    from sase.ace.tui.widgets.decks.layout import SidebarMode
+
+    expanded_split = toggle_split(
+        DeckAreaState(), DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.FILES)
+    )
+    assert sidebar_mode(expanded_split) is SidebarMode.EXPANDED
+    zoomed = toggle_zoom(expanded_split)
+    assert sidebar_mode(zoomed) is SidebarMode.HIDDEN
+    saved = snapshot_from_area_state(zoomed)
+    assert saved.nodes_collapsed is False
+    assert saved.layout is DeckLayout.LEFT_RIGHT
+    rebuilt = area_state_from_snapshot(saved)
+    assert rebuilt.nodes_collapsed is False
+    assert rebuilt.zoom_snapshot is None
+
+    rail_split = toggle_nodes_collapsed(expanded_split)
+    assert rail_split.nodes_collapsed is True
+    zoomed_rail = toggle_zoom(rail_split)
+    assert zoomed_rail.nodes_collapsed is True
+    saved_rail = snapshot_from_area_state(zoomed_rail)
+    assert saved_rail.nodes_collapsed is True
+    rebuilt_rail = area_state_from_snapshot(saved_rail)
+    assert rebuilt_rail.nodes_collapsed is True
+
+    split_ended = toggle_split(
+        zoomed, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS)
+    )
+    assert split_ended.nodes_collapsed is False
+    assert snapshot_from_area_state(split_ended).nodes_collapsed is False

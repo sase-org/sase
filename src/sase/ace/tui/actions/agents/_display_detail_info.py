@@ -254,21 +254,18 @@ class AgentInfoDisplayMixin:
         display_query, query_rich, match_count = self._agents_info_panel_query_display()
         load_state = getattr(self, "_agent_load_state", None)
         query_partial_history = bool(getattr(load_state, "query_incomplete", False))
-        nodes_collapsed = False
-        nodes_zoomed = False
+        from ...widgets.decks.layout import SidebarMode as _SidebarMode
+
+        sidebar_mode_value: object = _SidebarMode.EXPANDED
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         except NoMatches:
             agent_detail = None
         if agent_detail is not None:
             try:
-                nodes_collapsed = bool(agent_detail.is_nodes_collapsed)  # type: ignore[attr-defined]
+                sidebar_mode_value = agent_detail.sidebar_mode  # type: ignore[attr-defined]
             except Exception:
-                nodes_collapsed = False
-            try:
-                nodes_zoomed = bool(agent_detail.is_deck_zoomed)  # type: ignore[attr-defined]
-            except Exception:
-                nodes_zoomed = False
+                pass
         update_state = getattr(agent_info_panel, "update_state", None)
         if callable(update_state):
             update_state(
@@ -294,8 +291,7 @@ class AgentInfoDisplayMixin:
                 search_query_partial_history=query_partial_history,
                 grouping_mode=grouping_mode,
                 runner_queue_count=runner_capacity.queued_count,
-                nodes_collapsed=nodes_collapsed,
-                nodes_zoomed=nodes_zoomed,
+                sidebar_mode=sidebar_mode_value,
             )
             self._refresh_node_spine()
             return

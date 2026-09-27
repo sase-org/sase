@@ -3779,7 +3779,11 @@ HintInputBar #hint-escape-hint {
     display: none;
 }
 
-#agents-content.-nodes-collapsed #agent-list-container {
+#agents-content.-nodes-rail #agent-list-container {
+    display: none;
+}
+
+#agents-content.-nodes-hidden #agent-list-container {
     display: none;
 }
 
