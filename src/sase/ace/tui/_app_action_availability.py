@@ -103,6 +103,12 @@ _CARD_BLOCK_ACTIONS = frozenset(
         "next_card_block",
     }
 )
+_DECK_VIEW_ACTIONS = frozenset(
+    {
+        "cycle_deck_view",
+        "set_deck_view_at",
+    }
+)
 
 
 def _focused_card_blocks_navigable(app: Any) -> bool:
@@ -113,6 +119,18 @@ def _focused_card_blocks_navigable(app: Any) -> bool:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         panel = detail.deck_area.focused_panel()  # type: ignore[attr-defined]
         return bool(panel.card_blocks_navigable)
+    except Exception:
+        return False
+
+
+def _focused_deck_view_cycle_available(app: Any) -> bool:
+    """Return the focused deck panel's cached deck-view cycle predicate."""
+    try:
+        from sase.ace.tui.widgets import AgentDetail
+
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.focused_panel()  # type: ignore[attr-defined]
+        return bool(panel.deck_view_cycle_available)
     except Exception:
         return False
 
@@ -152,6 +170,7 @@ def check_app_action(
         or action in _DECK_NAV_ACTIONS
         or action in _DECK_LAYOUT_ACTIONS
         or action in _CARD_BLOCK_ACTIONS
+        or action in _DECK_VIEW_ACTIONS
         or action == "act_on_agent"
     ):
         return False
@@ -162,6 +181,14 @@ def check_app_action(
         if app.current_tab != "agents":
             return False
         return bool(_focused_card_blocks_navigable(app))
+    if action in _DECK_VIEW_ACTIONS:
+        if app.current_tab != "agents":
+            return False
+        from textual.screen import ModalScreen
+
+        if isinstance(getattr(app, "screen", None), ModalScreen):
+            return False
+        return bool(_focused_deck_view_cycle_available(app))
     if action in _DECK_LAYOUT_ACTIONS:
         if app.current_tab != "agents":
             return False

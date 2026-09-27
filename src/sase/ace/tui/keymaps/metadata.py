@@ -157,6 +157,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("next_deck", "Next Deck", False),
     ("prev_deck", "Previous Deck", False),
     ("pick_deck", "Pick Deck", False),
+    ("cycle_deck_view", "Cycle Deck View", False),
     ("toggle_deck_split_below", "Split Deck Below", False),
     ("toggle_deck_split_right", "Split Deck Right", False),
     ("toggle_deck_focus", "Focus Other Deck Panel", False),

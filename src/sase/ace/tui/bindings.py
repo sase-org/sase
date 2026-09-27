@@ -270,6 +270,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+n", "next_deck", "Next Deck", show=False),
     Binding("ctrl+p", "prev_deck", "Previous Deck", show=False),
     Binding("p", "pick_deck", "Pick Deck", show=False),
+    Binding("P", "cycle_deck_view", "Cycle Deck View", show=False),
     Binding("backslash", "toggle_deck_split_below", "Split Deck Below", show=False),
     Binding("vertical_line", "toggle_deck_split_right", "Split Deck Right", show=False),
     Binding("ctrl+s", "toggle_node_panel", "Collapse/Expand Node Panel", show=False),

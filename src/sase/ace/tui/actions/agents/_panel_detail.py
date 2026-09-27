@@ -183,6 +183,77 @@ class AgentPanelDetailMixin:
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         agent_detail.cycle_focused_card_block(-1)
 
+    def action_cycle_deck_view(self) -> None:
+        """Cycle the focused deck panel's view one step wider (Agents only)."""
+        if self.current_tab != "agents":
+            return
+        from ...widgets import AgentDetail
+        from ...widgets.decks.model import DeckId
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        try:
+            result = agent_detail.cycle_focused_deck_view()
+        except Exception:
+            return
+        if result is None:
+            return
+        _new_view, first_fix = result
+        if first_fix:
+            try:
+                panel = agent_detail.deck_area.focused_panel()
+                deck = panel.deck
+            except Exception:
+                deck = None
+            deck_name = "Main" if deck is DeckId.MAIN else "Files"
+            try:
+                message = (
+                    f"{deck_name} view fixed \u00b7 palette \u201cDeck view:"
+                    " automatic\u201d undoes"
+                )[:70]
+                self.notify(message)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        try:
+            refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh):
+                refresh()
+        except Exception:
+            pass
+
+    def action_set_deck_view_at(self, index: int) -> None:
+        """Set the focused deck panel's view from a palette choice."""
+        if self.current_tab != "agents":
+            return
+        from ...widgets import AgentDetail
+        from ...widgets.decks.model import DECK_VIEW_CHOICES
+
+        try:
+            position = int(index)
+        except Exception:
+            return
+        if position < 0 or position >= len(DECK_VIEW_CHOICES):
+            return
+        view = DECK_VIEW_CHOICES[position]
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        try:
+            changed = agent_detail.set_focused_deck_view(view)
+        except Exception:
+            return
+        if not changed:
+            return
+        try:
+            refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh):
+                refresh()
+        except Exception:
+            pass
+
     def action_next_deck(self) -> None:
         """Cycle the focused deck panel to the next deck (wraps)."""
         if self.current_tab != "agents":

@@ -100,6 +100,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Older / newer card block",
                 ),
                 (
+                    d(a.cycle_deck_view),
+                    "Cycle deck view (auto: palette)",
+                ),
+                (
                     d(a.pick_deck),
                     "Pick deck for focused panel (decks)",
                 ),

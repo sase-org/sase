@@ -440,9 +440,15 @@ def test_command_specs_are_well_formed() -> None:
             "tasks",
             "statistics",
             "provider_usage",
+            "agents.deck_view.auto",
+            "agents.deck_view.spread",
+            "agents.deck_view.page_cards",
+            "agents.deck_view.page_blocks",
         }:
-            # These Admin Center panels are intentionally keyless: searchable
-            # commands with no direct binding that open the corresponding tab.
+            # These Admin Center panels and the palette-only deck-view
+            # choices are intentionally keyless: searchable commands with
+            # no direct binding that open the corresponding tab or apply
+            # a fixed deck view.
             assert spec.key_sequence == ()
             assert spec.key_display == ""
             continue

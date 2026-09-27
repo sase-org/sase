@@ -674,6 +674,8 @@ ace:
       prev_deck: "ctrl+p"
       # Agents-only deck picker. Shares p with pick_artifacts_project (Artifacts); disambiguated by tab availability.
       pick_deck: "p"
+      # Agents-only deck view cycle. Uppercase P has no app-level binding today.
+      cycle_deck_view: "P"
       toggle_deck_split_below: "backslash"
       toggle_deck_split_right: "vertical_line"
       toggle_deck_focus: "ctrl+f"

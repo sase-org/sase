@@ -206,6 +206,44 @@ def _iter_deck_picker_commands(
         )
 
 
+def _iter_deck_view_commands() -> Iterator[CommandSpec]:
+    """Yield palette-only direct deck-view choices plus automatic.
+
+    Each command dispatches through ``action_set_deck_view_at`` over
+    ``DECK_VIEW_CHOICES`` order (AUTO, SPREAD, PAGE_CARDS, PAGE_BLOCKS).
+    The four entries are fixed choices, not a per-deck iteration.
+    """
+    from sase.ace.tui.widgets.decks.model import DECK_VIEW_CHOICES
+
+    labels = {
+        "auto": "Deck view: automatic",
+        "spread": "Deck view: spread (fixed)",
+        "page_cards": "Deck view: page cards (fixed)",
+        "page_blocks": "Deck view: page blocks (fixed)",
+    }
+    for index, view in enumerate(DECK_VIEW_CHOICES):
+        label = labels[view.value]
+        yield CommandSpec(
+            id=f"agents.deck_view.{view.value}",
+            label=label,
+            key_sequence=(),
+            key_display="",
+            category="Navigation",
+            tabs=AGENTS_ONLY,
+            executor=CommandExecutor(
+                kind="app_action",
+                action="set_deck_view_at",
+                digit=index,
+            ),
+            aliases=(
+                "deck view",
+                "deck layout",
+                view.value.replace("_", " "),
+                label.lower(),
+            ),
+        )
+
+
 def iter_digit_commands(
     registry: KeymapRegistry | None = None,
 ) -> Iterator[CommandSpec]:
@@ -401,6 +439,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog.extend(iter_app_commands(registry))
     catalog.extend(_iter_agents_panel_layout_command(registry))
     catalog.extend(_iter_deck_picker_commands(registry))
+    catalog.extend(_iter_deck_view_commands())
     catalog.extend(iter_saved_query_commands(registry))
     catalog.extend(_iter_artifacts_subtab_commands())
     catalog.extend(_iter_tasks_command())

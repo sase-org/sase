@@ -176,6 +176,10 @@ def test_every_command_spec_has_label_and_key_display() -> None:
             "tasks",
             "statistics",
             "provider_usage",
+            "agents.deck_view.auto",
+            "agents.deck_view.spread",
+            "agents.deck_view.page_cards",
+            "agents.deck_view.page_blocks",
         }:
             assert spec.key_sequence == (), f"{spec.id}: expected keyless"
             assert spec.key_display == "", f"{spec.id}: expected blank key display"
@@ -286,12 +290,12 @@ def test_category_order_entries_are_unique() -> None:
 
 def test_catalog_specs_use_configured_keys() -> None:
     """A user-overridden app key must propagate through the catalog."""
-    reg = load_keymap_registry({"keymaps": {"app": {"refresh": "P"}}})
+    reg = load_keymap_registry({"keymaps": {"app": {"refresh": "f9"}}})
     catalog = build_command_catalog(reg)
     spec = get_command_by_id(catalog, "app.refresh")
     assert spec is not None
-    assert spec.key_sequence == ("P",)
-    assert spec.key_display == "P"
+    assert spec.key_sequence == ("f9",)
+    assert spec.key_display == "f9"
 
 
 def test_pick_artifacts_project_command_mentions_seeded_scope() -> None:

@@ -244,6 +244,9 @@ class CommandContext:
     agents_metadata_search_active: bool = False
     agent_deck_split: bool = False
     card_blocks_navigable: bool = False
+    deck_view_deck: str | None = None
+    deck_view_policy: str | None = None
+    deck_view_cycle_available: bool = False
     fleet_enabled: bool = False
     selected_agent_remote: bool = False
     # Axe tab state

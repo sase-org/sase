@@ -52,10 +52,10 @@ def test_every_app_keymap_has_a_command_spec() -> None:
 
 def test_app_command_spec_uses_configured_key() -> None:
     """A CommandSpec's key sequence must reflect the merged keymap."""
-    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "P"}}})
+    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "f9"}}})
     by_id = {c.id: c for c in iter_app_commands(reg)}
-    assert by_id["app.next_patch"].key_sequence == ("P",)
-    assert by_id["app.next_patch"].key_display == "P"
+    assert by_id["app.next_patch"].key_sequence == ("f9",)
+    assert by_id["app.next_patch"].key_display == "f9"
 
 
 def test_open_command_palette_command_uses_default_key() -> None:
@@ -416,11 +416,11 @@ def test_saved_query_commands_cover_all_prefixed_slots() -> None:
 
 def test_saved_query_commands_follow_configured_slot_prefix() -> None:
     registry = load_keymap_registry(
-        {"keymaps": {"app": {"start_saved_query_mode": "P"}}}
+        {"keymaps": {"app": {"start_saved_query_mode": "f9"}}}
     )
     queries = list(iter_digit_commands(registry))
-    assert queries[0].key_sequence == ("P", "1")
-    assert queries[0].key_display == "P1"
+    assert queries[0].key_sequence == ("f9", "1")
+    assert queries[0].key_display == "f9 1"
 
 
 # --- Built-in mode coverage ---

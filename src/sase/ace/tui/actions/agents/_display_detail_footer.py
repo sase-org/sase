@@ -311,6 +311,7 @@ class AgentFooterDisplayMixin:
             deck_split = False
             deck_card_count = 0
             card_blocks_navigable = False
+            deck_view_cycle_available = False
             try:
                 from ...widgets.decks.model import DeckId as _DeckId
                 from ...widgets.decks.model import DeckLayout as _DeckLayout
@@ -323,6 +324,12 @@ class AgentFooterDisplayMixin:
                         card_blocks_navigable = bool(focused.card_blocks_navigable)
                     except Exception:
                         card_blocks_navigable = False
+                    try:
+                        deck_view_cycle_available = bool(
+                            focused.deck_view_cycle_available
+                        )
+                    except Exception:
+                        deck_view_cycle_available = False
                     if focused.deck is _DeckId.MAIN:
                         try:
                             deck_card_count = len(
@@ -364,6 +371,7 @@ class AgentFooterDisplayMixin:
                 deck_split = False
                 deck_card_count = 0
                 card_blocks_navigable = False
+                deck_view_cycle_available = False
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -409,6 +417,7 @@ class AgentFooterDisplayMixin:
                 deck_split=deck_split,
                 deck_card_count=deck_card_count,
                 card_blocks_navigable=card_blocks_navigable,
+                deck_view_cycle_available=deck_view_cycle_available,
             )
 
     def _refresh_agent_footer_bindings_only(self) -> None:

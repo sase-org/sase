@@ -215,6 +215,63 @@ def _card_blocks_navigable(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
         return False
 
 
+def _deck_view_state(app: AceApp) -> tuple[str | None, str | None, bool]:  # type: ignore[no-untyped-def]
+    """Return ``(deck, policy, cycle_available)`` for deck-view commands.
+
+    ``deck``/``policy`` are the focused panel's ``DeckId``/``DeckView``
+    values, or ``None`` when the focused deck is empty or a Main partial
+    document is shown (direct commands hide there). Explicit Main/Files
+    dispatch only; Tools, FINAL, and anything else surface their real
+    deck value so availability stays fail-closed.
+    """
+    if app.current_tab != "agents":
+        return (None, None, False)
+    try:
+        from sase.ace.tui.widgets import AgentDetail
+        from sase.ace.tui.widgets.decks.model import DeckId
+
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.focused_panel()  # type: ignore[attr-defined]
+        deck = panel.deck
+        try:
+            cycle_available = bool(panel.deck_view_cycle_available)
+        except Exception:
+            cycle_available = False
+        if deck is DeckId.MAIN:
+            try:
+                document = panel._main_document
+            except Exception:
+                return (None, None, cycle_available)
+            try:
+                if bool(document.partial) or not document.cards:
+                    return (None, None, cycle_available)
+            except Exception:
+                return (None, None, cycle_available)
+            try:
+                policy = panel.view_policy(deck)
+            except Exception:
+                return ("main", None, cycle_available)
+            return ("main", policy.value, cycle_available)
+        if deck is DeckId.FILES:
+            try:
+                if bool(panel._deck_is_empty(deck)):
+                    return (None, None, cycle_available)
+            except Exception:
+                return (None, None, cycle_available)
+            try:
+                policy = panel.view_policy(deck)
+            except Exception:
+                return ("files", None, cycle_available)
+            return ("files", policy.value, cycle_available)
+        try:
+            deck_value = deck.value
+        except Exception:
+            deck_value = None
+        return (deck_value, None, False)
+    except Exception:
+        return (None, None, False)
+
+
 def _completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     agents = getattr(app, "_agents", [])
     return sum(1 for a in agents if is_unread_completed_status(a.status))
@@ -378,6 +435,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         deck_split = _detail.deck_layout is not _DeckLayout.SINGLE  # type: ignore[attr-defined]
     except Exception:
         deck_split = False
+    deck_view_deck, deck_view_policy, deck_view_cycle = _deck_view_state(app)
     return CommandContext(
         tab=tab,
         artifacts_subtab=getattr(app, "current_artifacts_pane_key", "patches"),
@@ -406,6 +464,9 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         agents_metadata_search_active=metadata_search_active,
         agent_deck_split=deck_split,
         card_blocks_navigable=_card_blocks_navigable(app),
+        deck_view_deck=deck_view_deck,
+        deck_view_policy=deck_view_policy,
+        deck_view_cycle_available=deck_view_cycle,
         fleet_enabled=bool(fleet_available()) if callable(fleet_available) else False,
         selected_agent_remote=selected_remote,
         link_edges_present=link_edges_present,

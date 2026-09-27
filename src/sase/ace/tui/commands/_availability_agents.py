@@ -189,6 +189,18 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         "app.next_card_block",
     }:
         return bool(ctx.card_blocks_navigable)
+    if spec.id == "app.cycle_deck_view":
+        return bool(ctx.deck_view_cycle_available)
+    if spec.id.startswith("agents.deck_view."):
+        deck = ctx.deck_view_deck
+        if deck not in ("main", "files"):
+            return False
+        view = spec.id.removeprefix("agents.deck_view.")
+        if view == "page_blocks" and deck != "main":
+            return False
+        if ctx.deck_view_policy is not None and view == ctx.deck_view_policy:
+            return False
+        return True
     if spec.id in {
         "app.scroll_prompt_down",
         "app.scroll_prompt_up",

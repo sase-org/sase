@@ -383,7 +383,10 @@ async def test_agents_deck_blocks_spread_deck_sticky_png_snapshot(
                 code_turns=1,
                 include_gate_monitor=False,
                 tiny_content=True,
-                extra_reply_lines=4,
+                # Three extra lines keeps this session spread yet scrollable
+                # under the Agents footer with its P view entry; four lines
+                # tips AUTO into page cards.
+                extra_reply_lines=3,
             ),
         ],
     )
