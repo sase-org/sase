@@ -1014,16 +1014,20 @@ Every update run (`clean`, `applied`, or `partial`) and check-mode drift retain 
 reviewable report under a unique run directory in `.pytest_cache/sase-visual/runs/`,
 alongside the logs and candidates of every pass (`capture.log`, `capture-retry.log`,
 `recover-N.log`, `verify*.log`). `.pytest_cache/sase-visual/latest-report.json` points
-at the current run only. The manifest records `warnings`, `skipped` (each with a reason
-such as `test_failed`, `unstable`, `owner_mismatch`, or `concurrent_edit`, plus evidence
-paths), `attempts`, and `pruning_skipped_reason`, and the HTML report and `summary.md`
-end with a "Not updated" section listing the same skips. Inspect every creation and
-removal, then each update group (representative plus members), then the "Not updated"
-list — generation is not approval, and a skipped golden is not known to be current.
-After an interrupted apply, the next update invocation may restore the recorded baseline
-when hashes still match; if the journal conflicts with the current goldens, update mode
-refuses with exit 2. A check invocation never performs recovery writes and fails with
-exit 3 while an unfinished journal exists.
+at the current run only. At the end of every run, while still holding the maintenance
+lock, old run directories are pruned: the run `latest-report.json` points at, the
+current run, any run with an unfinished (`planned` or `applying`) or unreadable apply
+journal, the 10 most recent runs, and any run with a file modified in the last 24 hours
+survive, and the rest are deleted. The manifest records `warnings`, `skipped` (each with
+a reason such as `test_failed`, `unstable`, `owner_mismatch`, or `concurrent_edit`, plus
+evidence paths), `attempts`, and `pruning_skipped_reason`, and the HTML report and
+`summary.md` end with a "Not updated" section listing the same skips. Inspect every
+creation and removal, then each update group (representative plus members), then the
+"Not updated" list — generation is not approval, and a skipped golden is not known to be
+current. After an interrupted apply, the next update invocation may restore the recorded
+baseline when hashes still match; if the journal conflicts with the current goldens,
+update mode refuses with exit 2. A check invocation never performs recovery writes and
+fails with exit 3 while an unfinished journal exists.
 
 `just` may normalize a non-zero child code to 1. Automation that needs the distinction
 between drift (1), usage/environment refusal (2: bad arguments, a pytest usage error,

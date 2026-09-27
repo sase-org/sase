@@ -39,6 +39,9 @@ from tests.ace.tui.visual._visual_maintenance_lock import (
     new_run_id,
     write_run_record,
 )
+from tests.ace.tui.visual._visual_maintenance_retention import (
+    prune_old_runs_best_effort as prune_old_runs_best_effort,
+)
 from tests.ace.tui.visual._visual_maintenance_manifest import (
     build_manifest,
     failure_manifest,
@@ -126,63 +129,84 @@ def run_maintenance(
     """Execute one locked maintenance run."""
     run_id = new_run_id()
     with exclusive_maintenance_lock(repo_root, run_id=run_id, hooks=hooks):
-        recover_unfinished_journals(
-            cache_root(repo_root),
-            repo_root,
-            allow_writes=not request.check,
-        )
-        run_dir = create_run_dir(repo_root, run_id)
-        capture_dir = run_dir / "capture"
-        capture_dir.mkdir(parents=True, exist_ok=True)
-        baseline = capture_golden_baseline(repo_root)
-        renderer = renderer_identity(hooks)
         try:
-            refuse_ci_update(request, hooks=hooks, environ=environ)
-            preflight(request, hooks=hooks)
-        except UsageError as error:
-            manifest = failure_manifest(
+            return _run_maintenance_locked(
                 request,
                 repo_root=repo_root,
+                hooks=hooks,
+                environ=environ,
                 run_id=run_id,
-                run_dir=run_dir,
-                capture_dir=capture_dir,
-                verify_dir=None,
-                baseline=baseline,
-                renderer=renderer,
-                child_exit_code=None,
-                logs={},
-                status=STATUS_REFUSED,
-                errors=(str(error),),
             )
-            try_publish_failure_manifest(repo_root, run_dir, manifest)
-            print_summary(manifest)
-            raise
-        write_run_record(
-            run_dir,
-            {
-                "run_id": run_id,
-                "mode": "check" if request.check else "update",
-                "requested_scope": request.scope,
-                "scope_reasons": list(request.scope_reasons),
-                "arguments": list(request.argv),
-                "pytest_args": list(request.pytest_args),
-                "dirty_before": list(baseline.dirty_paths),
-                "ace_tree_hash": baseline.ace_tree_hash,
-                "pager_tree_hash": baseline.pager_tree_hash,
-                "renderer": renderer,
-                "check": request.check,
-            },
-        )
-        return _run_locked(
+        finally:
+            prune_old_runs_best_effort(repo_root, current_run_id=run_id)
+
+
+def _run_maintenance_locked(
+    request: MaintenanceRequest,
+    *,
+    repo_root: Path,
+    hooks: MaintenanceHooks,
+    environ: Mapping[str, str],
+    run_id: str,
+) -> int:
+    """Execute the locked body of one maintenance run."""
+    recover_unfinished_journals(
+        cache_root(repo_root),
+        repo_root,
+        allow_writes=not request.check,
+    )
+    run_dir = create_run_dir(repo_root, run_id)
+    capture_dir = run_dir / "capture"
+    capture_dir.mkdir(parents=True, exist_ok=True)
+    baseline = capture_golden_baseline(repo_root)
+    renderer = renderer_identity(hooks)
+    try:
+        refuse_ci_update(request, hooks=hooks, environ=environ)
+        preflight(request, hooks=hooks)
+    except UsageError as error:
+        manifest = failure_manifest(
             request,
             repo_root=repo_root,
-            hooks=hooks,
             run_id=run_id,
             run_dir=run_dir,
             capture_dir=capture_dir,
+            verify_dir=None,
             baseline=baseline,
             renderer=renderer,
+            child_exit_code=None,
+            logs={},
+            status=STATUS_REFUSED,
+            errors=(str(error),),
         )
+        try_publish_failure_manifest(repo_root, run_dir, manifest)
+        print_summary(manifest)
+        raise
+    write_run_record(
+        run_dir,
+        {
+            "run_id": run_id,
+            "mode": "check" if request.check else "update",
+            "requested_scope": request.scope,
+            "scope_reasons": list(request.scope_reasons),
+            "arguments": list(request.argv),
+            "pytest_args": list(request.pytest_args),
+            "dirty_before": list(baseline.dirty_paths),
+            "ace_tree_hash": baseline.ace_tree_hash,
+            "pager_tree_hash": baseline.pager_tree_hash,
+            "renderer": renderer,
+            "check": request.check,
+        },
+    )
+    return _run_locked(
+        request,
+        repo_root=repo_root,
+        hooks=hooks,
+        run_id=run_id,
+        run_dir=run_dir,
+        capture_dir=capture_dir,
+        baseline=baseline,
+        renderer=renderer,
+    )
 
 
 def _run_locked(

@@ -27,6 +27,13 @@ from tests.ace.tui.visual._visual_maintenance_lock import (
     exclusive_maintenance_lock as exclusive_maintenance_lock,
     new_run_id as new_run_id,
 )
+from tests.ace.tui.visual._visual_maintenance_retention import (
+    KEEP_RECENT_COUNT as KEEP_RECENT_COUNT,
+    RECENT_MODIFIED_SECONDS as RECENT_MODIFIED_SECONDS,
+    prune_old_runs as prune_old_runs,
+    prune_old_runs_best_effort as prune_old_runs_best_effort,
+    select_runs_to_prune as select_runs_to_prune,
+)
 from tests.ace.tui.visual._visual_maintenance_run import (
     REPO_ROOT as REPO_ROOT,
     build_run_pytest_command as build_run_pytest_command,
@@ -85,6 +92,8 @@ __all__ = [
     "SkippedRecord",
     "UsageError",
     "apply_changes",
+    "KEEP_RECENT_COUNT",
+    "RECENT_MODIFIED_SECONDS",
     "build_parser",
     "build_run_pytest_command",
     "capture_golden_baseline",
@@ -99,6 +108,8 @@ __all__ = [
     "new_run_id",
     "parse_command",
     "print_summary",
+    "prune_old_runs",
+    "prune_old_runs_best_effort",
     "recover_journal",
     "recover_unfinished_journals",
     "resolve_scope",
@@ -106,5 +117,6 @@ __all__ = [
     "run_maintenance",
     "run_update",
     "run_verify_agreement",
+    "select_runs_to_prune",
     "validate_pytest_args",
 ]
