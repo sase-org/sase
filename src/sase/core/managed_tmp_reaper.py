@@ -18,8 +18,9 @@ pressure thresholds themselves are (``managed_tmp`` in ``sase.yml``).
 
 from __future__ import annotations
 
+import os
 import time
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -145,6 +146,12 @@ PRESSURE_REAP_BUCKETS = frozenset({"build-targets", "cargo-targets"})
 MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION = 3
 """Must match ``sase_core::managed_tmp::MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION``."""
 
+LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION = 1
+"""Must match ``sase_core::launch_scratch_liveness::LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION``."""
+
+LAUNCH_SCRATCH_OBSERVER_PROCFS = "procfs"
+LAUNCH_SCRATCH_OBSERVER_UNOBSERVABLE = "unobservable"
+
 
 @dataclass(frozen=True)
 class LaunchScratchLiveness:
@@ -162,6 +169,27 @@ class LaunchScratchRequest:
     scratch_key: str
     buckets: tuple[str, ...]
     liveness: LaunchScratchLiveness
+
+
+@dataclass(frozen=True)
+class LaunchScratchCandidateObservation:
+    """Per-candidate answer from the Rust liveness observer."""
+
+    scratch_key: str
+    path: Path
+    live: bool
+    complete: bool
+
+
+@dataclass(frozen=True)
+class LaunchScratchObservation:
+    """Batch liveness answer for one launch key's candidates."""
+
+    observer: str
+    candidates: tuple[LaunchScratchCandidateObservation, ...]
+    exempted_pre_launch: int
+    unreadable: int
+    diagnostics: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -374,6 +402,66 @@ def reap_managed_tmpdir(
     return _result_from_wire(raw)
 
 
+def observe_launch_scratch_liveness(
+    candidates: Iterable[tuple[str, Path]],
+    *,
+    proc_root: Path | None = None,
+    current_pid: int | None = None,
+    exempt_pids: Iterable[int] = (),
+) -> LaunchScratchObservation:
+    """Ask the Rust observer which candidates a live process still holds.
+
+    *candidates* is one ``(scratch_key, path)`` pair per launch-keyed
+    directory. The observer scans ``/proc`` once (or *proc_root* in
+    tests) and answers per candidate. Hosts without a usable procfs
+    report ``observer="unobservable"`` with every candidate
+    incomplete, so callers preserve rather than remove.
+    """
+    _require_liveness_wire_schema()
+    request = {
+        "schema_version": LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION,
+        "candidates": [
+            {"scratch_key": key, "path": str(path)} for key, path in candidates
+        ],
+        "proc_root": str(proc_root) if proc_root is not None else "/proc",
+        "current_pid": os.getpid() if current_pid is None else current_pid,
+        "exempt_pids": list(exempt_pids),
+    }
+    binding = require_rust_binding("observe_launch_scratch_liveness")
+    raw = binding(request)
+    if raw["schema_version"] != LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs returned an incompatible launch-scratch-liveness "
+            f"result: schema_version must be "
+            f"{LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION}"
+        )
+    return LaunchScratchObservation(
+        observer=str(raw["observer"]),
+        candidates=tuple(
+            LaunchScratchCandidateObservation(
+                scratch_key=str(entry["scratch_key"]),
+                path=Path(str(entry["path"])),
+                live=bool(entry["live"]),
+                complete=bool(entry["complete"]),
+            )
+            for entry in raw["candidates"]
+        ),
+        exempted_pre_launch=int(raw["exempted_pre_launch"]),
+        unreadable=int(raw["unreadable"]),
+        diagnostics=tuple(str(item) for item in raw["diagnostics"]),
+    )
+
+
+def _require_liveness_wire_schema() -> None:
+    binding = require_rust_binding("launch_scratch_liveness_wire_schema_version")
+    version = int(binding())
+    if version != LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs launch-scratch-liveness wire is stale: expected "
+            f"{LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION}, got {version}"
+        )
+
+
 def _require_reap_wire_schema() -> None:
     binding = require_rust_binding("managed_tmp_reap_wire_schema_version")
     version = int(binding())
@@ -483,8 +571,14 @@ __all__ = [
     "MANAGED_TMPDIR_HORIZONS",
     "PRESSURE_REAP_BUCKETS",
     "RUN_ARTIFACT_HORIZON_SECONDS",
+    "LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION",
+    "LAUNCH_SCRATCH_OBSERVER_PROCFS",
+    "LAUNCH_SCRATCH_OBSERVER_UNOBSERVABLE",
+    "LaunchScratchCandidateObservation",
     "LaunchScratchLiveness",
+    "LaunchScratchObservation",
     "LaunchScratchRequest",
     "current_managed_tmp_horizons",
+    "observe_launch_scratch_liveness",
     "reap_managed_tmpdir",
 ]

@@ -59,6 +59,31 @@ def _fake_process(
         (pid_dir / "cwd").symlink_to(cwd, target_is_directory=True)
 
 
+def _write_proc_btime(proc_root: Path, btime: int) -> None:
+    (proc_root / "stat").write_text(
+        f"cpu  0 0 0 0 0 0 0 0 0 0\nbtime {btime}\n", encoding="utf-8"
+    )
+
+
+def _write_pid_stat(pid_dir: Path, starttime_ticks: int) -> None:
+    fields = ["R", "1", *["0"] * 17, str(starttime_ticks)]
+    (pid_dir / "stat").write_text(
+        f"1 (fake-proc) {' '.join(fields)}\n", encoding="utf-8"
+    )
+
+
+def _fake_unreadable_process(
+    proc_root: Path,
+    *,
+    pid: int,
+    starttime_ticks: int,
+) -> None:
+    pid_dir = proc_root / str(pid)
+    pid_dir.mkdir()
+    (pid_dir / "environ").mkdir()
+    _write_pid_stat(pid_dir, starttime_ticks)
+
+
 def test_cleanup_launch_scratch_removes_launch_assigned_directories(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -198,6 +223,65 @@ def test_cleanup_launch_scratch_preserves_symlink_candidate(
     assert cargo.is_symlink()
     assert outside.is_dir()
     assert not tmpdir.exists()
+
+
+def test_cleanup_launch_scratch_exempts_pre_launch_unreadable_process(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import time
+
+    proc_root, cargo, tmpdir = _prepare_launch_scratch(monkeypatch, tmp_path)
+    _write_proc_btime(proc_root, int(time.time()) - 1000)
+    _fake_unreadable_process(proc_root, pid=11, starttime_ticks=5)
+
+    scratch.cleanup_launch_scratch(exec_outcome="completed", proc_root=proc_root)
+
+    assert not cargo.exists()
+    assert not tmpdir.exists()
+
+
+def test_cleanup_launch_scratch_preserves_when_late_process_is_unreadable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import time
+
+    proc_root, cargo, tmpdir = _prepare_launch_scratch(monkeypatch, tmp_path)
+    now = time.time()
+    clock_ticks = os.sysconf("SC_CLK_TCK")
+    _write_proc_btime(proc_root, int(now) - 1000)
+    late_ticks = int((now - (int(now) - 1000) + 100) * clock_ticks)
+    _fake_unreadable_process(proc_root, pid=12, starttime_ticks=late_ticks)
+
+    scratch.cleanup_launch_scratch(exec_outcome="completed", proc_root=proc_root)
+
+    assert cargo.is_dir()
+    assert tmpdir.is_dir()
+
+
+def test_cleanup_launch_scratch_logs_structured_line(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import json
+
+    proc_root, cargo, tmpdir = _prepare_launch_scratch(monkeypatch, tmp_path)
+
+    scratch.cleanup_launch_scratch(exec_outcome="completed", proc_root=proc_root)
+
+    assert not cargo.exists()
+    assert not tmpdir.exists()
+    lines = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if "launch_scratch_cleanup" in line
+    ]
+    assert len(lines) == 1
+    assert lines[0]["event"] == "launch_scratch_cleanup"
+    assert lines[0]["status"] == "removed"
+    assert lines[0]["scratch_key"] == "proj-ws7-260914_120000"
 
 
 def test_cleanup_launch_scratch_swallows_owner_failure(

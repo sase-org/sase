@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import json
 import os
 import stat
+import traceback
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.core.dismissed_agent_completion import SHELL_HANDOFF_OUTCOMES
 from sase.core.managed_tmp_reaper import (
+    LAUNCH_SCRATCH_OBSERVER_PROCFS,
     LaunchScratchLiveness,
     LaunchScratchRequest,
+    observe_launch_scratch_liveness,
     reap_managed_tmpdir,
 )
 from sase.core.paths import managed_tmpdir_root
@@ -21,28 +26,12 @@ _CANDIDATE_BUCKETS: tuple[tuple[str, str], ...] = (
     ("cargo-targets", "CARGO_TARGET_DIR"),
     ("agent-tmp", "TMPDIR"),
 )
-_LIVE_PATH_ENV_VARS = frozenset(
-    {
-        "TMPDIR",
-        "TMP",
-        "TEMP",
-        "CARGO_TARGET_DIR",
-        "CARGO_BUILD_BUILD_DIR",
-    }
-)
 
 
 @dataclass(frozen=True)
 class _LaunchScratchCandidate:
     bucket: str
     path: Path
-
-
-@dataclass(frozen=True)
-class _LivenessProbe:
-    live: bool = False
-    complete: bool = True
-    diagnostic: str | None = None
 
 
 def cleanup_launch_scratch(
@@ -53,8 +42,13 @@ def cleanup_launch_scratch(
     """Remove this runner's managed scratch when no live process still owns it."""
     try:
         _cleanup_launch_scratch(exec_outcome=exec_outcome, proc_root=proc_root)
-    except Exception:
-        return
+    except Exception as exc:
+        _emit_cleanup_line(
+            status="error",
+            scratch_key=os.environ.get(SASE_LAUNCH_SCRATCH_KEY_ENV),
+            error=f"{type(exc).__qualname__}: {exc}",
+            error_traceback=traceback.format_exc(),
+        )
 
 
 def _cleanup_launch_scratch(
@@ -62,16 +56,20 @@ def _cleanup_launch_scratch(
     exec_outcome: str,
     proc_root: Path | None,
 ) -> None:
-    if exec_outcome in SHELL_HANDOFF_OUTCOMES:
-        return
     scratch_key = os.environ.get(SASE_LAUNCH_SCRATCH_KEY_ENV)
+    if exec_outcome in SHELL_HANDOFF_OUTCOMES:
+        _emit_cleanup_line(
+            status="skipped",
+            scratch_key=scratch_key,
+            reason=f"shell-handoff:{exec_outcome}",
+        )
+        return
     if not scratch_key:
-        return
-
-    observed_proc_root = Path("/proc") if proc_root is None else proc_root
-    if not _has_usable_proc_root(observed_proc_root):
-        return
-    if not hasattr(os, "getuid"):
+        _emit_cleanup_line(
+            status="skipped",
+            scratch_key=None,
+            reason="no-scratch-key",
+        )
         return
 
     managed_root = managed_tmpdir_root()
@@ -79,9 +77,26 @@ def _cleanup_launch_scratch(
         _launch_scratch_candidates(scratch_key=scratch_key, root=managed_root)
     )
     if not candidates:
+        _emit_cleanup_line(
+            status="skipped",
+            scratch_key=scratch_key,
+            reason="no-matching-candidates",
+        )
         return
-    liveness = _candidate_liveness(candidates, proc_root=observed_proc_root)
-    reap_managed_tmpdir(
+    observation = observe_launch_scratch_liveness(
+        tuple((scratch_key, candidate.path) for candidate in candidates),
+        proc_root=proc_root,
+    )
+    complete = observation.observer == LAUNCH_SCRATCH_OBSERVER_PROCFS and all(
+        candidate.complete for candidate in observation.candidates
+    )
+    live = any(candidate.live for candidate in observation.candidates)
+    liveness = LaunchScratchLiveness(
+        live=live,
+        complete=complete,
+        diagnostics=observation.diagnostics,
+    )
+    result = reap_managed_tmpdir(
         managed_root,
         age_reap=False,
         pressure_reap=False,
@@ -92,6 +107,64 @@ def _cleanup_launch_scratch(
             liveness=liveness,
         ),
     )
+    _emit_cleanup_line(
+        status="preserved" if (live or not complete) else "removed",
+        scratch_key=scratch_key,
+        observer=observation.observer,
+        live=live,
+        removed=result.launch_removed,
+        removed_bytes=result.launch_reclaimed_bytes,
+        skipped=result.skipped,
+        skip_reasons=result.skip_reasons,
+        incomplete_observations=result.incomplete_observations,
+    )
+
+
+def _emit_cleanup_line(
+    *,
+    status: str,
+    scratch_key: str | None,
+    reason: str | None = None,
+    observer: str | None = None,
+    live: bool | None = None,
+    removed: int = 0,
+    removed_bytes: int = 0,
+    skipped: int = 0,
+    skip_reasons: tuple[str, ...] = (),
+    incomplete_observations: int = 0,
+    error: str | None = None,
+    error_traceback: str | None = None,
+) -> None:
+    """Log one structured ``launch_scratch_cleanup`` line to the runner log.
+
+    Never raises: cleanup logging must not take down runner shutdown.
+    """
+    try:
+        payload: dict[str, Any] = {
+            "event": "launch_scratch_cleanup",
+            "status": status,
+            "scratch_key": scratch_key,
+        }
+        if reason is not None:
+            payload["reason"] = reason
+        if observer is not None:
+            payload["observer"] = observer
+        if live is not None:
+            payload["live"] = live
+        payload["removed"] = removed
+        payload["removed_bytes"] = removed_bytes
+        payload["skipped"] = skipped
+        if skip_reasons:
+            payload["skip_reasons"] = list(skip_reasons)
+        if incomplete_observations:
+            payload["incomplete_observations"] = incomplete_observations
+        if error is not None:
+            payload["error"] = error
+        if error_traceback is not None:
+            payload["traceback"] = error_traceback
+        print(json.dumps(payload, sort_keys=True), flush=True)
+    except Exception:
+        return
 
 
 def _launch_scratch_candidates(
@@ -116,122 +189,6 @@ def _launch_scratch_candidates(
         yield _LaunchScratchCandidate(bucket=bucket, path=candidate)
 
 
-def _has_usable_proc_root(proc_root: Path) -> bool:
-    return proc_root.is_dir() and os.access(proc_root, os.R_OK | os.X_OK)
-
-
-def _candidate_liveness(
-    candidates: tuple[_LaunchScratchCandidate, ...],
-    *,
-    proc_root: Path,
-) -> LaunchScratchLiveness:
-    current_pid = os.getpid()
-    current_uid = os.getuid()
-    complete = True
-    diagnostics: list[str] = []
-    for pid_dir in _iter_pid_dirs(proc_root, diagnostics):
-        try:
-            if int(pid_dir.name) == current_pid:
-                continue
-            if pid_dir.stat().st_uid != current_uid:
-                continue
-        except ValueError:
-            continue
-        except (FileNotFoundError, ProcessLookupError):
-            continue
-        except OSError as exc:
-            complete = False
-            diagnostics.append(f"{pid_dir.name}: stat failed: {exc}")
-            continue
-
-        environ_probe = _pid_environ_references_candidate(pid_dir, candidates)
-        if environ_probe.live:
-            return LaunchScratchLiveness(
-                live=True,
-                complete=complete and environ_probe.complete,
-                diagnostics=tuple(diagnostics),
-            )
-        complete = complete and environ_probe.complete
-        if environ_probe.diagnostic:
-            diagnostics.append(environ_probe.diagnostic)
-
-        cwd_probe = _pid_cwd_references_candidate(pid_dir, candidates)
-        if cwd_probe.live:
-            return LaunchScratchLiveness(
-                live=True,
-                complete=complete and cwd_probe.complete,
-                diagnostics=tuple(diagnostics),
-            )
-        complete = complete and cwd_probe.complete
-        if cwd_probe.diagnostic:
-            diagnostics.append(cwd_probe.diagnostic)
-    return LaunchScratchLiveness(
-        live=False,
-        complete=complete and not diagnostics,
-        diagnostics=tuple(diagnostics),
-    )
-
-
-def _iter_pid_dirs(proc_root: Path, diagnostics: list[str]) -> Iterable[Path]:
-    try:
-        yield from proc_root.iterdir()
-    except (FileNotFoundError, NotADirectoryError, ProcessLookupError):
-        return
-    except OSError as exc:
-        diagnostics.append(f"{proc_root}: listing failed: {exc}")
-        return
-
-
-def _pid_environ_references_candidate(
-    pid_dir: Path,
-    candidates: tuple[_LaunchScratchCandidate, ...],
-) -> _LivenessProbe:
-    try:
-        environ = (pid_dir / "environ").read_bytes()
-    except (FileNotFoundError, ProcessLookupError):
-        return _LivenessProbe()
-    except OSError as exc:
-        return _LivenessProbe(
-            complete=False,
-            diagnostic=f"{pid_dir.name}: environ unreadable: {exc}",
-        )
-    for item in environ.split(b"\0"):
-        key, separator, value = item.partition(b"=")
-        if not separator:
-            continue
-        try:
-            key_text = key.decode()
-            value_text = value.decode()
-        except UnicodeDecodeError:
-            continue
-        if key_text not in _LIVE_PATH_ENV_VARS:
-            continue
-        value_path = _normalized_absolute_path(value_text)
-        if value_path is not None and any(
-            _is_path_at_or_under(value_path, candidate.path) for candidate in candidates
-        ):
-            return _LivenessProbe(live=True)
-    return _LivenessProbe()
-
-
-def _pid_cwd_references_candidate(
-    pid_dir: Path,
-    candidates: tuple[_LaunchScratchCandidate, ...],
-) -> _LivenessProbe:
-    try:
-        cwd = (pid_dir / "cwd").resolve(strict=True)
-    except (FileNotFoundError, ProcessLookupError):
-        return _LivenessProbe()
-    except OSError as exc:
-        return _LivenessProbe(
-            complete=False,
-            diagnostic=f"{pid_dir.name}: cwd unreadable: {exc}",
-        )
-    return _LivenessProbe(
-        live=any(_is_path_at_or_under(cwd, candidate.path) for candidate in candidates)
-    )
-
-
 def _normalized_absolute_path(value: str | Path) -> Path | None:
     if not value:
         return None
@@ -242,10 +199,3 @@ def _normalized_absolute_path(value: str | Path) -> Path | None:
         return path.resolve(strict=False)
     except OSError:
         return path.absolute()
-
-
-def _is_path_at_or_under(path: Path, parent: Path) -> bool:
-    normalized_parent = _normalized_absolute_path(parent)
-    if normalized_parent is None:
-        return False
-    return path == normalized_parent or normalized_parent in path.parents
