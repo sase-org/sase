@@ -47,6 +47,7 @@ from ._file_path_hints import (
 from ._hint_caps import HintContentBudget
 from ..decks.card_block import BlockSpreadOnly
 from ..decks.card_part import card_document, context_card, reply_card
+from ._agent_finalizer_receipt import append_finalizer_receipt
 from ._helpers import append_section_heading
 from ._traceback_section import build_traceback_block
 
@@ -195,10 +196,12 @@ class AgentSessionDisplayMixin:
 
             def render_phase(phase: Agent, block_id: str) -> list[Any]:
                 if phase.is_monitor:
-                    return build_monitor_phase(phase, block_id=block_id)
+                    parts = build_monitor_phase(phase, block_id=block_id)
+                    append_finalizer_receipt(parts, phase)
+                    return parts
                 if phase.is_gate:
                     return build_gate_phase(phase, block_id=block_id)
-                return [
+                parts = [
                     render_phase_divider(
                         get_phase_label(phase),
                         phase.run_start_time or phase.start_time,
@@ -217,18 +220,22 @@ class AgentSessionDisplayMixin:
                         ]
                     ),
                 ]
+                append_finalizer_receipt(parts, phase)
+                return parts
 
         else:
 
             def render_phase(phase: Agent, block_id: str) -> list[Any]:
                 if phase.is_monitor:
-                    return build_monitor_phase(
+                    parts = build_monitor_phase(
                         phase,
                         annotate=self._monitor_phase_annotator(
                             phase, hint_state, hint_budget
                         ),
                         block_id=block_id,
                     )
+                    append_finalizer_receipt(parts, phase)
+                    return parts
                 if phase.is_gate:
                     return build_gate_phase(
                         phase,
@@ -237,7 +244,7 @@ class AgentSessionDisplayMixin:
                         ),
                         block_id=block_id,
                     )
-                return [
+                parts = [
                     render_phase_divider(
                         get_phase_label(phase),
                         phase.run_start_time or phase.start_time,
@@ -257,6 +264,8 @@ class AgentSessionDisplayMixin:
                         ]
                     ),
                 ]
+                append_finalizer_receipt(parts, phase)
+                return parts
 
         reply_heading, reply_blocks = build_session_reply_blocks(
             phases,

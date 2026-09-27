@@ -198,10 +198,30 @@ def _feed_error_chip(agent: Agent) -> Text | None:
 
 def _activity_chip(agent: Agent) -> Text | None:
     """Return the activity chip when the node reports one."""
+    finalizer_chip = _finalizer_activity_chip(agent)
+    if finalizer_chip is not None:
+        return finalizer_chip
     if not agent.activity:
         return None
     chip = Text()
     chip.append(agent.activity, style=_ACTIVITY_CHIP_STYLE)
+    return chip
+
+
+def _finalizer_activity_chip(agent: Agent) -> Text | None:
+    """Return the ⊛ finalizing override while the beta flag is on (plan §3.5)."""
+    from sase.ace.tui.widgets.decks.final.flag import final_deck_enabled
+
+    if not final_deck_enabled():
+        return None
+    from sase.ace.tui.models.finalizer_row_state import finalizer_header_chip
+
+    override = finalizer_header_chip(agent)
+    if override is None:
+        return None
+    text, style = override
+    chip = Text()
+    chip.append(text, style=style)
     return chip
 
 

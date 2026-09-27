@@ -21,6 +21,7 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
+    ace_final_deck = "ace_final_deck"
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
     axe_routine_job_contract = "axe_routine_job_contract"
@@ -40,6 +41,16 @@ class FeatureFlag(StrEnum):
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
+    FeatureFlag.ace_final_deck: FeatureFlagDefinition(
+        key=FeatureFlag.ace_final_deck,
+        kind="beta",
+        description=(
+            "Rows show FINALIZING with ⊛ chips, the identity header shows the "
+            "finalizer activity chip, Reply ends with a ⊛ FINAL receipt, and "
+            "the FINAL deck is in the cycle/picker/subtitle."
+        ),
+        bead="sase-1b5",
+    ),
     FeatureFlag.ace_refresh_tokens: FeatureFlagDefinition(
         key=FeatureFlag.ace_refresh_tokens,
         kind="sunset",

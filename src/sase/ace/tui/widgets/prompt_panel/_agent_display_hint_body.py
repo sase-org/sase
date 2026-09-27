@@ -38,6 +38,14 @@ from ._agent_xprompt_highlighting import (
 from ._file_path_hints import iter_xprompt_file_path_matches
 from ._helpers import append_section_heading, format_output
 from ._hint_caps import append_bounded_text_with_file_hints
+from ._agent_finalizer_receipt import finalizer_receipt_text
+
+
+def _append_hint_receipt(segment: AgentHeader, phase: Agent) -> None:
+    """Append the ⊛ FINAL receipt to a hint-mode phase Text (one-line site)."""
+    receipt = finalizer_receipt_text(phase)
+    if receipt is not None and isinstance(segment, Text):
+        segment.append_text(receipt)
 
 
 def render_agent_prompt_hint_body(
@@ -148,6 +156,7 @@ def render_agent_prompt_hint_body(
                     segment.append_text(
                         monitor_phase_text(phase, annotate=annotate, block_id=block_id)
                     )
+                    _append_hint_receipt(segment, phase)
                     hint_counter = hint_count()
                 elif phase.is_gate:
                     annotate, hint_count = hint_gate_annotator(
@@ -175,6 +184,7 @@ def render_agent_prompt_hint_body(
                         workspace_dir,
                         humanize_text,
                     )
+                    _append_hint_receipt(segment, phase)
                 reply_blocks.append(
                     phase_card_block(
                         phase,
@@ -225,6 +235,7 @@ def render_agent_prompt_hint_body(
                 )
             else:
                 reply_text.append("No response file found.\n", style="dim italic")
+            _append_hint_receipt(reply_text, agent)
         else:
             # AGENT REPLY section for running agents (with hints)
             append_section_heading(reply_text, "AGENT REPLY")
@@ -259,6 +270,7 @@ def render_agent_prompt_hint_body(
                     "Waiting for agent response...\n",
                     style="dim italic",
                 )
+            _append_hint_receipt(reply_text, agent)
     else:
         header_text.append("No prompt file found.\n", style="dim italic")
 

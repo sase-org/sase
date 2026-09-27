@@ -67,6 +67,13 @@ def _bounded_lru_put(
         cache.popitem(last=False)
 
 
+def _finalizer_summary_token(agent: Agent) -> tuple[Any, ...] | None:
+    """Compact finalizer summary token (deliberate key edit, plan §3.5)."""
+    from ..models.finalizer_row_state import finalizer_summary_token
+
+    return finalizer_summary_token(agent)
+
+
 def _quantize_now(now: datetime | None) -> tuple[int, int, int, int, int, int] | None:
     """Quantize *now* to per-second precision so cache keys are hashable + stable.
 
@@ -176,6 +183,7 @@ def _runtime_signature(
         agent.retry_count,
         agent.using_fallback,
         agent.fallback_model,
+        _finalizer_summary_token(agent),
         _quantize_now(now) if time_sensitive else None,
     )
 

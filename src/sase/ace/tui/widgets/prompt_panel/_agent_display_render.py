@@ -62,6 +62,7 @@ from ._agent_display_xprompt import (
     attach_xprompt_to_identity,
     memoize_xprompt,
 )
+from ._agent_finalizer_receipt import append_finalizer_receipt
 from ._agent_gate_section import build_gate_phase
 from ._agent_monitor_section import build_monitor_phase
 from ._agent_xprompt_highlighting import (
@@ -480,10 +481,12 @@ class AgentDisplayRenderMixin(
 
                 def render_legacy_phase(phase: Agent, block_id: str) -> list[Any]:
                     if phase.is_monitor:
-                        return build_monitor_phase(phase, block_id=block_id)
+                        monitor_parts = build_monitor_phase(phase, block_id=block_id)
+                        append_finalizer_receipt(monitor_parts, phase)
+                        return monitor_parts
                     if phase.is_gate:
                         return build_gate_phase(phase, block_id=block_id)
-                    return [
+                    legacy_parts: list[Any] = [
                         render_phase_divider(
                             get_phase_label(phase),
                             phase.run_start_time or phase.start_time,
@@ -491,6 +494,8 @@ class AgentDisplayRenderMixin(
                         ),
                         *render_agent_reply_content(phase, self._render_markdown),
                     ]
+                    append_finalizer_receipt(legacy_parts, phase)
+                    return legacy_parts
 
                 legacy_blocks = []
                 for number, (phase, phase_facts) in enumerate(
@@ -568,6 +573,7 @@ class AgentDisplayRenderMixin(
                     reply_header.append("No response file found.\n", style="dim italic")
                     reply_parts.append(reply_header)
 
+                append_finalizer_receipt(reply_parts, agent)
                 self.update(  # type: ignore[attr-defined]
                     card_document(
                         context_card(header_text, prompt_syntax),
@@ -615,6 +621,7 @@ class AgentDisplayRenderMixin(
                     )
                     reply_parts.append(reply_header)
 
+                append_finalizer_receipt(reply_parts, agent)
                 self.update(  # type: ignore[attr-defined]
                     card_document(
                         context_card(header_text, prompt_syntax),

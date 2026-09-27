@@ -108,6 +108,7 @@ def _source_digest(agent: Agent) -> str:
             return
         seen.add(candidate_id)
         add("identity", candidate.identity)
+        add("finalizer_status", repr(candidate.finalizer_status))
         add("error_traceback", candidate.error_traceback)
         add("raw_xprompt", candidate.get_raw_xprompt_content())
         add("prompt", get_prompt_content(candidate))

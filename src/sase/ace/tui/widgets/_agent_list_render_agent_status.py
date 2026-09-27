@@ -50,6 +50,29 @@ from ._queue_weight_badge import (
     append_agent_queue_badges,
     queue_capacity_budget_display_enabled,
 )
+from ..models.finalizer_row_state import (
+    FinalizerRowState,
+    finalizer_row_state,
+    session_finalizer_row_state,
+)
+
+
+def _glance_finalizer_state(agent: Agent) -> FinalizerRowState:
+    """Return the flag-gated glance state (empty while the beta is off)."""
+    from sase.ace.tui.widgets.decks.final.flag import final_deck_enabled
+
+    if not final_deck_enabled():
+        return FinalizerRowState()
+    if agent.is_agent_session_container_row:
+        return session_finalizer_row_state(agent)
+    return finalizer_row_state(agent)
+
+
+def _append_finalizer_chip(text: Text, agent: Agent) -> None:
+    """Append the ⊛ chip after the status parenthesis (plan §3.5)."""
+    state = _glance_finalizer_state(agent)
+    if state.chip_text:
+        text.append(f" {state.chip_text}", style=state.chip_style or "dim")
 
 
 def append_queued_status_extras(text: Text, agent: Agent) -> None:
@@ -114,7 +137,10 @@ def append_agent_row_status(
     elif agent.status == "STARTING":
         text.append(display_status, style="bold #87D7FF")  # Sky blue
     elif agent.status == "RUNNING":
-        text.append(display_status, style=f"bold {RUNNING_COLOR}")
+        if _glance_finalizer_state(agent).is_finalizing:
+            text.append("FINALIZING", style=f"bold {RUNNING_COLOR}")
+        else:
+            text.append(display_status, style=f"bold {RUNNING_COLOR}")
     elif agent.status == "DONE":
         text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status == STOPPED_STATUS:
@@ -227,6 +253,7 @@ def append_agent_row_status(
     if agent.is_gate and agent.gate_state == "failed":
         text.append(" ✗", style=_GATE_FAILURE_GLYPH_STYLE)
     text.append(")", style="dim")
+    _append_finalizer_chip(text, agent)
     if agent.is_monitor and (
         agent.monitor_followup_error
         or agent.monitor_followup_outcome == _MONITOR_FOLLOWUP_DEGRADED_OUTCOME
