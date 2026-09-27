@@ -94,16 +94,17 @@ def _submit_remote_mutation(
             intent,
             what="mutation payload fingerprint",
         )
+        acceptance_window = max(
+            timeout_seconds or config.request_timeout_seconds,
+            30.0,
+        )
         request = {
             "schema_version": _FLEET_SCHEMA_VERSION,
             "key": operation_key,
             "target_installation_id": machine.pinned_installation_id,
             "intent": intent,
             "payload_fingerprint": fingerprint,
-            "acceptance_window_seconds": max(
-                timeout_seconds or config.request_timeout_seconds,
-                30.0,
-            ),
+            "acceptance_window_seconds": acceptance_window,
         }
         _call_dict_binding(
             "fleet_validate_mutation_request",
@@ -140,8 +141,6 @@ def _submit_remote_mutation(
             }
         )
         update_dispatch_mutation_intent(operation_key, status="acceptance_uncertain")
-        acceptance_window = float(request["acceptance_window_seconds"])
-        mutate_timeout = acceptance_window
         deadline = time.time() + acceptance_window
         facade = build_federation_facade()
         last_error: str | None = None
@@ -150,7 +149,7 @@ def _submit_remote_mutation(
                 response = facade.mutate_sync(
                     alias,
                     request,
-                    timeout_seconds=mutate_timeout,
+                    timeout_seconds=acceptance_window,
                 )
             except FederationWorkerUnavailable as exc:
                 update_dispatch_mutation_intent(

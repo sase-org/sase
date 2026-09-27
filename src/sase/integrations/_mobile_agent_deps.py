@@ -45,14 +45,11 @@ def kill_named_agent(
     retain_for_retry: bool = False,
 ) -> KillResult:
     func = _facade_override("kill_named_agent", _real_kill_named_agent)
-    try:
-        return func(
-            name,
-            exact_name=exact_name,
-            retain_for_retry=retain_for_retry,
-        )
-    except TypeError:
-        return func(name, exact_name=exact_name)
+    return func(
+        name,
+        exact_name=exact_name,
+        retain_for_retry=retain_for_retry,
+    )
 
 
 def list_all_agents(

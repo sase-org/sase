@@ -30,7 +30,7 @@ def test_kill_mobile_agent_returns_result_and_persists_context(
     monkeypatch.setattr(
         mobile_agents,
         "kill_named_agent",
-        lambda name, *, exact_name: _KillResult(
+        lambda name, *, exact_name, retain_for_retry=False: _KillResult(
             True,
             f"Killed agent '{name}' (PID 1234)",
             status="killed",
@@ -78,7 +78,7 @@ def test_kill_mobile_agent_bridge_returns_success_for_stale_cleanup(
     monkeypatch.setattr(
         lifecycle,
         "kill_named_agent",
-        lambda name, *, exact_name: _KillResult(
+        lambda name, *, exact_name, retain_for_retry=False: _KillResult(
             True,
             f"Agent '{name}' was not running; cleaned up stale state",
             status="not_running",

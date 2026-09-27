@@ -51,7 +51,9 @@ def test_mobile_agent_bridge_smoke_launch_list_kill_retry_and_image(
     def fake_running() -> list[RunningAgentInfo]:
         return [_agent(tmp_path, name=name, project="home") for name in running_names]
 
-    def fake_kill(name: str, *, exact_name: bool) -> _KillResult:
+    def fake_kill(
+        name: str, *, exact_name: bool, retain_for_retry: bool = False
+    ) -> _KillResult:
         if name in running_names:
             running_names.remove(name)
         return _KillResult(
