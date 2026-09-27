@@ -325,6 +325,7 @@ REQUIRED_BINDINGS = (
     "validate_finalizer_submission",
     "finalizer_json_digest",
     "aggregate_finalizer_outcomes",
+    "project_finalizer_node_view",
     "feature_flag_state_get",
     "feature_flag_state_set",
     "feature_flag_state_reconcile",

@@ -34,6 +34,9 @@ from sase.core.finalizer_facade import (
 from sase.core.finalizer_facade import (
     validate_finalizer_provider_spec as _validate_finalizer_provider_spec,
 )
+from sase.core.finalizer_run_view import (
+    project_finalizer_node_view as _project_finalizer_node_view,
+)
 from sase.core.finalizer_wire import FinalizerPlanEntryWire as _FinalizerPlanEntryWire
 from sase.core.finalizer_wire import (
     FinalizerSubmissionPayloadWire as _FinalizerSubmissionPayloadWire,
@@ -63,6 +66,9 @@ from sase.ace.tui.modals.config_hub_catalog import (
     config_subtab_specs as _config_subtab_specs,
 )
 from sase.ace.tui.modals.models_panel import ModelsPanel as _ModelsPanel
+from sase.ace.tui.models.finalizer_run_targets import (
+    node_run_targets as _node_run_targets,
+)
 from sase.ace.tui.util.artifact_ref_syntax import (
     ArtifactRefCandidateSpans as _ArtifactRefCandidateSpans,
 )
@@ -109,6 +115,16 @@ from sase.finalizers.executor import run_provider_operation as _run_provider_ope
 from sase.finalizers.reconciliation import (
     auto_commit_done_plan_status_if_possible as _auto_commit_done_plan_status_if_possible,
 )
+from sase.finalizers.run_view_inputs import RunTarget as _RunTarget
+from sase.finalizers.run_view_inputs import (
+    build_node_request as _build_node_request,
+)
+from sase.finalizers.run_view_inputs import (
+    collect_run_input as _collect_run_input,
+)
+from sase.finalizers.run_view_inputs import (
+    run_inputs_signature as _run_inputs_signature,
+)
 from sase.finalizers.reconciliation import (
     auto_commit_external_sdd_prompt_qa_if_possible as _auto_commit_external_sdd_prompt_qa_if_possible,
 )
@@ -143,17 +159,20 @@ _PUBLIC_API_REFS = (
     _FinalizerSubmissionPayloadWire,
     _FlagListSummary,
     _ModelsPanel,
+    _RunTarget,
     _SavedFeatureFlagSetOutcome,
     _SavedFeatureFlagState,
     _SkillManifestOwnershipPlan,
     _StitchCommandResult,
     _build_finalizer_inventory,
+    _build_node_request,
     _authenticate_finalizer_plan,
     _auto_commit_done_plan_status_if_possible,
     _auto_commit_external_sdd_prompt_qa_if_possible,
     _auto_commit_sdd_bead_reprojection_if_possible,
     _auto_commit_separate_sdd_store_if_possible,
     _clean_result_reason,
+    _collect_run_input,
     _commit_finalizer_pass_prompt_filename,
     _config_subtab_specs,
     _execute_command_finalizer,
@@ -173,8 +192,11 @@ _PUBLIC_API_REFS = (
     _finalizer_runs_dir,
     _finalizer_selector_op_from_dict,
     _finalizer_wire_schema_version,
+    _node_run_targets,
+    _project_finalizer_node_view,
     _result_to_json,
     _result_changed_files,
+    _run_inputs_signature,
     _run_provider_operation,
     _run_stitch_create,
     _sdk_worker_main,
