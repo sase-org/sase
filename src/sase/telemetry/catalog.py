@@ -34,7 +34,7 @@ SUBSYSTEM_ORDER: list[str] = [
     "Axe Orchestrator",
     "Hooks / Mentors / Workflows",
     "VCS / Workspace",
-    "Gate Shell",
+    "Gate Turn",
     "Tool Runs",
 ]
 

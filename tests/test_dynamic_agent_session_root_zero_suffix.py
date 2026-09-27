@@ -203,7 +203,7 @@ def test_generic_root_presents_session_container_name() -> None:
     header, _ = build_header_text(root, cheap=True)
     assert row_text.plain.endswith(" foo")
     assert "foo--0" not in row_text.plain
-    assert header.plain.startswith("AGENT SHELL\nName: foo\n")
+    assert header.plain.startswith("AGENT TURN\nName: foo\n")
 
 
 def test_expanded_generic_session_keeps_concrete_member_names() -> None:

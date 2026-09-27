@@ -132,8 +132,9 @@ def test_gate_help_lists_only_canonical_next_fork_value(
         _gate_parser().parse_args(["gate", "create", "--help"])
     help_text = capsys.readouterr().out
 
-    assert "--next-fork {session,shell,none}" in help_text
+    assert "--next-fork {session,turn,none}" in help_text
     assert "--next-fork {family,shell,none}" not in help_text
+    assert "--next-fork {session,shell,none}" not in help_text
 
 
 def test_durable_legacy_gate_fork_loads_when_the_flag_is_off() -> None:

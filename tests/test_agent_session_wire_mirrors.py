@@ -164,7 +164,8 @@ def test_scan_wire_json_emits_only_new_spellings() -> None:
         "agent_family_role",
         "agent_family_parallel",
         "family_shell",
-        "agent_session_turn",
+        "agent_session_shell",
+        "shell_kind",
     ):
         assert legacy_key not in meta_payload
     assert "agent_session_turn" in meta_payload

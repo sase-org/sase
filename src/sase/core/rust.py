@@ -14,6 +14,11 @@ supported import path for ported facades. Contract:
   :func:`require_rust_extension`; a missing attribute raises
   :class:`AttributeError` with operation-specific text so a stale wheel
   fails with a clear pointer at the call site instead of one generic error.
+- :func:`optional_rust_binding` returns the named attribute or ``None``
+  when the extension or the attribute is missing. Optional lookups never
+  go through :func:`require_rust_binding` (which the
+  ``check_sase_core_rs_bindings`` gate counts as required), so call sites
+  keep working against older cores that predate the binding.
 """
 
 from __future__ import annotations
@@ -71,6 +76,23 @@ def require_rust_binding(name: str) -> Any:
             f"binding {name!r}; the installed wheel is stale or was built "
             f"without the shipped bindings. {_install_hint().capitalize()}."
         ) from exc
+
+
+def optional_rust_binding(name: str) -> Any | None:
+    """Return ``sase_core_rs.<name>`` or ``None`` when it is missing.
+
+    Unlike :func:`require_rust_binding`, a missing extension or attribute
+    is not an error: the caller falls back (usually to a Python mirror
+    constant) so one tree keeps working against older cores. The lookup
+    deliberately avoids :func:`require_rust_binding` so the
+    ``check_sase_core_rs_bindings`` static gate does not count the name
+    as required.
+    """
+    try:
+        module = require_rust_extension()
+    except ImportError:
+        return None
+    return getattr(module, name, None)
 
 
 def _install_hint() -> str:

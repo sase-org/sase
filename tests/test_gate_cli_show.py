@@ -315,7 +315,7 @@ def test_show_rejects_neither_ref_nor_id_and_kind(
     code = _run("show")
 
     assert code == 1
-    assert "pass a gate-shell reference" in capsys.readouterr().err
+    assert "pass a gate-turn reference" in capsys.readouterr().err
 
 
 def test_show_resolves_a_gate_turn_by_member_name(

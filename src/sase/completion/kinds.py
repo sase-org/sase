@@ -388,6 +388,8 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "shell",
         "shell_status",
         "shell_stop_status",
+        "turn_status",
+        "turn_stop_status",
         "since",
         "size",
         "source",

@@ -7677,7 +7677,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "c0faded6e94c4c9c",
+            "description_digest": "a57f31aed315eb78",
             "hidden": false,
             "mutex_groups": [],
             "name": "create",
@@ -7895,6 +7895,22 @@
                 "strings": [
                   "-T",
                   "--type"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "reason",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": true,
+                "strings": [
+                  "-w",
+                  "--reason"
                 ],
                 "takes_value": true,
                 "value_hint": "text"
@@ -15310,7 +15326,7 @@
                   "--turn-status"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               },
               {
                 "choices": null,
@@ -15326,7 +15342,7 @@
                   "--turn-stop-status"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               },
               {
                 "choices": null,

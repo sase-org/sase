@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.config.core import get_proc_history_limit
-from sase.core.rust import require_rust_binding
+from sase.core.rust import optional_rust_binding, require_rust_binding
 
 from ._migration import ensure_procs_migrated
 from .logs import delete_proc_logs
@@ -129,9 +129,12 @@ def _reserve_request_schema_version() -> int:
     core keeps one sase tree working against either core until pin-bump
     (sase-1ab.8) moves the mirror.
     """
+    binding = optional_rust_binding("proc_wire_schema_version")
+    if binding is None:
+        return PROC_WIRE_SCHEMA_VERSION
     try:
-        return int(require_rust_binding("proc_wire_schema_version")())
-    except (AttributeError, ImportError, ValueError):
+        return int(binding())
+    except (ValueError, TypeError):
         return PROC_WIRE_SCHEMA_VERSION
 
 

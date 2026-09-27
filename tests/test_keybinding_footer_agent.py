@@ -279,7 +279,7 @@ def test_keybinding_footer_clan_advertises_clan_fork() -> None:
     )
 
 
-def test_keybinding_footer_agent_session_member_advertises_shell_digits() -> None:
+def test_keybinding_footer_agent_session_member_advertises_turn_digits() -> None:
     footer = KeybindingFooter()
     root = _make_agent()
     root.agent_name = "alpha--plan"
@@ -299,9 +299,9 @@ def test_keybinding_footer_agent_session_member_advertises_shell_digits() -> Non
 
     bindings = footer._compute_agent_bindings(child)
 
-    assert ("0-9", "shell") in bindings
+    assert ("0-9", "turn") in bindings
     assert ("0-9", "member") not in bindings
-    assert ("0-9", "shell") not in footer._compute_agent_bindings(
+    assert ("0-9", "turn") not in footer._compute_agent_bindings(
         child,
         group_focused=True,
     )
@@ -519,11 +519,11 @@ def test_keybinding_footer_running_monitor_advertises_stop_monitor() -> None:
     bindings = footer._compute_agent_bindings(agent)
 
     assert ("x", "stop monitor") in bindings
-    assert ("0-9", "shell") not in bindings
+    assert ("0-9", "turn") not in bindings
     assert (_edit_hooks_key(footer), "fork") in bindings
 
 
-def test_keybinding_footer_running_agent_session_monitor_advertises_shell_digits() -> (
+def test_keybinding_footer_running_agent_session_monitor_advertises_turn_digits() -> (
     None
 ):
     footer = KeybindingFooter()
@@ -538,7 +538,7 @@ def test_keybinding_footer_running_agent_session_monitor_advertises_shell_digits
     bindings = footer._compute_agent_bindings(monitor)
 
     assert ("x", "stop monitor") in bindings
-    assert ("0-9", "shell") in bindings
+    assert ("0-9", "turn") in bindings
 
 
 def test_keybinding_footer_terminal_monitor_omits_stop_monitor() -> None:
@@ -580,7 +580,7 @@ def test_keybinding_footer_terminal_gate_advertises_dismiss_gate() -> None:
     assert "name" not in labels
 
 
-def test_keybinding_footer_agent_session_gate_advertises_shell_digits() -> None:
+def test_keybinding_footer_agent_session_gate_advertises_turn_digits() -> None:
     footer = KeybindingFooter()
     root = _make_agent()
     root.agent_name = "alpha--0"
@@ -592,7 +592,7 @@ def test_keybinding_footer_agent_session_gate_advertises_shell_digits() -> None:
 
     bindings = footer._compute_agent_bindings(gate)
 
-    assert ("0-9", "shell") in bindings
+    assert ("0-9", "turn") in bindings
 
 
 def test_keybinding_footer_monitor_starter_advertises_normal_agent_bindings() -> None:
