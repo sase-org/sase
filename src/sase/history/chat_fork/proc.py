@@ -67,12 +67,12 @@ def _format_proc_metadata_rows(proc: Mapping[str, object]) -> list[str]:
         else ("FAILED" if proc.get("failed") else "DONE")
     )
     rows = [
-        f"- **Kind:** {'monitor (proc shell)' if is_monitor else 'proc shell'}",
+        f"- **Kind:** {'monitor turn' if is_monitor else 'named proc'}",
         f"- **Status:** `{status}` ({status_word})",
     ]
     shell_name = fork_source_optional_string(proc, "shell_name")
     if shell_name:
-        rows.append(f"- **Shell name:** `{shell_name}`")
+        rows.append(f"- **Proc name:** `{shell_name}`")
     proc_id = fork_source_optional_string(proc, "proc_id")
     if proc_id:
         rows.append(f"- **Proc ID:** `{proc_id}`")

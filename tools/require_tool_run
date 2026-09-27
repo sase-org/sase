@@ -54,7 +54,7 @@ if ! command -v sase >/dev/null 2>&1; then
     exit 0
 fi
 
-printf 'sase: refusing raw `just %s` in an agent shell (SASE_AGENT is set and SASE_TOOL_NAME names a different tool or root).\n' "$tool" >&2
+printf 'sase: refusing raw `just %s` inside a SASE agent (SASE_AGENT is set and SASE_TOOL_NAME names a different tool or root).\n' "$tool" >&2
 printf 'sase: run `sase tool run %s` instead.\n' "$tool" >&2
 printf 'sase: or run `SASE_TOOL_BYPASS='"'"'<reason>'"'"' just %s` to bypass with a named reason.\n' "$tool" >&2
 exit 2
