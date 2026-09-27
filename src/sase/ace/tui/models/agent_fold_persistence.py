@@ -4,10 +4,15 @@ The TUI owns lifecycle scheduling; this module is deliberately synchronous and
 side-effect free except for its explicit load/save functions so callers can run
 all file and JSON work through ``asyncio.to_thread``.
 
-Schema version 3 remains current even though writers now omit whole-panel fold
-intent. Older v3 readers can still read the group-fold fields this module
-writes, and this decoder still accepts legacy panel fields so existing files do
-not fail open while their group folds remain useful.
+Schema version 4 adds a per-scope ``"tab"`` key carrying the active-tab scope
+token (``"default"``, ``"all"``, ``"machine:<id>"``, or ``"named:<name>"``),
+so folds are kept per tab. Version 3 (and older) files decode with
+``tab_scope = "default"``. Scopes with an unresolved-machine scope are never
+written.
+
+Rollback caveat: a reader that only knows schema version 3 rejects the v4
+``"tab"`` key, so it drops v4 folds and falls back to empty rather than
+misattributing another tab's folds to the default tab.
 """
 
 from __future__ import annotations
@@ -29,9 +34,18 @@ from .group_fold import GroupKey
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
+_PRE_TAB_SCHEMA_VERSION = 3
 _PREVIOUS_SCHEMA_VERSION = 2
 _LEGACY_SCHEMA_VERSION = 1
+_KNOWN_SCHEMA_VERSIONS = frozenset(
+    {
+        _LEGACY_SCHEMA_VERSION,
+        _PREVIOUS_SCHEMA_VERSION,
+        _PRE_TAB_SCHEMA_VERSION,
+        SCHEMA_VERSION,
+    }
+)
 FILENAME = "ace_agents_fold_state.json"
 MAX_FILE_BYTES = 256 * 1024
 MAX_GROUPING_ENTRIES = len(GroupingMode)
@@ -57,6 +71,7 @@ class AgentGroupingFoldSnapshot:
                     self.scopes,
                     key=lambda item: (
                         item.scope.merged,
+                        item.scope.tab_scope,
                         item.scope.panel_key is not None,
                         item.scope.panel_key or "",
                     ),
@@ -106,7 +121,11 @@ def _decode_panel_key(raw: Any, *, schema_version: int) -> PanelKey:
                 and len(legacy_tag) <= MAX_STRING_LENGTH
             ):
                 return legacy_tag
-    elif schema_version in {_PREVIOUS_SCHEMA_VERSION, SCHEMA_VERSION}:
+    elif schema_version in {
+        _PREVIOUS_SCHEMA_VERSION,
+        _PRE_TAB_SCHEMA_VERSION,
+        SCHEMA_VERSION,
+    }:
         if kind == "no_tribe" and set(raw) == {"kind"}:
             return None
         if kind == "tribe" and set(raw) == {"kind", "tribe"}:
@@ -126,6 +145,27 @@ def _encode_panel_key(panel_key: PanelKey) -> dict[str, str]:
     return {"kind": "tribe", "tribe": panel_key}
 
 
+def _decode_tab_scope(raw: Any) -> str | None:
+    """Return the persisted tab token, or None for unknown shapes.
+
+    Validation is shape-only (no Rust binding) so this module stays
+    synchronous and side-effect free: ``"default"``, ``"all"``, and
+    ``"machine:<id>"`` / ``"named:<name>"`` tokens pass through unchanged.
+    Unresolved-machine scopes are never written, so their in-memory tokens
+    decode to None and are skipped.
+    """
+    if not isinstance(raw, str) or not raw or len(raw) > MAX_STRING_LENGTH:
+        return None
+    if raw in ("default", "all"):
+        return raw
+    kind, sep, value = raw.partition(":")
+    if not sep or not value:
+        return None
+    if kind in ("machine", "named"):
+        return raw
+    return None
+
+
 def _decode_group_key(raw: Any) -> GroupKey:
     if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_GROUP_KEY_DEPTH:
         raise _AgentsFoldStateDecodeError("invalid group-key depth")
@@ -142,11 +182,7 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
     if not isinstance(raw, dict):
         raise _AgentsFoldStateDecodeError("root must be an object")
     schema_version = raw.get("schema_version")
-    if type(schema_version) is not int or schema_version not in {
-        _LEGACY_SCHEMA_VERSION,
-        _PREVIOUS_SCHEMA_VERSION,
-        SCHEMA_VERSION,
-    }:
+    if type(schema_version) is not int or schema_version not in _KNOWN_SCHEMA_VERSIONS:
         raise _AgentsFoldStateDecodeError("unknown schema version")
     allowed_fields = {
         "schema_version",
@@ -194,11 +230,25 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
         scopes: list[AgentPanelFoldSnapshot] = []
         seen_scopes: set[AgentPanelFoldScope] = set()
         for raw_scope in raw_scopes:
-            if not isinstance(raw_scope, dict) or set(raw_scope) != {
+            if not isinstance(raw_scope, dict):
+                raise _AgentsFoldStateDecodeError("invalid scope entry")
+            raw_fields = set(raw_scope)
+            tab_scope: str
+            if raw_fields == {"collapsed", "merged", "panel"}:
+                tab_scope = "default"
+            elif schema_version == SCHEMA_VERSION and raw_fields == {
                 "collapsed",
                 "merged",
                 "panel",
+                "tab",
             }:
+                decoded_tab = _decode_tab_scope(raw_scope.get("tab"))
+                if decoded_tab is None:
+                    # Unknown tab namespaces (or a newer writer's tokens)
+                    # drop just this scope instead of the whole file.
+                    continue
+                tab_scope = decoded_tab
+            else:
                 raise _AgentsFoldStateDecodeError("invalid scope entry")
             merged = raw_scope.get("merged")
             if not isinstance(merged, bool):
@@ -208,6 +258,7 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
                     raw_scope.get("panel"), schema_version=schema_version
                 ),
                 merged=merged,
+                tab_scope=tab_scope,
             )
             if scope in seen_scopes:
                 raise _AgentsFoldStateDecodeError("duplicate panel scope")
@@ -236,6 +287,8 @@ def _panel_sort_key(panel_key: PanelKey) -> tuple[int, str]:
 
 def _encode_agents_fold_state(snapshot: AgentsFoldStateSnapshot) -> dict[str, Any]:
     """Return the deterministic JSON object for *snapshot*."""
+    from .agent_tab_index import UNRESOLVED_TAB_SCOPE_PREFIX
+
     payload: dict[str, Any] = {"schema_version": SCHEMA_VERSION}
 
     group_folds: list[dict[str, Any]] = []
@@ -245,10 +298,14 @@ def _encode_agents_fold_state(snapshot: AgentsFoldStateSnapshot) -> dict[str, An
             mode_snapshot.scopes,
             key=lambda item: (
                 item.scope.merged,
+                item.scope.tab_scope,
                 *_panel_sort_key(item.scope.panel_key),
             ),
         ):
             if not panel_snapshot.collapsed:
+                continue
+            if panel_snapshot.scope.tab_scope.startswith(UNRESOLVED_TAB_SCOPE_PREFIX):
+                # Unresolved-machine scopes have no persistence token.
                 continue
             scopes.append(
                 {
@@ -257,6 +314,7 @@ def _encode_agents_fold_state(snapshot: AgentsFoldStateSnapshot) -> dict[str, An
                     ],
                     "merged": panel_snapshot.scope.merged,
                     "panel": _encode_panel_key(panel_snapshot.scope.panel_key),
+                    "tab": panel_snapshot.scope.tab_scope,
                 }
             )
         if scopes:

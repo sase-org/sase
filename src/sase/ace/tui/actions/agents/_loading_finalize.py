@@ -274,8 +274,11 @@ def _apply_finalize_plan(
     elif plan.query.raw_query:
         app._agents_committed_match_count = None
 
-    # Install the post-query agent list and prune the content cache to match.
-    app._agents = list(plan.query.filtered_agents)
+    # Install the tab-independent query result plus the active-tab scope
+    # stage (scope-stage phase), then prune the content cache to match.
+    app._agents_query_result = list(plan.agents_query_result)
+    app._agent_tab_index = plan.tab_index
+    app._agents = list(plan.scoped_agents)
     app._agent_content_search_cache.prune(app._agents)
 
     # Apply status overrides + clean stale entries based on the worker plan.
@@ -464,6 +467,27 @@ def finalize_agent_list(
         if identity not in loaded_identities:
             app._agent_status_overrides.pop(identity, None)
 
+    # Active-tab scope stage (scope-stage phase): cache the tab-independent
+    # query result, then scope to the active tab before selection restore
+    # and panel-key enumeration. Flag off, the scope is the identity.
+    from ._tab_scope import (
+        current_agent_tab_scope,
+        current_agent_tab_scope_token,
+        refresh_agent_tab_index,
+    )
+    from ...agent_tabs_flag import agent_tabs_enabled
+    from ...models.agent_tab_index import scope_agents_to_tab
+
+    app._agents_query_result = list(app._agents)
+    tab_index = refresh_agent_tab_index(app)
+    app._agents = scope_agents_to_tab(
+        app._agents_query_result,
+        tab_index,
+        current_agent_tab_scope(app),
+        enabled=bool(agent_tabs_enabled()),
+    )
+    tab_scope_token = current_agent_tab_scope_token(app)
+
     # Calculate the new index
     # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
     saved_idx = app.current_idx if on_agents_tab else app._agents_last_idx
@@ -542,6 +566,7 @@ def finalize_agent_list(
             app._agents,
             mode=grouping_mode,
             merged=bool(getattr(app, "_agent_panels_grouped", False)),
+            tab_scope=tab_scope_token,
         ),
     )
 

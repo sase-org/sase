@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ._display_helpers import panel_widget_id_for_key
 from ._display_panel_state import PanelRefreshStateMixin
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._folding_panel_sweep import retire_panel_fold_sweep_records
 from ._navigation_order import rendered_panel_slice
+from ._tab_scope import (
+    scoped_sticky_key,
+    sticky_key_in_scope,
+    unstick_panel_key,
+)
 from ._panel_fold_intent import (
     effective_panel_collapses,
     panel_is_collapsed,
@@ -76,8 +81,17 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         return backing
 
     def _session_mounted_panel_key_set(self) -> set[PanelKey]:
-        """Return a snapshot of mounted-this-session keys."""
-        return set(self._session_mounted_identity_map())
+        """Return a snapshot of mounted-this-session keys for the active scope.
+
+        With the flag off the sticky keys are bare panel keys, exactly as
+        before; with the flag on only the active scope's panels are
+        returned, so one tab's sticky panels never leak into another tab.
+        """
+        return {
+            unstick_panel_key(key)
+            for key in self._session_mounted_identity_map()
+            if sticky_key_in_scope(self, key)
+        }
 
     def _remember_session_mounted_occupancy(self) -> set[PanelKey]:
         """Reconcile the session-sticky store against the rendered roster.
@@ -99,12 +113,16 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         backing = self._session_mounted_backing_map()
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         keys = panel_key_per_agent(self._agents, merge_tribe_panels=merge_tribe_panels)
-        rendered_now: dict[tuple[AgentType, str, str | None], PanelKey] = {}
+        # The backing map stays keyed by container identity (scope-neutral):
+        # identities are global, and scoped mounted keys already gate which
+        # backing entries each tab's prune can retire.
+        rendered_now: dict[tuple[AgentType, str, str | None], Any] = {}
         for agent, key in zip(self._agents, keys, strict=True):
             if agent_is_rendered_in_agents_panel(agent):
                 norm = normalize_panel_key(key)
-                rendered_now[agent.identity] = norm
-                mounted.setdefault(norm, set()).add(agent.identity)
+                scoped = scoped_sticky_key(self, norm)
+                rendered_now[agent.identity] = scoped
+                mounted.setdefault(scoped, set()).add(agent.identity)
         # A row rendered under a new key proves it left the old panel.
         for identity, key in rendered_now.items():
             for other in list(mounted):
@@ -382,8 +400,12 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             self._expanded_panel_focus = False
         selection_memory = getattr(self, "_panel_selection_memory", None)
         if selection_memory is not None:
-            for stale_key in set(selection_memory) - known_keys:
-                selection_memory.pop(stale_key, None)
+            # Prune only the active scope's entries; other tabs keep theirs.
+            for key in list(selection_memory):
+                if not sticky_key_in_scope(self, key):
+                    continue
+                if unstick_panel_key(key) not in known_keys:
+                    selection_memory.pop(key, None)
         # Whole-panel fold intent outlives churn within a live panel. It is
         # retired only when the panel key stops being live.
 

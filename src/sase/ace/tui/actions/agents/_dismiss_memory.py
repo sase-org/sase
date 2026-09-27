@@ -201,12 +201,16 @@ class AgentDismissMemoryMixin:
         A retired tribe panel needs the panel-resyncing refresh so its widget
         unmounts on the keypress; otherwise the cheap highlight refresh is enough.
         """
-        self._agents = [a for a in self._agents if a.identity not in removed_identities]
+        from ._tab_scope import remove_agents_from_views
+
+        # Module function (not the mixin method) so narrow test stubs that
+        # compose only this mixin keep working; it is duck-typed.
+        remove_agents_from_views(self, removed_identities)
+        # No second panel-cache invalidation here: the helper already
+        # invalidated after publishing the scoped view.
         sync_local = getattr(self, "_sync_agents_local_source_from_current", None)
         if callable(sync_local):
             sync_local()
-        if hasattr(self, "_invalidate_agent_panel_cache"):
-            self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         if hasattr(self, "_restore_focus_after_removal"):
             self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
         if self.current_tab == "agents":

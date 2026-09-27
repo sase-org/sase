@@ -8,6 +8,7 @@ from sase.core.agent_tab import (
     DEFAULT_AGENT_TAB_KEY,
     AgentTabCatalogEntry,
     AgentTabKey,
+    agent_tab_key_token,
     build_agent_tab_catalog,
 )
 
@@ -16,6 +17,75 @@ from .agent import Agent
 
 if TYPE_CHECKING:
     from ..agent_tabs_settings import AgentTabsViewConfig
+
+
+class _AllAgentTabs:
+    """Sentinel scope spanning every agent tab (the later All-tabs level)."""
+
+    __slots__ = ()
+
+    _instance: _AllAgentTabs | None = None
+
+    def __new__(cls) -> _AllAgentTabs:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "ALL_AGENT_TABS"
+
+    def __copy__(self) -> _AllAgentTabs:
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> _AllAgentTabs:
+        return self
+
+
+#: Scope value that disables tab filtering (consumed by ``layout-ladder``).
+ALL_AGENT_TABS = _AllAgentTabs()
+
+#: The active-tab scope: one tab key, or the all-tabs sentinel.
+AgentTabScope = AgentTabKey | _AllAgentTabs
+
+#: Fold/persistence token for the all-tabs scope.
+ALL_AGENT_TABS_SCOPE_TOKEN = "all"
+
+#: Prefix for in-memory scope tokens of unresolved-machine keys, which have
+#: no persistence token and whose folds are never written to disk.
+UNRESOLVED_TAB_SCOPE_PREFIX = "unresolved:"
+
+
+def agent_tab_scope_token(scope: AgentTabScope) -> str:
+    """Return the hashable fold/persistence token for *scope*."""
+    if scope is ALL_AGENT_TABS:
+        return ALL_AGENT_TABS_SCOPE_TOKEN
+    if isinstance(scope, AgentTabKey):
+        token = agent_tab_key_token(scope)
+        if token is not None:
+            return token
+        return f"{UNRESOLVED_TAB_SCOPE_PREFIX}{scope.value}"
+    return agent_tab_scope_token(DEFAULT_AGENT_TAB_KEY)
+
+
+def scope_agents_to_tab(
+    rows: list[Agent],
+    index: AgentTabIndex | None,
+    scope: AgentTabScope,
+    *,
+    enabled: bool = True,
+) -> list[Agent]:
+    """Return the rows visible under *scope* (pure, no I/O).
+
+    With the flag off (``enabled=False``) or at the all-tabs scope this
+    returns *rows* unchanged, so the flag-off roster is identical to today's.
+    Otherwise a row (child rows included) is kept iff its presentation
+    anchor's root key matches *scope*.
+    """
+    if not enabled or scope is ALL_AGENT_TABS or index is None:
+        return rows
+    if not isinstance(scope, AgentTabKey):
+        return rows
+    return [row for row in rows if index.key_for(row) == scope]
 
 
 class AgentTabIndex:
@@ -177,8 +247,14 @@ def clear_agent_tab_index_cache() -> None:
 
 
 __all__ = [
+    "ALL_AGENT_TABS",
+    "ALL_AGENT_TABS_SCOPE_TOKEN",
+    "UNRESOLVED_TAB_SCOPE_PREFIX",
     "AgentTabIndex",
+    "AgentTabScope",
+    "agent_tab_scope_token",
     "build_agent_tab_index",
     "cached_agent_tab_index",
     "clear_agent_tab_index_cache",
+    "scope_agents_to_tab",
 ]

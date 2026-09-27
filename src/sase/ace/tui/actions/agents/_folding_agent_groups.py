@@ -351,23 +351,27 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
         self._expanded_panel_focus = True  # type: ignore[attr-defined]
         self._current_group_key = None
 
-        selection_memory = getattr(self, "_panel_selection_memory", None)
-        if selection_memory is None:
-            return
+        from ._tab_scope import scoped_selection_pop, scoped_selection_set
+
         if remembered_selection is _FOCUSED_PANEL:
-            selection_memory.pop(panel_key, None)
+            scoped_selection_pop(self, panel_key)
         else:
-            selection_memory[panel_key] = cast(
-                "tuple[str, int | tuple[str, ...]]",
-                remembered_selection,
+            scoped_selection_set(
+                self,
+                panel_key,
+                cast(
+                    "tuple[str, int | tuple[str, ...]]",
+                    remembered_selection,
+                ),
             )
 
     def _refilter_focused_panel_inner_fold(self, panel_key: PanelKey) -> None:
         """Run one fold-only refilter without changing whole-panel intent."""
+        from ._tab_scope import scoped_selection_get
+
         current_idx = self.current_idx
-        selection_memory = getattr(self, "_panel_selection_memory", {})
         remembered_selection: tuple[str, int | tuple[str, ...]] | object = (
-            selection_memory.get(panel_key, _FOCUSED_PANEL)
+            scoped_selection_get(self, panel_key, _FOCUSED_PANEL)
         )
         self._refilter_agents(  # type: ignore[attr-defined]
             refresh_content_index=False

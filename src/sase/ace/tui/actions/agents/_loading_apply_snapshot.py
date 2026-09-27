@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
+from sase.core.agent_tab import AgentTabKey
+
 from ._loading_apply_history import (
     cache_query_matches_load,
     has_complete_history_for_load_query,
@@ -90,6 +92,23 @@ class AgentLoadingApplySnapshotMixin(AgentLoadingStateMixin):
             else ExplicitRemovalSnapshot.from_identities(())
         )
 
+        from ...agent_tabs_flag import agent_tabs_enabled
+        from ._tab_scope import current_agent_tab_scope, current_agent_tab_scope_token
+
+        tabs_enabled = bool(agent_tabs_enabled())
+        if tabs_enabled:
+            from ...agent_tabs_settings import agent_tabs_view_config
+
+            try:
+                tabs_view_config = agent_tabs_view_config()
+            except Exception:
+                tabs_view_config = None
+                tabs_enabled = False
+        else:
+            tabs_view_config = None
+        tab_scope = current_agent_tab_scope(self)
+        tab_scope_key = tab_scope if isinstance(tab_scope, AgentTabKey) else None
+
         return PreparedApplySnapshot(
             cached_agents_with_children=list(
                 getattr(self, "_agents_with_children", [])
@@ -132,6 +151,10 @@ class AgentLoadingApplySnapshotMixin(AgentLoadingStateMixin):
             fleet_rows=self._fleet_rows_for_prepared_snapshot(),
             explicit_removals=explicit_removals,
             removal_generation=int(getattr(self, "_agents_removal_generation", 0)),
+            agent_tabs_enabled=tabs_enabled,
+            agent_tab_scope_token=current_agent_tab_scope_token(self),
+            agent_tab_scope_key=tab_scope_key,
+            agent_tabs_view_config=tabs_view_config,
         )
 
     def _fleet_rows_for_prepared_snapshot(self) -> tuple[Agent, ...]:

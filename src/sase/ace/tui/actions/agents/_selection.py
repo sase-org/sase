@@ -103,11 +103,9 @@ class AgentSelectionMixin:
         elif not isinstance(payload, tuple):
             return
 
-        memory = getattr(self, "_panel_selection_memory", None)
-        if memory is None:
-            memory = {}
-            self._panel_selection_memory = memory
-        memory[panel_key] = stop
+        from ._tab_scope import scoped_selection_set
+
+        scoped_selection_set(self, panel_key, stop)
 
     def _activate_focused_panel(self) -> bool:
         """Select the focused expanded panel while retaining its row anchor."""

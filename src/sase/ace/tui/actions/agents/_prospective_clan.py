@@ -67,9 +67,12 @@ def _projection_panel_fold_registry(owner: Any, panel_key: PanelKey) -> Any:
     registry_owner = getattr(owner, "_group_fold_registry", None)
     if not isinstance(registry_owner, AgentGroupFoldRegistry):
         return registry_owner
+    from ._tab_scope import current_agent_tab_scope_token
+
     scope = AgentPanelFoldScope(
         panel_key=panel_key,
         merged=bool(getattr(owner, "_agent_panels_grouped", False)),
+        tab_scope=current_agent_tab_scope_token(owner),
     )
     registry = GroupFoldRegistry()
     for snapshot in registry_owner.snapshot():

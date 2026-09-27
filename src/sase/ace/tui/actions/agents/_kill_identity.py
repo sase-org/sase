@@ -224,7 +224,6 @@ class AgentKillIdentityMixin:
             self._refilter_agents(prior_pos=prior_pos)  # type: ignore[attr-defined]
             return
 
-        self._agents = [a for a in self._agents if a.identity not in identities]  # type: ignore[attr-defined]
         self._agents_with_children = [
             a for a in self._agents_with_children if a.identity not in identities
         ]
@@ -232,12 +231,19 @@ class AgentKillIdentityMixin:
             from ...models._agent_tree import project_clan_tree
 
             self._agents_with_children = project_clan_tree(self._agents_with_children)
-            self._agents = project_clan_tree(self._agents)
+        # Route the visible-list update through the cached query result so a
+        # later tab switch cannot resurrect a killed row. Module function
+        # (not the mixin method) so narrow test stubs keep working.
+        from ._tab_scope import remove_agents_from_views
+
+        remove_agents_from_views(
+            self, identities, reproject_clan=clan_projection_changed
+        )
+        # No second panel-cache invalidation here: the helper already
+        # invalidated after publishing the scoped view.
         sync_local = getattr(self, "_sync_agents_local_source_from_current", None)
         if callable(sync_local):
             sync_local()
-        if hasattr(self, "_invalidate_agent_panel_cache"):
-            self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
 
         self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
 

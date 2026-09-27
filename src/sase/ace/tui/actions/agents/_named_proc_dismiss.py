@@ -98,17 +98,17 @@ class NamedProcDismissMixin:
             if callable(refilter):
                 refilter(prior_pos=prior_pos)
             else:
-                self._agents = [
-                    agent for agent in self._agents if agent.identity not in removed
-                ]
+                from ._tab_scope import remove_agents_from_views
+
+                remove_agents_from_views(self, removed, reproject_clan=True)
         elif fast_path:
             finish = getattr(self, "_apply_dismissal_in_memory_fast_finish", None)
             if callable(finish):
                 finish(removed, prior_pos=prior_pos, panels_retired=panels_retired)
             else:
-                self._agents = [
-                    agent for agent in self._agents if agent.identity not in removed
-                ]
+                from ._tab_scope import remove_agents_from_views as _remove_views
+
+                _remove_views(self, removed)
 
         sync_local = getattr(self, "_sync_agents_local_source_from_current", None)
         if callable(sync_local):
@@ -118,9 +118,9 @@ class NamedProcDismissMixin:
             if callable(refilter):
                 refilter(prior_pos=prior_pos)
             else:
-                self._agents = [
-                    agent for agent in self._agents if agent.identity not in removed
-                ]
+                from ._tab_scope import remove_agents_from_views as _remove_views_sync
+
+                _remove_views_sync(self, removed)
 
         if len(targets) == 1:
             agent = targets[0]

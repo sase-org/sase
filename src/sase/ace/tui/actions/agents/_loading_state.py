@@ -31,10 +31,12 @@ if TYPE_CHECKING:
     )
     from ...models.agent_loader import AgentLoadState
     from ...models.agent_runner_slots import RunnerCapacitySnapshot
+    from ...models.agent_tab_index import AgentTabIndex
     from ...models.fold_state import FoldStateManager
     from ...models.fold_state import FoldLevel
     from ...util.nav_gate import NavigationGate
     from ._loading_disk_support import ExternalDismissalMergeResult
+    from sase.core.agent_tab import AgentTabKey
     from sase.current_project import CurrentProject
 
 AgentIdentity = tuple[Any, str, str | None]
@@ -123,6 +125,13 @@ class AgentLoadingStateMixin:
     # evaluation (sase-zf.2), reused by the in-memory sync refilter path.
     # ``None`` under the legacy dialect or before the first evaluation lands.
     _agents_live_query_facade: AgentsLiveQueryFacade | None
+    # Tab-independent committed query result plus the active-tab scope
+    # stage (scope-stage phase). The scoped ``_agents`` view derives from
+    # ``_agents_query_result`` without I/O; ``None`` index means the flag
+    # is off (or the view config failed and the scope stays fail-open).
+    _agents_query_result: list[Agent]
+    _active_agent_tab: AgentTabKey
+    _agent_tab_index: AgentTabIndex | None
     # ``(matched, loaded)`` for the last committed query, rendered by the
     # info-panel readout (sase-zf.4). ``None`` when idle with no filter.
     _agents_committed_match_count: tuple[int, int] | None

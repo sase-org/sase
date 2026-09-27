@@ -22,7 +22,9 @@ def resolve_panel_entry_stop(
             stops = stops_fn(include_panel_focus=True)
         except TypeError:
             stops = stops_fn()
-    remembered = getattr(owner, "_panel_selection_memory", {}).get(panel_key)
+    from ._tab_scope import scoped_selection_get
+
+    remembered = scoped_selection_get(owner, panel_key)
     return remembered if remembered in stops else (stops[0] if stops else None)
 
 

@@ -90,6 +90,9 @@ class PreparedFinalizeStaleToken:
     hide_non_run_agents: bool
     unread_agent_ids: frozenset[tuple[AgentType, str, str | None]]
     proc_generation: int = 0
+    # Active-tab scope (scope-stage phase): a tab switch made while a worker
+    # plan is in flight invalidates that plan.
+    agent_tab_scope_token: str = "default"
 
 
 def attach_finalize_plan_to_boundary(
@@ -103,6 +106,7 @@ def attach_finalize_plan_to_boundary(
         boundary.fold.visible_agents,
         snapshot,
         content_index=content_index,
+        unfiltered_agents=boundary.fold.unfiltered_agents,
     )
     return replace(boundary, finalize=finalize_plan)
 
@@ -319,6 +323,7 @@ def make_finalize_stale_token(
         hide_non_run_agents=snapshot.hide_non_run_agents,
         unread_agent_ids=snapshot.unread_agent_ids,
         proc_generation=snapshot.proc_generation,
+        agent_tab_scope_token=snapshot.agent_tab_scope_token,
     )
 
 
@@ -327,6 +332,7 @@ def _compute_finalize_plan(
     snapshot: PreparedApplySnapshot,
     *,
     content_index: AgentContentSearchIndex | None = None,
+    unfiltered_agents: list[Agent] | None = None,
 ) -> PreparedFinalizePlan:
     """Run the pure parts of ``finalize_agent_list`` off the UI thread.
 
@@ -335,9 +341,19 @@ def _compute_finalize_plan(
     needs — plus a :class:`PreparedFinalizeStaleToken` capturing every
     mutable input. The UI thread re-captures the same inputs at apply
     time and discards the plan if any drift is detected.
+
+    The active-tab scope stage runs here too: the tab-independent query
+    result is cached, then scoped to the snapshot's tab before selection
+    restoration and panel-key enumeration. Status overrides stay
+    tab-independent so off-tab overrides survive.
     """
     from ...models.agent_group_fold import enumerate_panel_group_keys
     from ...models.agent_groups import GroupingMode
+    from ...models.agent_tab_index import (
+        AgentTabIndex,
+        build_agent_tab_index,
+        scope_agents_to_tab,
+    )
     from ...util.trace import tui_trace
 
     # ``agents_in`` is the filter's input and ``agents_out`` its output; a single
@@ -352,8 +368,33 @@ def _compute_finalize_plan(
         query_plan.filtered_agents,
         snapshot.agent_status_overrides,
     )
+    query_result = list(query_plan.filtered_agents)
+    tab_index: AgentTabIndex | None = None
+    tab_scope_token = snapshot.agent_tab_scope_token or "default"
+    if snapshot.agent_tabs_enabled and snapshot.agent_tabs_view_config is not None:
+        from ...models.agent_tab_index import ALL_AGENT_TABS
+
+        index_roster = (
+            unfiltered_agents if unfiltered_agents is not None else visible_agents
+        )
+        tab_index = build_agent_tab_index(
+            list(index_roster), snapshot.agent_tabs_view_config
+        )
+        scope = (
+            ALL_AGENT_TABS
+            if snapshot.agent_tab_scope_key is None
+            else snapshot.agent_tab_scope_key
+        )
+        scoped_agents = scope_agents_to_tab(
+            query_result,
+            tab_index,
+            scope,
+            enabled=True,
+        )
+    else:
+        scoped_agents = query_result
     selection_plan = _compute_selection_plan(
-        query_plan.filtered_agents,
+        scoped_agents,
         snapshot.selection,
     )
     grouping_mode = (
@@ -362,9 +403,10 @@ def _compute_finalize_plan(
         else GroupingMode.STANDARD
     )
     panel_group_keys = enumerate_panel_group_keys(
-        query_plan.filtered_agents,
+        scoped_agents,
         mode=grouping_mode,
         merged=snapshot.agent_panels_grouped,
+        tab_scope=tab_scope_token,
     )
     stale_token = make_finalize_stale_token(snapshot)
     return PreparedFinalizePlan(
@@ -374,4 +416,8 @@ def _compute_finalize_plan(
         panel_group_keys=panel_group_keys,
         stale_token=stale_token,
         input_row_identities=roster_identities(visible_agents),
+        agents_query_result=query_result,
+        scoped_agents=scoped_agents,
+        tab_scope_token=tab_scope_token,
+        tab_index=tab_index,
     )

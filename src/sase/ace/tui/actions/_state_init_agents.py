@@ -40,6 +40,16 @@ def init_agent_state(self: Any) -> None:
     self._agents_last_idx = 0
     self._agents_last_identity = None
     self._agents = []
+    # Tab-independent committed query result plus the active-tab scope
+    # stage (scope-stage phase). The scoped `_agents` view is derived from
+    # `_agents_query_result` without I/O; every direct `_agents` mutation
+    # goes through `_remove_agents_from_views` so a later tab switch cannot
+    # resurrect a removed row.
+    self._agents_query_result = []
+    from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY
+
+    self._active_agent_tab = DEFAULT_AGENT_TAB_KEY
+    self._agent_tab_index = None
     self._agents_capacity_with_children = []
     self._agents_local_with_children = []
     self._agents_local_visible = []

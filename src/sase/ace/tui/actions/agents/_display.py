@@ -115,8 +115,9 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
     _panel_keys_cache: tuple[Any, ...] | None
     # Phase 4 panel index cache: keyed on ``self._agents`` identity so a
     # single agents-list ref reuses the same panels / non-child indices /
-    # completed count across every refresh path.
-    _agent_panel_index_cache: tuple[Any, bool, AgentPanelIndex] | None
+    # completed count across every refresh path. The tab scope joins the
+    # key so a re-scope never reuses another tab's index.
+    _agent_panel_index_cache: tuple[Any, bool, str, AgentPanelIndex] | None
     _agent_neighbor_index_cache: tuple[Any, ...] | None
     _unread_jump_candidates_cache: tuple[Any, Any] | None
 
@@ -154,21 +155,29 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         scanned at most once per refresh cycle.
         """
         from ...models.agent_panel_index import build_agent_panel_index
+        from ._tab_scope import current_agent_tab_scope_token
 
         cached = getattr(self, "_agent_panel_index_cache", None)
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
+        tab_scope = current_agent_tab_scope_token(self)
         if (
             cached is not None
             and cached[0] is self._agents
             and cached[1] == merge_tribe_panels
+            and cached[2] == tab_scope
         ):
-            return cached[2]
+            return cached[3]
         index = build_agent_panel_index(
             self._agents,
             dismissable_statuses=DISMISSABLE_STATUSES,
             merge_tribe_panels=merge_tribe_panels,
         )
-        self._agent_panel_index_cache = (self._agents, merge_tribe_panels, index)
+        self._agent_panel_index_cache = (
+            self._agents,
+            merge_tribe_panels,
+            tab_scope,
+            index,
+        )
         # Keep the legacy ``_panel_keys_cache`` populated so callers that
         # still go through ``_panel_keys_per_agent`` (tree builder, banner
         # math) share the same per-agent key list as the panel index.

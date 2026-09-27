@@ -40,10 +40,15 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class AgentPanelFoldScope:
-    """Identity of one rendered Agents-panel grouping tree."""
+    """Identity of one rendered Agents-panel grouping tree.
+
+    ``tab_scope`` is the active-tab scope token (``"default"`` with the
+    flag off), so folds are kept per tab once tab scoping lands.
+    """
 
     panel_key: PanelKey
     merged: bool = False
+    tab_scope: str = "default"
 
 
 @dataclass(frozen=True)
@@ -73,9 +78,12 @@ class AgentGroupFoldRegistry:
         panel_key: PanelKey,
         *,
         merged: bool = False,
+        tab_scope: str = "default",
     ) -> GroupFoldRegistry:
         """Return the ordinary registry for one rendered panel tree."""
-        scope = AgentPanelFoldScope(panel_key=panel_key, merged=merged)
+        scope = AgentPanelFoldScope(
+            panel_key=panel_key, merged=merged, tab_scope=tab_scope
+        )
         registry = self._registries.get(scope)
         if registry is None:
             registry = GroupFoldRegistry()
@@ -87,24 +95,35 @@ class AgentGroupFoldRegistry:
         known_by_scope: Mapping[AgentPanelFoldScope, Iterable[GroupKey]],
         *,
         merged: bool,
+        tab_scope: str = "default",
     ) -> bool:
         """Prune stale folds independently for the active panel layout.
 
         Scopes from other grouping modes live in other owners, while scopes
         from the inactive split/merged layout remain untouched here.  Active
-        scopes whose panels disappeared are removed entirely.
+        scopes whose panels disappeared are removed entirely.  Only scopes
+        whose ``tab_scope`` equals the current scope are pruned, so
+        switching tabs never garbage-collects another tab's folds.
         """
         changed = False
-        active_scopes = {scope for scope in known_by_scope if scope.merged == merged}
+        active_scopes = {
+            scope
+            for scope in known_by_scope
+            if scope.merged == merged and scope.tab_scope == tab_scope
+        }
         for scope in list(self._registries):
-            if scope.merged == merged and scope not in active_scopes:
+            if (
+                scope.merged == merged
+                and scope.tab_scope == tab_scope
+                and scope not in active_scopes
+            ):
                 if self._registries[scope].collapsed:
                     changed = True
                 del self._registries[scope]
         for scope in active_scopes:
-            if self.for_panel(scope.panel_key, merged=scope.merged).clear_unknown(
-                known_by_scope[scope]
-            ):
+            if self.for_panel(
+                scope.panel_key, merged=scope.merged, tab_scope=scope.tab_scope
+            ).clear_unknown(known_by_scope[scope]):
                 changed = True
         return changed
 
@@ -135,12 +154,13 @@ class AgentGroupFoldRegistry:
         panel_keys: Iterable[PanelKey],
         *,
         merged: bool = False,
+        tab_scope: str = "default",
     ) -> tuple[tuple[PanelKey, int, int], ...]:
         """Return a cheap cache signature for all rendered panel views."""
         return tuple(
             (key, id(registry), registry.version)
             for key in panel_keys
-            for registry in (self.for_panel(key, merged=merged),)
+            for registry in (self.for_panel(key, merged=merged, tab_scope=tab_scope),)
         )
 
     @property
@@ -180,6 +200,7 @@ def enumerate_panel_group_keys(
     *,
     mode: GroupingMode,
     merged: bool = False,
+    tab_scope: str = "default",
 ) -> dict[AgentPanelFoldScope, list[GroupKey]]:
     """Return the grouping keys rendered independently in every panel.
 
@@ -194,7 +215,9 @@ def enumerate_panel_group_keys(
         merge_tribe_panels=merged,
     )
     return {
-        AgentPanelFoldScope(panel_key=panel_key, merged=merged): enumerate_group_keys(
+        AgentPanelFoldScope(
+            panel_key=panel_key, merged=merged, tab_scope=tab_scope
+        ): enumerate_group_keys(
             agents_for_panel(
                 agents,
                 panel_key,

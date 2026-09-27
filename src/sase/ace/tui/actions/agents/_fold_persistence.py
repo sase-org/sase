@@ -32,6 +32,7 @@ class _AgentGroupFoldIntent:
     merged: bool
     group_key: GroupKey
     collapsed: bool
+    tab_scope: str = "default"
 
 
 AgentFoldIntent = _AgentGroupFoldIntent
@@ -108,9 +109,12 @@ class AgentFoldPersistenceMixin:
             )
         else:
             resolved_panel_key = cast("PanelKey", panel_key)
+        from ._tab_scope import current_agent_tab_scope_token
+
         scope = AgentPanelFoldScope(
             panel_key=resolved_panel_key,
             merged=bool(getattr(self, "_agent_panels_grouped", False)),
+            tab_scope=current_agent_tab_scope_token(self),
         )
         self._agents_fold_state_changed(
             _AgentGroupFoldIntent(
@@ -119,6 +123,7 @@ class AgentFoldPersistenceMixin:
                 merged=scope.merged,
                 group_key=tuple(group_key),
                 collapsed=collapsed,
+                tab_scope=scope.tab_scope,
             )
         )
 
@@ -168,8 +173,12 @@ class AgentFoldPersistenceMixin:
         if owner is None:
             owner = AgentGroupFoldRegistry()
             registries[intent.mode] = owner
-        scope = AgentPanelFoldScope(intent.panel_key, merged=intent.merged)
-        registry = owner.for_panel(scope.panel_key, merged=scope.merged)
+        scope = AgentPanelFoldScope(
+            intent.panel_key, merged=intent.merged, tab_scope=intent.tab_scope
+        )
+        registry = owner.for_panel(
+            scope.panel_key, merged=scope.merged, tab_scope=scope.tab_scope
+        )
         if intent.collapsed:
             registry.collapse(intent.group_key)
         else:

@@ -21,12 +21,14 @@ def panel_fold_registry(
     registry.  Those already represent one tree and are returned unchanged.
     """
     from ...models.agent_group_fold import AgentGroupFoldRegistry
+    from ._tab_scope import current_agent_tab_scope_token
 
     registry_owner = getattr(owner, "_group_fold_registry", None)
     if isinstance(registry_owner, AgentGroupFoldRegistry):
         return registry_owner.for_panel(
             panel_key,
             merged=bool(getattr(owner, "_agent_panels_grouped", False)),
+            tab_scope=current_agent_tab_scope_token(owner),
         )
     return registry_owner
 
@@ -48,9 +50,12 @@ def panel_fold_version_signature(
     registry_owner = getattr(owner, "_group_fold_registry", None)
     keys = tuple(panel_keys)
     if isinstance(registry_owner, AgentGroupFoldRegistry):
+        from ._tab_scope import current_agent_tab_scope_token
+
         return registry_owner.layout_version_signature(
             keys,
             merged=bool(getattr(owner, "_agent_panels_grouped", False)),
+            tab_scope=current_agent_tab_scope_token(owner),
         )
     return (
         id(registry_owner),
@@ -69,12 +74,15 @@ def reconcile_panel_fold_registries(
     and panel toggles own that intent's lifetime instead.
     """
     from ...models.agent_group_fold import AgentGroupFoldRegistry
+    from ._tab_scope import current_agent_tab_scope_token
 
     registry_owner = getattr(owner, "_group_fold_registry", None)
     merged = bool(getattr(owner, "_agent_panels_grouped", False))
     if isinstance(registry_owner, AgentGroupFoldRegistry):
         group_state_changed = registry_owner.reconcile_layout(
-            known_by_scope, merged=merged
+            known_by_scope,
+            merged=merged,
+            tab_scope=current_agent_tab_scope_token(owner),
         )
         if group_state_changed:
             schedule = getattr(owner, "_agents_fold_state_changed", None)

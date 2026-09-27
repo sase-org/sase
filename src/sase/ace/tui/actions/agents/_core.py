@@ -33,6 +33,7 @@ from ._query_persistence import AgentQueryPersistenceMixin
 from ._revert import AgentRevertMixin
 from ._revive import AgentRevivalMixin
 from ._selection import AgentSelectionMixin
+from ._tab_scope import AgentTabScopeMixin
 from ._tribe_assignment import AgentTribeAssignmentMixin
 from ._unread import AgentUnreadMixin
 from ._wait_resume import AgentWaitResumeMixin
@@ -84,6 +85,7 @@ class AgentsMixinCore(
     AgentWorkflowHITLMixin,
     AgentNavigationOrderMixin,
     AgentSelectionMixin,
+    AgentTabScopeMixin,
     AgentUnreadMixin,
     AgentEnterActionMixin,
     AgentPatchNavigationMixin,

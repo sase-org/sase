@@ -79,7 +79,7 @@ def test_deterministic_round_trip_covers_modes_and_panel_scopes(
 
 def test_empty_state_omits_empty_collections() -> None:
     assert _serialize_agents_fold_state(EMPTY_AGENTS_FOLD_STATE) == (
-        '{"schema_version":3}\n'
+        '{"schema_version":4}\n'
     )
 
 
@@ -163,7 +163,7 @@ def test_legacy_v1_tag_panel_discriminators_load_group_scopes_and_drop_panel_fie
     save_agents_fold_state(loaded, path)
 
     rewritten = path.read_text(encoding="utf-8")
-    assert '"schema_version":3' in rewritten
+    assert '"schema_version":4' in rewritten
     assert '"collapsed_panels"' not in rewritten
     assert '"expanded_panels"' not in rewritten
     assert '"kind":"tribe","tribe":"chop"' in rewritten

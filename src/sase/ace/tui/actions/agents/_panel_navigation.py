@@ -124,7 +124,9 @@ class AgentPanelNavigationMixin:
         self._current_group_key = None  # type: ignore[attr-defined]
         self.current_attempt_number = None  # type: ignore[attr-defined]
 
-        remembered = getattr(self, "_panel_selection_memory", {}).get(panel_key)
+        from ._tab_scope import scoped_selection_get
+
+        remembered = scoped_selection_get(self, panel_key)
         global_indices, _agents = rendered_panel_slice(self, panel_key)
         if (
             remembered is not None

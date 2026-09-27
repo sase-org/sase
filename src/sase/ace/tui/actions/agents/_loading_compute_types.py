@@ -24,12 +24,15 @@ from ...models.agent_runner_slots import RunnerCapacitySnapshot
 
 if TYPE_CHECKING:
     from ....agent_query import QueryExpr
+    from ...agent_tabs_settings import AgentTabsViewConfig
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_group_fold import AgentPanelFoldScope, GroupKey
     from ...models.agent_groups import GroupingMode
     from ...models.agent_loader import AgentLoadState
+    from ...models.agent_tab_index import AgentTabIndex, AgentTabScope
     from ...models.fold_state import FoldLevel
+    from sase.core.agent_tab import AgentTabKey
 
     from ._loading_compute import PreparedFoldFiltering
     from ._loading_compute_finalize import (
@@ -120,6 +123,13 @@ class PreparedApplySnapshot:
     # apply path compares ``removal_generation`` before publishing this work.
     explicit_removals: ExplicitRemovalSnapshot | None = None
     removal_generation: int = 0
+    # Active-tab scope stage (scope-stage phase). The worker builds the tab
+    # index and the scoped roster from these inputs; the stale token carries
+    # the scope token so a tab switch in flight invalidates the plan.
+    agent_tabs_enabled: bool = False
+    agent_tab_scope_token: str = "default"
+    agent_tab_scope_key: AgentTabKey | None = None
+    agent_tabs_view_config: AgentTabsViewConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -137,6 +147,15 @@ class PreparedFinalizePlan:
     # local-only roster before the fleet projection widened it), so the commit
     # step compares this against the roster it is about to publish.
     input_row_identities: tuple[tuple[AgentType, str, str | None], ...] = ()
+    # Active-tab scope stage (scope-stage phase). ``agents_query_result`` is
+    # the tab-independent committed result the UI caches; ``scoped_agents``
+    # is the active-tab view published as ``_agents``; ``tab_index`` is the
+    # index the scope was applied with. Flag off, the scoped list holds the
+    # same rows in the same order.
+    agents_query_result: list[Agent] = field(default_factory=list)
+    scoped_agents: list[Agent] = field(default_factory=list)
+    tab_scope_token: str = "default"
+    tab_index: AgentTabIndex | None = None
 
 
 @dataclass(frozen=True)
