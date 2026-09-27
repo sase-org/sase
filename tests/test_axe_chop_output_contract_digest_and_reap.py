@@ -138,6 +138,12 @@ def test_managed_tmp_reap_emits_noop_summary(
         "sase.core.managed_tmp_reaper.managed_tmpdir_root", lambda: managed_root
     )
     _pin_reap_free_space(monkeypatch)
+    # The backstop is enabled by default; pin it so an ambient opt-out in
+    # sase.yml cannot move the dead_launch_observer counter.
+    monkeypatch.setattr(
+        "sase.core.managed_tmp_reaper.get_managed_tmp_dead_launch_enabled",
+        lambda: True,
+    )
 
     run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
 
@@ -145,6 +151,9 @@ def test_managed_tmp_reap_emits_noop_summary(
     assert "managed_tmp_reap:" in out
     assert "removed=0" in out
     assert "reason=nothing_stale" in out
+    # String-valued fields ride the summary line even though counters
+    # only carry ints (same as pressure_trigger).
+    assert "dead_launch_observer=procfs" in out
     # Even a no-op names the root it scanned, so a stale-root miss is visible.
     assert "nothing stale under" in out
     assert str(managed_root) in out
@@ -154,6 +163,13 @@ def test_managed_tmp_reap_emits_noop_summary(
     assert result["counters"] == {
         "capped": 0,
         "deindexed": 0,
+        "dead_launch_scanned": 0,
+        "dead_launch_selected": 0,
+        "dead_launch_removed": 0,
+        "dead_launch_reclaimable_bytes": 0,
+        "dead_launch_reclaimed_bytes": 0,
+        "dead_launch_preserved_live": 0,
+        "dead_launch_preserved_incomplete": 0,
         "failed": 0,
         "incomplete_observations": 0,
         "launch_reclaimable_bytes": 0,
@@ -199,6 +215,12 @@ def test_managed_tmp_reap_emits_action_summary(
         "sase.core.managed_tmp_reaper.managed_tmpdir_root", lambda: managed_root
     )
     _pin_reap_free_space(monkeypatch)
+    # The backstop is enabled by default; pin it so an ambient opt-out in
+    # sase.yml cannot move the dead_launch_observer counter.
+    monkeypatch.setattr(
+        "sase.core.managed_tmp_reaper.get_managed_tmp_dead_launch_enabled",
+        lambda: True,
+    )
 
     run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
 
@@ -213,6 +235,13 @@ def test_managed_tmp_reap_emits_action_summary(
     assert result["counters"] == {
         "capped": 0,
         "deindexed": 0,
+        "dead_launch_scanned": 0,
+        "dead_launch_selected": 0,
+        "dead_launch_removed": 0,
+        "dead_launch_reclaimable_bytes": 0,
+        "dead_launch_reclaimed_bytes": 0,
+        "dead_launch_preserved_live": 0,
+        "dead_launch_preserved_incomplete": 0,
         "failed": 0,
         "incomplete_observations": 0,
         "launch_reclaimable_bytes": 0,
@@ -272,6 +301,14 @@ def test_managed_tmp_reap_reports_pressure_min_age(
             launch_removed=0,
             launch_reclaimable_bytes=0,
             launch_reclaimed_bytes=0,
+            dead_launch_scanned=0,
+            dead_launch_selected=0,
+            dead_launch_removed=0,
+            dead_launch_reclaimable_bytes=0,
+            dead_launch_reclaimed_bytes=0,
+            dead_launch_preserved_live=0,
+            dead_launch_preserved_incomplete=0,
+            dead_launch_observer="procfs",
             pressure_selected=1,
             pressure_removed=1,
             pressure_reclaimable_bytes=4096,

@@ -133,6 +133,30 @@ def _managed_tmp_reap_step_impl(
             "launch_reclaimed_bytes": sum(
                 result.launch_reclaimed_bytes for result in results
             ),
+            "dead_launch_scanned": sum(
+                result.dead_launch_scanned for result in results
+            ),
+            "dead_launch_selected": sum(
+                result.dead_launch_selected for result in results
+            ),
+            "dead_launch_removed": sum(
+                result.dead_launch_removed for result in results
+            ),
+            "dead_launch_reclaimable_bytes": sum(
+                result.dead_launch_reclaimable_bytes for result in results
+            ),
+            "dead_launch_reclaimed_bytes": sum(
+                result.dead_launch_reclaimed_bytes for result in results
+            ),
+            "dead_launch_preserved_live": sum(
+                result.dead_launch_preserved_live for result in results
+            ),
+            "dead_launch_preserved_incomplete": sum(
+                result.dead_launch_preserved_incomplete for result in results
+            ),
+            "dead_launch_observer": "+".join(
+                dict.fromkeys(result.dead_launch_observer for result in results)
+            ),
             "pressure_selected": sum(result.pressure_selected for result in results),
             "pressure_removed": sum(result.pressure_removed for result in results),
             "pressure_reclaimable_bytes": sum(
@@ -222,6 +246,14 @@ def _managed_tmp_details(result: Any) -> dict[str, Any]:
         "launch_removed": result.launch_removed,
         "launch_reclaimable_bytes": result.launch_reclaimable_bytes,
         "launch_reclaimed_bytes": result.launch_reclaimed_bytes,
+        "dead_launch_scanned": result.dead_launch_scanned,
+        "dead_launch_selected": result.dead_launch_selected,
+        "dead_launch_removed": result.dead_launch_removed,
+        "dead_launch_reclaimable_bytes": result.dead_launch_reclaimable_bytes,
+        "dead_launch_reclaimed_bytes": result.dead_launch_reclaimed_bytes,
+        "dead_launch_preserved_live": result.dead_launch_preserved_live,
+        "dead_launch_preserved_incomplete": (result.dead_launch_preserved_incomplete),
+        "dead_launch_observer": result.dead_launch_observer,
         "pressure_selected": result.pressure_selected,
         "pressure_removed": result.pressure_removed,
         "pressure_reclaimable_bytes": result.pressure_reclaimable_bytes,

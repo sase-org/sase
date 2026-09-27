@@ -4957,8 +4957,8 @@
             "build_scratch_seconds": {
               "type": "integer",
               "minimum": 0,
-              "default": 259200,
-              "description": "Cargo and other build scratch created for one launched agent (build-targets, cargo-targets)."
+              "default": 86400,
+              "description": "Cargo and other build scratch created for one launched agent (build-targets, cargo-targets). Only the non-procfs fallback still waits this long; the dead-launch backstop reaps unheld launch scratch after its own grace."
             },
             "command_scratch_seconds": {
               "type": "integer",
@@ -5030,8 +5030,26 @@
             "min_entry_bytes": {
               "type": "integer",
               "minimum": 0,
-              "default": 1073741824,
-              "description": "Small entries do not participate in pressure pruning."
+              "default": 67108864,
+              "description": "Small entries do not participate in pressure pruning. Largest-first ordering already prefers big entries; the typical 0.8-0.9 GiB per-launch target must stay eligible."
+            }
+          }
+        },
+        "dead_launch": {
+          "type": "object",
+          "description": "Backstop over launch-keyed scratch (agent-tmp, cargo-targets, legacy build-targets) for launches that never ran runner-exit cleanup.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Run the dead-launch backstop pass in the reaper."
+            },
+            "grace_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 7200,
+              "description": "Quiet age before scratch no live process holds may be reaped."
             }
           }
         },

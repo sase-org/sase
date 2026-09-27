@@ -527,54 +527,67 @@ resolves. The actual age/pressure decision runs in `sase_core_rs` (`sase-core`'s
 and calls that binding once per root. Horizons are per subdirectory: command scratch
 (`editors/`, `wrappers/`, `viewers/`, `commit-messages/`, `agent-tmp/`, …) goes after 12
 hours by default, handoff files (`handoff/`, `gh-diffs/`, `muse-prompts/` — a provider
-re-reads the latter mid-run) after 3 days, build targets (`cargo-targets/`) after 3
-days, and artifacts sase's TUI and screenshot tooling reads back (`launch-prompts/`,
-`screenshots/`, `workflow-artifacts/`) after 14 days. Launched agents default
-`TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to per-launch
-directories under those managed buckets, so shell scratch and Cargo targets no longer
-fall back to host-global `/tmp`. Launched agents also get line-tables-only debug info
-for the dev and test Cargo profiles, which keeps per-launch targets small. They get
-`CARGO_INCREMENTAL=0` by default, or `CARGO_INCREMENTAL=1` when
+re-reads the latter mid-run) after 3 days, build targets (`cargo-targets/`,
+`build-targets/`) after 1 day, and artifacts sase's TUI and screenshot tooling reads
+back (`launch-prompts/`, `screenshots/`, `workflow-artifacts/`) after 14 days. Launched
+agents default `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to
+per-launch directories under those managed buckets, so shell scratch and Cargo targets
+no longer fall back to host-global `/tmp`. Launched agents also get line-tables-only
+debug info for the dev and test Cargo profiles, which keeps per-launch targets small.
+They get `CARGO_INCREMENTAL=0` by default, or `CARGO_INCREMENTAL=1` when
 [`managed_tmp.agent_cargo_incremental`](configuration.md#managed_tmp) is enabled (athena
 only, where the splitting rustc wrapper runs metadata-only units incrementally direct
 and strips incremental from codegen units before sccache). A runner also removes its own
 launch-assigned `agent-tmp/` and `cargo-targets/` children at exit when they still match
 its exported `TMPDIR` and `CARGO_TARGET_DIR` and it can prove, through procfs, that no
 live process still references either tree (by environment or working directory). That
-removal goes through the same Rust reaper as the hourly pass. Monitor/gate handoffs and
-hosts without readable procfs leave cleanup to the reaper.
+removal goes through the same Rust reaper as the hourly pass. Monitor/gate handoffs
+leave cleanup to the reaper: a follow-up turn mints a fresh scratch key from
+`launch_spawn._managed_agent_scratch_env`, so the handoff outcome skips runner-exit
+cleanup and the old key goes quiet. The hourly pass then runs a dead-launch backstop
+over the launch-keyed buckets (`agent-tmp/`, `cargo-targets/`, legacy `build-targets/`):
+entries whose newest descendant write predates `managed_tmp.dead_launch.grace_seconds`
+(2 hours by default) and that the batch procfs observer reports as held by no live
+process are removed largest-first within the removal budget. Held and
+incomplete-observation entries are preserved and counted (`dead_launch_preserved_live`,
+`dead_launch_preserved_incomplete`), and hosts without readable procfs report
+`dead_launch_observer: unobservable` and leave the age horizons as the fallback.
 
 Each run removes at most 2,000 entries by default so a long-neglected root converges
 over several passes instead of stalling one. The reaper also runs a pressure pass when
 the managed root grows beyond 16 GiB by default, or when the filesystem holding it falls
 below SASE's shared disk-pressure warn threshold: the larger of 3 GiB and
 [`disk.pressure.warn_free_percent`](configuration.md#disk) (5% by default) of that
-filesystem. Under pressure, aged entries of at least 1 GiB in regenerable build-output
+filesystem. Under pressure, aged entries of at least 64 MiB in regenerable build-output
 buckets (`cargo-targets/`, plus the legacy `build-targets/`), and cargo/core
 target-shaped top-level residue, are removed largest-first until the root is estimated
 below 8 GiB, available space is estimated back above that same warn threshold, or the
-removal budget is reached. Pressure pruning normally waits 12 hours, but once the
-free-space floor is breached it uses the lower configured low-space age, 1 hour by
-default, without weakening the fresh-descendant check. The horizons, removal budget,
-root-size limits, pressure ages, and minimum pressure entry size are configurable under
-`managed_tmp` in `sase.yml`; see [Configuration](configuration.md#managed_tmp). The
-housekeeping job, `disk_pressure`, and `sase disk reap` all derive the free-space floor
-and recovery target from the `disk.pressure` policy rather than from
+removal budget is reached. Pressure pruning is liveness-aware while the procfs observer
+is available: a held entry is never removed, an entry whose liveness is incomplete is
+preserved, and an unheld entry needs only the dead-launch grace rather than the pressure
+minimum age. Pressure pruning otherwise waits 12 hours, but once the free-space floor is
+breached it uses the lower configured low-space age, 1 hour by default, without
+weakening the fresh-descendant check. The horizons, removal budget, root-size limits,
+pressure ages, and minimum pressure entry size are configurable under `managed_tmp` in
+`sase.yml`; see [Configuration](configuration.md#managed_tmp). The housekeeping job,
+`disk_pressure`, and `sase disk reap` all derive the free-space floor and recovery
+target from the `disk.pressure` policy rather than from
 `managed_tmp.pressure.min_available_bytes` and `recovery_available_bytes`. Generic agent
 scratch, handoff buckets, artifact buckets, unknown buckets, symlinks, and build trees
 with fresh descendants are not early pressure candidates. The job summary reports
 `scanned`, `selected`, and `removed` counts with their byte totals, the same counts
-split into `ordinary_*`, `launch_*`, and `pressure_*` passes, `pressure_trigger`,
-`pressure_available_bytes`, `pressure_recovery_available_bytes`,
-`pressure_min_age_seconds`, `deindexed`, `skipped`, `failed`, `incomplete_observations`,
-and `capped=1` when it hit that budget, plus the `roots` it scanned and their count as
-`roots_scanned`. Every run logs one line per root it scanned plus an informational line
-listing all scanned roots. A mismatch between the effective root and the default
-`$SASE_HOME/tmp` is harmless — both are reaped — so there is no warning for it. Reaped
-directories are dropped from the agent artifact index too, since a workflow launched
-without an explicit `artifacts_dir` gets one under `workflow-artifacts/`. It lives on
-`housekeeping` rather than an interactive path because the first pass over a neglected
-root walks tens of thousands of entries.
+split into `ordinary_*`, `launch_*`, `dead_launch_*`, and `pressure_*` passes,
+`dead_launch_observer`, `dead_launch_preserved_live`,
+`dead_launch_preserved_incomplete`, `pressure_trigger`, `pressure_available_bytes`,
+`pressure_recovery_available_bytes`, `pressure_min_age_seconds`, `deindexed`, `skipped`,
+`failed`, `incomplete_observations`, and `capped=1` when it hit that budget, plus the
+`roots` it scanned and their count as `roots_scanned`. Every run logs one line per root
+it scanned plus an informational line listing all scanned roots. A mismatch between the
+effective root and the default `$SASE_HOME/tmp` is harmless — both are reaped — so there
+is no warning for it. Reaped directories are dropped from the agent artifact index too,
+since a workflow launched without an explicit `artifacts_dir` gets one under
+`workflow-artifacts/`. It lives on `housekeeping` rather than an interactive path
+because the first pass over a neglected root walks tens of thousands of entries.
 
 The `proc_runtime_sweep` job bounds `~/.sase/procs/runtime`. Both halves of proc runtime
 retention run in the Rust proc runtime-retention owner. Proc-row retention deletes
@@ -598,13 +611,14 @@ any qualify, sends a notification naming them; when the inventory's `unattribute
 largest attributed owner, the notification leads with that row instead of pointing at a
 small owner. The job then runs unattended owner-safe cleanup early: the managed-temp
 reaper, using the measured free space and warn threshold as its pressure floor and
-recovery target, and the proc cleanup owner (proc-row and log retention plus the rowless
-runtime sweep). Those owners encode their own deletion policy, and one owner's failure
-is reported without skipping the next. Workspace Git-object compaction is left to an
-explicit `sase disk reap --apply`, and artifact run directories, backups, and unowned
-Cargo-shaped strays are reported for human action; this job never touches them. The
-summary reports the free percentage, effective warn threshold, owner and step counts,
-and how many steps changed or failed.
+recovery target (with the same dead-launch backstop and liveness-aware pressure the
+hourly pass runs), and the proc cleanup owner (proc-row and log retention plus the
+rowless runtime sweep). Those owners encode their own deletion policy, and one owner's
+failure is reported without skipping the next. Workspace Git-object compaction is left
+to an explicit `sase disk reap --apply`, and artifact run directories, backups, and
+unowned Cargo-shaped strays are reported for human action; this job never touches them.
+The summary reports the free percentage, effective warn threshold, owner and step
+counts, and how many steps changed or failed.
 
 The `bead_stale_cleanup` job is the other half of the task-bead `+1` bar. Ready task
 beads that never clear their [effective `+1` bar](beads.md#per-type-triage-bar) stay

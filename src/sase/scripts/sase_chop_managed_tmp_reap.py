@@ -114,6 +114,24 @@ def _combine_results(results: list[Any]) -> dict[str, Any]:
         "launch_reclaimed_bytes": sum(
             result.launch_reclaimed_bytes for result in results
         ),
+        "dead_launch_scanned": sum(result.dead_launch_scanned for result in results),
+        "dead_launch_selected": sum(result.dead_launch_selected for result in results),
+        "dead_launch_removed": sum(result.dead_launch_removed for result in results),
+        "dead_launch_reclaimable_bytes": sum(
+            result.dead_launch_reclaimable_bytes for result in results
+        ),
+        "dead_launch_reclaimed_bytes": sum(
+            result.dead_launch_reclaimed_bytes for result in results
+        ),
+        "dead_launch_preserved_live": sum(
+            result.dead_launch_preserved_live for result in results
+        ),
+        "dead_launch_preserved_incomplete": sum(
+            result.dead_launch_preserved_incomplete for result in results
+        ),
+        "dead_launch_observer": "+".join(
+            dict.fromkeys(result.dead_launch_observer for result in results)
+        ),
         "pressure_selected": sum(result.pressure_selected for result in results),
         "pressure_removed": sum(result.pressure_removed for result in results),
         "pressure_reclaimable_bytes": sum(

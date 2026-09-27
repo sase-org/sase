@@ -17,6 +17,10 @@ FREE_SPACE_OK = 64 * 1024**3
 
 def reap_managed_tmpdir(*args: Any, **kwargs: Any) -> Any:
     kwargs.setdefault("filesystem_available_bytes", FREE_SPACE_OK)
+    # Dead-launch tests opt in explicitly with a fake proc root; every other
+    # reaper test pins the legacy passes so host procfs state (and the
+    # backstop's shorter grace) cannot leak into age/pressure expectations.
+    kwargs.setdefault("dead_launch_enabled", False)
     return _reap_managed_tmpdir(*args, **kwargs)
 
 

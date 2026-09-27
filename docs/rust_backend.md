@@ -496,16 +496,21 @@ retention policy. The same Rust-owned managed-temp reaper wire accepts optional
 `pressure_low_free_space_min_age_seconds` and reports
 `pressure_effective_min_age_seconds`; when the configured free-space floor is breached,
 the effective pressure age is the lower of the base pressure age and the low-space age.
-The repo-owned exceptions are the two Justfile roots above:
-`../sase-core/target/uv-tool-py` for `sase_core_rs` and
-`../sase-core/target/uv-tool-lsp` for `sase-xprompt-lsp`. Those are shared across
-workspaces on purpose, visible to disk tooling, and safe to prune at the `incremental/`
-layer while preserving `deps/`. Each isolated target also sets `CARGO_BUILD_BUILD_DIR`
-beside it so a host `build.build-dir` default cannot merge those recipe caches; that
-setting relocates cargo's intermediate output (`incremental/`, `deps/`, `.fingerprint/`)
-from `<target>/<profile>/` to `<target>/build/<profile>/`, which is where the Justfile
-cleanup and `sase disk` inventory look for it — not the un-isolated
-`<target>/<profile>/` layout an older `sase-core` used.
+The wire also carries an optional `dead_launch` backstop (`enabled`, `grace_seconds`,
+procfs root, current/exempt pids) that reaps launch-keyed `agent-tmp`/`cargo-targets`/
+legacy `build-targets` children no live process holds after the grace, reporting
+`dead_launch_*` counts plus `dead_launch_observer` (`procfs`, `unobservable`, or
+`disabled`); while that observer is usable, pressure never removes a held entry and an
+unheld entry needs only the dead-launch grace rather than the pressure minimum age. The
+repo-owned exceptions are the two Justfile roots above: `../sase-core/target/uv-tool-py`
+for `sase_core_rs` and `../sase-core/target/uv-tool-lsp` for `sase-xprompt-lsp`. Those
+are shared across workspaces on purpose, visible to disk tooling, and safe to prune at
+the `incremental/` layer while preserving `deps/`. Each isolated target also sets
+`CARGO_BUILD_BUILD_DIR` beside it so a host `build.build-dir` default cannot merge those
+recipe caches; that setting relocates cargo's intermediate output (`incremental/`,
+`deps/`, `.fingerprint/`) from `<target>/<profile>/` to `<target>/build/<profile>/`,
+which is where the Justfile cleanup and `sase disk` inventory look for it — not the
+un-isolated `<target>/<profile>/` layout an older `sase-core` used.
 `[profile.dev-update] incremental = false` in `sase-core`'s workspace `Cargo.toml` is
 the root fix that covers every entry point, including a bare
 `cargo build --profile dev-update`; `CARGO_INCREMENTAL=0` above is a belt-and-suspenders

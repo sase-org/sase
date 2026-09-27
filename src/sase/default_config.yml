@@ -163,12 +163,20 @@ managed_tmp:
     # Files handed to a child process that may re-read them mid-run.
     handoff_seconds: 259200
     # Cargo and other build scratch created for one launched agent.
-    build_scratch_seconds: 259200
+    # Only the non-procfs fallback still waits this long: the dead-launch
+    # backstop below reaps unheld launch scratch after its own grace.
+    build_scratch_seconds: 86400
     # Artifacts sase's TUI Agents tab reads back long after the run finished.
     run_artifact_seconds: 1209600
   # Removal budget for one reaper invocation, so a long-neglected root
   # converges across invocations instead of stalling one of them.
   max_removals: 2000
+  dead_launch:
+    # Backstop over launch-keyed scratch (agent-tmp, cargo-targets, legacy
+    # build-targets) for launches that never ran runner-exit cleanup.
+    enabled: true
+    # Quiet age before scratch no live process holds may be reaped.
+    grace_seconds: 7200
   pressure:
     # Managed-root size that triggers pressure pruning of aged build scratch.
     # 0 disables the size trigger.
@@ -184,8 +192,10 @@ managed_tmp:
     min_age_seconds: 43200
     # Emergency minimum age when the free-space floor is breached.
     low_free_space_min_age_seconds: 3600
-    # Small entries do not participate in pressure pruning.
-    min_entry_bytes: 1073741824
+    # Small entries do not participate in pressure pruning. Largest-first
+    # ordering already prefers big entries; the typical 0.8-0.9 GiB per-launch
+    # target must stay eligible.
+    min_entry_bytes: 67108864
   # Incremental Cargo check/clippy for launched agents. Only hosts with the
   # splitting rustc wrapper (athena) should set this true; elsewhere
   # incremental test builds cost ~9 GB per run.

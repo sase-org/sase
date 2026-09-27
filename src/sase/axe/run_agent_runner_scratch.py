@@ -106,6 +106,10 @@ def _cleanup_launch_scratch(
             buckets=tuple(candidate.bucket for candidate in candidates),
             liveness=liveness,
         ),
+        # Runner exit reaps only its own key. The hourly dead-launch
+        # backstop owns every other launch's scratch; running it here
+        # would walk three buckets on every runner exit for no reason.
+        dead_launch_enabled=False,
     )
     _emit_cleanup_line(
         status="preserved" if (live or not complete) else "removed",

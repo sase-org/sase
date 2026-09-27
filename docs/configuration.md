@@ -4347,10 +4347,23 @@ horizon. Unknown buckets and stray top-level entries are aged at the handoff hor
 The bucket mapping is fixed; only the durations and pressure thresholds are
 configurable.
 
-Pressure pruning is a second pass that removes aged, large build scratch early when the
+Between the age horizons runs a dead-launch backstop over the launch-keyed buckets
+(`agent-tmp`, `cargo-targets`, legacy `build-targets`) for launches that never ran
+runner-exit cleanup — crashed, SIGKILLed, OOM-killed, or handed off to a monitor/gate
+follow-up, which mints a fresh scratch key and leaves the old one quiet. Entries whose
+newest descendant write predates `dead_launch.grace_seconds` and that no live process
+holds (by environment or working directory, observed through procfs in one batch scan)
+are removed largest-first within the removal budget. Held and incomplete-observation
+entries are preserved and counted; hosts without readable procfs skip the pass and keep
+the age horizons as the fallback.
+
+Pressure pruning is a later pass that removes aged, large build scratch early when the
 managed root grows past `pressure.max_bytes` or the filesystem's free space drops below
 `pressure.min_available_bytes`. It never prunes generic agent scratch, handoff data,
-unknown buckets, or build trees with fresh descendants.
+unknown buckets, or build trees with fresh descendants. While the procfs observer is
+available it is liveness-aware: a held entry is never removed, an incomplete observation
+is preserved, and an unheld entry needs only the dead-launch grace rather than
+`pressure.min_age_seconds`.
 
 Every root `get_sase_managed_tmpdir()` writes into is recorded in a Rust-owned registry
 at `$SASE_HOME/managed_tmp/roots.json` (schema version plus
@@ -4377,9 +4390,12 @@ managed_tmp:
   horizons:
     command_scratch_seconds: 43200
     handoff_seconds: 259200
-    build_scratch_seconds: 259200
+    build_scratch_seconds: 86400
     run_artifact_seconds: 1209600
   max_removals: 2000
+  dead_launch:
+    enabled: true
+    grace_seconds: 7200
   pressure:
     max_bytes: 17179869184
     target_bytes: 8589934592
@@ -4387,25 +4403,27 @@ managed_tmp:
     recovery_available_bytes: 51539607552
     min_age_seconds: 43200
     low_free_space_min_age_seconds: 3600
-    min_entry_bytes: 1073741824
+    min_entry_bytes: 67108864
   agent_cargo_incremental: false
 ```
 
-| Field                                                 | Type | Default       | Minimum | Description                                                                                                                    |
-| ----------------------------------------------------- | ---- | ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `managed_tmp.horizons.command_scratch_seconds`        | int  | `43200`       | `0`     | Age horizon for scratch whose reader is the command that wrote it (editors, wrappers).                                         |
-| `managed_tmp.horizons.handoff_seconds`                | int  | `259200`      | `0`     | Age horizon for files handed to a child process that may re-read them mid-run.                                                 |
-| `managed_tmp.horizons.build_scratch_seconds`          | int  | `259200`      | `0`     | Age horizon for Cargo and other build scratch created for one launched agent.                                                  |
-| `managed_tmp.horizons.run_artifact_seconds`           | int  | `1209600`     | `0`     | Age horizon for run artifacts sase's TUI Agents tab reads back long after the run finished.                                    |
-| `managed_tmp.max_removals`                            | int  | `2000`        | `1`     | Removal budget for one reaper invocation, so a long-neglected root converges over passes.                                      |
-| `managed_tmp.pressure.max_bytes`                      | int  | `17179869184` | `0`     | Managed-root size that triggers pressure pruning of aged build scratch. `0` disables it.                                       |
-| `managed_tmp.pressure.target_bytes`                   | int  | `8589934592`  | `0`     | Managed-root size the pressure pass tries to return to.                                                                        |
-| `managed_tmp.pressure.min_available_bytes`            | int  | `34359738368` | `0`     | Filesystem free-space floor that also triggers pressure pruning. `0` disables it.                                              |
-| `managed_tmp.pressure.recovery_available_bytes`       | int  | `51539607552` | `0`     | Filesystem free-space target used after crossing the low-space floor.                                                          |
-| `managed_tmp.pressure.min_age_seconds`                | int  | `43200`       | `0`     | Minimum age before pressure can prune a large scratch entry.                                                                   |
-| `managed_tmp.pressure.low_free_space_min_age_seconds` | int  | `3600`        | `0`     | Emergency minimum age used instead when the free-space floor is breached, if lower than base.                                  |
-| `managed_tmp.pressure.min_entry_bytes`                | int  | `1073741824`  | `0`     | Small entries below this size do not participate in pressure pruning.                                                          |
-| `managed_tmp.agent_cargo_incremental`                 | bool | `false`       |         | Incremental Cargo check/clippy for launched agents. Only hosts with the splitting rustc wrapper (athena) should set this true. |
+| Field                                                 | Type | Default       | Minimum | Description                                                                                                                                                      |
+| ----------------------------------------------------- | ---- | ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `managed_tmp.horizons.command_scratch_seconds`        | int  | `43200`       | `0`     | Age horizon for scratch whose reader is the command that wrote it (editors, wrappers).                                                                           |
+| `managed_tmp.horizons.handoff_seconds`                | int  | `259200`      | `0`     | Age horizon for files handed to a child process that may re-read them mid-run.                                                                                   |
+| `managed_tmp.horizons.build_scratch_seconds`          | int  | `86400`       | `0`     | Age horizon for Cargo and other build scratch created for one launched agent (non-procfs fallback; the dead-launch backstop reaps unheld launch scratch sooner). |
+| `managed_tmp.horizons.run_artifact_seconds`           | int  | `1209600`     | `0`     | Age horizon for run artifacts sase's TUI Agents tab reads back long after the run finished.                                                                      |
+| `managed_tmp.max_removals`                            | int  | `2000`        | `1`     | Removal budget for one reaper invocation, so a long-neglected root converges over passes.                                                                        |
+| `managed_tmp.dead_launch.enabled`                     | bool | `true`        |         | Run the dead-launch backstop pass over launch-keyed scratch no live process holds.                                                                               |
+| `managed_tmp.dead_launch.grace_seconds`               | int  | `7200`        | `0`     | Quiet age before scratch no live process holds may be reaped by the backstop (and by liveness-aware pressure).                                                   |
+| `managed_tmp.pressure.max_bytes`                      | int  | `17179869184` | `0`     | Managed-root size that triggers pressure pruning of aged build scratch. `0` disables it.                                                                         |
+| `managed_tmp.pressure.target_bytes`                   | int  | `8589934592`  | `0`     | Managed-root size the pressure pass tries to return to.                                                                                                          |
+| `managed_tmp.pressure.min_available_bytes`            | int  | `34359738368` | `0`     | Filesystem free-space floor that also triggers pressure pruning. `0` disables it.                                                                                |
+| `managed_tmp.pressure.recovery_available_bytes`       | int  | `51539607552` | `0`     | Filesystem free-space target used after crossing the low-space floor.                                                                                            |
+| `managed_tmp.pressure.min_age_seconds`                | int  | `43200`       | `0`     | Minimum age before pressure can prune a large scratch entry.                                                                                                     |
+| `managed_tmp.pressure.low_free_space_min_age_seconds` | int  | `3600`        | `0`     | Emergency minimum age used instead when the free-space floor is breached, if lower than base.                                                                    |
+| `managed_tmp.pressure.min_entry_bytes`                | int  | `67108864`    | `0`     | Small entries below this size do not participate in pressure pruning.                                                                                            |
+| `managed_tmp.agent_cargo_incremental`                 | bool | `false`       |         | Incremental Cargo check/clippy for launched agents. Only hosts with the splitting rustc wrapper (athena) should set this true.                                   |
 
 Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`,
 `src/sase/core/managed_tmp_reaper.py`

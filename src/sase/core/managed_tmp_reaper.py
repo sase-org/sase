@@ -29,6 +29,12 @@ from sase.config import (
     DEFAULT_MANAGED_TMP_BUILD_SCRATCH_HORIZON_SECONDS as BUILD_SCRATCH_HORIZON_SECONDS,
 )
 from sase.config import (
+    DEFAULT_MANAGED_TMP_DEAD_LAUNCH_ENABLED as DEFAULT_DEAD_LAUNCH_ENABLED,
+)
+from sase.config import (
+    DEFAULT_MANAGED_TMP_DEAD_LAUNCH_GRACE_SECONDS as DEFAULT_DEAD_LAUNCH_GRACE_SECONDS,
+)
+from sase.config import (
     DEFAULT_MANAGED_TMP_COMMAND_SCRATCH_HORIZON_SECONDS as COMMAND_SCRATCH_HORIZON_SECONDS,
 )
 from sase.config import (
@@ -64,6 +70,8 @@ from sase.config import (
 from sase.config import (
     get_managed_tmp_build_scratch_horizon_seconds,
     get_managed_tmp_command_scratch_horizon_seconds,
+    get_managed_tmp_dead_launch_enabled,
+    get_managed_tmp_dead_launch_grace_seconds,
     get_managed_tmp_handoff_horizon_seconds,
     get_managed_tmp_max_removals,
     get_managed_tmp_pressure_low_free_space_min_age_seconds,
@@ -143,8 +151,11 @@ passes an explicit ``horizons`` override.
 PRESSURE_REAP_BUCKETS = frozenset({"build-targets", "cargo-targets"})
 """Build-output buckets whose aged large children may be pruned under pressure."""
 
-MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION = 3
+MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION = 4
 """Must match ``sase_core::managed_tmp::MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION``."""
+
+DEAD_LAUNCH_BUCKETS = ("agent-tmp", "cargo-targets", "build-targets")
+"""Launch-keyed buckets the dead-launch backstop pass scans for dead scratch."""
 
 LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION = 1
 """Must match ``sase_core::launch_scratch_liveness::LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION``."""
@@ -215,6 +226,14 @@ class _ManagedTmpReapResult:
     launch_removed: int
     launch_reclaimable_bytes: int
     launch_reclaimed_bytes: int
+    dead_launch_scanned: int
+    dead_launch_selected: int
+    dead_launch_removed: int
+    dead_launch_reclaimable_bytes: int
+    dead_launch_reclaimed_bytes: int
+    dead_launch_preserved_live: int
+    dead_launch_preserved_incomplete: int
+    dead_launch_observer: str
     pressure_selected: int
     pressure_removed: int
     pressure_reclaimable_bytes: int
@@ -253,6 +272,19 @@ class _ManagedTmpReapResult:
             detail += (
                 f"; pressure={pressure_count}"
                 f" ({_format_bytes(pressure_bytes)}{trigger})"
+            )
+        dead_launch_count = (
+            self.dead_launch_removed if self.apply else self.dead_launch_selected
+        )
+        if dead_launch_count:
+            dead_launch_bytes = (
+                self.dead_launch_reclaimed_bytes
+                if self.apply
+                else self.dead_launch_reclaimable_bytes
+            )
+            detail += (
+                f"; dead_launch={dead_launch_count}"
+                f" ({_format_bytes(dead_launch_bytes)})"
             )
         outcome_notes = []
         if self.skipped:
@@ -309,6 +341,9 @@ def reap_managed_tmpdir(
     age_reap: bool = True,
     pressure_reap: bool = True,
     launch_scratch: LaunchScratchRequest | None = None,
+    dead_launch_enabled: bool | None = None,
+    dead_launch_grace_seconds: float | None = None,
+    dead_launch_proc_root: Path | None = None,
     apply: bool = True,
 ) -> _ManagedTmpReapResult:
     """Prune stale entries under the managed SASE temp *root* through Rust.
@@ -321,10 +356,14 @@ def reap_managed_tmpdir(
 
     Known and future subdirectories are descended into and pruned against their
     horizon; the subdirectory itself always survives. Anything else at the top
-    level is pruned against the resolved default horizon. After the age pass,
-    the pressure pass can reclaim aged, large build-output entries before their
-    full age horizon when the managed root is too large or the filesystem is
-    low on free space.
+    level is pruned against the resolved default horizon. Between them, the
+    dead-launch pass removes launch-keyed scratch (``agent-tmp``,
+    ``cargo-targets``, legacy ``build-targets``) no live process holds once
+    its newest write predates ``managed_tmp.dead_launch.grace_seconds``. After
+    the age pass, the pressure pass can reclaim aged, large build-output
+    entries before their full age horizon when the managed root is too large
+    or the filesystem is low on free space; under a usable observer it never
+    removes held entries and needs only the dead-launch grace for unheld ones.
     """
     reap_root = managed_tmpdir_root() if root is None else root
     clock = time.time() if now is None else now
@@ -372,6 +411,16 @@ def reap_managed_tmpdir(
         if pressure_min_entry_bytes is None
         else pressure_min_entry_bytes
     )
+    resolved_dead_launch_enabled = (
+        get_managed_tmp_dead_launch_enabled()
+        if dead_launch_enabled is None
+        else dead_launch_enabled
+    )
+    resolved_dead_launch_grace_seconds = (
+        get_managed_tmp_dead_launch_grace_seconds()
+        if dead_launch_grace_seconds is None
+        else dead_launch_grace_seconds
+    )
 
     _require_reap_wire_schema()
     request = {
@@ -396,6 +445,15 @@ def reap_managed_tmpdir(
         "pressure_reap_buckets": sorted(PRESSURE_REAP_BUCKETS),
         "filesystem_available_bytes": filesystem_available_bytes,
         "launch_scratch": _launch_scratch_to_wire(launch_scratch),
+        "dead_launch": {
+            "enabled": resolved_dead_launch_enabled,
+            "grace_seconds": float(resolved_dead_launch_grace_seconds),
+            "proc_root": (
+                str(dead_launch_proc_root)
+                if dead_launch_proc_root is not None
+                else "/proc"
+            ),
+        },
     }
     binding = require_rust_binding("reap_managed_tmpdir")
     raw = binding(request)
@@ -523,6 +581,14 @@ def _result_from_wire(raw: Mapping[str, Any]) -> _ManagedTmpReapResult:
         launch_removed=raw["launch_removed"],
         launch_reclaimable_bytes=raw["launch_reclaimable_bytes"],
         launch_reclaimed_bytes=raw["launch_reclaimed_bytes"],
+        dead_launch_scanned=raw.get("dead_launch_scanned", 0),
+        dead_launch_selected=raw.get("dead_launch_selected", 0),
+        dead_launch_removed=raw.get("dead_launch_removed", 0),
+        dead_launch_reclaimable_bytes=raw.get("dead_launch_reclaimable_bytes", 0),
+        dead_launch_reclaimed_bytes=raw.get("dead_launch_reclaimed_bytes", 0),
+        dead_launch_preserved_live=raw.get("dead_launch_preserved_live", 0),
+        dead_launch_preserved_incomplete=raw.get("dead_launch_preserved_incomplete", 0),
+        dead_launch_observer=str(raw.get("dead_launch_observer", "unobservable")),
         pressure_selected=raw["pressure_selected"],
         pressure_removed=raw["pressure_removed"],
         pressure_reclaimable_bytes=raw["pressure_reclaimable_bytes"],
@@ -558,6 +624,9 @@ def _format_bytes(value: int) -> str:
 __all__ = [
     "BUILD_SCRATCH_HORIZON_SECONDS",
     "COMMAND_SCRATCH_HORIZON_SECONDS",
+    "DEAD_LAUNCH_BUCKETS",
+    "DEFAULT_DEAD_LAUNCH_ENABLED",
+    "DEFAULT_DEAD_LAUNCH_GRACE_SECONDS",
     "DEFAULT_HORIZON_SECONDS",
     "DEFAULT_MAX_REMOVALS",
     "DEFAULT_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS",

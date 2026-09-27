@@ -17,7 +17,7 @@ DEFAULT_DISK_PRESSURE_TOP_OWNER_MIN_BYTES = 1024 * 1024 * 1024
 DEFAULT_DISK_PRESSURE_WARN_FREE_PERCENT = 5.0
 DEFAULT_MANAGED_TMP_COMMAND_SCRATCH_HORIZON_SECONDS = 12 * 3600
 DEFAULT_MANAGED_TMP_HANDOFF_HORIZON_SECONDS = 3 * 24 * 3600
-DEFAULT_MANAGED_TMP_BUILD_SCRATCH_HORIZON_SECONDS = 3 * 24 * 3600
+DEFAULT_MANAGED_TMP_BUILD_SCRATCH_HORIZON_SECONDS = 24 * 3600
 DEFAULT_MANAGED_TMP_RUN_ARTIFACT_HORIZON_SECONDS = 14 * 24 * 3600
 DEFAULT_MANAGED_TMP_MAX_REMOVALS = 2000
 DEFAULT_MANAGED_TMP_PRESSURE_MAX_BYTES = 16 * 1024 * 1024 * 1024
@@ -26,7 +26,9 @@ DEFAULT_MANAGED_TMP_PRESSURE_MIN_AVAILABLE_BYTES = 32 * 1024 * 1024 * 1024
 DEFAULT_MANAGED_TMP_PRESSURE_RECOVERY_AVAILABLE_BYTES = 48 * 1024 * 1024 * 1024
 DEFAULT_MANAGED_TMP_PRESSURE_MIN_AGE_SECONDS = 12 * 3600
 DEFAULT_MANAGED_TMP_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS = 3600
-DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES = 1024 * 1024 * 1024
+DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES = 64 * 1024 * 1024
+DEFAULT_MANAGED_TMP_DEAD_LAUNCH_ENABLED = True
+DEFAULT_MANAGED_TMP_DEAD_LAUNCH_GRACE_SECONDS = 2 * 3600
 DEFAULT_MANAGED_TMP_AGENT_CARGO_INCREMENTAL = False
 DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS = 3600
 
@@ -213,6 +215,30 @@ def get_managed_tmp_pressure_min_entry_bytes() -> int:
     if type(value) is int and value >= 0:
         return value
     return DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES
+
+
+def _managed_tmp_dead_launch_config() -> dict[str, Any]:
+    dead_launch = _managed_tmp_config().get("dead_launch", {})
+    return dead_launch if isinstance(dead_launch, dict) else {}
+
+
+def get_managed_tmp_dead_launch_enabled() -> bool:
+    """Return whether the dead-launch backstop pass runs in the reaper."""
+    value = _managed_tmp_dead_launch_config().get(
+        "enabled",
+        DEFAULT_MANAGED_TMP_DEAD_LAUNCH_ENABLED,
+    )
+    if type(value) is bool:
+        return value
+    return DEFAULT_MANAGED_TMP_DEAD_LAUNCH_ENABLED
+
+
+def get_managed_tmp_dead_launch_grace_seconds() -> float:
+    """Return the quiet age before dead launch scratch may be reaped."""
+    return _managed_tmp_nonnegative_seconds(
+        _managed_tmp_dead_launch_config().get("grace_seconds"),
+        DEFAULT_MANAGED_TMP_DEAD_LAUNCH_GRACE_SECONDS,
+    )
 
 
 def get_managed_tmp_agent_cargo_incremental() -> bool:
