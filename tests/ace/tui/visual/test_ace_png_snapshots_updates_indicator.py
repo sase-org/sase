@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace._update_attempts_model import UpdateFailure
 from sase.ace.testing import AcePage
+from sase.ace.tui.update_gear import PendingUpdateRestart
 from sase.ace.tui.widgets import UpdatesAvailableIndicator
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -255,6 +257,94 @@ async def test_updates_indicator_updating_no_counts_png_snapshot(
             page,
             "updates_indicator_updating_no_counts_120x40",
             title="ACE updating updates indicator without counts",
+        )
+
+
+async def test_updates_indicator_restart_pending_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A queued restart leads the badge with the yellow gear inset."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await wait_for_svg_contains(page, "visual_auth")
+        indicator = page.app.query_one(
+            "#updates-indicator",
+            UpdatesAvailableIndicator,
+        )
+        indicator.set_available(3)
+        indicator.set_restart_pending(
+            PendingUpdateRestart(
+                blocker_labels=("comprehensive update",),
+                blocker_identities=("comprehensive-update-1",),
+                queued_at=1700000000.0,
+                restart_by=1700000060.0,
+            )
+        )
+        await wait_for_state(
+            page,
+            lambda: indicator.render().plain == "updates:  ⚙  ⬆ 3 ",
+            description="restart-pending updates indicator",
+        )
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "updates_indicator_restart_pending_120x40",
+            title="ACE restart-pending updates indicator",
+        )
+
+
+async def test_updates_indicator_failed_no_counts_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A recorded failure keeps the badge visible with only the red gear."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await wait_for_svg_contains(page, "visual_auth")
+        indicator = page.app.query_one(
+            "#updates-indicator",
+            UpdatesAvailableIndicator,
+        )
+        indicator.set_last_failure(
+            UpdateFailure(
+                attempt_id="visual-failed-1",
+                label="comprehensive update",
+                proc_type="comprehensive-update",
+                stage="apply",
+                started_at=1700000000.0,
+                finished_at=1700000010.0,
+                error="boom",
+                output_tail="",
+                interrupted=False,
+            )
+        )
+        await wait_for_state(
+            page,
+            lambda: indicator.render().plain == "updates:  ⚙ ",
+            description="failed updates indicator without counts",
+        )
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "updates_indicator_failed_no_counts_120x40",
+            title="ACE failed updates indicator without counts",
         )
 
 
