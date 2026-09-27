@@ -11,12 +11,9 @@ from textual.widgets import Static
 
 from sase.ace.tui.widgets.decks.model import DeckId
 from sase.ace.tui.widgets.decks.picker import DeckPick, DeckPickerRow
+from sase.ace.tui.widgets.decks.spec import DECK_SPECS
 
-_DECK_CLASS = {
-    DeckId.MAIN: "-deck-main",
-    DeckId.FILES: "-deck-files",
-    DeckId.TOOLS: "-deck-tools",
-}
+_DECK_CLASS: dict[DeckId, str] = {s.deck_id: s.picker_class for s in DECK_SPECS}
 
 
 def _build_deck_picker_legend(letters: tuple[str, ...], *, width: int = 48) -> str:

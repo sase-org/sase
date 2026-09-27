@@ -6,7 +6,6 @@ import dataclasses
 from collections.abc import Mapping, Sequence
 
 from .model import (
-    DECK_CYCLE,
     DeckAreaState,
     DeckId,
     DeckLayout,
@@ -26,19 +25,22 @@ def choose_new_panel(
 ) -> DeckPanelState:
     """Choose the deck for a newly opened panel.
 
-    Walk ``DECK_CYCLE`` forward from ``current_deck`` and pick the first
-    deck that is not in ``shown`` and whose ``has_content`` entry is not
-    ``False``. Unknown (``None`` or missing) counts as content. When none
-    qualifies, duplicate ``current_deck`` on the card after
+    Walk the active deck cycle forward from ``current_deck`` and pick the
+    first deck that is not in ``shown`` and whose ``has_content`` entry is
+    not ``False``. Unknown (``None`` or missing) counts as content. When
+    none qualifies, duplicate ``current_deck`` on the card after
     ``current_active_card``.
     """
+    from .spec import active_deck_cycle
+
+    cycle = active_deck_cycle()
     shown_set = set(shown)
     try:
-        start = DECK_CYCLE.index(current_deck)
+        start = cycle.index(current_deck)
     except ValueError:
         start = -1
-    for offset in range(1, len(DECK_CYCLE) + 1):
-        candidate = DECK_CYCLE[(start + offset) % len(DECK_CYCLE)]
+    for offset in range(1, len(cycle) + 1):
+        candidate = cycle[(start + offset) % len(cycle)]
         if candidate in shown_set:
             continue
         try:

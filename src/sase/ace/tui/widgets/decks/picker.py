@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .layout import is_zoomed
-from .model import DECK_CYCLE, DeckAreaState, DeckId, DeckLayout
+from .model import DeckAreaState, DeckId, DeckLayout
+from .spec import active_deck_cycle
 from .titles import (
     DECK_BLURBS,
     DECK_COUNT_NOUNS,
@@ -96,7 +97,7 @@ class DeckPickerState:
 
 @dataclass(frozen=True)
 class DeckPickerRow:
-    """One picker row in DECK_CYCLE order."""
+    """One picker row in active-deck-cycle order."""
 
     deck: DeckId
     key: str
@@ -134,9 +135,9 @@ def deck_picker_heading(state: DeckPickerState) -> str:
 
 
 def build_deck_picker_rows(state: DeckPickerState) -> tuple[DeckPickerRow, ...]:
-    """Build picker rows in DECK_CYCLE order."""
+    """Build picker rows in active-deck-cycle order."""
     rows: list[DeckPickerRow] = []
-    for deck in DECK_CYCLE:
+    for deck in active_deck_cycle():
         avail = state.availability.get(deck)
         has_content = getattr(avail, "has_content", None)
         other_label: str | None = None

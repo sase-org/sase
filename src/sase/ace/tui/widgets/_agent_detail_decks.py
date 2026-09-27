@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from .decks.availability import (
@@ -18,6 +19,8 @@ from .decks.model import DeckId
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
+
+log = logging.getLogger(__name__)
 
 
 class AgentDetailDeckMixin:
@@ -121,6 +124,9 @@ class AgentDetailDeckMixin:
             return
         seen: set[DeckId] = set()
         for panel in panels:
+            if panel.deck is DeckId.MAIN:
+                # Main is handled by the sink.
+                continue
             if panel.deck is DeckId.FILES:
                 if DeckId.FILES in seen:
                     try:
@@ -175,7 +181,12 @@ class AgentDetailDeckMixin:
                         )
                 except Exception:
                     pass
-        # Main is handled by the sink.
+            else:
+                log.warning(
+                    "Unknown deck %r in _deck_refresh_views; skipping refresh",
+                    panel.deck,
+                )
+                continue
 
     def _deck_refresh_availability(self) -> None:
         agent = self._current_agent
@@ -372,7 +383,7 @@ class AgentDetailDeckMixin:
                 )
             except Exception:
                 pass
-        else:
+        elif deck is DeckId.TOOLS:
             if is_duplicate:
                 try:
                     loader = getattr(self, "_load_tools_panel_from_cache", None)
@@ -399,6 +410,10 @@ class AgentDetailDeckMixin:
                     panel.tools_view.show_empty()
             except Exception:
                 pass
+        else:
+            log.warning("Unknown deck %r in show_deck; falling back to Main", deck)
+            self.show_deck(panel_index, DeckId.MAIN)
+            return
         self._deck_refresh_availability()
         try:
             panel.refresh_chrome()

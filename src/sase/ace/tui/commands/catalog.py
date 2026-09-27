@@ -140,17 +140,17 @@ def _iter_agents_panel_layout_command(
 def _iter_deck_picker_commands(
     registry: KeymapRegistry,
 ) -> Iterator[CommandSpec]:
-    """Yield direct deck commands per deck in ``DECK_CYCLE``.
+    """Yield direct deck commands per deck in the active deck cycle.
 
     Each deck gets a focused-panel command and an other-panel command (the
     picker's lowercase and capital letter).
     """
     from sase.ace.tui.keymaps.loader import key_display_name
-    from sase.ace.tui.widgets.decks.model import DECK_CYCLE
+    from sase.ace.tui.widgets.decks.spec import active_deck_cycle
     from sase.ace.tui.widgets.decks.titles import DECK_PICKER_KEYS
 
     opener = registry.app.pick_deck
-    for index, deck in enumerate(DECK_CYCLE):
+    for index, deck in enumerate(active_deck_cycle()):
         letter = DECK_PICKER_KEYS[deck]
         if is_unbound_key(opener):
             sequence: tuple[str, ...] = ()

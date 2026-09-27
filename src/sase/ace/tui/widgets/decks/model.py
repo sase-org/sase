@@ -35,13 +35,16 @@ class DeckLayout(StrEnum):
 
 
 def cycle_deck_id(deck: DeckId, direction: int) -> DeckId:
-    """Return the next deck in ``DECK_CYCLE`` for ``direction`` (wraps).
+    """Return the next deck in the active cycle for ``direction`` (wraps).
 
     Nothing is skipped: empty decks and decks shown in another panel are
     both visited so the order stays predictable.
     """
-    index = DECK_CYCLE.index(deck)
-    return DECK_CYCLE[(index + direction) % len(DECK_CYCLE)]
+    from .spec import active_deck_cycle
+
+    cycle = active_deck_cycle()
+    index = cycle.index(deck)
+    return cycle[(index + direction) % len(cycle)]
 
 
 def cycle_card_id(

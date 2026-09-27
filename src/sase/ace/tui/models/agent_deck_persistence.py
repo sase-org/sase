@@ -109,9 +109,14 @@ def _decode_views(raw: Any) -> DeckViewPolicies:
 
 
 def _decode_panel(raw: Any) -> _DeckPanelSnapshot:
+    from ..widgets.decks.spec import active_deck_cycle
+
     if not isinstance(raw, dict):
         raise _AgentsDeckStateDecodeError("panel must be an object")
     deck = _decode_deck(raw.get("deck", DeckId.MAIN.value))
+    if deck not in active_deck_cycle():
+        log.warning("Ignoring inactive deck in persisted deck state: %r", deck)
+        deck = DeckId.MAIN
     preferred = raw.get("preferred_card")
     if preferred is not None and (
         not isinstance(preferred, str)

@@ -5,15 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from .model import DeckId, RenderMode
+from .spec import DECK_SPECS
 from .titles import CardTab, deck_subtitle, deck_title
 
 _BORDER_LABEL_RESERVED_CELLS = 4
 
-_FALLBACK_ACCENTS = {
-    DeckId.MAIN: "#B48EAD",
-    DeckId.FILES: "green",
-    DeckId.TOOLS: "#87D7FF",
-}
+_FALLBACK_ACCENTS = {s.deck_id: s.fallback_accent for s in DECK_SPECS}
 
 
 class DeckPanelChromeMixin:
@@ -128,7 +125,10 @@ class DeckPanelChromeMixin:
         return tuple(tabs)
 
     def _active_tab_index(self) -> int | None:
-        if self._deck is DeckId.MAIN:
+        from .spec import coerce_known_deck
+
+        deck = coerce_known_deck(self._deck, context="chrome._active_tab_index")
+        if deck is DeckId.MAIN:
             ids = [card.card_id for card in self._main_document.cards]  # type: ignore[attr-defined]
             active = getattr(self, "_main_active_card", None)
             if active is None:
@@ -137,7 +137,7 @@ class DeckPanelChromeMixin:
                 return ids.index(active)
             except ValueError:
                 return None
-        if self._deck is DeckId.FILES:
+        if deck is DeckId.FILES:
             try:
                 view = self.file_view  # type: ignore[attr-defined]
                 if not getattr(view, "_file_list", []):
@@ -145,7 +145,9 @@ class DeckPanelChromeMixin:
                 return int(getattr(view, "_current_file_index", 0))
             except Exception:
                 return None
-        return 0
+        if deck is DeckId.TOOLS:
+            return 0
+        raise AssertionError(f"unhandled deck: {deck!r}")
 
     def _is_spread_active_for(self, deck: DeckId) -> bool:
         try:
@@ -161,21 +163,26 @@ class DeckPanelChromeMixin:
 
     def refresh_chrome(self) -> None:
         """Recompute the border title and subtitle."""
+        from .spec import coerce_known_deck
+
         width = self._chrome_width()
         accent_for = self._accent_for()
-        accent = accent_for[self._deck]
-        if self._deck is DeckId.MAIN:
+        deck = coerce_known_deck(self._deck, context="chrome.refresh_chrome")
+        accent = accent_for[deck]
+        if deck is DeckId.MAIN:
             tabs = self._main_tabs()
-        elif self._deck is DeckId.FILES:
+        elif deck is DeckId.FILES:
             tabs = self._files_tabs()
-        else:
+        elif deck is DeckId.TOOLS:
             tabs = (CardTab("llm-calls", "LLM Calls"),)
+        else:
+            raise AssertionError(f"unhandled deck: {deck!r}")
         active_index = self._active_tab_index()
-        if self._deck is DeckId.MAIN and not tabs:
+        if deck is DeckId.MAIN and not tabs:
             active_index = None
         try:
             self.border_title = deck_title(  # type: ignore[attr-defined]
-                self._deck,
+                deck,
                 tabs,
                 active_index,
                 width=width,
@@ -184,7 +191,7 @@ class DeckPanelChromeMixin:
             )
         except Exception:
             pass
-        if self._deck is DeckId.FILES:
+        if deck is DeckId.FILES:
             from .titles import file_line_status
 
             try:
@@ -200,7 +207,7 @@ class DeckPanelChromeMixin:
             status = None
         try:
             self.border_subtitle = deck_subtitle(  # type: ignore[attr-defined]
-                self._deck,
+                deck,
                 self._availability,  # type: ignore[attr-defined]
                 status=status,
                 width=width,

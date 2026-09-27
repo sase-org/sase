@@ -8,42 +8,22 @@ from dataclasses import dataclass
 from rich.cells import cell_len
 from rich.text import Text
 
-from .model import DECK_CYCLE, DeckId
+from .model import DeckId
+from .spec import DECK_SPECS, active_deck_cycle
 
-DECK_GLYPHS: dict[DeckId, str] = {
-    DeckId.MAIN: "\u25c6",
-    DeckId.FILES: "\u25a4",
-    DeckId.TOOLS: "\u03bb",
-}
+DECK_GLYPHS: dict[DeckId, str] = {s.deck_id: s.glyph for s in DECK_SPECS}
 
-DECK_NAMES: dict[DeckId, str] = {
-    DeckId.MAIN: "MAIN",
-    DeckId.FILES: "FILES",
-    DeckId.TOOLS: "TOOLS",
-}
+DECK_NAMES: dict[DeckId, str] = {s.deck_id: s.name for s in DECK_SPECS}
 
-DECK_ACCENTS: dict[DeckId, str] = {
-    DeckId.MAIN: "$secondary",
-    DeckId.FILES: "green",
-    DeckId.TOOLS: "#87D7FF",
-}
+# Dead table, kept for compatibility; derived from the spec registry.
+DECK_ACCENTS: dict[DeckId, str] = {s.deck_id: s.fallback_accent for s in DECK_SPECS}
 
-DECK_PICKER_KEYS: dict[DeckId, str] = {
-    DeckId.MAIN: "m",
-    DeckId.FILES: "f",
-    DeckId.TOOLS: "t",
-}
+DECK_PICKER_KEYS: dict[DeckId, str] = {s.deck_id: s.picker_key for s in DECK_SPECS}
 
-DECK_BLURBS: dict[DeckId, str] = {
-    DeckId.MAIN: "Context, prompt, and reply",
-    DeckId.FILES: "Diffs and files the agent touched",
-    DeckId.TOOLS: "LLM tool-call timeline",
-}
+DECK_BLURBS: dict[DeckId, str] = {s.deck_id: s.blurb for s in DECK_SPECS}
 
 DECK_COUNT_NOUNS: dict[DeckId, tuple[str, str]] = {
-    DeckId.MAIN: ("card", "cards"),
-    DeckId.FILES: ("file", "files"),
-    DeckId.TOOLS: ("call", "calls"),
+    s.deck_id: s.count_noun for s in DECK_SPECS
 }
 
 DECK_PICKER_RESERVED_KEYS = frozenset({"j", "k", "q", "p"})
@@ -221,7 +201,7 @@ def deck_subtitle(
     from .availability import DeckAvailability
 
     parts: list[tuple[str, str, str]] = []
-    for deck in DECK_CYCLE:
+    for deck in active_deck_cycle():
         label = deck.value
         avail = availability.get(deck)
         count: int | None = None

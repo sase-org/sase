@@ -276,17 +276,18 @@ class AgentPanelDetailMixin:
         if self.current_tab != "agents":
             return
         from ...widgets import AgentDetail
-        from ...widgets.decks.model import DECK_CYCLE
+        from ...widgets.decks.spec import active_deck_cycle
 
+        cycle = active_deck_cycle()
         try:
             position = int(index)
         except Exception:
             return
-        if position < 0 or position >= len(DECK_CYCLE):
+        if position < 0 or position >= len(cycle):
             return
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            changed = agent_detail.apply_picked_deck(None, DECK_CYCLE[position])
+            changed = agent_detail.apply_picked_deck(None, cycle[position])
         except Exception:
             return
         if not changed:
@@ -303,17 +304,18 @@ class AgentPanelDetailMixin:
         if self.current_tab != "agents":
             return
         from ...widgets import AgentDetail
-        from ...widgets.decks.model import DECK_CYCLE
+        from ...widgets.decks.spec import active_deck_cycle
 
+        cycle = active_deck_cycle()
         try:
             position = int(index)
         except Exception:
             return
-        if position < 0 or position >= len(DECK_CYCLE):
+        if position < 0 or position >= len(cycle):
             return
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            changed = agent_detail.show_deck_in_other_panel(None, DECK_CYCLE[position])
+            changed = agent_detail.show_deck_in_other_panel(None, cycle[position])
         except Exception:
             return
         if not changed:

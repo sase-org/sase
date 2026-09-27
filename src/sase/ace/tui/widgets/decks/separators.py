@@ -11,7 +11,7 @@ from rich.segment import Segment
 from rich.style import Style
 
 from .model import DeckId
-from .titles import DECK_GLYPHS
+from .spec import deck_spec
 from ..prompt_panel._section_navigation import DECK_CARD_META_KEY
 
 
@@ -75,12 +75,17 @@ class _CardSeparator:
 
 def main_separator_for(card_id: str, title: str, *, accent: str) -> _CardSeparator:
     """Build a Main-deck separator with the deck glyph."""
-    return _CardSeparator(card_id, title, glyph=DECK_GLYPHS[DeckId.MAIN], accent=accent)
+    return _CardSeparator(
+        card_id, title, glyph=deck_spec(DeckId.MAIN).glyph, accent=accent
+    )
 
 
 def files_separator_for(card_id: str, title: str) -> _CardSeparator:
-    """Build a Files-deck separator (green, ▤ glyph)."""
-    return _CardSeparator(card_id, title, glyph="▤", accent="green")
+    """Build a Files-deck separator with the deck glyph and accent."""
+    files = deck_spec(DeckId.FILES)
+    return _CardSeparator(
+        card_id, title, glyph=files.glyph, accent=files.fallback_accent
+    )
 
 
 __all__ = [

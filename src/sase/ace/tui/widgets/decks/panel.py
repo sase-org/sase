@@ -24,6 +24,7 @@ from .files_spread import FilesSpreadView
 from .main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
 from .main_view import MainDeckView
 from .model import DeckId
+from .spec import DECK_SPECS, coerce_known_deck
 from .panel_blocks import DeckPanelBlocksMixin
 from .panel_chrome import DeckPanelChromeMixin
 from .panel_files import DeckPanelFilesMixin
@@ -32,11 +33,9 @@ from .panel_navigation import DeckPanelNavigationMixin
 from .panel_spread import DeckPanelSpreadMixin
 from .panel_transitions import DeckPanelTransitionsMixin
 
-_DECK_ACCENT_CLASS = {
-    DeckId.MAIN: "-deck-main",
-    DeckId.FILES: "-deck-files",
-    DeckId.TOOLS: "-deck-tools",
-}
+_DECK_ACCENT_CLASS = {s.deck_id: s.accent_class for s in DECK_SPECS}
+
+_DECK_ACCENT_CLASSES = tuple(s.accent_class for s in DECK_SPECS)
 
 
 class DeckPanelFocusRequested(Message):
@@ -177,7 +176,7 @@ class DeckPanel(  # type: ignore[misc]
         """Show ``deck``, toggling scroll visibility and chrome."""
         self._deck = deck
         for existing in list(self.classes):
-            if existing in ("-deck-main", "-deck-files", "-deck-tools"):
+            if existing in _DECK_ACCENT_CLASSES:
                 self.remove_class(existing)
         self.add_class(_DECK_ACCENT_CLASS[deck])
         for deck_id in DeckId:
@@ -216,6 +215,7 @@ class DeckPanel(  # type: ignore[misc]
             pass
 
     def _deck_is_empty(self, deck: DeckId) -> bool:
+        deck = coerce_known_deck(deck, context="DeckPanel._deck_is_empty")
         if deck is DeckId.MAIN:
             return not bool(self._main_document.cards)
         avail = self._availability.get(deck)
@@ -226,10 +226,12 @@ class DeckPanel(  # type: ignore[misc]
                 return not bool(self.file_view._has_displayed_content)
             except Exception:
                 return True
-        try:
-            return not bool(self.tools_view._has_displayed_content)
-        except Exception:
-            return True
+        if deck is DeckId.TOOLS:
+            try:
+                return not bool(self.tools_view._has_displayed_content)
+            except Exception:
+                return True
+        raise AssertionError(f"unhandled deck: {deck!r}")
 
     def _update_empty_state(self) -> None:
         try:
