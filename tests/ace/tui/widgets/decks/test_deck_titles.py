@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from rich.text import Text
 
+from rich.cells import cell_len
+
 from sase.ace.tui.widgets.decks.availability import DeckAvailability
-from sase.ace.tui.widgets.decks.model import DeckId, DeckView
+from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout, DeckView
 from sase.ace.tui.widgets.decks.titles import (
+    ZOOM_CHIP_STYLE,
     CardTab,
+    ZoomChrome,
     deck_subtitle,
     deck_title,
     file_line_status,
@@ -275,3 +279,124 @@ def test_resolved_fixed_badge_shows_requested_name() -> None:
         view=view,
     )
     assert "page blocks · fixed" in rendered.plain
+
+
+def _zoomed_title(width: int) -> str:
+    return deck_title(
+        DeckId.MAIN,
+        _main_tabs(),
+        1,
+        width=width,
+        accent="red",
+        focused=True,
+        zoomed=True,
+    ).plain
+
+
+def test_zoomed_title_chip_always_present_and_budgeted() -> None:
+    for width in (80, 60, 40, 30, 24, 20, 16, 12, 10, 8, 6, 5, 4, 3, 2):
+        rendered = deck_title(
+            DeckId.MAIN,
+            _main_tabs(),
+            1,
+            width=width,
+            accent="red",
+            focused=True,
+            zoomed=True,
+        )
+        assert rendered.plain.startswith("ZOOM"), width
+        assert cell_len(rendered.plain) <= max(width, 4), width
+
+
+def test_zoomed_title_picks_rungs_against_reduced_budget() -> None:
+    # The full rung is 29 cells, so at width 33 the unzoomed title still
+    # shows it while the zoomed title (budget 28) must step down a rung.
+    unzoomed = deck_title(
+        DeckId.MAIN, _main_tabs(), 1, width=33, accent="red", focused=True
+    )
+    assert "Context" in unzoomed.plain and "Reply" in unzoomed.plain
+    zoomed = deck_title(
+        DeckId.MAIN, _main_tabs(), 1, width=33, accent="red", focused=True, zoomed=True
+    )
+    assert (
+        zoomed.plain
+        == "ZOOM "
+        + deck_title(
+            DeckId.MAIN, _main_tabs(), 1, width=28, accent="red", focused=True
+        ).plain
+    )
+
+
+def test_zoomed_title_chip_alone_below_smallest_rung() -> None:
+    assert _zoomed_title(4) == "ZOOM"
+    assert _zoomed_title(2) == "ZOOM"
+
+
+def test_zoomed_title_chip_style() -> None:
+    rendered = deck_title(
+        DeckId.MAIN, _main_tabs(), 1, width=80, accent="red", focused=True, zoomed=True
+    )
+    assert rendered.spans, "the ZOOM chip must carry its reverse-gold style"
+    first = rendered.spans[0]
+    assert rendered.plain[first.start : first.end] == "ZOOM"
+    assert ZOOM_CHIP_STYLE in str(first.style)
+
+
+def _zoomed_subtitle(width: int, zoom: ZoomChrome, status: Text | None = None) -> str:
+    return deck_subtitle(
+        DeckId.MAIN,
+        _COUNTED,
+        status=status,
+        width=width,
+        accent_for=_ACCENTS,
+        zoom=zoom,
+    ).plain
+
+
+def _split_zoom(index: int, layout: DeckLayout = DeckLayout.LEFT_RIGHT) -> ZoomChrome:
+    return ZoomChrome(layout, index, 2, zoom_key="Z")
+
+
+def test_zoom_subtitle_glyph_per_half() -> None:
+    assert _zoomed_subtitle(80, _split_zoom(0)).startswith("◧ 1 of 2 · Z restore")
+    right = _zoomed_subtitle(80, _split_zoom(1))
+    assert right.startswith("◨ 2 of 2 · Z restore")
+    top = _zoomed_subtitle(80, _split_zoom(0, DeckLayout.TOP_BOTTOM))
+    assert top.startswith("⬒ 1 of 2 · Z restore")
+    bottom = _zoomed_subtitle(80, _split_zoom(1, DeckLayout.TOP_BOTTOM))
+    assert bottom.startswith("⬓ 2 of 2 · Z restore")
+
+
+def test_zoom_subtitle_single_has_no_position() -> None:
+    rendered = _zoomed_subtitle(80, ZoomChrome(DeckLayout.SINGLE, 0, 1, zoom_key="Z"))
+    assert rendered.startswith("Z restore")
+    assert " of " not in rendered
+
+
+def test_zoom_subtitle_omits_key_when_unbound() -> None:
+    assert _zoomed_subtitle(80, ZoomChrome(DeckLayout.SINGLE, 0, 1)).startswith(
+        "restore"
+    )
+    split = _zoomed_subtitle(80, ZoomChrome(DeckLayout.LEFT_RIGHT, 0, 2, zoom_key=""))
+    assert split.startswith("◧ 1 of 2 · restore")
+
+
+def test_zoom_subtitle_ladder_drops_counts_then_switcher_then_position() -> None:
+    zoom = _split_zoom(0)
+    full = _zoomed_subtitle(80, zoom)
+    assert full == "◧ 1 of 2 · Z restore  main 1 · files 3 · tools 2 · final"
+    bare = _zoomed_subtitle(52, zoom)
+    assert bare == "◧ 1 of 2 · Z restore  main · files · tools · final"
+    assert "main 1" not in bare
+    alone = _zoomed_subtitle(30, zoom)
+    assert alone == "◧ 1 of 2 · Z restore"
+    short = _zoomed_subtitle(12, zoom)
+    assert short == "Z restore"
+    assert _zoomed_subtitle(8, zoom) == "Z restor"
+
+
+def test_zoom_subtitle_keeps_status_while_switcher_drops() -> None:
+    zoom = _split_zoom(1)
+    rendered = _zoomed_subtitle(40, zoom, status=Text("693 lines"))
+    assert rendered.startswith("◨ 2 of 2 · Z restore  693 lines")
+    assert "main" not in rendered

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from rich.cells import cell_len
 from rich.text import Text
 
-from .model import DeckId
+from .model import DeckId, DeckLayout
 from .spec import DECK_SPECS, active_deck_cycle
 
 from .view_policy import ResolvedView
@@ -32,6 +32,34 @@ DECK_PICKER_RESERVED_KEYS = frozenset({"j", "k", "q", "p"})
 
 _MUTED = "#888888"
 _SEPARATOR = "#444444"
+
+ZOOM_CHIP_TEXT = "ZOOM"
+ZOOM_CHIP_STYLE = "bold #1a1a1a on #FFD700"
+ZOOM_CHIP_WIDTH = 5  # "ZOOM" plus one trailing space.
+
+_ZOOM_HALF_GLYPHS: dict[tuple[DeckLayout, int], str] = {
+    (DeckLayout.LEFT_RIGHT, 0): "\u25e7",
+    (DeckLayout.LEFT_RIGHT, 1): "\u25e8",
+    (DeckLayout.TOP_BOTTOM, 0): "\u2b12",
+    (DeckLayout.TOP_BOTTOM, 1): "\u2b13",
+}
+
+
+@dataclass(frozen=True)
+class ZoomChrome:
+    """Context for the zoom restore hint on the zoomed deck panel.
+
+    ``from_layout`` and ``panel_count`` come from the zoom snapshot, so a
+    split zoom names its half (``1 of 2``) while a single-deck zoom reads
+    just ``Z restore``. ``zoom_key`` is the configured ``zoom_panel`` key
+    display, resolved live by the chrome mixin; empty means unbound, and
+    the key segment is then omitted.
+    """
+
+    from_layout: DeckLayout
+    panel_index: int
+    panel_count: int
+    zoom_key: str = ""
 
 
 @dataclass(frozen=True)
@@ -162,6 +190,15 @@ def _badge_variants(
     return (None, None, None)
 
 
+def _with_zoom_chip(rung: Text) -> Text:
+    """Return ``rung`` led by the reverse-gold ZOOM chip plus a space."""
+    chip = Text()
+    chip.append(ZOOM_CHIP_TEXT, style=ZOOM_CHIP_STYLE)
+    chip.append(" ", style="")
+    chip.append_text(rung)
+    return chip
+
+
 def deck_title(
     deck: DeckId,
     tabs: Sequence[CardTab],
@@ -171,6 +208,7 @@ def deck_title(
     accent: str,
     focused: bool,
     view: ResolvedView | None = None,
+    zoomed: bool = False,
 ) -> Text:
     """Render a deck title tab strip, picking the widest fitting tier.
 
@@ -180,6 +218,10 @@ def deck_title(
     long badge, full tabs + short badge, compact tabs + long badge,
     compact tabs + short badge, compact tabs + tiny badge, micro + tiny
     badge, then micro alone.
+
+    When ``zoomed``, every rung is led by the reverse-gold ZOOM chip and
+    rungs are picked against ``width`` minus the chip; the chip is never
+    dropped, so below the smallest rung the chip alone remains.
     """
     tabs = tuple(tabs)
     long_badge, short_badge, tiny_badge = _badge_variants(
@@ -341,12 +383,21 @@ def deck_title(
                 ),
                 candidates[2],
             ]
+    if not zoomed:
+        if width <= 0:
+            return candidates[0][1]
+        for _tier, rendered in candidates:
+            if _plain_width(rendered) <= width:
+                return rendered
+        return candidates[-1][1]
     if width <= 0:
-        return candidates[0][1]
+        return _with_zoom_chip(candidates[0][1])
+    budget = width - ZOOM_CHIP_WIDTH
     for _tier, rendered in candidates:
-        if _plain_width(rendered) <= width:
-            return rendered
-    return candidates[-1][1]
+        if _plain_width(rendered) <= budget:
+            return _with_zoom_chip(rendered)
+    chip_only = Text(ZOOM_CHIP_TEXT, style=ZOOM_CHIP_STYLE)
+    return chip_only
 
 
 def final_switcher_segment(status: str | None, glyph: str | None) -> Text:
@@ -385,6 +436,34 @@ def _build_switcher(
     return switcher
 
 
+def _zoom_restore_text(zoom: ZoomChrome, *, accent: str, short: bool) -> Text:
+    """Render the zoom restore lead: position plus the restore hint.
+
+    From a split the full form names the zoomed half (``◧ 1 of 2``); from
+    a single deck, and for the short form, only the restore hint remains.
+    The configured key leads in bold accent and is omitted when unbound.
+    """
+    restore = Text()
+    if not short and zoom.from_layout is not DeckLayout.SINGLE:
+        glyph = _ZOOM_HALF_GLYPHS.get((zoom.from_layout, zoom.panel_index), "")
+        if glyph:
+            restore.append(
+                f"{glyph} {zoom.panel_index + 1} of {zoom.panel_count} ", style="dim"
+            )
+            restore.append("· ", style=_MUTED)
+        else:
+            restore.append(
+                f"{zoom.panel_index + 1} of {zoom.panel_count} ", style="dim"
+            )
+            restore.append("· ", style=_MUTED)
+    if zoom.zoom_key:
+        restore.append(zoom.zoom_key, style=f"bold {accent}".strip())
+        restore.append(" restore", style="dim")
+    else:
+        restore.append("restore", style="dim")
+    return restore
+
+
 def deck_subtitle(
     active: DeckId,
     availability: Mapping[DeckId, object],
@@ -393,6 +472,7 @@ def deck_subtitle(
     width: int,
     accent_for: Mapping[DeckId, str],
     status_segments: Mapping[DeckId, Text] | None = None,
+    zoom: ZoomChrome | None = None,
 ) -> Text:
     """Render the deck switcher with an optional leading status.
 
@@ -402,6 +482,10 @@ def deck_subtitle(
     truncate. ``status_segments`` carries pre-styled switcher entries
     (the FINAL ``final <glyph>`` segment); they replace the count in both
     tiers.
+
+    When ``zoom`` is set, the restore hint leads instead: the switcher
+    counts drop first, then the switcher, then the half position (leaving
+    the restore hint alone), and only then truncate.
     """
     from .availability import DeckAvailability
 
@@ -440,21 +524,38 @@ def deck_subtitle(
         return joined
 
     # Candidates in preference order; the first that fits the budget wins.
-    candidates = [
-        _joined(status, switcher),
-        _joined(status, bare_switcher),
+    if zoom is None:
+        candidates = [
+            _joined(status, switcher),
+            _joined(status, bare_switcher),
+        ]
+        if width <= 0:
+            return candidates[0]
+        for candidate in candidates:
+            if _plain_width(candidate) <= width:
+                return candidate
+        if status is not None:
+            # Drop the switcher entirely, then truncate the status.
+            if _plain_width(status) <= width:
+                return _joined(status)
+            return Text(status.plain[: max(0, width)], style="")
+        return Text(bare_switcher.plain[: max(0, width)], style="")
+    accent = str(accent_for.get(active, "") or "")
+    restore_full = _zoom_restore_text(zoom, accent=accent, short=False)
+    restore_short = _zoom_restore_text(zoom, accent=accent, short=True)
+    zoomed_candidates = [
+        _joined(restore_full, status, switcher),
+        _joined(restore_full, status, bare_switcher),
+        _joined(restore_full, status),
+        _joined(restore_short, status),
+        _joined(restore_short),
     ]
     if width <= 0:
-        return candidates[0]
-    for candidate in candidates:
+        return zoomed_candidates[0]
+    for candidate in zoomed_candidates:
         if _plain_width(candidate) <= width:
             return candidate
-    if status is not None:
-        # Drop the switcher entirely, then truncate the status.
-        if _plain_width(status) <= width:
-            return _joined(status)
-        return Text(status.plain[: max(0, width)], style="")
-    return Text(bare_switcher.plain[: max(0, width)], style="")
+    return Text(restore_short.plain[: max(0, width)], style="")
 
 
 def file_line_status(

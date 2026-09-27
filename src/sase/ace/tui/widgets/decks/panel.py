@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .titles import ZoomChrome
 
 from textual import on
 from textual.app import ComposeResult
@@ -83,6 +86,7 @@ class DeckPanel(  # type: ignore[misc]
         self._file_total_lines = 0
         self._file_capped = False
         self._tools_has_content = False
+        self._zoom_chrome: ZoomChrome | None = None
         self._init_spread_state()
         self._init_block_panel_state()
         self._init_view_state()
@@ -167,6 +171,22 @@ class DeckPanel(  # type: ignore[misc]
             pass
         try:
             self.post_message(DeckPanelFocusRequested(self._panel_index))
+        except Exception:
+            pass
+
+    @property
+    def zoom_chrome(self) -> ZoomChrome | None:
+        """Return the zoom chrome context, or None when not zoomed."""
+        return self._zoom_chrome
+
+    def set_zoom_chrome(self, chrome: ZoomChrome | None) -> None:
+        """Store the zoom chrome context and sync the ``-zoomed`` class."""
+        self._zoom_chrome = chrome
+        try:
+            if chrome is None:
+                self.remove_class("-zoomed")
+            else:
+                self.add_class("-zoomed")
         except Exception:
             pass
 

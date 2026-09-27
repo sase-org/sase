@@ -20,6 +20,7 @@ from .model import (
     with_preferred_card,
 )
 from .panel import DeckPanel, DeckPanelFocusRequested
+from .titles import ZoomChrome
 
 
 class DeckArea(Vertical):
@@ -79,14 +80,27 @@ class DeckArea(Vertical):
             panel1 = None
         if is_zoomed(new_state):
             # The zoomed panel keeps its widget, card and scroll; the
-            # other widget hides while the snapshot is held.
+            # other widget hides while the snapshot is held. The zoomed
+            # panel gets its -zoomed class and ZoomChrome before
+            # set_focused() repaints the chrome, so every zoom entry and
+            # exit is correct by construction.
+            snapshot = new_state.zoom_snapshot
+            if snapshot is None:
+                return
+            chrome = ZoomChrome(
+                from_layout=snapshot.layout,
+                panel_index=new_state.focused,
+                panel_count=len(snapshot.panels),
+            )
             for index, panel in ((0, panel0), (1, panel1)):
                 if panel is None:
                     continue
                 try:
                     if index == new_state.focused:
+                        panel.set_zoom_chrome(chrome)
                         panel.remove_class("hidden")
                     else:
+                        panel.set_zoom_chrome(None)
                         panel.add_class("hidden")
                     panel.set_focused(index == new_state.focused)
                 except Exception:
@@ -94,7 +108,15 @@ class DeckArea(Vertical):
             return
         if layout is DeckLayout.SINGLE:
             if panel1 is not None:
+                try:
+                    panel1.set_zoom_chrome(None)
+                except Exception:
+                    pass
                 panel1.add_class("hidden")
+            try:
+                panel0.set_zoom_chrome(None)
+            except Exception:
+                pass
             try:
                 panel0.set_focused(True)
             except Exception:
@@ -106,6 +128,7 @@ class DeckArea(Vertical):
             if panel is None:
                 continue
             try:
+                panel.set_zoom_chrome(None)
                 panel.remove_class("hidden")
                 panel.set_focused(index == new_state.focused)
             except Exception:

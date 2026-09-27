@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 from .model import DeckId, DeckView, RenderMode
 from .spec import DECK_SPECS
-from .titles import CardTab, deck_subtitle, deck_title
+from .titles import CardTab, ZoomChrome, deck_subtitle, deck_title
 from .view_policy import ResolvedView, ViewContent, resolve_view
 
 _BORDER_LABEL_RESERVED_CELLS = 4
@@ -367,6 +368,25 @@ class DeckPanelChromeMixin:
             return fresh
         return None
 
+    def _zoom_key_display(self) -> str:
+        """Return the configured zoom key display, or "" when unbound."""
+        try:
+            from ...keymaps import key_display_name
+            from ...keymaps.key_validation import is_unbound_key
+        except Exception:
+            return ""
+        try:
+            registry = getattr(getattr(self, "app", None), "_keymap_registry", None)
+            raw = str(getattr(getattr(registry, "app", None), "zoom_panel", ""))
+        except Exception:
+            return ""
+        try:
+            if not raw or is_unbound_key(raw):
+                return ""
+            return key_display_name(raw)
+        except Exception:
+            return ""
+
     def refresh_chrome(self) -> None:
         """Recompute the border title and subtitle."""
         from .spec import coerce_known_deck
@@ -375,6 +395,19 @@ class DeckPanelChromeMixin:
         accent_for = self._accent_for()
         deck = coerce_known_deck(self._deck, context="chrome.refresh_chrome")
         accent = accent_for[deck]
+        try:
+            stored_zoom = self._zoom_chrome  # type: ignore[attr-defined]
+        except Exception:
+            stored_zoom = None
+        zoomed = stored_zoom is not None
+        zoom_arg: ZoomChrome | None = None
+        if stored_zoom is not None:
+            try:
+                zoom_arg = dataclasses.replace(
+                    stored_zoom, zoom_key=self._zoom_key_display()
+                )
+            except Exception:
+                zoom_arg = stored_zoom
         if deck is DeckId.MAIN:
             tabs = self._main_tabs()
         elif deck is DeckId.FILES:
@@ -401,6 +434,7 @@ class DeckPanelChromeMixin:
                 accent=accent,
                 focused=self._focused,
                 view=view,
+                zoomed=zoomed,
             )
         except Exception:
             pass
@@ -430,6 +464,7 @@ class DeckPanelChromeMixin:
                 width=width,
                 accent_for=accent_for,
                 status_segments=status_segments,
+                zoom=zoom_arg,
             )
         except Exception:
             pass

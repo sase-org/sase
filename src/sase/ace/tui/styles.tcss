@@ -4079,6 +4079,22 @@ HintInputBar #hint-escape-hint {
     border: solid #FF87D7 35%;
 }
 
+.deck-panel.-zoomed.-deck-main {
+    border: heavy $secondary;
+}
+
+.deck-panel.-zoomed.-deck-files {
+    border: heavy green;
+}
+
+.deck-panel.-zoomed.-deck-tools {
+    border: heavy #87D7FF;
+}
+
+.deck-panel.-zoomed.-deck-final {
+    border: heavy #FF87D7;
+}
+
 .deck-scroll {
     height: 1fr;
     padding: 1 2;

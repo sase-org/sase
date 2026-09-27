@@ -284,6 +284,24 @@ async def test_agents_decks_zoomed_png_snapshot(
         )
 
 
+async def test_agents_decks_zoomed_single_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await page.press("Z")
+        await wait_for_visual_idle(page)
+        assert detail.is_deck_zoomed is True
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_decks_zoomed_single_120x40",
+            title="ACE agents decks zoomed single deck",
+        )
+
+
 async def test_agents_decks_single_files_spread_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
