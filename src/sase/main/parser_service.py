@@ -260,7 +260,7 @@ def _add_check_diff_force_yes(
             "--allow-agent-env",
             action="store_true",
             help=(
-                "Capture this shell's environment even from an agent shell "
+                "Capture this shell's environment even from a SASE agent process "
                 "or ephemeral workspace"
             ),
         )

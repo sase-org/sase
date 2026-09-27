@@ -37,7 +37,7 @@ def fork_source_failure(source: Mapping[str, object]) -> Mapping[str, object] | 
 #: Terminal gate states that read as a failure, mirroring
 #: ``sase.gate_turn.state.TERMINAL_GATE_STATES``'s failing members. Kept as a
 #: local literal so this generic history module never imports the domain
-#: gate-shell package.
+#: gate-turn package.
 GATE_FAILURE_OUTCOMES = frozenset({"failed", "timeout", "lost"})
 
 
@@ -74,7 +74,7 @@ def fork_source_has_failure(source: Mapping[str, object]) -> bool:
 
 
 def fork_source_has_proc_content(source: Mapping[str, object]) -> bool:
-    """Return whether one top-level source itself is, or contains, a proc shell."""
+    """Return whether one top-level source itself is, or contains, a named proc."""
     if source.get("kind") == "proc":
         return True
     # legacy agent-family spelling: pre-rename sources carry "family".

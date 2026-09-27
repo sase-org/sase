@@ -32,7 +32,7 @@ def artifact_agent_association(
     value: str | None,
     identity: AgentIdentitySnapshot,
 ) -> AgentAssociationRef | None:
-    """Project a concrete artifact agent shell to its sase agent."""
+    """Project a concrete artifact agent turn to its sase agent."""
 
     raw = _nonempty(value)
     if raw is None:

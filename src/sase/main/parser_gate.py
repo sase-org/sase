@@ -9,7 +9,7 @@ from sase.ops.cli import add_operation_io_flags
 
 # Mirrors ``sase.gate_turn.state.TERMINAL_GATE_STATES`` plus ``pending`` and
 # ``settling``, spelled out here so building the parser never imports the
-# gate-shell engine.
+# gate-turn engine.
 GATE_TURN_STATE_CHOICES = (
     "pending",
     "settling",

@@ -1,4 +1,4 @@
-"""Gate-shell claim, follow-up, and terminal marker settlement."""
+"""Gate-turn claim, follow-up, and terminal marker settlement."""
 
 from __future__ import annotations
 
@@ -44,9 +44,9 @@ from sase.turns.settlement import (
 )
 
 GATE_FOLLOWUP_DEGRADED_OUTCOME = "launched-degraded"
-LOST_FOLLOWUP_ERROR = "follow-up not launched because the gate shell was marked lost"
+LOST_FOLLOWUP_ERROR = "follow-up not launched because the gate turn was marked lost"
 SHELL_PARSE_FOLLOWUP_ERROR = (
-    "gate shell block did not parse at settlement; follow-up policy was skipped"
+    "gate turn block did not parse at settlement; follow-up policy was skipped"
 )
 
 _GATE_SETTLEMENT_CONFIG = TurnSettlementConfig(
@@ -62,7 +62,7 @@ _GATE_SETTLEMENT_CONFIG = TurnSettlementConfig(
     degraded_outcome=GATE_FOLLOWUP_DEGRADED_OUTCOME,
     fallback_followup_error="gate follow-up launch failed",
     missing_project_error=(
-        "could not resolve the gate shell's project from its artifacts path"
+        "could not resolve the gate turn's project from its artifacts path"
     ),
 )
 
@@ -165,7 +165,7 @@ def settle_gate_turn(
     creator_live: bool = False,
     resume: bool = False,
 ) -> GateTurnRecord:
-    """Settle a gate-shell member into ``gate_state``.
+    """Settle a gate-turn member into ``gate_state``.
 
     Never launches a follow-up, releases a claim, or notifies until the shell
     itself is terminal and its artifact index is visible -- otherwise a
@@ -534,7 +534,7 @@ def _bundle_documents(
 
 
 def project_name_from_artifacts_dir(artifacts_dir: str) -> str | None:
-    """Return the project containing a gate-shell artifacts directory."""
+    """Return the project containing a gate-turn artifacts directory."""
     return shell_project_name_from_artifacts_dir(artifacts_dir)
 
 

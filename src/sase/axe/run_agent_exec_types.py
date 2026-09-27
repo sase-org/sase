@@ -82,13 +82,13 @@ class LoopState:
     saved_chat_paths: list[tuple[str, str]] = field(default_factory=list)
     # Snapshot of SASE_AGENT_TIMESTAMP at loop entry, restored after finalization.
     original_agent_timestamp: str | None = None
-    # In-process hint for question gate-shell chain discovery (the
+    # In-process hint for question gate-turn chain discovery (the
     # ``gate_turn_handoff`` On branch): the artifacts dir of the question
-    # gate shell this loop last created, or ``None``. Its durable fallback is
+    # gate turn this loop last created, or ``None``. Its durable fallback is
     # the chain's ``gate_followup_agent`` link, since this hint does not
     # survive a runner death.
     question_gate_artifacts_dir: str | None = None
-    # In-process hint for plan gate-shell chain discovery. Durable cross-process
+    # In-process hint for plan gate-turn chain discovery. Durable cross-process
     # recovery uses the settled shell's ``gate_followup_agent`` link.
     plan_gate_artifacts_dir: str | None = None
     # Continuation capture refs written during the current local turn.

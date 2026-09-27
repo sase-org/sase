@@ -119,7 +119,7 @@ def test_agent_session_fork_history_labels_gate_turn_member(
         [source.to_json_data() for source in _resolve_agent_chat_sources(["cx"])]
     )
 
-    assert "gate shell `cx--gate`" in history
+    assert "gate turn `cx--gate`" in history
     assert "cleanup, verify" in history
 
 

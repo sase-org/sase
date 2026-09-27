@@ -1,4 +1,4 @@
-"""Create reusable agent-session shell member artifacts."""
+"""Create reusable agent-session turn member artifacts."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def create_agent_session_turn_member(
     metadata: Mapping[str, Any] | None = None,
     inherited_metadata_fields: Sequence[str] = (),
 ) -> str:
-    """Create an agent-session shell member and layer caller-supplied metadata on it.
+    """Create an agent-session turn member and layer caller-supplied metadata on it.
 
     Does not stamp this process's pid onto the member: a gate has no
     process, and a monitor's pid is the detached supervisor's.

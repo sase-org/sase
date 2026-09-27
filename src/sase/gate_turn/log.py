@@ -1,4 +1,4 @@
-"""Bounded live-output log for a gate shell's approved command execution."""
+"""Bounded live-output log for a gate turn's approved command execution."""
 
 from __future__ import annotations
 
@@ -23,12 +23,12 @@ GATE_TURN_LOG_FILENAME = "gate.log"
 
 
 def _gate_turn_log_path(artifacts_dir: str) -> Path:
-    """Return the live-output log path for a gate shell's artifacts dir."""
+    """Return the live-output log path for a gate turn's artifacts dir."""
     return Path(artifacts_dir) / GATE_TURN_LOG_FILENAME
 
 
 def _append_gate_turn_log_text(artifacts_dir: str, text: str) -> None:
-    """Append *text* to a gate shell's bounded live-output log.
+    """Append *text* to a gate turn's bounded live-output log.
 
     Producers that already own their output in memory flush through this
     shared bounded-log primitive, the same pattern the proc store's own
@@ -48,14 +48,14 @@ def _append_gate_turn_log_text(artifacts_dir: str, text: str) -> None:
 
 
 def append_gate_turn_log_text(artifacts_dir: str, text: str) -> None:
-    """Append text to a gate shell's bounded live-output log."""
+    """Append text to a gate turn's bounded live-output log."""
 
     _append_gate_turn_log_text(artifacts_dir, text)
 
 
 @dataclass(frozen=True)
 class _GateTurnExecutionCallbacks:
-    """The three ``execute_gate_selection`` callbacks bound to one gate shell."""
+    """The three ``execute_gate_selection`` callbacks bound to one gate turn."""
 
     on_command_start: Callable[[str, str, str, tuple[str, ...]], None]
     on_output_line: Callable[[str, str, str, str], None]
@@ -73,7 +73,7 @@ class _GateTurnExecutionCallbacks:
 def bind_gate_turn_execution_callbacks(
     artifacts_dir: str,
 ) -> _GateTurnExecutionCallbacks:
-    """Bind gate.log streaming and pid recording for one gate shell's execution.
+    """Bind gate.log streaming and pid recording for one gate turn's execution.
 
     ``on_command_start`` writes a ``$ commands/cleanup``-style header so an AND
     branch's multiple commands read as one attributable stream;
@@ -126,7 +126,7 @@ def _read_gate_turn_meta(artifacts_dir: str) -> dict[str, Any]:
 def _gate_turn_queue_weight(meta: dict[str, Any]) -> float:
     if meta.get("queue_weight_invalid") is True:
         raise RuntimeError(
-            "Invalid queue_weight in gate shell metadata: "
+            "Invalid queue_weight in gate turn metadata: "
             f"{QUEUE_WEIGHT_ERROR}; got {meta.get('queue_weight')!r}."
         )
     if "queue_weight" not in meta:
@@ -137,7 +137,7 @@ def _gate_turn_queue_weight(meta: dict[str, Any]) -> float:
     )
     if queue_weight is None:
         raise RuntimeError(
-            "Invalid queue_weight in gate shell metadata: "
+            "Invalid queue_weight in gate turn metadata: "
             f"{QUEUE_WEIGHT_ERROR}; got {meta.get('queue_weight')!r}."
         )
     return queue_weight
@@ -223,7 +223,7 @@ def _claim_gate_turn_execution_capacity(artifacts_dir: str) -> None:
 
 
 def gate_turn_output_tail(artifacts_dir: str, *, lines: int = 200) -> str:
-    """Return the newest retained lines of a gate shell's live-output log."""
+    """Return the newest retained lines of a gate turn's live-output log."""
     from sase.axe.state import read_tail_seek
 
     return read_tail_seek(_gate_turn_log_path(artifacts_dir), lines)

@@ -1,4 +1,4 @@
-"""Follow-up launch support shared by agent-session shell kinds."""
+"""Follow-up launch support shared by agent-session turn kinds."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ _POOL_FOLLOWUP_CLAIM_WORKFLOW = "ace-followup"
 
 @dataclass(frozen=True)
 class FollowupLaunchResult:
-    """Outcome of attempting to launch a shell follow-up agent."""
+    """Outcome of attempting to launch a turn follow-up agent."""
 
     launched: bool
     degraded_reason: str | None = None
@@ -58,8 +58,8 @@ class FollowupLaunchResult:
 
 
 @dataclass(frozen=True, slots=True)
-class ShellFollowupWorkspace:
-    """Messages a shell kind supplies for each degraded workspace outcome."""
+class TurnFollowupWorkspace:
+    """Messages a turn kind supplies for each degraded workspace outcome."""
 
     meta_pairing_reason: Callable[[str, str], str]
     fresh_claim_reason: Callable[[int, BaseException], str]
@@ -68,7 +68,7 @@ class ShellFollowupWorkspace:
 
 
 def vcs_ref_from_meta(meta: Mapping[str, object]) -> tuple[str, str] | None:
-    """Return the starter VCS workflow ref recorded on shell member *meta*."""
+    """Return the starter VCS workflow ref recorded on turn member *meta*."""
     raw = meta.get("vcs_ref")
     if isinstance(raw, (list, tuple)) and len(raw) == 2:
         workflow, ref = raw
@@ -109,7 +109,7 @@ def _vcs_ref_from_prompt(prompt: str) -> tuple[str, str] | None:
     return None
 
 
-def _resolve_shell_followup_vcs_ref(
+def _resolve_turn_followup_vcs_ref(
     recorded: tuple[str, str] | None,
     prompt: str,
 ) -> tuple[str, str] | None:
@@ -130,7 +130,7 @@ def _resolve_shell_followup_vcs_ref(
     return prompt_ref
 
 
-def launch_shell_followup(
+def launch_turn_followup(
     *,
     project_name: str,
     meta_workspace_num: object,
@@ -140,7 +140,7 @@ def launch_shell_followup(
     spawn: Callable[
         [str, str, int, int | None, tuple[str, str] | None], AgentLaunchResult
     ],
-    workspace: ShellFollowupWorkspace,
+    workspace: TurnFollowupWorkspace,
     record_launched: Callable[..., FollowupLaunchResult],
     record_not_launchable: Callable[[str, str], FollowupLaunchResult],
     recorded_vcs_ref: tuple[str, str] | None = None,
@@ -190,7 +190,7 @@ def launch_shell_followup(
                 original_workspace_dir, original_workspace_num = resolved_pair
 
     prompt = compose_prompt(initial_degraded_reason)
-    vcs_ref = _resolve_shell_followup_vcs_ref(recorded_vcs_ref, prompt)
+    vcs_ref = _resolve_turn_followup_vcs_ref(recorded_vcs_ref, prompt)
 
     try:
         result = spawn(
@@ -215,9 +215,7 @@ def launch_shell_followup(
         )
 
     degraded_prompt = compose_prompt(fresh_reason)
-    degraded_vcs_ref = _resolve_shell_followup_vcs_ref(
-        recorded_vcs_ref, degraded_prompt
-    )
+    degraded_vcs_ref = _resolve_turn_followup_vcs_ref(recorded_vcs_ref, degraded_prompt)
     try:
         result = spawn(
             degraded_prompt,
@@ -251,7 +249,7 @@ def launch_shell_followup(
             original_workspace_num, claim_exc, zero_workspace_dir
         )
         zero_prompt = compose_prompt(zero_reason)
-        zero_vcs_ref = _resolve_shell_followup_vcs_ref(recorded_vcs_ref, zero_prompt)
+        zero_vcs_ref = _resolve_turn_followup_vcs_ref(recorded_vcs_ref, zero_prompt)
         try:
             result = spawn(zero_prompt, zero_workspace_dir, 0, None, zero_vcs_ref)
         except (RuntimeError, OSError, ValueError) as exc:
@@ -282,7 +280,7 @@ def _launch_vcs_followup_in_pool_workspace(
     spawn: Callable[
         [str, str, int, int | None, tuple[str, str] | None], AgentLaunchResult
     ],
-    workspace: ShellFollowupWorkspace,
+    workspace: TurnFollowupWorkspace,
     record_launched: Callable[..., FollowupLaunchResult],
     record_not_launchable: Callable[[str, str], FollowupLaunchResult],
     recorded_vcs_ref: tuple[str, str] | None,
@@ -296,7 +294,7 @@ def _launch_vcs_followup_in_pool_workspace(
             _POOL_FOLLOWUP_CLAIM_WORKFLOW,
             holder_pid,
             project_name,
-            caller_tag="shell-followup-pool",
+            caller_tag="turn-followup-pool",
         )
     except WorkspaceClaimError as pool_exc:
         error = (
@@ -312,7 +310,7 @@ def _launch_vcs_followup_in_pool_workspace(
         pool_workspace_dir,
     )
     pool_prompt = compose_prompt(pool_reason)
-    pool_vcs_ref = _resolve_shell_followup_vcs_ref(recorded_vcs_ref, pool_prompt)
+    pool_vcs_ref = _resolve_turn_followup_vcs_ref(recorded_vcs_ref, pool_prompt)
     try:
         result = spawn(
             pool_prompt,
@@ -326,7 +324,7 @@ def _launch_vcs_followup_in_pool_workspace(
             project_file,
             pool_workspace_num,
             _POOL_FOLLOWUP_CLAIM_WORKFLOW,
-            caller_tag="shell-followup-pool",
+            caller_tag="turn-followup-pool",
         )
         error = str(exc)
         if not release_result.success:
@@ -628,9 +626,9 @@ __all__ = [
     "STARTER_SETTLE_POLL_SECONDS",
     "FollowupLaunchResult",
     "FollowupPersistence",
-    "ShellFollowupWorkspace",
+    "TurnFollowupWorkspace",
     "fork_target_for_settled_starter",
-    "launch_shell_followup",
+    "launch_turn_followup",
     "persist_followup_prompt",
     "record_followup_launched",
     "record_followup_not_launchable",

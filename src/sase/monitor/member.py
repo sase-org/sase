@@ -74,7 +74,7 @@ def create_monitor_member(
     monitor_metadata: dict[str, Any] = {
         "monitor_id": monitor_id,
         "proc_id": monitor_id,
-        # The selected agent's pid is not this new proc shell's pid.  Keep
+        # The selected agent's pid is not this new named proc's pid.  Keep
         # it empty until the detached supervisor reports its real pid.
         "pid": None,
         "monitor_command": command,

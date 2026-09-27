@@ -151,7 +151,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
     selected_ids = [option.id for option in selected]
 
     # A shell-backed gate is defined by the envelope's ``shell`` block (the
-    # source of truth per the gate-shell design), never by whether the
+    # source of truth per the gate-turn design), never by whether the
     # agent-session-member lookup below happens to resolve one -- that lookup
     # goes through the artifact-index scan, which is best-effort here.
     turn_backed = isinstance(bundle.envelope.get("turn"), dict) or isinstance(
@@ -268,7 +268,7 @@ def _resume_answered_shell(
     gate_turn = find_gate_turn_by_gate_id(None, bundle.request_id)
     if gate_turn is None:
         raise GateCliError(
-            "answered-gate --resume requires the original gate-shell member"
+            "answered-gate --resume requires the original gate-turn member"
         )
     settled = with_follow_up_stage_tracking(
         bundle.root,
@@ -299,7 +299,7 @@ def _effective_detach(args: argparse.Namespace, *, turn_backed: bool) -> bool:
     """Return whether this answer should run as a detached background proc.
 
     Explicit ``--detach``/``--no-detach`` always win; absent either flag, a
-    gate-shell-backed gate defaults to detached so an approved command
+    gate-turn-backed gate defaults to detached so an approved command
     outlives the client that approved it, and an ordinary gate keeps
     today's synchronous default.
     """

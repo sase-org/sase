@@ -1,4 +1,4 @@
-"""The gate-shell workspace-claim label, and when such a claim is really stale.
+"""The gate-turn workspace-claim label, and when such a claim is really stale.
 
 Kept import-light on purpose: the ACE agent loader consults this on every
 refresh that sees a dead-PID claim, so the artifact-path and marker-store
@@ -21,12 +21,12 @@ class _GateWorkspaceClaim(Protocol):
 
 
 def gate_claim_is_releasable(project_file: str, claim: _GateWorkspaceClaim) -> bool:
-    """Return whether a dead-PID gate-shell claim is safe to release.
+    """Return whether a dead-PID gate-turn claim is safe to release.
 
-    Pending gate shells intentionally keep the creator's old PID in the
+    Pending gate turns intentionally keep the creator's old PID in the
     RUNNING row after the creator is killed, so a dead PID is never on its
     own evidence that the workspace is free. Only release once the owning
-    gate-shell member's own markers say it is terminal; read failures fail
+    gate-turn member's own markers say it is terminal; read failures fail
     closed. Every sweep that reaps claims by PID liveness must ask here
     first, or the gate's own settlement finds its workspace gone.
 

@@ -94,14 +94,14 @@ def test_progress_lines_with_a_spaced_prefix_do_not_become_the_summary() -> None
     logger = ChopLogger(stdout=stdout)
 
     logger.info(
-        "gate shell reclaim progress: snapshot read in 1.0s (10 record(s), 2 gate shell(s))"
+        "gate turn reclaim progress: snapshot read in 1.0s (10 record(s), 2 gate turn(s))"
     )
     line = emit_summary("gate_turn_reclaim", {"scanned": 0}, logger=logger)
 
     assert (
         parse_summary(
-            "gate shell reclaim progress: snapshot read in 1.0s "
-            "(10 record(s), 2 gate shell(s))"
+            "gate turn reclaim progress: snapshot read in 1.0s "
+            "(10 record(s), 2 gate turn(s))"
         )
         is None
     )

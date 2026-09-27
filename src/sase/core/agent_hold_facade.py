@@ -336,7 +336,7 @@ def _project_for_cwd() -> str:
     if not project:
         raise _AgentHoldServiceError(
             "cannot determine the current project; run from inside a SASE "
-            "project checkout, or from an agent shell with SASE_ARTIFACTS_DIR set"
+            "project checkout, or from a SASE agent process with SASE_ARTIFACTS_DIR set"
         )
     return project
 

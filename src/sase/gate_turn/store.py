@@ -1,4 +1,4 @@
-"""Index-backed lookups for gate-shell agent-session members."""
+"""Index-backed lookups for gate-turn agent-session members."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def read_gate_turn_marker(
     project_name: str,
     artifacts_dir: str,
 ) -> GateTurnRecord | None:
-    """Read one gate-shell member directly from its own markers."""
+    """Read one gate-turn member directly from its own markers."""
     raw_meta = _read_json_object(os.path.join(artifacts_dir, "agent_meta.json"))
     if raw_meta is None:
         return None
@@ -100,16 +100,16 @@ def read_gate_turn_marker(
 
 
 def list_gate_turns(*, project: str | None = None) -> list[GateTurnRecord]:
-    """Return every gate-shell record, newest first."""
+    """Return every gate-turn record, newest first."""
     return _gate_turns_from_records(project_records(project))
 
 
 @dataclass(frozen=True)
 class GateTurnSnapshot:
-    """One artifact-index read shared by every lookup in a gate-shell sweep.
+    """One artifact-index read shared by every lookup in a gate-turn sweep.
 
     A full index read costs seconds on a long-lived host, so a sweep that needs
-    both the gate shells and each gate's agent-session members reads the index once.
+    both the gate turns and each gate's agent-session members reads the index once.
     """
 
     taken_at: float
@@ -125,7 +125,7 @@ class GateTurnSnapshot:
 
 
 def load_gate_turn_snapshot(*, project: str | None = None) -> GateTurnSnapshot:
-    """Read the artifact index once for gate-shell and agent-session-member lookups."""
+    """Read the artifact index once for gate-turn and agent-session-member lookups."""
     taken_at = time.time()
     records = project_records(project)
     members: dict[tuple[str, str], list[AgentArtifactRecordWire]] = {}
@@ -143,7 +143,7 @@ def load_gate_turn_snapshot(*, project: str | None = None) -> GateTurnSnapshot:
 
 
 def has_any_gate_turn(project_name: str, lane: str) -> bool:
-    """Return whether ``lane`` has ever had a gate-shell member."""
+    """Return whether ``lane`` has ever had a gate-turn member."""
     return any(
         record.agent_meta is not None and record.agent_meta.agent_session == lane
         for record in _gate_records(project_name)
@@ -202,12 +202,12 @@ def resolve_gate_turn_ref(
 
     Mirrors :func:`sase.monitor.store.resolve_monitor_ref`: a member agent
     name or lane name must match exactly, with a lane resolving to its
-    active gate shell, else its newest; anything else is tried as a
+    active gate turn, else its newest; anything else is tried as a
     gate-id prefix of at least :data:`MIN_GATE_TURN_REF_LENGTH` characters.
     """
     query = ref.strip()
     if not query:
-        raise GateTurnRefError("gate-shell reference must not be empty")
+        raise GateTurnRefError("gate-turn reference must not be empty")
 
     by_name = [record for record in records if record.member_agent_name == query]
     if len(by_name) == 1:
@@ -223,19 +223,19 @@ def resolve_gate_turn_ref(
     lowered = query.lower()
     if len(lowered) < MIN_GATE_TURN_REF_LENGTH:
         raise GateTurnRefError(
-            f"no gate shell matches reference {ref!r}; a bare id reference must "
+            f"no gate turn matches reference {ref!r}; a bare id reference must "
             f"be at least {MIN_GATE_TURN_REF_LENGTH} characters"
         )
     by_id = [record for record in records if record.gate_id.lower().startswith(lowered)]
     if len(by_id) == 1:
         return by_id[0]
     if not by_id:
-        raise GateTurnRefError(f"no gate shell matches reference {ref!r}")
+        raise GateTurnRefError(f"no gate turn matches reference {ref!r}")
     candidates = ", ".join(
         f"{short_gate_turn_id(record.gate_id)} ({record.label})" for record in by_id
     )
     raise GateTurnRefError(
-        f"gate-shell reference {ref!r} is ambiguous; candidates: {candidates}"
+        f"gate-turn reference {ref!r} is ambiguous; candidates: {candidates}"
     )
 
 

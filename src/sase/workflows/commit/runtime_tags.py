@@ -151,7 +151,7 @@ def apply_auto_commit_tags_with_runtime(message: str, auto_commit_type: str) -> 
     ``agent_meta.json`` ``name``), the resulting tag block also carries linked
     sase-agent ``AGENT=`` provenance so raw SDD auto-commits can be associated
     with the sase agent that produced them. ``SASE_AGENT_NAME`` names the
-    concrete agent shell; ``SASE_AGENT=`` records the sase-agent projection.
+    concrete agent turn; ``SASE_AGENT=`` records the sase-agent projection.
     Legacy ``MACHINE=`` is removed but never produced. Without an agent
     identity the result carries only ``TYPE=<kind>`` after stale runtime
     provenance is removed.

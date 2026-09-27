@@ -96,7 +96,7 @@ def is_workflow_child(target: AgentCleanupTargetWire) -> bool:
 def is_workflow_step_child(target: AgentCleanupTargetWire) -> bool:
     """True only for a workflow step child covered by its parent's cascade.
 
-    Agent-session members and monitor proc shells carry a ``parent_timestamp`` but
+    Agent-session members and monitor named procs carry a ``parent_timestamp`` but
     are independent agent rows with their own PID, artifacts, and dismissal
     record.
     """

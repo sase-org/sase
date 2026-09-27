@@ -502,7 +502,7 @@ def _monitor_turn(
 def _monitor_shared(
     source: AgentMetaWire | DoneMarkerWire | None, attr: str
 ) -> str | None:
-    """Read a shared ``agent_session_turn`` field, only for a monitor shell."""
+    """Read a shared ``agent_session_turn`` field, only for a monitor turn."""
     shell = _monitor_turn(source)
     value = getattr(shell, attr, None) if shell is not None else None
     return value if isinstance(value, str) else None

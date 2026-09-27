@@ -42,7 +42,7 @@ def render_gate_approval(plan: PendingPlan, result: PlanApprovalActionResult) ->
     if plan.title:
         out.print(f"  {plan.title}")
     if result.coder_agent:
-        shell = result.gate_turn_member or "gate shell"
+        shell = result.gate_turn_member or "gate turn"
         out.print(
             f"  [dim]coder[/dim]   [bold]{result.coder_agent}[/bold] · launched by {shell}"
         )
@@ -60,7 +60,7 @@ def render_gate_approval(plan: PendingPlan, result: PlanApprovalActionResult) ->
             f"sase proc show {result.epic_launch_task_id} --follow"
         )
     else:
-        out.print("  [dim]coder[/dim]   the gate shell launches it next")
+        out.print("  [dim]coder[/dim]   the gate turn launches it next")
     out.print(
         f"  [dim]gate[/dim]    {result.notification_id[:8]} → {result.response_path}"
     )
@@ -76,7 +76,7 @@ def render_gate_approval_dry_run(plan: PendingPlan, kind: str) -> None:
     if plan.title:
         out.print(f"  {plan.title}")
     out.print(
-        f"  [dim]gate[/dim]    {plan.notification.id[:8]} · the gate shell launches the coder"
+        f"  [dim]gate[/dim]    {plan.notification.id[:8]} · the gate turn launches the coder"
     )
     out.print(
         "\n  [dim]Nothing was changed. Re-run without -n/--dry-run to approve.[/dim]"

@@ -1,6 +1,6 @@
 """Catalog fetchers for gates, tool runs, and task types.
 
-Gate shells and tool runs are read from cached runtime indexes, task types
+Gate turns and tool runs are read from cached runtime indexes, task types
 from the in-process registry; see :mod:`sase.completion.candidates.catalog`
 for the import contract.
 """
@@ -15,14 +15,14 @@ from sase.completion.candidates.protocol import Candidate
 
 
 def gate_source_path(_project: str | None) -> Path | None:
-    """Return the agent artifact index whose mtime invalidates gate shells."""
+    """Return the agent artifact index whose mtime invalidates gate turns."""
     from sase.core.paths import sase_home
 
     return sase_home() / "agent_artifact_index.sqlite"
 
 
 def gate_candidates(project: str | None) -> list[Candidate]:
-    """Return known gate-shell ids and member agent names, with their state."""
+    """Return known gate-turn ids and member agent names, with their state."""
     from sase.gate_turn.store import list_gate_turns
 
     try:

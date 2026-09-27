@@ -1,4 +1,4 @@
-"""Status-pair presentation helpers for shell kinds."""
+"""Status-pair presentation helpers for turn kind."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ _STATUS_PAIR_KEY_SEP = "\x1f"
 
 @dataclass(frozen=True, slots=True)
 class TurnStatusPair:
-    """Ordered ``(start, stop)`` label pair for one shell kind."""
+    """Ordered ``(start, stop)`` label pair for one turn kind."""
 
     start: str
     stop: str

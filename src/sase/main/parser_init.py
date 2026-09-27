@@ -300,7 +300,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "--allow-agent-env",
         action="store_true",
         default=argparse.SUPPRESS,
-        help="Capture this shell's environment even from an agent shell or ephemeral workspace",
+        help="Capture this shell's environment even from a SASE agent process or ephemeral workspace",
     )
     service_parser.add_argument(
         "-c",

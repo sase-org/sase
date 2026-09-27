@@ -1,4 +1,4 @@
-"""Reclaim pending gate shells whose gates have already terminalized or expired."""
+"""Reclaim pending gate turns whose gates have already terminalized or expired."""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def reclaim_pending_gate_turns(
     project: str | None = None,
     snapshot: GateTurnSnapshot | None = None,
 ) -> GateTurnReclaimSummary:
-    """Settle pending gate shells that no longer have a live pending gate.
+    """Settle pending gate turns that no longer have a live pending gate.
 
     A caller that already read the artifact index this pass (e.g. because it
     also runs :func:`reconcile_incomplete_gate_handoffs`) passes ``snapshot``

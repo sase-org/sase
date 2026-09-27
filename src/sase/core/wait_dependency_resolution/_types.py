@@ -15,7 +15,7 @@ from sase.core.dismissed_agent_completion import (
 )
 
 HANDOFF_TERMINAL_STEP_STATUSES = frozenset({"completed", "skipped"})
-SUCCESSFUL_SHELL_FOLLOWUP_OUTCOMES = frozenset({"launched", "launched-degraded"})
+SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES = frozenset({"launched", "launched-degraded"})
 
 
 @dataclass(frozen=True)
@@ -54,8 +54,8 @@ class ArtifactCandidate:
     archived_completion: ArchivedAgentCompletion | None = None
     outcome: str | None = None
     has_done_marker: bool = False
-    shell_followup_agent: str | None = None
-    shell_member_kind: str | None = None
+    turn_followup_agent: str | None = None
+    turn_member_kind: str | None = None
 
 
 @dataclass(frozen=True)

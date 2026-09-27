@@ -61,7 +61,7 @@ def user_question_gate_spec(
 ) -> dict[str, Any]:
     """Build the shared v3 UserQuestion gate request body.
 
-    The single source of truth for the question gate shell's request.
+    The single source of truth for the question gate turn's request.
     """
     normalized_questions = validate_user_questions(questions)
     response_schema = question_response_schema(normalized_questions)

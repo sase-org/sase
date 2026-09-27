@@ -190,7 +190,7 @@ def test_gate_success_without_result_fields_says_shell_launches_next(
     render_gate_approval(_pending_plan(), _gate_result())
 
     out, _ = _out(capsys)
-    assert "coder   the gate shell launches it next" in out
+    assert "coder   the gate turn launches it next" in out
     assert "follow" not in out
 
 
@@ -237,7 +237,7 @@ def test_gate_dry_run_card_changes_nothing(
     out, err = _out(capsys)
     assert err == ""
     assert "◇ Dry run · updates_tab would be approved as a tale" in out
-    assert "gate    a1b2c3d4 · the gate shell launches the coder" in out
+    assert "gate    a1b2c3d4 · the gate turn launches the coder" in out
     assert "Nothing was changed. Re-run without -n/--dry-run to approve." in out
 
 

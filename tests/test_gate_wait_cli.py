@@ -277,4 +277,4 @@ def test_agent_gate_wait_refuses_shell_gate(
     assert int(excinfo.value.code or 0) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "shell gate cannot be waited on from inside an agent" in captured.err
+    assert "gate turn cannot be waited on from inside an agent" in captured.err

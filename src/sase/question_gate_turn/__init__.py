@@ -1,4 +1,4 @@
-"""Question gate shells: the question gate as a session-attached gate shell."""
+"""Question gate turns: the question gate as a session-attached gate turn."""
 
 from typing import Any
 
@@ -21,7 +21,7 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
 
 
 def __getattr__(name: str) -> Any:
-    """Lazily load question-shell helpers to keep this package cheap to import."""
+    """Lazily load question-turn helpers to keep this package cheap to import."""
     target = _LAZY_EXPORTS.get(name)
     if target is None:
         raise AttributeError(name)

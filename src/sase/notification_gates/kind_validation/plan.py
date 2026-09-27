@@ -153,7 +153,7 @@ def _validate_plan_resources(spec: GateSpec, expected_commands: dict[str, str]) 
 
 
 def _validate_plan_gate_turn(spec: GateSpec, tier: PlanGateTier) -> None:
-    """If present, pin the additive gate-shell contract to this tier."""
+    """If present, pin the additive gate-turn contract to this tier."""
     if spec.shell is None:
         return
     from sase.notification_gates.model_turn import GateTurnSpec
@@ -168,5 +168,5 @@ def _validate_plan_gate_turn(spec: GateSpec, tier: PlanGateTier) -> None:
         raise GateError(
             "invalid_plan_gate_turn",
             "shell",
-            f"{tier} plan gate shell block does not match the registered adapter",
+            f"{tier} plan gate turn block does not match the registered adapter",
         )

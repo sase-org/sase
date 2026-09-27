@@ -1,6 +1,6 @@
-"""Rebuild a question gate shell's Q&A round chain from durable metadata.
+"""Rebuild a question gate turn's Q&A round chain from durable metadata.
 
-Each round's own gate-shell bundle already holds that round's questions
+Each round's own gate-turn bundle already holds that round's questions
 (``request.json`` -> ``payload.questions``) and its answer
 (``response.json`` -> ``option_results[submit].result`` plus ``feedback``).
 This module adds a durable chain link between consecutive rounds

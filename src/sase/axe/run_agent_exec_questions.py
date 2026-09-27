@@ -113,11 +113,11 @@ def handle_questions_marker(
 ) -> str | None:
     """Handle a questions marker left by ``sase questions``.
 
-    The runner creates a question gate shell during marker adoption: it
+    The runner creates a question gate turn during marker adoption: it
     never writes ``pending_question.json``, never yields or reacquires a
     runner slot, and never calls ``wait_for_gate``. Either the runner
     terminalizes as ``DONE`` (delegated to :func:`handle_gate_marker`,
-    exactly as any other gate shell), or -- on the ``%auto`` short-circuit,
+    exactly as any other gate turn), or -- on the ``%auto`` short-circuit,
     where the gate already settled synchronously inside creation -- it
     continues in-process at the cost of exactly one agent.
     """
@@ -241,8 +241,8 @@ def _continue_after_auto_answered_question(
 
     Mirrors the Off branch's ordinary successor launch -- suffix allocation,
     inherited role, relationships, and artifact-label arguments -- except the
-    merged Q&A comes from the agent session's settled question gate shells, rebuilt
-    here to include the round the gate shell just settled, rather than from
+    merged Q&A comes from the agent session's settled question gate turns, rebuilt
+    here to include the round the gate turn just settled, rather than from
     ``LoopState.qa_rounds``.
     """
     from sase.question_gate_turn import question_rounds

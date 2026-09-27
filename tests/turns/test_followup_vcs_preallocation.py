@@ -17,10 +17,10 @@ from sase.gate_turn.followup_policy import GateFollowupPolicy
 from sase.running_field import WorkspaceClaimError
 from sase.turns.followup import (
     FollowupLaunchResult,
-    ShellFollowupWorkspace,
-    _resolve_shell_followup_vcs_ref,
+    TurnFollowupWorkspace,
+    _resolve_turn_followup_vcs_ref,
     _vcs_ref_from_prompt,
-    launch_shell_followup,
+    launch_turn_followup,
     vcs_ref_from_meta,
 )
 from sase.workspace_provider import reset_workflow_metadata_caches
@@ -71,8 +71,8 @@ def gh_git_workflows(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     reset_workflow_metadata_caches()
 
 
-def _workspace_messages() -> ShellFollowupWorkspace:
-    return ShellFollowupWorkspace(
+def _workspace_messages() -> TurnFollowupWorkspace:
+    return TurnFollowupWorkspace(
         meta_pairing_reason=lambda original, primary: (
             f"unpaired {original} -> {primary}"
         ),
@@ -106,15 +106,15 @@ def test_resolve_prefers_recorded_ref_when_workflow_matches(
     gh_git_workflows: None,
 ) -> None:
     del gh_git_workflows
-    assert _resolve_shell_followup_vcs_ref(
+    assert _resolve_turn_followup_vcs_ref(
         ("gh", "canonical"),
         "#gh:sase continue",
     ) == ("gh", "canonical")
-    assert _resolve_shell_followup_vcs_ref(None, "#gh:sase continue") == ("gh", "sase")
-    assert _resolve_shell_followup_vcs_ref(("gh", "sase"), "no vcs tag") is None
+    assert _resolve_turn_followup_vcs_ref(None, "#gh:sase continue") == ("gh", "sase")
+    assert _resolve_turn_followup_vcs_ref(("gh", "sase"), "no vcs tag") is None
 
 
-def test_launch_shell_followup_forwards_resolved_vcs_ref(
+def test_launch_turn_followup_forwards_resolved_vcs_ref(
     tmp_path: Path, gh_git_workflows: None
 ) -> None:
     del gh_git_workflows
@@ -145,7 +145,7 @@ def test_launch_shell_followup_forwards_resolved_vcs_ref(
             agent_name="acme--1",
         )
 
-    result = launch_shell_followup(
+    result = launch_turn_followup(
         project_name="proj",
         meta_workspace_num=4,
         meta_workspace_dir=str(tmp_path / "ws4"),
@@ -184,7 +184,7 @@ def test_launch_shell_followup_forwards_resolved_vcs_ref(
     }
 
 
-def test_launch_shell_followup_without_vcs_still_falls_back_to_workspace_zero(
+def test_launch_turn_followup_without_vcs_still_falls_back_to_workspace_zero(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh_git_workflows: None
 ) -> None:
     del gh_git_workflows
@@ -231,7 +231,7 @@ def test_launch_shell_followup_without_vcs_still_falls_back_to_workspace_zero(
             agent_name="acme--1",
         )
 
-    result = launch_shell_followup(
+    result = launch_turn_followup(
         project_name="proj",
         meta_workspace_num=3,
         meta_workspace_dir=str(tmp_path / "ws3"),
@@ -273,7 +273,7 @@ def test_launch_shell_followup_without_vcs_still_falls_back_to_workspace_zero(
     )
 
 
-def test_launch_shell_followup_vcs_uses_fresh_pool_workspace_when_original_is_taken(
+def test_launch_turn_followup_vcs_uses_fresh_pool_workspace_when_original_is_taken(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh_git_workflows: None
 ) -> None:
     del gh_git_workflows
@@ -337,7 +337,7 @@ def test_launch_shell_followup_vcs_uses_fresh_pool_workspace_when_original_is_ta
             agent_name="acme--1",
         )
 
-    result = launch_shell_followup(
+    result = launch_turn_followup(
         project_name="proj",
         meta_workspace_num=3,
         meta_workspace_dir=str(tmp_path / "ws3"),
@@ -383,7 +383,7 @@ def test_launch_shell_followup_vcs_uses_fresh_pool_workspace_when_original_is_ta
     assert env["SASE_GH_WORKSPACE_DIR"] == str(pool)
 
 
-def test_launch_shell_followup_vcs_records_not_launchable_when_pool_is_exhausted(
+def test_launch_turn_followup_vcs_records_not_launchable_when_pool_is_exhausted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, gh_git_workflows: None
 ) -> None:
     del gh_git_workflows
@@ -421,7 +421,7 @@ def test_launch_shell_followup_vcs_records_not_launchable_when_pool_is_exhausted
         recorded["prompt"] = prompt
         return FollowupLaunchResult(launched=False, error=error, prompt_path=None)
 
-    result = launch_shell_followup(
+    result = launch_turn_followup(
         project_name="proj",
         meta_workspace_num=3,
         meta_workspace_dir=str(tmp_path / "ws3"),
@@ -445,7 +445,7 @@ def test_launch_shell_followup_vcs_records_not_launchable_when_pool_is_exhausted
     assert "fresh #3: workspace #3 is already claimed" in recorded["prompt"]
 
 
-def test_launch_shell_followup_without_vcs_sets_no_preallocation_env(
+def test_launch_turn_followup_without_vcs_sets_no_preallocation_env(
     tmp_path: Path,
 ) -> None:
     captured: dict[str, Any] = {}
@@ -468,7 +468,7 @@ def test_launch_shell_followup_without_vcs_sets_no_preallocation_env(
             agent_name="acme--1",
         )
 
-    result = launch_shell_followup(
+    result = launch_turn_followup(
         project_name="proj",
         meta_workspace_num=3,
         meta_workspace_dir=str(tmp_path / "ws3"),

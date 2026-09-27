@@ -64,12 +64,12 @@ def resolve_sudo_gate_id(ref: str) -> str:
 
 
 def sudo_shells(*, project: str | None) -> list[GateTurnRecord]:
-    """Return sudo gate-shell rows, optionally filtered by project."""
+    """Return sudo gate-turn rows, optionally filtered by project."""
     return [row for row in list_gate_turns(project=project) if row.kind == "sudo"]
 
 
 def settle_shell(gate_id: str, *, retry: Literal["resume", "restart"] | None) -> None:
-    """Settle the sudo gate shell after a durable answer."""
+    """Settle the sudo gate turn after a durable answer."""
     gate_turn = find_gate_turn_by_gate_id(None, gate_id)
     if gate_turn is None:
         return

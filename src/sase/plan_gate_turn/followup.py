@@ -1,4 +1,4 @@
-"""Settle-time rebuild of plan gate-shell follow-up prompts."""
+"""Settle-time rebuild of plan gate-turn follow-up prompts."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def _plan_result_from_artifacts(
     *,
     response: dict[str, Any] | None = None,
 ) -> Any | None:
-    """Project one plan-shell bundle response into ``PlanApprovalResult``."""
+    """Project one plan-turn bundle response into ``PlanApprovalResult``."""
     meta = _read_meta(artifacts_dir)
     bundle_path = meta.get("gate_bundle_path")
     if not isinstance(bundle_path, str) or not bundle_path:
@@ -80,7 +80,7 @@ def _plan_feedback_bullets(
     *,
     head_response: dict[str, Any] | None = None,
 ) -> list[str]:
-    """Return feedback bullets from this plan-shell chain, oldest first."""
+    """Return feedback bullets from this plan-turn chain, oldest first."""
     chain = _plan_gate_turn_chain(head_artifacts_dir)
     bullets: list[str] = []
     for artifacts_dir in chain:
@@ -123,7 +123,7 @@ def _plan_original_prompt(head_artifacts_dir: str) -> str:
 
 
 def _plan_current_prompt(head_artifacts_dir: str) -> str:
-    """Return the prompt used by this plan-shell's interrupted planner."""
+    """Return the prompt used by this plan-turn's interrupted planner."""
     meta = _read_meta(head_artifacts_dir)
     path = _meta_get(
         meta, "plan_gate_turn_current_prompt_path", "plan_gate_turn_current_prompt_path"
@@ -136,7 +136,7 @@ def _plan_current_prompt(head_artifacts_dir: str) -> str:
 
 
 def _plan_qa_rounds(head_artifacts_dir: str) -> list[QARound]:
-    """Return the Q&A rounds recorded for this plan-shell chain."""
+    """Return the Q&A rounds recorded for this plan-turn chain."""
     for artifacts_dir in reversed(_plan_gate_turn_chain(head_artifacts_dir)):
         meta = _read_meta(artifacts_dir)
         path = _meta_get(

@@ -102,7 +102,7 @@ def test_start_failed_monitor_superseded_by_retry_resolves_agent_session(
     )
 
     mon_candidate = index.artifacts_by_dir[str(mon_dir)]
-    assert mon_candidate.shell_member_kind == "monitor"
+    assert mon_candidate.turn_member_kind == "monitor"
     assert mon_candidate.outcome == "failed"
 
     assert dependency_resolution_status(index, ["sase-zt.6.5.3"]).resolved
@@ -174,9 +174,9 @@ def test_failed_monitor_not_superseded_by_newer_different_kind_shell_member(
     )
 
     mon_candidate = index.artifacts_by_dir[str(mon_dir)]
-    assert mon_candidate.shell_member_kind == "monitor"
+    assert mon_candidate.turn_member_kind == "monitor"
     gate_candidate = index.artifacts_by_dir[str(gate_dir)]
-    assert gate_candidate.shell_member_kind == "gate"
+    assert gate_candidate.turn_member_kind == "gate"
 
     agent_session = index.agent_session_candidate("monitor-lane")
     assert agent_session is not None

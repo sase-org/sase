@@ -54,7 +54,7 @@ _DEFAULT_ACCENTS: tuple[str, ...] = (
 
 @dataclass(frozen=True, slots=True)
 class GateTurnNext:
-    """Follow-up policy declared for a gate shell or one terminal branch."""
+    """Follow-up policy declared for a gate turn or one terminal branch."""
 
     prompt: str | None = None
     output: tuple[str, ...] = ("results",)
@@ -157,7 +157,7 @@ _BRANCH_NEXT_FIELDS = (
 
 @dataclass(frozen=True, slots=True)
 class GateTurnBranchSpec:
-    """Per-terminal-branch gate-shell policy.
+    """Per-terminal-branch gate-turn policy.
 
     ``prompt``/``output``/``fork``/``model`` accept the same shape as the
     top-level ``shell.next`` block, but flattened directly onto the branch
@@ -371,7 +371,7 @@ def _status(value: object, target: str) -> str:
             value,
             max_chars=GATE_TURN_STATUS_MAX_CHARS,
             ellipsis=GATE_TURN_STATUS_ELLIPSIS,
-            noun="gate shell status",
+            noun="gate turn status",
         )
     except ValueError as exc:
         raise GateError("invalid_shell", target, str(exc)) from exc

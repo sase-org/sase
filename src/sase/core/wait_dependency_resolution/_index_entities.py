@@ -19,12 +19,12 @@ class WaitEntity:
     members: tuple[ArtifactCandidate, ...] = ()
 
 
-def _newest_timestamp_by_shell_kind(
+def _newest_timestamp_by_turn_kind(
     candidates: tuple[ArtifactCandidate, ...],
 ) -> dict[str, str]:
     newest: dict[str, str] = {}
     for candidate in candidates:
-        kind = candidate.shell_member_kind
+        kind = candidate.turn_member_kind
         if kind is None:
             continue
         current = newest.get(kind)
@@ -33,29 +33,29 @@ def _newest_timestamp_by_shell_kind(
     return newest
 
 
-def _is_superseded_terminal_shell_member(
+def _is_superseded_terminal_turn_member(
     candidate: ArtifactCandidate,
     *,
-    newest_timestamp_by_shell_kind: dict[str, str],
+    newest_timestamp_by_turn_kind: dict[str, str],
 ) -> bool:
     """Return whether a newer same-kind shell retry supersedes *candidate*.
 
     A lane is sequential and only ever has one active monitor/gate at a
-    time, so a newer same-kind shell member in the same generation is by
+    time, so a newer same-kind turn member in the same generation is by
     construction a retry that recovered from *candidate*'s terminal
     failure. Excluding it here keeps a session wait from staying blocked
-    forever on a start-failed shell member the lane already recovered
-    from, while a shell member that is still the newest of its kind (or
+    forever on a start-failed turn member the lane already recovered
+    from, while a turn member that is still the newest of its kind (or
     superseded only by a different kind) keeps blocking as before.
     """
-    kind = candidate.shell_member_kind
+    kind = candidate.turn_member_kind
     if kind is None or not candidate.has_done_marker:
         return False
     if candidate.outcome is None or candidate.outcome in WAIT_SUCCESS_OUTCOMES:
         return False
-    if candidate.shell_followup_agent is not None:
+    if candidate.turn_followup_agent is not None:
         return False
-    newest_timestamp = newest_timestamp_by_shell_kind.get(kind)
+    newest_timestamp = newest_timestamp_by_turn_kind.get(kind)
     return newest_timestamp is not None and newest_timestamp > candidate.timestamp
 
 
@@ -330,14 +330,14 @@ class WaitDependencyEntityQueries:
         names_in_generation = {
             candidate.name for candidate in candidates
         } | extra_present_names
-        newest_timestamp_by_shell_kind = _newest_timestamp_by_shell_kind(candidates)
+        newest_timestamp_by_turn_kind = _newest_timestamp_by_turn_kind(candidates)
         return tuple(
             candidate
             for candidate in candidates
-            if candidate.shell_followup_agent not in names_in_generation
-            and not _is_superseded_terminal_shell_member(
+            if candidate.turn_followup_agent not in names_in_generation
+            and not _is_superseded_terminal_turn_member(
                 candidate,
-                newest_timestamp_by_shell_kind=newest_timestamp_by_shell_kind,
+                newest_timestamp_by_turn_kind=newest_timestamp_by_turn_kind,
             )
         )
 
@@ -351,8 +351,8 @@ class WaitDependencyEntityQueries:
             candidate.name for candidate in candidates
         } | extra_present_names
         return all(
-            candidate.shell_followup_agent is None
-            or candidate.shell_followup_agent in names_in_generation
+            candidate.turn_followup_agent is None
+            or candidate.turn_followup_agent in names_in_generation
             for candidate in candidates
         )
 

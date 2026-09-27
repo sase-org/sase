@@ -142,7 +142,7 @@ def create_followup_artifacts(
     role_suffix and parent_timestamp.
 
     ``stamp_creating_process`` records this process's pid on both
-    ``agent_meta.json`` and ``workflow_state.json``. Agent-session-shell
+    ``agent_meta.json`` and ``workflow_state.json``. Agent-session-turn
     members (gates, monitors) pass ``False``: they are not this process.
     """
     reserved_timestamp = reserve_launch_timestamp_batch(1)[0]
@@ -164,7 +164,7 @@ def create_followup_artifacts(
         "reasoning_effort",
         "model_alias_overrides",
         "vcs_provider",
-        # Starter VCS workflow type plus ref, so shell follow-ups can emit
+        # Starter VCS workflow type plus ref, so turn follow-up can emit
         # the same SASE_<VCS>_PRE_ALLOCATED env the original launch used.
         "vcs_ref",
         # Inherit the workspace the parent ran in: follow-up agents run in the

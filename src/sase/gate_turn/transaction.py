@@ -1,4 +1,4 @@
-"""Ordered creation transaction for gate-shell backed gates."""
+"""Ordered creation transaction for gate-turn backed gates."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ from sase.workflows.utils import get_project_file_path
 
 _FINALIZER_OWNED_TURN_ENV = "SASE_FINALIZER_OWNED_TURN"
 _FINALIZER_OWNED_TURN_ERROR = (
-    "gate shells cannot be created from a host finalizer turn: this turn cannot "
+    "gate turns cannot be created from a host finalizer turn: this turn cannot "
     "end the agent run, so the gate could never hand off. Finish the finalizer's "
     "task in this turn, or report the blocker in your response so the host "
     "records the failure."
@@ -52,7 +52,7 @@ _FINALIZER_OWNED_TURN_ERROR = (
 
 @dataclass(frozen=True)
 class GateTurnCreation:
-    """Result of creating a gate shell and its gate."""
+    """Result of creating a gate turn and its gate."""
 
     gate: GateCreationResult
     record: GateTurnRecord
@@ -62,7 +62,7 @@ class GateTurnCreation:
 
     @property
     def should_handoff(self) -> bool:
-        """Return whether the creator should hand off to the gate shell."""
+        """Return whether the creator should hand off to the gate turn."""
         return not self.record.is_terminal
 
     def to_dict(self) -> dict[str, Any]:
@@ -98,10 +98,10 @@ def create_gate_turn(
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None]
     | None = None,
 ) -> GateTurnCreation:
-    """Create a gate-shell member, then create the durable gate."""
+    """Create a gate-turn member, then create the durable gate."""
     spec = _spec_from_request(request)
     if spec.turn is None:
-        raise GateTurnError("gate shell creation requires a shell block")
+        raise GateTurnError("gate turn creation requires a shell block")
     if _finalizer_owned_turn_is_active():
         raise GateTurnError(_FINALIZER_OWNED_TURN_ERROR)
     assert spec.request_id is not None
@@ -128,7 +128,7 @@ def _create_gate_turn_transaction(
     before_auto_settle: Callable[[GateTurnRecord, GateCreationResult], None]
     | None = None,
 ) -> GateTurnCreation:
-    """Create the gate-shell member and durable gate after intent stamping."""
+    """Create the gate-turn member and durable gate after intent stamping."""
     assert spec.request_id is not None
     assert spec.turn is not None
 
@@ -237,9 +237,9 @@ def _create_gate_turn_transaction(
                 creator_live=True,
             )
             # The creator is still running in the workspace ``move_gate_turn_claim``
-            # retitled to this gate shell above; restore its original claim now
+            # retitled to this gate turn above; restore its original claim now
             # that settlement (under ``creator_live=True``) left it untouched,
-            # rather than leaking it as an unowned gate-shell claim.
+            # rather than leaking it as an unowned gate-turn claim.
             restore_gate_turn_claim(
                 creator.project_file,
                 move=claim_move,
@@ -260,7 +260,7 @@ def _stamp_pending_shell_on_spec(
     member_artifacts_dir: str,
     member_timestamp: str,
 ) -> None:
-    """Attach the pending shell member identity before the notification is published.
+    """Attach the pending turn member identity before the notification is published.
 
     Settlement-style ``raw_suffix`` names the new gate member so ACE can load an
     unloaded dir. Planner ``artifacts_dir`` / timestamps stay in place when the
@@ -330,9 +330,9 @@ def _resolve_project_name() -> str:
             return project_name
     except Exception as exc:
         raise GateTurnLaneError(
-            "could not resolve project for gate shell creation"
+            "could not resolve project for gate turn creation"
         ) from exc
-    raise GateTurnLaneError("could not resolve project for gate shell creation")
+    raise GateTurnLaneError("could not resolve project for gate turn creation")
 
 
 def _resolve_creator(project_name: str) -> _CreatorContext:
@@ -446,7 +446,7 @@ def _finalizer_owned_turn_is_active() -> bool:
 def _read_required_record(project_name: str, artifacts_dir: str) -> GateTurnRecord:
     record = read_gate_turn_marker(project_name, artifacts_dir)
     if record is None:
-        raise GateTurnError(f"gate shell member missing at {artifacts_dir}")
+        raise GateTurnError(f"gate turn member missing at {artifacts_dir}")
     return record
 
 
@@ -470,7 +470,7 @@ def _gate_lane_lock_path(project_name: str, lane: str) -> Path:
         / project_name
         / "artifacts"
         / "ace-run"
-        / f".gate-shell-{key}"
+        / f".gate-turn-{key}"
     )
 
 

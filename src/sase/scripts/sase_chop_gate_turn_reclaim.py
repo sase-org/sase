@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate-shell reclaim chop script."""
+"""Gate-turn reclaim chop script."""
 
 import time
 
@@ -35,14 +35,14 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     snapshot = load_gate_turn_snapshot()
     read_seconds = time.monotonic() - started
     runtime.log.info(
-        "gate shell reclaim progress: snapshot read in "
+        "gate turn reclaim progress: snapshot read in "
         f"{read_seconds:.1f}s ({snapshot.record_count} record(s), "
-        f"{len(snapshot.gate_turns)} gate shell(s))"
+        f"{len(snapshot.gate_turns)} gate turn(s))"
     )
 
     summary = reclaim_pending_gate_turns(snapshot=snapshot)
     runtime.log.info(
-        "gate shell reclaim progress: reclaim phase done in "
+        "gate turn reclaim progress: reclaim phase done in "
         f"{time.monotonic() - started:.1f}s"
     )
 
@@ -51,22 +51,22 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         deadline=started + _PASS_TIME_BUDGET_SECONDS,
         snapshot_read_seconds=read_seconds,
         on_refresh=lambda gate, seconds: runtime.log.info(
-            f"gate shell reclaim progress: snapshot refreshed for {gate} "
+            f"gate turn reclaim progress: snapshot refreshed for {gate} "
             f"in {seconds:.1f}s"
         ),
     )
     runtime.log.info(
-        "gate shell reclaim progress: reconcile done in "
+        "gate turn reclaim progress: reconcile done in "
         f"{time.monotonic() - started:.1f}s"
     )
 
     if summary.accepted_unfinished:
         runtime.log.info(
-            f"gate shell reclaim progress: {summary.accepted_unfinished} gate(s) "
+            f"gate turn reclaim progress: {summary.accepted_unfinished} gate(s) "
             "have an accepted decision with execution still incomplete; deferring"
         )
     for detail in summary.error_details:
-        runtime.log.error(f"gate shell reclaim failed: {detail}")
+        runtime.log.error(f"gate turn reclaim failed: {detail}")
     for detail in handoff.error_details:
         runtime.log.error(f"gate handoff reconcile failed: {detail}")
     if handoff.deferred:

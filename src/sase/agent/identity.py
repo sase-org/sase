@@ -112,9 +112,9 @@ def resolve_local_agent_name(env: Mapping[str, str] | None = None) -> str | None
     Unlike :func:`discover_agent_identity`, this resolver is metadata-first:
     agent-session members can replace one another inside a single process, leaving
     ``SASE_AGENT_NAME`` set to the agent-session container while this run's
-    ``agent_meta.json`` carries the concrete agent shell. Only the metadata
+    ``agent_meta.json`` carries the concrete agent turn. Only the metadata
     ``name`` key is consulted, so commit provenance keeps its narrow behavior.
-    The returned name is the concrete agent shell; the ``SASE_AGENT=`` footer
+    The returned name is the concrete agent turn; the ``SASE_AGENT=`` footer
     projects that shell to its sase agent.
     """
     current_env = env if env is not None else os.environ

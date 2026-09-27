@@ -1,4 +1,4 @@
-"""Gate-shell marker handling for the agent execution loop."""
+"""Gate-turn marker handling for the agent execution loop."""
 
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ def _format_gate_response(
     lines = [
         "# Gate handoff",
         "",
-        "This agent handed the remaining decision to a gate shell.",
+        "This agent handed the remaining decision to a gate turn.",
     ]
     if title:
         lines.append(f"Decision: {title}")
@@ -112,7 +112,7 @@ def _format_gate_response(
         if kind:
             lines.append(f"Inspect with: sase gate show --id {gate_id} --kind {kind}")
     if member_agent_name:
-        lines.append(f"Gate shell: {member_agent_name}")
+        lines.append(f"Gate turn: {member_agent_name}")
     return "\n".join(lines).rstrip() + "\n"
 
 

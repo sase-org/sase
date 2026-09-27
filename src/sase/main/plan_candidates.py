@@ -39,8 +39,8 @@ def visible_pending_plan_notifications(
     """Return pending plan approvals decided by their gate, not the planner.
 
     Shell-backed gates (everything since the shell migration) are pending
-    exactly when their gate shell is not terminal, even if the inbox row was
-    dismissed. Legacy gates without a gate-shell record keep the previous
+    exactly when their gate turn is not terminal, even if the inbox row was
+    dismissed. Legacy gates without a gate-turn record keep the previous
     non-dismissed, live-planner-row rule.
     """
     notifications = _available_plan_notifications(include_dismissed=True)
@@ -69,7 +69,7 @@ def _notification_is_gate_visible(notification: Notification) -> bool:
     except Exception:
         return _legacy_notification_visible(notification)
     if record is None:
-        # No gate-shell record: a legacy gate. Dismissed rows stay hidden
+        # No gate-turn record: a legacy gate. Dismissed rows stay hidden
         # and visibility falls back to the live-planner-row rule.
         if notification.dismissed:
             return False

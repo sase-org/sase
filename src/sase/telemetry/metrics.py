@@ -73,7 +73,7 @@ FINALIZER_SHARED_CLONE: StubCounter = StubCounter()
 FINALIZER_DEFERRALS: StubCounter = StubCounter()
 
 # ---------------------------------------------------------------------------
-# Gate Shell
+# Gate Turn
 # ---------------------------------------------------------------------------
 GATE_TURN_LOOKUP_DURATION: StubHistogram = StubHistogram()
 GATE_TURN_LOOKUP_FALLBACKS: StubCounter = StubCounter()
@@ -390,7 +390,7 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "GATE_TURN_LOOKUP_FALLBACKS",
         "counter",
         "sase_gate_turn_lookup_fallbacks_total",
-        "Gate-shell lookups that fell back to the full-history scan because "
+        "Gate-turn lookups that fell back to the full-history scan because "
         "the indexed lookup itself could not run",
         [],
         {},

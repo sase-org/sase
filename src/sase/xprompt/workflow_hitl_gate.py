@@ -204,7 +204,7 @@ def _failed_workflow_hitl_message(
 
 
 def workflow_hitl_should_handoff_from_agent() -> bool:
-    """Return whether workflow HITL should be represented as a gate shell."""
+    """Return whether workflow HITL should be represented as a gate turn."""
     return bool(os.environ.get("SASE_AGENT"))
 
 

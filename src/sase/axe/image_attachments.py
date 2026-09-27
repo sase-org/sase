@@ -299,7 +299,7 @@ def _agent_tag_matches(
 
     A commit footer names the committing agent's sase-agent projection, so an
     agent-session member's own commits carry the agent-session container's name rather than
-    the concrete agent-shell spelling this scan was handed.  Both sides are
+    the concrete agent-turn spelling this scan was handed.  Both sides are
     therefore also compared as sase agents, while the literal spellings keep
     being compared so legacy member-name tags -- and neighbors inside the same
     hood -- still match.

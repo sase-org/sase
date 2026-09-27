@@ -32,8 +32,8 @@ from ._artifact_state import (
     artifact_is_resolved,
     artifact_succeeded_for_identity,
     done_outcome_from_data,
-    shell_followup_handoff_agent,
-    shell_member_kind_for_meta,
+    turn_followup_handoff_agent,
+    turn_member_kind_for_meta,
     waiting_marker_crossed_dependency_barrier,
 )
 from ._index_queries import WaitDependencyIndexQueries
@@ -329,8 +329,8 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             archived_completion=archived_completion,
             outcome=outcome,
             has_done_marker=has_done_marker,
-            shell_followup_agent=shell_followup_handoff_agent(meta, done_data),
-            shell_member_kind=shell_member_kind_for_meta(meta),
+            turn_followup_agent=turn_followup_handoff_agent(meta, done_data),
+            turn_member_kind=turn_member_kind_for_meta(meta),
         )
         if project_name:
             self.artifacts[(project_name, timestamp)] = artifact

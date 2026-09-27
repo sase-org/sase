@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from sase.gate_turn.kind_next_action import resolve_shell_next_action
+from sase.gate_turn.kind_next_action import resolve_turn_next_action
 
 
 def _kwargs(**overrides: Any) -> dict[str, Any]:
@@ -24,11 +24,11 @@ def _kwargs(**overrides: Any) -> dict[str, Any]:
 
 
 def test_unregistered_kind_returns_declared() -> None:
-    assert resolve_shell_next_action(**_kwargs(kind="custom")) == "declared prompt"
+    assert resolve_turn_next_action(**_kwargs(kind="custom")) == "declared prompt"
 
 
 def test_none_kind_returns_declared() -> None:
-    assert resolve_shell_next_action(**_kwargs(kind=None)) == "declared prompt"
+    assert resolve_turn_next_action(**_kwargs(kind=None)) == "declared prompt"
 
 
 def test_registered_hook_return_value_is_used(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -39,7 +39,7 @@ def test_registered_hook_return_value_is_used(monkeypatch: pytest.MonkeyPatch) -
         "question",
         _rebuild_ok,
     )
-    assert resolve_shell_next_action(**_kwargs()) == "rebuilt next action"
+    assert resolve_turn_next_action(**_kwargs()) == "rebuilt next action"
 
 
 def test_import_failure_falls_back_to_declared(
@@ -49,7 +49,7 @@ def test_import_failure_falls_back_to_declared(
 
     monkeypatch.setitem(module._KIND_NEXT_ACTIONS, "question", _rebuild_unimportable)
     with caplog.at_level(logging.WARNING):
-        result = resolve_shell_next_action(**_kwargs())
+        result = resolve_turn_next_action(**_kwargs())
     assert result == "declared prompt"
     assert "next-action hook failed" in caplog.text
 
@@ -62,7 +62,7 @@ def test_raising_hook_falls_back_to_declared(monkeypatch: pytest.MonkeyPatch) ->
         "question",
         _rebuild_raises,
     )
-    assert resolve_shell_next_action(**_kwargs()) == "declared prompt"
+    assert resolve_turn_next_action(**_kwargs()) == "declared prompt"
 
 
 def test_plan_kind_falsy_return_is_strict(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -70,7 +70,7 @@ def test_plan_kind_falsy_return_is_strict(monkeypatch: pytest.MonkeyPatch) -> No
 
     monkeypatch.setitem(module._KIND_NEXT_ACTIONS, "plan", _rebuild_empty)
     with pytest.raises(RuntimeError, match="produced no prompt"):
-        resolve_shell_next_action(**_kwargs(kind="plan"))
+        resolve_turn_next_action(**_kwargs(kind="plan"))
 
 
 def test_falsy_return_falls_back_to_declared(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -81,7 +81,7 @@ def test_falsy_return_falls_back_to_declared(monkeypatch: pytest.MonkeyPatch) ->
         "question",
         _rebuild_empty,
     )
-    assert resolve_shell_next_action(**_kwargs()) == "declared prompt"
+    assert resolve_turn_next_action(**_kwargs()) == "declared prompt"
 
 
 def _rebuild_ok(**kwargs: Any) -> str:

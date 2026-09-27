@@ -286,7 +286,7 @@ def test_record_followup_launched_uses_configured_agent_field() -> None:
         launched_artifacts_dir="/tmp/followup",
         pid=123,
         persistence=FollowupPersistence(
-            agent_field="shell_followup_agent",
+            agent_field="turn_followup_agent",
             error_field="shell_followup_error",
             prompt_path_field="shell_followup_prompt_path",
             degraded_reason_field="shell_followup_degraded_reason",
@@ -299,8 +299,8 @@ def test_record_followup_launched_uses_configured_agent_field() -> None:
     assert result.launched is True
     assert result.artifacts_dir == "/tmp/followup"
     assert result.pid == 123
-    assert meta["shell_followup_agent"] == "acme--1"
-    assert updated["shell_followup_agent"] == "acme--1"
+    assert meta["turn_followup_agent"] == "acme--1"
+    assert updated["turn_followup_agent"] == "acme--1"
 
 
 def test_wait_for_followup_started_returns_true_when_run_started(

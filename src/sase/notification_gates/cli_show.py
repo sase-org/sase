@@ -91,7 +91,7 @@ def handle_gate_show(args: argparse.Namespace) -> NoReturn:
 def _resolve_kind_and_id(args: argparse.Namespace) -> tuple[str, str]:
     """Resolve the ``kind``/``request_id`` pair from ``--id``/``--kind`` or a ref.
 
-    ``gate_ref`` is the only way to address a gate shell by its short id,
+    ``gate_ref`` is the only way to address a gate turn by its short id,
     member name, or owning agent name; ``--id`` plus ``--kind`` remain the
     exact, surface-neutral contract every other caller (Telegram, the mobile
     bridge, the conformance matrix) already uses.
@@ -444,7 +444,7 @@ def _print_acceptance(console: Console, acceptance: Mapping[str, Any]) -> None:
 
 
 def _print_shell(console: Console, shell: Mapping[str, Any]) -> None:
-    console.print(Text("Gate Shell", style="bold"), soft_wrap=True)
+    console.print(Text("Gate Turn", style="bold"), soft_wrap=True)
     line = Text("  ")
     line.append(str(shell.get("pending_status") or "GATE"), style="bold")
     line.append(" → ", style="dim")

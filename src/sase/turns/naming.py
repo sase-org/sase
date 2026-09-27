@@ -1,4 +1,4 @@
-"""Reusable suffix and id allocation for agent-session shell members."""
+"""Reusable suffix and id allocation for agent-session turn members."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class TurnIdSpec:
 
 @dataclass(frozen=True, slots=True)
 class SequenceSuffixSpec:
-    """First and subsequent suffixes for one sequential agent-session shell kind."""
+    """First and subsequent suffixes for one sequential agent-session turn kind."""
 
     first_suffix: str
     sequence_template: str
@@ -45,7 +45,7 @@ def allocate_turn_suffix(
     spec: SequenceSuffixSpec,
     allocator: SuffixAllocator | None = None,
 ) -> str:
-    """Return the next free suffix for a sequential shell kind in *lane*."""
+    """Return the next free suffix for a sequential turn kind in *lane*."""
     if not has_existing_shell:
         return spec.first_suffix
     allocate = allocator or allocate_agent_session_child_suffix

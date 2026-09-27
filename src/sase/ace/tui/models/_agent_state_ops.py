@@ -1,4 +1,4 @@
-"""Monitor, gate, and proc-shell projections for the Agents tab model."""
+"""Monitor, gate, and named-proc projections for the Agents tab model."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from sase.core.agent_scan_wire_markers import FinalizerStatusSummaryWire
 
 @dataclass
 class AgentStateOperationsFields:
-    """Supervised-command, human-decision, and proc-shell state for one row."""
+    """Supervised-command, human-decision, and named-proc state for one row."""
 
     # Monitor-member projection. Monitor rows are ordinary agent-session
     # members whose work is one supervised OS command rather than an LLM turn.

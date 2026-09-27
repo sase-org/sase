@@ -3,7 +3,7 @@
 The ``#git:`` / ``#gh:`` post-prompt release step used to drop a RUNNING
 row by workspace number, workflow, and ``cl_name`` — not pid — and then
 unconditionally delete the checkout occupant marker. A turn that handed
-off to a monitor, gate, proc shell, pipe, or plan proposal still ran that
+off to a monitor, gate, named proc, pipe, or plan proposal still ran that
 step, so a follow-up in the same checkout could have its claim erased.
 
 This helper is the shared implementation both VCS release steps call:

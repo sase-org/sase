@@ -234,9 +234,9 @@ def _gate_turn_member_detail(intent: GateIntent) -> str:
     except Exception:
         return ""
     if record is None:
-        return " No gate-shell member record was found."
+        return " No gate-turn member record was found."
     return (
-        " Gate-shell member record exists"
+        " Gate-turn member record exists"
         f" in state {record.gate_state} at {record.artifacts_dir}."
     )
 

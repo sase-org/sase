@@ -1,4 +1,4 @@
-"""RUNNING-field claim moves made for a pending gate shell."""
+"""RUNNING-field claim moves made for a pending gate turn."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def move_gate_turn_claim(
     cl_name: str | None,
     workspace_policy: str,
 ) -> GateClaimMove:
-    """Move or release the creator claim for a pending gate shell."""
+    """Move or release the creator claim for a pending gate turn."""
     if workspace_num is None or workspace_num == 0 or creator_pid is None:
         return GateClaimMove(
             result=ClaimResult(True),
@@ -69,7 +69,7 @@ def move_gate_turn_claim(
             workspace_id,
             creator_claim.workflow,
             creator_claim.cl_name,
-            caller_tag="gate-shell-create",
+            caller_tag="gate-turn-create",
         )
         return GateClaimMove(
             result=result,
@@ -86,7 +86,7 @@ def move_gate_turn_claim(
         new_workflow=GATE_WORKSPACE_CLAIM_WORKFLOW,
         new_artifacts_timestamp=artifacts_timestamp,
         cl_name=cl_name,
-        caller_tag="gate-shell-create",
+        caller_tag="gate-turn-create",
     )
     return GateClaimMove(
         result=result,
@@ -128,7 +128,7 @@ def hold_gate_turn_claim_for_settlement(
         new_workflow=GATE_WORKSPACE_CLAIM_WORKFLOW,
         new_artifacts_timestamp=artifacts_timestamp,
         cl_name=creator_claim.cl_name,
-        caller_tag="gate-shell-settle-hold",
+        caller_tag="gate-turn-settle-hold",
     )
     if not result.success:
         _append_settle_hold_failure_log(
@@ -150,7 +150,7 @@ def restore_gate_turn_claim(
     *,
     move: GateClaimMove,
     cl_name: str | None,
-    caller_tag: str = "gate-shell-restore",
+    caller_tag: str = "gate-turn-restore",
 ) -> ClaimResult | None:
     """Restore the creator's exact original claim after a failed handoff."""
     claim = move.creator_claim
@@ -187,9 +187,9 @@ def release_gate_turn_claim(
     *,
     artifacts_dir: str | None = None,
 ) -> str | None:
-    """Release this gate shell's workspace claim, if it can be resolved.
+    """Release this gate turn's workspace claim, if it can be resolved.
 
-    A ``workspace: "release"`` gate shell never held a claim -- it was
+    A ``workspace: "release"`` gate turn never held a claim -- it was
     released back to the free pool at creation time (``move_gate_turn_claim``)
     -- so releasing it again here would tear down whatever unrelated claim
     another agent has since taken on that workspace number.
@@ -218,7 +218,7 @@ def release_gate_turn_claim(
             workspace_id,
             GATE_WORKSPACE_CLAIM_WORKFLOW,
             cl_name=str(cl_name) if isinstance(cl_name, str) else None,
-            caller_tag="gate-shell-settle",
+            caller_tag="gate-turn-settle",
         )
         if not result.success:
             return result.error or "workspace release failed"
@@ -246,7 +246,7 @@ def _restore_live_creator_claim(
         project_file,
         move=move,
         cl_name=creator_claim.cl_name,
-        caller_tag="gate-shell-settle-restore",
+        caller_tag="gate-turn-settle-restore",
     )
     _append_live_creator_restore_log(artifacts_dir, creator_claim, result)
     if result is not None and not result.success:
@@ -298,7 +298,7 @@ def _append_live_creator_restore_log(
     append_gate_turn_log_text(
         artifacts_dir,
         (
-            f"! gate-shell-settle-restore: creator pid {claim.pid} is still "
+            f"! gate-turn-settle-restore: creator pid {claim.pid} is still "
             f"alive; {outcome} workspace #{claim.workspace_num} claim to "
             f"{claim.workflow}\n"
         ),
@@ -318,7 +318,7 @@ def _append_settle_hold_failure_log(
     append_gate_turn_log_text(
         artifacts_dir,
         (
-            "! gate-shell-settle-hold: could not transfer workspace "
+            "! gate-turn-settle-hold: could not transfer workspace "
             f"#{workspace_num} from creator pid {creator_pid} to settling "
             f"pid {holder_pid}: {error}\n"
         ),

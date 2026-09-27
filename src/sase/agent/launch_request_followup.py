@@ -1,4 +1,4 @@
-"""Settle-time next-action text for LaunchApproval gate-shell follow-ups."""
+"""Settle-time next-action text for LaunchApproval gate-turn follow-ups."""
 
 from __future__ import annotations
 

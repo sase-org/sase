@@ -41,7 +41,7 @@ def publish_agent_hood(
 
     ``committing_agent`` names a sase agent: either a solo agent, which is
     also a run, or a session container, which never is. Both spellings are
-    accepted deliberately, and a concrete agent-shell name is still tolerated
+    accepted deliberately, and a concrete agent-turn name is still tolerated
     for legacy callers.
     """
 

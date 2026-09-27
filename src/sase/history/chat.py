@@ -76,7 +76,7 @@ def _fallback_branch_or_workspace_name() -> str:
     """Return a host-independent workspace label for chat filenames.
 
     ``branch_or_workspace_name`` is a host dotfile helper, not a sase-shipped binary,
-    and missing it must never abort a gate-shell settlement chat write. Prefer the
+    and missing it must never abort a gate-turn settlement chat write. Prefer the
     current git branch, then the current directory name.
     """
     branch = _current_git_branch_name()

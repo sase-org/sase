@@ -372,4 +372,4 @@ def test_show_unknown_gate_turn_reference_exits_with_ref_error(
     code = _run("show", "no-such-gate")
 
     assert code == 2
-    assert "no gate shell matches" in capsys.readouterr().err
+    assert "no gate turn matches" in capsys.readouterr().err

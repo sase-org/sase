@@ -1,4 +1,4 @@
-"""Status-label helpers for gate shell members."""
+"""Status-label helpers for gate turn members."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from sase.turns.status import (
 
 
 class _GateStatusPair(TurnStatusPair):
-    """Ordered ``(pending, settled)`` label pair for one gate shell."""
+    """Ordered ``(pending, settled)`` label pair for one gate turn."""
 
 
 GATE_STATUS_ACCENTS: tuple[str, ...] = (
@@ -56,7 +56,7 @@ _GATE_STATUS_GLYPHS: dict[str, str] = {
 
 
 def gate_status_pair(start: str | None, stop: str | None) -> TurnStatusPair:
-    """Clamp both gate-shell status labels, filling omitted halves."""
+    """Clamp both gate-turn status labels, filling omitted halves."""
     return cast(
         TurnStatusPair,
         turn_status_pair(
@@ -67,7 +67,7 @@ def gate_status_pair(start: str | None, stop: str | None) -> TurnStatusPair:
             max_chars=GATE_TURN_STATUS_MAX_CHARS,
             ellipsis=GATE_TURN_STATUS_ELLIPSIS,
             pair_type=_GateStatusPair,
-            noun="gate shell status",
+            noun="gate turn status",
         ),
     )
 

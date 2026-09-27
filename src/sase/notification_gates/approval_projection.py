@@ -50,7 +50,7 @@ def _decision_projection(
     """Return ``(plan_action, display_label)`` for one accepted selection.
 
     ``plan_action`` is the planner metadata value. ``display_label`` is the
-    gate-shell status to show from the receipt. Commit-only selections return
+    gate-turn status to show from the receipt. Commit-only selections return
     ``("commit", None)``: the committed label waits for archive success.
     """
     selected = frozenset(selected_option_ids)
@@ -89,7 +89,7 @@ def project_accepted_decision(
     envelope: Mapping[str, Any],
     receipt: Mapping[str, Any],
 ) -> None:
-    """Project an accepted decision into planner and gate-shell metadata."""
+    """Project an accepted decision into planner and gate-turn metadata."""
     kind = str(envelope.get("kind") or "")
     if kind not in _PLAN_KINDS:
         return

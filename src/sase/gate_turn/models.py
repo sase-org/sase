@@ -1,4 +1,4 @@
-"""Typed gate-shell records projected from agent artifacts."""
+"""Typed gate-turn records projected from agent artifacts."""
 
 from __future__ import annotations
 
@@ -28,20 +28,20 @@ GateTurnState = Literal[
 
 
 class GateTurnError(RuntimeError):
-    """Base class for gate-shell lifecycle failures."""
+    """Base class for gate-turn lifecycle failures."""
 
 
 class GateTurnLaneError(GateTurnError):
-    """A gate shell's lane could not be resolved."""
+    """A gate turn's lane could not be resolved."""
 
 
 class GateTurnRefError(ValueError):
-    """A gate-shell reference was empty, unknown, or ambiguous."""
+    """A gate-turn reference was empty, unknown, or ambiguous."""
 
 
 @dataclass(frozen=True)
 class GateTurnRecord:
-    """Projection of one gate-shell agent-session member."""
+    """Projection of one gate-turn agent-session member."""
 
     gate_id: str
     member_agent_name: str
@@ -82,7 +82,7 @@ class GateTurnRecord:
 
     @property
     def status_bucket(self) -> str:
-        """Return this gate shell's display status bucket."""
+        """Return this gate turn's display status bucket."""
         pair = gate_status_pair(self.start_status, self.stop_status)
         status = effective_gate_status(
             pair, gate_state=self.gate_state, settled=self.is_terminal
@@ -91,12 +91,12 @@ class GateTurnRecord:
 
     @property
     def is_terminal(self) -> bool:
-        """Return whether this gate shell has settled terminally."""
+        """Return whether this gate turn has settled terminally."""
         return gate_state_is_terminal(self.gate_state)
 
     @classmethod
     def from_record(cls, record: AgentArtifactRecordWire) -> GateTurnRecord:
-        """Build a gate-shell record from an agent-artifact scan row."""
+        """Build a gate-turn record from an agent-artifact scan row."""
         meta = record.agent_meta
         shell = meta.agent_session_turn if meta is not None else None
         if meta is None or shell is None or shell.kind != "gate" or not shell.id:
@@ -150,7 +150,7 @@ class GateTurnRecord:
 
 
 def is_gate_turn_member_record(record: AgentArtifactRecordWire) -> bool:
-    """Return whether ``record`` is a real gate-shell agent-session member."""
+    """Return whether ``record`` is a real gate-turn agent-session member."""
     meta = record.agent_meta
     if meta is None:
         return False

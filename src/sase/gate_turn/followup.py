@@ -1,4 +1,4 @@
-"""Launch the follow-up agent into a settled gate shell's lane."""
+"""Launch the follow-up agent into a settled gate turn's lane."""
 
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ from sase.turns.followup import (
     STARTER_SETTLE_POLL_SECONDS,
     FollowupLaunchResult,
     FollowupPersistence,
-    ShellFollowupWorkspace,
-    launch_shell_followup,
+    TurnFollowupWorkspace,
+    launch_turn_followup,
     record_followup_launched,
     record_followup_not_launchable,
     spawn_turn_agent_session_successor,
@@ -64,7 +64,7 @@ def launch_gate_followup_agent(
     """Launch the agent named by the resolved gate follow-up ``policy``.
 
     Returns the launch disposition. On failure, ``gate_followup_error`` is
-    recorded on the gate shell member's own metadata; the caller is
+    recorded on the gate turn member's own metadata; the caller is
     responsible for releasing the workspace claim and notifying.
     """
     lane = str(agent_session_value(meta) or "")
@@ -79,12 +79,7 @@ def launch_gate_followup_agent(
         timeout_seconds=settle_timeout_seconds,
         poll_seconds=STARTER_SETTLE_POLL_SECONDS,
     )
-    fork_target = _fork_target(
-        policy.fork,
-        lane=lane,
-        member_name=str(meta.get("name") or ""),
-        settled=settled,
-    )
+    fork_target = _fork_target(policy.fork, lane=lane, settled=settled)
     base_kwargs = _base_prompt_kwargs(
         artifacts_dir,
         meta,
@@ -162,7 +157,7 @@ def launch_gate_followup_agent(
         or _optional_int(meta.get("gate_creator_claim_pid"))
     )
 
-    return launch_shell_followup(
+    return launch_turn_followup(
         project_name=project_name,
         meta_workspace_num=meta.get("workspace_num"),
         meta_workspace_dir=str(meta.get("workspace_dir") or ""),
@@ -170,7 +165,7 @@ def launch_gate_followup_agent(
         compose_prompt=_compose,
         spawn=_spawn,
         recorded_vcs_ref=vcs_ref_from_meta(meta),
-        workspace=ShellFollowupWorkspace(
+        workspace=TurnFollowupWorkspace(
             meta_pairing_reason=_meta_pairing_degraded_reason,
             fresh_claim_reason=_fresh_claim_degraded_reason,
             pool_claim_reason=_pool_claim_degraded_reason,
@@ -240,7 +235,7 @@ def _base_prompt_kwargs(
         else None
     )
     feedback = response.get("feedback")
-    from sase.gate_turn.kind_next_action import resolve_shell_next_action
+    from sase.gate_turn.kind_next_action import resolve_turn_next_action
     from sase.gate_turn.settlement import gate_decision_title
 
     return {
@@ -266,7 +261,7 @@ def _base_prompt_kwargs(
         ),
         "tail_lines": 200,
         "gate_log_path": gate_log_path,
-        "next_action": resolve_shell_next_action(
+        "next_action": resolve_turn_next_action(
             kind=_clean_str(meta.get("gate_kind")),
             artifacts_dir=artifacts_dir,
             meta=meta,
@@ -342,13 +337,9 @@ def _option_outcomes(
     return tuple(outcomes)
 
 
-def _fork_target(
-    fork: str, *, lane: str, member_name: str, settled: bool
-) -> str | None:
+def _fork_target(fork: str, *, lane: str, settled: bool) -> str | None:
     if not settled or fork == "none":
         return None
-    if fork == "shell":
-        return member_name or lane
     return lane
 
 
@@ -360,7 +351,7 @@ def _format_unix(value: object) -> str | None:
 
 def _fresh_claim_degraded_reason(workspace_num: int, error: BaseException) -> str:
     return (
-        f"The gate shell workspace claim transfer failed for workspace "
+        f"The gate turn workspace claim transfer failed for workspace "
         f"#{workspace_num}: {error}. The follow-up was launched by taking a "
         "fresh claim on the same workspace, so the gate's approved-command "
         "workspace should still be present."
@@ -373,11 +364,11 @@ def _workspace_zero_degraded_reason(
     workspace_dir: str,
 ) -> str:
     return (
-        f"The gate shell workspace claim transfer failed, and workspace "
+        f"The gate turn workspace claim transfer failed, and workspace "
         f"#{workspace_num} could not be freshly claimed because it is already "
         f"claimed: {error}. The follow-up was launched in workspace #0 "
         f"({workspace_dir}) instead. Do not assume the gate's approved-command "
-        "workspace files are present; use the gate shell artifacts and log "
+        "workspace files are present; use the gate turn artifacts and log "
         "paths in this prompt."
     )
 
@@ -389,12 +380,12 @@ def _pool_claim_degraded_reason(
     pool_workspace_dir: str,
 ) -> str:
     return (
-        f"The gate shell workspace claim transfer failed, and workspace "
+        f"The gate turn workspace claim transfer failed, and workspace "
         f"#{workspace_num} could not be freshly claimed because it is already "
         f"claimed: {error}. The follow-up was launched in freshly claimed "
         f"workspace #{pool_workspace_num} ({pool_workspace_dir}) instead. "
         "The prompt carries a VCS workflow tag, so the successor will run "
-        "workspace setup there instead of using the gate shell's original "
+        "workspace setup there instead of using the gate turn's original "
         "workspace."
     )
 
@@ -404,7 +395,7 @@ def _meta_pairing_degraded_reason(
     primary_workspace_dir: str,
 ) -> str:
     return (
-        "The gate shell member's own metadata did not record a claimed "
+        "The gate turn member's own metadata did not record a claimed "
         f"workspace number for its directory ({original_workspace_dir or '<empty>'}), "
         "and that directory is not a checkout the workspace registry "
         f"recognizes, so it could not be repaired. The follow-up was launched "

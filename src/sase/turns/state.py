@@ -1,4 +1,4 @@
-"""State bucketing and role predicates for agent-session shell kinds."""
+"""State bucketing and role predicates for agent-session turn kinds."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from sase.plan_chain import agent_session_role_for_suffix
 
 @dataclass(frozen=True, slots=True)
 class TurnStateConfig:
-    """State bucket map and agent-session role for one shell kind."""
+    """State bucket map and agent-session role for one turn kind."""
 
     agent_session_role: str
     buckets: Mapping[str, str]
@@ -48,7 +48,7 @@ def is_real_turn_member(
     *,
     config: TurnStateConfig,
 ) -> bool:
-    """Return whether a row is the durable member for this shell kind."""
+    """Return whether a row is the durable member for this turn kind."""
     return (
         isinstance(agent_session_role, str)
         and agent_session_role.strip() == config.agent_session_role

@@ -159,13 +159,13 @@ def _format_monitor_response(
     lines = [
         "# Monitor handoff",
         "",
-        "This agent delegated the remaining work to a monitor shell.",
+        "This agent delegated the remaining work to a monitor turn.",
     ]
     if monitor_id:
         lines.append(f"Monitor ID: {monitor_id}")
         lines.append(f"Inspect with: sase monitor show {monitor_id}")
     if member_agent_name:
-        lines.append(f"Monitor shell: {member_agent_name}")
+        lines.append(f"Monitor turn: {member_agent_name}")
     if cwd:
         lines.append(f"Directory: {cwd}")
     if command:

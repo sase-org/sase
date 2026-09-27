@@ -121,7 +121,7 @@ def test_cancel_unknown_reference_exits_with_ref_error(
     patch_gate_turn_project_records(monkeypatch, [])
 
     assert dispatch(["gate", "cancel", "no-such-gate"]) == 2
-    assert "no gate shell matches" in capsys.readouterr().err
+    assert "no gate turn matches" in capsys.readouterr().err
 
 
 def test_cancel_json_envelope_carries_the_gate_turn(

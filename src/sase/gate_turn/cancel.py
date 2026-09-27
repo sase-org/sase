@@ -1,4 +1,4 @@
-"""Explicit cancellation for a pending gate shell."""
+"""Explicit cancellation for a pending gate turn."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def cancel_gate_turn(
     *,
     reason: str = DEFAULT_CANCEL_REASON,
 ) -> GateTurnRecord:
-    """Cancel one pending gate shell, settling it into a terminal state.
+    """Cancel one pending gate turn, settling it into a terminal state.
 
     Mirrors the reclaim chop's terminal checks (:mod:`sase.gate_turn.reclaim`):
     an already-terminal shell is returned unchanged, an already-answered gate

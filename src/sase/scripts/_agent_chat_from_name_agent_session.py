@@ -32,11 +32,11 @@ def resolve_agent_session_member_shell(
 ) -> ForkAgentSessionMemberSource | ForkExcludedAgentSessionMember:
     """Classify and resolve one sequential agent-session member's concrete shell.
 
-    A monitor member is a proc shell, never a chat transcript: its
+    A monitor member is a named proc, never a chat transcript: its
     ``agent_session_role``/``monitor_id`` markers route it to the durable
     monitor+proc join instead of the agent chat-path lookup below. A gate
     shell has no process while pending -- it settles into a chat file
-    written at settle time, so it is resolved like an agent shell but
+    written at settle time, so it is resolved like an agent turn but
     labelled ``kind="gate"`` so the injected header can tell decisions from
     conversations.
     """
@@ -58,9 +58,9 @@ def _resolve_gate_turn_agent_session_member_shell(
     member: AgentSessionMember,
     meta: dict[str, object],
 ) -> ForkAgentSessionMemberSource | ForkExcludedAgentSessionMember:
-    """Resolve a gate-shell member from its settle-time chat file.
+    """Resolve a gate-turn member from its settle-time chat file.
 
-    A pending gate shell is processless and has no chat file yet, so it is
+    A pending gate turn is processless and has no chat file yet, so it is
     excluded as ``"running"`` -- the same exclusion status a still-running
     monitor gets from the terminal check above.
     """

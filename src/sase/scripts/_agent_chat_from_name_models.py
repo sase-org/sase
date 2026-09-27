@@ -40,7 +40,7 @@ class ForkClanMemberSource:
 
 @dataclass(frozen=True)
 class ForkAgentSessionMemberSource:
-    """One included agent-session member: an agent shell or a proc/monitor shell."""
+    """One included agent-session member: an agent turn or a proc/monitor turn."""
 
     name: str
     artifact_dir: str
@@ -76,7 +76,7 @@ class ForkExcludedAgentSessionMember:
 
 @dataclass(frozen=True)
 class ForkSource:
-    """One agent conversation, proc shell, agent session, or completed clan."""
+    """One agent conversation, named proc, agent session, or completed clan."""
 
     kind: str
     name: str

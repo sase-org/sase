@@ -100,7 +100,7 @@ def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
         print(f"Error [{exc.code}] {exc.target}: {exc}", file=sys.stderr)
         sys.exit(1)
     except GateTurnError as exc:
-        print(f"Error: gate shell creation failed: {exc}", file=sys.stderr)
+        print(f"Error: gate turn creation failed: {exc}", file=sys.stderr)
         sys.exit(1)
     except OSError as exc:
         print(f"Error: gate creation failed: {exc}", file=sys.stderr)

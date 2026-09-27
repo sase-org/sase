@@ -28,9 +28,9 @@ def short_proc_id(proc_id: str) -> str:
 
 
 def resolve_proc_ref(prefix: str, procs: Sequence[Proc]) -> Proc:
-    """Resolve a named proc shell, exact id, or unique id prefix.
+    """Resolve a named proc, exact id, or unique id prefix.
 
-    Fully qualified named proc shells win, then an exact proc id, then a
+    Fully qualified named procs win, then an exact proc id, then a
     unique id prefix of at least three characters. A bare name is derived
     beneath the calling sase agent before the name lookup.
     """
@@ -78,9 +78,7 @@ def _resolve_named_named_proc(raw: str, procs: Sequence[Proc]) -> Proc | None:
         candidates = ", ".join(
             f"{short_proc_id(proc.proc_id)} ({proc.label})" for proc in active
         )
-        raise ProcRefError(
-            f"named proc shell {raw!r} is ambiguous; candidates: {candidates}"
-        )
+        raise ProcRefError(f"named proc {raw!r} is ambiguous; candidates: {candidates}")
     return matches[0]
 
 

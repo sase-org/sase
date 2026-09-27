@@ -1,14 +1,14 @@
 """Shared sase-agent vocabulary for provenance-carrying callers.
 
 A *sase agent* is either an agent session or a single agent that does not
-belong to a session.  A *concrete agent shell* is one LLM/provider run; session
-members spell that shell with a ``--<role>`` suffix.  Commit provenance,
+belong to a session.  A *concrete agent turn* is one LLM/provider run; session
+members spell that turn with a ``--<role>`` suffix.  Commit provenance,
 sidecar publication requests, and plan/bead associations are all anchored on
-the sase agent rather than on the concrete shell that happened to make the
-commit, so they all need one agreed projection from a shell name to its sase
+the sase agent rather than on the concrete turn that happened to make the
+commit, so they all need one agreed projection from a turn name to its sase
 agent.
 
-``SASE_AGENT_NAME`` identifies the concrete agent shell.  The agent-session
+``SASE_AGENT_NAME`` identifies the concrete agent turn.  The agent-session
 projection and the ``SASE_AGENT=`` commit footer identify the sase agent.
 
 This module is a thin projection over the naming primitives the Rust core
@@ -39,10 +39,10 @@ LEGACY_AGENT_FAMILY_PAGES_DIR = "families"
 
 @dataclass(frozen=True, slots=True)
 class SaseAgentRef:
-    """One resolved sase agent, plus the concrete shell it was derived from."""
+    """One resolved sase agent, plus the concrete turn it was derived from."""
 
     local_name: str
-    """Bare local sase-agent name (``pc``), never a member/shell spelling."""
+    """Bare local sase-agent name (``pc``), never a member/turn spelling."""
 
     global_name: str
     """Globally unique sase-agent provenance (``bbugyi200.athena.pc``)."""
@@ -51,19 +51,19 @@ class SaseAgentRef:
     """Whether the sase agent is an agent session rather than a solo agent."""
 
     member_local_name: str | None
-    """Bare local concrete-shell name (``pc--code``) when the caller knew one."""
+    """Bare local concrete-turn name (``pc--code``) when the caller knew one."""
 
 
 def sase_agent_ref_for_turn(
     name: str,
     identity: AgentIdentitySnapshot | None = None,
 ) -> SaseAgentRef:
-    """Return the sase agent of the concrete agent-shell *name*.
+    """Return the sase agent of the concrete agent-turn *name*.
 
-    This is the write-time path: a caller that starts from a real agent-shell
+    This is the write-time path: a caller that starts from a real agent-turn
     name knows whether the sase agent is an agent session for free, because a
     ``--<role>`` suffix is exactly what makes the sase agent an agent-session
-    container.  A solo agent shell maps to itself.
+    container.  A solo agent turn maps to itself.
     """
     snapshot = identity or AgentIdentitySnapshot.current()
     local_name = normalize_owned_agent_name(name, snapshot)
@@ -86,7 +86,7 @@ def sase_agent_ref_for_name(
     """Return the sase agent described by the already-projected name *name*.
 
     This is the read-time path, for callers that recovered a sase-agent label
-    from a commit footer and have no concrete shell to work from.  ``foo`` is
+    from a commit footer and have no concrete turn to work from.  ``foo`` is
     lexically ambiguous -- an agent-session container and a solo agent are the same
     string -- so session-ness is resolved through the supplied reservation
     snapshot or the local reservation registry, degrading to a solo sase agent
@@ -117,10 +117,10 @@ def sase_agent_page_path(
 ) -> str:
     """Return the sidecar page path that durably represents *ref*.
 
-    A known concrete shell is preferred as the input to
+    A known concrete turn is preferred as the input to
     :func:`agent_link_target` so the sidecar layout stays owned by one core
     function; the agent-session page path is only spelled out here when the sase
-    agent is known to be an agent session and no shell is available.
+    agent is known to be an agent session and no turn is available.
     """
     if ref.member_local_name is not None:
         return agent_link_target(ref.member_local_name, owner, identity).path

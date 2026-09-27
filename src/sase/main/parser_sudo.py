@@ -95,7 +95,7 @@ def _register_answer(subparsers: argparse._SubParsersAction) -> None:
 def _register_list(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "list",
-        help="List sudo gate shells",
+        help="List sudo gate turns",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "examples:\n"

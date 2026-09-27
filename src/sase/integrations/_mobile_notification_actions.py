@@ -71,7 +71,7 @@ def execute_mobile_gate_action(
         )
 
     # A shell-backed gate is defined by the envelope's ``shell`` block, the
-    # same source of truth ``sase gate answer`` uses, so a gate shell settles
+    # same source of truth ``sase gate answer`` uses, so a gate turn settles
     # and streams live output identically no matter which surface answered
     # it -- never by the artifact-index scan's own best-effort lookup.
     try:

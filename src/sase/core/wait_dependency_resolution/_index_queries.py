@@ -229,7 +229,7 @@ class WaitDependencyIndexQueries(
         dependency barrier and are only waiting for runner capacity, so they
         stay in the aggregate by default. Dependency-parked members stay
         excluded to avoid wait cycles. A session reports failed only once it
-        has settled: every declared shell follow-up is present and no
+        has settled: every declared turn follow-up is present and no
         effective member may still run or change its outcome.
         """
         if root.parent_timestamp:

@@ -151,7 +151,7 @@ def test_fork_session_targets_the_agent_session(
     assert captured["prompt"].startswith("#fork:acme\n%model:gpt-5\n\n")
 
 
-def test_fork_shell_targets_the_gate_turns_own_member_name(
+def test_fork_turn_targets_the_gate_turns_lane(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     member_dir, meta = _make_member(tmp_path)
@@ -168,14 +168,14 @@ def test_fork_shell_targets_the_gate_turns_own_member_name(
         meta,
         project_name="proj",
         gate_state="answered",
-        policy=_policy(fork="shell"),
+        policy=_policy(fork="turn"),
         envelope=_envelope(),
         response=_response(),
         settle_timeout_seconds=_SETTLE_TIMEOUT,
     )
 
     assert result.launched is True
-    assert captured["prompt"].startswith("#fork:acme--gate\n%model:gpt-5\n\n")
+    assert captured["prompt"].startswith("#fork:acme\n%model:gpt-5\n\n")
 
 
 def test_fork_none_omits_the_fork_prefix(

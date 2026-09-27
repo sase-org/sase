@@ -51,7 +51,7 @@ _KIND_NEXT_ACTIONS: dict[str, _NextActionHook] = {
 _STRICT_KIND_NEXT_ACTIONS = frozenset({"epic_plan", "plan"})
 
 
-def resolve_shell_next_action(
+def resolve_turn_next_action(
     *,
     kind: str | None,
     artifacts_dir: str,
@@ -78,7 +78,7 @@ def resolve_shell_next_action(
         if kind in _STRICT_KIND_NEXT_ACTIONS:
             raise
         logger.warning(
-            "Gate-shell next-action hook failed for kind %r; using declared prompt",
+            "Gate-turn next-action hook failed for kind %r; using declared prompt",
             kind,
             exc_info=True,
         )
@@ -93,4 +93,4 @@ def resolve_shell_next_action(
     return resolved or declared
 
 
-__all__ = ["resolve_shell_next_action"]
+__all__ = ["resolve_turn_next_action"]

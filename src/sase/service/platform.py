@@ -215,7 +215,7 @@ def _agent_env_refusal_reason(
     try:
         if effective.get("SASE_AGENT") or effective.get("SASE_AGENT_NAME"):
             return (
-                "refusing to capture an agent shell's environment: "
+                "refusing to capture a SASE agent process's environment: "
                 "run `sase service init --yes` from a login shell instead, "
                 "or pass -a/--allow-agent-env to capture this environment "
                 "deliberately"

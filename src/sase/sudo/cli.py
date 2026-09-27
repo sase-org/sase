@@ -174,7 +174,7 @@ def _exec(args: argparse.Namespace) -> int:
 
 
 def _request(args: argparse.Namespace) -> int:
-    """Create a sudo gate shell from stdin."""
+    """Create a sudo gate turn from stdin."""
     begin_gate_intent("sudo", source="sase sudo request")
     try:
         value = _read_stdin_object()

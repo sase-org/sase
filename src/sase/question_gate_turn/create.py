@@ -1,4 +1,4 @@
-"""Build and create the question gate shell for one Q&A round."""
+"""Build and create the question gate turn for one Q&A round."""
 
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ def create_question_gate_turn(
     parent_artifacts_dir: str | None,
     sdd_spec_path: str | None,
 ) -> GateTurnCreation:
-    """Create this round's question gate shell and record its chain metadata.
+    """Create this round's question gate turn and record its chain metadata.
 
     The chain link is Python-side member metadata only -- no wire schema
     change. Round 1 writes ``base_prompt`` to its own artifacts dir; every
@@ -140,11 +140,11 @@ def resolve_question_chain_parent(
     *,
     hint: str | None,
 ) -> str | None:
-    """Return the previous round's question gate-shell artifacts dir, if any.
+    """Return the previous round's question gate-turn artifacts dir, if any.
 
     Tried in order: the in-process *hint* (covers the ``%auto`` case, where
     settlement never sets ``gate_followup_agent`` because it runs under
-    ``creator_live=True``), then the newest terminal question gate shell in
+    ``creator_live=True``), then the newest terminal question gate turn in
     *lane* whose recorded follow-up agent is *creator_agent* -- the durable
     cross-process link -- else ``None`` for a fresh chain.
     """

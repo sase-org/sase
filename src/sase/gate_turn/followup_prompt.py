@@ -1,4 +1,4 @@
-"""Compose the gate-shell follow-up agent's prompt after a gate settles.
+"""Compose the gate-turn follow-up agent's prompt after a gate settles.
 
 Pure text formatting -- no I/O -- so the prompt shape is covered by golden
 tests without needing a real gate bundle or spawned process. Mirrors
@@ -88,7 +88,7 @@ def compose_gate_followup_prompt(
     workspace_degraded_reason: str | None = None,
     next_action: str,
 ) -> str:
-    """Compose the gate-shell follow-up agent's full prompt.
+    """Compose the gate-turn follow-up agent's full prompt.
 
     ``answered`` selects the ``# Gate answered`` / ``# Gate unanswered``
     heading. ``output`` controls which of the results/tail/log-pointer

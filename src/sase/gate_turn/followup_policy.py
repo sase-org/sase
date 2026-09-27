@@ -1,4 +1,4 @@
-"""Resolve a settled gate shell's branch-keyed follow-up policy.
+"""Resolve a settled gate turn's branch-keyed follow-up policy.
 
 The envelope's ``shell`` block is the single source of truth for follow-up
 policy (member metadata never duplicates it -- see ``gate_turn/member.py``),
@@ -40,7 +40,7 @@ _RESERVED_STATE_KEYS = {
 
 @dataclass(frozen=True, slots=True)
 class GateFollowupPolicy:
-    """Resolved follow-up policy for one gate-shell settlement."""
+    """Resolved follow-up policy for one gate-turn settlement."""
 
     branch_key: str
     prompt: str
@@ -56,7 +56,7 @@ class GateFollowupPolicy:
 
 @dataclass(frozen=True, slots=True)
 class _ShellParseResult:
-    """Parsed gate-shell spec plus whether a present block failed to parse."""
+    """Parsed gate-turn spec plus whether a present block failed to parse."""
 
     shell: GateTurnSpec | None
     unparseable: bool = False
@@ -83,7 +83,7 @@ def resolve_gate_followup(
     gate_state: GateTurnState,
     response: dict[str, Any],
 ) -> GateFollowupPolicy | None:
-    """Resolve the effective follow-up policy for a settled gate shell.
+    """Resolve the effective follow-up policy for a settled gate turn.
 
     The answered axis (``answered``/``completed``) inherits the top-level
     ``shell.next`` when the matched branch does not declare its own -- or is
@@ -179,7 +179,7 @@ def _parse_shell_result(
     except Exception:
         if log_error:
             logger.warning(
-                "failed to parse gate shell block at settlement (kind=%r, branches=%r)",
+                "failed to parse gate turn block at settlement (kind=%r, branches=%r)",
                 envelope.get("kind"),
                 raw_branches,
                 exc_info=True,

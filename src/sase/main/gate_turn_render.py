@@ -33,11 +33,11 @@ _BORDER_STYLE = "#5FAFFF"
 _TERMINAL_ROW_STYLE = "dim"
 _PENDING_GLYPH = "⋔"
 _EMPTY_HINT = (
-    "No gate shells here yet. Create one from an agent with:\n\n"
-    "  sase gate create --shell -- < gate-request.json\n\n"
+    "No gate turns here yet. Create one from an agent with:\n\n"
+    "  sase gate create --turn -- < gate-request.json\n\n"
     "Then follow it with `sase gate show <id>`."
 )
-#: Marks a gate shell whose follow-up did not launch (or launched degraded),
+#: Marks a gate turn whose follow-up did not launch (or launched degraded),
 #: mirroring ``sase.main.monitor_render``'s ``_FOLLOWUP_ERROR_GLYPH``.
 _FOLLOWUP_ERROR_GLYPH = "⚑"
 _FOLLOWUP_ERROR_STYLE = "bold yellow"
@@ -100,7 +100,7 @@ def _relative_start(record: GateTurnRecord) -> str:
 
 
 def _claim_cell(record: GateTurnRecord) -> Text:
-    """Flag a pending gate shell still holding a workspace claim (R2)."""
+    """Flag a pending gate turn still holding a workspace claim (R2)."""
     if record.is_terminal or record.workspace_policy != "inherit":
         return Text("—", style="dim")
     return Text("workspace", style="bold yellow")
@@ -169,7 +169,7 @@ def gate_turn_table(records: Sequence[GateTurnRecord], *, title: str) -> Panel:
 
 
 def empty_gate_turn_panel(title: str, *, hint: str | None = None) -> Panel:
-    """Render the friendly empty state that names ``sase gate create --shell``."""
+    """Render the friendly empty state that names ``sase gate create --turn``."""
     body = Text(_EMPTY_HINT, style="dim")
     if hint:
         body.append(f"\n\n{hint}", style="#FFD700")
@@ -185,7 +185,7 @@ def empty_gate_turn_panel(title: str, *, hint: str | None = None) -> Panel:
 def gate_turn_list_markdown(records: Sequence[GateTurnRecord]) -> str:
     """Render gate turns as a plain markdown table."""
     if not records:
-        return "_No gate shells._\n"
+        return "_No gate turns._\n"
     header = "| State | Id | Label | Agent/Member | Kind | Claim | Elapsed | Opened |"
     divider = "| --- | --- | --- | --- | --- | --- | --- | --- |"
     rows = [header, divider]

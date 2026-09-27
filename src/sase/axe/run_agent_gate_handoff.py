@@ -20,7 +20,7 @@ def gate_handoff_claim_moved(
     get_claimed_workspaces: Callable[[str], Iterable[_WorkspaceClaimLike]]
     | None = None,
 ) -> bool:
-    """Return whether a pending gate shell owns this runner's claim."""
+    """Return whether a pending gate turn owns this runner's claim."""
     try:
         claims_loader: Callable[[str], Iterable[_WorkspaceClaimLike]]
         if get_claimed_workspaces is None:

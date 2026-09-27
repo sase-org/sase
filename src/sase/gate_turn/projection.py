@@ -1,8 +1,8 @@
-"""JSON-safe runtime projection of one gate-shell record.
+"""JSON-safe runtime projection of one gate-turn record.
 
-Shared by every surface that reports a gate shell's live state -- ``sase
+Shared by every surface that reports a gate turn's live state -- ``sase
 gate list``/``show``/``cancel`` and the ACE ``GATE`` section -- so "what is
-this gate shell doing right now" is computed once, not reimplemented per
+this gate turn doing right now" is computed once, not reimplemented per
 surface.
 """
 

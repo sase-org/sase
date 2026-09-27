@@ -30,19 +30,19 @@ from ._types import (
     HANDOFF_TERMINAL_STEP_STATUSES,
     IDENTITY_SUCCESS_OUTCOMES,
     SUCCESS_OUTCOME,
-    SUCCESSFUL_SHELL_FOLLOWUP_OUTCOMES,
+    SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES,
     WAIT_SUCCESS_OUTCOMES,
 )
 
 _TERMINAL_MONITOR_STATES = frozenset(
     {"completed", "failed", "timeout", "stopped", "lost"}
 )
-_SHELL_KIND_BY_OUTCOME = {MONITOR_OUTCOME: "monitor", GATE_OUTCOME: "gate"}
-_TERMINAL_STATES_BY_SHELL_KIND = {
+_TURN_KIND_BY_OUTCOME = {MONITOR_OUTCOME: "monitor", GATE_OUTCOME: "gate"}
+_TERMINAL_STATES_BY_TURN_KIND = {
     "monitor": _TERMINAL_MONITOR_STATES,
     "gate": TERMINAL_GATE_STATES,
 }
-_PENDING_SHELL_FOLLOWUP_AGENT = "<pending-shell-followup>"
+_PENDING_TURN_FOLLOWUP_AGENT = "<pending-turn-followup>"
 
 
 def waiting_marker_crossed_dependency_barrier(
@@ -107,7 +107,7 @@ def _agent_session_turn_field(
     return None
 
 
-def shell_followup_handoff_agent(
+def turn_followup_handoff_agent(
     meta: Mapping[str, Any],
     done_data: Mapping[str, Any] | None,
 ) -> str | None:
@@ -116,14 +116,14 @@ def shell_followup_handoff_agent(
     outcome = done_data.get("outcome")
     if not isinstance(outcome, str):
         return None
-    kind = _SHELL_KIND_BY_OUTCOME.get(outcome)
+    kind = _TURN_KIND_BY_OUTCOME.get(outcome)
     if kind is None:
         return None
 
     state = _agent_session_turn_field(done_data, kind=kind, field="state") or (
         _agent_session_turn_field(meta, kind=kind, field="state")
     )
-    if not isinstance(state, str) or state not in _TERMINAL_STATES_BY_SHELL_KIND[kind]:
+    if not isinstance(state, str) or state not in _TERMINAL_STATES_BY_TURN_KIND[kind]:
         return None
 
     followup_outcome = _agent_session_turn_field(
@@ -143,8 +143,8 @@ def shell_followup_handoff_agent(
         and isinstance(next_action, str)
         and next_action.strip()
     ):
-        return _PENDING_SHELL_FOLLOWUP_AGENT
-    if followup_outcome not in SUCCESSFUL_SHELL_FOLLOWUP_OUTCOMES:
+        return _PENDING_TURN_FOLLOWUP_AGENT
+    if followup_outcome not in SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES:
         return None
 
     followup_agent = _agent_session_turn_field(
@@ -220,8 +220,8 @@ def _is_monitor_member_meta(meta: Mapping[str, Any]) -> bool:
     )
 
 
-def shell_member_kind_for_meta(meta: Mapping[str, Any]) -> str | None:
-    """Classify *meta* as a ``"monitor"`` / ``"gate"`` agent-session-shell member.
+def turn_member_kind_for_meta(meta: Mapping[str, Any]) -> str | None:
+    """Classify *meta* as a ``"monitor"`` / ``"gate"`` agent-session-turn member.
 
     ``agent_session_role`` and ``role_suffix`` are flat fields on every meta
     shape the index ingests (on-disk ``agent_meta.json``, and the

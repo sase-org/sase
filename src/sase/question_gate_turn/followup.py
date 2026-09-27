@@ -1,4 +1,4 @@
-"""Settle-time rebuild of the question gate shell's follow-up prompt."""
+"""Settle-time rebuild of the question gate turn's follow-up prompt."""
 
 from __future__ import annotations
 

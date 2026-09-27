@@ -1,4 +1,4 @@
-"""Reusable substrate for SASE agent-session shell mechanics."""
+"""Reusable substrate for SASE agent-session turn mechanics."""
 
 from __future__ import annotations
 

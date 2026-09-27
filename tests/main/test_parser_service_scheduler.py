@@ -519,7 +519,7 @@ def test_service_init_yes_agent_refusal_exits_2(
             ok=False,
             changed=False,
             message=(
-                "refusing to capture an agent shell's environment: run "
+                "refusing to capture a SASE agent process's environment: run "
                 "`sase service init --yes` from a login shell instead, or pass "
                 "-a/--allow-agent-env to capture this environment deliberately"
             ),

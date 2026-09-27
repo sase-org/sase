@@ -24,7 +24,7 @@ def monitor_settlement_payload(
     monitor_artifacts_dir: str | Path,
     payload: CompletionNotificationPayload,
 ) -> CompletionNotificationPayload:
-    """Return *payload* retargeted to the settled monitor shell."""
+    """Return *payload* retargeted to the settled monitor turn."""
     data = dict(payload.action_data)
     monitor_meta = read_agent_meta(monitor_artifacts_dir)
     monitor_cl_name = (

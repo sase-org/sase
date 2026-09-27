@@ -29,7 +29,7 @@ MONITOR_STATE_BUCKETS: dict[str, str] = {
 }
 
 #: Follow-up outcomes that mean a settled monitor handed its lane to a
-#: successor agent. Mirrors ``SUCCESSFUL_SHELL_FOLLOWUP_OUTCOMES`` in
+#: successor agent. Mirrors ``SUCCESSFUL_TURN_FOLLOWUP_OUTCOMES`` in
 #: ``sase.core.wait_dependency_resolution`` without importing the monitor
 #: supervisor stack onto TUI hot paths.
 MONITOR_HANDOFF_FOLLOWUP_OUTCOMES = frozenset({"launched", "launched-degraded"})

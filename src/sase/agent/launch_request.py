@@ -186,7 +186,7 @@ def maybe_handoff_launch_approval_from_agent(
     *,
     artifacts_dir: str | None = None,
 ) -> bool:
-    """Hand an agent-side LaunchApproval request to its gate shell, if any."""
+    """Hand an agent-side LaunchApproval request to its gate turn, if any."""
     creation = request.gate_turn_creation
     if creation is None or not creation.should_handoff:
         return False

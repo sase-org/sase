@@ -183,7 +183,7 @@ def test_start_failed_gate_superseded_by_retry_resolves_agent_session(
     )
 
     gate_candidate = index.artifacts_by_dir[str(gate_dir)]
-    assert gate_candidate.shell_member_kind == "gate"
+    assert gate_candidate.turn_member_kind == "gate"
     assert gate_candidate.outcome == "failed"
 
     agent_session = index.agent_session_candidate("gate-lane")

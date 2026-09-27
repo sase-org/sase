@@ -146,7 +146,7 @@ def build_pr_body(payload: dict) -> None:
         lines.append(f"**Agent:** `{agent_value}`")
     elif name := meta.get("name"):
         # The footer names a sase agent, so the metadata fallback -- which
-        # records the concrete agent shell -- is projected to its sase agent
+        # records the concrete agent turn -- is projected to its sase agent
         # too.
         from sase.sase_agent import sase_agent_name
 

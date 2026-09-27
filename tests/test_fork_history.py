@@ -676,7 +676,7 @@ def test_agent_session_with_monitor_member_renders_named_proc_heading(
 
     rendered = build_fork_injected_history([source])
 
-    assert "### Member 2 of 2 — proc shell (monitor) `cx--mon`" in rendered
+    assert "### Member 2 of 2 — named proc (monitor) `cx--mon`" in rendered
     assert "command execution records, not conversations" in rendered
     assert "PLAN_REPLY" in rendered
 

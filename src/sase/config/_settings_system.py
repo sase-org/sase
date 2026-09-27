@@ -1,4 +1,4 @@
-"""Disk-pressure, managed-tmp, and gate-shell settings accessors."""
+"""Disk-pressure, managed-tmp, and gate-turn settings accessors."""
 
 from __future__ import annotations
 

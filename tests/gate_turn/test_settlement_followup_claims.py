@@ -125,7 +125,7 @@ def test_settlement_holds_gate_claim_on_settling_pid_before_done_marker(
     assert meta["gate_claim_holder_pid"] == os.getpid()
     assert any(
         entry["operation"] == "transfer"
-        and entry["caller_tag"] == "gate-shell-settle-hold"
+        and entry["caller_tag"] == "gate-turn-settle-hold"
         and entry["claim_pid"] == os.getpid()
         for entry in ledger
     )
@@ -210,7 +210,7 @@ def test_settle_restores_original_claim_when_creator_pid_is_live(
     assert restored.pid == creator_pid
     assert restored.artifacts_timestamp == creator_timestamp
     assert ledger[-1]["operation"] == "transfer"
-    assert ledger[-1]["caller_tag"] == "gate-shell-settle-restore"
+    assert ledger[-1]["caller_tag"] == "gate-turn-settle-restore"
     assert ledger[-1]["claim_pid"] == creator_pid
     log_text = (Path(artifacts_dir) / "gate.log").read_text(encoding="utf-8")
     assert "creator pid 1234 is still alive" in log_text
@@ -263,6 +263,6 @@ def test_settle_releases_gate_claim_when_creator_pid_is_dead(
 
     assert get_claimed_workspaces(project_file) == []
     assert ledger[-1]["operation"] == "release"
-    assert ledger[-1]["caller_tag"] == "gate-shell-settle"
+    assert ledger[-1]["caller_tag"] == "gate-turn-settle"
     log_path = Path(artifacts_dir) / "gate.log"
     assert not log_path.exists()

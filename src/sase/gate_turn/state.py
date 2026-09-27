@@ -1,4 +1,4 @@
-"""Gate-shell state semantics shared by storage and cleanup."""
+"""Gate-turn state semantics shared by storage and cleanup."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ def _is_gate_member_role(
     agent_session_role: str | None,
     role_suffix: str | None = None,
 ) -> bool:
-    """Return whether metadata identifies a gate shell member."""
+    """Return whether metadata identifies a gate turn member."""
     return is_turn_member_role(
         agent_session_role,
         role_suffix,
@@ -74,7 +74,7 @@ def _is_gate_member_role(
 
 
 def is_real_gate_member(agent_session_role: str | None, gate_id: str | None) -> bool:
-    """Return whether metadata identifies a durable gate-shell member."""
+    """Return whether metadata identifies a durable gate-turn member."""
     return _is_gate_member_role(agent_session_role) and is_real_turn_member(
         agent_session_role, gate_id, config=_GATE_STATE_CONFIG
     )

@@ -105,7 +105,7 @@ def requester_continuation_note(request: Mapping[str, Any]) -> str:
 
 
 def launch_shell_branch_prompt(branch: str, request: Mapping[str, Any]) -> str | None:
-    """Return the branch prompt sentinel used by gate-shell settlement."""
+    """Return the branch prompt sentinel used by gate-turn settlement."""
 
     continuation = request.get("requester_continuation")
     if not isinstance(continuation, Mapping):

@@ -503,7 +503,7 @@ def _requested_shell_names(args: argparse.Namespace) -> set[str] | None:
 def _is_runtime_submit_error(exc: ProcSubmitError) -> bool:
     message = str(exc)
     # Name-validation failures are usage errors. The pre-rename validator
-    # phrased them as "named proc shell ..."; the renamed validator (and its
+    # phrased them as "named proc ..."; the renamed validator (and its
     # sase-core binding) phrases them as "named proc ...".
     return "named proc " not in message
 

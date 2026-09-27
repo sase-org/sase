@@ -83,7 +83,7 @@ def test_gate_turn_reclaim_emits_noop_summary(
     assert "gate_turn_reclaim:" in out
     assert "scanned=0" in out
     assert "reason=no_pending_gate_turns" in out
-    assert "gate shell reclaim progress: snapshot read" in out
+    assert "gate turn reclaim progress: snapshot read" in out
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["schema_version"] == 1
     assert result["status"] == "no_op"
@@ -149,8 +149,8 @@ def test_gate_turn_reclaim_emits_action_summary(
     assert "scanned=3" in out
     assert "answered=1" in out
     assert "lost=1" in out
-    assert "gate shell reclaim progress: reclaim phase done" in out
-    assert "gate shell reclaim progress: reconcile done" in out
+    assert "gate turn reclaim progress: reclaim phase done" in out
+    assert "gate turn reclaim progress: reconcile done" in out
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "ok"
     assert result["reason"] is None
@@ -227,7 +227,7 @@ def test_gate_turn_reclaim_reports_check_error_on_reclaim_errors(
     captured = capsys.readouterr()
     assert "gate_turn_reclaim:" in captured.out
     assert "reason=reclaim_errors" in captured.out
-    assert f"gate shell reclaim failed: {detail}" in captured.err
+    assert f"gate turn reclaim failed: {detail}" in captured.err
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "check_error"
     assert result["reason"] == "reclaim_errors"

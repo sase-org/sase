@@ -199,7 +199,7 @@ def execute_neutral_plan_approval_response(
 def _gate_turn_followup_fields(
     gate_turn: object | None,
 ) -> tuple[str | None, str | None, str | None]:
-    """Read coder follow-up fields from a settled gate-shell member.
+    """Read coder follow-up fields from a settled gate-turn member.
 
     Best-effort; never raises. ``gate_followup_agent`` becomes
     ``coder_agent``, ``gate_followup_error`` becomes ``coder_error``, and

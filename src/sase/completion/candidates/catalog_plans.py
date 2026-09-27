@@ -19,7 +19,7 @@ keep the fast path light:
 
 - "Available" is decided from the bundle markers, the pending-action
   store, and the 24h staleness window, without the adapter registry.
-- A proposal with no gate-shell record (a legacy gate) counts as visible
+- A proposal with no gate-turn record (a legacy gate) counts as visible
   while its notification is not dismissed. The resolver additionally
   requires a live planner row, which the fast path cannot see; offering a
   legacy orphan here only costs the resolver's miss diagnosis.
@@ -38,9 +38,9 @@ from sase.completion.candidates.protocol import Candidate
 _PLAN_APPROVAL_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
 _STALE_THRESHOLD_SECONDS = 24 * 60 * 60
 
-#: Terminal gate-shell states. Local pin of
+#: Terminal gate-turn states. Local pin of
 #: ``sase.gate_turn.state.TERMINAL_GATE_STATES``: importing that module
-#: would drag the gate-shell package onto the completion fast path, so this
+#: would drag the gate-turn package onto the completion fast path, so this
 #: copy stays and a parity test fails if the two drift.
 PENDING_PLAN_TERMINAL_GATE_STATES = frozenset(
     {"answered", "completed", "failed", "timeout", "stopped", "lost"}
@@ -247,7 +247,7 @@ def _row_is_gate_visible(row: dict[str, Any]) -> bool:
         return False
     terminal = _gate_turn_terminal(_gate_id_for_row(action_data))
     if terminal is None:
-        # No gate-shell record (a legacy gate) or an unreadable index:
+        # No gate-turn record (a legacy gate) or an unreadable index:
         # stay visible while the inbox row is not dismissed.
         return not bool(row.get("dismissed"))
     return not terminal

@@ -99,7 +99,7 @@ def is_runner_slot_occupying_record(
     marker is retained if an answer is ready but the shell is queued to
     reacquire capacity, and removed only by its successful locked claim.
 
-    "Started" is monitor-aware. An ordinary agent shell needs
+    "Started" is monitor-aware. An ordinary agent turn needs
     ``agent_meta.run_started_at``, as today. A real monitor member
     (``agent_meta.agent_session_role == "monitor"`` plus a non-empty
     ``agent_meta.monitor_id``) only needs a recorded ``pid``: the supervisor
@@ -137,7 +137,7 @@ def is_runner_slot_occupying_record(
 
 
 def is_real_gate_member_record(record: AgentArtifactRecordWire) -> bool:
-    """Return whether *record* is the durable gate-shell member."""
+    """Return whether *record* is the durable gate-turn member."""
     meta = record.agent_meta
     if (
         meta is None

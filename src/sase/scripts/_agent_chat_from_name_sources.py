@@ -80,8 +80,8 @@ def resolve_agent_chat_sources(names: Sequence[str]) -> list[ForkSource]:
 def _coalesce_fork_sources(sources: Sequence[ForkSource]) -> list[ForkSource]:
     """Keep each canonical transcript or proc once in stable parent/member order.
 
-    Identity is the canonical chat/artifact path for an agent shell and the
-    durable proc ID for a proc or monitor shell. A transcript-less entry (a
+    Identity is the canonical chat/artifact path for an agent turn and the
+    durable proc ID for a proc or monitor turn. A transcript-less entry (a
     failed agent with no saved chat, or a proc source missing its info) never
     claims an identity, so two such entries are never mistakenly coalesced
     together.
@@ -253,7 +253,7 @@ def _same_artifacts_dir(artifacts_dir: Path, current: Path | None) -> bool:
 
 
 def _resolve_agent_or_proc_fork_source(name: str) -> ForkSource:
-    """Resolve one named agent, falling back to a stand-alone proc shell.
+    """Resolve one named agent, falling back to a stand-alone named proc.
 
     Existing agent names keep their current meaning: a proc/monitor lookup is
     attempted only once agent resolution fails outright, so a reusable proc

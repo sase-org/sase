@@ -1,7 +1,7 @@
 """Durable launch-admission coordinator over the Rust journal planner.
 
 The coordinator is infrastructure owned by a launch-request bundle: it is not
-a proc shell, agent, or Agents-tab row. Waiting never claims runners, proc
+a named proc, agent, or Agents-tab row. Waiting never claims runners, proc
 records, or provider capacity. Project-scoped conditions briefly claim a
 prepared operational workspace for the predicate only; eligible AgentUnits
 still dispatch through the established agent launch path after that claim is

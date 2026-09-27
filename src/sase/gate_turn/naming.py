@@ -1,4 +1,4 @@
-"""Suffix and id allocation for gate shell agent-session members."""
+"""Suffix and id allocation for gate turn agent-session members."""
 
 from __future__ import annotations
 
@@ -29,12 +29,12 @@ _GATE_SUFFIX_SPEC = SequenceSuffixSpec(
 
 
 def new_gate_turn_id() -> str:
-    """Mint a 12-character lowercase unambiguous base32 gate-shell id."""
+    """Mint a 12-character lowercase unambiguous base32 gate-turn id."""
     return new_turn_id(_GATE_ID_SPEC)
 
 
 def short_gate_turn_id(gate_id: str) -> str:
-    """Return the standard six-character gate-shell id display prefix."""
+    """Return the standard six-character gate-turn id display prefix."""
     return short_turn_id(gate_id, _GATE_ID_SPEC)
 
 

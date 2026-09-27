@@ -92,7 +92,7 @@ def procs_query_schema() -> ArtifactQuerySchema:
             key="monitor",
             value_kind="bool",
             negatable=True,
-            hint="a sase monitor start proc shell",
+            hint="a sase monitor start named proc",
         ),
         QueryFieldSpec(
             key="running",

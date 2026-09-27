@@ -649,7 +649,7 @@ def _monitor_turn(
 def _monitor_str(
     source: AgentMetaWire | DoneMarkerWire | None, attr: str
 ) -> str | None:
-    """Read a shared ``agent_session_turn`` string field, only for a monitor shell."""
+    """Read a shared ``agent_session_turn`` string field, only for a monitor turn."""
     return _text(_monitor_turn(source), attr)
 
 

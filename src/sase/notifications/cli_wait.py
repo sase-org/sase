@@ -39,8 +39,8 @@ def handle_gate_wait(args: argparse.Namespace) -> NoReturn:
         paths = bundle_paths(kind, request_id)
         if os.environ.get("SASE_AGENT") and _is_shell_gate(paths.root):
             print(
-                "sase gate wait: shell gate cannot be waited on from inside an "
-                "agent; use `sase gate create --shell` so the gate shell "
+                "sase gate wait: gate turn cannot be waited on from inside an "
+                "agent; use `sase gate create --turn` so the gate turn "
                 "publishes the decision instead",
                 file=sys.stderr,
             )

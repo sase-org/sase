@@ -1,4 +1,4 @@
-"""Build and create plan gate shells."""
+"""Build and create plan gate turns."""
 
 from __future__ import annotations
 
@@ -176,7 +176,7 @@ def _resolve_plan_gate_turn_parent(
     *,
     hint: str | None,
 ) -> str | None:
-    """Return the previous plan gate shell in this replan chain, if any."""
+    """Return the previous plan gate turn in this replan chain, if any."""
     if hint:
         hint_meta = _read_meta(hint)
         if (

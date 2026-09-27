@@ -52,9 +52,9 @@ def default_caller(env: Mapping[str, str] | None = None) -> str | None:
 
 
 def caller_artifacts_dir(env: Mapping[str, str] | None = None) -> str | None:
-    """Return the calling agent shell's own artifacts dir, if the env names one.
+    """Return the calling SASE agent process's own artifacts dir, if the env names one.
 
-    ``SASE_ARTIFACTS_DIR`` is set for every agent shell and points at exactly
+    ``SASE_ARTIFACTS_DIR`` is set for every SASE agent process and points at exactly
     the artifact record that is running -- the most precise identity
     available, and one that needs no name reasoning at all.
     """
@@ -72,13 +72,13 @@ def resolve_caller_agent(
     *,
     artifacts_dir: str | None = None,
 ) -> LaneContext:
-    """Resolve the artifact record of the agent shell calling right now.
+    """Resolve the artifact record of the SASE agent process calling right now.
 
     Mirrors :func:`sase.agent.identity.resolve_local_agent_name`'s
     metadata-first resolution: agent-session members can replace one another
     inside a single process, leaving ``SASE_AGENT_NAME`` set to the
     agent-session container while this run's own artifacts carry the concrete
-    agent shell. Tried in order:
+    agent turn. Tried in order:
 
     1. *artifacts_dir* (the caller's own ``SASE_ARTIFACTS_DIR``), when the
        record it names belongs to *caller* -- a stale or foreign value

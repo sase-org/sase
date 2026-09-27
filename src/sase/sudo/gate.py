@@ -27,7 +27,7 @@ def build_sudo_gate_request(
     request_id: str | None = None,
     core: SudoCoreBinding = DEFAULT_SUDO_CORE,
 ) -> dict[str, Any]:
-    """Return a v3 gate-shell request for one normalized sudo request."""
+    """Return a v3 gate-turn request for one normalized sudo request."""
     request = value if isinstance(value, SudoRequest) else normalize_sudo_request(value)
     request_id = request_id or f"sudo-{uuid4()}"
     target = resolve_sudo_target(request.machine)

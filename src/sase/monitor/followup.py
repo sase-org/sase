@@ -36,8 +36,8 @@ from sase.turns.followup import (
     DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
     STARTER_SETTLE_POLL_SECONDS as _STARTER_SETTLE_POLL_SECONDS,
     FollowupLaunchResult,
-    ShellFollowupWorkspace,
-    launch_shell_followup,
+    TurnFollowupWorkspace,
+    launch_turn_followup,
     vcs_ref_from_meta,
 )
 
@@ -440,7 +440,7 @@ def launch_followup_agent(
         return _record_not_launchable(artifacts_dir, meta, error, prompt)
 
     transfer_pid = os.getpid() if transfer_from_pid is None else transfer_from_pid
-    return launch_shell_followup(
+    return launch_turn_followup(
         project_name=project_name,
         meta_workspace_num=meta.get("workspace_num"),
         meta_workspace_dir=str(meta.get("workspace_dir") or ""),
@@ -448,7 +448,7 @@ def launch_followup_agent(
         compose_prompt=_compose,
         spawn=_spawn,
         recorded_vcs_ref=vcs_ref_from_meta(meta),
-        workspace=ShellFollowupWorkspace(
+        workspace=TurnFollowupWorkspace(
             meta_pairing_reason=_meta_pairing_degraded_reason,
             fresh_claim_reason=_fresh_claim_degraded_reason,
             pool_claim_reason=_pool_claim_degraded_reason,

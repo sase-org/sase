@@ -1,4 +1,4 @@
-"""Claim settlement helpers shared by supervised agent-session shell kinds."""
+"""Claim settlement helpers shared by supervised agent-session turn kinds."""
 
 from __future__ import annotations
 
@@ -224,7 +224,7 @@ def touch_agent_refresh_pulse(artifacts_dir: str | Path | None) -> None:
 
 
 def finalize_turn_workflow_state(artifacts_dir: str) -> None:
-    """Rewrite a settled shell member's workflow state to terminal status."""
+    """Rewrite a settled turn member's workflow state to terminal status."""
     state_path = Path(artifacts_dir) / "workflow_state.json"
     try:
         with state_path.open(encoding="utf-8") as f:

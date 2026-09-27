@@ -169,7 +169,7 @@ def _bead_catalog_entries(request: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _proc_catalog_entries() -> list[dict[str, Any]]:
-    """Return prompt-owned proc shell rows for hold-target completion."""
+    """Return prompt-owned named proc rows for hold-target completion."""
     from sase.procs import is_named_proc_row, read_procs
     from sase.project_display_names import project_display_name_for
 

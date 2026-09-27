@@ -204,14 +204,14 @@ def diagnose_located_plan_miss(selector: str, located: Path) -> PendingPlanMiss:
             ),
             suggestions=(),
         )
-    # Available in the store but owned by no live gate shell or planner.
+    # Available in the store but owned by no live gate turn or planner.
     return PendingPlanMiss(
         selector=selector,
         header=f"{name} is not awaiting approval",
         detail_lines=(
             f"{title}",
             f"{located}",
-            "Its approval gate is orphaned: no live gate shell or planner owns it.",
+            "Its approval gate is orphaned: no live gate turn or planner owns it.",
             f"Inspect it with: {inspect_command}",
         ),
         suggestions=(),
