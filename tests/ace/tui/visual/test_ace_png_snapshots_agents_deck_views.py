@@ -198,6 +198,16 @@ async def _press_view(page: AcePage, detail: AgentDetail, view: DeckView) -> Non
         lambda: detail.deck_area.panel(0).view_policy(DeckId.MAIN) is view,
         description=f"Main deck fixes {view.value}",
     )
+    # Deferred Main bodies apply off the pump; wait for this generation
+    # before the snapshot so pixels match the synchronous layout.
+    await wait_for_state(
+        page,
+        lambda: (
+            int(getattr(detail.deck_area.panel(0), "_main_view_applied_generation", 0))
+            >= int(getattr(detail.deck_area.panel(0), "_view_generation", 0))
+        ),
+        description="Main deck deferred body applied",
+    )
     page.app.clear_notifications()
     await wait_for_visual_idle(page)
 

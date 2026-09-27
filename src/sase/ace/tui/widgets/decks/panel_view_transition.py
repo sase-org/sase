@@ -8,6 +8,7 @@ following in every direction.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from textual.containers import VerticalScroll
@@ -17,6 +18,20 @@ from .model import DeckId, DeckView, RenderMode
 from .view_policy import forced_block_mode
 
 __all__ = ["DeckPanelViewTransitionMixin"]
+
+
+def _applied_generation(owner: object) -> int:
+    try:
+        return int(getattr(owner, "_main_view_applied_generation", 0))
+    except Exception:
+        return 0
+
+
+def _set_applied_generation(owner: object, generation: int) -> None:
+    try:
+        owner._main_view_applied_generation = int(generation)  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 
 class DeckPanelViewTransitionMixin:
@@ -332,6 +347,10 @@ class DeckPanelViewTransitionMixin:
             new_mode = self._decide_main_mode(document, same_subject=False)
         except Exception:
             self._refresh_view_chrome()
+            try:
+                _set_applied_generation(self, int(self._view_generation))
+            except Exception:
+                pass
             return
         try:
             self._render_mode[DeckId.MAIN] = new_mode
@@ -351,6 +370,192 @@ class DeckPanelViewTransitionMixin:
             anchor_card: str | None = anchor.card_id if anchor is not None else None
         except Exception:
             anchor_card = None
+        # Badge-first prefix: the destination badge must be what the next
+        # frame paints. Flip the layout, refresh chrome synchronously, and
+        # build the body off the pump. Never call show_document here.
+        try:
+            self._sync_files_views()
+        except Exception:
+            pass
+        self._refresh_view_chrome()
+        try:
+            self._sync_view_cycle_available()
+        except Exception:
+            pass
+        self._spawn_deferred_main_body(
+            document,
+            subject,
+            anchor,
+            generation,
+            new_mode,
+            anchor_card,
+            current,
+        )
+        return
+
+    def _spawn_deferred_main_body(
+        self,
+        document: Any,
+        subject: object,
+        anchor: Any,
+        generation: int,
+        new_mode: RenderMode,
+        anchor_card: str | None,
+        current: str | None,
+    ) -> None:
+        """Warm the destination body off-thread, then apply it on the loop."""
+        try:
+            policy = self.view_policy(DeckId.MAIN)  # type: ignore[attr-defined]
+        except Exception:
+            policy = DeckView.AUTO
+        target_card = anchor_card or current
+        card_obj = None
+        if target_card is not None and new_mode is not RenderMode.SPREAD:
+            try:
+                card_obj = document.card(target_card)
+            except Exception:
+                card_obj = None
+        try:
+            block_total = len(card_obj.blocks) if card_obj is not None else 0
+        except Exception:
+            block_total = 0
+        try:
+            want_paged_blocks = (
+                forced_block_mode(policy, block_total) is RenderMode.PAGED
+            )
+        except Exception:
+            want_paged_blocks = False
+        try:
+            anchor_block = anchor.block_id if anchor is not None else None
+        except Exception:
+            anchor_block = None
+        try:
+            view = self.main_view  # type: ignore[attr-defined]
+            width = int(view._spread_content_width())  # type: ignore[attr-defined]
+        except Exception:
+            width = 0
+            view = None
+        try:
+            accent = str(view._spread_accent()) if view is not None else ""  # type: ignore[attr-defined]
+        except Exception:
+            accent = ""
+        renderable: Any = None
+        dest_digest: str | None = None
+        if width > 0:
+            try:
+                from .panel_view_deferred import build_destination_renderable
+
+                renderable, dest_digest = build_destination_renderable(
+                    document,
+                    spread=new_mode is RenderMode.SPREAD,
+                    target_card_id=target_card,
+                    anchor_block_id=anchor_block
+                    if isinstance(anchor_block, str)
+                    else None,
+                    want_paged_blocks=bool(want_paged_blocks),
+                    spread_accent=accent,
+                )
+            except Exception:
+                renderable, dest_digest = None, None
+        try:
+            from ...util.pump_tasks import spawn_pump_free_task
+        except Exception:
+            spawn_pump_free_task = None  # type: ignore[assignment]
+        if spawn_pump_free_task is None or width <= 0 or renderable is None:
+            try:
+                self._apply_deferred_main_body(
+                    document, anchor, generation, new_mode, anchor_card, current
+                )
+            finally:
+                _set_applied_generation(self, generation)
+            return
+        try:
+            task = spawn_pump_free_task(
+                self,
+                self._run_deferred_main_body(
+                    renderable,
+                    dest_digest,
+                    width,
+                    document,
+                    anchor,
+                    generation,
+                    new_mode,
+                    anchor_card,
+                    current,
+                ),
+                name="deck-main-view-body",
+                registry_attr="_pump_free_main_view_tasks",
+            )
+        except Exception:
+            task = None
+        if task is None:
+            try:
+                self._apply_deferred_main_body(
+                    document, anchor, generation, new_mode, anchor_card, current
+                )
+            finally:
+                _set_applied_generation(self, generation)
+
+    async def _run_deferred_main_body(
+        self,
+        renderable: Any,
+        dest_digest: str | None,
+        width: int,
+        document: Any,
+        anchor: Any,
+        generation: int,
+        new_mode: RenderMode,
+        anchor_card: str | None,
+        current: str | None,
+    ) -> None:
+        """Build strips in a worker thread, then apply on the UI thread."""
+        prebuilt: tuple[Any, Any, Any] | None = None
+        try:
+            from .panel_view_deferred import build_prebuilt_offthread
+
+            prebuilt = await asyncio.to_thread(
+                build_prebuilt_offthread, renderable, width
+            )
+        except Exception:
+            prebuilt = None
+        if prebuilt is not None and dest_digest is not None:
+            try:
+                from .panel_view_deferred import store_prebuilt as _store
+
+                _store(dest_digest, width, prebuilt[0], prebuilt[1], prebuilt[2])
+            except Exception:
+                pass
+        try:
+            if int(getattr(self, "_view_generation", -1)) != int(generation):
+                return
+        except Exception:
+            return
+        try:
+            self._apply_deferred_main_body(
+                document, anchor, generation, new_mode, anchor_card, current
+            )
+        finally:
+            _set_applied_generation(self, generation)
+
+    def _apply_deferred_main_body(
+        self,
+        document: Any,
+        anchor: Any,
+        generation: int,
+        new_mode: RenderMode,
+        anchor_card: str | None,
+        current: str | None,
+    ) -> None:
+        """Apply the prebuilt body when ``generation`` is still current."""
+        try:
+            if int(getattr(self, "_view_generation", -1)) != int(generation):
+                return
+        except Exception:
+            return
+        try:
+            subject = document.subject
+        except Exception:
+            subject = None
         if new_mode is RenderMode.SPREAD:
             try:
                 active = self.main_view.show_document(
@@ -457,3 +662,24 @@ class DeckPanelViewTransitionMixin:
             self._sync_view_cycle_available()
         except Exception:
             pass
+
+    def on_unmount(self) -> None:
+        """Cancel any in-flight deferred Main body at teardown."""
+        try:
+            from ...util.pump_tasks import cancel_pump_free_tasks
+        except Exception:
+            cancel_pump_free_tasks = None  # type: ignore[assignment]
+        try:
+            if cancel_pump_free_tasks is not None:
+                cancel_pump_free_tasks(self)
+        except Exception:
+            pass
+        try:
+            parent_unmount = super().on_unmount  # type: ignore[misc]
+        except Exception:
+            parent_unmount = None
+        if callable(parent_unmount):
+            try:
+                parent_unmount()
+            except Exception:
+                pass

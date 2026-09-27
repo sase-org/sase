@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, cast
 from weakref import ref
 
 from rich.segment import Segment
+from rich.text import Text
 from textual._context import active_app
 from textual.css.styles import RulesMap
 from textual.strip import Strip
@@ -163,12 +164,65 @@ class SectionTrackingVisual(Visual):
             self._publish(width=width, anchors=cached.anchors)
             return list(cached.strips)
 
+        try:
+            from sase.ace.tui.widgets.decks.panel_view_deferred import get_prebuilt
+        except Exception:
+            get_prebuilt = None  # type: ignore[assignment]
+        if get_prebuilt is not None:
+            try:
+                prebuilt = get_prebuilt(self._content_digest, width)
+            except Exception:
+                prebuilt = None
+            if prebuilt is not None:
+                pre_strips, pre_height, pre_anchors = prebuilt
+                # Full prebuilt body: serve it (cropped when requested)
+                # without a console render on the loop.
+                out = list(pre_strips) if height is None else list(pre_strips[:height])
+                _store_layout(
+                    _section_strip_cache,
+                    strip_key,
+                    _SectionLayoutCacheEntry(
+                        anchors=pre_anchors,
+                        height=len(out),
+                        strips=tuple(out),
+                    ),
+                )
+                height_key = (self._content_digest, width)
+                height_cached = _section_height_cache.get(height_key)
+                if height_cached is None or height_cached.height is None:
+                    _store_layout(
+                        _section_height_cache,
+                        height_key,
+                        _SectionLayoutCacheEntry(
+                            anchors=pre_anchors, height=pre_height
+                        ),
+                    )
+                else:
+                    _section_height_cache.move_to_end(height_key)
+                self._publish(width=width, anchors=pre_anchors)
+                return out
         strips = self._visual.render_strips(width, height, style, options)
-        anchors = (
-            self._anchors_for_rich_visual(width)
-            if isinstance(self._visual, RichVisual)
-            else self._anchors_for_strips(width=width, strips=strips)
-        )
+        if isinstance(self._visual, RichVisual):
+            height_key_for_anchors = (self._content_digest, width)
+            height_cached_for_anchors = _section_height_cache.get(
+                height_key_for_anchors
+            )
+            if (
+                height_cached_for_anchors is not None
+                and height_cached_for_anchors.anchors
+            ):
+                _section_height_cache.move_to_end(height_key_for_anchors)
+                anchors = height_cached_for_anchors.anchors
+            elif height is None or len(strips) < height:
+                # Full paint: collect anchors from the strips just built
+                # instead of a second console render.
+                anchors = self._anchors_for_strips(width=width, strips=strips)
+            else:
+                # Cropped paint with no published full anchors yet: keep
+                # the full-document anchors so navigation rows stay exact.
+                anchors = self._anchors_for_rich_visual(width)
+        else:
+            anchors = self._anchors_for_strips(width=width, strips=strips)
         _store_layout(
             _section_strip_cache,
             strip_key,
@@ -286,7 +340,7 @@ class SectionTrackingVisual(Visual):
         return self._visual.get_minimal_width(rules)
 
     def get_height(self, rules: RulesMap, width: int) -> int:
-        """Delegate height measurement and publish cached Rich anchors."""
+        """Measure height and publish anchors from one console render."""
         height_key = (self._content_digest, width)
         cached = _section_height_cache.get(height_key)
         if cached is not None and cached.height is not None:
@@ -294,6 +348,43 @@ class SectionTrackingVisual(Visual):
             if cached.anchors:
                 self._publish(width=width, anchors=cached.anchors)
             return cached.height
+
+        try:
+            from sase.ace.tui.widgets.decks.panel_view_deferred import (
+                get_prebuilt as _get_prebuilt,
+            )
+        except Exception:
+            _get_prebuilt = None  # type: ignore[assignment]
+        if _get_prebuilt is not None:
+            try:
+                prebuilt = _get_prebuilt(self._content_digest, width)
+            except Exception:
+                prebuilt = None
+            if prebuilt is not None:
+                _, pre_height, pre_anchors = prebuilt
+                _store_layout(
+                    _section_height_cache,
+                    height_key,
+                    _SectionLayoutCacheEntry(anchors=pre_anchors, height=pre_height),
+                )
+                if pre_anchors:
+                    self._publish(width=width, anchors=pre_anchors)
+                return pre_height
+
+        if type(self._visual) is RichVisual:
+            single = self._measure_rich_height_and_anchors(width)
+            if single is not None:
+                single_height, single_anchors = single
+                _store_layout(
+                    _section_height_cache,
+                    height_key,
+                    _SectionLayoutCacheEntry(
+                        anchors=single_anchors, height=single_height
+                    ),
+                )
+                if single_anchors:
+                    self._publish(width=width, anchors=single_anchors)
+                return single_height
 
         height = self._visual.get_height(rules, width)
         anchors: tuple[PromptPanelSectionAnchor, ...] = ()
@@ -306,6 +397,40 @@ class SectionTrackingVisual(Visual):
             _SectionLayoutCacheEntry(anchors=anchors, height=height),
         )
         return height
+
+    def _measure_rich_height_and_anchors(
+        self, width: int
+    ) -> tuple[int, tuple[PromptPanelSectionAnchor, ...]] | None:
+        """Return ``(height, anchors)`` from one ``Console.render`` pass."""
+        try:
+            renderable = cast(Any, self._visual)._renderable  # noqa: SLF001
+        except Exception:
+            return None
+        if isinstance(renderable, Text):
+            return None
+        try:
+            app = active_app.get()
+            options = app.console_options.update_width(width).update(highlight=False)
+            segments = app.console.render(renderable, options)
+        except Exception:
+            return None
+        try:
+            anchors: list[PromptPanelSectionAnchor] = []
+            seen: set[str] = set()
+            row = 0
+            for segment in segments:
+                resolved = _segment_section_identity(segment)
+                if resolved is not None:
+                    identity, role = resolved
+                    if identity not in seen:
+                        seen.add(identity)
+                        anchors.append(PromptPanelSectionAnchor(identity, row, role))
+                row += segment.text.count("\n")
+            cached = tuple(anchors)
+            self._anchors_by_key[(self._generation, width)] = cached
+            return row, cached
+        except Exception:
+            return None
 
     def _publish(
         self,

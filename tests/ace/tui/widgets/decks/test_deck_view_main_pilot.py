@@ -115,6 +115,26 @@ def _following(panel: Any) -> bool | None:
 
 async def _settle(pilot: Any, panel: Any, layout: DeckView) -> None:
     await wait_for(pilot, lambda: panel.effective_layout(DeckId.MAIN) is layout)
+    # Deferred Main bodies apply off the pump: wait until this generation's
+    # body has been applied or dropped before asserting block/offset/pin.
+    await wait_for(
+        pilot,
+        lambda: (
+            int(getattr(panel, "_main_view_applied_generation", 0))
+            >= int(getattr(panel, "_view_generation", 0))
+        ),
+    )
+    try:
+        view = panel.main_view
+        await wait_for(
+            pilot,
+            lambda: (
+                int(getattr(view, "_section_anchor_generation", -1))
+                == int(getattr(view, "_section_generation", 0))
+            ),
+        )
+    except Exception:
+        pass
     await pilot.pause()
     await pilot.pause()
 

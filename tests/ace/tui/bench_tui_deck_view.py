@@ -170,6 +170,28 @@ async def _measure_transitions(
         async def _settle(view: DeckView) -> None:
             panel.set_view_policy(DeckId.MAIN, view)
             await wait_for(pilot, lambda: panel.effective_layout(DeckId.MAIN) is view)
+            # Wait until this generation's deferred body has been applied or
+            # dropped, so one sample's UI-thread apply cannot fall inside
+            # the next sample's paint window. The paint mark stays on the
+            # first refresh after the key (the badge frame).
+            await wait_for(
+                pilot,
+                lambda: (
+                    int(getattr(panel, "_main_view_applied_generation", 0))
+                    >= int(getattr(panel, "_view_generation", 0))
+                ),
+            )
+            try:
+                settled_view = panel.main_view
+                await wait_for(
+                    pilot,
+                    lambda: (
+                        int(getattr(settled_view, "_section_anchor_generation", -1))
+                        == int(getattr(settled_view, "_section_generation", 0))
+                    ),
+                )
+            except Exception:
+                pass
             await pilot.pause()
             await pilot.pause()
 
