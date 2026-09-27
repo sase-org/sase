@@ -5,11 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
-from sase.ace.tui.widgets.agent_list import (
-    _BANNER_ROW,
-    AgentList,
-    _compute_fold_annotation,
-)
+from sase.ace.tui.widgets._agent_list_helpers import compute_fold_annotation
+from sase.ace.tui.widgets._agent_list_styling import _BANNER_ROW
+from sase.ace.tui.widgets.agent_list import AgentList
 
 _BR = (_BANNER_ROW, None)
 
@@ -109,13 +107,13 @@ def test_attempt_option_text_includes_duration_tail() -> None:
 def test_fold_annotation_adds_attempts_count() -> None:
     """Non-workflow agent with attempts shows `` ↻N`` annotation."""
     agent = _make_agent(attempt_history=[_make_record(1), _make_record(2)])
-    annotation = _compute_fold_annotation(agent, {}, set(), set())
+    annotation = compute_fold_annotation(agent, {}, set(), set())
     assert annotation == " ↻2"
 
 
 def test_fold_annotation_empty_when_no_attempts_and_no_workflow() -> None:
     agent = _make_agent()
-    annotation = _compute_fold_annotation(agent, {}, set(), set())
+    annotation = compute_fold_annotation(agent, {}, set(), set())
     assert annotation == ""
 
 
@@ -137,13 +135,13 @@ def test_fold_annotation_keeps_parallel_agent_session_counts_out_of_structure() 
         child.agent_session_parallel = True
         child.status = status
 
-    collapsed = _compute_fold_annotation(
+    collapsed = compute_fold_annotation(
         root,
         {root.raw_suffix: (3, 0)},
         set(),
         set(),
     )
-    expanded = _compute_fold_annotation(
+    expanded = compute_fold_annotation(
         root,
         {root.raw_suffix: (3, 0)},
         {root.raw_suffix},

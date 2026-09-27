@@ -12,7 +12,7 @@ from sase.ace.tui.agent_completion import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_status import RUNNING_COLOR
-from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
+from sase.ace.tui.widgets._agent_list_helpers import compute_fold_annotation
 from sase.ace.tui.widgets._agent_list_rendering import (
     AgentRenderCache,
     cached_format_agent_option,
@@ -112,7 +112,7 @@ def test_format_agent_option_marks_anonymous_single_child_lane_without_annotatio
     agent.appears_as_agent = True
     fold_key = agent_fold_key(agent)
     assert fold_key is not None
-    annotation = _compute_fold_annotation(agent, {fold_key: (1, 0)}, set(), set())
+    annotation = compute_fold_annotation(agent, {fold_key: (1, 0)}, set(), set())
     assert annotation == ""
 
     rendered, _, _ = format_agent_option(

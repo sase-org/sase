@@ -8,7 +8,7 @@ from sase.ace.tui.models._agent_clan import ClanStatusCounts
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
-from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
+from sase.ace.tui.widgets._agent_list_helpers import compute_fold_annotation
 
 
 def _agent(*, suffix: str, status: str = "RUNNING") -> Agent:
@@ -81,7 +81,7 @@ def _clan_container() -> Agent:
 def test_collapsed_agent_session_row_keeps_fold_retry_annotation_without_chip() -> None:
     root = _agent_session_root()
     root.attempt_history.append(_attempt())
-    annotation = _compute_fold_annotation(
+    annotation = compute_fold_annotation(
         root,
         {root.raw_suffix: (7, 2)},
         set(),
@@ -107,7 +107,7 @@ def test_expanded_agent_session_row_keeps_hidden_child_annotation_without_chip()
     None
 ):
     root = _agent_session_root()
-    annotation = _compute_fold_annotation(
+    annotation = compute_fold_annotation(
         root,
         {root.raw_suffix: (7, 2)},
         {root.raw_suffix},
@@ -129,7 +129,7 @@ def test_expanded_agent_session_row_keeps_hidden_child_annotation_without_chip()
 
 def test_expanded_agent_session_row_without_structural_annotation_omits_chip() -> None:
     root = _agent_session_root()
-    annotation = _compute_fold_annotation(
+    annotation = compute_fold_annotation(
         root,
         {root.raw_suffix: (7, 0)},
         {root.raw_suffix},

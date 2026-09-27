@@ -1,4 +1,4 @@
-"""Tests for filter_agents_by_fold_state and _compute_fold_annotation."""
+"""Tests for filter_agents_by_fold_state and compute_fold_annotation."""
 
 from datetime import datetime
 
@@ -15,7 +15,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 from sase.ace.tui.widgets._agent_list_build import compute_visible_parents
-from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
+from sase.ace.tui.widgets._agent_list_helpers import compute_fold_annotation
 
 
 def _make_parent(raw_suffix: str, cl_name: str = "test_cl") -> Agent:
@@ -127,14 +127,14 @@ def test_expanded_shows_non_hidden_children() -> None:
     assert counts["ts1"] == (1, 1)  # 1 non-hidden, 1 hidden
 
 
-# --- Tests for _compute_fold_annotation ---
+# --- Tests for compute_fold_annotation ---
 
 
 def test_annotation_collapsed_hidden_children_only() -> None:
     """Test COLLAPSED annotation shows total step count when only hidden children exist."""
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (0, 5)}
-    result = _compute_fold_annotation(parent, fold_counts, set())
+    result = compute_fold_annotation(parent, fold_counts, set())
     assert result == " ×5"
 
 
@@ -142,7 +142,7 @@ def test_annotation_collapsed_shows_total() -> None:
     """Test COLLAPSED annotation shows total (non_hidden + hidden) step count."""
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (2, 3)}
-    result = _compute_fold_annotation(parent, fold_counts, set())
+    result = compute_fold_annotation(parent, fold_counts, set())
     assert result == " ×5"
 
 
@@ -151,7 +151,7 @@ def test_annotation_expanded_hidden_remaining() -> None:
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (2, 3)}
     visible = {"ts1"}
-    result = _compute_fold_annotation(parent, fold_counts, visible)
+    result = compute_fold_annotation(parent, fold_counts, visible)
     assert result == " ×5 −3"
 
 
@@ -160,7 +160,7 @@ def test_annotation_expanded_no_hidden() -> None:
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (3, 0)}
     visible = {"ts1"}
-    result = _compute_fold_annotation(parent, fold_counts, visible)
+    result = compute_fold_annotation(parent, fold_counts, visible)
     assert result == ""
 
 
@@ -170,14 +170,14 @@ def test_annotation_fully_expanded_shows_hidden_count() -> None:
     fold_counts = {"ts1": (2, 3)}
     visible = {"ts1"}
     fully_expanded = {"ts1"}
-    result = _compute_fold_annotation(parent, fold_counts, visible, fully_expanded)
+    result = compute_fold_annotation(parent, fold_counts, visible, fully_expanded)
     assert result == " ×5 +3"
 
 
 def test_annotation_no_fold_counts() -> None:
     """Test returns empty when fold_counts is None."""
     parent = _make_parent("ts1")
-    result = _compute_fold_annotation(parent, None, set())
+    result = compute_fold_annotation(parent, None, set())
     assert result == ""
 
 
@@ -185,7 +185,7 @@ def test_annotation_zero_total_children() -> None:
     """Test returns empty when total children is zero."""
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (0, 0)}
-    result = _compute_fold_annotation(parent, fold_counts, set())
+    result = compute_fold_annotation(parent, fold_counts, set())
     assert result == ""
 
 
@@ -527,7 +527,7 @@ def test_root_started_monitor_collapsed_agent_session_keeps_count_badge() -> Non
     assert monitor not in visible
     visible_parents, _ = compute_visible_parents(visible)
     assert agent_session_key not in visible_parents
-    assert _compute_fold_annotation(agent_session, counts, visible_parents) == " ×1"
+    assert compute_fold_annotation(agent_session, counts, visible_parents) == " ×1"
 
 
 def test_agent_session_whose_only_loaded_child_is_a_monitor_is_openable() -> None:
@@ -558,5 +558,5 @@ def test_annotation_suppressed_anonymous_single_prompt() -> None:
     """Test annotation suppressed for collapsed anonymous single-prompt workflow."""
     parent = _make_anonymous_parent("ts1")
     fold_counts = {"ts1": (1, 0)}  # total == 1
-    result = _compute_fold_annotation(parent, fold_counts, set())
+    result = compute_fold_annotation(parent, fold_counts, set())
     assert result == ""

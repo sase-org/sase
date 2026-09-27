@@ -11,7 +11,8 @@ from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import build_agent_tree
 from sase.ace.tui.widgets._agent_list_build import patch_row, visible_agent_indices
 from sase.ace.tui.widgets._agent_list_styling import _MIN_BANNER_WIDTH
-from sase.ace.tui.widgets.agent_list import AgentList, _BANNER_ROW
+from sase.ace.tui.widgets._agent_list_styling import _BANNER_ROW
+from sase.ace.tui.widgets.agent_list import AgentList
 
 from ._agent_list_grouping_helpers import make_agent
 

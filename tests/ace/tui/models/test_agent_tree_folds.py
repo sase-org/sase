@@ -10,7 +10,7 @@ from sase.ace.tui.models._agent_tree import (
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.fold_state import FoldStateManager
-from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
+from sase.ace.tui.widgets._agent_list_helpers import compute_fold_annotation
 
 from ._agent_tree_helpers import _agent
 
@@ -69,20 +69,20 @@ def test_clan_and_members_fold_independently_through_recursive_ancestors() -> No
         agent_session_key: (1, 0),
         workflow_key: (1, 1),
     }
-    assert _compute_fold_annotation(container, counts, set()) == " ×2"
-    assert _compute_fold_annotation(agent_session_root, counts, set()) == " ×1"
-    assert _compute_fold_annotation(workflow, counts, set()) == " ×2"
+    assert compute_fold_annotation(container, counts, set()) == " ×2"
+    assert compute_fold_annotation(agent_session_root, counts, set()) == " ×1"
+    assert compute_fold_annotation(workflow, counts, set()) == " ×2"
 
     manager.expand(fold_key)
     expanded, counts = filter_agents_by_fold_state(projected, manager)
     assert expanded == [container, agent_session_root, workflow]
-    assert _compute_fold_annotation(container, counts, {fold_key}) == ""
+    assert compute_fold_annotation(container, counts, {fold_key}) == ""
 
     manager.expand(workflow_key)
     member_expanded, counts = filter_agents_by_fold_state(projected, manager)
     assert member_expanded == [container, agent_session_root, workflow, workflow_step]
     assert agent_session_member not in member_expanded
-    assert _compute_fold_annotation(workflow, counts, {workflow_key}) == " ×2 −1"
+    assert compute_fold_annotation(workflow, counts, {workflow_key}) == " ×2 −1"
 
     manager.expand(workflow_key)
     member_fully_expanded, counts = filter_agents_by_fold_state(projected, manager)
@@ -95,7 +95,7 @@ def test_clan_and_members_fold_independently_through_recursive_ancestors() -> No
     ]
     assert agent_session_member not in member_fully_expanded
     assert (
-        _compute_fold_annotation(
+        compute_fold_annotation(
             workflow,
             counts,
             {workflow_key},

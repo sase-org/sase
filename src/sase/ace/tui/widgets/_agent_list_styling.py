@@ -38,6 +38,11 @@ from ..wait_status_presentation import (
 # Sentinel agent_idx in ``_row_entries`` for banner (group) rows.
 _BANNER_ROW = -1
 
+# Public alias for the banner-row sentinel. New ``_agent_list_*`` widget
+# modules import this name so no ``_``-prefixed name crosses module
+# boundaries; ``_BANNER_ROW`` stays as the historical spelling.
+BANNER_ROW = _BANNER_ROW
+
 # Minimum width for group banner rules.
 _MIN_BANNER_WIDTH = 40
 

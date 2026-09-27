@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets.agent_list import _BANNER_ROW
+from sase.ace.tui.widgets._agent_list_styling import _BANNER_ROW
 
 BR = (_BANNER_ROW, None)
 
