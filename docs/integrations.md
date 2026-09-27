@@ -131,6 +131,70 @@ and `hold_expires_at` (epoch seconds, when the hold has an expiry).
 Source: `src/sase/integrations/agent_list_entries.py`,
 `src/sase/integrations/provider_badges.py`
 
+## Usage Windows
+
+`sase.integrations.usage_windows.usage_windows_report()` returns every usage window for
+the user's configured LLM providers without applying the TUI header's
+`usage_metrics.indicator` always/never/threshold policy. A provider is configured when
+`eligible_usage_providers()` selects it: registered, able to probe usage, with a ready
+CLI, referenced by the model config (or explicitly enabled), and not disabled under
+`llm_provider.usage_metrics.providers`.
+
+```python
+from sase.integrations.usage_windows import (
+    request_usage_windows_refresh,
+    resolve_usage_provider,
+    usage_windows_report,
+)
+
+report = usage_windows_report()
+for provider in report.providers:
+    print(provider.display_name, provider.status_label)
+    for window in provider.windows:
+        print(" ", window.key, window.remaining_text, window.reset_state)
+
+key = resolve_usage_provider("antigravity")
+if key is not None:
+    filtered = usage_windows_report((key,))
+    refresh = request_usage_windows_refresh((key,))
+    print(refresh.summary)
+```
+
+Each `UsageWindowRow` has:
+
+| Field                 | Description                                                    |
+| --------------------- | -------------------------------------------------------------- | ------------ | ------------- | ----------------- | -------------------- |
+| `key`                 | Snapshot window key                                            |
+| `label`               | Vendor label, falling back to key                              |
+| `period`              | `session` \\                                                   | `weekly` \\  | `monthly` \\  | `duration` \\     | `unknown`            |
+| `duration_seconds`    | Period length for `duration` windows, else `None`              |
+| `scope`               | `all_models` \\                                                | `product` \\ | `models` \\   | `model_family` \\ | `unknown`            |
+| `scope_family`        | Family name for `model_family` scopes                          |
+| `scope_models`        | Short aliases via `model_short_alias_map()`                    |
+| `scope_vendor_label`  | Vendor label for `unknown` scopes                              |
+| `used_percent`        | Core-classified used percentage                                |
+| `remaining_percent`   | Clamped 0..100 remaining percentage                            |
+| `remaining_text`      | Core `provider_usage_format_remaining_text`, e.g. `"62% left"` |
+| `exceeded_by_percent` | Over-limit amount, else `None`                                 |
+| `resets_at`           | Reset epoch seconds, else `None`                               |
+| `reset_state`         | `future` \\                                                    | `passed` \\  | `unknown`     |
+| `seconds_until_reset` | Seconds until reset, else `None`                               |
+| `freshness`           | `fresh` \\                                                     | `stale` \\   | `unknown`     |
+| `age_seconds`         | Observation age in seconds                                     |
+| `vendor_state`        | Raw vendor state                                               |
+| `attention`           | Core `display_attention`: `none` \\                            | `low` \\     | `very_low` \\ | `rejected` \\     | `collection_problem` |
+
+The projection uses a select-everything indicator config
+(`{"enabled": True, "default": "always", "weekly_all": "always"}`), so a window hidden
+from the TUI header by an indicator policy (for example Muse's 5-hour session with
+`never`) is still returned here. Status and retry labels reuse the existing
+`sase.llm_provider.usage.presentation` helpers, keeping `/usage` numerically identical
+to `sase usage list` and the TUI. Callers catch `ProviderUsageStateError` and `OSError`
+from `usage_windows_report()` and render the store-unreadable state.
+
+Source: `src/sase/integrations/usage_windows.py`,
+`src/sase/integrations/_usage_windows_models.py`
+
 ## Durable Procs
 
 Plugins and host integrations can submit supervised work through `sase.procs`. Use
