@@ -18,7 +18,7 @@ from sase.monitor.host_completion import settle_host_completion
 from sase.monitor.no_new_receipt import (
     NoNewEvidence,
     evidence_provenance,
-    intent_accept,
+    _intent_accept,
     is_no_new_intent,
     verify_no_new_receipt,
 )
@@ -219,8 +219,8 @@ def _tool_doubles(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
 
 def test_intent_accept_defaults_to_pass() -> None:
-    assert intent_accept({}) == "pass"
-    assert intent_accept({"accept": None}) == "pass"
+    assert _intent_accept({}) == "pass"
+    assert _intent_accept({"accept": None}) == "pass"
     assert is_no_new_intent({}) is False
     assert is_no_new_intent({"accept": "no_new_failures"}) is True
     assert is_no_new_intent({"accept": "pass"}) is False

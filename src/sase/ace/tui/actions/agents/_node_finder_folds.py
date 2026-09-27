@@ -25,12 +25,12 @@ def unmet_with_facets(
 ) -> dict[AgentIdentity, tuple[str, ...]]:
     """Return each row's unmet ancestor fold keys, nearest first.
 
-    Facet-driven equivalent of :func:`unmet_ancestor_folds` for one
-    snapshot: parent keys and hidden-step flags come from the single
-    per-open facet read instead of re-deriving plan-chain predicates once
-    per row. Cycle, bound, and missing-parent guards match the reveal
-    preflight exactly, so rows with invalid ancestry are omitted the same
-    way; any agent missing from the tables falls back to a direct read.
+    Facet-driven unmet walk for one snapshot: parent keys and hidden-step
+    flags come from the single per-open facet read instead of re-deriving
+    plan-chain predicates once per row. Cycle, bound, and missing-parent
+    guards match the reveal preflight exactly, so rows with invalid
+    ancestry are omitted the same way; any agent missing from the tables
+    falls back to a direct read.
 
     Ancestor chains are deterministic (each agent resolves to one parent),
     so one agent's requirement list is its own edge plus its parent's

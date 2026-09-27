@@ -39,7 +39,7 @@ def build_prompt_history_metadata(
     append_metadata_row(
         meta_text,
         "Project",
-        preview_project_value(summary),
+        _preview_project_value(summary),
     )
     if summary.xprompts:
         append_metadata_row(
@@ -72,6 +72,6 @@ def append_metadata_row(
     meta_text.append(f"{value}\n", style=value_style)
 
 
-def preview_project_value(summary: PromptPreviewSummary) -> str:
+def _preview_project_value(summary: PromptPreviewSummary) -> str:
     """Return the preview metadata value for a prompt project."""
     return summary.vcs_tag.strip() if summary.vcs_tag else _PROJECT_PLACEHOLDER

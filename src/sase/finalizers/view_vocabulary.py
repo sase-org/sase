@@ -87,11 +87,6 @@ def instance_style(status: str | None) -> FinalizerStateStyle:
     return STATE_STYLES[INSTANCE_STATUS_STYLES.get(status or "", "planned")]
 
 
-def run_phase_style(phase: str | None) -> FinalizerStateStyle:
-    """Return the shared style for a C5 run *phase*."""
-    return STATE_STYLES[RUN_PHASE_STYLES.get(phase or "", "planned")]
-
-
 __all__ = [
     "FINAL_DECK_ACCENT",
     "FINAL_GLYPH",
@@ -103,5 +98,4 @@ __all__ = [
     "SUCCESS_COLOR",
     "WARNING_COLOR",
     "instance_style",
-    "run_phase_style",
 ]

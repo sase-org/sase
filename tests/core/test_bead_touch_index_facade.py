@@ -254,7 +254,7 @@ def test_touch_matches_agent_identity_rules() -> None:
         touch_index.BeadTouch(actor="someone.else", bead_id="sase-2"),
         touch_index.BeadTouch(actor=_GLOBALIZED, bead_id="sase-3"),
     ]
-    matched = touch_index.touches_for_agent(
+    matched = touch_index._touches_for_agent(
         rows, globalized_name=_GLOBALIZED, identity=_IDENTITY
     )
     assert [touch.bead_id for touch in matched] == ["sase-1", "sase-3"]

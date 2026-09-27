@@ -25,16 +25,16 @@ def known_sdd_sidecar_paths(project_dir: str) -> dict[str, str]:
     """
 
     mapping: dict[str, str] = {}
-    for name, path in sdd_store_identities(project_dir):
+    for name, path in _sdd_store_identities(project_dir):
         mapping.setdefault(finalizer_git.normalize_path(path), name)
-    archive = agents_prompt_archive_identity(project_dir)
+    archive = _agents_prompt_archive_identity(project_dir)
     if archive is not None:
         name, path = archive
         mapping.setdefault(finalizer_git.normalize_path(path), name)
     return mapping
 
 
-def sdd_store_identities(project_dir: str) -> list[tuple[str, str]]:
+def _sdd_store_identities(project_dir: str) -> list[tuple[str, str]]:
     """Return ``(name, path)`` for SDD sidecar checkouts without status calls."""
 
     try:
@@ -76,7 +76,7 @@ def sdd_store_identities(project_dir: str) -> list[tuple[str, str]]:
         return []
 
 
-def agents_prompt_archive_identity(project_dir: str) -> tuple[str, str] | None:
+def _agents_prompt_archive_identity(project_dir: str) -> tuple[str, str] | None:
     """Return ``(name, path)`` for the agents prompt-archive checkout, if any."""
 
     try:

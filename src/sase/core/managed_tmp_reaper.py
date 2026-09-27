@@ -183,7 +183,7 @@ class LaunchScratchRequest:
 
 
 @dataclass(frozen=True)
-class LaunchScratchCandidateObservation:
+class _LaunchScratchCandidateObservation:
     """Per-candidate answer from the Rust liveness observer."""
 
     scratch_key: str
@@ -193,11 +193,11 @@ class LaunchScratchCandidateObservation:
 
 
 @dataclass(frozen=True)
-class LaunchScratchObservation:
+class _LaunchScratchObservation:
     """Batch liveness answer for one launch key's candidates."""
 
     observer: str
-    candidates: tuple[LaunchScratchCandidateObservation, ...]
+    candidates: tuple[_LaunchScratchCandidateObservation, ...]
     exempted_pre_launch: int
     unreadable: int
     diagnostics: tuple[str, ...]
@@ -466,7 +466,7 @@ def observe_launch_scratch_liveness(
     proc_root: Path | None = None,
     current_pid: int | None = None,
     exempt_pids: Iterable[int] = (),
-) -> LaunchScratchObservation:
+) -> _LaunchScratchObservation:
     """Ask the Rust observer which candidates a live process still holds.
 
     *candidates* is one ``(scratch_key, path)`` pair per launch-keyed
@@ -493,10 +493,10 @@ def observe_launch_scratch_liveness(
             f"result: schema_version must be "
             f"{LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION}"
         )
-    return LaunchScratchObservation(
+    return _LaunchScratchObservation(
         observer=str(raw["observer"]),
         candidates=tuple(
-            LaunchScratchCandidateObservation(
+            _LaunchScratchCandidateObservation(
                 scratch_key=str(entry["scratch_key"]),
                 path=Path(str(entry["path"])),
                 live=bool(entry["live"]),
@@ -643,9 +643,7 @@ __all__ = [
     "LAUNCH_SCRATCH_LIVENESS_WIRE_SCHEMA_VERSION",
     "LAUNCH_SCRATCH_OBSERVER_PROCFS",
     "LAUNCH_SCRATCH_OBSERVER_UNOBSERVABLE",
-    "LaunchScratchCandidateObservation",
     "LaunchScratchLiveness",
-    "LaunchScratchObservation",
     "LaunchScratchRequest",
     "current_managed_tmp_horizons",
     "observe_launch_scratch_liveness",

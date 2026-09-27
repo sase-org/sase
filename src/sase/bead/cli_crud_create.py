@@ -37,7 +37,7 @@ _CREATION_REASON_EXAMPLE = (
 )
 
 
-def normalize_creation_reason(value: str | None) -> str:
+def _normalize_creation_reason(value: str | None) -> str:
     """Validate one explicit bead creation reason, mirroring sase-core.
 
     ``None`` is only for older callers whose wire predates the field; the CLI
@@ -143,7 +143,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
             else ""
         )
         raw_reason = getattr(args, "reason", None)
-        creation_reason = normalize_creation_reason(
+        creation_reason = _normalize_creation_reason(
             read_at_path_value(raw_reason, target="--reason")
             if raw_reason is not None
             else None

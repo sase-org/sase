@@ -86,7 +86,7 @@ def refresh_agent_tab_index(owner: Any, roster: list[Agent] | None = None) -> An
     return index
 
 
-def scoped_agents_for_owner(owner: Any, rows: list[Agent]) -> list[Agent]:
+def _scoped_agents_for_owner(owner: Any, rows: list[Agent]) -> list[Agent]:
     """Return *rows* filtered to the owner's active tab (identity off-flag)."""
     if not agent_tabs_enabled():
         return rows
@@ -120,13 +120,13 @@ def remove_agents_from_views(
         filtered = project_clan_tree(filtered)
     owner._agents_query_result = filtered
     refresh_agent_tab_index(owner)
-    owner._agents = scoped_agents_for_owner(owner, filtered)
+    owner._agents = _scoped_agents_for_owner(owner, filtered)
     invalidate = getattr(owner, "_invalidate_agent_panel_cache", None)
     if callable(invalidate):
         invalidate()
 
 
-def rescope_agents_to_active_tab(owner: Any) -> None:
+def _rescope_agents_to_active_tab(owner: Any) -> None:
     """Re-apply the active tab scope to the cached query result (no I/O).
 
     Applies the scope, invalidates the panel cache, re-syncs the panel
@@ -139,7 +139,7 @@ def rescope_agents_to_active_tab(owner: Any) -> None:
 
     query_result = list(getattr(owner, "_agents_query_result", None) or [])
     previous_agents = list(getattr(owner, "_agents", ()))
-    owner._agents = scoped_agents_for_owner(owner, query_result)
+    owner._agents = _scoped_agents_for_owner(owner, query_result)
     invalidate = getattr(owner, "_invalidate_agent_panel_cache", None)
     if callable(invalidate):
         invalidate()
@@ -175,7 +175,7 @@ def _selection_scope_token(owner: Any) -> str | None:
     return current_agent_tab_scope_token(owner)
 
 
-def scoped_selection_key(owner: Any, panel_key: PanelKey) -> Any:
+def _scoped_selection_key(owner: Any, panel_key: PanelKey) -> Any:
     """Return the selection-memory key for *panel_key* under the active scope."""
     token = _selection_scope_token(owner)
     if token is None:
@@ -188,7 +188,7 @@ def scoped_selection_get(owner: Any, panel_key: PanelKey, default: Any = None) -
     memory = getattr(owner, "_panel_selection_memory", None)
     if not isinstance(memory, dict):
         return default
-    return memory.get(scoped_selection_key(owner, panel_key), default)
+    return memory.get(_scoped_selection_key(owner, panel_key), default)
 
 
 def scoped_selection_set(owner: Any, panel_key: PanelKey, stop: Any) -> None:
@@ -197,7 +197,7 @@ def scoped_selection_set(owner: Any, panel_key: PanelKey, stop: Any) -> None:
     if not isinstance(memory, dict):
         memory = {}
         owner._panel_selection_memory = memory
-    memory[scoped_selection_key(owner, panel_key)] = stop
+    memory[_scoped_selection_key(owner, panel_key)] = stop
 
 
 def scoped_selection_pop(owner: Any, panel_key: PanelKey, default: Any = None) -> Any:
@@ -205,7 +205,7 @@ def scoped_selection_pop(owner: Any, panel_key: PanelKey, default: Any = None) -
     memory = getattr(owner, "_panel_selection_memory", None)
     if not isinstance(memory, dict):
         return default
-    return memory.pop(scoped_selection_key(owner, panel_key), default)
+    return memory.pop(_scoped_selection_key(owner, panel_key), default)
 
 
 def scoped_sticky_key(owner: Any, panel_key: PanelKey) -> Any:
@@ -216,7 +216,7 @@ def scoped_sticky_key(owner: Any, panel_key: PanelKey) -> Any:
     return (token, panel_key)
 
 
-def sticky_key_scope(key: Any) -> str | None:
+def _sticky_key_scope(key: Any) -> str | None:
     """Return the scope token embedded in a sticky/selection key, if any."""
     if isinstance(key, tuple) and len(key) == 2 and isinstance(key[0], str):
         return key[0]
@@ -234,10 +234,10 @@ def sticky_key_in_scope(owner: Any, key: Any) -> bool:
     """Return True when *key* belongs to the owner's active scope."""
     token = _selection_scope_token(owner)
     if token is None:
-        return sticky_key_scope(key) is None
-    if sticky_key_scope(key) is None:
+        return _sticky_key_scope(key) is None
+    if _sticky_key_scope(key) is None:
         return token == "default"
-    return sticky_key_scope(key) == token
+    return _sticky_key_scope(key) == token
 
 
 class AgentTabScopeMixin:
@@ -268,7 +268,7 @@ class AgentTabScopeMixin:
 
     def _rescope_agents_to_active_tab(self) -> None:
         """Re-apply the active tab scope without I/O (Phase 3 builds on this)."""
-        rescope_agents_to_active_tab(self)
+        _rescope_agents_to_active_tab(self)
 
 
 __all__ = [
@@ -277,14 +277,10 @@ __all__ = [
     "current_agent_tab_scope_token",
     "refresh_agent_tab_index",
     "remove_agents_from_views",
-    "rescope_agents_to_active_tab",
-    "scoped_agents_for_owner",
     "scoped_selection_get",
-    "scoped_selection_key",
     "scoped_selection_pop",
     "scoped_selection_set",
     "scoped_sticky_key",
     "sticky_key_in_scope",
-    "sticky_key_scope",
     "unstick_panel_key",
 ]

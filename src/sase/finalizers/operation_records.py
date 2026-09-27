@@ -29,7 +29,7 @@ VALID_OPERATION_KINDS = frozenset(
 )
 
 
-def operation_filename(attempt: int | None, op: str) -> str:
+def _operation_filename(attempt: int | None, op: str) -> str:
     """Return the outcome filename for *op* under *attempt*."""
     safe = artifact_label(op)
     if attempt is None:
@@ -151,7 +151,7 @@ class OperationRecorder:
         try:
             artifact_dir = instance_artifact_dir(self.artifacts_dir, self.instance_id)
             if artifact_dir is not None:
-                filename = operation_filename(attempt, op)
+                filename = _operation_filename(attempt, op)
                 exclusive = attempt is not None
                 try:
                     write_json_atomic(
@@ -195,5 +195,4 @@ __all__ = [
     "OPERATION_RECORD_SCHEMA_VERSION",
     "VALID_OPERATION_KINDS",
     "OperationRecorder",
-    "operation_filename",
 ]

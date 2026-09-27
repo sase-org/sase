@@ -182,7 +182,7 @@ def _preview(
     monkeypatch.setattr(launch, "load_dispatch_config", _preview_config)
     monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
     monkeypatch.setattr(
-        launch, "read_cached_target_contract_version", lambda alias: version
+        launch, "_read_cached_target_contract_version", lambda alias: version
     )
     return launch.preview_dispatch_launch(
         query,
@@ -231,7 +231,7 @@ def test_tab_preflight_skipped_without_tab(
     def _unexpected(alias: str) -> int | None:
         raise AssertionError("version lookup must not run without %tab")
 
-    monkeypatch.setattr(launch, "read_cached_target_contract_version", _unexpected)
+    monkeypatch.setattr(launch, "_read_cached_target_contract_version", _unexpected)
     preview = launch.preview_dispatch_launch(
         "%dispatch:apollo do remote work",
         payload={"project": "sase", "patch_ref": "patch-123", "follow": True},

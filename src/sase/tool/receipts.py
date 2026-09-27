@@ -29,7 +29,7 @@ def receipt_policy_for_resolved(resolved: ResolvedToolArgv) -> dict[str, Any] | 
     return dict(policy) if isinstance(policy, dict) else None
 
 
-def is_bypassed() -> bool:
+def _is_bypassed() -> bool:
     """Return whether this invocation bypassed the wrapped tool form."""
 
     return bool((os.environ.get("SASE_TOOL_BYPASS") or "").strip())
@@ -53,7 +53,7 @@ def settle_receipt_for_run(
 
     request: dict[str, Any] = {
         "run_id": run_id,
-        "bypassed": is_bypassed(),
+        "bypassed": _is_bypassed(),
     }
     policy = receipt_policy_for_resolved(resolved)
     if policy is not None:
@@ -96,7 +96,6 @@ def _record_receipt_diagnostic(run_id: str, diagnostic: str) -> None:
 
 
 __all__ = [
-    "is_bypassed",
     "receipt_policy_for_resolved",
     "settle_receipt_for_run",
 ]

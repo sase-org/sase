@@ -23,7 +23,7 @@ PROGRESS_JOURNAL_MAX_BYTES = 256 * 1024
 PROGRESS_JOURNAL_SCHEMA_VERSION = 1
 
 
-def journal_path(artifacts_dir: str | Path) -> Path:
+def _journal_path(artifacts_dir: str | Path) -> Path:
     """Return the journal file path for an artifacts directory."""
     return Path(artifacts_dir) / PROGRESS_JOURNAL_DIRNAME / PROGRESS_JOURNAL_FILENAME
 
@@ -39,7 +39,7 @@ class ProgressJournal:
             self._stopped = True
             return
         try:
-            self._next_seq = self._continued_seq(journal_path(artifacts_dir))
+            self._next_seq = self._continued_seq(_journal_path(artifacts_dir))
         except Exception:  # noqa: BLE001 - journaling is best-effort
             logger.debug("progress journal seq scan failed", exc_info=True)
             self._stopped = True
@@ -89,7 +89,7 @@ class ProgressJournal:
 
     def _append(self, event: str, fields: dict[str, Any]) -> None:
         assert self._artifacts_dir is not None
-        path = journal_path(self._artifacts_dir)
+        path = _journal_path(self._artifacts_dir)
         record: dict[str, Any] = {
             "v": PROGRESS_JOURNAL_SCHEMA_VERSION,
             "seq": self._next_seq,
@@ -141,5 +141,4 @@ __all__ = [
     "PROGRESS_JOURNAL_MAX_BYTES",
     "PROGRESS_JOURNAL_SCHEMA_VERSION",
     "ProgressJournal",
-    "journal_path",
 ]

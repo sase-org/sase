@@ -28,9 +28,9 @@ from sase.finalizers.steps import (
     STEPS_ENV_VAR,
     STEPS_FILE_CEILING_BYTES,
     emit_step,
-    latest_step_summary,
+    _latest_step_summary,
     make_progress_tick,
-    read_steps_tail,
+    _read_steps_tail,
 )
 from sase.output import print_status
 
@@ -133,10 +133,10 @@ def test_latest_step_summary_counts_warns(tmp_path: Path) -> None:
     steps.write_text(
         "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
     )
-    latest, warnings = latest_step_summary(steps)
+    latest, warnings = _latest_step_summary(steps)
     assert latest == "wobble again"
     assert warnings == 2
-    assert latest_step_summary(tmp_path / "missing.jsonl") == (None, 0)
+    assert _latest_step_summary(tmp_path / "missing.jsonl") == (None, 0)
 
 
 def test_read_steps_tail_skips_garbage(tmp_path: Path) -> None:
@@ -145,7 +145,7 @@ def test_read_steps_tail_skips_garbage(tmp_path: Path) -> None:
         "\nnot json\n" + json.dumps({"v": 1, "step": "kept", "state": "ok"}) + "\n",
         encoding="utf-8",
     )
-    assert read_steps_tail(steps) == [{"v": 1, "step": "kept", "state": "ok"}]
+    assert _read_steps_tail(steps) == [{"v": 1, "step": "kept", "state": "ok"}]
 
 
 def test_progress_tick_refreshes_tracker(tmp_path: Path) -> None:
@@ -188,7 +188,7 @@ def test_subprocess_tick_sees_slow_steps(tmp_path: Path) -> None:
     env["STEPS_OUT"] = str(steps)
 
     def _tick() -> None:
-        seen.append(latest_step_summary(steps))
+        seen.append(_latest_step_summary(steps))
 
     completed = run_bounded_subprocess(
         [sys.executable, "-c", child],
@@ -419,6 +419,6 @@ def test_stitch_emits_steps_only_when_channel_set(
 def test_slow_step_file_tail_bounded(tmp_path: Path) -> None:
     steps = tmp_path / "steps.jsonl"
     steps.write_bytes(b"x" * 100 + b"\n" + b'{"v": 1, "step": "last", "state": "ok"}\n')
-    assert read_steps_tail(steps, max_bytes=60) == [
+    assert _read_steps_tail(steps, max_bytes=60) == [
         {"v": 1, "step": "last", "state": "ok"}
     ]

@@ -19,11 +19,11 @@ from sase.ace.tui.widgets.decks.card_block import card_block_id
 from sase.ace.tui.widgets.decks.final.document import build_final_deck_document
 from sase.ace.tui.widgets.decks.final.run_blocks import (
     final_block_runs,
-    format_run_duration,
+    _format_run_duration,
     is_final_block_run,
     run_block_header,
     run_block_meta,
-    run_status_bucket,
+    _run_status_bucket,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_agent_session import (
     AgentSessionTurnFacts,
@@ -40,9 +40,9 @@ from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     DECK_BLOCK_META_KEY,
 )
 from sase.core.finalizer_run_view import (
-    RunViewAttempt,
-    RunViewDeclaration,
-    RunViewNodeInstance,
+    _RunViewAttempt,
+    _RunViewDeclaration,
+    _RunViewNodeInstance,
     RunViewRun,
     RunViewRunInstance,
 )
@@ -66,8 +66,8 @@ def _turn(
     )
 
 
-def _attempt(n: int, status: str, seconds: float = 10.0) -> RunViewAttempt:
-    return RunViewAttempt(attempt=n, status=status, duration_seconds=seconds)
+def _attempt(n: int, status: str, seconds: float = 10.0) -> _RunViewAttempt:
+    return _RunViewAttempt(attempt=n, status=status, duration_seconds=seconds)
 
 
 def _run_item(
@@ -106,7 +106,7 @@ def _session_view() -> SimpleNamespace:
         disposition="ran",
         result_status="failed",
         declarations=[
-            RunViewDeclaration(
+            _RunViewDeclaration(
                 status="accepted",
                 t=1727440000.0,
                 code="ok",
@@ -126,7 +126,7 @@ def _session_view() -> SimpleNamespace:
         kind="monitor",
         disposition="active",
         declarations=[
-            RunViewDeclaration(
+            _RunViewDeclaration(
                 status="accepted",
                 t=1727440100.0,
                 code="ok",
@@ -144,20 +144,20 @@ def _session_view() -> SimpleNamespace:
         glyph="✗",
         run_level_trouble=True,
         instances=[
-            RunViewNodeInstance(
+            _RunViewNodeInstance(
                 instance_id="commit",
                 selection_reason="default",
                 status="success",
                 provider_ref="builtin@commit",
             ),
-            RunViewNodeInstance(
+            _RunViewNodeInstance(
                 instance_id="check",
                 selection_reason="%final:check",
                 status="failed",
                 provider_ref="builtin@command",
                 after=["commit"],
             ),
-            RunViewNodeInstance(
+            _RunViewNodeInstance(
                 instance_id="tasks",
                 selection_reason="default",
                 status="not_run",
@@ -342,12 +342,12 @@ def test_block_meta_buckets_and_monitor_facts() -> None:
     assert active_meta.kind == "monitor"
     assert active_meta.glyph == MONITOR_GLYPH
     assert active_meta.status_bucket == "Running"
-    assert run_status_bucket(SimpleNamespace(disposition="ran")) == "Done"
+    assert _run_status_bucket(SimpleNamespace(disposition="ran")) == "Done"
     assert (
-        run_status_bucket(SimpleNamespace(disposition="ran", result_status="refused"))
+        _run_status_bucket(SimpleNamespace(disposition="ran", result_status="refused"))
         == "Failed"
     )
-    assert run_status_bucket(SimpleNamespace(disposition="interrupted")) == "Stopped"
+    assert _run_status_bucket(SimpleNamespace(disposition="interrupted")) == "Stopped"
 
 
 def test_block_header_carries_anchor_and_duration() -> None:
@@ -356,7 +356,7 @@ def test_block_header_carries_anchor_and_duration() -> None:
     header = run_block_header(run)
     assert "--code" in header.plain
     total = 124.0 + 220.0
-    assert format_run_duration(total) in header.plain
+    assert _format_run_duration(total) in header.plain
     assert header.spans, "expected the block anchor meta span"
     found = False
     for span in header.spans:

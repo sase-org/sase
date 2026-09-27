@@ -399,7 +399,7 @@ def _print_error(console: Console | None, message: str) -> None:
     output.print(f"[red]{message}[/red]")
 
 
-class FinalStatusError(Exception):
+class _FinalStatusError(Exception):
     """A ``sase final status`` failure with its process exit code."""
 
     def __init__(self, message: str, *, exit_code: int) -> None:
@@ -438,7 +438,7 @@ def handle_final_status(
 
     try:
         targets, label = _resolve_status_targets(agent, artifacts_dir)
-    except FinalStatusError as exc:
+    except _FinalStatusError as exc:
         _print_error(console, f"sase final status: {exc}")
         return exc.exit_code
     if not any(
@@ -489,7 +489,7 @@ def _resolve_status_targets(
             os.environ.get("SASE_AGENT_NAME") or Path(current).name or "current agent"
         )
         return [_target_for_dir(current, label)], label
-    raise FinalStatusError(
+    raise _FinalStatusError(
         "no agent given and SASE_ARTIFACTS_DIR is unset (not inside a SASE turn)",
         exit_code=2,
     )
@@ -520,7 +520,7 @@ def _resolve_named_status_targets(name: str) -> tuple[list[RunTarget], str]:
             [_target_for_dir(named.artifacts_dir, named.name)],
             named.name,
         )
-    raise FinalStatusError(f"unknown agent {name!r}", exit_code=1)
+    raise _FinalStatusError(f"unknown agent {name!r}", exit_code=1)
 
 
 def _target_for_dir(directory: str, label: str, *, number: int = 0) -> RunTarget:
@@ -840,7 +840,6 @@ def _format_duration(seconds: float) -> str:
 
 __all__ = [
     "FINALIZER_CLI_JSON_SCHEMA_VERSION",
-    "FinalStatusError",
     "build_finalizer_inventory",
     "handle_final_doctor",
     "handle_final_list",

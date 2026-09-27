@@ -18,7 +18,7 @@ DEFAULT_LAUNCH_FROM_VIEW = True
 
 
 @dataclass(frozen=True, slots=True)
-class AgentTabStyle:
+class _AgentTabStyle:
     """Presentation settings for one named agent tab.
 
     Consumed by later agent-tabs phases (styling keys and ``order``); the
@@ -37,7 +37,7 @@ class AgentTabsSettings:
 
     machine_tabs: MachineTabsMode = DEFAULT_MACHINE_TABS
     launch_from_view: bool = DEFAULT_LAUNCH_FROM_VIEW
-    tabs: Mapping[str, AgentTabStyle] = field(default_factory=dict)
+    tabs: Mapping[str, _AgentTabStyle] = field(default_factory=dict)
 
 
 DEFAULT_AGENT_TABS_SETTINGS = AgentTabsSettings()
@@ -63,10 +63,10 @@ def _coerce_text(value: object) -> str:
     return value.strip()
 
 
-def _parse_tab_style(raw: object) -> AgentTabStyle | None:
+def _parse_tab_style(raw: object) -> _AgentTabStyle | None:
     if not isinstance(raw, dict):
         return None
-    return AgentTabStyle(
+    return _AgentTabStyle(
         color=_coerce_text(raw.get("color")),
         icon=_coerce_text(raw.get("icon")),
         order=_coerce_order(raw.get("order")),
@@ -92,7 +92,7 @@ def parse_agent_tabs_settings(ace_cfg: object) -> AgentTabsSettings:
     launch_from_view = raw.get("launch_from_view", DEFAULT_LAUNCH_FROM_VIEW)
     if not isinstance(launch_from_view, bool):
         launch_from_view = DEFAULT_LAUNCH_FROM_VIEW
-    tabs: dict[str, AgentTabStyle] = {}
+    tabs: dict[str, _AgentTabStyle] = {}
     raw_tabs = raw.get("tabs", {})
     if isinstance(raw_tabs, dict):
         from sase.core.agent_tab import canonicalize_agent_tab
@@ -115,18 +115,6 @@ def parse_agent_tabs_settings(ace_cfg: object) -> AgentTabsSettings:
         launch_from_view=launch_from_view,
         tabs=tabs,
     )
-
-
-def agent_tabs_settings_for(widget: object) -> AgentTabsSettings:
-    """Return the app's agent-tabs settings, failing open to the default."""
-    try:
-        app = getattr(widget, "app", None)
-        settings = getattr(app, "_agent_tabs_settings", None)
-        if isinstance(settings, AgentTabsSettings):
-            return settings
-    except Exception:
-        pass
-    return DEFAULT_AGENT_TABS_SETTINGS
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,10 +194,8 @@ __all__ = [
     "DEFAULT_AGENT_TABS_SETTINGS",
     "DEFAULT_LAUNCH_FROM_VIEW",
     "DEFAULT_MACHINE_TABS",
-    "AgentTabStyle",
     "AgentTabsSettings",
     "AgentTabsViewConfig",
-    "agent_tabs_settings_for",
     "agent_tabs_view_config",
     "parse_agent_tabs_settings",
 ]

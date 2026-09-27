@@ -32,7 +32,7 @@ class NoNewEvidence:
     tool_name: str
 
 
-def intent_accept(intent: Mapping[str, Any]) -> str:
+def _intent_accept(intent: Mapping[str, Any]) -> str:
     """Return the sealed acceptance policy, defaulting older intents to pass."""
 
     accept = intent.get("accept", PASS_ACCEPT)
@@ -42,7 +42,7 @@ def intent_accept(intent: Mapping[str, Any]) -> str:
 def is_no_new_intent(intent: Mapping[str, Any]) -> bool:
     """Return whether *intent* carries the explicit no-new opt-in."""
 
-    return intent_accept(intent) == NO_NEW_ACCEPT
+    return _intent_accept(intent) == NO_NEW_ACCEPT
 
 
 def evidence_provenance(evidence: NoNewEvidence) -> dict[str, Any]:
@@ -293,7 +293,6 @@ __all__ = [
     "PASS_ACCEPT",
     "NoNewEvidence",
     "evidence_provenance",
-    "intent_accept",
     "is_no_new_intent",
     "verify_no_new_receipt",
 ]

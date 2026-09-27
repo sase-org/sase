@@ -9,7 +9,7 @@ from sase.ace.tui.util.editor_offsets import editor_range_to_offsets
 
 
 @dataclass(frozen=True, slots=True)
-class ModelShortcutExtraEdit:
+class _ModelShortcutExtraEdit:
     """One non-primary edit in a shortcut acceptance.
 
     Carries the destination replacement (the earliest eligible standalone
@@ -37,7 +37,7 @@ class ModelShortcutPlannedEdit:
     replacement_end: int
     replacement: str
     caret_offset: int
-    additional_edits: tuple[ModelShortcutExtraEdit, ...] = ()
+    additional_edits: tuple[_ModelShortcutExtraEdit, ...] = ()
 
 
 def parse_model_shortcut_edit_payload(
@@ -69,7 +69,7 @@ def parse_model_shortcut_edit_payload(
     raw_additional = payload.get("additional_edits", [])
     if not isinstance(raw_additional, list):
         return None
-    additional: list[ModelShortcutExtraEdit] = []
+    additional: list[_ModelShortcutExtraEdit] = []
     for raw in raw_additional:
         if not isinstance(raw, dict):
             return None
@@ -84,7 +84,7 @@ def parse_model_shortcut_edit_payload(
         if span is None:
             return None
         additional.append(
-            ModelShortcutExtraEdit(
+            _ModelShortcutExtraEdit(
                 replacement_start=span[0],
                 replacement_end=span[1],
                 replacement=new_text,
@@ -122,7 +122,7 @@ def apply_model_shortcut_edit(
     start: int,
     end: int,
     replacement: str,
-    additional_edits: tuple[ModelShortcutExtraEdit, ...],
+    additional_edits: tuple[_ModelShortcutExtraEdit, ...],
 ) -> str | None:
     """Apply the full edit set to *text*; None when spans are invalid.
 
@@ -150,7 +150,6 @@ def apply_model_shortcut_edit(
 
 
 __all__ = [
-    "ModelShortcutExtraEdit",
     "ModelShortcutPlannedEdit",
     "apply_model_shortcut_edit",
     "parse_model_shortcut_edit_payload",

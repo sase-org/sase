@@ -47,9 +47,9 @@ from sase.ace.tui.widgets.decks.final.loader import (
 )
 from sase.core.finalizer_run_view import (
     FinalizerNodeView,
-    RunViewAttempt,
-    RunViewNodeInstance,
-    RunViewOperation,
+    _RunViewAttempt,
+    _RunViewNodeInstance,
+    _RunViewOperation,
     RunViewRun,
     RunViewRunInstance,
 )
@@ -67,7 +67,7 @@ def _text(renderables: tuple[object, ...]) -> str:
     return "\n".join(parts)
 
 
-def _active_op(**kwargs: object) -> RunViewOperation:
+def _active_op(**kwargs: object) -> _RunViewOperation:
     base: dict[str, object] = {
         "op": "just check",
         "kind": "subprocess",
@@ -78,14 +78,14 @@ def _active_op(**kwargs: object) -> RunViewOperation:
         "live_tail": ["line one", "line two"],
     }
     base.update(kwargs)
-    return RunViewOperation(**base)  # type: ignore[arg-type]
+    return _RunViewOperation(**base)  # type: ignore[arg-type]
 
 
-def _run_instance(op: RunViewOperation, **kwargs: object) -> RunViewRunInstance:
+def _run_instance(op: _RunViewOperation, **kwargs: object) -> RunViewRunInstance:
     base: dict[str, object] = {
         "instance_id": "check",
         "status": "running",
-        "attempts": [RunViewAttempt(attempt=1, status="running")],
+        "attempts": [_RunViewAttempt(attempt=1, status="running")],
         "operations": [op],
         "attempt": 1,
         "max_attempts": 1,
@@ -114,7 +114,7 @@ def _node(instance_id: str, runs: list[RunViewRun]) -> FinalizerNodeView:
         status="running",
         glyph="▶",
         instances=[
-            RunViewNodeInstance(
+            _RunViewNodeInstance(
                 instance_id=instance_id,
                 selection_reason="default",
                 status="running",
@@ -207,8 +207,8 @@ def test_follow_target_names_latest_attempt() -> None:
     item = _run_instance(
         op_new,
         attempts=[
-            RunViewAttempt(attempt=1, status="failed"),
-            RunViewAttempt(attempt=2, status="running"),
+            _RunViewAttempt(attempt=1, status="failed"),
+            _RunViewAttempt(attempt=2, status="running"),
         ],
     )
     target = select_live_follow_target([_run("run-a", item)])

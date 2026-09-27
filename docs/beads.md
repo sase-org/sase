@@ -2395,7 +2395,11 @@ Once an epic bead exists, the shared launch path:
    `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic
    segment carries bare `%auto`, so submitted implementation and landing plans are
    auto-approved. An agent may author a tale or an epic as needed; the plan's authored
-   `tier` selects the corresponding automatic follow-up path.
+   `tier` selects the corresponding automatic follow-up path. The land agent prefers a
+   tale for remaining work that one agent can finish. Because nothing resumes the
+   landing after a tale's coder finishes, the land agent triages follow-ups first and
+   writes the epic's closeout into the tale as its final step, while a child epic
+   instead hands the resumed landing to its own land agent through `parent_bead`.
 7. Before spawning any runner, batch-preassigns every scheduled phase bead to its
    rendered worker and the epic bead to `<epic_id>.land`, setting all of them to
    `in_progress`. It commits readiness, assignments, and the complete graph as one

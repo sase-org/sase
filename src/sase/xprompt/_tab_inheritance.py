@@ -26,7 +26,6 @@ __all__ = [
     "apply_inherited_agent_tab",
     "inherited_agent_tab",
     "segment_has_active_tab_directive",
-    "segment_is_session_attach",
     "set_agent_tab_directive",
 ]
 
@@ -59,7 +58,7 @@ def segment_has_active_tab_directive(segment: str) -> bool:
     return _scan_segment(segment, "tab") is not None
 
 
-def segment_is_session_attach(segment: str) -> bool:
+def _segment_is_session_attach(segment: str) -> bool:
     """Return whether *segment* is a session attach (``%id(..., session=...)``)."""
     if "session" not in segment:
         return False
@@ -116,7 +115,7 @@ def apply_inherited_agent_tab(prompt: str, tab: str | None) -> str:
 def _apply_to_segment(segment: str, tab: str) -> str:
     if segment_has_active_tab_directive(segment):
         return segment
-    if segment_is_session_attach(segment):
+    if _segment_is_session_attach(segment):
         return segment
     body = segment.lstrip("\n")
     prefix = segment[: len(segment) - len(body)]

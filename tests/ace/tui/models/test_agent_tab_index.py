@@ -13,7 +13,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_tab_index import (
     build_agent_tab_index,
     cached_agent_tab_index,
-    clear_agent_tab_index_cache,
 )
 from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
 from sase.core.agent_tab import (
@@ -25,9 +24,9 @@ from sase.core.agent_tab import (
 
 @pytest.fixture(autouse=True)
 def _clear_index_cache() -> Iterator[None]:
-    clear_agent_tab_index_cache()
+    index_mod._index_cache.clear()
     yield
-    clear_agent_tab_index_cache()
+    index_mod._index_cache.clear()
 
 
 def _view(

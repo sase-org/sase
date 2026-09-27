@@ -51,7 +51,7 @@ def run_instance_ran(item: Any) -> bool:
     return status not in FINAL_NON_RUN_INSTANCE_STATUSES
 
 
-def run_status_bucket(run: Any) -> str:
+def _run_status_bucket(run: Any) -> str:
     """Return the roster status bucket for one run's rail entry."""
     disposition = str(getattr(run, "disposition", "") or "").strip().lower()
     if disposition == "active":
@@ -82,12 +82,12 @@ def run_block_meta(run: Any) -> BlockMeta:
         label=str(getattr(run, "label", "") or getattr(run, "run_id", "") or "run"),
         glyph=MONITOR_GLYPH if is_monitor else "",
         accent=MONITOR_GLYPH_COLOR if is_monitor else PHASE_DIVIDER_ACCENT,
-        status_bucket=run_status_bucket(run),
+        status_bucket=_run_status_bucket(run),
         kind="monitor" if is_monitor else "agent",
     )
 
 
-def run_start_time(run: Any) -> datetime | None:
+def _run_start_time(run: Any) -> datetime | None:
     """Return the run's start as a naive local datetime, if declarable."""
     for entry in getattr(run, "declarations", ()) or ():
         moment = getattr(entry, "t", None)
@@ -101,7 +101,7 @@ def run_start_time(run: Any) -> datetime | None:
     return None
 
 
-def run_duration_seconds(run: Any) -> float:
+def _run_duration_seconds(run: Any) -> float:
     """Return the total attempt seconds across one run's instances."""
     total = 0.0
     for item in getattr(run, "instances", ()) or ():
@@ -116,7 +116,7 @@ def run_duration_seconds(run: Any) -> float:
     return total
 
 
-def format_run_duration(seconds: float) -> str | None:
+def _format_run_duration(seconds: float) -> str | None:
     """Format one run's duration the way the Overview mockup does."""
     if seconds <= 0:
         return None
@@ -141,11 +141,11 @@ def run_block_header(run: Any) -> Text:
     run_id = str(getattr(run, "run_id", "") or "")
     divider = render_phase_divider(
         meta.label,
-        run_start_time(run),
+        _run_start_time(run),
         glyph=meta.glyph or None,
         block_id=run_id or None,
     )
-    duration = format_run_duration(run_duration_seconds(run))
+    duration = _format_run_duration(_run_duration_seconds(run))
     if duration is None:
         return divider
     plain = divider.plain
@@ -168,12 +168,8 @@ __all__ = [
     "FINAL_FAILED_RESULT_STATUSES",
     "FINAL_NON_RUN_INSTANCE_STATUSES",
     "final_block_runs",
-    "format_run_duration",
     "is_final_block_run",
     "run_block_header",
     "run_block_meta",
-    "run_duration_seconds",
     "run_instance_ran",
-    "run_start_time",
-    "run_status_bucket",
 ]

@@ -86,7 +86,7 @@ def emit_step(
         logger.debug("finalizer step write failed", exc_info=True)
 
 
-def read_steps_tail(
+def _read_steps_tail(
     steps_path: str | Path,
     *,
     max_bytes: int = STEPS_FILE_CEILING_BYTES,
@@ -119,7 +119,7 @@ def read_steps_tail(
         return []
 
 
-def latest_step_summary(steps_path: str | Path) -> tuple[str | None, int]:
+def _latest_step_summary(steps_path: str | Path) -> tuple[str | None, int]:
     """Return ``(latest step text, warn count)`` from a steps file.
 
     The warn count covers every ``warn``-state record in the tail, matching
@@ -128,7 +128,7 @@ def latest_step_summary(steps_path: str | Path) -> tuple[str | None, int]:
     """
     latest: str | None = None
     warnings = 0
-    for record in read_steps_tail(steps_path):
+    for record in _read_steps_tail(steps_path):
         step = record.get("step")
         if isinstance(step, str) and step.strip():
             latest = step.strip()
@@ -151,7 +151,7 @@ def make_progress_tick(
 
     def _tick() -> None:
         try:
-            latest, warnings = latest_step_summary(steps_path)
+            latest, warnings = _latest_step_summary(steps_path)
             if latest is None:
                 return
             tracker.note_step(instance_id, latest, warnings=warnings)
@@ -169,9 +169,7 @@ __all__ = [
     "STEP_TEXT_CAP",
     "VALID_STEP_STATES",
     "emit_step",
-    "latest_step_summary",
     "live_file_for",
     "make_progress_tick",
-    "read_steps_tail",
     "steps_file_for",
 ]

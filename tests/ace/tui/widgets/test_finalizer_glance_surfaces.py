@@ -26,7 +26,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_finalizer_receipt import (
 )
 from sase.agent.status_buckets import status_bucket_for_values
 from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
-from sase.finalizers.view_vocabulary import instance_style, run_phase_style
+from sase.finalizers.view_vocabulary import instance_style
 
 
 def _agent(*, status: str = "RUNNING", summary: dict | None = None) -> Agent:
@@ -72,9 +72,6 @@ def test_vocabulary_maps_c5_statuses() -> None:
     assert instance_style("deferred").glyph == "⏸"
     assert instance_style("waiting").word == "planned"
     assert instance_style("bogus").word == "planned"
-    assert run_phase_style("declaring").word == "declaration"
-    assert run_phase_style("executing").word == "running"
-    assert run_phase_style(None).word == "planned"
 
 
 def test_row_state_finalizing_and_chip() -> None:

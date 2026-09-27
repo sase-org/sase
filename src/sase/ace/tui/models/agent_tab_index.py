@@ -241,11 +241,6 @@ def cached_agent_tab_index(
     return index
 
 
-def clear_agent_tab_index_cache() -> None:
-    """Drop every memoized tab index (tests only)."""
-    _index_cache.clear()
-
-
 __all__ = [
     "ALL_AGENT_TABS",
     "ALL_AGENT_TABS_SCOPE_TOKEN",
@@ -255,6 +250,5 @@ __all__ = [
     "agent_tab_scope_token",
     "build_agent_tab_index",
     "cached_agent_tab_index",
-    "clear_agent_tab_index_cache",
     "scope_agents_to_tab",
 ]

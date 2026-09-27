@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from rich.console import Console
 
-from sase.core.finalizer_run_view import FinalizerNodeView, RunViewUnselected
+from sase.core.finalizer_run_view import FinalizerNodeView, _RunViewUnselected
 from sase.finalizers.cli import _render_status_pretty, handle_final_status
 from sase.finalizers.config import (
     ConfiguredFinalizerInstance,
@@ -214,7 +214,9 @@ def test_status_pretty_renders_unselected_section() -> None:
         status="idle",
         glyph="○",
         unselected=[
-            RunViewUnselected(instance_id="sidecar", reason="not selected for this run")
+            _RunViewUnselected(
+                instance_id="sidecar", reason="not selected for this run"
+            )
         ],
     )
     console, buffer = _pretty_console()

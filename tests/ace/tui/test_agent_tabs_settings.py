@@ -15,8 +15,7 @@ from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
 from sase.ace.tui.agent_tabs_settings import (
     DEFAULT_AGENT_TABS_SETTINGS,
     AgentTabsSettings,
-    AgentTabStyle,
-    agent_tabs_settings_for,
+    _AgentTabStyle,
     agent_tabs_view_config,
     parse_agent_tabs_settings,
 )
@@ -124,10 +123,10 @@ def test_tab_names_canonicalize_and_invalid_names_drop() -> None:
         }
     )
     assert set(parsed.tabs) == {"sase", "blog"}
-    assert parsed.tabs["sase"] == AgentTabStyle(
+    assert parsed.tabs["sase"] == _AgentTabStyle(
         color="#AF87FF", icon="", order=2, description=""
     )
-    assert parsed.tabs["blog"] == AgentTabStyle(
+    assert parsed.tabs["blog"] == _AgentTabStyle(
         color="", icon="◈", order=None, description=""
     )
 
@@ -159,26 +158,6 @@ def test_non_mapping_tabs_block_keeps_other_fields() -> None:
     assert parsed == AgentTabsSettings(
         machine_tabs="off", launch_from_view=True, tabs={}
     )
-
-
-def test_settings_helper_fails_open() -> None:
-    assert agent_tabs_settings_for(object()) == DEFAULT_AGENT_TABS_SETTINGS
-
-    class _App:
-        _agent_tabs_settings = AgentTabsSettings(machine_tabs="off")
-
-    class _Widget:
-        app = _App()
-
-    assert agent_tabs_settings_for(_Widget()).machine_tabs == "off"
-
-    class _BadApp:
-        _agent_tabs_settings = "not settings"
-
-    class _BadWidget:
-        app = _BadApp()
-
-    assert agent_tabs_settings_for(_BadWidget()) == DEFAULT_AGENT_TABS_SETTINGS
 
 
 def test_flag_helper_follows_both_flag_states() -> None:

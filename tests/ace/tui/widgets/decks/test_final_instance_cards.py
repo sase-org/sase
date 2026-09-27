@@ -16,16 +16,16 @@ from sase.ace.tui.widgets.decks.final.instance_card import (
     build_instance_card_renderables,
 )
 from sase.core.finalizer_run_view import (
-    RunViewAttempt,
-    RunViewDeferral,
-    RunViewEvidence,
-    RunViewInstanceDiagnostic,
-    RunViewLog,
-    RunViewNodeInstance,
-    RunViewOperation,
+    _RunViewAttempt,
+    _RunViewDeferral,
+    _RunViewEvidence,
+    _RunViewInstanceDiagnostic,
+    _RunViewLog,
+    _RunViewNodeInstance,
+    _RunViewOperation,
     RunViewRun,
     RunViewRunInstance,
-    RunViewStep,
+    _RunViewStep,
 )
 
 
@@ -50,26 +50,26 @@ def _plugin_run_instance() -> RunViewRunInstance:
         obligation_count=2,
         payload_summary={"title": "Add retry", "draft": "true"},
         evidence=[
-            RunViewEvidence(
+            _RunViewEvidence(
                 kind="pr_url",
                 value="https://example.com/pr/42",
                 evidence_type="url",
             ),
-            RunViewEvidence(kind="duration", value="95.5", evidence_type="duration"),
-            RunViewEvidence(kind="exit_code", value="1", evidence_type="exit_code"),
+            _RunViewEvidence(kind="duration", value="95.5", evidence_type="duration"),
+            _RunViewEvidence(kind="exit_code", value="1", evidence_type="exit_code"),
         ],
-        headline=RunViewEvidence(
+        headline=_RunViewEvidence(
             kind="pr_url",
             value="https://example.com/pr/42",
             evidence_type="url",
         ),
         attempts=[
-            RunViewAttempt(
+            _RunViewAttempt(
                 attempt=1, status="failed", duration_seconds=95.5, code="execute_failed"
             ),
         ],
         operations=[
-            RunViewOperation(
+            _RunViewOperation(
                 op="execute",
                 kind="subprocess",
                 label="execute",
@@ -77,22 +77,22 @@ def _plugin_run_instance() -> RunViewRunInstance:
                 duration_seconds=95.5,
                 returncode=1,
                 logs=[
-                    RunViewLog(
+                    _RunViewLog(
                         kind="stdout", name="attempt-1.execute.stdout", line_count=40
                     ),
-                    RunViewLog(
+                    _RunViewLog(
                         kind="stderr", name="attempt-1.execute.stderr", line_count=3
                     ),
                 ],
                 steps=[
-                    RunViewStep(step="open pull request", state="start"),
-                    RunViewStep(step="push branch", state="ok"),
-                    RunViewStep(step="slow network", state="warn"),
+                    _RunViewStep(step="open pull request", state="start"),
+                    _RunViewStep(step="push branch", state="ok"),
+                    _RunViewStep(step="slow network", state="warn"),
                 ],
             ),
         ],
         diagnostics=[
-            RunViewInstanceDiagnostic(
+            _RunViewInstanceDiagnostic(
                 code="execute_failed",
                 message="push rejected",
                 severity="error",
@@ -108,7 +108,7 @@ def _plugin_run_instance() -> RunViewRunInstance:
 
 
 def _plugin_node_view() -> SimpleNamespace:
-    node = RunViewNodeInstance(
+    node = _RunViewNodeInstance(
         instance_id="open-pr",
         selection_reason="%final:open-pr",
         status="failed",
@@ -166,7 +166,7 @@ def test_plugin_card_lands_in_deck_document() -> None:
 
 
 def test_commit_enricher_renders_sha_table() -> None:
-    node = RunViewNodeInstance(
+    node = _RunViewNodeInstance(
         instance_id="commit",
         selection_reason="default",
         status="success",
@@ -177,17 +177,17 @@ def test_commit_enricher_renders_sha_table() -> None:
         status="success",
         provider_ref="builtin@commit",
         evidence=[
-            RunViewEvidence(
+            _RunViewEvidence(
                 kind="commit_sha", value="8bb7e551234abcd", evidence_type="sha"
             ),
-            RunViewEvidence(kind="bead_id", value="sase-1b2.16", evidence_type="bead"),
+            _RunViewEvidence(kind="bead_id", value="sase-1b2.16", evidence_type="bead"),
         ],
-        headline=RunViewEvidence(
+        headline=_RunViewEvidence(
             kind="commit_sha", value="8bb7e551234abcd", evidence_type="sha"
         ),
-        attempts=[RunViewAttempt(attempt=1, status="success", duration_seconds=124.0)],
+        attempts=[_RunViewAttempt(attempt=1, status="success", duration_seconds=124.0)],
         operations=[
-            RunViewOperation(
+            _RunViewOperation(
                 op="stitch-main",
                 kind="internal",
                 label="stitch main",
@@ -214,7 +214,7 @@ def test_commit_enricher_renders_sha_table() -> None:
 
 
 def test_command_enricher_renders_argv_and_failure() -> None:
-    node = RunViewNodeInstance(
+    node = _RunViewNodeInstance(
         instance_id="check",
         selection_reason="%final:check",
         status="failed",
@@ -227,10 +227,10 @@ def test_command_enricher_renders_argv_and_failure() -> None:
         provider_ref="builtin@command",
         after=["commit"],
         attempts=[
-            RunViewAttempt(
+            _RunViewAttempt(
                 attempt=1, status="failed", duration_seconds=12.0, code="command_failed"
             ),
-            RunViewAttempt(
+            _RunViewAttempt(
                 attempt=2,
                 status="failed",
                 duration_seconds=220.0,
@@ -238,7 +238,7 @@ def test_command_enricher_renders_argv_and_failure() -> None:
             ),
         ],
         operations=[
-            RunViewOperation(
+            _RunViewOperation(
                 op="command",
                 kind="subprocess",
                 label="just check",
@@ -247,7 +247,7 @@ def test_command_enricher_renders_argv_and_failure() -> None:
                 duration_seconds=12.0,
                 returncode=1,
             ),
-            RunViewOperation(
+            _RunViewOperation(
                 op="command",
                 kind="subprocess",
                 label="just check",
@@ -258,7 +258,7 @@ def test_command_enricher_renders_argv_and_failure() -> None:
             ),
         ],
         diagnostics=[
-            RunViewInstanceDiagnostic(
+            _RunViewInstanceDiagnostic(
                 code="command_failed",
                 message="FAILED t.py::t",
                 severity="error",
@@ -287,7 +287,7 @@ def test_command_enricher_renders_argv_and_failure() -> None:
 
 
 def test_attempt_folding_collapses_older_attempts() -> None:
-    node = RunViewNodeInstance(
+    node = _RunViewNodeInstance(
         instance_id="check",
         selection_reason="default",
         status="success",
@@ -297,13 +297,13 @@ def test_attempt_folding_collapses_older_attempts() -> None:
         instance_id="check",
         status="success",
         attempts=[
-            RunViewAttempt(
+            _RunViewAttempt(
                 attempt=1, status="failed", duration_seconds=5.0, code="command_failed"
             ),
-            RunViewAttempt(attempt=2, status="success", duration_seconds=6.0),
+            _RunViewAttempt(attempt=2, status="success", duration_seconds=6.0),
         ],
         operations=[
-            RunViewOperation(
+            _RunViewOperation(
                 op="command",
                 kind="subprocess",
                 label="old op",
@@ -311,7 +311,7 @@ def test_attempt_folding_collapses_older_attempts() -> None:
                 duration_seconds=5.0,
                 returncode=1,
             ),
-            RunViewOperation(
+            _RunViewOperation(
                 op="command",
                 kind="subprocess",
                 label="new op",
@@ -321,7 +321,7 @@ def test_attempt_folding_collapses_older_attempts() -> None:
             ),
         ],
         diagnostics=[
-            RunViewInstanceDiagnostic(
+            _RunViewInstanceDiagnostic(
                 code="command_failed",
                 message="flaked once",
                 severity="superseded",
@@ -347,7 +347,7 @@ def test_attempt_folding_collapses_older_attempts() -> None:
 
 
 def test_warnings_show_only_inside_deck_card() -> None:
-    node = RunViewNodeInstance(
+    node = _RunViewNodeInstance(
         instance_id="commit",
         selection_reason="default",
         status="success",
@@ -357,7 +357,7 @@ def test_warnings_show_only_inside_deck_card() -> None:
         instance_id="commit",
         status="success",
         warnings=3,
-        attempts=[RunViewAttempt(attempt=1, status="success")],
+        attempts=[_RunViewAttempt(attempt=1, status="success")],
     )
     run = RunViewRun(
         run_id="r",
@@ -372,7 +372,7 @@ def test_warnings_show_only_inside_deck_card() -> None:
 
 
 def test_unknown_status_renders_neutral() -> None:
-    node = RunViewNodeInstance(
+    node = _RunViewNodeInstance(
         instance_id="mystery",
         selection_reason="default",
         status="quantum",
@@ -383,7 +383,7 @@ def test_unknown_status_renders_neutral() -> None:
 
 
 def test_deferred_paths_cap_with_more_suffix() -> None:
-    node = RunViewNodeInstance(
+    node = _RunViewNodeInstance(
         instance_id="commit",
         selection_reason="default",
         status="deferred",
@@ -392,11 +392,11 @@ def test_deferred_paths_cap_with_more_suffix() -> None:
     run_item = RunViewRunInstance(
         instance_id="commit",
         status="deferred",
-        deferral=RunViewDeferral(
+        deferral=_RunViewDeferral(
             reason="unsafe_content",
             paths=[f"secret{i}.env" for i in range(7)],
         ),
-        attempts=[RunViewAttempt(attempt=1, status="deferred")],
+        attempts=[_RunViewAttempt(attempt=1, status="deferred")],
     )
     run = RunViewRun(
         run_id="r",
@@ -416,7 +416,7 @@ def test_refused_and_not_run_blocks_are_calm() -> None:
         instance_id="push",
         status="refused",
         refusal_reason="no network",
-        attempts=[RunViewAttempt(attempt=1, status="refused")],
+        attempts=[_RunViewAttempt(attempt=1, status="refused")],
     )
     blocked = RunViewRunInstance(
         instance_id="tasks",
@@ -431,10 +431,10 @@ def test_refused_and_not_run_blocks_are_calm() -> None:
         disposition="ran",
         instances=[refused, blocked],
     )
-    push = RunViewNodeInstance(
+    push = _RunViewNodeInstance(
         instance_id="push", selection_reason="default", status="refused"
     )
-    tasks = RunViewNodeInstance(
+    tasks = _RunViewNodeInstance(
         instance_id="tasks", selection_reason="default", status="not_run"
     )
     push_body = _card_text(build_instance_card_renderables(push, [run]))

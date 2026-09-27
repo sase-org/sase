@@ -358,48 +358,9 @@ def reveal_agent_navigation_target(
     )
 
 
-def unmet_ancestor_folds(
-    complete: list[Agent],
-    fold_manager: Any,
-    parent_lookup: dict[str, Agent] | None = None,
-) -> dict[AgentIdentity, tuple[str, ...]]:
-    """Return each row's unmet ancestor fold keys, nearest first.
-
-    Reuses the exact reveal rule: clan folds need ``EXPANDED``, hidden steps
-    need ``FULLY_EXPANDED``, judged by :func:`fold_requirement_is_met`.
-    One shared :func:`tree_parent_lookup` keeps the batch O(n · depth).
-    Pass a caller-built *parent_lookup* to reuse an existing tree index
-    within one batch instead of rebuilding it. Rows with invalid ancestry
-    are omitted, matching the reveal preflight.
-    """
-    if parent_lookup is None:
-        from ...models._agent_tree import tree_parent_lookup
-
-        parents = tree_parent_lookup(complete)
-    else:
-        parents = parent_lookup
-    unmet: dict[AgentIdentity, tuple[str, ...]] = {}
-    for agent in complete:
-        requirements = _ancestor_requirements(complete, agent, parent_lookup=parents)
-        if requirements is None:
-            continue
-        missing = tuple(
-            requirement.fold_key
-            for requirement in requirements
-            if not fold_requirement_is_met(
-                fold_manager.get(requirement.fold_key),
-                requirement.level,
-            )
-        )
-        if missing:
-            unmet[agent.identity] = missing
-    return unmet
-
-
 __all__ = [
     "AgentIdentity",
     "AgentRevealFailure",
     "prepare_agent_navigation_target",
     "reveal_agent_navigation_target",
-    "unmet_ancestor_folds",
 ]

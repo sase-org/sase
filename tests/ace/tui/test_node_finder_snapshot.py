@@ -695,35 +695,6 @@ def _hidden_step_shape() -> list:
     return [hidden_root, hidden_step]
 
 
-def test_fused_unmet_matches_reveal_walk() -> None:
-    """The facet-driven unmet walk matches the reveal preflight exactly."""
-    from sase.ace.tui.actions.agents._node_finder_folds import unmet_with_facets
-    from sase.ace.tui.actions.navigation._agent_reveal import unmet_ancestor_folds
-    from sase.ace.tui.models._agent_tree import tree_parent_lookup
-
-    members, _container = make_clan(4)
-    session_rows, _root, _child = make_agent_session(in_clan=True)
-    rosters = [
-        project_clan_tree([*members, *session_rows]),
-        [make_agent("solo"), *_hidden_step_shape()],
-    ]
-    for complete in rosters:
-        parents = tree_parent_lookup(complete)
-        parent_keys, _fold_keys, _depths, _identities, hidden_steps = _facet_tables(
-            complete
-        )
-        for state in _fold_states():
-            app = NodeFinderHarness(list(complete), complete[0])
-            _apply_fold_state(app, complete, state)
-            expected = unmet_ancestor_folds(
-                complete, app._fold_manager, parent_lookup=parents
-            )
-            actual = unmet_with_facets(
-                complete, app._fold_manager, parents, parent_keys, hidden_steps
-            )
-            assert actual == expected, (complete[0].agent_name, state)
-
-
 def test_fold_filter_facets_match_direct_reads() -> None:
     """Facet-hoisted fold filtering keeps rows and counts identical."""
     from sase.ace.tui.models import filter_agents_by_fold_state

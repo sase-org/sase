@@ -26,7 +26,7 @@ _URL_RE = re.compile(r"https?://\S+")
 _BEAD_RE = re.compile(r"\bsase-[0-9A-Za-z][0-9A-Za-z._-]*")
 
 
-def cap_text(value: Any, limit: int = SUMMARY_STRING_CAP) -> str | None:
+def _cap_text(value: Any, limit: int = SUMMARY_STRING_CAP) -> str | None:
     """Cap *value* to *limit* characters on a char boundary, or pass None."""
     if value is None:
         return None
@@ -36,7 +36,7 @@ def cap_text(value: Any, limit: int = SUMMARY_STRING_CAP) -> str | None:
     return text[:limit]
 
 
-def choose_headline(
+def _choose_headline(
     *,
     sha: str | None = None,
     url: str | None = None,
@@ -45,13 +45,13 @@ def choose_headline(
 ) -> str | None:
     """Pick the generic headline: SHA, then URL, then bead id, then exit code."""
     if sha:
-        return cap_text(f"commit {sha[:12]}")
+        return _cap_text(f"commit {sha[:12]}")
     if url:
-        return cap_text(url)
+        return _cap_text(url)
     if bead_id:
-        return cap_text(bead_id)
+        return _cap_text(bead_id)
     if exit_code is not None:
-        return cap_text(f"exit {exit_code}")
+        return _cap_text(f"exit {exit_code}")
     return None
 
 
@@ -98,7 +98,7 @@ def headline_from_evidence(
                 match = _BEAD_RE.search(value)
                 if match:
                     bead_id = match.group(0)
-    return choose_headline(sha=sha, url=url, bead_id=bead_id, exit_code=exit_code)
+    return _choose_headline(sha=sha, url=url, bead_id=bead_id, exit_code=exit_code)
 
 
 def reason_for_result(result: Any) -> str | None:
@@ -118,12 +118,12 @@ def reason_for_result(result: Any) -> str | None:
                 else getattr(diagnostic, "message", None)
             )
             if severity == "error" and isinstance(message, str) and message.strip():
-                return cap_text(message.strip())
+                return _cap_text(message.strip())
         stderr_tail = getattr(result, "stderr_tail", None)
         if isinstance(stderr_tail, str):
             lines = [line for line in stderr_tail.splitlines() if line.strip()]
             if lines:
-                return cap_text(lines[-1].strip())
+                return _cap_text(lines[-1].strip())
         for diagnostic in diagnostics:
             message = (
                 diagnostic.get("message")
@@ -131,7 +131,7 @@ def reason_for_result(result: Any) -> str | None:
                 else getattr(diagnostic, "message", None)
             )
             if isinstance(message, str) and message.strip():
-                return cap_text(message.strip())
+                return _cap_text(message.strip())
         return None
     if status == "deferred":
         deferral = getattr(result, "deferral", None)
@@ -147,17 +147,17 @@ def reason_for_result(result: Any) -> str | None:
         )
         count = len(paths) if isinstance(paths, (list, tuple)) else 0
         if isinstance(reason, str) and reason:
-            return cap_text(f"{reason} · {count} paths")
+            return _cap_text(f"{reason} · {count} paths")
         return None
     if status == "refused":
         refusal = getattr(result, "refusal_reason", None)
         if isinstance(refusal, str) and refusal:
-            return cap_text(refusal)
+            return _cap_text(refusal)
         return None
     if status == "not_run":
         blocked_by = getattr(result, "blocked_by", None)
         if isinstance(blocked_by, str) and blocked_by:
-            return cap_text(f"blocked by {blocked_by}")
+            return _cap_text(f"blocked by {blocked_by}")
         return None
     return None
 
@@ -327,7 +327,7 @@ class FinalizerStatusTracker:
         if max_attempts:
             entry["max_attempts"] = max_attempts
         if op is not None:
-            entry["op"] = cap_text(op)
+            entry["op"] = _cap_text(op)
         if entry.get("started_at") is None:
             entry["started_at"] = time.time()
         self._write(force=True)
@@ -346,9 +346,9 @@ class FinalizerStatusTracker:
         """Record an instance terminal transition."""
         entry = self._ensure_instance(instance_id)
         entry["status"] = status
-        entry["reason"] = cap_text(reason)
+        entry["reason"] = _cap_text(reason)
         if headline is not None:
-            entry["headline"] = cap_text(headline)
+            entry["headline"] = _cap_text(headline)
         entry["warnings"] = max(0, int(warnings or 0))
         if attempt:
             entry["attempt"] = attempt
@@ -386,7 +386,7 @@ class FinalizerStatusTracker:
         entry = self._ensure_instance(instance_id)
         entry["attempt"] = attempt
         if status != "success" and code:
-            entry["reason"] = cap_text(code)
+            entry["reason"] = _cap_text(code)
         self.flush_pending_step(instance_id)
         self._write(force=True)
 
@@ -399,9 +399,9 @@ class FinalizerStatusTracker:
     ) -> None:
         """Record the current operation label; the write is forced."""
         entry = self._ensure_instance(instance_id)
-        entry["op"] = cap_text(op)
+        entry["op"] = _cap_text(op)
         if step is not None:
-            entry["step"] = cap_text(step)
+            entry["step"] = _cap_text(step)
             self._pending_step.pop(instance_id, None)
         self._write(force=True)
 
@@ -414,7 +414,7 @@ class FinalizerStatusTracker:
     ) -> None:
         """Record a step update, throttled to one write every 2 s."""
         entry = self._ensure_instance(instance_id)
-        entry["step"] = cap_text(step)
+        entry["step"] = _cap_text(step)
         if warnings is not None:
             entry["warnings"] = max(0, int(warnings))
         self._pending_step[instance_id] = entry
@@ -435,13 +435,13 @@ class FinalizerStatusTracker:
         self.flush_steps()
         self._phase = "settled"
         self._status = status
-        self._reason = cap_text(reason)
+        self._reason = _cap_text(reason)
         self._write(force=True)
 
     def mark_skipped(self, *, reason: str) -> None:
         """Record the handoff ``skipped`` summary."""
         self._phase = "skipped"
-        self._reason = cap_text(reason)
+        self._reason = _cap_text(reason)
         self._status = None
         self._write(force=True)
 
@@ -495,8 +495,6 @@ __all__ = [
     "SUMMARY_SCHEMA_VERSION",
     "SUMMARY_STRING_CAP",
     "FinalizerStatusTracker",
-    "cap_text",
-    "choose_headline",
     "count_result_warnings",
     "headline_from_evidence",
     "reason_for_result",

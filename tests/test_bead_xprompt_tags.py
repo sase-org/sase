@@ -175,6 +175,21 @@ def test_builtin_land_prompt_plans_remaining_work_only() -> None:
     assert "Make step 3 the plan's final phase" not in body
 
 
+def test_builtin_land_prompt_prefers_tale_plans() -> None:
+    body = _builtin_prompt_body("bd/land_epic")
+    prose = _single_spaced(body)
+
+    assert "Prefer `tier: tale`" in body
+    assert "`xsmall`, `small`, or `medium`" in body
+    assert "has no land agent of its own" in prose
+    assert "nothing resumes this landing after its coder finishes" in prose
+    assert "sase bead close {{ bead_id }}" in body
+    assert "just symvision" in body
+    assert "status: done" in body
+    assert "finish the step-3 follow-up triage yourself" in prose
+    assert 'sase bead note {{ bead_id }} "..."' in body
+
+
 def test_builtin_land_prompt_resumes_nested_parent_handoffs() -> None:
     body = _builtin_prompt_body("bd/land_epic")
     prose = _single_spaced(body)

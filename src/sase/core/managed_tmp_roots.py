@@ -27,7 +27,7 @@ MANAGED_TMP_ROOTS_WIRE_SCHEMA_VERSION = 1
 _warned_registration_failures: set[str] = set()
 
 
-def register_managed_tmp_root(
+def _register_managed_tmp_root(
     root: Path | str,
     *,
     sase_home: Path | str,
@@ -58,14 +58,14 @@ def try_register_managed_tmp_root(
     """
     key = str(root)
     try:
-        register_managed_tmp_root(root, sase_home=sase_home)
+        _register_managed_tmp_root(root, sase_home=sase_home)
     except Exception as exc:  # noqa: BLE001 - registration must never break a launch.
         if key not in _warned_registration_failures:
             _warned_registration_failures.add(key)
             log.warning("managed tmp root registration failed for %s: %s", key, exc)
 
 
-def registered_managed_tmp_roots(
+def _registered_managed_tmp_roots(
     *,
     sase_home: Path | str,
 ) -> list[Path]:
@@ -108,7 +108,7 @@ def effective_managed_tmp_roots(
     default_root = home / "tmp"
     if default_root.is_dir():
         candidates.append(default_root)
-    candidates.extend(registered_managed_tmp_roots(sase_home=home))
+    candidates.extend(_registered_managed_tmp_roots(sase_home=home))
     for candidate in candidates:
         if candidate.is_dir():
             try_register_managed_tmp_root(candidate, sase_home=home)
@@ -156,7 +156,5 @@ def _snapshot_from_wire(raw: Mapping[str, Any]) -> Mapping[str, Any]:
 __all__ = [
     "MANAGED_TMP_ROOTS_WIRE_SCHEMA_VERSION",
     "effective_managed_tmp_roots",
-    "registered_managed_tmp_roots",
-    "register_managed_tmp_root",
     "try_register_managed_tmp_root",
 ]

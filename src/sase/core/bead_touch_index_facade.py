@@ -467,7 +467,7 @@ def touch_matches_agent(
         return False
 
 
-def touches_for_agent(
+def _touches_for_agent(
     touches: Any,
     *,
     globalized_name: str,
@@ -521,7 +521,7 @@ def query_touches_for_agent(
         schema_version=query.schema_version,
         generation=query.generation,
         touches=tuple(
-            touches_for_agent(
+            _touches_for_agent(
                 query.touches,
                 globalized_name=globalized_name,
                 local_name=local_name,
@@ -717,5 +717,4 @@ __all__ = [
     "touch_index_path",
     "touch_index_status",
     "touch_matches_agent",
-    "touches_for_agent",
 ]

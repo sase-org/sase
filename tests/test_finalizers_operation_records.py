@@ -13,21 +13,21 @@ from sase.finalizers.executor import FinalizerExecutionContext
 from sase.finalizers.operation_records import (
     OPERATION_RECORD_SCHEMA_VERSION,
     OperationRecorder,
-    operation_filename,
+    _operation_filename,
 )
-from sase.finalizers.progress import ProgressJournal, journal_path
+from sase.finalizers.progress import ProgressJournal, _journal_path
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
 
 
 def _journal_events(artifacts_dir: Path) -> list[dict]:
-    lines = journal_path(artifacts_dir).read_text(encoding="utf-8").splitlines()
+    lines = _journal_path(artifacts_dir).read_text(encoding="utf-8").splitlines()
     return [json.loads(line) for line in lines if line.strip()]
 
 
 def test_operation_filename_attempt_and_preflight() -> None:
-    assert operation_filename(1, "stitch main") == "attempt-1.stitch_main.outcome.json"
-    assert operation_filename(None, "describe") == "preflight.describe.outcome.json"
+    assert _operation_filename(1, "stitch main") == "attempt-1.stitch_main.outcome.json"
+    assert _operation_filename(None, "describe") == "preflight.describe.outcome.json"
 
 
 def test_recorder_writes_schema_v1_and_journal_events(tmp_path: Path) -> None:

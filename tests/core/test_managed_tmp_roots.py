@@ -11,8 +11,8 @@ import pytest
 from sase.core import paths as _paths
 from sase.core.managed_tmp_roots import (
     effective_managed_tmp_roots,
-    registered_managed_tmp_roots,
-    register_managed_tmp_root,
+    _registered_managed_tmp_roots,
+    _register_managed_tmp_root,
 )
 from sase.core.paths import get_sase_managed_tmpdir, managed_tmpdir_root, sase_home
 from tests._managed_tmp_reaper_helpers import DAY, NOW, reap_managed_tmpdir
@@ -73,7 +73,7 @@ def test_unsafe_roots_are_refused(
     monkeypatch.setenv("SASE_HOME", str(home))
 
     with pytest.raises(ValueError, match="dedicated directory|absolute"):
-        register_managed_tmp_root(Path("/tmp"), sase_home=home, now=NOW)
+        _register_managed_tmp_root(Path("/tmp"), sase_home=home, now=NOW)
 
 
 def test_fail_open_writer_never_breaks_a_launch(
@@ -105,7 +105,7 @@ def test_concurrent_registrations_merge(
 
     threads = [
         threading.Thread(
-            target=register_managed_tmp_root,
+            target=_register_managed_tmp_root,
             args=(root,),
             kwargs={"sase_home": home, "now": NOW},
         )
@@ -117,7 +117,7 @@ def test_concurrent_registrations_merge(
         thread.join()
 
     assert {
-        root.resolve() for root in registered_managed_tmp_roots(sase_home=home)
+        root.resolve() for root in _registered_managed_tmp_roots(sase_home=home)
     } == {
         first.resolve(),
         second.resolve(),
@@ -133,11 +133,11 @@ def test_missing_roots_are_pruned_on_next_write(
     kept = tmp_path / "kept"
     gone.mkdir()
     kept.mkdir()
-    register_managed_tmp_root(gone, sase_home=home, now=NOW)
-    register_managed_tmp_root(kept, sase_home=home, now=NOW)
+    _register_managed_tmp_root(gone, sase_home=home, now=NOW)
+    _register_managed_tmp_root(kept, sase_home=home, now=NOW)
 
     gone.rmdir()
-    snapshot = register_managed_tmp_root(kept, sase_home=home, now=NOW + 7200.0)
+    snapshot = _register_managed_tmp_root(kept, sase_home=home, now=NOW + 7200.0)
 
     assert [entry["path"] for entry in snapshot["roots"]] == [str(kept.resolve())]
 
@@ -160,7 +160,7 @@ def test_writer_registers_once_per_process_per_root(
 
     def counting_register(root: Path | str, *, sase_home: Path | str) -> None:
         calls.append(str(root))
-        register_managed_tmp_root(root, sase_home=sase_home)
+        _register_managed_tmp_root(root, sase_home=sase_home)
 
     monkeypatch.setattr(
         "sase.core.managed_tmp_roots.try_register_managed_tmp_root",

@@ -17,15 +17,15 @@ from sase.ace.tui.actions.agents._agent_tabs import (
     AgentTabsMixin,
     _key_for_strip_id,
     _strip_id_for_key,
-    catalog_view_for_owner,
+    _catalog_view_for_owner,
     strip_visible_for_owner,
 )
-from sase.ace.tui.actions.agents._tab_scope import scoped_agents_for_owner
+from sase.ace.tui.actions.agents._tab_scope import _scoped_agents_for_owner
 from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_tab_index import (
     build_agent_tab_index,
-    clear_agent_tab_index_cache,
+    _index_cache,
 )
 from sase.ace.tui.models.agent_tab_persistence import (
     load_active_agent_tab,
@@ -37,9 +37,9 @@ from sase.feature_flags import override_flags
 
 @pytest.fixture(autouse=True)
 def _clear_index_cache() -> Any:
-    clear_agent_tab_index_cache()
+    _index_cache.clear()
     yield
-    clear_agent_tab_index_cache()
+    _index_cache.clear()
 
 
 def _view(token: Any = ("switch-test",)) -> AgentTabsViewConfig:
@@ -85,7 +85,7 @@ class _TabOwner(AgentTabsMixin):
         self._ensure_agent_tabs_state()
 
     def _rescope_agents_to_active_tab(self) -> None:
-        self._agents = scoped_agents_for_owner(self, list(self._agents_query_result))
+        self._agents = _scoped_agents_for_owner(self, list(self._agents_query_result))
 
     def query_one(self, *args: Any, **kwargs: Any) -> Any:
         """Fail closed: no list panel or strip is mounted in unit tests."""
@@ -225,7 +225,7 @@ def test_latch_keeps_emptied_tab() -> None:
         owner.reindex([_row("a")])
         assert owner._reconcile_active_agent_tab() is False
         assert owner._active_agent_tab == _SASE
-        view = catalog_view_for_owner(owner)
+        view = _catalog_view_for_owner(owner)
         assert [(e.key, e.root_count) for e in view] == [
             (DEFAULT_AGENT_TAB_KEY, 1),
             (_SASE, 0),
@@ -264,7 +264,7 @@ def test_strip_id_round_trip() -> None:
         _strip_id_for_key(AgentTabKey.unresolved_machine("apollo"))
         == "unresolved:apollo"
     )
-    entries = catalog_view_for_owner(_two_tab_owner())
+    entries = _catalog_view_for_owner(_two_tab_owner())
     assert _key_for_strip_id("named:sase", entries) == _SASE
     assert _key_for_strip_id("bogus", entries) is None
 

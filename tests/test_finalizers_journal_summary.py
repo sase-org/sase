@@ -30,7 +30,7 @@ from sase.finalizers.plan import (
 from sase.finalizers.progress import (
     PROGRESS_JOURNAL_MAX_BYTES,
     ProgressJournal,
-    journal_path,
+    _journal_path,
 )
 from sase.finalizers.status_summary import FinalizerStatusTracker
 from sase.llm_provider.commit_finalizer_types import DirtyState
@@ -39,7 +39,7 @@ from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
 
 
 def _journal_events(artifacts_dir: Path) -> list[dict[str, Any]]:
-    lines = (journal_path(artifacts_dir)).read_text(encoding="utf-8").splitlines()
+    lines = (_journal_path(artifacts_dir)).read_text(encoding="utf-8").splitlines()
     events: list[dict[str, Any]] = []
     for line in lines:
         if not line.strip():
@@ -116,7 +116,7 @@ def test_journal_continues_seq_across_instances(tmp_path: Path) -> None:
 def test_journal_falls_back_to_line_count_on_malformed_tail(
     tmp_path: Path,
 ) -> None:
-    path = journal_path(tmp_path)
+    path = _journal_path(tmp_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("not json\n{bad}\n", encoding="utf-8")
 
@@ -138,7 +138,7 @@ def test_journal_ceiling_writes_truncated_once(
 ) -> None:
     journal = ProgressJournal(str(tmp_path))
     journal.record("phase_started", run_id="x")
-    size = journal_path(tmp_path).stat().st_size
+    size = _journal_path(tmp_path).stat().st_size
     monkeypatch.setattr(
         "sase.finalizers.progress.PROGRESS_JOURNAL_MAX_BYTES", size + 300
     )
@@ -149,7 +149,7 @@ def test_journal_ceiling_writes_truncated_once(
     kinds = [item["event"] for item in events]
     assert kinds == ["phase_started", "observability_truncated"]
     assert journal.disabled is True
-    assert len(journal_path(tmp_path).read_bytes()) <= size + 300
+    assert len(_journal_path(tmp_path).read_bytes()) <= size + 300
 
 
 def test_journal_max_bytes_default() -> None:
@@ -499,7 +499,7 @@ def test_controller_handoff_skip_writes_nothing_without_timestamp(
     )
 
     assert result is sentinel
-    assert not journal_path(artifacts).exists()
+    assert not _journal_path(artifacts).exists()
 
 
 def test_controller_skip_writer_failure_leaves_verdict(

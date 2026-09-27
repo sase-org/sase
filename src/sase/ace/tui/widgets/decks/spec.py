@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class DeckSpec:
+class _DeckSpec:
     """Static registry record describing one agent data deck."""
 
     deck_id: DeckId
@@ -25,8 +25,8 @@ class DeckSpec:
     picker_class: str
 
 
-DECK_SPECS: tuple[DeckSpec, ...] = (
-    DeckSpec(
+DECK_SPECS: tuple[_DeckSpec, ...] = (
+    _DeckSpec(
         deck_id=DeckId.MAIN,
         name="MAIN",
         glyph="\u25c6",
@@ -37,7 +37,7 @@ DECK_SPECS: tuple[DeckSpec, ...] = (
         accent_class="-deck-main",
         picker_class="-deck-main",
     ),
-    DeckSpec(
+    _DeckSpec(
         deck_id=DeckId.FILES,
         name="FILES",
         glyph="\u25a4",
@@ -48,7 +48,7 @@ DECK_SPECS: tuple[DeckSpec, ...] = (
         accent_class="-deck-files",
         picker_class="-deck-files",
     ),
-    DeckSpec(
+    _DeckSpec(
         deck_id=DeckId.TOOLS,
         name="TOOLS",
         glyph="\u03bb",
@@ -59,7 +59,7 @@ DECK_SPECS: tuple[DeckSpec, ...] = (
         accent_class="-deck-tools",
         picker_class="-deck-tools",
     ),
-    DeckSpec(
+    _DeckSpec(
         deck_id=DeckId.FINAL,
         name="FINAL",
         glyph="⊛",
@@ -72,10 +72,10 @@ DECK_SPECS: tuple[DeckSpec, ...] = (
     ),
 )
 
-_SPECS_BY_DECK: dict[DeckId, DeckSpec] = {s.deck_id: s for s in DECK_SPECS}
+_SPECS_BY_DECK: dict[DeckId, _DeckSpec] = {s.deck_id: s for s in DECK_SPECS}
 
 
-def deck_spec(deck: DeckId) -> DeckSpec:
+def deck_spec(deck: DeckId) -> _DeckSpec:
     """Return the registry record for ``deck`` (raises ``KeyError``)."""
     return _SPECS_BY_DECK[deck]
 
@@ -95,7 +95,6 @@ def coerce_known_deck(deck: DeckId, *, context: str) -> DeckId:
 
 __all__ = [
     "DECK_SPECS",
-    "DeckSpec",
     "active_deck_cycle",
     "coerce_known_deck",
     "deck_spec",

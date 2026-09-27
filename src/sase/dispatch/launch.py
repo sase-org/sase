@@ -288,7 +288,7 @@ def _tab_dispatch_preflight(query: str, machine: MachineRecord) -> str | None:
     if not any(segment_has_active_tab_directive(segment) for segment in segments):
         return None
     required = _required_tab_contract_version()
-    known = read_cached_target_contract_version(machine.alias)
+    known = _read_cached_target_contract_version(machine.alias)
     if known is None:
         return (
             f"%tab travels with this dispatch, but {machine.alias!r} has no "
@@ -317,7 +317,7 @@ def _required_tab_contract_version() -> int:
     return _TAB_FLEET_CONTRACT_VERSION
 
 
-def read_cached_target_contract_version(alias: str) -> int | None:
+def _read_cached_target_contract_version(alias: str) -> int | None:
     """Return the target's last-known fleet contract version, if cached.
 
     No-network source: a federation cache-only hosts response. Any failure
@@ -705,5 +705,4 @@ __all__ = [
     "RemoteDispatchLaunchPreview",
     "maybe_dispatch_launch",
     "preview_dispatch_launch",
-    "read_cached_target_contract_version",
 ]

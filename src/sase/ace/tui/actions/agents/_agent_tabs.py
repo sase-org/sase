@@ -41,7 +41,7 @@ _TAB_SWITCH_PERF_ACTION = "agents_tab_switch"
 _FLUSH_TIMEOUT_SECONDS = 2.0
 
 
-def catalog_view_for_owner(owner: Any) -> tuple[AgentTabCatalogEntry, ...]:
+def _catalog_view_for_owner(owner: Any) -> tuple[AgentTabCatalogEntry, ...]:
     """Return the strip's catalog view: index entries plus a latched key.
 
     The latch keeps an emptied active tab selected with an empty roster, so
@@ -82,13 +82,13 @@ def strip_visible_for_owner(owner: Any) -> bool:
         return False
     if getattr(owner, "_agent_tab_latched_key", None) is not None:
         return True
-    return len(catalog_view_for_owner(owner)) >= 2
+    return len(_catalog_view_for_owner(owner)) >= 2
 
 
 def _active_tab_label_for_owner(owner: Any) -> str:
     """Return the active tab's strip label, falling back to a default."""
     active = getattr(owner, "_active_agent_tab", None)
-    for entry in catalog_view_for_owner(owner):
+    for entry in _catalog_view_for_owner(owner):
         if entry.key == active and isinstance(entry.label, str) and entry.label:
             return entry.label
     known = getattr(owner, "_agent_tab_known_labels", None)
@@ -279,7 +279,7 @@ class AgentTabsMixin:
 
     def _agent_tab_catalog_view(self) -> tuple[AgentTabCatalogEntry, ...]:
         """Return the strip's catalog view (index entries plus latch)."""
-        return catalog_view_for_owner(self)
+        return _catalog_view_for_owner(self)
 
     def _agent_tab_strip_visible(self) -> bool:
         """Return True when the minimal tab strip should render."""
@@ -783,6 +783,5 @@ __all__ = [
     "_fallback_label",
     "_key_for_strip_id",
     "_strip_id_for_key",
-    "catalog_view_for_owner",
     "strip_visible_for_owner",
 ]

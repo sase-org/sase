@@ -30,7 +30,7 @@ from sase.ace.tui.actions.agents._tab_scope import (
     current_agent_tab_scope_token,
     refresh_agent_tab_index,
     remove_agents_from_views,
-    rescope_agents_to_active_tab,
+    _rescope_agents_to_active_tab,
     scoped_selection_get,
     scoped_selection_set,
 )
@@ -47,7 +47,7 @@ from sase.ace.tui.models.agent_tab_index import (
     AgentTabScope,
     agent_tab_scope_token,
     build_agent_tab_index,
-    clear_agent_tab_index_cache,
+    _index_cache,
     scope_agents_to_tab,
 )
 from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
@@ -56,9 +56,9 @@ from sase.feature_flags import override_flags
 
 @pytest.fixture(autouse=True)
 def _clear_index_cache() -> Iterator[None]:
-    clear_agent_tab_index_cache()
+    _index_cache.clear()
     yield
-    clear_agent_tab_index_cache()
+    _index_cache.clear()
 
 
 def _view(token: Any = ("scope-test",)) -> AgentTabsViewConfig:
@@ -282,7 +282,7 @@ def test_dismiss_then_rescope_does_not_resurrect() -> None:
         assert owner._agents == [rows[0]]
         # A later tab switch re-scopes the pruned cache: no resurrection.
         owner._active_agent_tab = AgentTabKey.named("sase")
-        rescope_agents_to_active_tab(owner)
+        _rescope_agents_to_active_tab(owner)
         assert owner._agents == []
         assert owner._agents_query_result == [rows[0]]
         assert owner.synced == 1

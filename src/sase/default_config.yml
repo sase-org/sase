@@ -2001,9 +2001,23 @@ xprompts:
          never use `--force` to advance a successful nested landing.
 
       If steps 1-2 uncover remaining work, use your /sase_plan skill to plan it and complete the skill's tier-aware
-      validate/revalidate/propose loop. Plan only the remaining work. Do not include this epic's close, symvision pass,
-      or plan-file status update as a child phase; the child epic's `parent_bead` link is the handoff that lets its land
-      agent resume this interrupted landing after the child lands.
+      validate/revalidate/propose loop. Plan only the remaining work. Prefer `tier: tale`: choose a tale whenever one
+      coding agent can finish the remaining work directly (`xsmall`, `small`, or `medium` per the SASE size guidance).
+      Author a child `epic` only when the remaining work genuinely needs multiple agents or phases, or is too large
+      (`large`/`xlarge`) for one agent to implement directly. A tale has no land agent of its own and nothing resumes
+      this landing after its coder finishes, so a lander-authored tale must finish the landing itself. Before proposing
+      the tale, finish the step-3 follow-up triage yourself: for each genuinely distinct follow-up that is not caused by
+      the epic, use `/sase_new_task` with details identifying the proposing bead, and record every outcome, including why
+      any proposal was declined, with `sase bead note {{ bead_id }} "..."`. The tale's final step must be this epic's
+      closeout, written concretely so the coder needs no other context: resolve or re-key every
+      `sase bead epic-symbols {{ bead_id }}` entry, then close the epic with
+      `sase bead close {{ bead_id }} --note "<verification>"`, run `just symvision`, and set `status: done` in the
+      epic's plan file (the PLAN path shown by `sase bead read`); when the epic has a `parent_bead`, handle that parent
+      as described in the final paragraph below, using the concrete parent ID. The step-3 rules still apply in the tale:
+      never use `--force` merely to make the close succeed, and never use `--force` to advance a successful nested
+      landing. For the child-epic path: Do not include this epic's close, symvision pass, or plan-file status update
+      as a child phase; the child epic's `parent_bead` link is the handoff that lets its land agent resume this
+      interrupted landing after the child lands.
 
       After the current epic closes, inspect the linked `parent_bead` from `sase bead read {{ bead_id }} -r "Need the parent link"`. If there is
       no parent bead, finish normally. If the parent is a phase bead, verify this child plan completed the work required

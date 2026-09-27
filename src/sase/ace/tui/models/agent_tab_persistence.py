@@ -34,7 +34,7 @@ FILENAME = "ace_agents_tab_state.json"
 MAX_FILE_BYTES = 4 * 1024
 
 
-def agent_tab_state_path() -> Path:
+def _agent_tab_state_path() -> Path:
     """Return the global ACE active-agent-tab state path."""
     return sase_home() / FILENAME
 
@@ -46,7 +46,7 @@ def load_active_agent_tab(path: Path | None = None) -> AgentTabKey | None:
     and unparseable tokens all fail open to None. Unresolved-machine keys
     can never round-trip (they have no token), so they never load either.
     """
-    state_path = path or agent_tab_state_path()
+    state_path = path or _agent_tab_state_path()
     try:
         with state_path.open("rb") as stream:
             raw_bytes = stream.read(MAX_FILE_BYTES + 1)
@@ -93,7 +93,7 @@ def save_active_agent_tab(key: AgentTabKey, path: Path | None = None) -> None:
     token = agent_tab_key_token(key)
     if token is None:
         return
-    state_path = path or agent_tab_state_path()
+    state_path = path or _agent_tab_state_path()
     payload = json.dumps(
         {"schema_version": SCHEMA_VERSION, "active": token},
         separators=(",", ":"),
@@ -122,18 +122,10 @@ def save_active_agent_tab(key: AgentTabKey, path: Path | None = None) -> None:
         raise
 
 
-def serialize_active_agent_tab(key: AgentTabKey) -> dict[str, Any]:
-    """Return the JSON-serializable payload for *key* (tests only)."""
-    token = agent_tab_key_token(key)
-    return {"schema_version": SCHEMA_VERSION, "active": token}
-
-
 __all__ = [
     "FILENAME",
     "MAX_FILE_BYTES",
     "SCHEMA_VERSION",
-    "agent_tab_state_path",
     "load_active_agent_tab",
     "save_active_agent_tab",
-    "serialize_active_agent_tab",
 ]

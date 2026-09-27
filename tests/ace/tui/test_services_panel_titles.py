@@ -8,7 +8,6 @@ from sase.ace.tui.actions.axe_display._panel_titles import (
     ROUTINE_PANEL_LABELS,
     routine_health_count,
     scheduled_routines_panel_stats,
-    scheduled_routines_panel_title,
     service_procs_panel_stats,
     service_procs_panel_title,
     source_routine_panel_title,
@@ -156,8 +155,6 @@ def test_routines_title_grammar() -> None:
     assert stats.jobs == 3
     assert (stats.jobs_running, stats.jobs_failed, stats.jobs_missing) == (1, 1, 1)
     assert stats.overruns == 2
-    title = scheduled_routines_panel_title(stats, focused=True)
-    assert title.plain == "◷ Scheduled Routines · 3 [R1 E1 I1] · 3 jobs ●1 !1 ?1 ⚠2"
 
 
 def test_routines_sum_invariant() -> None:
@@ -181,9 +178,6 @@ def test_routines_jobs_count_includes_jobs_without_snapshots() -> None:
     )
     assert stats.jobs == 2
     assert (stats.jobs_running, stats.jobs_failed, stats.jobs_missing) == (0, 0, 0)
-    title = scheduled_routines_panel_title(stats, focused=True)
-    assert "2 jobs" in title.plain
-    assert "●" not in title.plain
 
 
 def test_routines_timeout_counts_as_failure() -> None:
@@ -195,21 +189,6 @@ def test_routines_timeout_counts_as_failure() -> None:
         overrun_counts={},
     )
     assert stats.jobs_failed == 1
-
-
-def test_routines_focus_chrome() -> None:
-    stats = scheduled_routines_panel_stats(
-        routine_names=[],
-        statuses={},
-        chop_names={},
-        chop_snapshots={},
-        overrun_counts={},
-    )
-    focused = scheduled_routines_panel_title(stats, focused=True)
-    unfocused = scheduled_routines_panel_title(stats, focused=False)
-    assert focused.plain == unfocused.plain == "◷ Scheduled Routines · 0 · 0 jobs"
-    assert "#FFD75F" in _span_styles(focused)
-    assert "#FFD75F" not in _span_styles(unfocused)
 
 
 def test_routines_scheduler_badges() -> None:
@@ -224,10 +203,6 @@ def test_routines_scheduler_badges() -> None:
         **base, service_procs={"scheduler": _proc("stopped", name="scheduler")}
     )
     assert stopped.scheduler_badge_text == "scheduler stopped"
-    assert (
-        "scheduler stopped"
-        in scheduled_routines_panel_title(stopped, focused=True).plain
-    )
 
     disabled = scheduled_routines_panel_stats(
         **base,
@@ -247,9 +222,6 @@ def test_routines_scheduler_badges() -> None:
         **base, service_procs={"scheduler": _proc("running", name="scheduler")}
     )
     assert running.scheduler_badge_text is None
-    assert (
-        "scheduler" not in scheduled_routines_panel_title(running, focused=True).plain
-    )
 
     unknown = scheduled_routines_panel_stats(**base, service_procs=None)
     assert unknown.scheduler_badge_text is None

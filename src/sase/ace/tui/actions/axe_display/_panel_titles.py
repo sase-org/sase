@@ -394,19 +394,6 @@ def source_routine_panel_title(
     return title
 
 
-def scheduled_routines_panel_title(
-    stats: ScheduledRoutinesPanelStats, *, focused: bool
-) -> Text:
-    """Build the legacy Scheduled Routines border title from ``stats``.
-
-    Kept for existing callers/tests; new panels use
-    :func:`source_routine_panel_title` with a source label.
-    """
-    return source_routine_panel_title(
-        stats, focused=focused, label="Scheduled Routines"
-    )
-
-
 # Source-panel aliases: the per-panel stats shape is identical, only the
 # routine-name subset and the scheduler-badge owner change.
 SourceRoutinesPanelStats = ScheduledRoutinesPanelStats

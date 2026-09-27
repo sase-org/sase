@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.cli_crud_create import normalize_creation_reason
+from sase.bead.cli_crud_create import _normalize_creation_reason
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
@@ -116,10 +116,10 @@ def test_create_valid_reason_persists_and_reads_back(
 
 
 def test_normalize_creation_reason_matches_core_semantics() -> None:
-    assert normalize_creation_reason("  why  ") == "why"
+    assert _normalize_creation_reason("  why  ") == "why"
     with pytest.raises(ValueError, match="requires -w/--reason"):
-        normalize_creation_reason(None)
+        _normalize_creation_reason(None)
     with pytest.raises(ValueError, match="cannot be empty or blank"):
-        normalize_creation_reason("   ")
+        _normalize_creation_reason("   ")
     with pytest.raises(ValueError, match="at most 2000 characters"):
-        normalize_creation_reason("y" * 2001)
+        _normalize_creation_reason("y" * 2001)

@@ -7,7 +7,7 @@ import pytest
 import sase.core.agent_tab as adapter
 from sase.core.agent_tab import (
     DEFAULT_AGENT_TAB_KEY,
-    AgentTabCatalog,
+    _AgentTabCatalog,
     AgentTabKey,
     agent_tab_key_token,
     build_agent_tab_catalog,
@@ -78,7 +78,7 @@ def test_zero_roots_gives_empty_catalog() -> None:
     catalog = build_agent_tab_catalog(
         [], machine_mode=False, machine_order=[], named_order={}
     )
-    assert isinstance(catalog, AgentTabCatalog)
+    assert isinstance(catalog, _AgentTabCatalog)
     assert catalog.keys == ()
     assert catalog.entries == ()
 

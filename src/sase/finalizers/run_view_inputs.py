@@ -73,7 +73,7 @@ class RunnerIdentity:
     identity: str | None = None
 
 
-def runner_identity_from_mapping(data: Any) -> RunnerIdentity | None:
+def _runner_identity_from_mapping(data: Any) -> RunnerIdentity | None:
     """Coerce a raw ``runner`` mapping tolerantly, or return None."""
     if not isinstance(data, dict):
         return None
@@ -323,7 +323,7 @@ def _journal_runner(journal_text: str | None) -> RunnerIdentity | None:
         if not isinstance(record, dict):
             continue
         if record.get("event") == "phase_started":
-            runner = runner_identity_from_mapping(record.get("runner"))
+            runner = _runner_identity_from_mapping(record.get("runner"))
         elif record.get("event") == "phase_skipped":
             runner = None
     return runner
@@ -457,5 +457,4 @@ __all__ = [
     "build_node_request",
     "collect_run_input",
     "run_inputs_signature",
-    "runner_identity_from_mapping",
 ]

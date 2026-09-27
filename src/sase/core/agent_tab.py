@@ -99,7 +99,7 @@ class AgentTabCatalogEntry:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentTabCatalog:
+class _AgentTabCatalog:
     """Batched tab catalog for one roster.
 
     ``keys`` is index-aligned with the input roots; ``entries`` holds the
@@ -146,7 +146,7 @@ def build_agent_tab_catalog(
     machine_mode: bool,
     machine_order: Iterable[tuple[str, str]],
     named_order: Mapping[str, int],
-) -> AgentTabCatalog:
+) -> _AgentTabCatalog:
     """Build the ordered tab catalog for one roster with a single binding call.
 
     *roots* are wire dicts shaped ``{"agent_tab": str|None, "owner": {...}}``;
@@ -186,7 +186,7 @@ def build_agent_tab_catalog(
                 root_count=root_count if isinstance(root_count, int) else 0,
             )
         )
-    return AgentTabCatalog(keys=keys, entries=tuple(entries))
+    return _AgentTabCatalog(keys=keys, entries=tuple(entries))
 
 
 def canonicalize_agent_tab(raw: str) -> str | None:
@@ -214,7 +214,6 @@ def canonicalize_agent_tab(raw: str) -> str | None:
 
 __all__ = [
     "DEFAULT_AGENT_TAB_KEY",
-    "AgentTabCatalog",
     "AgentTabCatalogEntry",
     "AgentTabKey",
     "AgentTabKind",
