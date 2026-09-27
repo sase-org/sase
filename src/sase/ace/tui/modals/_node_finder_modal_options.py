@@ -39,6 +39,24 @@ class NodeFinderOptionsMixin:
     _window_end: int
     _highlighting: bool
     _last_options_key: tuple[object, ...] | None
+    _guides_view: NodeFinderView | None
+    _guides_width: int
+    _guides_ends: set[int]
+
+    def _window_guides(self, view: NodeFinderView) -> tuple[int, set[int]]:
+        """Return the hint width and sibling-closure set for *view*.
+
+        Both are pure functions of the view's rows, and views are
+        immutable and modal-local, so one memoized entry serves every
+        rebuild of the live view (open, window recenters, repeated
+        refilters of a memoized query) with identical pixels. The entry
+        is released with the other per-open state on unmount.
+        """
+        if self._guides_view is not view:
+            self._guides_view = view
+            self._guides_width = hint_column_width(view)
+            self._guides_ends = last_child_indices(view.rows)
+        return self._guides_width, self._guides_ends
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option_list.id != "node-finder-list":
@@ -130,12 +148,12 @@ class NodeFinderOptionsMixin:
         ):
             return
         option_list = self._list()  # type: ignore[attr-defined]
-        hint_width = hint_column_width(view)
-        status = show_status_column(self._layout_class)
         # One sibling-closure pass shared by every row's tree guides; computing
         # it per row would make a rebuild O(rows^2). Guides span the full
-        # view even though only the window becomes widgets.
-        guide_ends = last_child_indices(view.rows)
+        # view even though only the window becomes widgets. Both values are
+        # pure functions of the view, so repeats share one memoized entry.
+        hint_width, guide_ends = self._window_guides(view)
+        status = show_status_column(self._layout_class)
         options: list[Option] = []
         if not view.rows:
             options.append(

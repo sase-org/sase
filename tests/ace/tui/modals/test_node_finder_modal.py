@@ -20,6 +20,7 @@ from sase.ace.tui.models.node_finder import (
     NodeFinderRole,
     NodeFinderRow,
     NodeFinderSnapshot,
+    NodeFinderView,
     filter_node_finder,
 )
 from tests.ace.tui._member_jump_navigation_helpers import make_agent
@@ -470,6 +471,49 @@ async def test_refilter_after_cursor_move_resets_highlight_to_best() -> None:
         modal._refilter_generation += 1
         modal._apply_refilter("alp", modal._refilter_generation)
         assert option_list.highlighted == 0
+
+
+@pytest.mark.asyncio
+async def test_dismissed_modal_releases_snapshot_rows_without_gc() -> None:
+    """Popping the finder frees its rows by refcount, without the collector.
+
+    A dismissed modal must not keep its snapshot rows alive until cycle
+    collection: every open would otherwise push ~10k cyclic-garbage
+    objects into the old generation and force full collections into the
+    open budget. With the collector disabled, popping must still release
+    the snapshot, the live view, and every row they own. The row types
+    are slotted without weakref support, so liveness is proven with an
+    instance count instead of weakrefs.
+    """
+    import gc
+
+    def _live(cls: type) -> int:
+        return sum(1 for obj in gc.get_objects() if type(obj) is cls)
+
+    base_rows = _live(NodeFinderRow)
+    rows = [_node(f"release-{index:03d}") for index in range(64)]
+    snapshot = _snapshot(*rows)
+    modal = NodeFinderModal(snapshot, preview_loader=_stub_loader)
+    del rows
+    # The fixture snapshot/view below are freed by the pop plus the
+    # ``del``; the release installs exactly one empty replacement each,
+    # so these baselines must read back equal afterwards.
+    base_snapshots = _live(NodeFinderSnapshot)
+    base_views = _live(NodeFinderView)
+    gc.disable()
+    try:
+        async with _ModalHost(modal).run_test(size=(160, 40)) as pilot:
+            await wait_for(pilot, lambda: modal.is_mounted)
+            await pilot.app.pop_screen()
+            await pilot.pause()
+        del snapshot
+        assert modal._snapshot.rows == ()
+        assert modal._view.rows == ()
+        assert _live(NodeFinderRow) == base_rows
+        assert _live(NodeFinderSnapshot) == base_snapshots
+        assert _live(NodeFinderView) == base_views
+    finally:
+        gc.enable()
 
 
 @pytest.mark.asyncio

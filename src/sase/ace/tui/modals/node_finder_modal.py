@@ -108,6 +108,12 @@ class NodeFinderModal(
         self._view_cache: dict[tuple[str, tuple[str, ...] | None], NodeFinderView] = {}
         self._view = self._filtered_view("", None)
         self._last_options_key: tuple[object, ...] | None = None
+        # Memoized per-view window guides (hint width plus sibling
+        # closure); see ``NodeFinderOptionsMixin._window_guides``. The
+        # entry only ever serves the live modal and dies with it.
+        self._guides_view: NodeFinderView | None = None
+        self._guides_width = 1
+        self._guides_ends: set[int] = set()
         self._search_mode = False
         self._pending = ""
         self._flash = ""
@@ -175,12 +181,47 @@ class NodeFinderModal(
     def on_unmount(self) -> None:
         if self._debouncer is not None:
             self._debouncer.cancel()
+            self._debouncer = None
         if self._flash_timer is not None:
             self._flash_timer.stop()
+            self._flash_timer = None
         # Invalidate any coalesced refilter still queued behind this screen.
         self._refilter_generation += 1
         self._pending_refilter_query = None
+        # Invalidate in-flight Tier 1 loads so a late worker neither
+        # repaints nor re-caches through the released snapshot below.
+        self._preview_generation += 1
         cancel_pump_free_tasks(self)
+        self._node_finder_preview_tasks.clear()
+        self._release_per_open_state()
+
+    def _release_per_open_state(self) -> None:
+        """Drop every per-open reference so dismissal frees without the collector.
+
+        A popped modal otherwise keeps its snapshot, views, and preview
+        caches alive through the widget parent/child cycle (plus task and
+        timer frames) until the next full collection, pushing ~10k objects
+        per open into the old generation. Clearing here leaves only the
+        small modal shell for the collector; the rows free by refcount the
+        moment the screen is popped. The memo and the identical-rebuild
+        skip only ever serve the live modal, so releasing them after
+        dismissal loses nothing. Empty snapshot/view replacements (rather
+        than ``None``) keep stray post-unmount reads total instead of
+        raising; every producer path is still generation-guarded.
+        """
+        self._snapshot = NodeFinderSnapshot()
+        self._view = NodeFinderView()
+        self._view_cache.clear()
+        self._tier0_cache.clear()
+        self._cache = NodeFinderPreviewCache()
+        self._last_options_key = None
+        self._guides_view = None
+        self._guides_width = 1
+        self._guides_ends = set()
+        self._window_base = 0
+        self._window_end = 0
+        self._pending = ""
+        self._flash = ""
 
     def on_resize(self, event: Resize) -> None:
         desired = layout_class_for_width(event.size.width)
