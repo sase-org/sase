@@ -27,7 +27,8 @@ def register_final_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase final prepare completion.json\n"
             "  sase final submit final-manifest.json\n"
             "  sase final submit -\n"
-            "  sase final defer repo-a protected_paths"
+            "  sase final defer repo-a protected_paths\n"
+            "  sase final status my-agent"
         ),
     )
     final_subparsers = final_parser.add_subparsers(
@@ -143,6 +144,43 @@ def register_final_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     show_parser.add_argument("instance", help="Finalizer instance ID")
     _add_format_argument(show_parser)
+
+    status_parser = final_subparsers.add_parser(
+        "status",
+        help="Show the finalizer run view for one agent",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Project the finalizer run view for one agent turn and print it. "
+            "The view reconciles the sealed plan, the controller progress "
+            "journal, operation records, steps, and typed evidence through "
+            "the shared projection, so this output agrees with the Agents "
+            "tab's FINAL deck. Pretty output is colored in the shared state "
+            "vocabulary; JSON output is the projection response verbatim."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase final status                     # the calling turn, inside a SASE turn\n"
+            "  sase final status my-agent\n"
+            "  sase final status my-session --format json\n"
+            "  sase final status -d path/to/artifacts"
+        ),
+    )
+    status_parser.add_argument(
+        "agent",
+        nargs="?",
+        metavar="<agent>",
+        help="Session, turn, or monitor-turn name. Defaults to the calling "
+        "turn inside a SASE turn; required otherwise.",
+    )
+    status_parser.add_argument(
+        "-d",
+        "--artifacts-dir",
+        metavar="<dir>",
+        default=None,
+        help="Read finalizer artifacts directly from <dir> instead of "
+        "resolving an agent name",
+    )
+    _add_format_argument(status_parser)
 
     submit_parser = final_subparsers.add_parser(
         "submit",

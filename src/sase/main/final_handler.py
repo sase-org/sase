@@ -13,6 +13,7 @@ from sase.finalizers.cli import (
     handle_final_doctor,
     handle_final_list,
     handle_final_show,
+    handle_final_status,
 )
 from sase.finalizers.declaration import (
     FinalizerDeclarationError,
@@ -189,13 +190,21 @@ def handle_final_command(args: argparse.Namespace) -> None:
         sys.exit(handle_final_show(args.instance, format_name=format_name))
     if subcommand == "doctor":
         sys.exit(handle_final_doctor(format_name=format_name))
+    if subcommand == "status":
+        sys.exit(
+            handle_final_status(
+                getattr(args, "agent", None),
+                artifacts_dir=getattr(args, "artifacts_dir", None),
+                format_name=format_name,
+            )
+        )
 
     handler = (
         _DECLARATION_HANDLERS.get(subcommand) if isinstance(subcommand, str) else None
     )
     if handler is None:
         print(
-            "Usage: sase final {context,defer,doctor,list,prepare,show,submit}",
+            "Usage: sase final {context,defer,doctor,list,prepare,show,status,submit}",
             file=sys.stderr,
         )
         sys.exit(2)
