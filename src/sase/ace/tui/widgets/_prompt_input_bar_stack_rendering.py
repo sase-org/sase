@@ -44,6 +44,7 @@ class PromptInputBarStackRenderingMixin(
         _stack: PromptStackState
         _subtitle_base: str
 
+        def _refresh_dispatch_context_line(self) -> None: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
         def _render_subtitle(self, base: str) -> Text: ...
         def _sync_todo_counts_from_mounted_panes(self) -> None: ...
@@ -238,6 +239,13 @@ class PromptInputBarStackRenderingMixin(
         self._apply_active_classes()
         self._sync_todo_counts_from_mounted_panes()
         self._refresh_title()
+        # Programmatic stack replacements (Prompts-overlay History/Stash
+        # restores, editor apply, reorder/add-pane) mount fresh panes without
+        # emitting TextArea.Changed, so the %dispatch Target/Source line
+        # would keep showing the pre-rebuild target. Refresh it here so a
+        # loaded entry that adds, removes, or changes the dispatch directive
+        # is reflected immediately (viewer_matrix ade28c173a recheck).
+        self._refresh_dispatch_context_line()
         if restore_focus is not None:
             if restore_focus.vim_mode == "insert":
                 text_area._enter_insert_mode()
