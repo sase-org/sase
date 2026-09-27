@@ -15,9 +15,11 @@ from sase.ace.testing import wait_for
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
 from sase.ace.tui.widgets.decks.panel_files import DeckPanelFilesMixin
+from sase.ace.tui.util.lazy_syntax import FILE_PANEL_MAX_RENDER_LINES
 from sase.ace.tui.widgets.file_panel._spread_probe import (
     FilesSpreadPage,
     FilesSpreadProbe,
+    probe_files_spread,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
@@ -191,3 +193,85 @@ def test_gate_drops_a_non_probe_result() -> None:
 
     assert host._files_pending_probe is None
     host._on_files_probe_result.assert_not_called()
+
+
+def _write(path: Path, lines: int) -> str:
+    path.write_text("".join(f"line-{i:04d}\n" for i in range(lines)), encoding="utf-8")
+    return str(path)
+
+
+def test_complete_probe_reads_all_pages_without_a_total_bound(
+    tmp_path: Path,
+) -> None:
+    slots = tuple(_write(tmp_path / f"{name}.py", 40) for name in ("a", "b", "c"))
+
+    probe = probe_files_spread(
+        None, slots, width=80, stop_after_rows=1.0, complete=True
+    )
+
+    # The tiny bound is ignored: every page is read, nothing exceeds.
+    assert probe.complete is True
+    assert probe.exceeded is False
+    assert probe.has_solo is False
+    assert len(probe.pages) == 3
+    assert all(page.truncated is False for page in probe.pages)
+    assert probe.total_rows is not None
+
+
+def test_complete_probe_caps_pages_and_marks_truncated(tmp_path: Path) -> None:
+    big = _write(tmp_path / "big.py", FILE_PANEL_MAX_RENDER_LINES + 50)
+    small = _write(tmp_path / "small.py", 10)
+
+    probe = probe_files_spread(
+        None, (big, small), width=80, stop_after_rows=10**9, complete=True
+    )
+
+    assert probe.complete is True
+    assert probe.exceeded is False
+    assert len(probe.pages) == 2
+    big_page, small_page = probe.pages
+    assert big_page.truncated is True
+    assert len(big_page.text.splitlines()) == FILE_PANEL_MAX_RENDER_LINES
+    assert small_page.truncated is False
+
+
+def test_complete_probe_slices_overrides_and_keeps_media_short_circuit(
+    tmp_path: Path,
+) -> None:
+    text_slot = _write(tmp_path / "notes.md", 5)
+    image_slot = str(tmp_path / "shot.png")
+    (tmp_path / "shot.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    over = "\n".join(f"row-{i}" for i in range(FILE_PANEL_MAX_RENDER_LINES + 3))
+
+    sliced = probe_files_spread(
+        None,
+        (text_slot,),
+        width=80,
+        stop_after_rows=10**9,
+        complete=True,
+        slot_text={text_slot: over},
+        slot_kind={text_slot: "text"},
+    )
+    assert sliced.pages[0].truncated is True
+    assert len(sliced.pages[0].text.splitlines()) == FILE_PANEL_MAX_RENDER_LINES
+
+    media = probe_files_spread(
+        None, (text_slot, image_slot), width=80, stop_after_rows=10**9, complete=True
+    )
+    assert media.has_solo is True
+    assert media.complete is False
+
+
+def test_bounded_probe_mode_is_unchanged(tmp_path: Path) -> None:
+    big = _write(tmp_path / "big.py", 200)
+    small = _write(tmp_path / "small.py", 3)
+
+    exceeded = probe_files_spread(None, (big,), width=20, stop_after_rows=5.0)
+    assert exceeded.complete is False
+    assert exceeded.exceeded is True
+    assert all(page.truncated is False for page in exceeded.pages)
+
+    fits = probe_files_spread(None, (small,), width=80, stop_after_rows=10**9)
+    assert fits.complete is False
+    assert fits.exceeded is False
+    assert fits.pages[0].truncated is False

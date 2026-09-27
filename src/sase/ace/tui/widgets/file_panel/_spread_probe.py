@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from rich.cells import cell_len
 
 from sase.ace.tui.graphics.images import is_supported_image_path
+from sase.ace.tui.util.lazy_syntax import FILE_PANEL_MAX_RENDER_LINES
 from sase.media_types import is_supported_video_path
 
 _FILE_TEXT_CACHE_MAX_ENTRIES = 32
@@ -23,6 +24,7 @@ class FilesSpreadPage:
     label: str
     text: str
     lexer: str
+    truncated: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +36,7 @@ class FilesSpreadProbe:
     has_solo: bool
     exceeded: bool
     bound: float
+    complete: bool = False
 
 
 def _cached_file_text(path: str) -> str | None:
@@ -103,6 +106,37 @@ def _read_bounded_lines(path: str, *, stop_after_rows: float, width: int) -> str
         return None
 
 
+def _slice_text_lines(text: str, *, max_lines: int) -> tuple[str, bool]:
+    """Return ``(text, truncated)`` capped at ``max_lines`` lines."""
+    lines = text.splitlines()
+    if len(lines) <= max_lines:
+        return text, False
+    return "\n".join(lines[:max_lines]), True
+
+
+def _read_capped_lines(path: str, *, max_lines: int) -> tuple[str | None, bool]:
+    """Return ``(text, truncated)`` with at most ``max_lines`` lines.
+
+    Streams the file and stops one line past the cap, so a huge file is
+    never read into memory in full. Returns ``(None, False)`` when the
+    file cannot be read.
+    """
+    cap = max(1, int(max_lines))
+    try:
+        kept: list[str] = []
+        truncated = False
+        with open(os.path.expanduser(path), encoding="utf-8", errors="replace") as f:
+            for raw in f:
+                if len(kept) < cap:
+                    kept.append(raw.rstrip("\n"))
+                else:
+                    truncated = True
+                    break
+        return "\n".join(kept), truncated
+    except Exception:
+        return None, False
+
+
 def _read_commit_slot_text(
     agent: object, slot: str, *, bound: float, width: int
 ) -> str | None:
@@ -119,6 +153,23 @@ def _read_commit_slot_text(
         return _read_bounded_lines(diff_path, stop_after_rows=bound, width=width)
     except Exception:
         return ""
+
+
+def _read_commit_slot_text_capped(
+    agent: object, slot: str, *, max_lines: int
+) -> tuple[str | None, bool]:
+    """Return ``(text, truncated)`` commit-diff text capped at ``max_lines``."""
+    try:
+        from sase.ace.tui.widgets.file_panel._messages import commit_slot_index
+        from sase.ace.tui.widgets.prompt_panel._agent_commits import agent_commit_diffs
+
+        index = commit_slot_index(slot)
+        diffs = agent_commit_diffs(agent)  # type: ignore[arg-type]
+        if index < 0 or index >= len(diffs):
+            return "", False
+        return _read_capped_lines(diffs[index].diff_path, max_lines=max_lines)
+    except Exception:
+        return "", False
 
 
 def _commit_slot_label(agent: object, slot: str) -> str:
@@ -183,6 +234,16 @@ def estimate_wrapped_rows(text: str, *, width: int, gutter: int = 0) -> int:
     return total
 
 
+def _page_lexer(slot: str, expanded: str | None) -> str:
+    """Return the spread-page lexer for a plain path ``slot``."""
+    _, ext = os.path.splitext(expanded or slot)
+    from sase.ace.tui.widgets.file_panel._messages import (
+        _EXTENSION_TO_LEXER,
+    )
+
+    return _EXTENSION_TO_LEXER.get(ext.lower(), "text")
+
+
 def probe_files_spread(
     agent: object,
     slots: tuple[str, ...],
@@ -192,8 +253,15 @@ def probe_files_spread(
     text_cache: dict[str, str] | None = None,
     slot_text: dict[str, str] | None = None,
     slot_kind: dict[str, str] | None = None,
+    complete: bool = False,
 ) -> FilesSpreadProbe:
-    """Probe Files pages without rendering, stopping once past the bound."""
+    """Probe Files pages without rendering, stopping once past the bound.
+
+    In ``complete`` mode there is no total bound: every page is read and
+    each page's text is capped at ``FILE_PANEL_MAX_RENDER_LINES`` lines
+    (plus one line to detect truncation), marking over-cap pages with
+    ``truncated=True`` instead of silently dropping content.
+    """
     from sase.ace.tui.widgets.file_panel._messages import (
         _LIVE_DIFF_SENTINEL,
         file_cache,
@@ -203,6 +271,7 @@ def probe_files_spread(
     )
 
     bound = float(stop_after_rows)
+    per_page_cap = max(1, int(FILE_PANEL_MAX_RENDER_LINES))
     pages: list[FilesSpreadPage] = []
     total = 0
     # Separator overhead is accounted per page after the first (2 rows).
@@ -231,6 +300,7 @@ def probe_files_spread(
             except Exception:
                 pass
         text: str | None = None
+        truncated = False
         lexer = "diff"
         label = slot
         if slot_text is not None and slot in slot_text:
@@ -238,6 +308,8 @@ def probe_files_spread(
             kind = (slot_kind or {}).get(slot, "diff")
             lexer = kind
             label = slot
+            if complete:
+                text, truncated = _slice_text_lines(text or "", max_lines=per_page_cap)
         elif slot == _LIVE_DIFF_SENTINEL:
             try:
                 entry = file_cache.get(get_cache_key(agent))  # type: ignore[arg-type]
@@ -248,9 +320,22 @@ def probe_files_spread(
             label = "diff"
             if not text:
                 text = ""
+            if complete:
+                text, truncated = _slice_text_lines(text, max_lines=per_page_cap)
         elif is_commit_slot(slot):
             # Commit diffs: read the persisted diff file when resolvable.
-            if text_cache is not None and slot in text_cache:
+            if complete:
+                if text_cache is not None and slot in text_cache:
+                    text, truncated = _slice_text_lines(
+                        text_cache[slot], max_lines=per_page_cap
+                    )
+                else:
+                    text, truncated = _read_commit_slot_text_capped(
+                        agent, slot, max_lines=per_page_cap
+                    )
+                    if text is None:
+                        text, truncated = "", False
+            elif text_cache is not None and slot in text_cache:
                 text = text_cache[slot]
             else:
                 text = _read_commit_slot_text(agent, slot, bound=bound, width=width)
@@ -267,6 +352,16 @@ def probe_files_spread(
                     text = ""
             lexer = "diff"
             label = _linked_slot_label(agent, slot)
+            if complete:
+                text, truncated = _slice_text_lines(text, max_lines=per_page_cap)
+        elif complete:
+            # Plain path: fresh streaming capped read (never the shared
+            # row-bounded cache, and never the whole file in memory).
+            text, truncated = _read_capped_lines(slot, max_lines=per_page_cap)
+            if text is None:
+                text, truncated = "", False
+            lexer = _page_lexer(slot, expanded)
+            label = os.path.basename(os.path.expanduser(slot)) or slot
         else:
             # Plain path: bounded read cached by (path, mtime, size).
             cached_text = _cached_file_text(slot)
@@ -279,12 +374,7 @@ def probe_files_spread(
                 if text is None:
                     text = ""
             # Lexer from extension.
-            _, ext = os.path.splitext(expanded or slot)
-            from sase.ace.tui.widgets.file_panel._messages import (
-                _EXTENSION_TO_LEXER,
-            )
-
-            lexer = _EXTENSION_TO_LEXER.get(ext.lower(), "text")
+            lexer = _page_lexer(slot, expanded)
             label = os.path.basename(os.path.expanduser(slot)) or slot
         body = text or ""
         # Header rows: header + blank line; linked banner may be two lines.
@@ -296,8 +386,12 @@ def probe_files_spread(
         if index > 0:
             page_rows += 2
         total += page_rows
-        pages.append(FilesSpreadPage(slot=slot, label=label, text=body, lexer=lexer))
-        if total > bound:
+        pages.append(
+            FilesSpreadPage(
+                slot=slot, label=label, text=body, lexer=lexer, truncated=truncated
+            )
+        )
+        if not complete and total > bound:
             return FilesSpreadProbe(
                 pages=tuple(pages),
                 total_rows=total,
@@ -311,6 +405,7 @@ def probe_files_spread(
         has_solo=False,
         exceeded=False,
         bound=bound,
+        complete=complete,
     )
 
 

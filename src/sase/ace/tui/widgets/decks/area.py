@@ -141,10 +141,16 @@ class DeckArea(Vertical):
         self._state = with_panel_deck(self._state, index, deck)
         self.panel(index).set_deck(deck)
 
-    def set_panel_view(self, index: int, deck: DeckId, view: DeckView) -> None:
-        """Update state via ``with_panel_view``, then apply it on the panel."""
+    def set_panel_view(
+        self, index: int, deck: DeckId, view: DeckView, *, user_initiated: bool = False
+    ) -> None:
+        """Update state via ``with_panel_view``, then apply it on the panel.
+
+        ``user_initiated`` marks a P/palette change (for the Files media
+        toast); state syncs and restores never set it.
+        """
         self._state = with_panel_view(self._state, index, deck, view)
-        self.panel(index).set_view_policy(deck, view)
+        self.panel(index).set_view_policy(deck, view, user_initiated=user_initiated)
 
     def _sync_panel_views(self, new_state: DeckAreaState) -> None:
         """Sync stored view policies; apply only when changed (never raises)."""
@@ -165,7 +171,12 @@ class DeckArea(Vertical):
                     if not document.partial and document.cards:
                         panel._apply_main_view_change()
                         continue
-                # FILES applies in files-engine; other decks need chrome only.
+                elif panel.deck is DeckId.FILES:
+                    # State syncs and restores apply without the
+                    # user-initiated flag, so they never toast.
+                    panel._apply_files_view_change()
+                    continue
+                # Other decks need chrome only.
                 panel.refresh_chrome()
             except Exception:
                 pass

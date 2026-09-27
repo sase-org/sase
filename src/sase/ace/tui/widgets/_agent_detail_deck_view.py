@@ -58,7 +58,7 @@ class AgentDetailDeckViewMixin:
             return None
         try:
             area = self.deck_area  # type: ignore[attr-defined]
-            area.set_panel_view(index, deck, nxt)
+            area.set_panel_view(index, deck, nxt, user_initiated=True)
         except Exception:
             return None
         try:
@@ -81,7 +81,7 @@ class AgentDetailDeckViewMixin:
             return False
         try:
             area = self.deck_area  # type: ignore[attr-defined]
-            area.set_panel_view(index, deck, view)
+            area.set_panel_view(index, deck, view, user_initiated=True)
         except Exception:
             return False
         try:

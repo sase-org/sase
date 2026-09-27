@@ -91,8 +91,14 @@ class DeckPanelViewMixin:
         except Exception:
             return False
 
-    def set_view_policy(self, deck: DeckId, view: DeckView) -> None:
-        """Store ``view`` for ``deck``, applying it when that deck is shown."""
+    def set_view_policy(
+        self, deck: DeckId, view: DeckView, *, user_initiated: bool = False
+    ) -> None:
+        """Store ``view`` for ``deck``, applying it when that deck is shown.
+
+        ``user_initiated`` marks a P/palette change so the Files path can
+        post the one-shot media toast; subject changes never set it.
+        """
         try:
             policies = self._view_policies
         except Exception:
@@ -119,8 +125,12 @@ class DeckPanelViewMixin:
                 return
             self._apply_main_view_change()
             return
-        # FILES applies in files-engine; store and refresh chrome only.
-        self._refresh_view_chrome()
+        # FILES applies through the files-engine view-change path, which
+        # keeps the page and offset via the existing Files transition.
+        try:
+            self._apply_files_view_change(user_initiated=user_initiated)  # type: ignore[attr-defined]
+        except Exception:
+            self._refresh_view_chrome()
 
     def _refresh_view_chrome(self) -> None:
         """Refresh chrome and cached predicates without raising."""

@@ -16,6 +16,12 @@ from sase.ace.tui.util.lazy_syntax import (
     lazy_renderable,
 )
 
+# Truncation hint matching the paged file view (`_content.py`), which uses
+# the same wording through `lazy_renderable(truncation_hint=...)`. Spread
+# pages are pre-capped by the complete probe so `lazy_renderable` never
+# fires its own hint; truncated pages render this one explicitly instead.
+SPREAD_TRUNCATION_HINT = "press E to open in editor"
+
 
 class FilesSpreadView(SectionViewMixin, Static):
     """One Files spread view that lives inside a VerticalScroll."""
@@ -55,8 +61,16 @@ class FilesSpreadView(SectionViewMixin, Static):
                 page.lexer,
                 line_numbers=True,
                 max_render_lines=FILE_PANEL_MAX_RENDER_LINES,
+                truncation_hint=SPREAD_TRUNCATION_HINT,
             )
             parts.append(body)
+            if getattr(page, "truncated", False):
+                parts.append(
+                    Text(
+                        f"\n… more lines — {SPREAD_TRUNCATION_HINT}",
+                        style="dim italic #87D7FF",
+                    )
+                )
         if not parts:
             self._apply_section_content(Text(""), digest, layout=True)
         else:
@@ -73,4 +87,4 @@ class FilesSpreadView(SectionViewMixin, Static):
         self._last_render_key = None
 
 
-__all__ = ["FilesSpreadView"]
+__all__ = ["FilesSpreadView", "SPREAD_TRUNCATION_HINT"]

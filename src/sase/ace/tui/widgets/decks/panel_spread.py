@@ -7,7 +7,7 @@ from typing import Any
 from textual.containers import VerticalScroll
 
 from ...agent_decks_settings import agent_decks_settings_for
-from .model import DeckId, RenderMode, cycle_card_id
+from .model import DeckId, DeckView, RenderMode, cycle_card_id
 from .render_mode import (
     decide_render_mode,
     measure_main_rows,
@@ -31,6 +31,8 @@ class DeckPanelSpreadMixin:
     _files_probe_slots: tuple[str, ...]
     _files_probe_agent: Any | None
     _files_pending_probe: Any | None
+    _files_probe_complete: bool
+    _files_media_toast_armed: bool
     _resize_decision_pending: bool
     _one_shot_spread_card: str | None
 
@@ -48,6 +50,13 @@ class DeckPanelSpreadMixin:
         self._files_probe_slots = ()
         self._files_probe_agent = None
         self._files_pending_probe = None
+        # Whether the stored Files pages were read completely (complete
+        # probe, or a bounded probe that never exceeded its bound and found
+        # no media). Only complete pages may render a fixed spread.
+        self._files_probe_complete = False
+        # Set by a user-initiated fixed-spread change; consumed by the first
+        # media-blocked probe result that follows it (for the D8 toast).
+        self._files_media_toast_armed = False
         self._resize_decision_pending = False
         self._one_shot_spread_card = None
 
@@ -166,6 +175,25 @@ class DeckPanelSpreadMixin:
         card_count: int,
     ) -> RenderMode:
         previous = self._render_mode.get(DeckId.FILES, RenderMode.PAGED)
+        # A one-card deck always spreads, even under a fixed policy (D1).
+        if card_count <= 1:
+            return RenderMode.SPREAD
+        try:
+            policy = self.view_policy(DeckId.FILES)  # type: ignore[attr-defined]
+        except Exception:
+            policy = DeckView.AUTO
+        if policy is DeckView.PAGE_CARDS:
+            return RenderMode.PAGED
+        if policy is DeckView.SPREAD:
+            if has_solo:
+                return RenderMode.PAGED
+            # Fixed spread needs complete pages; otherwise stay paged
+            # until the complete probe lands.
+            try:
+                complete = bool(self._files_probe_complete)
+            except Exception:
+                complete = False
+            return RenderMode.SPREAD if complete else RenderMode.PAGED
         spread_max = self._spread_settings_max_screens()
         rows, _width = self._spread_viewport(DeckId.FILES)
         if rows <= 0:

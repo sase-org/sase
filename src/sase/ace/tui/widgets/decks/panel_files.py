@@ -15,7 +15,9 @@ from ..file_panel import (
 from ..file_panel._spread_probe import FilesSpreadProbe
 from ..llm_calls_panel import LLMCallsVisibilityChanged
 from .availability import DeckAvailability
-from .model import DeckId, RenderMode
+from .model import DeckId, DeckView, RenderMode
+
+_FILES_MEDIA_BLOCKED_TOAST = "Files stays paged: images and videos can't spread"
 
 
 class DeckPanelFilesMixin:
@@ -23,6 +25,7 @@ class DeckPanelFilesMixin:
 
     _files_probe_agent: Any | None
     _files_pending_probe: Any | None
+    _files_probe_complete: bool
 
     if TYPE_CHECKING:
 
@@ -31,6 +34,31 @@ class DeckPanelFilesMixin:
     def _refresh_files_mode_for_shown(self) -> None:
         if self._deck is not DeckId.FILES:
             return
+        try:
+            policy = self.view_policy(DeckId.FILES)  # type: ignore[attr-defined]
+        except Exception:
+            policy = DeckView.AUTO
+        if policy is DeckView.PAGE_CARDS:
+            # Fixed page cards: always paged; never probe.
+            try:
+                if self._render_mode.get(DeckId.FILES) is not RenderMode.PAGED:
+                    self._render_mode[DeckId.FILES] = RenderMode.PAGED
+                    self._sync_files_views()
+                    self.refresh_chrome()
+            except Exception:
+                pass
+            return
+        if policy is DeckView.SPREAD:
+            try:
+                complete = bool(self._files_probe_complete)
+            except Exception:
+                complete = False
+            if not complete:
+                try:
+                    self._schedule_files_probe(reason="resize-needs-complete")
+                except Exception:
+                    pass
+                return
         rows, width = self._spread_viewport(DeckId.FILES)
         if rows <= 0 or width <= 0:
             return
@@ -64,11 +92,25 @@ class DeckPanelFilesMixin:
     def _schedule_files_probe(self, *, reason: str = "") -> None:
         del reason
         try:
+            policy = self.view_policy(DeckId.FILES)  # type: ignore[attr-defined]
+        except Exception:
+            policy = DeckView.AUTO
+        try:
             file_view = self.file_view
             slots = tuple(getattr(file_view, "_file_list", ()))
         except Exception:
             return
         if not slots:
+            return
+        if policy is DeckView.PAGE_CARDS:
+            # Fixed page cards skips the spread probe entirely.
+            try:
+                if self._render_mode.get(DeckId.FILES) is not RenderMode.PAGED:
+                    self._render_mode[DeckId.FILES] = RenderMode.PAGED
+                    self._sync_files_views()
+                    self.refresh_chrome()
+            except Exception:
+                pass
             return
         try:
             agent = getattr(file_view, "_current_agent", None)
@@ -90,6 +132,7 @@ class DeckPanelFilesMixin:
 
         budget = _budget(spread_max, rows)
         stop_after = budget * 1.10
+        want_complete = policy is DeckView.SPREAD
         current_slots = self._files_probe_slots
         current_subject = self._files_probe_subject
         if (
@@ -97,9 +140,20 @@ class DeckPanelFilesMixin:
             and subject == current_subject
             and self._files_probe_pages
         ):
-            return
+            try:
+                complete = bool(self._files_probe_complete)
+            except Exception:
+                complete = False
+            if not want_complete or complete:
+                return
+            # Fixed spread with only bounded pages: fall through to a
+            # complete re-probe.
         # New subject starts paged until the probe lands.
         if subject != current_subject:
+            self._files_probe_complete = False
+            self._files_spread_pending = False  # type: ignore[attr-defined]
+            self._files_spread_blocked = False  # type: ignore[attr-defined]
+            self._files_media_toast_armed = False
             self._render_mode[DeckId.FILES] = RenderMode.PAGED
             self._sync_files_views()
             self.refresh_chrome()
@@ -108,6 +162,7 @@ class DeckPanelFilesMixin:
         probe_subject = subject
         probe_width = width
         probe_stop = stop_after
+        probe_complete = want_complete
 
         def _task() -> Any:
             from ..file_panel._spread_probe import probe_files_spread
@@ -117,6 +172,7 @@ class DeckPanelFilesMixin:
                 probe_slots,
                 width=probe_width,
                 stop_after_rows=probe_stop,
+                complete=probe_complete,
             )
 
         try:
@@ -135,13 +191,20 @@ class DeckPanelFilesMixin:
                 probe_slots,
                 probe_subject,
             )
+            if want_complete:
+                self._files_spread_pending = True  # type: ignore[attr-defined]
+                self.refresh_chrome()
         except Exception:
-            # Fall back to a synchronous bounded probe.
+            # Fall back to a synchronous probe of the same mode.
             try:
                 from ..file_panel._spread_probe import probe_files_spread
 
                 probe = probe_files_spread(
-                    probe_agent, probe_slots, width=width, stop_after_rows=stop_after
+                    probe_agent,
+                    probe_slots,
+                    width=width,
+                    stop_after_rows=stop_after,
+                    complete=probe_complete,
                 )
                 self._on_files_probe_result(probe, probe_agent, probe_slots, subject)
             except Exception:
@@ -188,6 +251,58 @@ class DeckPanelFilesMixin:
         self._files_probe_subject = subject
         self._files_probe_slots = tuple(slots)
         self._files_probe_agent = agent
+        # Auto-probe pages count as complete only when the probe did not
+        # exceed its bound and found no media.
+        self._files_probe_complete = bool(
+            getattr(probe, "complete", False)
+            or (not probe.exceeded and not probe.has_solo)
+        )
+        try:
+            policy = self.view_policy(DeckId.FILES)  # type: ignore[attr-defined]
+        except Exception:
+            policy = DeckView.AUTO
+        if policy is DeckView.PAGE_CARDS:
+            # A probe that landed after the switch to fixed page cards:
+            # keep the pages, stay paged.
+            self._files_spread_pending = False  # type: ignore[attr-defined]
+            self._files_spread_blocked = False  # type: ignore[attr-defined]
+            self._mode_subject[DeckId.FILES] = subject
+            if self._render_mode.get(DeckId.FILES) is not RenderMode.PAGED:
+                self._apply_files_transition(RenderMode.PAGED)
+            else:
+                self.refresh_chrome()
+            return
+        if policy is DeckView.SPREAD:
+            self._files_spread_pending = False  # type: ignore[attr-defined]
+            if probe.has_solo:
+                # Media can never spread: stay paged and keep the fixed
+                # preference for the next compatible subject.
+                self._files_spread_blocked = True  # type: ignore[attr-defined]
+                self._mode_subject[DeckId.FILES] = subject
+                if self._files_media_toast_armed:
+                    self._files_media_toast_armed = False
+                    self._post_files_media_toast()
+                self.refresh_chrome()
+                return
+            self._files_spread_blocked = False  # type: ignore[attr-defined]
+            if not self._files_probe_complete:
+                # A bounded probe that landed after the switch to fixed
+                # spread: re-probe completely instead of spreading partial
+                # pages.
+                self._files_spread_pending = True  # type: ignore[attr-defined]
+                self.refresh_chrome()
+                self._schedule_files_probe(reason="spread-incomplete")
+                return
+            self._files_media_toast_armed = False
+            self._mode_subject[DeckId.FILES] = subject
+            if self._render_mode.get(DeckId.FILES) is not RenderMode.SPREAD:
+                self._apply_files_transition(RenderMode.SPREAD)
+            else:
+                self.refresh_chrome()
+            return
+        self._files_spread_pending = False  # type: ignore[attr-defined]
+        self._files_spread_blocked = False  # type: ignore[attr-defined]
+        self._files_media_toast_armed = False
         same = True
         # Solo cards force paged.
         if probe.has_solo:
@@ -209,6 +324,124 @@ class DeckPanelFilesMixin:
             return
         self._mode_subject[DeckId.FILES] = subject
         self._apply_files_transition(new_mode)
+
+    def _post_files_media_toast(self) -> None:
+        """Post the one-shot media toast for a user-initiated spread request."""
+        try:
+            notify = getattr(self, "notify", None)
+            if callable(notify):
+                notify(_FILES_MEDIA_BLOCKED_TOAST, severity="warning")
+        except Exception:
+            pass
+
+    def _apply_files_view_change(self, *, user_initiated: bool = False) -> None:
+        """Apply the stored Files policy, keeping the page and offset (D8)."""
+        try:
+            policy = self.view_policy(DeckId.FILES)  # type: ignore[attr-defined]
+        except Exception:
+            policy = DeckView.AUTO
+        if policy is DeckView.SPREAD and user_initiated:
+            self._files_media_toast_armed = True
+        elif policy is not DeckView.SPREAD:
+            self._files_media_toast_armed = False
+        if policy is DeckView.PAGE_CARDS:
+            self._files_spread_pending = False  # type: ignore[attr-defined]
+            self._files_spread_blocked = False  # type: ignore[attr-defined]
+            try:
+                if self._render_mode.get(DeckId.FILES) is RenderMode.SPREAD:
+                    self._apply_files_transition(RenderMode.PAGED)
+                else:
+                    self._sync_files_views()
+                    self.refresh_chrome()
+            except Exception:
+                pass
+            try:
+                self._sync_view_cycle_available()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            return
+        if policy is DeckView.SPREAD:
+            self._files_spread_blocked = False  # type: ignore[attr-defined]
+            try:
+                self._schedule_files_probe(reason="view-change")
+            except Exception:
+                pass
+            try:
+                pending = bool(self._files_spread_pending)  # type: ignore[attr-defined]
+            except Exception:
+                pending = False
+            if not pending:
+                # No probe in flight: complete pages are already stored,
+                # so apply the fixed spread now instead of waiting.
+                try:
+                    complete = bool(self._files_probe_complete)
+                except Exception:
+                    complete = False
+                try:
+                    blocked = bool(  # type: ignore[attr-defined]
+                        self._files_spread_blocked
+                    )
+                except Exception:
+                    blocked = False
+                try:
+                    if (
+                        complete
+                        and not blocked
+                        and self._render_mode.get(DeckId.FILES) is not RenderMode.SPREAD
+                    ):
+                        self._apply_files_transition(RenderMode.SPREAD)
+                    else:
+                        self.refresh_chrome()
+                except Exception:
+                    pass
+            try:
+                self._sync_view_cycle_available()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            return
+        # AUTO: clear fixed state and re-decide with today's bounded probe.
+        self._files_spread_pending = False  # type: ignore[attr-defined]
+        self._files_spread_blocked = False  # type: ignore[attr-defined]
+        try:
+            self._schedule_files_probe(reason="view-change-auto")
+        except Exception:
+            pass
+        # The schedule above no-ops when stored pages are already current;
+        # re-decide from them now so reset-to-AUTO never keeps a fixed mode.
+        try:
+            current = tuple(getattr(self.file_view, "_file_list", ()))
+            anchor = getattr(self.file_view, "_anchor_agent_identity", None)
+            fresh = (
+                bool(self._files_probe_pages)
+                and tuple(self._files_probe_slots) == tuple(current)
+                and self._files_probe_subject == anchor
+            )
+        except Exception:
+            fresh = False
+            current = ()
+        if fresh:
+            try:
+                new_mode = self._decide_files_mode(
+                    same_subject=True,
+                    total_rows=self._files_probe_total,
+                    has_solo=False,
+                    card_count=len(current) or 1,
+                )
+            except Exception:
+                new_mode = None
+            try:
+                if new_mode is not None and new_mode is not self._render_mode.get(
+                    DeckId.FILES, RenderMode.PAGED
+                ):
+                    self._apply_files_transition(new_mode)
+                else:
+                    self.refresh_chrome()
+            except Exception:
+                pass
+        try:
+            self._sync_view_cycle_available()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def _apply_files_transition(self, new_mode: RenderMode) -> None:
         self._render_mode[DeckId.FILES] = new_mode
