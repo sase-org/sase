@@ -16,7 +16,6 @@ from sase.ace.tui.agent_tabs_launch_view import (
 )
 from sase.ace.tui.models.agent_tab_index import AgentTabCatalogEntry
 from sase.core.agent_tab import AgentTabKey
-from sase.feature_flags import override_flags
 
 
 def _view(tab: AgentTabKey, *, current: str = "agents") -> SimpleNamespace:
@@ -24,22 +23,16 @@ def _view(tab: AgentTabKey, *, current: str = "agents") -> SimpleNamespace:
 
 
 def test_view_inherited_tab_name_from_named_tab() -> None:
-    with override_flags(agent_tabs=True):
-        assert view_inherited_tab_name(_view(AgentTabKey.named("blog"))) == "blog"
+    assert view_inherited_tab_name(_view(AgentTabKey.named("blog"))) == "blog"
 
 
 def test_view_inherited_tab_name_opt_outs() -> None:
-    with override_flags(agent_tabs=True):
-        assert view_inherited_tab_name(_view(AgentTabKey.default())) is None
-        assert view_inherited_tab_name(_view(AgentTabKey.machine("iid"))) is None
-        assert (
-            view_inherited_tab_name(
-                _view(AgentTabKey.named("blog"), current="artifacts")
-            )
-            is None
-        )
-    with override_flags():
-        assert view_inherited_tab_name(_view(AgentTabKey.named("blog"))) is None
+    assert view_inherited_tab_name(_view(AgentTabKey.default())) is None
+    assert view_inherited_tab_name(_view(AgentTabKey.machine("iid"))) is None
+    assert (
+        view_inherited_tab_name(_view(AgentTabKey.named("blog"), current="artifacts"))
+        is None
+    )
 
 
 def test_view_inherited_tab_name_respects_config_off(
@@ -48,8 +41,7 @@ def test_view_inherited_tab_name_respects_config_off(
     import sase.ace.tui.agent_tabs_launch_view as launch_view
 
     monkeypatch.setattr(launch_view, "launch_from_view_enabled", lambda: False)
-    with override_flags(agent_tabs=True):
-        assert view_inherited_tab_name(_view(AgentTabKey.named("blog"))) is None
+    assert view_inherited_tab_name(_view(AgentTabKey.named("blog"))) is None
 
 
 def test_active_machine_tab_alias() -> None:
@@ -62,53 +54,45 @@ def test_active_machine_tab_alias() -> None:
         )
     )
     app._agent_tab_latched_key = None
-    with override_flags(agent_tabs=True):
-        assert active_machine_tab_alias(app) == "apollo"
+    assert active_machine_tab_alias(app) == "apollo"
 
 
 def test_active_machine_tab_alias_opt_outs() -> None:
-    with override_flags(agent_tabs=True):
-        assert active_machine_tab_alias(_view(AgentTabKey.default())) is None
-        assert active_machine_tab_alias(_view(AgentTabKey.named("apollo"))) is None
-    with override_flags():
-        key = AgentTabKey.machine("iid-apollo")
-        assert active_machine_tab_alias(_view(key)) is None
+    assert active_machine_tab_alias(_view(AgentTabKey.default())) is None
+    assert active_machine_tab_alias(_view(AgentTabKey.named("apollo"))) is None
 
 
 def test_apply_launch_view_tab_inserts_from_named_view() -> None:
-    with override_flags(agent_tabs=True):
-        out = LaunchPromptInputMixin._apply_launch_view_tab(
-            _view(AgentTabKey.named("blog")), "do work"
-        )
+    out = LaunchPromptInputMixin._apply_launch_view_tab(
+        _view(AgentTabKey.named("blog")), "do work"
+    )
     assert out == "%tab:blog\ndo work"
 
 
 def test_apply_launch_view_tab_skips() -> None:
-    with override_flags(agent_tabs=True):
-        same = LaunchPromptInputMixin._apply_launch_view_tab(
-            _view(AgentTabKey.named("blog")), "%tab:main\ndo work"
-        )
-        assert same == "%tab:main\ndo work"
-        default_view = LaunchPromptInputMixin._apply_launch_view_tab(
-            _view(AgentTabKey.default()), "do work"
-        )
-        assert default_view == "do work"
-        machine_view = LaunchPromptInputMixin._apply_launch_view_tab(
-            _view(AgentTabKey.machine("iid")), "do work"
-        )
-        assert machine_view == "do work"
-        swarm = LaunchPromptInputMixin._apply_launch_view_tab(
-            _view(AgentTabKey.named("blog")), "one\n---\n%tab:sase\ntwo"
-        )
-        assert swarm == "%tab:blog\none\n---\n%tab:sase\ntwo"
+    same = LaunchPromptInputMixin._apply_launch_view_tab(
+        _view(AgentTabKey.named("blog")), "%tab:main\ndo work"
+    )
+    assert same == "%tab:main\ndo work"
+    default_view = LaunchPromptInputMixin._apply_launch_view_tab(
+        _view(AgentTabKey.default()), "do work"
+    )
+    assert default_view == "do work"
+    machine_view = LaunchPromptInputMixin._apply_launch_view_tab(
+        _view(AgentTabKey.machine("iid")), "do work"
+    )
+    assert machine_view == "do work"
+    swarm = LaunchPromptInputMixin._apply_launch_view_tab(
+        _view(AgentTabKey.named("blog")), "one\n---\n%tab:sase\ntwo"
+    )
+    assert swarm == "%tab:blog\none\n---\n%tab:sase\ntwo"
 
 
 def test_launch_destination_tab_marks_arrival() -> None:
     arrivals: set[AgentTabKey] = set()
     app = _view(AgentTabKey.default())
     app._agent_tab_arrivals = arrivals
-    with override_flags(agent_tabs=True):
-        dest = LaunchSubmissionMixin._launch_destination_tab(app, "%tab:blog\ndo work")
+    dest = LaunchSubmissionMixin._launch_destination_tab(app, "%tab:blog\ndo work")
     assert dest == "blog"
     assert AgentTabKey.named("blog") in arrivals
 
@@ -117,10 +101,8 @@ def test_launch_destination_tab_same_tab_is_quiet() -> None:
     arrivals: set[AgentTabKey] = set()
     app = _view(AgentTabKey.named("blog"))
     app._agent_tab_arrivals = arrivals
-    with override_flags(agent_tabs=True):
-        assert (
-            LaunchSubmissionMixin._launch_destination_tab(app, "%tab:blog\ndo work")
-            is None
-        )
-        assert LaunchSubmissionMixin._launch_destination_tab(app, "do work") is None
+    assert (
+        LaunchSubmissionMixin._launch_destination_tab(app, "%tab:blog\ndo work") is None
+    )
+    assert LaunchSubmissionMixin._launch_destination_tab(app, "do work") is None
     assert not arrivals

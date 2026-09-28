@@ -84,7 +84,9 @@ async def test_modal_agent_with_tribe_ctrl_d_clears_in_one_keystroke() -> None:
         await pilot.press("ctrl+d")
         await pilot.pause()
 
-    assert result == AgentTribeModalResult(action="unset", tribe=None)
+    assert result == AgentTribeModalResult(
+        action="unset", tribe=None, tab_action="keep", tab=None
+    )
 
 
 async def test_modal_first_keystroke_enters_tribe_for_agent_with_tribe() -> None:
@@ -106,7 +108,7 @@ async def test_modal_first_keystroke_enters_tribe_for_agent_with_tribe() -> None
         assert tribe_input.value == "x"
 
 
-async def test_modal_enter_on_agent_with_tribe_empty_input_unsets() -> None:
+async def test_modal_enter_on_agent_with_tribe_empty_input_cancels() -> None:
     result: AgentTribeModalResult | None = None
 
     async with _TestApp().run_test() as pilot:
@@ -126,7 +128,9 @@ async def test_modal_enter_on_agent_with_tribe_empty_input_unsets() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == AgentTribeModalResult(action="unset", tribe=None)
+    # Tribe & Tab mode: empty tribe input keeps the tribe, so empty+empty cancels.
+    # Explicit Ctrl+D still unsets (covered by the ctrl_d test).
+    assert result is None
 
 
 async def test_modal_input_empty_for_bulk() -> None:
@@ -143,7 +147,7 @@ async def test_modal_input_empty_for_bulk() -> None:
         assert tribe_input.value == ""
 
 
-async def test_modal_empty_enter_unsets_when_without_tribe() -> None:
+async def test_modal_empty_enter_cancels_when_without_tribe() -> None:
     result: AgentTribeModalResult | None = None
 
     async with _TestApp().run_test() as pilot:
@@ -166,10 +170,12 @@ async def test_modal_empty_enter_unsets_when_without_tribe() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == AgentTribeModalResult(action="unset", tribe=None)
+    # Tribe & Tab mode: empty tribe input keeps the tribe, so empty+empty cancels.
+    # Explicit Ctrl+D still unsets (covered by the ctrl_d test).
+    assert result is None
 
 
-async def test_modal_clear_then_enter_unsets_default_tribe_prefill() -> None:
+async def test_modal_clear_then_enter_cancels_default_tribe_prefill() -> None:
     result: AgentTribeModalResult | None = None
 
     async with _TestApp().run_test() as pilot:
@@ -198,10 +204,12 @@ async def test_modal_clear_then_enter_unsets_default_tribe_prefill() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == AgentTribeModalResult(action="unset", tribe=None)
+    # Tribe & Tab mode: empty tribe input keeps the tribe, so empty+empty cancels.
+    # Explicit Ctrl+D still unsets (covered by the ctrl_d test).
+    assert result is None
 
 
-async def test_modal_whitespace_only_enter_unsets() -> None:
+async def test_modal_whitespace_only_enter_cancels() -> None:
     result: AgentTribeModalResult | None = None
 
     async with _TestApp().run_test() as pilot:
@@ -227,7 +235,9 @@ async def test_modal_whitespace_only_enter_unsets() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == AgentTribeModalResult(action="unset", tribe=None)
+    # Tribe & Tab mode: empty tribe input keeps the tribe, so empty+empty cancels.
+    # Explicit Ctrl+D still unsets (covered by the ctrl_d test).
+    assert result is None
 
 
 async def test_modal_prefill_pinned_when_without_tribe_with_default() -> None:

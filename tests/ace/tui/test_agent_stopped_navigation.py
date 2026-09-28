@@ -175,7 +175,9 @@ def test_jump_to_next_stopped_agent_starts_at_newest_from_focused_banner() -> No
     assert app.current_idx == 1
     assert app._current_group_key is None
     assert app.current_attempt_number is None
-    assert app._entry_jump_agents_anchor_stack == [("banner", None, ("group",))]
+    assert app._entry_jump_agents_anchor_stack == [
+        ("banner", None, ("group",), "default")
+    ]
     assert app.refresh_calls == []
 
 
@@ -231,7 +233,7 @@ def test_jump_to_next_stopped_agent_back_jump_restores_without_acknowledging_unr
     assert app._jump_to_next_stopped_agent()
     assert app.current_idx == 1
     assert app._panel_group.focused_idx == 1
-    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None, "default")]
     assert app._unread_completed_agent_ids == unread_before
 
     assert app._restore_agents_jump_anchor()
@@ -310,14 +312,14 @@ def test_stopped_jump_from_collapsed_header_starts_at_newest_backing_row() -> No
         focused_key="alpha",
         collapsed_panels={"alpha"},
     )
-    assert app._current_agents_jump_anchor() == ("panel", "alpha")
+    assert app._current_agents_jump_anchor() == ("panel", "alpha", "default")
 
     assert app._jump_to_next_stopped_agent()
 
     assert app.current_idx == 0
     assert app._panel_group.focused_key == "alpha"
     assert app._collapsed_panel_keys == set()
-    assert app._entry_jump_agents_anchor_stack == [("panel", "alpha")]
+    assert app._entry_jump_agents_anchor_stack == [("panel", "alpha", "default")]
     assert app._restore_agents_jump_anchor() is True
     assert app._collapsed_panel_keys == set()
     assert app._expanded_panel_focus is True

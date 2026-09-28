@@ -89,8 +89,8 @@ class NavigationMixinBase:
     _entry_jump_banner_to_hint: dict[BannerJumpTarget, str]
     _entry_jump_hint_to_panel: dict[str, PanelJumpTarget]
     _entry_jump_panel_to_hint: dict[PanelJumpTarget, str]
-    # Agents-tab strip-chip jump-hint maps (agent_tabs flag + visible strip
-    # only). The chip key is the tab key; hints render on the strip chips.
+    # Agents-tab strip-chip jump-hint maps (visible strip only). The chip
+    # key is the tab key; hints render on the strip chips.
     _entry_jump_hint_to_tab: dict[str, TabJumpTarget]
     _entry_jump_tab_to_hint: dict[TabJumpTarget, str]
     # Patches-tab banner jump-hint maps (grouped mode only).  Banner key is

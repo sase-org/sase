@@ -256,7 +256,6 @@ async def test_tribe_and_tab_modal_shows_tab_input() -> None:
             target_label="agent-x",
             current_tribe=None,
             known_tribes=(),
-            tab_enabled=True,
             current_tab="blog",
             known_tabs=("blog", "sase"),
         )
@@ -269,17 +268,3 @@ async def test_tribe_and_tab_modal_shows_tab_input() -> None:
         # The tab input exists alongside the tribe input.
         modal.query_one("#agent-tribe-input")
         modal.query_one("#agent-tab-input")
-
-
-async def test_tribe_only_modal_has_no_tab_input() -> None:
-    async with _ModalTestApp().run_test() as pilot:
-        modal = AgentTribeModal(
-            target_label="agent-x",
-            current_tribe=None,
-            known_tribes=(),
-        )
-        pilot.app.push_screen(modal)
-        await pilot.pause()
-        title = modal.query_one("#modal-title", Label).render()
-        assert title.plain == "Tribe: agent-x"
-        assert not modal.query("#agent-tab-input")

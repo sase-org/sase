@@ -2272,7 +2272,7 @@
         },
         "agent_tabs": {
           "type": "object",
-          "description": "Agent tab settings for sase's TUI Agents tab (beta flag agent_tabs)",
+          "description": "Agent tab settings for sase's TUI Agents tab",
           "additionalProperties": false,
           "properties": {
             "machine_tabs": {
@@ -5548,11 +5548,6 @@
         "agent_sudo_requests": {
           "type": "boolean",
           "description": "Gate the typed sudo request workflow while the runner, TUI modal, skill guard, and SSH relay phases land.",
-          "default": false
-        },
-        "agent_tabs": {
-          "type": "boolean",
-          "description": "The Agents tab shows one agent tab at a time with a tab strip, [/] tab cycling, and cross-tab navigation.",
           "default": false
         },
         "agents_unified_query": {

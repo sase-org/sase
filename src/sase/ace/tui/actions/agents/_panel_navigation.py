@@ -344,55 +344,16 @@ class AgentPanelNavigationMixin:
     def action_toggle_agent_panel_grouping(self) -> None:
         """Advance the Agents panel layout ladder (Split → Merged → All tabs).
 
-        With the ``agent_tabs`` flag off this keeps the historical
-        split/merged toggle exactly; with the flag on it steps to the next
-        ladder rung (All tabs is skipped while fewer than two tabs exist).
+        Steps to the next ladder rung (All tabs is skipped while fewer
+        than two tabs exist).
         """
         if self.current_tab != "agents":
             return
-        try:
-            from ...agent_tabs_flag import agent_tabs_enabled
-        except Exception:
-            agent_tabs_enabled = None  # type: ignore[assignment]
-        if callable(agent_tabs_enabled) and agent_tabs_enabled():
-            from ...models.agent_panel_layout import (
-                available_panel_layouts,
-                next_panel_layout,
-            )
+        from ...models.agent_panel_layout import (
+            available_panel_layouts,
+            next_panel_layout,
+        )
 
-            available = available_panel_layouts(multiple_agent_tabs_for_owner(self))
-            current = stored_panel_layout(self)
-            set_panel_layout(
-                self, next_panel_layout(current, available), reason="toggle"
-            )
-            return
-        if getattr(self, "_panel_fold_hint_mode_active", False):
-            self._teardown_panel_fold_hint_mode(  # type: ignore[attr-defined]
-                refresh_titles=False
-            )
-        disarm_isolation = getattr(self, "_disarm_panel_isolation_revert", None)
-        if callable(disarm_isolation):
-            # The following full list repaint removes markers and refreshes
-            # the footer, so no transient-only repaint is needed here.
-            disarm_isolation(refresh=False)
-        self._agent_panels_grouped = not getattr(self, "_agent_panels_grouped", False)
-        try:
-            from ...models.agent_panel_layout import AgentPanelLayout
-
-            self._agent_panel_layout = (  # type: ignore[attr-defined]
-                AgentPanelLayout.MERGED
-                if self._agent_panels_grouped
-                else AgentPanelLayout.SPLIT
-            )
-        except Exception:
-            pass
-        self._expanded_panel_focus = False
-        from ._panel_fold_intent import clear_panel_fold_intents
-
-        clear_panel_fold_intents(self)
-        self._current_group_key = None  # type: ignore[attr-defined]
-        self.current_attempt_number = None  # type: ignore[attr-defined]
-        self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
-        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-        label = "grouped" if self._agent_panels_grouped else "split"
-        self.notify(f"Agent panels: {label}", timeout=1.5)  # type: ignore[attr-defined]
+        available = available_panel_layouts(multiple_agent_tabs_for_owner(self))
+        current = stored_panel_layout(self)
+        set_panel_layout(self, next_panel_layout(current, available), reason="toggle")

@@ -14,7 +14,6 @@ from sase.ace.tui.widgets.artifacts.entry_navigation import LinkRequestState
 from sase.ace.tui.widgets.bgcmd_list import ChopItem, LumberjackItem
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import RelationRole
-from sase.feature_flags import override_flags
 
 
 def _chip(
@@ -599,10 +598,7 @@ def _agents_link_trail_hop() -> LinkTrailHop:
     )
 
 
-@pytest.mark.parametrize("agent_tabs", [False, True])
-def test_failed_agents_link_trail_restore_leaves_current_tab(
-    agent_tabs: bool,
-) -> None:
+def test_failed_agents_link_trail_restore_leaves_current_tab() -> None:
     """A failed agents-tab reveal must not strand the user on Agents."""
     agent = _Agent(agent_name="builder", identity=("done", "builder", None))
     app = _App(agents=(agent,))
@@ -612,21 +608,16 @@ def test_failed_agents_link_trail_restore_leaves_current_tab(
         return "missing"
 
     app._try_reveal_agent_row = _missing  # type: ignore[method-assign]
-    with override_flags(agent_tabs=agent_tabs):
-        assert app._restore_agents_link_trail_hop(_agents_link_trail_hop()) is False
-        assert app.current_tab == "artifacts"
+    assert app._restore_agents_link_trail_hop(_agents_link_trail_hop()) is False
+    assert app.current_tab == "artifacts"
 
 
-@pytest.mark.parametrize("agent_tabs", [False, True])
-def test_successful_agents_link_trail_restore_lands_on_agents(
-    agent_tabs: bool,
-) -> None:
+def test_successful_agents_link_trail_restore_lands_on_agents() -> None:
     """A successful agents-tab reveal selects the row on the Agents tab."""
     agent = _Agent(agent_name="builder", identity=("done", "builder", None))
     app = _App(agents=(agent,))
     app.current_tab = "artifacts"
-    with override_flags(agent_tabs=agent_tabs):
-        assert app._restore_agents_link_trail_hop(_agents_link_trail_hop()) is True
-        assert app.current_tab == "agents"
-        assert app.current_idx == 0
-        assert app._agents_last_identity == agent.identity
+    assert app._restore_agents_link_trail_hop(_agents_link_trail_hop()) is True
+    assert app.current_tab == "agents"
+    assert app.current_idx == 0
+    assert app._agents_last_identity == agent.identity

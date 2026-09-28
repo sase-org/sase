@@ -1296,24 +1296,55 @@ invalid feed reads `feed invalid`, is named in the Agents header, and adds a **F
 error** line to the detail panel, so cached data never looks silently healthy. A remote
 row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 
-### Agent Tabs (beta)
+### Agent Tabs
 
-Behind the `agent_tabs` beta flag (`feature_flags.agent_tabs: true`), the Agents tab
-shows one agent tab at a time instead of the whole roster. Tabs come from each root's
-recorded tab. Local roots land on `main`. Remote roots land on a per-machine tab only in
+The Agents tab shows one agent tab at a time instead of the whole roster. A tab is a
+presentation-only placement: it never changes where an agent runs, its identity, clan,
+session, or tribe. Tabs come from each root's recorded tab (see
+[Tab Directive](xprompt.md#tab-directive)): `%tab:<name>` authors a named tab, and roots
+without one land on the default tab. The default tab is labeled `main`, or `⌨ local` in
 machine mode (`ace.agent_tabs.machine_tabs`: `on`, or `auto` when dispatch machines are
-configured); otherwise they land on `main` or their named tab, the same as local roots.
-A minimal strip beside the fleet status names the tabs. `]` / `[` cycle tabs, every
-cross-tab jump switches tabs first and then reveals its target, and selection, folds,
-and sticky panels are remembered per tab; the active tab persists across restarts.
+configured). In machine mode each remote machine gets its own `⌨ <alias>` tab;
+`%tab:apollo` is still an ordinary named tab, distinct from `⌨ apollo`. A remote alias
+literally named `local` renders as `⌨ local·remote`.
+
+A tab exists while at least one visible root resolves to it, and the strip beside the
+fleet status appears once two or more tabs exist (with a single tab the Agents tab looks
+exactly as before). The active tab shows as a pill; inactive tabs show their label,
+count, and only the non-zero attention tokens (`S`/`F`/`U`). Machine tabs carry a `⌨`
+glyph whose label turns amber when its host is stale and red when it is invalid or
+offline. An arrival dot (`•`) marks an inactive tab that gained a new root since you
+last visited it. At narrow widths the strip compacts and then windows around the active
+tab with `‹N` / `N›` overflow chips that open the tab picker.
+
+`]` / `[` cycle tabs (wrapping, including overflow tabs). The palette entry
+`Agents: go to tab…`, the `'` jump hints on strip chips, and clicking a chip or overflow
+chip all switch tabs too. Every cross-tab jump switches to the target's tab first and
+then reveals it: Node Finder searches all tabs and chips off-tab rows, `,j` / `,J`
+consider every tab, and notification, link, monitor, run-log, and Files jumps all land
+cross-tab. Choosing a tab while the All-tabs layout level is active drills into that
+tab. Selection, folds, and sticky panels are remembered per tab, and the active tab
+persists across restarts. If the active tab's last agent leaves, the tab stays selected
+with an empty state until you navigate away; other empty states name a hiding query
+(with a clear-filter hint) or an unavailable feed.
 
 Bulk confirmations name their scope while the strip is visible: panel-wide actions and
 the custom selector read `on <tab>` (for example `on sase`), `across all tabs` only at
 the all-tabs scope, and a marked cleanup that spans tabs adds an
 `N of M marked agents are on other tabs` line. Marks themselves stay global. Tab
 styling, ordering, and machine-mode behavior live under `ace.agent_tabs` (see
-`docs/configuration.md`). With the flag off, the Agents tab is exactly today's single
-roster: no strip, no tab keys, and unchanged wording.
+`docs/configuration.md`).
+
+Launching from a named tab inherits it: the prompt bar shows a `tab: <name>` chip and
+the submitted prompt gains `%tab:<name>` (opt out with `%tab:main` or
+`ace.agent_tabs.launch_from_view: false`). `gb` opens the Launch Tab picker to insert or
+replace `%tab`. A launch that lands on another tab toasts its destination
+(`blog-fix → blog`) and lights that tab's arrival dot. Move agents between tabs with
+`sase agent tab list|set|unset` (see
+[Moving agents between tabs](agent_sessions.md#moving-agents-between-tabs)) or the `N`
+Tribe & Tab modal, which completes known tabs and applies optimistically with rollback;
+rows owned by a remote machine cannot be moved. Filter the roster with the `tab:` query
+field (exact match, or `main` for the default tab).
 
 ### Navigation
 
@@ -1326,14 +1357,14 @@ roster: no strip, no tab keys, and unchanged wording.
 | `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                          |
 | `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                              |
 | `(` / `)`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                                   |
-| `]` / `[`                 | Next / previous agent tab (wraps; only while the `agent_tabs` beta flag is on and the strip shows two or more tabs; see [Agent Tabs (beta)](#agent-tabs-beta))       |
-| _(palette)_               | Pick an agent tab from the command palette (`Agents: go to tab…`; same flag/strip gating as `]`/`[`)                                                                 |
+| `]` / `[`                 | Next / previous agent tab (wraps; only while the strip shows two or more tabs; see [Agent Tabs](#agent-tabs))                                                        |
+| _(palette)_               | Pick an agent tab from the command palette (`Agents: go to tab…`; same strip gating as `]`/`[`)                                                                      |
 | `P`                       | Cycle the focused panel's deck view wider, pinning it fixed (wraps; Main and Files only, only when there is more than one distinct layout)                           |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                                |
 | `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                                   |
 | `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels)     |
 | `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                              |
-| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                        |
+| `oo`                      | Step the Agents panel layout ladder forward, then close the grouping picker (see [Grouping Modes](#grouping-modes))                                                  |
 | `g`                       | Scroll to top (focused deck panel)                                                                                                                                   |
 | `G`                       | Scroll to bottom (focused deck panel)                                                                                                                                |
 | `Ctrl+D` / `Ctrl+U`       | Scroll focused deck panel down / up (half page)                                                                                                                      |
@@ -1387,43 +1418,43 @@ drawn, the jump is cancelled with a warning rather than landing somewhere stale.
 
 ### Agent Actions
 
-| Key                 | Action                                                                                                                                                                     |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `!R`                | Revive a previously dismissed agent                                                                                                                                        |
-| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                                                                             |
-| `+`                 | Run custom agent                                                                                                                                                           |
-| `A`                 | Toggle bare `%auto` plan auto-approval / answer HITL                                                                                                                       |
-| `F`                 | Prepare a fork of the selected agent/session, named proc, monitor, clan container, or focused named tribe panel                                                            |
-| `n`                 | Name agent                                                                                                                                                                 |
-| `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                                                                               |
-| `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                                                                                      |
-| `v`                 | View files (hint mode; annotates clan/session containers in place; adds `⚒ run log` targets on the Runs card that open the retained run log in the pager)                  |
-| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                                                                                          |
-| `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                                                                                  |
-| `.`                 | Expand / collapse the jump panel (sticky jump targets below the detail panels)                                                                                             |
-| `I`                 | Show/hide non-run agents                                                                                                                                                   |
-| `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                                                                                         |
-| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                                                                            |
-| `W`                 | Prepare a prompt that waits for the selected agent/session, clan, or named tribe; marks produce `%w:a,b,c`                                                                 |
-| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)                                                                    |
-| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                                                                                      |
-| `U`                 | Toggle the focused agent's unread marker                                                                                                                                   |
-| `u`                 | Clear all agent marks                                                                                                                                                      |
-| `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc                                                                  |
-| `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                                                                                       |
-| `Enter`             | Act on agent: review pending gate, go to Patch, or choose when several apply                                                                                               |
-| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                                                                             |
-| `E`                 | Edit focused deck content in editor (Files opens the real path; Main/Tools open the active card text as a temporary `.md`)                                                 |
-| `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)                                                                        |
-| `T`                 | Open tmux window in the agent's primary project workspace                                                                                                                  |
-| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it; on a clan row or clan member it sets the clan's recorded tribe) |
-| `z`                 | Start metadata fold mode for clan, agent node (session or single agent), or selected whole-tribe detail panels                                                             |
-| `Z`                 | Zoom the focused deck panel in place (node column hidden); press again to restore                                                                                          |
-| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                                                                            |
-| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                     |
-| `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds                                                                  |
-| `Ctrl+N` / `Ctrl+P` | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                                    |
-| `p`                 | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `M`/`F`/`T` show it in the other panel (opening one below if needed); `pp`/`Esc` close                      |
+| Key                 | Action                                                                                                                                                                                                                                                                                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `!R`                | Revive a previously dismissed agent                                                                                                                                                                                                                                                                                                            |
+| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                                                                                                                                                                                                                                                 |
+| `+`                 | Run custom agent                                                                                                                                                                                                                                                                                                                               |
+| `A`                 | Toggle bare `%auto` plan auto-approval / answer HITL                                                                                                                                                                                                                                                                                           |
+| `F`                 | Prepare a fork of the selected agent/session, named proc, monitor, clan container, or focused named tribe panel                                                                                                                                                                                                                                |
+| `n`                 | Name agent                                                                                                                                                                                                                                                                                                                                     |
+| `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                                                                                                                                                                                                                                                   |
+| `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                                                                                                                                                                                                                                                          |
+| `v`                 | View files (hint mode; annotates clan/session containers in place; adds `⚒ run log` targets on the Runs card that open the retained run log in the pager)                                                                                                                                                                                      |
+| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                                                                                                                                                                                                                                                              |
+| `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                                                                                                                                                                                                                                                      |
+| `.`                 | Expand / collapse the jump panel (sticky jump targets below the detail panels)                                                                                                                                                                                                                                                                 |
+| `I`                 | Show/hide non-run agents                                                                                                                                                                                                                                                                                                                       |
+| `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                                                                                                                                                                                                                                                             |
+| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                                                                                                                                                                                                                                                |
+| `W`                 | Prepare a prompt that waits for the selected agent/session, clan, or named tribe; marks produce `%w:a,b,c`                                                                                                                                                                                                                                     |
+| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)                                                                                                                                                                                                                                        |
+| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                                                                                                                                                                                                                                                          |
+| `U`                 | Toggle the focused agent's unread marker                                                                                                                                                                                                                                                                                                       |
+| `u`                 | Clear all agent marks                                                                                                                                                                                                                                                                                                                          |
+| `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc                                                                                                                                                                                                                                      |
+| `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                                                                                                                                                                                                                                                           |
+| `Enter`             | Act on agent: review pending gate, go to Patch, or choose when several apply                                                                                                                                                                                                                                                                   |
+| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                                                                                                                                                                                                                                                 |
+| `E`                 | Edit focused deck content in editor (Files opens the real path; Main/Tools open the active card text as a temporary `.md`)                                                                                                                                                                                                                     |
+| `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)                                                                                                                                                                                                                                            |
+| `T`                 | Open tmux window in the agent's primary project workspace                                                                                                                                                                                                                                                                                      |
+| `N`                 | Open the Tribe & Tab modal (tribe input is pre-seeded with `pinned` for agents without a tribe; empty keeps it, `Ctrl+D` clears it; on a clan row or clan member it sets the clan's recorded tribe; the second input moves the agent's whole presentation root between tabs — empty keeps, `main` or `Ctrl+T` clears; remote rows cannot move) |
+| `z`                 | Start metadata fold mode for clan, agent node (session or single agent), or selected whole-tribe detail panels                                                                                                                                                                                                                                 |
+| `Z`                 | Zoom the focused deck panel in place (node column hidden); press again to restore                                                                                                                                                                                                                                                              |
+| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                                                                                                                                                                                                                                                |
+| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                                                                                                                                                                                         |
+| `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds                                                                                                                                                                                                                                      |
+| `Ctrl+N` / `Ctrl+P` | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                                                                                                                                                                                                        |
+| `p`                 | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `M`/`F`/`T` show it in the other panel (opening one below if needed); `pp`/`Esc` close                                                                                                                                                                                          |
 
 When `t` opens the **Tmux Workspace** chooser, a displayed selector key opens that one
 target immediately, even if other rows are already marked. `m` marks or unmarks the
@@ -2452,14 +2483,22 @@ tree.
 ### Grouping Modes
 
 Press `o` on the Agents tab to open the grouping picker, then choose `p` Project, `d`
-Date, `s` Status, or `m` Machine. Press lowercase `o` inside that picker (`oo` with
-default keymaps) to toggle between tribe-split panels and one merged panel; the picker
-closes after the toggle. Merged panels annotate named tribes inline on agent nodes; the
-default tribe is implied there, so default nodes do not add `@default` labels. Panel
-layout and grouping mode are independent: toggling panel layout preserves the active
-grouping mode and does not persist beyond the current session. The Agents tab shows a
-brief toast (`Grouping: by project` / `by date` / `by status` / `by machine`) when the
-chosen mode changes:
+Date, `s` Status, or `m` Machine. The picker's layout row is a three-level ladder —
+`Split by tribe`, `Merged`, `All tabs` — walked with `o` (next) and `O` (previous,
+wrapping); `h`/`l` and the arrow keys move the highlight while the row is focused, and
+the picker closes after a step. `oo` steps forward one rung, `oO` steps back. With fewer
+than two agent tabs only `Split by tribe` / `Merged` are offered. Split shows one panel
+per tribe titled `@tribe · N`; Merged shows one panel titled with the tab's label and
+count (`All agents` while the tab strip is hidden); All tabs shows every tab in one
+panel titled `All agents · every tab · N`, with a tab chip on named-tab rows and
+`panels: all tabs` in the info row. Merged panels annotate named tribes inline on agent
+nodes; the default tribe is implied there, so default nodes do not add `@default`
+labels. Transitions keep the selected node: zooming in from All tabs lands on that
+node's tab, and choosing a tab at the All-tabs level drills into it. Panel layout and
+grouping mode are independent: stepping the ladder preserves the active grouping mode
+and does not persist beyond the current session. The Agents tab shows a brief toast
+(`Grouping: by project` / `by date` / `by status` / `by machine`) when the chosen mode
+changes:
 
 | Mode         | L0 buckets                                                                    | Notes                                                                                                                                                                               |
 | ------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

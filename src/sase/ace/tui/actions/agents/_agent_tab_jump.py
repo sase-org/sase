@@ -1,7 +1,5 @@
 """Switch-then-reveal helper for cross-tab agent jumps (cross-tab-nav).
 
-With the ``agent_tabs`` flag off every helper here is a no-op: no tab is
-ever switched and every caller keeps today's behavior. With the flag on,
 :func:`ensure_agent_tab_for_identity` switches to the tab holding a target
 identity before the caller reveals it, and returns the previous key so a
 failed reveal can restore it.
@@ -13,7 +11,6 @@ from typing import Any, TYPE_CHECKING
 
 from sase.core.agent_tab import AgentTabKey
 
-from ...agent_tabs_flag import agent_tabs_enabled
 from ...models.agent_tab_index import ALL_AGENT_TABS
 from ._tab_scope import current_agent_tab_scope
 
@@ -56,8 +53,6 @@ def ensure_agent_tab_for_identity(
     returns the previous active key so the caller can restore it when its
     reveal fails.
     """
-    if not agent_tabs_enabled():
-        return None
     if current_agent_tab_scope(owner) is ALL_AGENT_TABS:
         return None
     identity = _identity_of(target)
@@ -109,12 +104,10 @@ def restore_agent_tab(owner: Any, previous: AgentTabKey | None) -> None:
 def off_tab_labels_for_owner(owner: Any) -> dict[AgentIdentity, str]:
     """Map each query-result identity off the active tab to its tab label.
 
-    Empty with the flag off, without an index, or at the ``ALL_AGENT_TABS``
+    Empty without an index or at the ``ALL_AGENT_TABS``
     scope. The Node Finder uses it to keep off-tab rows reachable with an
     off-tab chip instead of dropping them as not-rendered.
     """
-    if not agent_tabs_enabled():
-        return {}
     if current_agent_tab_scope(owner) is ALL_AGENT_TABS:
         return {}
     index = getattr(owner, "_agent_tab_index", None)

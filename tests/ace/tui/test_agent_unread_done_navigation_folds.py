@@ -119,7 +119,7 @@ def test_unread_jump_reveals_only_most_recent_target_clan() -> None:
     assert newest.identity not in app._unread_completed_agent_ids
     assert older.identity in app._unread_completed_agent_ids
     assert app.refilter_calls == 1
-    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None, "default")]
 
 
 def test_unread_jump_expands_exact_same_name_clan_generation() -> None:
@@ -209,14 +209,14 @@ def test_unread_jump_reveals_clan_from_expanded_tribe_focus() -> None:
     app._expanded_panel_focus = True
     app._unread_completed_agent_ids.add(target.identity)
 
-    assert app._current_agents_jump_anchor() == ("panel", "alpha")
+    assert app._current_agents_jump_anchor() == ("panel", "alpha", "default")
     assert app._jump_to_next_unread_done_agent()
 
     assert app._agents[app.current_idx].identity == target.identity
     assert app._resolve_focused_panel() is None
     assert app.current_attempt_number is None
     assert app.refilter_calls == 1
-    assert app._entry_jump_agents_anchor_stack == [("panel", "alpha")]
+    assert app._entry_jump_agents_anchor_stack == [("panel", "alpha", "default")]
     assert target.identity not in app._unread_completed_agent_ids
 
     assert app._restore_agents_jump_anchor() is True

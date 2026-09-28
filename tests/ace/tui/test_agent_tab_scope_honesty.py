@@ -32,7 +32,6 @@ from sase.ace.tui.modals.confirm_kill_modal import (
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_tab_index import build_agent_tab_index
 from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
-from sase.feature_flags import override_flags
 
 
 def _view(token: Any = ("scope-honesty-test",)) -> AgentTabsViewConfig:
@@ -140,25 +139,16 @@ def _state(**overrides: Any) -> AgentCleanupPanelState:
 # Scope label helper.
 
 
-def test_scope_label_none_flag_off() -> None:
-    owner = _two_tab_owner()
-    with override_flags(agent_tabs=False):
-        assert bulk_scope_label_for_owner(owner) is None
-        assert owner._agent_bulk_scope_label() is None  # type: ignore[attr-defined]
-
-
 def test_scope_label_none_single_tab_flag_on() -> None:
     owner = _ScopeOwner([_row("a"), _row("b")])
-    with override_flags(agent_tabs=True):
-        assert bulk_scope_label_for_owner(owner) is None
+    assert bulk_scope_label_for_owner(owner) is None
 
 
 def test_scope_label_names_active_tab_flag_on() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert bulk_scope_label_for_owner(owner) == "on main"
-        owner._active_agent_tab = _SASE
-        assert bulk_scope_label_for_owner(owner) == "on sase"
+    assert bulk_scope_label_for_owner(owner) == "on main"
+    owner._active_agent_tab = _SASE
+    assert bulk_scope_label_for_owner(owner) == "on sase"
 
 
 def test_scope_label_across_all_tabs() -> None:
@@ -166,18 +156,14 @@ def test_scope_label_across_all_tabs() -> None:
 
     owner = _two_tab_owner()
     owner._active_agent_tab = ALL_AGENT_TABS  # type: ignore[assignment]
-    with override_flags(agent_tabs=True):
-        assert bulk_scope_label_for_owner(owner) == "across all tabs"
+    assert bulk_scope_label_for_owner(owner) == "across all tabs"
 
 
 def test_marked_off_tab_count() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=False):
-        assert marked_off_tab_count_for_owner(owner, owner._agents) == 0
-    with override_flags(agent_tabs=True):
-        assert marked_off_tab_count_for_owner(owner, owner._agents) == 1
-        owner._active_agent_tab = _SASE
-        assert marked_off_tab_count_for_owner(owner, owner._agents) == 1
+    assert marked_off_tab_count_for_owner(owner, owner._agents) == 1
+    owner._active_agent_tab = _SASE
+    assert marked_off_tab_count_for_owner(owner, owner._agents) == 1
 
 
 # Cleanup panel modal wording.
@@ -226,18 +212,9 @@ def test_confirm_modals_scope_wording() -> None:
 # Marked bulk modal off-tab line.
 
 
-def test_marked_bulk_modal_no_off_tab_line_flag_off() -> None:
+def test_marked_bulk_modal_off_tab_line() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=False):
-        owner._bulk_kill_marked_agents()
-    assert len(owner.pushed) == 1
-    assert "other tabs" not in owner.pushed[0].agent_description
-
-
-def test_marked_bulk_modal_off_tab_line_flag_on() -> None:
-    owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._bulk_kill_marked_agents()
+    owner._bulk_kill_marked_agents()
     assert len(owner.pushed) == 1
     assert "1 of 2 marked agents are on other tabs" in (
         owner.pushed[0].agent_description
@@ -250,8 +227,7 @@ def test_marked_bulk_modal_no_line_when_all_on_active_tab() -> None:
     owner._marked_agents = {
         row.identity for row in owner._agents if row.agent_tab == "sase"
     }
-    with override_flags(agent_tabs=True):
-        owner._bulk_kill_marked_agents()
+    owner._bulk_kill_marked_agents()
     assert len(owner.pushed) == 1
     assert "other tabs" not in owner.pushed[0].agent_description
 
@@ -269,13 +245,7 @@ def test_marked_bulk_modal_off_tab_clan_container_counts_once() -> None:
     owner = _ScopeOwner([local, container, *members])
     owner._marked_agents = {container.identity}
     owner._marked_agent_order = [container.identity]
-    with override_flags(agent_tabs=False):
-        owner._bulk_kill_marked_agents()
-    assert len(owner.pushed) == 1
-    assert "other tabs" not in owner.pushed[0].agent_description
-    owner.pushed.clear()
-    with override_flags(agent_tabs=True):
-        owner._bulk_kill_marked_agents()
+    owner._bulk_kill_marked_agents()
     assert len(owner.pushed) == 1
     assert "1 of 1 marked agents are on other tabs" in (
         owner.pushed[0].agent_description
@@ -286,14 +256,7 @@ def test_marked_bulk_modal_off_tab_remote_counts_in_n_and_m() -> None:
     local = _row("a")
     remote = _row("b", tab="sase", fleet_origin_alias="apollo")
     owner = _ScopeOwner([local, remote])
-    with override_flags(agent_tabs=False):
-        owner._bulk_kill_marked_agents()
-    assert len(owner.pushed) == 1
-    assert "other tabs" not in owner.pushed[0].agent_description
-    owner.pushed.clear()
-    owner.remote_stops.clear()
-    with override_flags(agent_tabs=True):
-        owner._bulk_kill_marked_agents()
+    owner._bulk_kill_marked_agents()
     assert len(owner.pushed) == 1
     assert "1 of 2 marked agents are on other tabs" in (
         owner.pushed[0].agent_description
@@ -304,38 +267,22 @@ def test_marked_bulk_modal_off_tab_remote_counts_in_n_and_m() -> None:
 # Tribe/custom selector headers.
 
 
-def test_tribe_custom_headers_default_wording_unchanged() -> None:
-    owner = _two_tab_owner()
-    with override_flags(agent_tabs=False):
-        assert _tribe_cleanup_header(owner, ("deploy",)) == "Tribe: @deploy"
-        assert _custom_cleanup_header(owner) == "Custom selection"
-
-
-def test_tribe_custom_headers_scope_wording_flag_on() -> None:
+def test_tribe_custom_headers_scope_wording() -> None:
     from sase.ace.tui.models.agent_tab_index import ALL_AGENT_TABS
 
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert _tribe_cleanup_header(owner, ("deploy",)) == "Tribe: @deploy on main"
-        assert _custom_cleanup_header(owner) == "Custom selection on main"
-        owner._active_agent_tab = _SASE
-        assert _custom_cleanup_header(owner) == "Custom selection on sase"
-        owner._active_agent_tab = ALL_AGENT_TABS  # type: ignore[assignment]
-        assert _custom_cleanup_header(owner) == "Custom selection across all tabs"
+    assert _tribe_cleanup_header(owner, ("deploy",)) == "Tribe: @deploy on main"
+    assert _custom_cleanup_header(owner) == "Custom selection on main"
+    owner._active_agent_tab = _SASE
+    assert _custom_cleanup_header(owner) == "Custom selection on sase"
+    owner._active_agent_tab = ALL_AGENT_TABS  # type: ignore[assignment]
+    assert _custom_cleanup_header(owner) == "Custom selection across all tabs"
 
 
 # Clear-marks (`,u`) toast.
 
 
-def test_clear_marks_toast_flag_off() -> None:
-    owner = _two_tab_owner()
-    with override_flags(agent_tabs=False):
-        owner._clear_agent_marks()
-    assert owner.notices == ["Cleared 2 mark(s)"]
-
-
 def test_clear_marks_toast_names_scope_flag_on() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._clear_agent_marks()
+    owner._clear_agent_marks()
     assert owner.notices == ["Cleared 2 mark(s) across all tabs"]

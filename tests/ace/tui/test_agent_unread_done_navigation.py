@@ -319,7 +319,9 @@ def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> N
 
     assert app.current_idx == 0
     assert app._current_group_key is None
-    assert app._entry_jump_agents_anchor_stack == [("banner", None, ("done",))]
+    assert app._entry_jump_agents_anchor_stack == [
+        ("banner", None, ("done",), "default")
+    ]
     assert done.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [done]
     assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]

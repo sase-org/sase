@@ -76,7 +76,7 @@ def test_l_acknowledges_remembered_panel_entry_row(
     notification_dismiss: Mock,
 ) -> None:
     app, remembered, _first_rendered = _entry_app()
-    app._panel_selection_memory["alpha"] = ("agent", 0)
+    app._panel_selection_memory[("default", "alpha")] = ("agent", 0)
     app._unread_completed_agent_ids.add(remembered.identity)
 
     app.action_expand_or_layout()
@@ -120,7 +120,7 @@ def test_banner_panel_entry_does_not_acknowledge_agent(
     )
     banner = app._all_known_group_keys()[0]
     app._group_fold_registry.for_panel("research").collapse(banner)
-    app._panel_selection_memory["research"] = ("banner", banner)
+    app._panel_selection_memory[("default", "research")] = ("banner", banner)
     app._unread_completed_agent_ids.add(unread.identity)
     app._expanded_panel_focus = True
 

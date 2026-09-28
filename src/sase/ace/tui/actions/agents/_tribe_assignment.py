@@ -49,23 +49,17 @@ class AgentTribeAssignmentMixin:
             return
 
         from sase.ace.agent_tribes import load_agent_tribes
-        from ...agent_tabs_flag import agent_tabs_enabled
 
         store = load_agent_tribes()
         known_tribes = sorted(set(store.values()))
-        tab_enabled = agent_tabs_enabled()
-        known_tabs = (
-            tuple(
-                sorted(
-                    {
-                        agent.agent_tab
-                        for agent in self._agents_with_children
-                        if agent.agent_tab
-                    }
-                )
+        known_tabs = tuple(
+            sorted(
+                {
+                    agent.agent_tab
+                    for agent in self._agents_with_children
+                    if agent.agent_tab
+                }
             )
-            if tab_enabled
-            else ()
         )
 
         # Bulk path: if marks exist, the modal targets every marked agent.
@@ -86,7 +80,6 @@ class AgentTribeAssignmentMixin:
                 current_tribe=None,
                 known_tribes=tuple(known_tribes),
                 affected=marked,
-                tab_enabled=tab_enabled,
                 known_tabs=known_tabs,
             )
             return
@@ -104,7 +97,6 @@ class AgentTribeAssignmentMixin:
             known_tribes=tuple(known_tribes),
             affected=[agent],
             default_tribe=DEFAULT_PINNED_TRIBE,
-            tab_enabled=tab_enabled,
             current_tab=agent.agent_tab,
             known_tabs=known_tabs,
         )
@@ -117,7 +109,6 @@ class AgentTribeAssignmentMixin:
         known_tribes: tuple[str, ...],
         affected: list[Agent],
         default_tribe: str | None = None,
-        tab_enabled: bool = False,
         current_tab: str | None = None,
         known_tabs: tuple[str, ...] = (),
     ) -> None:
@@ -134,7 +125,6 @@ class AgentTribeAssignmentMixin:
                 current_tribe=current_tribe,
                 known_tribes=known_tribes,
                 default_tribe=default_tribe,
-                tab_enabled=tab_enabled,
                 current_tab=current_tab,
                 known_tabs=known_tabs,
             ),

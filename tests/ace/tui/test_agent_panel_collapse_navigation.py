@@ -22,7 +22,7 @@ def test_h_selects_then_collapses_panel_and_l_expands_then_descends() -> None:
     assert focus is not None
     assert focus.panel_key == "alpha"
     assert focus.collapsed is False
-    assert app._panel_selection_memory["alpha"] == ("agent", 2)
+    assert app._panel_selection_memory[("default", "alpha")] == ("agent", 2)
     assert app._collapsed_panel_keys == set()
     assert app.current_attempt_number is None
     assert app._entry_jump_agents_anchor_stack == [("agent", 2, "alpha")]
@@ -70,7 +70,7 @@ def test_h_selects_collapses_and_reenters_sole_default_panel() -> None:
     assert focus is not None
     assert focus.panel_key is None
     assert focus.collapsed is False
-    assert single._panel_selection_memory[None] == ("agent", 0)
+    assert single._panel_selection_memory[("default", None)] == ("agent", 0)
     assert single._entry_jump_agents_anchor_stack == [("agent", 0, None)]
     assert single.armed_departures == [single._agents[0]]
     assert single._collapsed_panel_keys == set()
@@ -86,13 +86,13 @@ def test_h_selects_collapses_and_reenters_sole_default_panel() -> None:
     focus = single._resolve_focused_panel()
     assert focus is not None and focus.collapsed is False
     assert single._collapsed_panel_keys == set()
-    assert single._panel_selection_memory[None] == ("agent", 0)
+    assert single._panel_selection_memory[("default", None)] == ("agent", 0)
 
     single.action_expand_or_layout()
 
     assert single._resolve_focused_panel() is None
     assert single.current_idx == 0
-    assert single._panel_selection_memory[None] == ("agent", 0)
+    assert single._panel_selection_memory[("default", None)] == ("agent", 0)
     assert single.panel_fold_changes == [(None, True), (None, False)]
     assert single.refresh_calls == [False, True, True, False]
 
@@ -109,7 +109,7 @@ def test_h_selects_sole_named_panel_and_saves_reversible_jump_anchor() -> None:
     assert focus is not None
     assert focus.panel_key == "research"
     assert focus.collapsed is False
-    assert app._panel_selection_memory["research"] == ("agent", 0)
+    assert app._panel_selection_memory[("default", "research")] == ("agent", 0)
     assert app._entry_jump_agents_anchor_stack == [("agent", 0, "research")]
 
     assert app._restore_agents_jump_anchor() is True
@@ -129,7 +129,7 @@ def test_h_selects_sole_named_panel_and_saves_reversible_jump_anchor() -> None:
 
     assert app._resolve_focused_panel() is None
     assert app.current_idx == 0
-    assert app._panel_selection_memory["research"] == ("agent", 0)
+    assert app._panel_selection_memory[("default", "research")] == ("agent", 0)
     assert app.panel_fold_changes == [("research", True), ("research", False)]
 
 
@@ -152,7 +152,7 @@ def test_h_selects_grouping_banner_in_sole_named_panel() -> None:
 
     focus = app._resolve_focused_panel()
     assert focus is not None and focus.panel_key == "research"
-    assert app._panel_selection_memory["research"] == ("banner", banner)
+    assert app._panel_selection_memory[("default", "research")] == ("banner", banner)
 
 
 def test_panel_collapse_guards_merged_and_all_collapsed_actions() -> None:
@@ -182,7 +182,7 @@ def test_h_from_collapsed_panel_jumps_to_last_expanded_panel() -> None:
     app.current_idx = 4
     app.current_attempt_number = 7
     app._current_group_key = ("stale",)
-    app._panel_selection_memory["alpha"] = ("agent", 2)
+    app._panel_selection_memory[("default", "alpha")] = ("agent", 2)
     app._entry_jump_agents_forward_anchor_stack = [("agent", 0, None)]
 
     assert app._panel_group.panel_keys == [None, "alpha", "beta", "gamma"]

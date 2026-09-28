@@ -34,6 +34,13 @@ async def _seed_multiple_tribe_agents(page: AcePage) -> None:
     ]
     page.app._agents = agents
     page.app._agents_with_children = list(agents)
+    # The tab-scoped re-scope derives the visible roster from the cached
+    # query result, so seed it alongside the direct roster.
+    page.app._agents_query_result = list(agents)
+    try:
+        page.app._refresh_agent_tab_index()
+    except Exception:
+        pass
     page.app.current_idx = 0
     page.app._agent_panels_grouped = False
     page.app._invalidate_agent_panel_cache()

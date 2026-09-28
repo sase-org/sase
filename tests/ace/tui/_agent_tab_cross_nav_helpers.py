@@ -23,7 +23,6 @@ from sase.ace.tui.models.node_finder import (
     NodeFinderRow,
 )
 from sase.core.agent_tab import AgentTabKey
-from sase.feature_flags import override_flags
 
 SASE = AgentTabKey.named("sase")
 
@@ -95,26 +94,16 @@ def two_tab_owner() -> TabOwner:
     """Return a two-tab owner scoped to the default tab."""
     owner = TabOwner([row("a"), row("b", tab="sase")])
     owner.reindex(owner._agents_with_children)
-    with override_flags(agent_tabs=True):
-        owner._agents = _scoped_agents_for_owner(
-            owner, list(owner._agents_query_result)
-        )
+    owner._agents = _scoped_agents_for_owner(owner, list(owner._agents_query_result))
     return owner
 
 
-def cross_tab_harness_class(*, force_agent_tabs: bool = True) -> Any:
+def cross_tab_harness_class() -> Any:
     """Return a JumpHarness subclass with tab mixins and a rescope hook."""
     from ._member_jump_navigation_helpers import JumpHarness
 
     class _CrossTabHarness(JumpHarness, AgentTabsMixin, AgentTabJumpMixin):
         def _rescope_agents_to_active_tab(self) -> None:
-            if force_agent_tabs:
-                with override_flags(agent_tabs=True):
-                    self._agents = _scoped_agents_for_owner(
-                        self, list(self._agents_query_result)
-                    )
-                    self._panel_group = AgentPanelGroup.from_agents(self._agents)
-                return
             self._agents = _scoped_agents_for_owner(
                 self, list(self._agents_query_result)
             )
@@ -122,11 +111,6 @@ def cross_tab_harness_class(*, force_agent_tabs: bool = True) -> Any:
 
         def _refilter_agents(self, **kwargs: Any) -> None:
             super()._refilter_agents(**kwargs)
-            if force_agent_tabs:
-                with override_flags(agent_tabs=True):
-                    self._agents = _scoped_agents_for_owner(self, list(self._agents))
-                    self._panel_group = AgentPanelGroup.from_agents(self._agents)
-                return
             self._agents = _scoped_agents_for_owner(self, list(self._agents))
             self._panel_group = AgentPanelGroup.from_agents(self._agents)
 
@@ -150,10 +134,9 @@ def prepare_cross_tab_app(
     selected: Agent | None = None,
     *,
     harness_cls: Any | None = None,
-    force_agent_tabs: bool = True,
 ) -> Any:
     """Build a cross-tab harness with index, query result, and panel group."""
-    cls = harness_cls or cross_tab_harness_class(force_agent_tabs=force_agent_tabs)
+    cls = harness_cls or cross_tab_harness_class()
     app = cls(rows, selected or rows[0])
     app._ensure_agent_tabs_state()
     app._agents_with_children = list(rows)

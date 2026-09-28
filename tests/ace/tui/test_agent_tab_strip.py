@@ -53,7 +53,6 @@ from sase.core.agent_tab import (
     DEFAULT_AGENT_TAB_KEY,
     AgentTabKey,
 )
-from sase.feature_flags import override_flags
 
 
 @pytest.fixture(autouse=True)
@@ -436,36 +435,34 @@ def _two_tab_owner() -> _TabOwner:
 
 def test_arrivals_baseline_then_mark_then_clear_on_visit() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._reconcile_active_agent_tab()
-        assert owner._agent_tab_arrivals == set()
-        owner.reindex([_row("a"), _row("b", tab="sase"), _row("d", tab="blog")])
-        owner._reconcile_active_agent_tab()
-        assert owner._agent_tab_arrivals == {_BLOG}
-        assert owner._switch_agents_tab(_BLOG, reason="test") is True
-        assert owner._agent_tab_arrivals == set()
+    owner._reconcile_active_agent_tab()
+    assert owner._agent_tab_arrivals == set()
+    owner.reindex([_row("a"), _row("b", tab="sase"), _row("d", tab="blog")])
+    owner._reconcile_active_agent_tab()
+    assert owner._agent_tab_arrivals == {_BLOG}
+    assert owner._switch_agents_tab(_BLOG, reason="test") is True
+    assert owner._agent_tab_arrivals == set()
 
 
 def test_query_aware_counts_while_existence_is_not() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._reconcile_active_agent_tab()
-        entries = owner._agent_tab_catalog_view()
-        assert {entry.key for entry in entries} == {
-            DEFAULT_AGENT_TAB_KEY,
-            _SASE,
-        }
-        owner._agents_query_result = [
-            row for row in owner._agents_with_children if row.agent_tab == "sase"
-        ]
-        descriptors = owner._descriptors_for_strip(entries, DEFAULT_AGENT_TAB_KEY)
-        by_key = {desc.key: desc for desc in descriptors}
-        assert by_key[DEFAULT_AGENT_TAB_KEY].count == 0
-        assert by_key[_SASE].count == 2
-        assert {desc.key for desc in descriptors} == {
-            DEFAULT_AGENT_TAB_KEY,
-            _SASE,
-        }
+    owner._reconcile_active_agent_tab()
+    entries = owner._agent_tab_catalog_view()
+    assert {entry.key for entry in entries} == {
+        DEFAULT_AGENT_TAB_KEY,
+        _SASE,
+    }
+    owner._agents_query_result = [
+        row for row in owner._agents_with_children if row.agent_tab == "sase"
+    ]
+    descriptors = owner._descriptors_for_strip(entries, DEFAULT_AGENT_TAB_KEY)
+    by_key = {desc.key: desc for desc in descriptors}
+    assert by_key[DEFAULT_AGENT_TAB_KEY].count == 0
+    assert by_key[_SASE].count == 2
+    assert {desc.key for desc in descriptors} == {
+        DEFAULT_AGENT_TAB_KEY,
+        _SASE,
+    }
 
 
 def test_badges_use_stopped_failed_unread() -> None:
@@ -477,16 +474,15 @@ def test_badges_use_stopped_failed_unread() -> None:
         ]
     )
     owner.reindex(owner._agents_with_children)
-    with override_flags(agent_tabs=True):
-        owner._reconcile_active_agent_tab()
-        entries = owner._agent_tab_catalog_view()
-        owner._unread_completed_agent_ids = {owner._agents_with_children[2].identity}
-        descriptors = owner._descriptors_for_strip(entries, DEFAULT_AGENT_TAB_KEY)
-        sase_desc = next(desc for desc in descriptors if desc.key == _SASE)
-        assert sase_desc.count == 3
-        assert sase_desc.stopped == 1
-        assert sase_desc.failed == 1
-        assert sase_desc.unread == 1
+    owner._reconcile_active_agent_tab()
+    entries = owner._agent_tab_catalog_view()
+    owner._unread_completed_agent_ids = {owner._agents_with_children[2].identity}
+    descriptors = owner._descriptors_for_strip(entries, DEFAULT_AGENT_TAB_KEY)
+    sase_desc = next(desc for desc in descriptors if desc.key == _SASE)
+    assert sase_desc.count == 3
+    assert sase_desc.stopped == 1
+    assert sase_desc.failed == 1
+    assert sase_desc.unread == 1
 
 
 # --- empty causes ------------------------------------------------------------
@@ -520,13 +516,12 @@ def test_empty_causes_cover_all_three_states() -> None:
 
 def test_owner_empty_state_names_query_hides() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._reconcile_active_agent_tab()
-        owner._switch_agents_tab(_SASE, reason="test")
-        owner._agents = []
-        owner._agent_search_query = "status:running"
-        state = owner._active_tab_empty_state()
-        assert state is not None and state.kind == "query_hides"
+    owner._reconcile_active_agent_tab()
+    owner._switch_agents_tab(_SASE, reason="test")
+    owner._agents = []
+    owner._agent_search_query = "status:running"
+    state = owner._active_tab_empty_state()
+    assert state is not None and state.kind == "query_hides"
 
 
 # --- detail cause rendering ----------------------------------------------------
@@ -549,11 +544,10 @@ class _FakeDetail:
 def test_show_empty_cause_genuine() -> None:
     owner = _two_tab_owner()
     detail = _FakeDetail()
-    with override_flags(agent_tabs=True):
-        owner._reconcile_active_agent_tab()
-        assert owner._switch_agents_tab(_SASE, reason="test") is True
-        owner._agents = []
-        assert owner._show_active_tab_empty_state(detail) is True
+    owner._reconcile_active_agent_tab()
+    assert owner._switch_agents_tab(_SASE, reason="test") is True
+    owner._agents = []
+    assert owner._show_active_tab_empty_state(detail) is True
     assert detail.tab_empty == [("No agents on sase", "")]
     assert detail.empty_calls == 0
 
@@ -561,12 +555,11 @@ def test_show_empty_cause_genuine() -> None:
 def test_show_empty_cause_query_hides() -> None:
     owner = _two_tab_owner()
     detail = _FakeDetail()
-    with override_flags(agent_tabs=True):
-        owner._reconcile_active_agent_tab()
-        assert owner._switch_agents_tab(_SASE, reason="test") is True
-        owner._agents = []
-        owner._agent_search_query = "status:running"
-        assert owner._show_active_tab_empty_state(detail) is True
+    owner._reconcile_active_agent_tab()
+    assert owner._switch_agents_tab(_SASE, reason="test") is True
+    owner._agents = []
+    owner._agent_search_query = "status:running"
+    assert owner._show_active_tab_empty_state(detail) is True
     assert len(detail.tab_empty) == 1
     title, text = detail.tab_empty[0]
     assert "sase" in title
@@ -604,31 +597,30 @@ def test_show_empty_cause_feed_unavailable(
         )
         owner.reindex(owner._agents_with_children)
         detail = _FakeDetail()
-        with override_flags(agent_tabs=True):
-            owner._reconcile_active_agent_tab()
-            assert owner._switch_agents_tab(apollo_key, reason="test") is True
-            owner._agents_fleet_projection = SimpleNamespace(
-                host_feed_issues=(
-                    HostFeedIssue(
-                        alias="apollo",
-                        status="invalid",
-                        error="handshake failed",
-                        cache_age_seconds=None,
-                        diagnostic=None,
-                    ),
+        owner._reconcile_active_agent_tab()
+        assert owner._switch_agents_tab(apollo_key, reason="test") is True
+        owner._agents_fleet_projection = SimpleNamespace(
+            host_feed_issues=(
+                HostFeedIssue(
+                    alias="apollo",
+                    status="invalid",
+                    error="handshake failed",
+                    cache_age_seconds=None,
+                    diagnostic=None,
                 ),
-                diagnostics=(),
-            )
-            remaining = [
-                row for row in owner._agents_with_children if not row.fleet_origin_alias
-            ]
-            owner._agents_with_children = remaining
-            owner._agents_query_result = list(remaining)
-            owner._agent_tab_index = build_agent_tab_index(remaining, view)
-            owner._reconcile_active_agent_tab()
-            owner._rescope_agents_to_active_tab()
-            assert owner._agents == []
-            assert owner._show_active_tab_empty_state(detail) is True
+            ),
+            diagnostics=(),
+        )
+        remaining = [
+            row for row in owner._agents_with_children if not row.fleet_origin_alias
+        ]
+        owner._agents_with_children = remaining
+        owner._agents_query_result = list(remaining)
+        owner._agent_tab_index = build_agent_tab_index(remaining, view)
+        owner._reconcile_active_agent_tab()
+        owner._rescope_agents_to_active_tab()
+        assert owner._agents == []
+        assert owner._show_active_tab_empty_state(detail) is True
     finally:
         settings_mod._agent_tabs_view_config_for_token.cache_clear()  # noqa: SLF001
     assert len(detail.tab_empty) == 1
@@ -640,19 +632,17 @@ def test_show_empty_cause_feed_unavailable(
 def test_show_empty_cause_falls_back_without_cause() -> None:
     owner = _two_tab_owner()
     detail = _FakeDetail()
-    with override_flags(agent_tabs=True):
-        owner._reconcile_active_agent_tab()
-        assert owner._show_active_tab_empty_state(detail) is False
+    owner._reconcile_active_agent_tab()
+    assert owner._show_active_tab_empty_state(detail) is False
     assert detail.tab_empty == []
 
 
 def test_show_empty_cause_falls_back_without_widget_support() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._reconcile_active_agent_tab()
-        assert owner._switch_agents_tab(_SASE, reason="test") is True
-        owner._agents = []
-        assert owner._show_active_tab_empty_state(object()) is False
+    owner._reconcile_active_agent_tab()
+    assert owner._switch_agents_tab(_SASE, reason="test") is True
+    owner._agents = []
+    assert owner._show_active_tab_empty_state(object()) is False
 
 
 # --- repaint gating ------------------------------------------------------------
@@ -720,12 +710,11 @@ def test_refresh_skips_widget_update_on_unchanged_signature() -> None:
         return owner._strip_for_test  # type: ignore[attr-defined]
 
     owner.query_one = _query_one  # type: ignore[assignment]
-    with override_flags(agent_tabs=True):
-        owner._reconcile_active_agent_tab()
-        owner._refresh_agent_tab_strip()
-        assert len(updates) == 1
-        owner._refresh_agent_tab_strip()
-        assert len(updates) == 1
+    owner._reconcile_active_agent_tab()
+    owner._refresh_agent_tab_strip()
+    assert len(updates) == 1
+    owner._refresh_agent_tab_strip()
+    assert len(updates) == 1
 
 
 # --- accents -----------------------------------------------------------------

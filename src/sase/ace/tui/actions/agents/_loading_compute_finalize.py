@@ -372,7 +372,7 @@ def _compute_finalize_plan(
     query_result = list(query_plan.filtered_agents)
     tab_index: AgentTabIndex | None = None
     tab_scope_token = snapshot.agent_tab_scope_token or "default"
-    if snapshot.agent_tabs_enabled and snapshot.agent_tabs_view_config is not None:
+    if snapshot.agent_tabs_view_config is not None:
         from ...models.agent_tab_index import ALL_AGENT_TABS
 
         # Off-thread style resolution (disk is allowed here): warms the
@@ -401,12 +401,7 @@ def _compute_finalize_plan(
             if snapshot.agent_tab_scope_key is None
             else snapshot.agent_tab_scope_key
         )
-        scoped_agents = scope_agents_to_tab(
-            query_result,
-            tab_index,
-            scope,
-            enabled=True,
-        )
+        scoped_agents = scope_agents_to_tab(query_result, tab_index, scope)
     else:
         scoped_agents = query_result
     selection_plan = _compute_selection_plan(

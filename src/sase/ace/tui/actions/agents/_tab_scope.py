@@ -1,10 +1,7 @@
 """Active-tab scope state and tab-keyed panel helpers (scope-stage).
 
-With the ``agent_tabs`` flag off every helper is the identity: the scope is
-the default key, scoping returns its input unchanged, and panel/selection
-keys stay bare. With the flag on, panel and selection keys are namespaced by
-the scope token so folds, sticky panels, and selection memory are kept per
-tab.
+Panel and selection keys are namespaced by the scope token so folds,
+sticky panels, and selection memory are kept per tab.
 """
 
 from __future__ import annotations
@@ -14,7 +11,6 @@ from typing import Any, TYPE_CHECKING
 
 from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
 
-from ...agent_tabs_flag import agent_tabs_enabled
 from ...models.agent_panel_layout import AgentPanelLayout
 from ...models.agent_tab_index import (
     ALL_AGENT_TABS,
@@ -34,13 +30,7 @@ if TYPE_CHECKING:
 
 
 def current_agent_tab_scope(owner: Any) -> AgentTabScope:
-    """Return the active tab scope, defaulting to the default key.
-
-    The flag-off default keeps fold scopes stable when the flag is later
-    turned on.
-    """
-    if not agent_tabs_enabled():
-        return DEFAULT_AGENT_TAB_KEY
+    """Return the active tab scope, defaulting to the default key."""
     try:
         if effective_panel_layout_for_owner(owner) is AgentPanelLayout.ALL_TABS:
             return ALL_AGENT_TABS
@@ -62,12 +52,9 @@ def current_agent_tab_scope_token(owner: Any) -> str:
 def refresh_agent_tab_index(owner: Any, roster: list[Agent] | None = None) -> Any:
     """Rebuild (memoized) the tab index over the tab-independent roster.
 
-    Returns None with the flag off. The roster defaults to
-    ``_agents_with_children`` so the index covers roots hidden by the query.
+    The roster defaults to ``_agents_with_children`` so the index covers
+    roots hidden by the query.
     """
-    if not agent_tabs_enabled():
-        owner._agent_tab_index = None
-        return None
     from ...agent_tabs_settings import agent_tabs_view_config
 
     if roster is None:
@@ -95,13 +82,9 @@ def refresh_agent_tab_index(owner: Any, roster: list[Agent] | None = None) -> An
 
 
 def _scoped_agents_for_owner(owner: Any, rows: list[Agent]) -> list[Agent]:
-    """Return *rows* filtered to the owner's active tab (identity off-flag)."""
-    if not agent_tabs_enabled():
-        return rows
+    """Return *rows* filtered to the owner's active tab."""
     index = getattr(owner, "_agent_tab_index", None)
-    return scope_agents_to_tab(
-        rows, index, current_agent_tab_scope(owner), enabled=True
-    )
+    return scope_agents_to_tab(rows, index, current_agent_tab_scope(owner))
 
 
 def remove_agents_from_views(
@@ -177,9 +160,7 @@ def _rescope_agents_to_active_tab(owner: Any) -> None:
 
 
 def _selection_scope_token(owner: Any) -> str | None:
-    """Return the scoping token, or None when selection keys stay bare."""
-    if not agent_tabs_enabled():
-        return None
+    """Return the scoping token for the owner's active tab scope."""
     return current_agent_tab_scope_token(owner)
 
 
@@ -252,7 +233,7 @@ class AgentTabScopeMixin:
     """Owner methods for the active-tab scope stage (no UI wiring)."""
 
     def _agent_tab_scope(self) -> AgentTabScope:
-        """Return the active tab scope (default key when the flag is off)."""
+        """Return the active tab scope."""
         return current_agent_tab_scope(self)
 
     def _agent_tab_scope_token(self) -> str:
@@ -262,7 +243,7 @@ class AgentTabScopeMixin:
     def _refresh_agent_tab_index(
         self, roster: list[Agent] | None = None
     ) -> AgentTabIndex | None:
-        """Rebuild (memoized) the tab index; None with the flag off."""
+        """Rebuild (memoized) the tab index."""
         return refresh_agent_tab_index(self, roster)
 
     def _remove_agents_from_views(

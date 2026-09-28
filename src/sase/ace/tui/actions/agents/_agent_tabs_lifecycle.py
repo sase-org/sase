@@ -1,10 +1,8 @@
 """Tab reconcile, startup selection, machine fallback, and persistence.
 
-With the ``agent_tabs`` flag off every entry point is a no-op and the
-active key persists never. With the flag on, ``_reconcile_active_agent_tab``
-maintains the startup selection, the emptied-tab latch, and the
-machine-disappearance fallback after every index rebuild, and the active
-key persists off-thread.
+``_reconcile_active_agent_tab`` maintains the startup selection, the
+emptied-tab latch, and the machine-disappearance fallback after every
+index rebuild, and the active key persists off-thread.
 """
 
 from __future__ import annotations
@@ -19,7 +17,6 @@ from sase.core.agent_tab import (
     agent_tab_key_token,
 )
 
-from ...agent_tabs_flag import agent_tabs_enabled
 from ...models.agent_tab_persistence import (
     load_active_agent_tab,
     save_active_agent_tab,
@@ -122,8 +119,6 @@ class AgentTabsLifecycleMixin:
         changed and the caller must re-scope.
         """
         self._ensure_agent_tabs_state()
-        if not agent_tabs_enabled():
-            return False
         index = getattr(self, "_agent_tab_index", None)
         if index is None:
             return False
@@ -291,8 +286,6 @@ class AgentTabsLifecycleMixin:
     def _agent_tab_state_changed(self) -> None:
         """Schedule a coalesced off-thread persist of the active key."""
         self._ensure_agent_tabs_state()
-        if not agent_tabs_enabled():
-            return
         active = self._active_agent_tab  # type: ignore[attr-defined]
         if agent_tab_key_token(active) is None:
             return
@@ -370,11 +363,7 @@ class AgentTabsLifecycleMixin:
         self._ensure_agent_tabs_state()
         self._agent_tab_loaded_key = key  # type: ignore[attr-defined]
         self._agent_tab_load_resolved = True  # type: ignore[attr-defined]
-        if (
-            key is not None
-            and agent_tabs_enabled()
-            and not getattr(self, "_agent_tabs_user_switched", False)
-        ):
+        if key is not None and not getattr(self, "_agent_tabs_user_switched", False):
             index = getattr(self, "_agent_tab_index", None)
             try:
                 known = list(getattr(index, "catalog", ())) if index is not None else []

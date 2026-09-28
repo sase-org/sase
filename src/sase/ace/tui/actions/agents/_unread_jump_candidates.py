@@ -171,17 +171,12 @@ class AgentUnreadJumpCandidatesMixin:
     ) -> list[TimedAgentJumpCandidate]:
         """Return matching rows on agent tabs other than the active one.
 
-        With the ``agent_tabs`` flag on, ``,j``/``,J`` jump across tabs, so
-        candidates come from the tab-independent ``_agents_query_result``
-        instead of only the active tab's ``_agents``. Off the flag (or
-        without an index) there are no off-tab rows and this stays empty.
-        Rows already seen as visible or collapsed-clan candidates keep
-        their existing entry.
+        ``,j``/``,J`` jump across tabs, so candidates come from the
+        tab-independent ``_agents_query_result`` instead of only the
+        active tab's ``_agents``. Without an index there are no off-tab
+        rows and this stays empty. Rows already seen as visible or
+        collapsed-clan candidates keep their existing entry.
         """
-        from ...agent_tabs_flag import agent_tabs_enabled
-
-        if not agent_tabs_enabled():
-            return []
         index = getattr(self, "_agent_tab_index", None)
         if index is None:
             return []

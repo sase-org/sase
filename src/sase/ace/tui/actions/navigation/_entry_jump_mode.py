@@ -105,17 +105,10 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
     def _tab_jump_targets(self) -> list[TabJumpTarget]:
         """Return strip-chip jump targets for the visible agent tabs.
 
-        Empty with the flag off, off the Agents tab, or while the strip
-        is hidden, so row hints stay byte-identical outside tab-strip
-        mode.
+        Empty off the Agents tab or while the strip is hidden, so row
+        hints stay byte-identical outside tab-strip mode.
         """
         try:
-            from ...agent_tabs_flag import agent_tabs_enabled
-        except Exception:
-            return []
-        try:
-            if not agent_tabs_enabled():
-                return []
             if getattr(self, "current_tab", None) != "agents":
                 return []
             visible = getattr(self, "_agent_tab_strip_visible", None)

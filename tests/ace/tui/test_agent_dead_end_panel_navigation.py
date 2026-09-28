@@ -84,7 +84,7 @@ def test_lone_row_selects_adjacent_whole_panel(
     assert focus is not None
     assert focus.panel_key == app._panel_group.panel_keys[expected_panel_idx]
     assert app.current_idx == expected_agent_idx
-    assert app._panel_selection_memory["alpha"] == ("agent", 1)
+    assert app._panel_selection_memory[("default", "alpha")] == ("agent", 1)
     assert app.armed_departures == [agents[1]]
 
 
@@ -143,7 +143,7 @@ def test_lone_collapsed_grouping_banner_escapes_without_arming_agent() -> None:
 
     assert app._panel_group.focused_key == "alpha"
     assert app._resolve_focused_panel() is not None
-    assert app._panel_selection_memory[None] == ("banner", banner)
+    assert app._panel_selection_memory[("default", None)] == ("banner", banner)
     assert app.armed_departures == []
 
 

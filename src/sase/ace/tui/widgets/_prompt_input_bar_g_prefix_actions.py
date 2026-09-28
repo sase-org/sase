@@ -491,16 +491,8 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_available_launch_tab(self) -> bool:
         """Whether ``gb`` / ``^Gb`` can open the Launch Tab picker."""
-        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
-
-        try:
-            enabled = agent_tabs_enabled()
-        except Exception:  # noqa: BLE001 - picker stays hidden without flags.
-            enabled = False
         return (
-            enabled
-            and self._mode == "prompt"
-            and not self._stack.selected_item.is_auxiliary_pane
+            self._mode == "prompt" and not self._stack.selected_item.is_auxiliary_pane
         )
 
     def _g_prefix_available_snippets(self) -> bool:

@@ -123,10 +123,9 @@ class PreparedApplySnapshot:
     # apply path compares ``removal_generation`` before publishing this work.
     explicit_removals: ExplicitRemovalSnapshot | None = None
     removal_generation: int = 0
-    # Active-tab scope stage (scope-stage phase). The worker builds the tab
-    # index and the scoped roster from these inputs; the stale token carries
-    # the scope token so a tab switch in flight invalidates the plan.
-    agent_tabs_enabled: bool = False
+    # Active-tab scope stage. The worker builds the tab index and the
+    # scoped roster from these inputs; the stale token carries the scope
+    # token so a tab switch in flight invalidates the plan.
     agent_tab_scope_token: str = "default"
     agent_tab_scope_key: AgentTabKey | None = None
     agent_tabs_view_config: AgentTabsViewConfig | None = None

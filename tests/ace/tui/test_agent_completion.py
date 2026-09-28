@@ -22,7 +22,6 @@ from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
 )
 from sase.core.time import local_now
-from sase.feature_flags import override_flags
 
 
 def _agent(tmp_path: Path, **overrides: Any) -> Agent:
@@ -105,10 +104,15 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
         exclude_identity=other.identity,
     )
 
-    assert [candidate.name for candidate in candidates] == ["@review", "completion"]
+    assert [candidate.name for candidate in candidates] == [
+        "@review",
+        "main",
+        "completion",
+    ]
     assert candidates[0].kind == "tribe"
     assert candidates[0].member_count == 1
-    candidate = candidates[1]
+    assert candidates[1].kind == "tab"
+    candidate = candidates[2]
     assert candidate.kind == "session"
     assert candidate.member_count == 1
     assert candidate.label == "completion.plan"
@@ -142,7 +146,7 @@ def test_agent_session_completion_candidate_attaches_cached_plan_preview(
     )
 
     candidates = build_agent_completion_candidates([agent_session_root])
-    candidate = candidates[0]
+    candidate = next(c for c in candidates if c.kind == "session")
 
     assert candidate.plan_preview is preview
     assert "Plan-aware session preview" in candidate.search_aliases
@@ -202,8 +206,9 @@ def test_agent_session_completion_candidate_build_does_not_resolve_plan_or_bead_
 
     candidates = build_agent_completion_candidates([agent_session_root])
 
-    assert candidates[0].name == "ship"
-    assert candidates[0].plan_preview is None
+    assert candidates[0].kind == "tab"
+    assert candidates[1].name == "ship"
+    assert candidates[1].plan_preview is None
 
 
 def test_build_agent_completion_candidates_humanizes_vcs_badge_and_searches_raw(
@@ -238,7 +243,7 @@ def test_build_agent_completion_candidates_humanizes_vcs_badge_and_searches_raw(
 
     candidates = build_agent_completion_candidates([agent])
 
-    candidate = candidates[0]
+    candidate = next(c for c in candidates if c.kind == "agent")
     assert candidate.vcs_workflow is not None
     assert candidate.vcs_workflow.display == "#gh:widgets"
     assert candidate.vcs_workflow.project == "widgets"
@@ -285,6 +290,7 @@ def test_completion_inserts_bare_local_names_and_searches_raw_alias(
     candidates = build_agent_completion_candidates([local, legacy, foreign])
 
     assert [candidate.name for candidate in candidates] == [
+        "main",
         "foo.plan",
         "bar.plan",
         "zeus.foo.plan",
@@ -392,9 +398,10 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
         [*project_clan_tree([old, alpha, beta]), agent_session_root, code, solo]
     )
 
-    assert [(candidate.kind, candidate.name) for candidate in candidates[:4]] == [
+    assert [(candidate.kind, candidate.name) for candidate in candidates[:5]] == [
         ("tribe", "@builders"),
         ("tribe", "@makers"),
+        ("tab", "main"),
         ("clan", "review"),
         ("session", "ship"),
     ]
@@ -423,8 +430,8 @@ def test_named_proc_completion_candidate_uses_exact_proc_id(tmp_path: Path) -> N
 
     candidates = build_agent_completion_candidates([named_proc])
 
-    assert [candidate.name for candidate in candidates] == ["abc123def456"]
-    candidate = candidates[0]
+    assert [candidate.name for candidate in candidates] == ["main", "abc123def456"]
+    candidate = candidates[1]
     assert candidate.kind == "proc"
     assert candidate.label == "build-docs"
     assert candidate.proc_id == "abc123def456"
@@ -446,7 +453,7 @@ def test_named_proc_is_not_also_offered_as_a_plain_agent_candidate(
 
     candidates = build_agent_completion_candidates([named_proc])
 
-    assert [candidate.kind for candidate in candidates] == ["proc"]
+    assert [candidate.kind for candidate in candidates] == ["tab", "proc"]
 
 
 def test_agent_session_completion_candidate_counts_monitor_turn_member(
@@ -493,13 +500,15 @@ def test_build_agent_completion_candidates_omits_empty_clan(tmp_path: Path) -> N
         is_clan_container=True,
     )
 
-    assert build_agent_completion_candidates([empty]) == []
+    candidates = build_agent_completion_candidates([empty])
+    assert [candidate.name for candidate in candidates] == ["main"]
+    assert candidates[0].kind == "tab"
 
 
-def test_tab_completion_candidates_gated_behind_agent_tabs_flag(
+def test_tab_completion_candidates_include_tabs(
     tmp_path: Path,
 ) -> None:
-    """Tab candidates appear only while the agent_tabs flag is on."""
+    """Tab candidates list the default tab plus distinct stored tabs."""
     agent = _agent(tmp_path, agent_name="coder", raw_suffix="260624_120020")
     named = _agent(
         tmp_path,
@@ -508,17 +517,10 @@ def test_tab_completion_candidates_gated_behind_agent_tabs_flag(
         agent_tab="research",
     )
 
-    with override_flags(agent_tabs=False):
-        assert all(
-            candidate.kind != "tab"
-            for candidate in build_agent_completion_candidates([agent, named])
-        )
-
-    with override_flags(agent_tabs=True):
-        candidates = build_agent_completion_candidates([agent, named])
-        by_name = {candidate.name: candidate for candidate in candidates}
-        assert by_name["main"].kind == "tab"
-        assert by_name["research"].kind == "tab"
+    candidates = build_agent_completion_candidates([agent, named])
+    by_name = {candidate.name: candidate for candidate in candidates}
+    assert by_name["main"].kind == "tab"
+    assert by_name["research"].kind == "tab"
 
 
 def test_status_style_returns_rich_parseable_styles() -> None:

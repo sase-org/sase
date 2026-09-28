@@ -127,7 +127,11 @@ class _EntryOwner:
     def _panel_selection_memory(
         self,
     ) -> dict[str, PanelSelectionStop]:
-        return {"panel": self.remembered} if self.remembered is not None else {}
+        return (
+            {("default", "panel"): self.remembered}
+            if self.remembered is not None
+            else {}
+        )
 
     def _panel_navigation_stops(
         self,
@@ -172,7 +176,7 @@ def test_shared_resolver_uses_remembered_or_first_stop(
 
 def test_shared_resolver_preserves_legacy_no_keyword_fallback() -> None:
     class _LegacyOwner:
-        _panel_selection_memory = {"panel": ("agent", 2)}
+        _panel_selection_memory = {("default", "panel"): ("agent", 2)}
 
         def _panel_navigation_stops(self) -> list[PanelSelectionStop]:
             return [("agent", 1), ("agent", 2)]

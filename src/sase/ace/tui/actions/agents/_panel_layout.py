@@ -7,10 +7,6 @@ half is mirrored into the legacy ``_agent_panels_grouped`` boolean so
 every existing read site keeps working, and the tab-scope half resolves
 to ``ALL_AGENT_TABS`` while the effective level is ``All tabs`` (see
 :mod:`sase.ace.tui.actions.agents._tab_scope`).
-
-With the ``agent_tabs`` flag off the ladder collapses to the historical
-two-level toggle and every transition stays on the legacy refresh path,
-so flag-off behavior is byte-identical.
 """
 
 from __future__ import annotations
@@ -18,7 +14,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from ...agent_tabs_flag import agent_tabs_enabled
 from ...models.agent_panel_layout import (
     AgentPanelLayout,
     coerce_panel_layout,
@@ -56,8 +51,6 @@ def stored_panel_layout(owner: Any) -> AgentPanelLayout:
 
 def multiple_agent_tabs_for_owner(owner: Any) -> bool:
     """Return True when the catalog offers two or more tabs (R6 gate)."""
-    if not agent_tabs_enabled():
-        return False
     try:
         return len(catalog_view_for_owner(owner)) >= 2
     except Exception:
@@ -67,12 +60,6 @@ def multiple_agent_tabs_for_owner(owner: Any) -> bool:
 def effective_panel_layout_for_owner(owner: Any) -> AgentPanelLayout:
     """Return the rendered level (R6: stored All tabs is Merged solo)."""
     stored = stored_panel_layout(owner)
-    if not agent_tabs_enabled():
-        return (
-            stored
-            if stored is not AgentPanelLayout.ALL_TABS
-            else AgentPanelLayout.MERGED
-        )
     return effective_panel_layout(stored, multiple_agent_tabs_for_owner(owner))
 
 
@@ -137,8 +124,6 @@ def merged_panel_title_for_owner(owner: Any) -> str | None:
     tab's label while the strip is visible. Otherwise None, which keeps
     today's ``All agents`` wording byte-identical.
     """
-    if not agent_tabs_enabled():
-        return None
     try:
         if effective_panel_layout_for_owner(owner) is AgentPanelLayout.ALL_TABS:
             return "All agents · every tab"
@@ -253,60 +238,6 @@ def set_panel_layout(owner: Any, level: AgentPanelLayout, *, reason: str = "") -
     ensure_panel_layout_state(owner)
     level = coerce_panel_layout(level)
     stored = stored_panel_layout(owner)
-    if not agent_tabs_enabled():
-        merged = panel_layout_is_merged(level)
-        changed = bool(getattr(owner, "_agent_panels_grouped", False)) != merged
-        owner._agent_panel_layout = (
-            AgentPanelLayout.MERGED if merged else AgentPanelLayout.SPLIT
-        )
-        owner._agent_panels_grouped = merged
-        if not changed:
-            return False
-        # Historical toggle path verbatim: the incremental finalize path
-        # used on-flag can defer row paints, so flag-off keeps the direct
-        # synchronous list repaint.
-        if getattr(owner, "_panel_fold_hint_mode_active", False):
-            teardown = getattr(owner, "_teardown_panel_fold_hint_mode", None)
-            if callable(teardown):
-                try:
-                    teardown(refresh_titles=False)
-                except Exception:
-                    pass
-        disarm = getattr(owner, "_disarm_panel_isolation_revert", None)
-        if callable(disarm):
-            try:
-                disarm(refresh=False)
-            except Exception:
-                pass
-        owner._expanded_panel_focus = False
-        try:
-            from ._panel_fold_intent import clear_panel_fold_intents
-
-            clear_panel_fold_intents(owner)
-        except Exception:
-            pass
-        owner._current_group_key = None
-        owner._current_attempt_number = None
-        invalidate = getattr(owner, "_invalidate_agent_panel_cache", None)
-        if callable(invalidate):
-            try:
-                invalidate()
-            except Exception:
-                pass
-        refresh = getattr(owner, "_refresh_agents_display", None)
-        if callable(refresh):
-            try:
-                refresh(list_changed=True)
-            except Exception:
-                log.exception("Panel layout refresh failed")
-        try:
-            owner.notify(  # type: ignore[attr-defined]
-                f"Panel layout: {layout_notify_label(owner._agent_panel_layout)}",
-                timeout=1.5,
-            )
-        except Exception:
-            pass
-        return True
     if level is stored:
         sync_panel_grouped_bool(owner)
         return False

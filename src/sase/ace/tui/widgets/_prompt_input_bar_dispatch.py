@@ -128,7 +128,6 @@ class PromptInputBarDispatchMixin(_MixinBase):
         from sase.ace.tui.actions.agents._agent_tabs_catalog import (
             catalog_view_for_owner,
         )
-        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
         from sase.ace.tui.modals.launch_tab_picker_modal import (
             LaunchTabPickerModal,
             LaunchTabPickerResult,
@@ -143,7 +142,7 @@ class PromptInputBarDispatchMixin(_MixinBase):
         except Exception:  # noqa: BLE001 - picker still opens unpreselected.
             current = None
         try:
-            entries = catalog_view_for_owner(self.app) if agent_tabs_enabled() else ()
+            entries = catalog_view_for_owner(self.app)
         except Exception:  # noqa: BLE001 - picker still lists the default.
             entries = ()
         owner = self._capture_dispatch_picker_focus_owner()
@@ -454,15 +453,12 @@ class PromptInputBarDispatchMixin(_MixinBase):
         read is prompt text plus in-memory app state only — no I/O. None
         keeps the line hidden when no dispatch target is shown either.
         """
-        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
         from sase.ace.tui.agent_tabs_launch_view import (
             active_machine_tab_alias,
             view_inherited_tab_name,
         )
         from sase.xprompt.directive_edit import scan_tab_directive
 
-        if not agent_tabs_enabled():
-            return None, "ok"
         try:
             scan = scan_tab_directive(prompt)
         except Exception:  # noqa: BLE001 - launch validation owns the error.

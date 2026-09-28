@@ -326,7 +326,7 @@ def test_row_focus_sweep_reanchors_to_visible_lane_owner() -> None:
     registry = app._group_fold_registry.for_panel(None)
     assert registry.is_collapsed(("proj",)) is False
     assert app._current_group_key is None
-    assert app._panel_selection_memory[None] == ("agent", owner_idx)
+    assert app._panel_selection_memory[("default", None)] == ("agent", owner_idx)
     assert app.notifications[-1] == "Collapsed 1 fold"
     assert app.refilter_kwargs == [{"refresh_content_index": False}]
 

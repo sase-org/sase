@@ -394,15 +394,26 @@ async def test_agents_onboarding_reappears_after_last_visible_agent_disappears(
         await page.expect_state("agent_count", 3)
 
         page.app._agents_with_children = []
+        page.app._agents_query_result = []
+        page.app._agent_tab_latched_key = None
+        try:
+            page.app._refresh_agent_tab_index()
+        except Exception:
+            pass
         page.app._refilter_agents()
         await page.expect_state("agent_count", 0)
 
+        # Tabs are always on, so the emptied active tab latches: the strip
+        # keeps its pill and the detail names the empty cause. The global
+        # onboarding card only owns the truly tab-less roster.
+        assert page.app._agent_tab_strip_visible() is True
         onboarding = page.query_one_widget("#agent-quickstart-panel")
         detail = page.query_one_widget("#agent-detail-panel")
-        assert not onboarding.has_class("hidden")
-        assert detail.has_class("hidden")
-        _assert_agents_onboarding_layout(page, active=True)
-        assert "Every agent you launch" in _mounted_onboarding_plain(page)
+        assert onboarding.has_class("hidden")
+        assert not detail.has_class("hidden")
+        state = page.app._active_tab_empty_state()
+        assert state is not None and state.kind == "empty"
+        assert state.title.startswith("No agents on")
 
 
 async def test_agents_onboarding_hides_after_first_agent_arrives(

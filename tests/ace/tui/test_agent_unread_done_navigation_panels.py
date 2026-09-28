@@ -69,7 +69,7 @@ def test_jump_to_next_unread_done_agent_back_jump_restores_origin() -> None:
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 1
     assert app._panel_group.focused_idx == 1
-    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None, "default")]
 
     assert app._restore_agents_jump_anchor()
     assert app.current_idx == 0
@@ -123,7 +123,7 @@ def test_unread_jump_expands_collapsed_panel_and_selects_exact_row(
     assert target.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == []
     assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
-    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None, "default")]
     notification_dismiss.assert_called_once_with(
         [{"cl_name": target.cl_name, "raw_suffix": target.raw_suffix}]
     )
@@ -193,7 +193,7 @@ def test_unread_jump_history_survives_panel_repartition_back_and_forward() -> No
 
     assert app._jump_to_next_unread_done_agent()
     assert app._panel_group.panel_keys == ["alpha", "beta", "gamma"]
-    assert app._entry_jump_agents_anchor_stack == [("agent", 2, "gamma")]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 2, "gamma", "default")]
 
     assert app._restore_agents_jump_anchor()
     assert app._panel_group.focused_key == "gamma"

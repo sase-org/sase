@@ -19,7 +19,7 @@ def test_equals_expands_selected_panel_and_collapses_every_other_panel() -> None
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
     remembered = ("agent", 2)
-    app._panel_selection_memory["alpha"] = remembered
+    app._panel_selection_memory[("default", "alpha")] = remembered
     registry = app._group_fold_registry.for_panel("alpha")
     registry.collapse(("zeta",))
     registry_before = app._group_fold_registry.snapshot()
@@ -40,7 +40,7 @@ def test_equals_expands_selected_panel_and_collapses_every_other_panel() -> None
     assert app.current_idx == 2
     assert app.current_attempt_number is None
     assert app._current_group_key is None
-    assert app._panel_selection_memory["alpha"] == remembered
+    assert app._panel_selection_memory[("default", "alpha")] == remembered
     assert app._group_fold_registry.snapshot() == registry_before
     assert app.refresh_calls == [True]
     assert app.panel_fold_changes == [
@@ -53,7 +53,7 @@ def test_equals_expands_selected_panel_and_collapses_every_other_panel() -> None
 def test_equals_only_changes_expanded_siblings_then_restores() -> None:
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
-    app._panel_selection_memory["alpha"] = ("agent", 2)
+    app._panel_selection_memory[("default", "alpha")] = ("agent", 2)
     app._collapsed_panel_keys.add("beta")
     app._sync_panel_group()
     app._expanded_panel_focus = True
@@ -111,7 +111,7 @@ def test_capital_h_hints_and_collapses_one_selected_panel_fold_at_a_time() -> No
     app._fold_manager.expand(clan_key)
     app.current_idx = agents.index(render_first)
     remembered = ("agent", app.current_idx)
-    app._panel_selection_memory["alpha"] = remembered
+    app._panel_selection_memory[("default", "alpha")] = remembered
     app._expanded_panel_focus = True
     registry = app._group_fold_registry.for_panel("alpha")
 
@@ -134,7 +134,7 @@ def test_capital_h_hints_and_collapses_one_selected_panel_fold_at_a_time() -> No
     assert app._panel_fold_hint_mode_active is False
     assert app._resolve_focused_panel() is not None
     assert app.current_idx == agents.index(render_first)
-    assert app._panel_selection_memory["alpha"] == remembered
+    assert app._panel_selection_memory[("default", "alpha")] == remembered
     assert app.refilter_kwargs == [{"refresh_content_index": False}]
     assert app.notifications[-1] == "Fold collapsed"
 
@@ -180,7 +180,7 @@ def test_capital_h_hints_and_collapses_one_selected_panel_fold_at_a_time() -> No
 def test_selected_panel_j_and_k_cycle_without_descending() -> None:
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
-    app._panel_selection_memory["alpha"] = ("agent", 2)
+    app._panel_selection_memory[("default", "alpha")] = ("agent", 2)
     app._collapsed_panel_keys.add("beta")
     app._sync_panel_group()
     app._expanded_panel_focus = True
@@ -212,7 +212,7 @@ def test_escape_from_expanded_panel_restores_remembered_banner() -> None:
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     banner = ("zeta",)
     app._group_fold_registry.for_panel("alpha").collapse(banner)
-    app._panel_selection_memory["alpha"] = ("banner", banner)
+    app._panel_selection_memory[("default", "alpha")] = ("banner", banner)
     app._expanded_panel_focus = True
 
     assert app._exit_expanded_panel_focus() is True

@@ -11,7 +11,6 @@ from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
 
 from sase.ace.tui import agent_tabs_settings as settings
-from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
 from sase.ace.tui.agent_tabs_settings import (
     DEFAULT_AGENT_TABS_SETTINGS,
     AgentTabsSettings,
@@ -20,7 +19,6 @@ from sase.ace.tui.agent_tabs_settings import (
     parse_agent_tabs_settings,
 )
 from sase.dispatch.models import DispatchConfig, MachineRecord, ProviderSettings
-from sase.feature_flags import override_flags
 from tests._config_schema_helpers import REPO_ROOT, schema
 
 
@@ -158,13 +156,6 @@ def test_non_mapping_tabs_block_keeps_other_fields() -> None:
     assert parsed == AgentTabsSettings(
         machine_tabs="off", launch_from_view=True, tabs={}
     )
-
-
-def test_flag_helper_follows_both_flag_states() -> None:
-    with override_flags(agent_tabs=True):
-        assert agent_tabs_enabled() is True
-    with override_flags(agent_tabs=False):
-        assert agent_tabs_enabled() is False
 
 
 def test_machine_mode_on_off_and_auto(monkeypatch: pytest.MonkeyPatch) -> None:

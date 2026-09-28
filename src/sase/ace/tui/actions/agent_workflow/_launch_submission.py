@@ -256,12 +256,9 @@ class LaunchSubmissionMixin:
         """Return the named tab this launch lands on, if off the active tab.
 
         A launch to another tab also marks that tab's arrival dot so the
-        strip lights up when the agent appears. Same-tab, default, and
-        flag-off launches return None and leave the toast unchanged. The
-        pure prompt scan runs before the flag read so tab-less launches
-        never touch flags or config.
+        strip lights up when the agent appears. Same-tab and default
+        launches return None and leave the toast unchanged.
         """
-        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
         from sase.core.agent_tab import AgentTabKey
         from sase.xprompt.directive_edit import scan_tab_directive
 
@@ -270,11 +267,6 @@ class LaunchSubmissionMixin:
         except Exception:  # noqa: BLE001 - toast stays unchanged.
             return None
         if scan is None or scan.error or not scan.tab:
-            return None
-        try:
-            if not agent_tabs_enabled():
-                return None
-        except Exception:  # noqa: BLE001 - toast stays unchanged.
             return None
         key = AgentTabKey.named(scan.tab)
         try:

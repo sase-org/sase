@@ -37,7 +37,6 @@ from sase.ace.tui.models.agent_tab_persistence import (
     save_active_agent_tab,
 )
 from sase.core.agent_tab import AgentTabCatalogEntry, DEFAULT_AGENT_TAB_KEY, AgentTabKey
-from sase.feature_flags import override_flags
 
 
 @pytest.fixture(autouse=True)
@@ -137,59 +136,47 @@ def _two_tab_owner() -> _TabOwner:
     return owner
 
 
-def test_switch_noop_flag_off() -> None:
-    owner = _two_tab_owner()
-    with override_flags(agent_tabs=False):
-        assert owner._switch_agents_tab(_SASE, reason="cycle") is False
-        assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
-        assert owner._agent_tab_strip_visible() is False
-
-
 def test_switch_noop_same_key() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY) is False
+    assert owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY) is False
 
 
 def test_cycle_wraps_across_tabs() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert owner._agent_tab_strip_visible() is True
-        owner._cycle_agents_tab(1)
-        assert owner._active_agent_tab == _SASE
-        assert [r.raw_suffix for r in owner._agents] == ["b", "c"]
-        owner._cycle_agents_tab(1)
-        assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
-        assert [r.raw_suffix for r in owner._agents] == ["a"]
-        owner._cycle_agents_tab(-1)
-        assert owner._active_agent_tab == _SASE
+    assert owner._agent_tab_strip_visible() is True
+    owner._cycle_agents_tab(1)
+    assert owner._active_agent_tab == _SASE
+    assert [r.raw_suffix for r in owner._agents] == ["b", "c"]
+    owner._cycle_agents_tab(1)
+    assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
+    assert [r.raw_suffix for r in owner._agents] == ["a"]
+    owner._cycle_agents_tab(-1)
+    assert owner._active_agent_tab == _SASE
 
 
 def test_cycle_noop_when_strip_hidden() -> None:
     owner = _TabOwner([_row("a")])
     owner.reindex(owner._agents_with_children)
-    with override_flags(agent_tabs=True):
-        assert owner._agent_tab_strip_visible() is False
-        owner._cycle_agents_tab(1)
-        assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
+    assert owner._agent_tab_strip_visible() is False
+    owner._cycle_agents_tab(1)
+    assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
 
 
 def test_per_tab_selection_restore_by_identity() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._agents = [owner._agents_with_children[0]]
-        owner.current_idx = 0
-        owner._switch_agents_tab(_SASE, reason="cycle")
-        assert owner.current_idx == 0
-        assert owner._agents[owner.current_idx].raw_suffix == "b"
-        # Select the second sase row, switch away, and switch back.
-        owner.current_idx = 1
-        owner._agents_last_idx = 1
-        owner._agents_last_identity = owner._agents[1].identity
-        owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle")
-        assert owner._agents[owner.current_idx].raw_suffix == "a"
-        owner._switch_agents_tab(_SASE, reason="cycle")
-        assert owner._agents[owner.current_idx].raw_suffix == "c"
+    owner._agents = [owner._agents_with_children[0]]
+    owner.current_idx = 0
+    owner._switch_agents_tab(_SASE, reason="cycle")
+    assert owner.current_idx == 0
+    assert owner._agents[owner.current_idx].raw_suffix == "b"
+    # Select the second sase row, switch away, and switch back.
+    owner.current_idx = 1
+    owner._agents_last_idx = 1
+    owner._agents_last_identity = owner._agents[1].identity
+    owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle")
+    assert owner._agents[owner.current_idx].raw_suffix == "a"
+    owner._switch_agents_tab(_SASE, reason="cycle")
+    assert owner._agents[owner.current_idx].raw_suffix == "c"
 
 
 def test_first_visit_starts_at_row_zero_after_multirow_source() -> None:
@@ -198,10 +185,9 @@ def test_first_visit_starts_at_row_zero_after_multirow_source() -> None:
     )
     owner.reindex(owner._agents_with_children)
     owner.current_idx = 2
-    with override_flags(agent_tabs=True):
-        owner._switch_agents_tab(_SASE, reason="cycle")
-        assert owner.current_idx == 0
-        assert [row.raw_suffix for row in owner._agents] == ["sase-0"]
+    owner._switch_agents_tab(_SASE, reason="cycle")
+    assert owner.current_idx == 0
+    assert [row.raw_suffix for row in owner._agents] == ["sase-0"]
 
 
 class _PanelTabOwner(_TabOwner):
@@ -242,22 +228,21 @@ def test_first_visit_does_not_inherit_source_tab_panel_focus() -> None:
     ]
     owner = _PanelTabOwner(rows)
     owner.reindex(rows)
-    with override_flags(agent_tabs=True):
-        owner._agents = _scoped_agents_for_owner(owner, list(rows))
-        owner._panel_group = AgentPanelGroup.from_agents(owner._agents)
-        owner.current_idx = 1
-        owner._agents_last_idx = 1
-        owner._agents_last_identity = owner._agents[1].identity
-        owner._panel_group.focused_idx = owner._panel_group.panel_keys.index("beta")
-        owner._expanded_panel_focus = True
+    owner._agents = _scoped_agents_for_owner(owner, list(rows))
+    owner._panel_group = AgentPanelGroup.from_agents(owner._agents)
+    owner.current_idx = 1
+    owner._agents_last_idx = 1
+    owner._agents_last_identity = owner._agents[1].identity
+    owner._panel_group.focused_idx = owner._panel_group.panel_keys.index("beta")
+    owner._expanded_panel_focus = True
 
-        owner._switch_agents_tab(_SASE, reason="cycle")
+    owner._switch_agents_tab(_SASE, reason="cycle")
 
-        assert owner.current_idx == 0
-        assert owner._agents[0].raw_suffix == "b0"
-        row_zero_panel = owner._panel_keys_per_agent()[0]
-        assert owner._panel_group.focused_key == row_zero_panel
-        assert owner._expanded_panel_focus is False
+    assert owner.current_idx == 0
+    assert owner._agents[0].raw_suffix == "b0"
+    row_zero_panel = owner._panel_keys_per_agent()[0]
+    assert owner._panel_group.focused_key == row_zero_panel
+    assert owner._expanded_panel_focus is False
 
 
 def test_selection_fallback_uses_target_tabs_remembered_row_index() -> None:
@@ -271,21 +256,20 @@ def test_selection_fallback_uses_target_tabs_remembered_row_index() -> None:
         ]
     )
     owner.reindex(owner._agents_with_children)
-    with override_flags(agent_tabs=True):
-        owner._switch_agents_tab(_SASE, reason="cycle")
-        owner.current_idx = 2
-        owner._agents_last_idx = 2
-        owner._agents_last_identity = owner._agents[2].identity
-        owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle")
-        assert owner.current_idx == 0
+    owner._switch_agents_tab(_SASE, reason="cycle")
+    owner.current_idx = 2
+    owner._agents_last_idx = 2
+    owner._agents_last_identity = owner._agents[2].identity
+    owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle")
+    assert owner.current_idx == 0
 
-        remaining = [
-            row for row in owner._agents_with_children if row.raw_suffix != "sase-2"
-        ]
-        owner.reindex(remaining)
-        owner._switch_agents_tab(_SASE, reason="cycle")
-        assert owner.current_idx == 1
-        assert owner._agents[owner.current_idx].raw_suffix == "sase-1"
+    remaining = [
+        row for row in owner._agents_with_children if row.raw_suffix != "sase-2"
+    ]
+    owner.reindex(remaining)
+    owner._switch_agents_tab(_SASE, reason="cycle")
+    assert owner.current_idx == 1
+    assert owner._agents[owner.current_idx].raw_suffix == "sase-1"
 
 
 def test_restore_remembers_focused_panel_and_scroll_anchor() -> None:
@@ -300,78 +284,71 @@ def test_restore_remembers_focused_panel_and_scroll_anchor() -> None:
         raise LookupError("no widget")
 
     owner.query_one = query_one  # type: ignore[method-assign]
-    with override_flags(agent_tabs=True):
-        owner._switch_agents_tab(_SASE, reason="cycle")
-        assert owner._panel_group.focused_idx == 1
-        assert scroll.scroll_y == 17
+    owner._switch_agents_tab(_SASE, reason="cycle")
+    assert owner._panel_group.focused_idx == 1
+    assert scroll.scroll_y == 17
 
 
 def test_selection_falls_back_to_nearest_row() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._switch_agents_tab(_SASE, reason="cycle")
-        owner.current_idx = 1
-        owner._agents_last_idx = 1
-        owner._agents_last_identity = owner._agents[1].identity
-        owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle")
-        # Drop the remembered sase row, then switch back: the cursor clamps
-        # to the nearest surviving row instead of stranding.
-        owner._agents_with_children = [
-            r for r in owner._agents_with_children if r.raw_suffix in ("a", "b")
-        ]
-        owner._agents_query_result = list(owner._agents_with_children)
-        owner._agent_tab_index = build_agent_tab_index(
-            list(owner._agents_with_children), _view()
-        )
-        owner._switch_agents_tab(_SASE, reason="cycle")
-        assert [r.raw_suffix for r in owner._agents] == ["b"]
-        assert owner.current_idx == 0
+    owner._switch_agents_tab(_SASE, reason="cycle")
+    owner.current_idx = 1
+    owner._agents_last_idx = 1
+    owner._agents_last_identity = owner._agents[1].identity
+    owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle")
+    # Drop the remembered sase row, then switch back: the cursor clamps
+    # to the nearest surviving row instead of stranding.
+    owner._agents_with_children = [
+        r for r in owner._agents_with_children if r.raw_suffix in ("a", "b")
+    ]
+    owner._agents_query_result = list(owner._agents_with_children)
+    owner._agent_tab_index = build_agent_tab_index(
+        list(owner._agents_with_children), _view()
+    )
+    owner._switch_agents_tab(_SASE, reason="cycle")
+    assert [r.raw_suffix for r in owner._agents] == ["b"]
+    assert owner.current_idx == 0
 
 
 def test_startup_selection_prefers_persisted() -> None:
     owner = _two_tab_owner()
     owner._agent_tab_loaded_key = _SASE
-    with override_flags(agent_tabs=True):
-        assert owner._reconcile_active_agent_tab() is True
-        assert owner._active_agent_tab == _SASE
+    assert owner._reconcile_active_agent_tab() is True
+    assert owner._active_agent_tab == _SASE
 
 
 def test_startup_selection_defaults_to_main() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert owner._reconcile_active_agent_tab() is False
-        assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
+    assert owner._reconcile_active_agent_tab() is False
+    assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
 
 
 def test_startup_selection_attention_tab() -> None:
     owner = _TabOwner([_row("b", tab="sase", status="FAILED")])
     owner.reindex(owner._agents_with_children)
-    with override_flags(agent_tabs=True):
-        assert owner._reconcile_active_agent_tab() is True
-        assert owner._active_agent_tab == _SASE
+    assert owner._reconcile_active_agent_tab() is True
+    assert owner._active_agent_tab == _SASE
 
 
 def test_empty_first_catalog_does_not_consume_startup_selection() -> None:
     owner = _TabOwner([])
     owner._agent_tab_index = build_agent_tab_index([], _view())
     owner._agent_tab_loaded_key = _SASE
-    with override_flags(agent_tabs=True):
-        assert owner._reconcile_active_agent_tab() is False
-        assert owner._agent_tabs_reconciled_once is False
+    assert owner._reconcile_active_agent_tab() is False
+    assert owner._agent_tabs_reconciled_once is False
 
-        owner.reindex([_row("main"), _row("sase", tab="sase")])
-        assert owner._reconcile_active_agent_tab() is True
-        assert owner._active_agent_tab == _SASE
+    owner.reindex([_row("main"), _row("sase", tab="sase")])
+    assert owner._reconcile_active_agent_tab() is True
+    assert owner._active_agent_tab == _SASE
 
 
 def test_startup_selection_does_not_override_an_early_user_switch() -> None:
     owner = _two_tab_owner()
     owner._agent_tabs_user_switched = True
     owner._agent_tab_loaded_key = _SASE
-    with override_flags(agent_tabs=True):
-        assert owner._reconcile_active_agent_tab() is False
-        assert owner._agent_tabs_reconciled_once is True
-        assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
+    assert owner._reconcile_active_agent_tab() is False
+    assert owner._agent_tabs_reconciled_once is True
+    assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
 
 
 def test_attention_startup_uses_newest_attention_root_only() -> None:
@@ -399,31 +376,29 @@ def test_attention_startup_uses_newest_attention_root_only() -> None:
         ]
     )
     owner.reindex(owner._agents_with_children)
-    with override_flags(agent_tabs=True):
-        assert owner._reconcile_active_agent_tab() is True
-        assert owner._active_agent_tab == AgentTabKey.named("blog")
+    assert owner._reconcile_active_agent_tab() is True
+    assert owner._active_agent_tab == AgentTabKey.named("blog")
 
 
 def test_latch_keeps_emptied_tab() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._agent_tabs_reconciled_once = True
-        owner._agent_tab_prev_catalog_keys = (
-            DEFAULT_AGENT_TAB_KEY,
-            _SASE,
-        )
-        owner._active_agent_tab = _SASE
-        # The sase roots vanish; the latch keeps sase selected and the
-        # strip shows it with count 0.
-        owner.reindex([_row("a")])
-        assert owner._reconcile_active_agent_tab() is False
-        assert owner._active_agent_tab == _SASE
-        view = catalog_view_for_owner(owner)
-        assert [(e.key, e.root_count) for e in view] == [
-            (DEFAULT_AGENT_TAB_KEY, 1),
-            (_SASE, 0),
-        ]
-        assert strip_visible_for_owner(owner) is True
+    owner._agent_tabs_reconciled_once = True
+    owner._agent_tab_prev_catalog_keys = (
+        DEFAULT_AGENT_TAB_KEY,
+        _SASE,
+    )
+    owner._active_agent_tab = _SASE
+    # The sase roots vanish; the latch keeps sase selected and the
+    # strip shows it with count 0.
+    owner.reindex([_row("a")])
+    assert owner._reconcile_active_agent_tab() is False
+    assert owner._active_agent_tab == _SASE
+    view = catalog_view_for_owner(owner)
+    assert [(e.key, e.root_count) for e in view] == [
+        (DEFAULT_AGENT_TAB_KEY, 1),
+        (_SASE, 0),
+    ]
+    assert strip_visible_for_owner(owner) is True
 
 
 def test_ace_page_state_includes_latched_catalog_entry() -> None:
@@ -470,21 +445,20 @@ def test_machine_tab_latches_when_roots_disappear_and_clears_on_navigation(
     owner._agent_tab_known_labels[machine] = "\u2328 apollo"
     monkeypatch.setattr(settings, "agent_tabs_view_config", _machine_view)
 
-    with override_flags(agent_tabs=True):
-        assert owner._reconcile_active_agent_tab() is False
-        assert owner._active_agent_tab == machine
-        assert owner._agent_tab_latched_key == machine
-        assert [
-            (entry.key, entry.label, entry.root_count)
-            for entry in owner._agent_tab_catalog_view()
-        ][-1] == (
-            machine,
-            "\u2328 apollo",
-            0,
-        )
+    assert owner._reconcile_active_agent_tab() is False
+    assert owner._active_agent_tab == machine
+    assert owner._agent_tab_latched_key == machine
+    assert [
+        (entry.key, entry.label, entry.root_count)
+        for entry in owner._agent_tab_catalog_view()
+    ][-1] == (
+        machine,
+        "\u2328 apollo",
+        0,
+    )
 
-        assert owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle") is True
-        assert owner._agent_tab_latched_key is None
+    assert owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle") is True
+    assert owner._agent_tab_latched_key is None
 
 
 def test_machine_fallback_toasts_and_defaults(
@@ -495,22 +469,21 @@ def test_machine_fallback_toasts_and_defaults(
     machine = AgentTabKey.machine("dead-id")
     owner = _TabOwner([_row("a")])
     owner.reindex(owner._agents_with_children)
-    with override_flags(agent_tabs=True):
-        owner._agent_tabs_reconciled_once = True
-        owner._agent_tab_prev_catalog_keys = (machine,)
-        owner._active_agent_tab = machine
-        owner._agent_tab_known_labels[machine] = "\u2328 apollo"
-        monkeypatch.setattr(
-            settings,
-            "agent_tabs_view_config",
-            lambda: _machine_view(
-                machine_mode=False,
-                machine_order=(("dead-id", "apollo"),),
-            ),
-        )
-        assert owner._reconcile_active_agent_tab() is True
-        assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
-        assert owner.notices == ["agent tab \u2328 apollo is gone; showing main"]
+    owner._agent_tabs_reconciled_once = True
+    owner._agent_tab_prev_catalog_keys = (machine,)
+    owner._active_agent_tab = machine
+    owner._agent_tab_known_labels[machine] = "\u2328 apollo"
+    monkeypatch.setattr(
+        settings,
+        "agent_tabs_view_config",
+        lambda: _machine_view(
+            machine_mode=False,
+            machine_order=(("dead-id", "apollo"),),
+        ),
+    )
+    assert owner._reconcile_active_agent_tab() is True
+    assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
+    assert owner.notices == ["agent tab \u2328 apollo is gone; showing main"]
 
 
 def test_machine_fallback_uses_configured_alias_when_label_is_missing(
@@ -533,18 +506,16 @@ def test_machine_fallback_uses_configured_alias_when_label_is_missing(
         ),
     )
 
-    with override_flags(agent_tabs=True):
-        assert owner._reconcile_active_agent_tab() is True
-        assert owner.notices == ["agent tab \u2328 apollo is gone; showing main"]
+    assert owner._reconcile_active_agent_tab() is True
+    assert owner.notices == ["agent tab \u2328 apollo is gone; showing main"]
 
 
 def test_strip_click_switches_and_ignores_unknown() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        owner._on_agents_tab_strip_clicked("named:sase")
-        assert owner._active_agent_tab == _SASE
-        owner._on_agents_tab_strip_clicked("named:nope")
-        assert owner._active_agent_tab == _SASE
+    owner._on_agents_tab_strip_clicked("named:sase")
+    assert owner._active_agent_tab == _SASE
+    owner._on_agents_tab_strip_clicked("named:nope")
+    assert owner._active_agent_tab == _SASE
 
 
 def test_strip_id_round_trip() -> None:
@@ -562,12 +533,11 @@ def test_strip_id_round_trip() -> None:
 
 def test_switch_defers_persistence_off_thread() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert owner._switch_agents_tab(_SASE, reason="cycle") is True
-        # The switch schedules a coalesced save but performs no I/O: with
-        # no running loop the single writer never starts here.
-        assert owner._agent_tab_save_pending == _SASE
-        assert owner._agent_tab_save_task is None
+    assert owner._switch_agents_tab(_SASE, reason="cycle") is True
+    # The switch schedules a coalesced save but performs no I/O: with
+    # no running loop the single writer never starts here.
+    assert owner._agent_tab_save_pending == _SASE
+    assert owner._agent_tab_save_task is None
 
 
 def test_persistence_round_trip(tmp_path: Any) -> None:
@@ -605,16 +575,15 @@ def test_strip_refresh_gated_by_signature() -> None:
             calls.append((tuple(tabs), active_tab))
 
     owner.query_one = lambda *a, **k: _Strip()  # type: ignore[method-assign]
-    with override_flags(agent_tabs=True):
-        owner._refresh_agent_tab_strip()
-        owner._refresh_agent_tab_strip()
-        assert len(calls) == 1
-        tabs, active = calls[0]
-        assert [t.label for t in tabs] == ["main", "sase"]
-        assert active == "default"
-        owner._switch_agents_tab(_SASE, reason="cycle")
-        assert len(calls) == 2
-        assert calls[1][1] == "named:sase"
+    owner._refresh_agent_tab_strip()
+    owner._refresh_agent_tab_strip()
+    assert len(calls) == 1
+    tabs, active = calls[0]
+    assert [t.label for t in tabs] == ["main", "sase"]
+    assert active == "default"
+    owner._switch_agents_tab(_SASE, reason="cycle")
+    assert len(calls) == 2
+    assert calls[1][1] == "named:sase"
 
 
 def test_switch_records_tab_switch_perf_sample() -> None:
@@ -637,11 +606,10 @@ def test_switch_records_tab_switch_perf_sample() -> None:
     owner._jk_perf_begin = lambda action: begun.append((action, "agents"))  # type: ignore[method-assign]
     owner._jk_perf = timer  # type: ignore[assignment]
     owner.call_after_refresh = deferred.append  # type: ignore[method-assign]
-    with override_flags(agent_tabs=True):
-        assert owner._switch_agents_tab(_SASE, reason="cycle") is True
-        assert begun == [("agents_tab_switch", "agents")]
-        assert timer.events == ["model_updated"]
-        assert len(deferred) == 1
+    assert owner._switch_agents_tab(_SASE, reason="cycle") is True
+    assert begun == [("agents_tab_switch", "agents")]
+    assert timer.events == ["model_updated"]
+    assert len(deferred) == 1
 
 
 def test_pick_gating_needs_two_tabs() -> None:
@@ -660,12 +628,7 @@ def test_pick_gating_needs_two_tabs() -> None:
     two.screen = None  # type: ignore[attr-defined]
     two._screen_stack = ("home",)
     two._prompt_input_active = _no_prompt  # type: ignore[method-assign]
-    with override_flags(agent_tabs=True):
-        assert (
-            check_app_action(single, "pick_agents_tab", (), lambda _a, _p: None)
-            is False
-        )
-        assert (
-            check_app_action(two, "pick_agents_tab", (), lambda _a, _p: None)
-            is not False
-        )
+    assert check_app_action(single, "pick_agents_tab", (), lambda _a, _p: None) is False
+    assert (
+        check_app_action(two, "pick_agents_tab", (), lambda _a, _p: None) is not False
+    )

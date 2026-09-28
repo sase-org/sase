@@ -302,14 +302,12 @@ def _apply_finalize_plan(
     if _rescope_needed:
         from ...models.agent_tab_index import scope_agents_to_tab
 
-        from ...agent_tabs_flag import agent_tabs_enabled
         from ._tab_scope import current_agent_tab_scope
 
         app._agents = scope_agents_to_tab(
             list(plan.agents_query_result),
             plan.tab_index,
             current_agent_tab_scope(app),
-            enabled=bool(agent_tabs_enabled()),
         )
     else:
         app._agents = list(plan.scoped_agents)
@@ -492,15 +490,14 @@ def finalize_agent_list(
         if identity not in loaded_identities:
             app._agent_status_overrides.pop(identity, None)
 
-    # Active-tab scope stage (scope-stage phase): cache the tab-independent
-    # query result, then scope to the active tab before selection restore
-    # and panel-key enumeration. Flag off, the scope is the identity.
+    # Active-tab scope stage: cache the tab-independent query result,
+    # then scope to the active tab before selection restore and panel-key
+    # enumeration.
     from ._tab_scope import (
         current_agent_tab_scope,
         current_agent_tab_scope_token,
         refresh_agent_tab_index,
     )
-    from ...agent_tabs_flag import agent_tabs_enabled
     from ...models.agent_tab_index import scope_agents_to_tab
 
     app._agents_query_result = list(app._agents)
@@ -509,7 +506,6 @@ def finalize_agent_list(
         app._agents_query_result,
         tab_index,
         current_agent_tab_scope(app),
-        enabled=bool(agent_tabs_enabled()),
     )
     tab_scope_token = current_agent_tab_scope_token(app)
 

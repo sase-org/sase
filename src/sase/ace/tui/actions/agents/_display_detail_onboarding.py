@@ -55,10 +55,9 @@ class AgentsOnboardingMixin:
             # names its empty cause in the detail panel; the global
             # onboarding card only owns the truly tab-less roster.
             try:
-                from ...agent_tabs_flag import agent_tabs_enabled
                 from ._agent_tabs import strip_visible_for_owner
 
-                if agent_tabs_enabled() and strip_visible_for_owner(self):
+                if strip_visible_for_owner(self):
                     return False
             except Exception:
                 pass

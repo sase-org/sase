@@ -42,20 +42,14 @@ def _tool_run_id(task: Any) -> str | None:
 def _monitor_jump_agent(app: Any, proc_id: str) -> Agent | None:
     """Return the loaded Agent row whose ``monitor_id`` names this proc.
 
-    The complete (tab-independent) roster is only searched with the
-    ``agent_tabs`` flag on; searching it unconditionally would widen
-    flag-off matches to rows previously excluded as hidden children.
+    The complete (tab-independent) roster is searched so jumps land
+    even on rows hidden as children of the visible roster.
     """
-    from ..agent_tabs_flag import agent_tabs_enabled
-
-    if agent_tabs_enabled():
-        complete = list(
-            getattr(app, "_agents_with_children", None)
-            or getattr(app, "_agents", None)
-            or ()
-        )
-    else:
-        complete = list(getattr(app, "_agents", None) or ())
+    complete = list(
+        getattr(app, "_agents_with_children", None)
+        or getattr(app, "_agents", None)
+        or ()
+    )
     for agent in complete:
         if getattr(agent, "monitor_id", None) == proc_id:
             return agent

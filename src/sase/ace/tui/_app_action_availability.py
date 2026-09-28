@@ -388,8 +388,8 @@ def check_app_action(
     ):
         return False
     if action in {"next_agents_tab", "prev_agents_tab", "pick_agents_tab"}:
-        # Agents tab only, flag on, not while the prompt input or a modal
-        # owns keys. next/prev are additionally a no-op while the strip is
+        # Agents tab only, not while the prompt input or a modal owns
+        # keys. next/prev are additionally a no-op while the strip is
         # hidden; the picker needs at least two tabs to offer.
         if app.current_tab != "agents" or _prompt_input_owns_keys(app):
             return False
@@ -399,10 +399,7 @@ def check_app_action(
             return False
         try:
             from .actions.agents._agent_tabs import strip_visible_for_owner
-            from .agent_tabs_flag import agent_tabs_enabled
         except Exception:
-            return False
-        if not agent_tabs_enabled():
             return False
         return bool(strip_visible_for_owner(app))
     if (

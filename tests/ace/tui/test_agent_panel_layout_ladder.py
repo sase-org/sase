@@ -48,7 +48,6 @@ from sase.ace.tui.models.agent_panel_layout import (
 from sase.ace.tui.models.agent_tab_index import ALL_AGENT_TABS, build_agent_tab_index
 from sase.ace.tui.models.agent_tab_index import _index_cache
 from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
-from sase.feature_flags import override_flags
 
 
 @pytest.fixture(autouse=True)
@@ -206,135 +205,108 @@ def test_ladder_labels_and_descriptions() -> None:
 # --- Owner state -----------------------------------------------------------
 
 
-def test_flag_off_ladder_collapses_to_split_merged() -> None:
-    owner = _two_tab_owner()
-    with override_flags(agent_tabs=False):
-        assert multiple_agent_tabs_for_owner(owner) is False
-        assert stored_panel_layout(owner) is AgentPanelLayout.SPLIT
-        assert effective_panel_layout_for_owner(owner) is AgentPanelLayout.SPLIT
-        assert panel_layout_merged_for_owner(owner) is False
-        assert current_agent_tab_scope(owner) == DEFAULT_AGENT_TAB_KEY
-        assert merged_panel_title_for_owner(owner) is None
-        assert set_panel_layout(owner, AgentPanelLayout.MERGED) is True
-        assert owner._agent_panels_grouped is True
-        assert set_panel_layout(owner, AgentPanelLayout.MERGED) is False
-        assert set_panel_layout(owner, AgentPanelLayout.SPLIT) is True
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        # All tabs collapses to the merged view with the flag off.
-        assert owner._agent_panel_layout is AgentPanelLayout.MERGED
-        assert owner._agent_panels_grouped is True
-
-
 def test_flag_on_single_tab_hides_all_tabs() -> None:
     owner = _LadderOwner([_row("a"), _row("b")])
     owner.reindex(owner._agents_with_children)
-    with override_flags(agent_tabs=True):
-        assert multiple_agent_tabs_for_owner(owner) is False
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        assert effective_panel_layout_for_owner(owner) is AgentPanelLayout.MERGED
-        assert current_agent_tab_scope(owner) == DEFAULT_AGENT_TAB_KEY
-        assert merged_panel_title_for_owner(owner) is None
+    assert multiple_agent_tabs_for_owner(owner) is False
+    assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
+    assert effective_panel_layout_for_owner(owner) is AgentPanelLayout.MERGED
+    assert current_agent_tab_scope(owner) == DEFAULT_AGENT_TAB_KEY
+    assert merged_panel_title_for_owner(owner) is None
 
 
 def test_ladder_zoom_out_keeps_selected_node() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert multiple_agent_tabs_for_owner(owner) is True
-        owner.current_idx = 0
-        identity = owner._agents[0].identity
-        assert set_panel_layout(owner, AgentPanelLayout.MERGED) is True
-        assert owner._agent_panels_grouped is True
-        assert [r.raw_suffix for r in owner._agents] == ["a"]
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        assert [r.raw_suffix for r in owner._agents] == ["a", "b", "c"]
-        assert current_agent_tab_scope(owner) is ALL_AGENT_TABS
-        assert current_agent_tab_scope_token(owner) == "all"
-        assert owner._agents[owner.current_idx].identity == identity
-        assert owner.notices[-1] == "Panel layout: all tabs"
+    assert multiple_agent_tabs_for_owner(owner) is True
+    owner.current_idx = 0
+    identity = owner._agents[0].identity
+    assert set_panel_layout(owner, AgentPanelLayout.MERGED) is True
+    assert owner._agent_panels_grouped is True
+    assert [r.raw_suffix for r in owner._agents] == ["a"]
+    assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
+    assert [r.raw_suffix for r in owner._agents] == ["a", "b", "c"]
+    assert current_agent_tab_scope(owner) is ALL_AGENT_TABS
+    assert current_agent_tab_scope_token(owner) == "all"
+    assert owner._agents[owner.current_idx].identity == identity
+    assert owner.notices[-1] == "Panel layout: all tabs"
 
 
 def test_ladder_zoom_in_lands_on_selected_nodes_tab() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        # Select the sase row while every tab is visible.
-        owner.current_idx = 2
-        identity = owner._agents[2].identity
-        from sase.ace.tui.actions.agents._panel_layout import (
-            _selected_agent_tab_key,
-        )
+    assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
+    # Select the sase row while every tab is visible.
+    owner.current_idx = 2
+    identity = owner._agents[2].identity
+    from sase.ace.tui.actions.agents._panel_layout import (
+        _selected_agent_tab_key,
+    )
 
-        assert _selected_agent_tab_key(owner) == AgentTabKey.named("sase")
-        assert set_panel_layout(owner, AgentPanelLayout.SPLIT) is True
-        assert owner._active_agent_tab == AgentTabKey.named("sase")
-        assert [r.raw_suffix for r in owner._agents] == ["b", "c"]
-        assert owner._agents[owner.current_idx].identity == identity
-        assert owner._agent_panels_grouped is False
+    assert _selected_agent_tab_key(owner) == AgentTabKey.named("sase")
+    assert set_panel_layout(owner, AgentPanelLayout.SPLIT) is True
+    assert owner._active_agent_tab == AgentTabKey.named("sase")
+    assert [r.raw_suffix for r in owner._agents] == ["b", "c"]
+    assert owner._agents[owner.current_idx].identity == identity
+    assert owner._agent_panels_grouped is False
 
 
 def test_ladder_remembers_per_tab_level() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert remembered_layout_for_tab(owner, DEFAULT_AGENT_TAB_KEY) is (
-            AgentPanelLayout.SPLIT
-        )
-        assert set_panel_layout(owner, AgentPanelLayout.MERGED) is True
-        assert remembered_layout_for_tab(owner, DEFAULT_AGENT_TAB_KEY) is (
-            AgentPanelLayout.MERGED
-        )
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        # Entering All tabs does not clobber the remembered per-tab level.
-        assert remembered_layout_for_tab(owner, DEFAULT_AGENT_TAB_KEY) is (
-            AgentPanelLayout.MERGED
-        )
+    assert remembered_layout_for_tab(owner, DEFAULT_AGENT_TAB_KEY) is (
+        AgentPanelLayout.SPLIT
+    )
+    assert set_panel_layout(owner, AgentPanelLayout.MERGED) is True
+    assert remembered_layout_for_tab(owner, DEFAULT_AGENT_TAB_KEY) is (
+        AgentPanelLayout.MERGED
+    )
+    assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
+    # Entering All tabs does not clobber the remembered per-tab level.
+    assert remembered_layout_for_tab(owner, DEFAULT_AGENT_TAB_KEY) is (
+        AgentPanelLayout.MERGED
+    )
 
 
 def test_tab_choice_at_all_tabs_drills_into_remembered_level() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert set_panel_layout(owner, AgentPanelLayout.MERGED) is True
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        assert owner._switch_agents_tab(AgentTabKey.named("sase")) is True
-        assert owner._active_agent_tab == AgentTabKey.named("sase")
-        assert stored_panel_layout(owner) is AgentPanelLayout.SPLIT
-        assert owner._agent_panels_grouped is False
-        assert [r.raw_suffix for r in owner._agents] == ["b", "c"]
-        # Drilling into the tab the ladder was entered from still applies,
-        # restoring its remembered Merged level.
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        assert owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY) is True
-        assert stored_panel_layout(owner) is AgentPanelLayout.MERGED
-        assert owner._agent_panels_grouped is True
-        assert [r.raw_suffix for r in owner._agents] == ["a"]
+    assert set_panel_layout(owner, AgentPanelLayout.MERGED) is True
+    assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
+    assert owner._switch_agents_tab(AgentTabKey.named("sase")) is True
+    assert owner._active_agent_tab == AgentTabKey.named("sase")
+    assert stored_panel_layout(owner) is AgentPanelLayout.SPLIT
+    assert owner._agent_panels_grouped is False
+    assert [r.raw_suffix for r in owner._agents] == ["b", "c"]
+    # Drilling into the tab the ladder was entered from still applies,
+    # restoring its remembered Merged level.
+    assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
+    assert owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY) is True
+    assert stored_panel_layout(owner) is AgentPanelLayout.MERGED
+    assert owner._agent_panels_grouped is True
+    assert [r.raw_suffix for r in owner._agents] == ["a"]
 
 
 def test_cycle_at_all_tabs_drills_in() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        owner._cycle_agents_tab(1)
-        assert stored_panel_layout(owner) is not AgentPanelLayout.ALL_TABS
-        assert owner._agent_panels_grouped is False
+    assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
+    owner._cycle_agents_tab(1)
+    assert stored_panel_layout(owner) is not AgentPanelLayout.ALL_TABS
+    assert owner._agent_panels_grouped is False
 
 
 def test_ladder_scope_and_titles() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert merged_panel_title_for_owner(owner) is None
-        assert set_panel_layout(owner, AgentPanelLayout.MERGED) is True
-        # The strip is visible with two tabs, so Merged names the tab.
-        assert merged_panel_title_for_owner(owner) == "main"
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        assert merged_panel_title_for_owner(owner) == "All agents · every tab"
-        assert sync_panel_grouped_bool(owner) is True
+    assert merged_panel_title_for_owner(owner) is None
+    assert set_panel_layout(owner, AgentPanelLayout.MERGED) is True
+    # The strip is visible with two tabs, so Merged names the tab.
+    assert merged_panel_title_for_owner(owner) == "main"
+    assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
+    assert merged_panel_title_for_owner(owner) == "All agents · every tab"
+    assert sync_panel_grouped_bool(owner) is True
 
 
 def test_all_tabs_scope_returns_every_row() -> None:
     owner = _two_tab_owner()
-    with override_flags(agent_tabs=True):
-        assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
-        scoped = _scoped_agents_for_owner(owner, list(owner._agents_query_result))
-        assert [r.raw_suffix for r in scoped] == ["a", "b", "c"]
+    assert set_panel_layout(owner, AgentPanelLayout.ALL_TABS) is True
+    scoped = _scoped_agents_for_owner(owner, list(owner._agents_query_result))
+    assert [r.raw_suffix for r in scoped] == ["a", "b", "c"]
 
 
 # --- End-to-end ladder walk ------------------------------------------------
@@ -345,51 +317,48 @@ async def test_flag_on_oo_walks_ladder_and_oO_steps_back() -> None:
     from sase.ace.testing import AcePage
     from textual.widgets import Static
 
-    with override_flags(agent_tabs=True):
-        async with AcePage(initial_tab="agents") as page:
-            rows = [
-                _row("a", tribe="alpha"),
-                _row("b", tab="sase", tribe="alpha"),
-                _row("c", tab="sase", tribe="beta"),
-            ]
-            page.app._agents = list(rows)
-            page.app._agents_with_children = list(rows)
-            page.app._agents_query_result = list(rows)
-            page.app.current_idx = 0
-            page.app._invalidate_agent_panel_cache()
-            page.app._refresh_agent_tab_index()
-            page.app._rescope_agents_to_active_tab()
-            await page.pause()
-            assert [r.raw_suffix for r in page.app._agents] == ["a"]
+    async with AcePage(initial_tab="agents") as page:
+        rows = [
+            _row("a", tribe="alpha"),
+            _row("b", tab="sase", tribe="alpha"),
+            _row("c", tab="sase", tribe="beta"),
+        ]
+        page.app._agents = list(rows)
+        page.app._agents_with_children = list(rows)
+        page.app._agents_query_result = list(rows)
+        page.app.current_idx = 0
+        page.app._invalidate_agent_panel_cache()
+        page.app._refresh_agent_tab_index()
+        page.app._rescope_agents_to_active_tab()
+        await page.pause()
+        assert [r.raw_suffix for r in page.app._agents] == ["a"]
 
-            await page.press("o")
-            await page.expect_modal("AgentGroupingModal")
-            layout_text = (
-                page.app.screen.query_one("#agent-panel-layout-row", Static)
-                .render()
-                .plain
-            )
-            assert "All tabs" in layout_text
-            await page.press("o")
-            await page.expect_no_modal()
-            await page.wait_for(lambda _s: page.app._agent_panels_grouped is True)
-            assert [r.raw_suffix for r in page.app._agents] == ["a"]
+        await page.press("o")
+        await page.expect_modal("AgentGroupingModal")
+        layout_text = (
+            page.app.screen.query_one("#agent-panel-layout-row", Static).render().plain
+        )
+        assert "All tabs" in layout_text
+        await page.press("o")
+        await page.expect_no_modal()
+        await page.wait_for(lambda _s: page.app._agent_panels_grouped is True)
+        assert [r.raw_suffix for r in page.app._agents] == ["a"]
 
-            await page.press("o", "o")
-            await page.expect_no_modal()
-            await page.wait_for(
-                lambda _s: [r.raw_suffix for r in page.app._agents] == ["a", "b", "c"]
-            )
-            assert stored_panel_layout(page.app) is AgentPanelLayout.ALL_TABS
-            assert current_agent_tab_scope_token(page.app) == "all"
+        await page.press("o", "o")
+        await page.expect_no_modal()
+        await page.wait_for(
+            lambda _s: [r.raw_suffix for r in page.app._agents] == ["a", "b", "c"]
+        )
+        assert stored_panel_layout(page.app) is AgentPanelLayout.ALL_TABS
+        assert current_agent_tab_scope_token(page.app) == "all"
 
-            await page.press("o", "O")
-            await page.expect_no_modal()
-            await page.wait_for(
-                lambda _s: stored_panel_layout(page.app) is AgentPanelLayout.MERGED
-            )
-            # Zooming in from All tabs lands on the selected node's tab.
-            assert [r.raw_suffix for r in page.app._agents] == ["a"]
+        await page.press("o", "O")
+        await page.expect_no_modal()
+        await page.wait_for(
+            lambda _s: stored_panel_layout(page.app) is AgentPanelLayout.MERGED
+        )
+        # Zooming in from All tabs lands on the selected node's tab.
+        assert [r.raw_suffix for r in page.app._agents] == ["a"]
 
 
 # --- Titles, chips, and strip state ----------------------------------------

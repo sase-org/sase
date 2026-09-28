@@ -42,7 +42,7 @@ class AppKeymaps:
     # Tab switching
     next_tab: str
     prev_tab: str
-    # Agent tabs (beta flag agent_tabs). next/prev share ]/[ with the
+    # Agent tabs. next/prev share ]/[ with the
     # Artifacts sub-tab cycle; availability is tab-disjoint.
     next_agents_tab: str
     prev_agents_tab: str

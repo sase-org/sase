@@ -256,8 +256,7 @@ async def test_show_agents_selects_machine_tab_when_strip_visible() -> None:
             ),
         )
 
-        with override_flags(agent_tabs=True):
-            pane.action_show_agents()
+        pane.action_show_agents()
 
         assert pilot.app.current_tab == "agents"
         assert switches == [machine_key]
@@ -277,8 +276,7 @@ async def test_show_agents_falls_back_to_filter_when_strip_hidden() -> None:
             ),
         )
 
-        with override_flags(agent_tabs=True):
-            pane.action_show_agents()
+        pane.action_show_agents()
 
         assert pilot.app.current_tab == "agents"
         assert pilot.app._agent_search_query == "machine:apollo"

@@ -1,6 +1,5 @@
 """Agents tab keybinding sections for the help modal."""
 
-from ...agent_tabs_flag import agent_tabs_enabled
 from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
 from ...models.agent_live_query_engine import agents_unified_query_enabled
 from ...widgets._agent_list_render_rail import RAIL_LEGEND
@@ -134,19 +133,15 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     [
                         (
                             f"{d(a.prev_agents_tab)} / {d(a.next_agents_tab)}",
-                            "Prev / next agent tab (beta)",
+                            "Prev / next agent tab",
                         )
                     ]
-                    if (
-                        agent_tabs_enabled()
-                        and d(a.prev_agents_tab)
-                        and d(a.next_agents_tab)
-                    )
+                    if (d(a.prev_agents_tab) and d(a.next_agents_tab))
                     else []
                 ),
                 *(
-                    [(d(a.pick_agents_tab), "Go to agent tab… (beta)")]
-                    if agent_tabs_enabled() and d(a.pick_agents_tab)
+                    [(d(a.pick_agents_tab), "Go to agent tab…")]
+                    if d(a.pick_agents_tab)
                     else []
                 ),
                 (

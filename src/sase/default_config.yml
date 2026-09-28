@@ -444,10 +444,9 @@ ace:
     # Seconds a finalizer op must run before its live tail renders in the FINAL
     # deck. 0 renders immediately. Fast ops go straight from running to done.
     final_tail_delay_seconds: 5.0
-  # Agent tabs (beta flag `agent_tabs`). Keys are canonical tab names
-  # (lowercase letters, digits, underscore, dot, dash; at most 32 characters).
-  # Invalid names are dropped. `launch_from_view` and the styling keys are
-  # consumed by later agent-tabs phases.
+  # Agent tabs. Keys are canonical tab names (lowercase letters,
+  # digits, underscore, dot, dash; at most 32 characters). Invalid names
+  # are dropped.
   agent_tabs:
     # auto shows one machine tab per dispatch machine when machines are
     # configured, and a single roster otherwise. on always uses machine tabs,
@@ -738,8 +737,8 @@ ace:
       # Tab switching
       next_tab: "tab"
       prev_tab: "shift+tab"
-      # Agent tabs (beta flag agent_tabs): ]/[ cycle agent tabs on the
-      # Agents tab while the tab strip is visible; the picker is unbound.
+      # Agent tabs: ]/[ cycle agent tabs on the Agents tab while the
+      # tab strip is visible; the picker is unbound.
       next_agents_tab: "right_square_bracket"
       prev_agents_tab: "left_square_bracket"
       pick_agents_tab: "unbound"

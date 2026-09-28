@@ -196,17 +196,15 @@ class AgentInfoDisplayMixin:
         )
         panel_layout_label = ""
         try:
-            from ...agent_tabs_flag import agent_tabs_enabled
             from ...models.agent_panel_layout import (
                 AgentPanelLayout,
                 layout_info_row_label,
             )
             from ._panel_layout import effective_panel_layout_for_owner
 
-            if agent_tabs_enabled():
-                effective_layout = effective_panel_layout_for_owner(self)
-                if effective_layout is not AgentPanelLayout.SPLIT:
-                    panel_layout_label = layout_info_row_label(effective_layout)
+            effective_layout = effective_panel_layout_for_owner(self)
+            if effective_layout is not AgentPanelLayout.SPLIT:
+                panel_layout_label = layout_info_row_label(effective_layout)
         except Exception:
             panel_layout_label = ""
         runner_capacity = getattr(

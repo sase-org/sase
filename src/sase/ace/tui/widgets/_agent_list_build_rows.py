@@ -86,14 +86,9 @@ def _machine_tab_chrome_suppressed(app: Any) -> bool:
     On a machine tab (the machine-mode default tab or a ``machine(...)`` /
     ``unresolved_machine`` tab) every visible row shares one machine, so the
     per-row remote alias chip and the lone ``BY_MACHINE`` L0 banner repeat
-    the strip. Named tabs and the All-tabs level keep both. With the
-    ``agent_tabs`` flag off this is always False so rendering is unchanged.
+    the strip. Named tabs and the All-tabs level keep both.
     """
     try:
-        from ..agent_tabs_flag import agent_tabs_enabled
-
-        if not agent_tabs_enabled():
-            return False
         active = getattr(app, "_active_agent_tab", None)
         kind = getattr(active, "kind", None)
         if kind in ("machine", "unresolved_machine"):
@@ -164,13 +159,11 @@ def _all_tabs_row_chips(
     """Return per-row ``(name, style)`` tab chips for the All-tabs level.
 
     Only rows on named tabs get a chip, and only while the All-tabs level
-    is effectively active with the ``agent_tabs`` flag on. Otherwise None,
-    which keeps every other view byte-identical. Style inputs come from
-    the token-cached worker resolution, so this performs no disk or
-    network work.
+    is effectively active. Otherwise None, which keeps every other view
+    byte-identical. Style inputs come from the token-cached worker
+    resolution, so this performs no disk or network work.
     """
     try:
-        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
         from sase.ace.tui.actions.agents._panel_layout import (
             effective_panel_layout_for_owner,
         )
@@ -182,8 +175,6 @@ def _all_tabs_row_chips(
     except Exception:
         return None
     try:
-        if not agent_tabs_enabled():
-            return None
         app = getattr(widget, "app", None)
         if app is None:
             return None

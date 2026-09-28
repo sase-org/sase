@@ -850,7 +850,7 @@ ace:
 | `prompt_stash`                      | dict         | see below | Stash Trash recovery settings for sase's TUI Prompts overlay.                                                                                                |
 | `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab.                                                                                   |
 | `agent_header`                      | dict         | see below | Collapsed Agents-tab header panel XPROMPT preview budget.                                                                                                    |
-| `agent_tabs`                        | dict         | see below | Agent tab machine mode and per-tab styling for the Agents tab (beta flag `agent_tabs`).                                                                      |
+| `agent_tabs`                        | dict         | see below | Agent tab machine mode and per-tab styling for the Agents tab.                                                                                               |
 | `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                    |
 | `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`).   |
 | `snippet_config_path`               | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                                |
@@ -1831,12 +1831,11 @@ Source: `src/sase/ace/tui/agent_header_settings.py`
 
 #### `ace.agent_tabs`
 
-Agent tab settings for the Agents tab, gated by the `agent_tabs` beta flag.
-`machine_tabs` selects machine-tab mode: `auto` shows one machine tab per configured
-dispatch machine (and a single roster when no machines are configured), `on` always uses
-machine tabs, and `off` never does. `tabs` holds per-tab styling and ordering keyed by
-canonical tab name; invalid names are dropped. `launch_from_view` and the styling keys
-are consumed by later agent-tabs phases.
+Agent tab settings for the Agents tab. `machine_tabs` selects machine-tab mode: `auto`
+shows one machine tab per configured dispatch machine (and a single roster when no
+machines are configured), `on` always uses machine tabs, and `off` never does. `tabs`
+holds per-tab styling and ordering keyed by canonical tab name; invalid names are
+dropped.
 
 ```yaml
 ace:
@@ -4946,24 +4945,24 @@ unknown keys at runtime.
 and keep a fallback path reachable until the flag is removed. The schema marks sunset
 flags deprecated. The currently registered flags are:
 
-| Flag                           | Kind    | Default | Controls                                                                                                                                                   |
-| ------------------------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ace_refresh_tokens`           | sunset  | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                           |
-| `admin_center_flags`           | sunset  | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                      |
-| `agent_decks`                  | retired | —       | The Agents tab always shows agent data decks and cards now; the beta flag is removed. See [Agent data decks and cards](ace.md#agent-data-decks-and-cards). |
-| `agent_sudo_requests`          | beta    | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                        |
-| `agent_tabs`                   | beta    | `false` | The Agents tab shows one agent tab at a time with a tab strip, `[/]` tab cycling, and cross-tab navigation.                                                |
-| `agents_unified_query`         | sunset  | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                 |
-| `axe_routine_job_contract`     | sunset  | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                      |
-| `bgcmd_legacy_slots`           | sunset  | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                             |
-| `monitor_continuation_records` | sunset  | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                    |
-| `muse_synchronous_shell`       | sunset  | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).              |
-| `provider_drain`               | beta    | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`).                                            |
-| `queue_capacity_budget`        | sunset  | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                                  |
-| `ref_sync_gesture`             | sunset  | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                  |
-| `refresh_panel`                | sunset  | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                 |
-| `slim_agents_manifest`         | sunset  | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                        |
-| `typed_launch_units`           | beta    | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                                     |
+| Flag                           | Kind    | Default | Controls                                                                                                                                                                 |
+| ------------------------------ | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ace_refresh_tokens`           | sunset  | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                                         |
+| `admin_center_flags`           | sunset  | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                                    |
+| `agent_decks`                  | retired | —       | The Agents tab always shows agent data decks and cards now; the beta flag is removed. See [Agent data decks and cards](ace.md#agent-data-decks-and-cards).               |
+| `agent_sudo_requests`          | beta    | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                      |
+| `agent_tabs`                   | retired | —       | The Agents tab always shows agent tabs with a tab strip, `[/]` tab cycling, and cross-tab navigation now; the beta flag is removed. See [Agent Tabs](ace.md#agent-tabs). |
+| `agents_unified_query`         | sunset  | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                               |
+| `axe_routine_job_contract`     | sunset  | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                                    |
+| `bgcmd_legacy_slots`           | sunset  | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                                           |
+| `monitor_continuation_records` | sunset  | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                  |
+| `muse_synchronous_shell`       | sunset  | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                            |
+| `provider_drain`               | beta    | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`).                                                          |
+| `queue_capacity_budget`        | sunset  | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                                                |
+| `ref_sync_gesture`             | sunset  | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                                |
+| `refresh_panel`                | sunset  | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                               |
+| `slim_agents_manifest`         | sunset  | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                      |
+| `typed_launch_units`           | beta    | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                                                   |
 
 Run `sase flag list` for the live registry with effective and saved state.
 

@@ -72,17 +72,14 @@ def scope_agents_to_tab(
     rows: list[Agent],
     index: AgentTabIndex | None,
     scope: AgentTabScope,
-    *,
-    enabled: bool = True,
 ) -> list[Agent]:
     """Return the rows visible under *scope* (pure, no I/O).
 
-    With the flag off (``enabled=False``) or at the all-tabs scope this
-    returns *rows* unchanged, so the flag-off roster is identical to today's.
-    Otherwise a row (child rows included) is kept iff its presentation
-    anchor's root key matches *scope*.
+    At the all-tabs scope this returns *rows* unchanged. Otherwise a row
+    (child rows included) is kept iff its presentation anchor's root key
+    matches *scope*.
     """
-    if not enabled or scope is ALL_AGENT_TABS or index is None:
+    if scope is ALL_AGENT_TABS or index is None:
         return rows
     if not isinstance(scope, AgentTabKey):
         return rows

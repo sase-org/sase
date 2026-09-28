@@ -170,7 +170,7 @@ def test_row_focus_sweep_reanchors_focused_panel_and_sweeps_others() -> None:
     assert app._fold_manager.get(other_key) is FoldLevel.COLLAPSED
     # The reanchor is scoped to the focused panel's own resolved fold keys.
     assert app.current_idx == owner_idx
-    assert app._panel_selection_memory[None] == ("agent", owner_idx)
+    assert app._panel_selection_memory[("default", None)] == ("agent", owner_idx)
     assert app.notifications[-1] == "Collapsed 2 folds in 2 panels"
 
 

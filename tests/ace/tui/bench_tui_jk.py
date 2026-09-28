@@ -26,6 +26,9 @@ from tests.ace.tui._bench_tui_jk_helpers import (
     _read_samples,
     _summarize,
 )
+from tests.ace.tui.bench_tui_jk_agent_tabs import (
+    test_bench_agents_tab_switch_at_500_roots as test_bench_agents_tab_switch_at_500_roots,
+)
 from tests.ace.tui.bench_tui_jk_agents import (
     test_bench_agents_jk_and_panel_navigation as test_bench_agents_jk_and_panel_navigation,
     test_bench_clan_jk_at_each_panel_fold_level as test_bench_clan_jk_at_each_panel_fold_level,

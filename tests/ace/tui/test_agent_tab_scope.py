@@ -55,7 +55,6 @@ from sase.ace.tui.models.agent_tab_index import (
     scope_agents_to_tab,
 )
 from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
-from sase.feature_flags import override_flags
 
 
 @pytest.fixture(autouse=True)
@@ -94,7 +93,6 @@ def _row(
 
 def _snapshot(
     *,
-    enabled: bool = False,
     scope_key: AgentTabKey | None = None,
     scope_token: str = "default",
     view: AgentTabsViewConfig | None = None,
@@ -112,7 +110,6 @@ def _snapshot(
             prior_visual_row=0,
         ),
         grouping_mode=GroupingMode.STANDARD,
-        agent_tabs_enabled=enabled,
         agent_tab_scope_token=scope_token,
         agent_tab_scope_key=scope_key,
         agent_tabs_view_config=view,
@@ -155,38 +152,17 @@ class _StubOwner:
         self.refreshed += 1
 
 
-def test_flag_off_scope_is_identity() -> None:
-    rows = [_row("a"), _row("b", tab="sase")]
-    index = build_agent_tab_index(rows, _view())
-    with override_flags(agent_tabs=False):
-        assert (
-            scope_agents_to_tab(rows, index, DEFAULT_AGENT_TAB_KEY, enabled=False)
-            is rows
-        )
-        assert (
-            scope_agents_to_tab(rows, index, AgentTabKey.named("sase"), enabled=False)
-            is rows
-        )
-        owner = _StubOwner(rows)
-        assert current_agent_tab_scope(owner) == DEFAULT_AGENT_TAB_KEY
-        assert current_agent_tab_scope_token(owner) == "default"
-        assert refresh_agent_tab_index(owner) is None
-
-
-def test_flag_on_two_tabs_scope_filters() -> None:
+def test_two_tabs_scope_filters() -> None:
     rows = [_row("a"), _row("b", tab="sase"), _row("c", tab="sase")]
     index = build_agent_tab_index(rows, _view())
-    with override_flags(agent_tabs=True):
-        main = scope_agents_to_tab(rows, index, DEFAULT_AGENT_TAB_KEY, enabled=True)
-        assert [r.raw_suffix for r in main] == ["a"]
-        named = scope_agents_to_tab(
-            rows, index, AgentTabKey.named("sase"), enabled=True
-        )
-        assert [r.raw_suffix for r in named] == ["b", "c"]
-        assert scope_agents_to_tab(rows, index, ALL_AGENT_TABS, enabled=True) is rows
-        assert agent_tab_scope_token(ALL_AGENT_TABS) == "all"
-        assert agent_tab_scope_token(DEFAULT_AGENT_TAB_KEY) == "default"
-        assert agent_tab_scope_token(AgentTabKey.named("sase")) == "named:sase"
+    main = scope_agents_to_tab(rows, index, DEFAULT_AGENT_TAB_KEY)
+    assert [r.raw_suffix for r in main] == ["a"]
+    named = scope_agents_to_tab(rows, index, AgentTabKey.named("sase"))
+    assert [r.raw_suffix for r in named] == ["b", "c"]
+    assert scope_agents_to_tab(rows, index, ALL_AGENT_TABS) is rows
+    assert agent_tab_scope_token(ALL_AGENT_TABS) == "all"
+    assert agent_tab_scope_token(DEFAULT_AGENT_TAB_KEY) == "default"
+    assert agent_tab_scope_token(AgentTabKey.named("sase")) == "named:sase"
 
 
 def test_refresh_agent_tab_index_memo_hits_and_tracks_in_place_roster_changes(
@@ -197,13 +173,12 @@ def test_refresh_agent_tab_index_memo_hits_and_tracks_in_place_roster_changes(
     rows = [_row("a")]
     owner = _StubOwner(rows)
     monkeypatch.setattr(settings, "agent_tabs_view_config", lambda: _view())
-    with override_flags(agent_tabs=True):
-        first = refresh_agent_tab_index(owner)
-        assert refresh_agent_tab_index(owner) is first
-        owner._agents_with_children.append(_row("b", tab="sase"))
-        second = refresh_agent_tab_index(owner)
-        assert second is not first
-        assert second.root_count(AgentTabKey.named("sase")) == 1
+    first = refresh_agent_tab_index(owner)
+    assert refresh_agent_tab_index(owner) is first
+    owner._agents_with_children.append(_row("b", tab="sase"))
+    second = refresh_agent_tab_index(owner)
+    assert second is not first
+    assert second.root_count(AgentTabKey.named("sase")) == 1
 
 
 def test_starting_roots_count_toward_catalog() -> None:
@@ -218,24 +193,21 @@ def test_starting_roots_count_toward_catalog() -> None:
 def test_empty_query_leaves_index_catalog_unchanged() -> None:
     rows = [_row("a"), _row("b", tab="sase")]
     index = build_agent_tab_index(rows, _view())
-    with override_flags(agent_tabs=True):
-        scoped = scope_agents_to_tab([], index, DEFAULT_AGENT_TAB_KEY, enabled=True)
-        assert scoped == []
-        assert {entry.key for entry in index.catalog} == {
-            DEFAULT_AGENT_TAB_KEY,
-            AgentTabKey.named("sase"),
-        }
+    scoped = scope_agents_to_tab([], index, DEFAULT_AGENT_TAB_KEY)
+    assert scoped == []
+    assert {entry.key for entry in index.catalog} == {
+        DEFAULT_AGENT_TAB_KEY,
+        AgentTabKey.named("sase"),
+    }
 
 
 def test_stale_token_rejects_plan_after_scope_change() -> None:
     before = _snapshot(
-        enabled=True,
         scope_key=DEFAULT_AGENT_TAB_KEY,
         scope_token="default",
         view=_view(),
     )
     after = _snapshot(
-        enabled=True,
         scope_key=AgentTabKey.named("sase"),
         scope_token="named:sase",
         view=_view(),
@@ -243,10 +215,9 @@ def test_stale_token_rejects_plan_after_scope_change() -> None:
     assert make_finalize_stale_token(before) != make_finalize_stale_token(after)
 
 
-def test_worker_plan_carries_both_lists_and_index_flag_on() -> None:
+def test_worker_plan_carries_both_lists_and_index() -> None:
     rows = [_row("a"), _row("b", tab="sase")]
     snapshot = _snapshot(
-        enabled=True,
         scope_key=DEFAULT_AGENT_TAB_KEY,
         scope_token="default",
         view=_view(),
@@ -265,7 +236,7 @@ def test_worker_plan_carries_both_lists_and_index_flag_on() -> None:
     assert plan.selection.restored_idx == 0
 
 
-def test_worker_plan_flag_off_is_identical_to_today() -> None:
+def test_worker_plan_without_view_config_skips_scope() -> None:
     rows = [_row("a"), _row("b", tab="sase")]
     plan = _compute_finalize_plan(list(rows), _snapshot())
     assert [r.raw_suffix for r in plan.scoped_agents] == ["a", "b"]
@@ -278,7 +249,6 @@ def test_worker_apply_keeps_off_tab_status_overrides_and_cache_entries(
 ) -> None:
     rows = [_row("a"), _row("b", tab="sase")]
     snapshot = _snapshot(
-        enabled=True,
         scope_key=AgentTabKey.named("sase"),
         scope_token="named:sase",
         view=_view(),
@@ -314,16 +284,15 @@ def test_worker_apply_keeps_off_tab_status_overrides_and_cache_entries(
         loading_finalize, "reconcile_panel_fold_registries", lambda *_args: None
     )
 
-    with override_flags(agent_tabs=True):
-        loading_finalize._apply_finalize_plan(
-            app,
-            on_agents_tab=False,
-            selected_identity=None,
-            plan=plan,
-            prior_pos=None,
-            previous_agents=None,
-            refresh_display=False,
-        )
+    loading_finalize._apply_finalize_plan(
+        app,
+        on_agents_tab=False,
+        selected_identity=None,
+        plan=plan,
+        prior_pos=None,
+        previous_agents=None,
+        refresh_display=False,
+    )
 
     assert [row.raw_suffix for row in app._agents] == ["b"]
     assert app._agents_query_result[0].status == "FAILED"
@@ -332,7 +301,6 @@ def test_worker_apply_keeps_off_tab_status_overrides_and_cache_entries(
         app._agents_query_result,
         app._agent_tab_index,
         DEFAULT_AGENT_TAB_KEY,
-        enabled=True,
     )
     assert [(row.raw_suffix, row.status) for row in active_a] == [("a", "FAILED")]
 
@@ -357,45 +325,42 @@ def test_folds_survive_rescope_to_other_tab_and_back() -> None:
 
 def test_dismiss_then_rescope_does_not_resurrect() -> None:
     rows = [_row("a"), _row("b", tab="sase")]
-    with override_flags(agent_tabs=True):
-        owner = _StubOwner(rows)
-        refresh_agent_tab_index(owner)
-        owner._agents_query_result = list(rows)
-        owner._agents = [rows[0]]
-        remove_agents_from_views(owner, {rows[1].identity})
-        assert owner._agents_query_result == [rows[0]]
-        assert owner._agents == [rows[0]]
-        # A later tab switch re-scopes the pruned cache: no resurrection.
-        owner._active_agent_tab = AgentTabKey.named("sase")
-        _rescope_agents_to_active_tab(owner)
-        assert owner._agents == []
-        assert owner._agents_query_result == [rows[0]]
-        assert owner.synced == 1
-        assert owner.refreshed == 1
+    owner = _StubOwner(rows)
+    refresh_agent_tab_index(owner)
+    owner._agents_query_result = list(rows)
+    owner._agents = [rows[0]]
+    remove_agents_from_views(owner, {rows[1].identity})
+    assert owner._agents_query_result == [rows[0]]
+    assert owner._agents == [rows[0]]
+    # A later tab switch re-scopes the pruned cache: no resurrection.
+    owner._active_agent_tab = AgentTabKey.named("sase")
+    _rescope_agents_to_active_tab(owner)
+    assert owner._agents == []
+    assert owner._agents_query_result == [rows[0]]
+    assert owner.synced == 1
+    assert owner.refreshed == 1
 
 
 def test_selection_memory_is_per_scope() -> None:
     owner = _StubOwner([])
-    with override_flags(agent_tabs=True):
-        scoped_selection_set(owner, None, ("agent", 0))
-        assert scoped_selection_get(owner, None) == ("agent", 0)
-        owner._active_agent_tab = AgentTabKey.named("sase")
-        assert scoped_selection_get(owner, None) is None
-        scoped_selection_set(owner, None, ("agent", 2))
-        owner._active_agent_tab = DEFAULT_AGENT_TAB_KEY
-        assert scoped_selection_get(owner, None) == ("agent", 0)
+    scoped_selection_set(owner, None, ("agent", 0))
+    assert scoped_selection_get(owner, None) == ("agent", 0)
+    owner._active_agent_tab = AgentTabKey.named("sase")
+    assert scoped_selection_get(owner, None) is None
+    scoped_selection_set(owner, None, ("agent", 2))
+    owner._active_agent_tab = DEFAULT_AGENT_TAB_KEY
+    assert scoped_selection_get(owner, None) == ("agent", 0)
 
 
 def test_panel_index_memo_is_keyed_by_scope() -> None:
     rows = [_row("a"), _row("b", tab="sase")]
-    with override_flags(agent_tabs=True):
-        owner = _StubOwner(rows)
-        first = AgentDisplayMixin._agent_panel_index(owner)  # type: ignore[arg-type]
-        again = AgentDisplayMixin._agent_panel_index(owner)  # type: ignore[arg-type]
-        assert again is first
-        owner._active_agent_tab = AgentTabKey.named("sase")
-        switched = AgentDisplayMixin._agent_panel_index(owner)  # type: ignore[arg-type]
-        assert switched is not first
+    owner = _StubOwner(rows)
+    first = AgentDisplayMixin._agent_panel_index(owner)  # type: ignore[arg-type]
+    again = AgentDisplayMixin._agent_panel_index(owner)  # type: ignore[arg-type]
+    assert again is first
+    owner._active_agent_tab = AgentTabKey.named("sase")
+    switched = AgentDisplayMixin._agent_panel_index(owner)  # type: ignore[arg-type]
+    assert switched is not first
 
 
 def test_fold_persistence_v3_decodes_with_default_tab(tmp_path: Path) -> None:

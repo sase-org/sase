@@ -58,7 +58,7 @@ def test_fresh_panel_marks_and_enters_first_rendered_row_not_roster_zero() -> No
 
 def test_remembered_row_is_marked_and_escape_uses_the_same_destination() -> None:
     app = _expanded_app()
-    app._panel_selection_memory["alpha"] = ("agent", 1)
+    app._panel_selection_memory[("default", "alpha")] = ("agent", 1)
 
     rendered = _rendered_tribe(app)
 
@@ -75,7 +75,7 @@ def test_remembered_row_is_marked_and_escape_uses_the_same_destination() -> None
 
 def test_removed_remembered_row_moves_cursor_to_the_new_first_stop() -> None:
     app = _expanded_app()
-    app._panel_selection_memory["alpha"] = ("agent", 2)
+    app._panel_selection_memory[("default", "alpha")] = ("agent", 2)
     assert "render-first" in _cursor_lines(_rendered_tribe(app))[0]
 
     app._agents.pop(2)
@@ -131,7 +131,7 @@ def test_nested_destination_marks_owning_agent_session_and_names_exact_member() 
     root.followup_agents = [child]
     app = AgentPanelCollapseApp([root, child], focused_key="alpha")
     app._expanded_panel_focus = True
-    app._panel_selection_memory["alpha"] = ("agent", 1)
+    app._panel_selection_memory[("default", "alpha")] = ("agent", 1)
 
     rendered = _rendered_tribe(app)
 
@@ -155,7 +155,7 @@ def test_collapsed_group_destination_is_named_without_a_row_cursor() -> None:
     )
     banner = app._all_known_group_keys()[0]
     app._group_fold_registry.for_panel("research").collapse(banner)
-    app._panel_selection_memory["research"] = ("banner", banner)
+    app._panel_selection_memory[("default", "research")] = ("banner", banner)
     app._expanded_panel_focus = True
 
     rendered = _rendered_tribe(app)

@@ -24,7 +24,6 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.modals.help_modal.agents_bindings import agents_bindings
 from sase.ace.tui.widgets import KeybindingFooter
-from sase.feature_flags import override_flags
 from sase.notifications import Notification
 from tests.ace.tui._agent_unread_helpers import make_agent
 
@@ -254,21 +253,12 @@ def test_agents_help_has_enter_row_and_no_leader_n() -> None:
     assert not any(label == "Jump to any agent notification" for _, label in pairs)
 
 
-def test_agent_tab_help_rows_follow_feature_flag() -> None:
+def test_agent_tab_help_rows_list_tab_bindings() -> None:
     reg = load_keymap_registry({"keymaps": {"app": {"pick_agents_tab": "f11"}}})
-    with override_flags(agent_tabs=False):
-        pairs = {
-            (key, label) for _s, rows in agents_bindings(reg) for key, label in rows
-        }
-        assert not any("agent tab" in label.lower() for _key, label in pairs)
-
-    with override_flags(agent_tabs=True):
-        pairs = {
-            (key, label) for _s, rows in agents_bindings(reg) for key, label in rows
-        }
-        labels = {label for _key, label in pairs}
-        assert "Prev / next agent tab (beta)" in labels
-        assert "Go to agent tab… (beta)" in labels
+    pairs = {(key, label) for _s, rows in agents_bindings(reg) for key, label in rows}
+    labels = {label for _key, label in pairs}
+    assert "Prev / next agent tab" in labels
+    assert "Go to agent tab…" in labels
 
 
 # ---------------------------------------------------------------------------

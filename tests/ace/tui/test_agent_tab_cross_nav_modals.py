@@ -18,7 +18,6 @@ from sase.ace.tui.models.node_finder import (
 )
 from sase.ace.tui.modals.node_finder_rendering import render_row_prompt
 from sase.core.agent_tab import AgentTabKey, DEFAULT_AGENT_TAB_KEY
-from sase.feature_flags import override_flags
 from sase.monitor_state import MONITOR_PROC_ORIGIN
 
 from ._agent_tab_cross_nav_helpers import (
@@ -31,12 +30,11 @@ from ._agent_tab_cross_nav_helpers import (
 from ._member_jump_navigation_helpers import JumpHarness, make_clan
 
 
-def test_monitor_jump_agent_widening_gated_on_flag() -> None:
-    """The Procs monitor-jump widening only searches child rows with the flag on.
+def test_monitor_jump_agent_searches_child_rows() -> None:
+    """The Procs monitor-jump searches the complete child roster.
 
-    ``_monitor_jump_agent`` switched from ``_agents`` to
-    ``_agents_with_children`` unconditionally, widening flag-off matches to
-    rows previously excluded as hidden children.
+    ``_monitor_jump_agent`` searches ``_agents_with_children`` so jumps
+    land on rows hidden as children of the visible roster.
     """
     from sase.ace.tui.modals.procs_pane_agent_jump import _monitor_jump_agent
 
@@ -48,10 +46,7 @@ def test_monitor_jump_agent_widening_gated_on_flag() -> None:
         _agents_with_children = [hidden_child]
 
     app = _App()
-    with override_flags(agent_tabs=False):
-        assert _monitor_jump_agent(app, "proc-1") is None
-    with override_flags(agent_tabs=True):
-        assert _monitor_jump_agent(app, "proc-1") is hidden_child
+    assert _monitor_jump_agent(app, "proc-1") is hidden_child
 
 
 class _FakeMonitorScreen:
@@ -105,36 +100,14 @@ def test_procs_monitor_jump_crosses_tabs(monkeypatch: Any) -> None:
     app = prepare_cross_tab_app(rows)
     app.current_tab = "services"
     pane = _ProcsJumpPane(app, "proc-1")
-    with override_flags(agent_tabs=True):
-        app._agents = _scoped_agents_for_owner(app, list(rows))
-        app._panel_group = AgentPanelGroup.from_agents(app._agents)
-        app.current_idx = 0
-        pane.action_open_monitor_agent()
-        assert pane.screen.closed is True
-        assert app.current_tab == "agents"
-        assert app._active_agent_tab == SASE
-        assert app._agents[app.current_idx].identity == rows[1].identity
-
-
-def test_procs_monitor_jump_unchanged_flag_off(monkeypatch: Any) -> None:
-    from sase.ace.tui.modals import config_center_modal
-
-    monkeypatch.setattr(config_center_modal, "ConfigCenterModal", _FakeMonitorScreen)
-
-    rows = [row("a"), row("b", tab="sase")]
-    rows[1].monitor_id = "proc-1"
-    app = prepare_cross_tab_app(rows, force_agent_tabs=False)
-    app.current_tab = "services"
-    pane = _ProcsJumpPane(app, "proc-1")
-    with override_flags(agent_tabs=False):
-        app._agents = list(rows)
-        app._panel_group = AgentPanelGroup.from_agents(app._agents)
-        app.current_idx = 0
-        pane.action_open_monitor_agent()
-        assert pane.screen.closed is True
-        assert app.current_tab == "agents"
-        assert app._agents[app.current_idx].identity == rows[1].identity
-        assert app._active_agent_tab == DEFAULT_AGENT_TAB_KEY
+    app._agents = _scoped_agents_for_owner(app, list(rows))
+    app._panel_group = AgentPanelGroup.from_agents(app._agents)
+    app.current_idx = 0
+    pane.action_open_monitor_agent()
+    assert pane.screen.closed is True
+    assert app.current_tab == "agents"
+    assert app._active_agent_tab == SASE
+    assert app._agents[app.current_idx].identity == rows[1].identity
 
 
 def test_run_log_modal_jump_crosses_tabs_through_fold_expanding_reveal() -> None:
@@ -151,20 +124,18 @@ def test_run_log_modal_jump_crosses_tabs_through_fold_expanding_reveal() -> None
 
     class _Harness(JumpHarness, AgentTabsMixin, AgentTabJumpMixin):
         def _rescope_agents_to_active_tab(self) -> None:
-            with override_flags(agent_tabs=True):
-                folded, _ = filter_agents_by_fold_state(
-                    self._agents_with_children, self._fold_manager
-                )
-                self._agents = _scoped_agents_for_owner(self, folded)
-                self._panel_group = AgentPanelGroup.from_agents(self._agents)
+            folded, _ = filter_agents_by_fold_state(
+                self._agents_with_children, self._fold_manager
+            )
+            self._agents = _scoped_agents_for_owner(self, folded)
+            self._panel_group = AgentPanelGroup.from_agents(self._agents)
 
         def _refilter_agents(self, **kwargs: Any) -> None:
-            with override_flags(agent_tabs=True):
-                folded, _ = filter_agents_by_fold_state(
-                    self._agents_with_children, self._fold_manager
-                )
-                self._agents = _scoped_agents_for_owner(self, folded)
-                self._panel_group = AgentPanelGroup.from_agents(self._agents)
+            folded, _ = filter_agents_by_fold_state(
+                self._agents_with_children, self._fold_manager
+            )
+            self._agents = _scoped_agents_for_owner(self, folded)
+            self._panel_group = AgentPanelGroup.from_agents(self._agents)
 
         def _save_current_tab_position(self) -> None:
             pass
@@ -198,62 +169,15 @@ def test_run_log_modal_jump_crosses_tabs_through_fold_expanding_reveal() -> None
     assert clan_key is not None
     app._fold_manager.collapse(clan_key)
 
-    with override_flags(agent_tabs=True):
-        app._refilter_agents()
-        assert app._agents == []
+    app._refilter_agents()
+    assert app._agents == []
 
-        modal = _FakeModal(app, member)
-        AgentRunLogModal.action_jump_to_agent_tab(modal)  # type: ignore[arg-type]
+    modal = _FakeModal(app, member)
+    AgentRunLogModal.action_jump_to_agent_tab(modal)  # type: ignore[arg-type]
 
-        assert modal.dismissed is True
-        assert app._active_agent_tab == AgentTabKey.named("sase")
-        assert app._agents[app.current_idx].identity == member.identity
-
-
-def test_run_log_modal_jump_unchanged_flag_off() -> None:
-    """A flag-off jump still resolves the target through the same ladder.
-
-    With the flag off, ``ensure_agent_tab_for_identity`` is a no-op (no tabs
-    exist to switch between), so the jump degrades to a plain same-roster
-    reveal, matching pre-epic behavior.
-    """
-    from sase.ace.tui.modals.agent_run_log_modal import AgentRunLogModal
-
-    class _App(cross_tab_harness_class()):
-        def _save_current_tab_position(self) -> None:
-            pass
-
-    class _FakeModal:
-        def __init__(self, app: Any, target: Agent) -> None:
-            self.app = app
-            self._target = target
-            self.dismissed = False
-
-        def _get_highlighted_agent(self) -> Agent | None:
-            return self._target
-
-        def _is_dismissed(self, _agent: Agent) -> bool:
-            return False
-
-        def dismiss(self) -> None:
-            self.dismissed = True
-
-    rows = [row("a"), row("b")]
-    app = _App(rows, rows[0])
-    app._ensure_agent_tabs_state()
-    app._agents_with_children = list(rows)
-    app._agents_query_result = list(rows)
-
-    with override_flags(agent_tabs=False):
-        app._agents = list(rows)
-        app._panel_group = AgentPanelGroup.from_agents(app._agents)
-        app.current_idx = 0
-
-        modal = _FakeModal(app, rows[1])
-        AgentRunLogModal.action_jump_to_agent_tab(modal)  # type: ignore[arg-type]
-
-        assert modal.dismissed is True
-        assert app._agents[app.current_idx].identity == rows[1].identity
+    assert modal.dismissed is True
+    assert app._active_agent_tab == AgentTabKey.named("sase")
+    assert app._agents[app.current_idx].identity == member.identity
 
 
 def test_node_finder_row_renders_tab_label_chip() -> None:

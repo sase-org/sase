@@ -1,10 +1,7 @@
 """Tab catalog view, strip visibility, and bulk scope labels (tab-state-keys).
 
-With the ``agent_tabs`` flag off every entry point is a no-op: the scope
-stays the default key, no strip appears, and bulk wording stays None so
-confirmations stay byte-identical. With the flag on, the catalog view adds
-the emptied-tab latch, the strip shows when two or more tabs exist, and the
-bulk helpers describe the active scope.
+The catalog view adds the emptied-tab latch, the strip shows when two or
+more tabs exist, and the bulk helpers describe the active scope.
 """
 
 from __future__ import annotations
@@ -15,7 +12,6 @@ from typing import Any
 
 from sase.core.agent_tab import AgentTabKey
 
-from ...agent_tabs_flag import agent_tabs_enabled
 from ...models.agent_tab_index import AgentTabCatalogEntry
 
 
@@ -69,11 +65,9 @@ def active_tab_label_for_owner(owner: Any) -> str:
 def strip_visible_for_owner(owner: Any) -> bool:
     """Return True when the minimal tab strip should render.
 
-    Visible iff the flag is on and the catalog view holds two or more tabs,
-    or while the emptied-tab latch holds.
+    Visible iff the catalog view holds two or more tabs, or while the
+    emptied-tab latch holds.
     """
-    if not agent_tabs_enabled():
-        return False
     if getattr(owner, "_agent_tab_latched_key", None) is not None:
         return True
     return len(catalog_view_for_owner(owner)) >= 2
@@ -82,12 +76,10 @@ def strip_visible_for_owner(owner: Any) -> bool:
 def bulk_scope_label_for_owner(owner: Any) -> str | None:
     """Return the bulk-confirmation scope wording, or None for today's text.
 
-    Returns ``on <tab label>`` (for example ``on sase``) when the flag is on
-    and the strip is visible, ``across all tabs`` at the ``ALL_AGENT_TABS``
-    scope, and None otherwise. None keeps every confirmation byte-identical.
+    Returns ``on <tab label>`` (for example ``on sase``) when the strip
+    is visible, ``across all tabs`` at the ``ALL_AGENT_TABS`` scope, and
+    None otherwise.
     """
-    if not agent_tabs_enabled():
-        return None
     from ...models.agent_tab_index import ALL_AGENT_TABS
 
     if getattr(owner, "_active_agent_tab", None) is ALL_AGENT_TABS:
@@ -107,11 +99,8 @@ def bulk_scope_label_for_owner(owner: Any) -> str | None:
 def marked_off_tab_count_for_owner(owner: Any, agents: list[Any]) -> int:
     """Return how many of *agents* sit off the owner's active tab.
 
-    Returns 0 with the flag off (or without an index), so flag-off
-    confirmations stay byte-identical.
+    Returns 0 without an index.
     """
-    if not agent_tabs_enabled():
-        return 0
     index = getattr(owner, "_agent_tab_index", None)
     active = getattr(owner, "_active_agent_tab", None)
     key_for = getattr(index, "key_for", None)

@@ -1,10 +1,7 @@
 """Synchronous tab switching with per-tab memory and the minimal strip.
 
-With the ``agent_tabs`` flag off every entry point is a no-op: the scope
-stays the default key, no strip appears, and ``[``/``]`` do nothing on the
-Agents tab. With the flag on, ``_switch_agents_tab`` synchronously re-scopes
-the cached query result with per-tab selection memory, and the strip
-refreshes on every switch.
+``_switch_agents_tab`` synchronously re-scopes the cached query result
+with per-tab selection memory, and the strip refreshes on every switch.
 """
 
 from __future__ import annotations
@@ -19,7 +16,6 @@ from sase.core.agent_tab import (
     agent_tab_key_token,
 )
 
-from ...agent_tabs_flag import agent_tabs_enabled
 from ...models.agent_tab_index import AgentTabCatalogEntry
 from ._agent_tabs_catalog import (
     active_tab_label_for_owner,
@@ -347,13 +343,11 @@ class AgentTabsSwitchMixin:
 
         Saves the current tab's memory, re-scopes the cached query result
         without I/O, restores the target tab's memory, refreshes the strip,
-        and schedules persistence. A no-op when the flag is off or *key*
-        equals the active key.
+        and schedules persistence. A no-op when *key* equals the
+        active key.
         """
         del reason
         self._ensure_agent_tabs_state()
-        if not agent_tabs_enabled():
-            return False
         if not isinstance(key, AgentTabKey):
             return False
         try:
@@ -491,8 +485,6 @@ class AgentTabsSwitchMixin:
     def action_pick_agents_tab(self) -> None:
         """Open the minimal tab picker and switch on select."""
         self._ensure_agent_tabs_state()
-        if not agent_tabs_enabled():
-            return
         if getattr(self, "current_tab", None) != "agents":
             return
         try:
@@ -531,8 +523,6 @@ class AgentTabsSwitchMixin:
     def _on_agents_tab_strip_clicked(self, tab_id: str) -> None:
         """Switch to the clicked strip tab, ignoring unknown ids."""
         self._ensure_agent_tabs_state()
-        if not agent_tabs_enabled():
-            return
         key = _key_for_strip_id(tab_id, self._agent_tab_catalog_view())
         if key is None:
             return
@@ -690,8 +680,6 @@ class AgentTabsSwitchMixin:
         in-memory work over the already-loaded roster.
         """
         self._ensure_agent_tabs_state()
-        if not agent_tabs_enabled():
-            return
         index = getattr(self, "_agent_tab_index", None)
         if index is None:
             return
@@ -757,8 +745,6 @@ class AgentTabsSwitchMixin:
             agent_tab_empty_state,
         )
 
-        if not agent_tabs_enabled():
-            return None
         scoped = list(getattr(self, "_agents", ()) or [])
         if scoped:
             return None

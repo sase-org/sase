@@ -21,7 +21,6 @@ from sase.ace.tui.keymaps import (
 from sase.ace.tui.modals.help_modal.bindings import agents_bindings
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.feature_flags import override_flags
 from tests._keymaps_helpers import default_app_keymaps
 
 
@@ -217,40 +216,25 @@ def test_bracket_keys_do_nothing_on_agents() -> None:
         )
         is False
     )
-    # With the flag off the tab-cycle brackets still do nothing.
-    with override_flags(agent_tabs=False):
-        assert (
-            check_app_action(
-                _two_tab_gating_app(), "next_agents_tab", (), lambda _a, _p: None
-            )
-            is False
+    # With two tabs the brackets cycle tabs.
+    assert (
+        check_app_action(
+            _two_tab_gating_app(), "next_agents_tab", (), lambda _a, _p: None
         )
-        assert (
-            check_app_action(
-                _two_tab_gating_app(), "prev_agents_tab", (), lambda _a, _p: None
-            )
-            is False
+        is not False
+    )
+    assert (
+        check_app_action(
+            _two_tab_gating_app(), "prev_agents_tab", (), lambda _a, _p: None
         )
-    # With the flag on and two tabs they cycle tabs.
-    with override_flags(agent_tabs=True):
-        assert (
-            check_app_action(
-                _two_tab_gating_app(), "next_agents_tab", (), lambda _a, _p: None
-            )
-            is not False
+        is not False
+    )
+    assert (
+        check_app_action(
+            _two_tab_gating_app(), "pick_agents_tab", (), lambda _a, _p: None
         )
-        assert (
-            check_app_action(
-                _two_tab_gating_app(), "prev_agents_tab", (), lambda _a, _p: None
-            )
-            is not False
-        )
-        assert (
-            check_app_action(
-                _two_tab_gating_app(), "pick_agents_tab", (), lambda _a, _p: None
-            )
-            is not False
-        )
+        is not False
+    )
 
 
 def test_legacy_bracket_yield_unbinds_tab_cycling(

@@ -9,7 +9,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.core.agent_tab import AgentTabKey
-from sase.feature_flags import override_flags
 
 from ._agent_panels_display_helpers import (
     _FakeApp,
@@ -222,7 +221,9 @@ def test_live_clan_backing_keeps_the_container_key() -> None:
     app._remember_session_mounted_occupancy()
 
     assert app._session_mounted_panel_key_set() == {None, "epic"}
-    assert container.identity in app._session_mounted_identity_map()["epic"]
+    assert (
+        container.identity in app._session_mounted_identity_map()[("default", "epic")]
+    )
 
 
 def test_explicit_member_removal_retires_the_container_key() -> None:
@@ -255,8 +256,7 @@ def test_retiring_sticky_keys_is_active_scope_only_and_unscoped() -> None:
         ("default", "banana"): {other_identity},
     }
 
-    with override_flags(agent_tabs=True):
-        retired = app._prune_session_mounted_gone({active_identity, other_identity})
+    retired = app._prune_session_mounted_gone({active_identity, other_identity})
 
     assert retired == {"apple"}
     mounted = app._session_mounted_panel_identities  # type: ignore[attr-defined]

@@ -51,12 +51,6 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
 
     def _current_agents_tab_token(self) -> str | None:
         """Return the active agent-tab scope token, or None with tabs off."""
-        try:
-            from ...agent_tabs_flag import agent_tabs_enabled
-        except Exception:
-            return None
-        if not agent_tabs_enabled():
-            return None
         scope_token = getattr(self, "_agent_tab_scope_token", None)
         if not callable(scope_token):
             return None

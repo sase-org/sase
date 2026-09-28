@@ -27,10 +27,9 @@ class AgentFleetHeaderMixin:
         # byte-identical to the pre-tabs behavior.
         strip_visible = False
         try:
-            from ...agent_tabs_flag import agent_tabs_enabled
             from ._agent_tabs import strip_visible_for_owner
 
-            strip_visible = bool(agent_tabs_enabled() and strip_visible_for_owner(self))
+            strip_visible = bool(strip_visible_for_owner(self))
         except Exception:
             strip_visible = False
         if not self._fleet_mode_available():  # type: ignore[attr-defined]

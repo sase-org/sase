@@ -82,7 +82,9 @@ def test_panel_fold_intent_survives_query_projection_churn_and_clears_on_merge()
     assert app._expanded_panel_keys == set()
     assert app._agent_panels_grouped is True
     assert app._resolve_focused_panel() is None
-    assert app.refresh_calls == [True]
+    # The layout ladder refreshes once for the re-scope and once for the
+    # layout repaint; the legacy split/merged toggle refreshed once.
+    assert app.refresh_calls == [True, True]
 
 
 def test_panel_fold_intent_survives_agent_churn_inside_live_panel() -> None:
@@ -156,7 +158,7 @@ def test_merged_panel_sync_does_not_retire_panel_intent() -> None:
 def test_expanded_panel_focus_reconciles_when_refresh_membership_churns() -> None:
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
-    app._panel_selection_memory["alpha"] = ("agent", 2)
+    app._panel_selection_memory[("default", "alpha")] = ("agent", 2)
     app._expanded_panel_focus = True
 
     # Search/refilter-style churn that leaves the panel alive keeps its
@@ -179,7 +181,7 @@ def test_expanded_panel_focus_reconciles_when_refresh_membership_churns() -> Non
     app._sync_panel_group()
 
     assert app._resolve_focused_panel() is None
-    assert "alpha" not in app._panel_selection_memory
+    assert ("default", "alpha") not in app._panel_selection_memory
     assert app._panel_group.focused_key in {None, "beta"}
 
     app._agents.extend(alpha_agents)

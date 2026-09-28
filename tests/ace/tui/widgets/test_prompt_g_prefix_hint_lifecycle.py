@@ -8,6 +8,7 @@ from textual.events import Key
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from tests.ace.tui.widgets.prompt_g_prefix_hint_test_support import (
     GPrefixHintApp,
+    entry_pairs,
     hint_panel,
 )
 
@@ -33,15 +34,20 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "gG   glossary…" in plain
         assert "gm   memory…" in plain
         assert "gD   launch target…" in plain
+        assert "gb   launch tab…" in plain
         assert "gT   snippets…" in plain
         assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" in plain
         assert "gx   open mini-xprompt…" in plain
-        assert "gX   save as xprompt/snippet" in plain
-        assert "gL   save as local xprompt" in plain
         assert "g^X" not in plain
-        assert "... +" not in plain
+        # The always-on launch-tab entry pushes the surface to 13 entries;
+        # the fixed-height panel shows 11 plus a remainder.
+        assert "... +2 more" in plain
+        # Truncated entries remain on the surface even when scrolled out.
+        assert ("b", "launch tab…") in entry_pairs(bar)
+        assert ("X", "save as xprompt/snippet") in entry_pairs(bar)
+        assert ("L", "save as local xprompt") in entry_pairs(bar)
         # Multi-pane and stash-open entries are absent on the bare g surface.
         assert "gs" not in plain
         assert "gS" not in plain
@@ -66,10 +72,12 @@ async def test_bound_height_g_prefix_hints_show_remainder() -> None:
         await pilot.pause()
 
         plain = panel.render().plain
-        assert "g=   toggle frontmatter" in plain
+        assert "gb   launch tab…" in plain
+        assert "g-   add pane" in plain
+        assert "g=   toggle frontmatter" not in plain
         assert "gs   stash all panes" not in plain
         assert "gt   new snippet…" not in plain
-        assert "... +7 more" in plain
+        assert "... +8 more" in plain
 
 
 async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
@@ -93,17 +101,18 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^GG   glossary…" in plain
         assert "^Gm   memory…" in plain
         assert "^GD   launch target…" in plain
-        assert "^GT   snippets…" in plain
+        assert "^Gb   launch tab…" in plain
         assert "^G<enter>   submit this draft" in plain
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt   new snippet…" in plain
-        assert "^GT   snippets…" in plain
         assert "^Gx   open mini-xprompt…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^Gp   stashed prompts…" not in plain
-        assert "... +4 more" in plain
+        assert "... +5 more" in plain
+        assert ("b", "launch tab…") in entry_pairs(bar, via_ctrl_g=True)
+        assert ("T", "snippets…") in entry_pairs(bar, via_ctrl_g=True)
         assert "^Gs" not in plain
         assert "^GS" not in plain
         assert "^GP" not in plain
@@ -133,16 +142,16 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^GG   glossary…" in plain
         assert "^Gm   memory…" in plain
         assert "^GD   launch target…" in plain
-        assert "^GT   snippets…" in plain
+        assert "^Gb   launch tab…" in plain
         assert "^G<enter>   submit this draft" in plain
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt   new snippet…" in plain
-        assert "^GT   snippets…" in plain
         assert "^Gx   open mini-xprompt…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
-        assert "... +3 more" in plain
+        assert "... +4 more" in plain
+        assert ("b", "launch tab…") in entry_pairs(bar, via_ctrl_g=True)
         assert "^Gs" not in plain
         assert "^GS" not in plain
         assert bar.active_text_area()._vim_mode == "normal"

@@ -288,18 +288,15 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
     def _select_machine_tab(self, row: MachineRow) -> bool:
         """Select *row*'s machine tab; False when filtering should run instead.
 
-        Selects only while the agent tab strip is visible. Otherwise (flag
-        off, one tab, or an unresolvable origin) this returns False and the
-        caller keeps the ``machine:`` filter behavior.
+        Selects only while the agent tab strip is visible. Otherwise (one
+        tab or an unresolvable origin) this returns False and the caller
+        keeps the ``machine:`` filter behavior.
         """
         try:
             from sase.ace.tui.actions.agents._agent_tabs import (
                 strip_visible_for_owner,
             )
-            from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
 
-            if not agent_tabs_enabled():
-                return False
             app: Any = self.app
             if not strip_visible_for_owner(app):
                 return False
