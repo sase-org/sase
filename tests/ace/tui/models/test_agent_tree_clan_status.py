@@ -212,18 +212,28 @@ def test_clan_status_preserves_precedence_over_lone_running_member(
     container, *_ = project_clan_tree(members)
 
     assert container.status == higher
+    assert container.status_display_source is None
     _assert_turn_presentation_cleared(container)
 
 
-def test_clan_stays_running_for_lone_starting_member() -> None:
+def test_clan_mirrors_lone_starting_member() -> None:
+    starting = _member("research.starting", "starting", status="STARTING")
     members = [
-        _member("research.starting", "starting", status="STARTING"),
+        starting,
         _member("research.done", "done", status="DONE"),
     ]
 
     container, *_ = project_clan_tree(members)
 
-    assert container.status == "RUNNING"
+    assert container.status == "STARTING"
+    assert agent_status_bucket(container) == "Starting"
+    assert container.status_display_source is starting
+    container_text = _format(container)
+    member_text = _format(starting, 1)
+    assert container_text.plain.startswith("(STARTING")
+    assert _style_at(container_text, container_text.plain.index("STARTING")) == (
+        _style_at(member_text, member_text.plain.index("STARTING"))
+    )
 
 
 def test_clan_queued_and_waiting_companions_do_not_mask_lone_failed_label() -> None:
@@ -595,3 +605,265 @@ def test_clan_mirrors_lone_stopped_member_label() -> None:
 
     assert container.status == "WAITING INPUT"
     assert agent_status_bucket(container) == "Stopped"
+
+
+def _finalizing_member(
+    suffix: str = "gem",
+    *,
+    status: str = "RUNNING",
+    phase: str = "declaring",
+    running_instance: bool = False,
+) -> Agent:
+    from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
+
+    row = _member(f"research.{suffix}", suffix, status=status)
+    instances: list[dict[str, object]] = []
+    if running_instance or phase == "executing":
+        instances = [
+            {
+                "id": "commit",
+                "status": "running",
+                "attempt": 1,
+                "max_attempts": 1,
+                "op": "stitch main",
+                "step": "just fix",
+                "started_at": 1727440001.0,
+            }
+        ]
+    row.finalizer_status = finalizer_status_from_mapping(
+        {
+            "schema_version": 1,
+            "phase": phase,
+            "run_id": "abc123",
+            "started_at": 1727440000.0,
+            "updated_at": 1727440012.5,
+            "instance_count": len(instances),
+            "instances": instances,
+        }
+    )
+    return row
+
+
+def _screenshot_members(member: Agent) -> list[Agent]:
+    return [
+        *(
+            _member(f"research.done-{index}", f"done-{index}", status="DONE")
+            for index in range(4)
+        ),
+        *(
+            _member(f"research.waiting-{index}", f"waiting-{index}", status="WAITING")
+            for index in range(2)
+        ),
+        member,
+    ]
+
+
+def test_clan_row_shows_finalizing_for_lone_running_member_declaring() -> None:
+    member = _finalizing_member(phase="declaring")
+    container, *_ = project_clan_tree(_screenshot_members(member))
+
+    assert container.status == "RUNNING"
+    assert container.status_display_source is member
+    container_text = _format(container)
+    member_text = _format(member, 1)
+    assert container_text.plain.startswith("(FINALIZING)")
+    assert "[R1 W2 D4]" in container_text.plain
+    assert _style_at(container_text, container_text.plain.index("FINALIZING")) == (
+        _style_at(member_text, member_text.plain.index("FINALIZING"))
+    )
+
+
+def test_clan_row_shows_finalizing_for_lone_running_member_executing() -> None:
+    member = _finalizing_member(phase="executing", running_instance=True)
+    container, *_ = project_clan_tree(_screenshot_members(member))
+
+    assert container.status == "RUNNING"
+    assert container.status_display_source is member
+    container_text = _format(container)
+    assert container_text.plain.startswith("(FINALIZING)")
+    assert "[R1 W2 D4]" in container_text.plain
+
+
+def test_clan_row_shows_finalizing_for_lone_running_session_member() -> None:
+    root = _member("research.session", "session", status="RUNNING")
+    root.agent_session = "session"
+    root.agent_session_role = "root"
+    turn = _agent(
+        "research.session--code",
+        "session-code",
+        status="RUNNING",
+        parent_timestamp=root.raw_suffix,
+        clan=None,
+        generation=None,
+    )
+    from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
+
+    turn.finalizer_status = finalizer_status_from_mapping(
+        {
+            "schema_version": 1,
+            "phase": "executing",
+            "run_id": "abc123",
+            "started_at": 1727440000.0,
+            "updated_at": 1727440012.5,
+            "instance_count": 1,
+            "instances": [
+                {
+                    "id": "commit",
+                    "status": "running",
+                    "attempt": 1,
+                    "max_attempts": 1,
+                    "op": "stitch main",
+                    "step": "just fix",
+                    "started_at": 1727440001.0,
+                }
+            ],
+        }
+    )
+    root.followup_agents = [turn]
+    root.runtime_children = [turn]
+    members = [
+        root,
+        turn,
+        _member("research.done", "done", status="DONE"),
+    ]
+
+    container, *_ = project_clan_tree(members)
+
+    assert container.status_display_source is root
+    assert _format(container).plain.startswith("(FINALIZING")
+
+
+def test_clan_two_running_members_one_finalizing_stays_running() -> None:
+    member = _finalizing_member()
+    members = [
+        member,
+        _member("research.plain", "plain", status="RUNNING"),
+        _member("research.done", "done", status="DONE"),
+    ]
+
+    container, *_ = project_clan_tree(members)
+
+    assert container.status == "RUNNING"
+    assert container.status_display_source is None
+    assert _format(container).plain.startswith("(RUNNING")
+
+
+def test_clan_finalizing_member_plus_failed_has_no_pointer() -> None:
+    member = _finalizing_member()
+    members = [
+        member,
+        _member("research.failed", "failed", status="FAILED"),
+    ]
+
+    container, *_ = project_clan_tree(members)
+
+    assert container.status == "FAILED"
+    assert container.status_display_source is None
+    assert _format(container).plain.startswith("(FAILED")
+
+
+def test_clan_finalizing_settles_back_to_running_then_clears() -> None:
+    from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
+
+    member = _finalizing_member()
+    done_one = _member("research.one", "one", status="DONE")
+    done_two = _member("research.two", "two", status="DONE")
+    container, *members = project_clan_tree([done_one, done_two, member])
+    assert _format(container).plain.startswith("(FINALIZING)")
+
+    member.finalizer_status = finalizer_status_from_mapping(
+        {
+            "schema_version": 1,
+            "phase": "settled",
+            "status": "success",
+            "run_id": "abc123",
+            "started_at": 1727440000.0,
+            "updated_at": 1727440020.0,
+            "instance_count": 1,
+            "instances": [
+                {
+                    "id": "commit",
+                    "status": "success",
+                    "attempt": 1,
+                    "max_attempts": 1,
+                    "started_at": 1727440001.0,
+                    "finished_at": 1727440019.0,
+                }
+            ],
+        }
+    )
+    assert _format(container).plain.startswith("(RUNNING")
+
+    member.status = "DONE"
+    reprojection, *_ = project_clan_tree([container, *members])
+    assert reprojection.status_display_source is None
+
+
+def test_clan_retrying_countdown_matches_member() -> None:
+    import time
+
+    member = _member("research.retry", "retry", status="RETRYING")
+    member.retry_next_at_epoch = time.time() + 30
+    members = [
+        member,
+        _member("research.done", "done", status="DONE"),
+    ]
+
+    container, *_ = project_clan_tree(members)
+
+    assert container.status == "RETRYING"
+    assert container.status_display_source is member
+    member_text = _format(member, 1).plain
+    container_text = _format(container).plain
+    assert "RETRYING (" in member_text
+    assert "RETRYING (" in container_text
+    import re
+
+    assert re.search(r"RETRYING \(\d+s\)", member_text)
+    assert re.search(r"RETRYING \(\d+s\)", container_text)
+
+
+def test_clan_render_key_invalidates_when_member_finalizer_changes() -> None:
+    from sase.ace.tui.widgets._agent_list_render_cache import agent_render_key
+    from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
+
+    member = _member("research.gem", "gem", status="RUNNING")
+    container, *_ = project_clan_tree(
+        [member, _member("research.done", "done", status="DONE")]
+    )
+    before = agent_render_key(
+        container,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+    )
+    member.finalizer_status = finalizer_status_from_mapping(
+        {
+            "schema_version": 1,
+            "phase": "executing",
+            "run_id": "abc123",
+            "started_at": 1727440000.0,
+            "updated_at": 1727440012.5,
+            "instance_count": 1,
+            "instances": [
+                {
+                    "id": "commit",
+                    "status": "running",
+                    "attempt": 1,
+                    "max_attempts": 1,
+                    "started_at": 1727440001.0,
+                }
+            ],
+        }
+    )
+    after = agent_render_key(
+        container,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+    )
+    assert before != after

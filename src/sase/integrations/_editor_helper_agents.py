@@ -11,7 +11,11 @@ if TYPE_CHECKING:
         AgentSessionPlanPreviewResult,
     )
 
-from sase.agent.status_buckets import aggregate_agent_group_status
+from sase.agent.status_buckets import (
+    aggregate_agent_group_status,
+    aggregate_clan_member_status,
+    status_bucket_for_values,
+)
 from sase.monitor_state import is_monitor_member_role
 from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
@@ -513,7 +517,15 @@ def _clan_entries(
             continue
         newest[clan] = generation_members
         count = len(generation_members)
-        status = _aggregate_status(member.status for member in generation_members)
+        status = (
+            aggregate_clan_member_status(
+                [
+                    (member.status, status_bucket_for_values(member.status))
+                    for member in generation_members
+                ]
+            )
+            or "RUNNING"
+        )
         entries.append(
             {
                 "name": clan,

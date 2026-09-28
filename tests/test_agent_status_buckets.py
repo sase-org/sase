@@ -162,3 +162,105 @@ def test_bucket_representative_statuses_round_trip() -> None:
         status_bucket_for_values(status) == bucket
         for bucket, status in _BUCKET_REPRESENTATIVE_STATUS.items()
     )
+
+
+@pytest.mark.parametrize("status", ["RUNNING", "TESTING", "WORKING PLAN", "RETRYING"])
+def test_clan_status_source_lone_in_flight_member(status: str) -> None:
+    from sase.agent.status_buckets import (
+        aggregate_clan_member_status,
+        clan_status_source_index,
+    )
+
+    entries = [
+        (status, status_bucket_for_values(status)),
+        ("DONE", "Done"),
+        ("WAITING", "Waiting"),
+    ]
+    assert clan_status_source_index(entries) == 0
+    assert aggregate_clan_member_status(entries) == status
+
+
+def test_clan_status_source_lone_starting_member() -> None:
+    from sase.agent.status_buckets import (
+        aggregate_clan_member_status,
+        clan_status_source_index,
+    )
+
+    entries = [("STARTING", "Starting"), ("DONE", "Done")]
+    assert clan_status_source_index(entries) == 0
+    assert aggregate_clan_member_status(entries) == "STARTING"
+
+
+def test_clan_status_source_starting_plus_running_has_no_source() -> None:
+    from sase.agent.status_buckets import (
+        aggregate_clan_member_status,
+        clan_status_source_index,
+    )
+
+    entries = [("STARTING", "Starting"), ("RUNNING", "Running")]
+    assert clan_status_source_index(entries) is None
+    assert aggregate_clan_member_status(entries) == "RUNNING"
+
+
+@pytest.mark.parametrize(
+    ("higher", "expected"),
+    [("FAILED", "FAILED"), ("QUESTION", "QUESTION"), ("PLAN", "PLAN")],
+)
+def test_clan_status_source_defers_to_attention_member(
+    higher: str, expected: str
+) -> None:
+    from sase.agent.status_buckets import (
+        aggregate_clan_member_status,
+        clan_status_source_index,
+    )
+
+    entries = [
+        ("TESTING", "Running"),
+        (higher, status_bucket_for_values(higher)),
+    ]
+    assert clan_status_source_index(entries) is None
+    assert aggregate_clan_member_status(entries) == expected
+
+
+def test_clan_status_source_lone_failed_override_label() -> None:
+    from sase.agent.status_buckets import (
+        aggregate_clan_member_status,
+        clan_status_source_index,
+    )
+
+    entries = [("TESTED", "Failed"), ("WAITING", "Waiting"), ("DONE", "Done")]
+    assert clan_status_source_index(entries) == 0
+    assert aggregate_clan_member_status(entries) == "TESTED"
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [
+        [("QUEUED", "Queued"), ("WAITING", "Waiting")],
+        [("DONE", "Done"), ("WAITING", "Waiting")],
+        [("QUEUED", "Queued")],
+    ],
+)
+def test_clan_status_source_none_without_relevant_member(
+    entries: list[tuple[str, str]],
+) -> None:
+    from sase.agent.status_buckets import (
+        aggregate_agent_group_effective_status,
+        aggregate_clan_member_status,
+        clan_status_source_index,
+    )
+
+    assert clan_status_source_index(entries) is None
+    assert aggregate_clan_member_status(entries) == (
+        aggregate_agent_group_effective_status(entries)
+    )
+
+
+def test_clan_status_source_empty_returns_none() -> None:
+    from sase.agent.status_buckets import (
+        aggregate_clan_member_status,
+        clan_status_source_index,
+    )
+
+    assert clan_status_source_index([]) is None
+    assert aggregate_clan_member_status([]) is None

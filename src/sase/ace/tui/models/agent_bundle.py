@@ -45,6 +45,7 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "followup_agents",
             "runtime_children",
             "wait_display_source",
+            "status_display_source",
             "agent_session_container",
             "derived_plan_agent_session_root",
             "retry_chain_siblings",

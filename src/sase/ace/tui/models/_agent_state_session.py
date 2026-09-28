@@ -129,6 +129,14 @@ class AgentStateSessionFields:
         repr=False,
     )
 
+    # Member row whose status this synthetic container mirrors (a clan's lone
+    # running member). Runtime-only presentation plumbing; not serialized.
+    status_display_source: Agent | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+
     # Session container row whose SESSION TURNS roster lists this row. Runtime
     # presentation plumbing; not serialized. ``compare``/``repr`` must stay off:
     # this pointer closes a cycle with ``followup_agents``/``runtime_children``

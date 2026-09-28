@@ -432,9 +432,10 @@ the registry matches sase's TUI, editor completion, and the native LSP fallback.
 `agent-catalog` operation returns cross-project active/recent agent rows, de-duplicated
 by name, and additive `session`, `clan`, and `tribe` rows derived from the same artifact
 snapshot. Ordinary rows carry `kind: agent`, except monitors, which use `kind: monitor`.
-Group rows include member counts, while clan rows also include aggregate status. The 20
-most recently active session rows are enriched, when resolvable, with associated plan or
-bead kind, structure, and title in `detail`, plus Markdown `documentation` for goal,
+Group rows include member counts, while clan rows also include `status`, which follows
+the Agents-tab clan rule (a lone running member's status, otherwise the aggregate). The
+20 most recently active session rows are enriched, when resolvable, with associated plan
+or bead kind, structure, and title in `detail`, plus Markdown `documentation` for goal,
 phase, or task context. Older and unresolved sessions retain their member-count detail,
 and enrichment failures degrade safely; see
 [Editor Integration: Helper Bridge](editor.md#helper-bridge) for the full fallback

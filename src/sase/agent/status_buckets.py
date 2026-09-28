@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Protocol
 
 AGENT_STATUS_BUCKETS: tuple[str, ...] = (
@@ -340,3 +340,36 @@ def aggregate_agent_group_effective_status(
         for status, bucket in entries
     )
     return aggregate_agent_group_status(resolved)
+
+
+IN_FLIGHT_STATUS_BUCKETS: frozenset[str] = frozenset({"Starting", "Running"})
+
+
+def clan_status_source_index(entries: Sequence[tuple[str, str]]) -> int | None:
+    """Return the index of the member whose own status a clan shows, else None."""
+    aggregate = aggregate_agent_group_effective_status(entries)
+    if aggregate is None:
+        return None
+    aggregate_bucket = status_bucket_for_values(aggregate)
+    relevant = tuple(
+        index
+        for index, (_status, bucket) in enumerate(entries)
+        if bucket not in (QUEUED_STATUS_BUCKET, "Waiting", "Done")
+    )
+    if len(relevant) != 1:
+        return None
+    index = relevant[0]
+    bucket = entries[index][1]
+    if bucket in {"Failed", "Stopped", "Running"} and bucket == aggregate_bucket:
+        return index
+    if bucket == "Starting" and aggregate_bucket == "Running":
+        return index
+    return None
+
+
+def aggregate_clan_member_status(entries: Sequence[tuple[str, str]]) -> str | None:
+    """Return a clan's display status from per-member (status, bucket) entries."""
+    index = clan_status_source_index(entries)
+    if index is not None:
+        return entries[index][0]
+    return aggregate_agent_group_effective_status(entries)

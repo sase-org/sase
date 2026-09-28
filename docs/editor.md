@@ -308,7 +308,8 @@ returns active and recent ordinary agent rows, de-duplicated by name, with `stat
 usable group metadata, the response adds the latest identifiable generation of each
 session and clan plus `@tribe` references derived from stored tribe assignments and clan
 declarations. Every row has `name`, `kind`, `member_count`, and display-ready `detail`;
-clan rows also have aggregate `status`.
+clan rows also have `status`, which follows the Agents-tab clan rule (a lone running
+member's status, otherwise the aggregate).
 
 Session rows carry a `detail` of `session · N members` by default. For the 20 sessions
 with the most recent activity — and only those, so the short-lived helper subprocess

@@ -325,3 +325,40 @@ def test_refresh_runner_slot_context_keeps_lone_failed_testing_clan_status(
     assert clan.monitor_state == "failed"
     assert (counts.failed, counts.waiting, counts.done) == (1, 1, 1)
     assert summary.failed == 1
+
+
+@pytest.mark.parametrize("effective_limit", [None, 10])
+def test_refresh_runner_slot_context_keeps_lone_starting_clan_status(
+    effective_limit: int | None,
+) -> None:
+    starting = _agent(
+        "research.starting",
+        status="STARTING",
+        pid=100,
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+    )
+    waiting = _agent(
+        "research.waiting",
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+    )
+    projected = project_clan_tree([starting, waiting])
+
+    if effective_limit is None:
+        refresh_runner_slot_context(projected)
+    else:
+        refresh_runner_slot_context(projected, effective_limit=effective_limit)
+
+    container = projected[0]
+    assert container.status == "STARTING"
+    assert agent_status_bucket(container) == "Starting"
+    assert container.status_display_source is starting
+
+    if effective_limit is None:
+        refresh_runner_slot_context(projected)
+    else:
+        refresh_runner_slot_context(projected, effective_limit=effective_limit)
+
+    assert container.status == "STARTING"
+    assert container.status_display_source is starting

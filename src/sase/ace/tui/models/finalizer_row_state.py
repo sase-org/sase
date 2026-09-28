@@ -31,7 +31,7 @@ _CHIP_SEVERITY: dict[str, int] = {
 
 
 @dataclass(frozen=True)
-class FinalizerRowState:
+class _FinalizerRowState:
     """Glance state for one row: the FINALIZING overlay plus the ``⊛`` chip."""
 
     is_finalizing: bool = False
@@ -120,7 +120,7 @@ def _member_candidates(
 
 def _pick_chip(
     rows: list[tuple[str, str | None, str | None, str | None]],
-) -> FinalizerRowState:
+) -> _FinalizerRowState:
     best: tuple[str, str | None, str | None, str | None] | None = None
     for row in rows:
         if _CHIP_SEVERITY.get(row[0], 0) <= 0:
@@ -128,15 +128,38 @@ def _pick_chip(
         if best is None or _CHIP_SEVERITY[row[0]] >= _CHIP_SEVERITY[best[0]]:
             best = row
     if best is None:
-        return FinalizerRowState()
+        return _FinalizerRowState()
     state_key, instance_id, op, step = best
-    return FinalizerRowState(
+    return _FinalizerRowState(
         chip_text=_chip_text(state_key, instance_id or "", op, step),
         chip_style=_chip_style(state_key),
     )
 
 
-def finalizer_row_state(agent: Agent) -> FinalizerRowState:
+def glance_finalizer_state(agent: Agent) -> _FinalizerRowState:
+    """Return the glance state for one row (empty when no summary applies)."""
+    if agent.is_agent_session_container_row:
+        return _session_finalizer_row_state(agent)
+    return _finalizer_row_state(agent)
+
+
+def row_status_is_finalizing(agent: Agent) -> bool:
+    """Return whether *agent*'s status word presents as ``FINALIZING``."""
+    from sase.ace.tui.models._agent_clan import status_display_agent
+
+    if agent.status != "RUNNING":
+        return False
+    return glance_finalizer_state(status_display_agent(agent)).is_finalizing
+
+
+def presented_status_label(agent: Agent) -> str:
+    """Return the status word *agent*'s row shows, including overlays."""
+    if row_status_is_finalizing(agent):
+        return "FINALIZING"
+    return agent.display_status
+
+
+def _finalizer_row_state(agent: Agent) -> _FinalizerRowState:
     """Derive the glance state for one agent row (plan §3.5, D11).
 
     ``FINALIZING`` overlays the ``RUNNING`` word only; warnings never produce
@@ -144,20 +167,20 @@ def finalizer_row_state(agent: Agent) -> FinalizerRowState:
     """
     summary = agent.finalizer_status
     if summary is None:
-        return FinalizerRowState()
+        return _FinalizerRowState()
     state = _pick_chip(_member_candidates(agent))
     is_finalizing = summary.phase in ACTIVE_PHASES and agent.display_status == "RUNNING"
-    return FinalizerRowState(
+    return _FinalizerRowState(
         is_finalizing=is_finalizing,
         chip_text=state.chip_text,
         chip_style=state.chip_style,
     )
 
 
-def session_finalizer_row_state(
+def _session_finalizer_row_state(
     container: Agent,
     members: Sequence[Agent] | None = None,
-) -> FinalizerRowState:
+) -> _FinalizerRowState:
     """Aggregate member turns by the D10 session supersede rule.
 
     Only runs after the newest successful settled run are considered; among
@@ -200,12 +223,12 @@ def session_finalizer_row_state(
             newest_success = index
     considered = considered[newest_success + 1 :]
     if not considered:
-        return FinalizerRowState()
+        return _FinalizerRowState()
     rows: list[tuple[str, str | None, str | None, str | None]] = []
     for turn in considered:
         rows.extend(_member_candidates(turn))
     if not any(_CHIP_SEVERITY.get(row[0], 0) > 0 for row in rows):
-        return FinalizerRowState()
+        return _FinalizerRowState()
     best_key = max(
         (row[0] for row in rows),
         key=lambda key: _CHIP_SEVERITY.get(key, 0),
@@ -220,7 +243,7 @@ def session_finalizer_row_state(
         and turn.finalizer_status.phase in ACTIVE_PHASES
         for turn in considered
     )
-    return FinalizerRowState(
+    return _FinalizerRowState(
         is_finalizing=is_finalizing,
         chip_text=text,
         chip_style=_chip_style(best_key),
@@ -259,9 +282,9 @@ def finalizer_header_chip(agent: Agent) -> tuple[str, str] | None:
 
 __all__ = [
     "ACTIVE_PHASES",
-    "FinalizerRowState",
     "finalizer_header_chip",
-    "finalizer_row_state",
     "finalizer_summary_token",
-    "session_finalizer_row_state",
+    "glance_finalizer_state",
+    "presented_status_label",
+    "row_status_is_finalizing",
 ]

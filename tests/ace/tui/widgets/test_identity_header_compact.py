@@ -345,3 +345,93 @@ def test_clan_rows_without_tribes() -> None:
     assert "research" in first
     assert "@" not in second
     assert "1 agent" in second
+
+
+def test_clan_compact_and_expanded_show_finalizing_for_lone_running_member() -> None:
+    from rich.text import Text
+
+    from sase.ace.tui.widgets.prompt_panel._agent_display_clan_identity import (
+        append_clan_identity_fields,
+    )
+    from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
+    from sase.ace.tui.models.fold_state import FoldLevel
+
+    member = make_clan_agent(
+        "research.gem",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    member.finalizer_status = finalizer_status_from_mapping(
+        {
+            "schema_version": 1,
+            "phase": "declaring",
+            "run_id": "abc123",
+            "started_at": 1727440000.0,
+            "updated_at": 1727440012.5,
+            "instance_count": 0,
+            "instances": [],
+        }
+    )
+    done = make_clan_agent(
+        "research.done",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        stop=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    container = project_clan_tree([member, done])[0]
+
+    args = _clan_compact_args(container)
+    first, _second = _rows(
+        build_clan_compact_lines(
+            fold_level=FoldLevel.COLLAPSED,
+            **args,  # type: ignore[arg-type]
+        )
+    )
+    assert "FINALIZING" in first
+
+    text = Text()
+    append_clan_identity_fields(
+        text,
+        fold_level=FoldLevel.COLLAPSED,
+        **args,  # type: ignore[arg-type]
+    )
+    assert "FINALIZING" in text.plain
+
+
+def test_clan_compact_and_expanded_show_starting_for_lone_starting_member() -> None:
+    from rich.text import Text
+
+    from sase.ace.tui.widgets.prompt_panel._agent_display_clan_identity import (
+        append_clan_identity_fields,
+    )
+    from sase.ace.tui.models.fold_state import FoldLevel
+
+    member = make_clan_agent(
+        "research.starting",
+        status="STARTING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    done = make_clan_agent(
+        "research.done",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        stop=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    container = project_clan_tree([member, done])[0]
+
+    args = _clan_compact_args(container)
+    first, _second = _rows(
+        build_clan_compact_lines(
+            fold_level=FoldLevel.COLLAPSED,
+            **args,  # type: ignore[arg-type]
+        )
+    )
+    assert "STARTING" in first
+
+    text = Text()
+    append_clan_identity_fields(
+        text,
+        fold_level=FoldLevel.COLLAPSED,
+        **args,  # type: ignore[arg-type]
+    )
+    assert "STARTING" in text.plain

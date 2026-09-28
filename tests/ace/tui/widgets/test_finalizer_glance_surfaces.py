@@ -14,9 +14,9 @@ from sase.ace.tui.models._agent_time_wait import format_compact_duration
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.finalizer_row_state import (
     finalizer_header_chip,
-    finalizer_row_state,
+    _finalizer_row_state,
     finalizer_summary_token,
-    session_finalizer_row_state,
+    _session_finalizer_row_state,
 )
 from sase.ace.tui.widgets._agent_list_render_agent_status import (
     append_agent_row_status,
@@ -75,7 +75,7 @@ def test_vocabulary_maps_c5_statuses() -> None:
 
 
 def test_row_state_finalizing_and_chip() -> None:
-    state = finalizer_row_state(_agent(status="RUNNING", summary=_EXECUTING))
+    state = _finalizer_row_state(_agent(status="RUNNING", summary=_EXECUTING))
 
     assert state.is_finalizing is True
     assert state.chip_text == "⊛ commit · just fix"
@@ -87,7 +87,7 @@ def test_row_state_step_falls_back_to_op() -> None:
         "instances": [{"id": "check", "status": "running", "op": "just check"}],
     }
 
-    state = finalizer_row_state(_agent(status="RUNNING", summary=summary))
+    state = _finalizer_row_state(_agent(status="RUNNING", summary=summary))
 
     assert state.chip_text == "⊛ check · just check"
 
@@ -99,7 +99,7 @@ def test_row_state_success_is_silent_despite_warnings() -> None:
         "instances": [{"id": "commit", "status": "success", "warnings": 3}],
     }
 
-    state = finalizer_row_state(_agent(status="DONE", summary=summary))
+    state = _finalizer_row_state(_agent(status="DONE", summary=summary))
 
     assert state.is_finalizing is False
     assert state.chip_text is None
@@ -113,13 +113,13 @@ def test_row_state_failed_refused_deferred_chips() -> None:
             "instances": [{"id": "check", "status": status}],
         }
 
-        state = finalizer_row_state(_agent(status="FAILED", summary=summary))
+        state = _finalizer_row_state(_agent(status="FAILED", summary=summary))
 
         assert state.chip_text == f"⊛{glyph} check"
 
 
 def test_row_state_interrupted_when_turn_ends_mid_run() -> None:
-    state = finalizer_row_state(_agent(status="DONE", summary=_EXECUTING))
+    state = _finalizer_row_state(_agent(status="DONE", summary=_EXECUTING))
 
     assert state.is_finalizing is False
     assert state.chip_text == "⊛! commit · just fix"
@@ -129,10 +129,10 @@ def test_row_state_silent_for_planned_skipped_and_legacy() -> None:
     planned = {"phase": "planned", "instances": [{"id": "c", "status": "planned"}]}
     skipped = {"phase": "skipped", "reason": "handoff:plan", "instances": []}
 
-    assert finalizer_row_state(_agent(summary=planned)).chip_text is None
-    assert finalizer_row_state(_agent(summary=skipped)).chip_text is None
-    assert finalizer_row_state(_agent(summary=None)).chip_text is None
-    assert finalizer_row_state(_agent(summary=None)).is_finalizing is False
+    assert _finalizer_row_state(_agent(summary=planned)).chip_text is None
+    assert _finalizer_row_state(_agent(summary=skipped)).chip_text is None
+    assert _finalizer_row_state(_agent(summary=None)).chip_text is None
+    assert _finalizer_row_state(_agent(summary=None)).is_finalizing is False
 
 
 def test_row_state_summary_token() -> None:
@@ -161,7 +161,7 @@ def test_session_supersede_ignores_runs_before_latest_success() -> None:
     )
     container = _agent(status="DONE", summary=None)
 
-    state = session_finalizer_row_state(container, members=[old_failure, new_success])
+    state = _session_finalizer_row_state(container, members=[old_failure, new_success])
 
     assert state.chip_text is None
 
@@ -186,7 +186,7 @@ def test_session_supersede_picks_severity_with_run_counts() -> None:
     running = _agent(status="RUNNING", summary=_EXECUTING)
     container = _agent(status="RUNNING", summary=None)
 
-    state = session_finalizer_row_state(container, members=[ok, failed, running])
+    state = _session_finalizer_row_state(container, members=[ok, failed, running])
 
     assert state.chip_text == "⊛✗ check · 1 of 2 runs"
     assert state.is_finalizing is True
@@ -311,3 +311,53 @@ def test_receipt_absent_for_skipped_planned_legacy_and_empty() -> None:
     assert finalizer_receipt_text(planned) is None
     assert finalizer_receipt_text(empty) is None
     assert finalizer_receipt_text(legacy) is None
+
+
+def test_presented_status_label_plain_and_session_rows() -> None:
+    from sase.ace.tui.models.finalizer_row_state import (
+        presented_status_label,
+        row_status_is_finalizing,
+    )
+
+    plain = _agent(status="RUNNING", summary=_EXECUTING)
+    assert row_status_is_finalizing(plain) is True
+    assert presented_status_label(plain) == "FINALIZING"
+
+    idle = _agent(status="RUNNING", summary=None)
+    assert row_status_is_finalizing(idle) is False
+    assert presented_status_label(idle) == "RUNNING"
+
+    done = _agent(status="DONE", summary=_EXECUTING)
+    assert row_status_is_finalizing(done) is False
+    assert presented_status_label(done) == "DONE"
+
+
+def test_presented_status_label_clan_container_pointer() -> None:
+    from sase.ace.tui.models.finalizer_row_state import (
+        presented_status_label,
+        row_status_is_finalizing,
+    )
+
+    member = _agent(status="RUNNING", summary=_EXECUTING)
+    clan = _agent(status="RUNNING", summary=None)
+    clan.status_display_source = member
+    assert row_status_is_finalizing(clan) is True
+    assert presented_status_label(clan) == "FINALIZING"
+
+    bare = _agent(status="RUNNING", summary=None)
+    bare.status_display_source = None
+    assert row_status_is_finalizing(bare) is False
+    assert presented_status_label(bare) == "RUNNING"
+
+
+def test_presented_status_label_non_running_clan_stays_unoverlaid() -> None:
+    from sase.ace.tui.models.finalizer_row_state import (
+        presented_status_label,
+        row_status_is_finalizing,
+    )
+
+    member = _agent(status="RUNNING", summary=_EXECUTING)
+    clan = _agent(status="FAILED", summary=None)
+    clan.status_display_source = member
+    assert row_status_is_finalizing(clan) is False
+    assert presented_status_label(clan) == "FAILED"

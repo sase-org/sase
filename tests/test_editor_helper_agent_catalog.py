@@ -362,3 +362,38 @@ def test_editor_helper_bridge_agent_catalog_tolerates_group_derivation_failure(
     assert [(entry["kind"], entry["name"]) for entry in entries] == [
         ("agent", "planner")
     ]
+
+
+def test_clan_entries_follow_lone_running_member_rule() -> None:
+    from sase.integrations._editor_helper_agents import _CatalogMember, _clan_entries
+
+    def member(name: str, status: str, clan: str = "squad") -> _CatalogMember:
+        return _CatalogMember(
+            name=name,
+            artifact_dir=f"/tmp/artifacts/{name}",
+            timestamp=f"2026071902010{name[-1]}",
+            parent_timestamp=None,
+            agent_session=None,
+            clan=clan,
+            clan_generation="g2",
+            clan_tribe=None,
+            tribe=None,
+            status=status,
+        )
+
+    entries, _newest = _clan_entries(
+        [member("squad.alpha", "STARTING"), member("squad.beta", "DONE")]
+    )
+    assert len(entries) == 1
+    assert entries[0]["status"] == "STARTING"
+    assert entries[0]["detail"].endswith("· STARTING")
+
+    entries, _newest = _clan_entries(
+        [member("squad.alpha", "RUNNING"), member("squad.beta", "FAILED")]
+    )
+    assert entries[0]["status"] == "FAILED"
+
+    entries, _newest = _clan_entries(
+        [member("squad.alpha", "RUNNING"), member("squad.beta", "RUNNING")]
+    )
+    assert entries[0]["status"] == "RUNNING"

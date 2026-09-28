@@ -8,6 +8,8 @@ from rich.text import Text
 
 from sase.agent.status_buckets import QUEUED_STATUS, agent_status_bucket
 
+from ...models.finalizer_row_state import presented_status_label
+
 from ...agent_count_chip import format_agent_count_chip
 from ...models._agent_clan import ClanStatusCounts
 from ...models.agent import Agent
@@ -75,7 +77,9 @@ def append_clan_identity_fields(
 
     text.append("Status: ", style=CLAN_FIELD_LABEL_STYLE)
     status_bucket = agent_status_bucket(agent)
-    text.append(agent.display_status, style=CLAN_MEMBER_STATUS_STYLES[status_bucket])
+    text.append(
+        presented_status_label(agent), style=CLAN_MEMBER_STATUS_STYLES[status_bucket]
+    )
     if agent.status == QUEUED_STATUS:
         append_queued_status_extras(text, agent)
     chip = format_agent_count_chip(
@@ -122,7 +126,7 @@ def build_clan_compact_lines(
     first.append(" ", style="")
     status_bucket = agent_status_bucket(agent)
     first.append(
-        agent.display_status,
+        presented_status_label(agent),
         style=CLAN_MEMBER_STATUS_STYLES[status_bucket],
     )
     chip = format_agent_count_chip(

@@ -2354,19 +2354,20 @@ Clan rows aggregate member status using the same operational precedence: human-i
 questions, pending plan review, failure, and running/starting states outrank queued
 work; `QUEUED` then outranks `WAITING`, followed by an all-done result. Consequently, a
 clan with queued work and ordinary waiters displays `QUEUED` unless a higher-priority
-member state is present. When exactly one direct member is outside the queued, waiting,
-and done buckets, and that member's bucket matches the aggregate bucket, the clan row
-shows that member's own status label and styling instead of the generic bucket label.
-For example, a session running a `TESTING` monitor makes the clan read `TESTING`, while
-a failed monitor with an authored stop label can read `TESTED [W1 F1 D9]` and still
-remain in the Failed group. The status bucket, precedence, and count chip are unchanged;
-`TESTED` is only the authored turn label, not proof that verification passed. When the
-aggregate is `QUEUED` and exactly one direct member is queued, the clan row and CLAN
-`Status:` line also show that member's admission rank (`QUEUED #3/4`), plus the same
-`pN` / `held by` extras the member row shows. Two queued members stay generic `QUEUED`
-with no rank. The count chip remains concrete and independent, so `QUEUED #3/4 [Q1 D4]`
-keeps the rank next to the chip, and `QUEUED [Q3 W6]` reports three runner-slot waiters
-and six dependency, bead, or time waiters without merging the two categories.
+member state is present. When a clan has exactly one running member (`STARTING`
+included) and no asking, reviewing, or failed member, the clan shows that member's exact
+status: its label and styling, including the `FINALIZING` word and the `RETRYING (Ns)`
+countdown, on both the clan row and the CLAN `Status:` line. For example, a session
+running a `TESTING` monitor makes the clan read `TESTING`, while a failed monitor with
+an authored stop label can read `TESTED [W1 F1 D9]` and still remain in the Failed
+group. The status bucket, precedence, and count chip are unchanged; `TESTED` is only the
+authored turn label, not proof that verification passed. When the aggregate is `QUEUED`
+and exactly one direct member is queued, the clan row and CLAN `Status:` line also show
+that member's admission rank (`QUEUED #3/4`), plus the same `pN` / `held by` extras the
+member row shows. Two queued members stay generic `QUEUED` with no rank. The count chip
+remains concrete and independent, so `QUEUED #3/4 [Q1 D4]` keeps the rank next to the
+chip, and `QUEUED [Q3 W6]` reports three runner-slot waiters and six dependency, bead,
+or time waiters without merging the two categories.
 
 A clan row whose waiting members name unknown targets attaches an orange `?N`
 immediately after the waiting count inside its count chip, as in `QUEUED [Q1 W3?2]`. `N`
@@ -5637,7 +5638,8 @@ chip considers only runs after the newest successful settled run, picks the high
 severity (failed > refused > interrupted > deferred > running), and appends
 `k of n runs` when more than one run is in play. The collapsed header panel carries the
 same signal as an activity chip (`⊛ finalizing · <id> · <label>`, or `⊛ declaration`
-while the declaration turn runs).
+while the declaration turn runs). A clan whose lone running member is finalizing also
+reads `FINALIZING`, while the `⊛` chip stays on the member row.
 
 **In context: the ⊛ FINAL receipt.** Each turn's Reply phase ends with a short `⊛ FINAL`
 receipt: one line per finalizer instance with its state glyph, per-instance detail (step

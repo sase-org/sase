@@ -23,6 +23,7 @@ _AGENT_SIGNATURE_SKIP_FIELDS = frozenset(
         "retry_chain_siblings",
         "runtime_children",
         "wait_display_source",
+        "status_display_source",
     }
 )
 

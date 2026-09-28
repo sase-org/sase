@@ -68,6 +68,7 @@ def test_apply_clan_container_status_empty_input_uses_fallback_and_clears_source
 
     assert container.status == "RUNNING"
     assert container.status_bucket is None
+    assert container.status_display_source is None
     assert container.monitor_start_status is None
     assert container.monitor_stop_status is None
     assert container.monitor_state is None

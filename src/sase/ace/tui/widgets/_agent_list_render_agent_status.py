@@ -50,10 +50,10 @@ from ._queue_weight_badge import (
     append_agent_queue_badges,
     queue_capacity_budget_display_enabled,
 )
+from ..models._agent_clan import status_display_agent
 from ..models.finalizer_row_state import (
-    FinalizerRowState,
-    finalizer_row_state,
-    session_finalizer_row_state,
+    glance_finalizer_state,
+    row_status_is_finalizing,
 )
 from sase.ace.tui.tool_runs.attribution import (
     row_identity_from_agent,
@@ -65,16 +65,9 @@ from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_rea
 from sase.core.time import local_now
 
 
-def _glance_finalizer_state(agent: Agent) -> FinalizerRowState:
-    """Return the glance state for one row (empty when no summary applies)."""
-    if agent.is_agent_session_container_row:
-        return session_finalizer_row_state(agent)
-    return finalizer_row_state(agent)
-
-
 def _append_finalizer_chip(text: Text, agent: Agent) -> None:
     """Append the ⊛ chip after the status parenthesis (plan §3.5)."""
-    state = _glance_finalizer_state(agent)
+    state = glance_finalizer_state(agent)
     if state.chip_text:
         text.append(f" {state.chip_text}", style=state.chip_style or "dim")
 
@@ -176,7 +169,7 @@ def append_agent_row_status(
     elif agent.status == "STARTING":
         text.append(display_status, style="bold #87D7FF")  # Sky blue
     elif agent.status == "RUNNING":
-        if _glance_finalizer_state(agent).is_finalizing:
+        if row_status_is_finalizing(agent):
             text.append("FINALIZING", style=f"bold {RUNNING_COLOR}")
         else:
             text.append(display_status, style=f"bold {RUNNING_COLOR}")
@@ -266,10 +259,11 @@ def append_agent_row_status(
                 text.append(f" (until {target_label})", style="#AF87FF")
     elif agent.status == "RETRYING":
         countdown = ""
-        if agent.retry_next_at_epoch:
+        retry_source = status_display_agent(agent).retry_next_at_epoch
+        if retry_source:
             import time
 
-            remaining = max(0, int(agent.retry_next_at_epoch - time.time()))
+            remaining = max(0, int(retry_source - time.time()))
             countdown = f" ({remaining}s)"
         text.append(f"RETRYING{countdown}", style="bold #FF8700")  # Orange
     else:

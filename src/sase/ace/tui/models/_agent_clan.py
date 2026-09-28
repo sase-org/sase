@@ -12,6 +12,7 @@ from sase.agent.status_buckets import (
     aggregate_agent_group_status,
     agent_is_asking,
     agent_status_bucket,
+    clan_status_source_index,
     status_bucket_for_values,
 )
 
@@ -92,13 +93,6 @@ _TURN_STATUS_PRESENTATION_FIELDS: tuple[str, ...] = (
     "gate_finalize_proc_id",
 )
 
-_CLAN_INHERITABLE_STATUS_BUCKETS: frozenset[str] = frozenset(
-    {"Failed", "Running", "Stopped"}
-)
-_CLAN_IGNORED_MEMBER_STATUS_BUCKETS: frozenset[str] = frozenset(
-    {QUEUED_STATUS_BUCKET, "Waiting", "Done"}
-)
-
 
 def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
     """Return the shared aggregate agent-group display status."""
@@ -118,6 +112,16 @@ def _copy_turn_status_presentation(target: Agent, source: Agent | None) -> None:
         )
 
 
+def status_display_agent(agent: Agent) -> Agent:
+    """Return the row whose status word *agent* presents.
+
+    A clan container with exactly one running member mirrors that member's
+    render-time status overlays through ``status_display_source``; every
+    other row presents its own status.
+    """
+    return agent.status_display_source or agent
+
+
 def apply_clan_container_status(
     container: Agent,
     members: Iterable[Agent],
@@ -131,16 +135,14 @@ def apply_clan_container_status(
     row-level bucket override (for example ``TESTED`` with bucket ``Done``)
     participates in the existing precedence ladder.
 
-    When exactly one member is outside the queued/waiting/done buckets and
-    its effective bucket is the canonical aggregate bucket, the clan can
-    inherit that member's refined display label, effective bucket, and the
-    monitor/gate presentation fields. This preserves authored turn labels
-    such as ``TESTING``/``TESTED`` and gate labels while keeping the
-    aggregate's outcome bucket, ``BY_STATUS`` grouping, member ordering,
-    count chips, and summary counts unchanged. ``Starting`` is a competing
-    member, not an inheritable source, so a lone ``STARTING`` member still
-    leaves the clan at ``RUNNING``. Queued members remain ignored for that
-    Failed/Running/Stopped label mirror.
+    When a clan has exactly one running member (``STARTING`` included) and
+    the precedence-ladder aggregate bucket is ``Running``, the clan shows
+    that member's status exactly: the stored label, the effective bucket
+    (``Running`` or ``Starting``), and the monitor/gate presentation fields.
+    The render-time overlays of the status word (``FINALIZING`` and the
+    ``RETRYING (Ns)`` countdown) resolve through ``status_display_source``.
+    A member that needs the user (asking, awaiting plan review, or failed)
+    still outranks the running member via the ladder aggregate.
 
     When the aggregate bucket is Queued and exactly one unique member is
     queued, the clan attaches that member through ``wait_display_source``
@@ -150,10 +152,12 @@ def apply_clan_container_status(
     repeated projections cannot leave a stale rank after a companion queues
     or the lone waiter starts.
 
-    Any non-inheritable aggregate, including an empty member list (which
-    falls back to *fallback*), clears ``status_bucket`` and those presentation
-    fields so repeated projections stay idempotent after the source member
-    changes or a second active member appears.
+    Any non-mirrored aggregate, including an empty member list (which
+    falls back to *fallback*), clears ``status_bucket``,
+    ``status_display_source``, and those presentation fields. Clearing on
+    every call keeps repeated projections (tree projection and both
+    runner-slot refresh paths in ``agent_runner_slots.py``) idempotent after
+    the source member changes or a second active member appears.
     """
     unique_members: list[Agent] = []
     seen: set[tuple[AgentType, str, str | None]] = set()
@@ -170,25 +174,18 @@ def apply_clan_container_status(
     aggregate_bucket = (
         None if aggregate is None else status_bucket_for_values(aggregate)
     )
-    relevant_members = [
-        member
-        for member in unique_members
-        if agent_status_bucket(member) not in _CLAN_IGNORED_MEMBER_STATUS_BUCKETS
-    ]
-    source = relevant_members[0] if len(relevant_members) == 1 else None
-    source_bucket = None if source is None else agent_status_bucket(source)
-    if (
-        source is not None
-        and source_bucket in _CLAN_INHERITABLE_STATUS_BUCKETS
-        and source_bucket == aggregate_bucket
-    ):
+    source_index = clan_status_source_index(entries)
+    source = unique_members[source_index] if source_index is not None else None
+    if source is not None:
         container.status = source.status
-        container.status_bucket = source_bucket
+        container.status_bucket = agent_status_bucket(source)
         _copy_turn_status_presentation(container, source)
+        container.status_display_source = source
     else:
         container.status = fallback if aggregate is None else aggregate
         container.status_bucket = None
         _copy_turn_status_presentation(container, None)
+        container.status_display_source = None
     _set_clan_queued_wait_display_source(container, unique_members, aggregate_bucket)
 
 
@@ -528,4 +525,5 @@ __all__ = [
     "clan_member_status_priority",
     "clan_member_counts",
     "clan_members",
+    "status_display_agent",
 ]
