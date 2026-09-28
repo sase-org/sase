@@ -186,16 +186,9 @@ def _tool_run_label_for_task(task: ObservedProc) -> str | None:
 
 
 def _tool_runs_visible() -> bool:
-    """Return whether the ToolRun marker may render (beta flag on)."""
+    """Return whether the ToolRun marker may render (always on)."""
 
-    try:
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-    except Exception:
-        return False
-    try:
-        return bool(tool_runs_enabled())
-    except Exception:
-        return False
+    return True
 
 
 def _append_tool_run_marker(
@@ -205,7 +198,7 @@ def _append_tool_run_marker(
     prefix: str = "",
     suffix: str = "",
 ) -> None:
-    """Mark a hand-off ToolRun owner proc with ``⚒ <label>`` (flag-gated)."""
+    """Mark a hand-off ToolRun owner proc with ``⚒ <label>``."""
 
     if not _tool_runs_visible():
         return

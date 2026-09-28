@@ -21,7 +21,6 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
-    ace_tool_runs = "ace_tool_runs"
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
     axe_routine_job_contract = "axe_routine_job_contract"
@@ -42,16 +41,6 @@ class FeatureFlag(StrEnum):
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
-    FeatureFlag.ace_tool_runs: FeatureFlagDefinition(
-        key=FeatureFlag.ace_tool_runs,
-        kind="beta",
-        description=(
-            "Gate the TUI ToolRun surfaces (row chips, header chip, Runs "
-            "card, Admin Tools pane, links, and actions) while the epic "
-            "phases land."
-        ),
-        bead="sase-1bv",
-    ),
     FeatureFlag.ace_refresh_tokens: FeatureFlagDefinition(
         key=FeatureFlag.ace_refresh_tokens,
         kind="sunset",

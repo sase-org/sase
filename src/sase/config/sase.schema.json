@@ -5527,11 +5527,6 @@
           "default": true,
           "deprecated": true
         },
-        "ace_tool_runs": {
-          "type": "boolean",
-          "description": "Gate the TUI ToolRun surfaces (row chips, header chip, Runs card, Admin Tools pane, links, and actions) while the epic phases land.",
-          "default": false
-        },
         "admin_center_flags": {
           "type": "boolean",
           "description": "The Config catalog exposes the Flags pane for persistent feature-flag control.",

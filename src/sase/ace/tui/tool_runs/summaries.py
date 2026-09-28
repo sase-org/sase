@@ -245,15 +245,11 @@ def resolve_tool_run_summary(
 
     Reads the LRU first (no SQLite open on a hit); on a miss runs one
     blocking ``tool_run_node_summaries`` call and caches under
-    ``(selector key, store token)``. Returns None when the flag is off,
-    the node has no selector, the load failed, or *is_current* reports
-    the selection moved on while the load was in flight.
+    ``(selector key, store token)``. Returns None when the node has no
+    selector, the load failed, or *is_current* reports the selection
+    moved on while the load was in flight.
     """
 
-    from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-
-    if not tool_runs_enabled():
-        return None
     selector = selector_for_agent(agent)
     if selector is None:
         return None

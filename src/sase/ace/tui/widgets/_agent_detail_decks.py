@@ -216,17 +216,10 @@ class AgentDetailDeckMixin:
 
         The LLM Calls host keeps today's eligibility. The ``⚒ Runs``
         host additionally opens for monitor turns and named procs that
-        own runs. Everything stays flag-gated: flag off, the Runs host
-        is never touched and Tools is exactly today's deck.
+        own runs.
         """
         from ..llm_calls import supports_slow_tool_sources
 
-        try:
-            from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-
-            runs_enabled = bool(tool_runs_enabled())
-        except Exception:
-            runs_enabled = False
         if (
             attempt_number is None
             and not agent.is_clan_container
@@ -242,18 +235,6 @@ class AgentDetailDeckMixin:
                 panel.tools_view.show_empty()
             except Exception:
                 pass
-            if not runs_enabled:
-                try:
-                    panel.set_availability(
-                        {
-                            **panel._availability,
-                            DeckId.TOOLS: DeckAvailability(False, 0),
-                        }
-                    )
-                except Exception:
-                    pass
-        if not runs_enabled:
-            return
         try:
             preferred = self._tools_preferred_card(panel)
         except Exception:

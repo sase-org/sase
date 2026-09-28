@@ -75,16 +75,9 @@ def _notes(run: Mapping[str, Any], run_id: str) -> list[str]:
 
 
 def _open_action() -> str | None:
-    """Return the settlement action while the ToolRun surfaces flag is on."""
+    """Return the settlement action for a hand-off ToolRun notification."""
 
-    try:
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-    except Exception:
-        return None
-    try:
-        return "OpenToolRun" if tool_runs_enabled() else None
-    except Exception:  # noqa: BLE001 - delivery never depends on the flag read.
-        return None
+    return "OpenToolRun"
 
 
 def _build_notification(

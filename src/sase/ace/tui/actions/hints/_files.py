@@ -440,7 +440,6 @@ class FileViewingMixin(HintMixinBase):
         no targets.
         """
         try:
-            from ...tool_runs.flag import tool_runs_enabled
             from ...tool_runs.hints import (
                 hint_number_for_tool_run,
                 visible_tool_run_log_targets,
@@ -454,8 +453,6 @@ class FileViewingMixin(HintMixinBase):
         except Exception:
             return
         try:
-            if not tool_runs_enabled():
-                return
             selector = selector_for_agent(agent)
             if selector is None:
                 return

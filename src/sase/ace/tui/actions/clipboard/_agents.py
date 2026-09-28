@@ -129,14 +129,6 @@ class ClipboardAgentsMixin(ClipboardBase):
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-        from ...tool_runs.flag import tool_runs_enabled
-
-        if not tool_runs_enabled():
-            self.notify(  # type: ignore[attr-defined]
-                "ToolRun surfaces are behind the ace_tool_runs beta flag",
-                severity="warning",
-            )
-            return
         run_id = self._selected_tool_runs_block_run_id()
         if not run_id:
             from ...tool_runs.header_chip import header_run_id_for_agent

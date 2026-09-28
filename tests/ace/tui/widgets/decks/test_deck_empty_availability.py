@@ -41,10 +41,10 @@ def test_empty_state_messages() -> None:
     assert "attempt" in _render_text(
         deck_empty_state(DeckId.FILES, subject_kind="attempt", hint=None)
     )
-    assert "No LLM calls for this agent" in _render_text(
+    assert "No tool runs or LLM calls for this node" in _render_text(
         deck_empty_state(DeckId.TOOLS, subject_kind="agent", hint=None)
     )
-    assert "attempt" in _render_text(
+    assert "No tool runs or LLM calls for this node" in _render_text(
         deck_empty_state(DeckId.TOOLS, subject_kind="attempt", hint=None)
     )
 

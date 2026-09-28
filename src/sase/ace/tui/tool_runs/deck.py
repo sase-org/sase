@@ -114,9 +114,15 @@ def tools_tabs(has_runs: bool, has_calls: bool) -> tuple[Any, ...]:
 
 
 def tools_picker_label(n_runs: int | None, n_calls: int | None) -> str:
-    """Return the Tools picker count label (``2 runs · 57 calls``)."""
+    """Return the Tools picker count label (``2 runs · 57 calls``).
+
+    A zero call count reads as no calls (like the ``tools ⚒N`` switcher
+    segment), so it is omitted rather than rendered as ``· 0 calls``.
+    """
     runs = max(0, int(n_runs)) if n_runs is not None else None
     calls = max(0, int(n_calls)) if n_calls is not None else None
+    if calls is not None and calls <= 0:
+        calls = None
     if runs is not None and calls is not None:
         run_noun = "run" if runs == 1 else "runs"
         call_noun = "call" if calls == 1 else "calls"

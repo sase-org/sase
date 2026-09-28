@@ -315,17 +315,10 @@ def _agents_mark_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
 def _selected_node_tool_run_state(app: AceApp, agent) -> tuple[bool, bool]:  # type: ignore[no-untyped-def]
     """Return ``(has_runs, has_live)`` for the selected Agents node.
 
-    Flag-gated and best-effort: anything unreadable (flag off, no
-    snapshot, no cached summary) reads as no runs. Only in-memory
-    state is touched — no stat, no SQLite open, no log read.
+    Best-effort: anything unreadable (no snapshot, no cached summary)
+    reads as no runs. Only in-memory state is touched — no stat, no
+    SQLite open, no log read.
     """
-    try:
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-
-        if not tool_runs_enabled():
-            return (False, False)
-    except Exception:
-        return (False, False)
     if agent is None or getattr(agent, "fleet_origin_alias", None):
         return (False, False)
     try:

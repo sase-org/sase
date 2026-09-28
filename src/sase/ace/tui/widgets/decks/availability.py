@@ -76,16 +76,6 @@ def probe_tools_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
             calls_has, calls_count = False, 0
         else:
             calls_has, calls_count = True, count
-    try:
-        from ...tool_runs.flag import tool_runs_enabled
-    except Exception:
-        return _calls_only_availability(calls_has, calls_count)
-    try:
-        enabled = bool(tool_runs_enabled())
-    except Exception:
-        enabled = False
-    if not enabled:
-        return _calls_only_availability(calls_has, calls_count)
     from ...tool_runs.deck import probe_tool_runs_card
 
     try:
@@ -105,17 +95,6 @@ def probe_tools_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
         runs_count=runs_count if runs_has else 0,
         calls_count=calls_count,
     )
-
-
-def _calls_only_availability(
-    calls_has: bool | None, calls_count: int | None
-) -> DeckAvailability:
-    """Return the pre-``tools-deck-cards`` Tools availability (flag off)."""
-    if calls_has is None:
-        return DeckAvailability(None, None)
-    if not calls_has:
-        return DeckAvailability(False, 0)
-    return DeckAvailability(True, calls_count)
 
 
 def probe_final_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailability:

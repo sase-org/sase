@@ -605,24 +605,13 @@ class DeckPanelFilesMixin:
         self, message: LLMCallsVisibilityChanged
     ) -> None:
         self._tools_has_content = bool(message.has_llm_calls)
+        self._availability[DeckId.TOOLS] = self._merged_tools_calls_availability(
+            bool(message.has_llm_calls)
+        )
         try:
-            from ...tool_runs.flag import tool_runs_enabled
-
-            enabled = bool(tool_runs_enabled())
+            self._sync_tools_hosts()  # type: ignore[attr-defined]
         except Exception:
-            enabled = False
-        if not enabled:
-            self._availability[DeckId.TOOLS] = DeckAvailability(
-                bool(message.has_llm_calls), None
-            )
-        else:
-            self._availability[DeckId.TOOLS] = self._merged_tools_calls_availability(
-                bool(message.has_llm_calls)
-            )
-            try:
-                self._sync_tools_hosts()  # type: ignore[attr-defined]
-            except Exception:
-                pass
+            pass
         self.refresh_chrome()
         self._update_empty_state()
         self._notify_duplicate_ready(DeckId.TOOLS)

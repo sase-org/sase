@@ -305,15 +305,8 @@ class ToolRunActionsMixin:
 
 
 def _selected_node_live_run(app: Any) -> Any | None:
-    """Return the selected node's first live tool run, if the flag is on."""
+    """Return the selected node's first live tool run, if any."""
 
-    try:
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-
-        if not tool_runs_enabled():
-            return None
-    except Exception:
-        return None
     try:
         from sase.ace.tui.tool_runs import summaries
         from sase.ace.tui.tool_runs.snapshot import get_snapshot

@@ -262,18 +262,14 @@ def header_chip_for_node(
 ) -> tuple[str, str, str] | None:
     """Return ``(text, style, run_id)`` for the node's header chip, or None.
 
-    The flag gates every surface; remote and clan rows never carry a chip
-    (D15). Settled facts come from the ``tool-runs`` lane; live facts are
-    overlaid from the glance snapshot so the chip moves without a summary
-    reload.
+    Remote and clan rows never carry a chip (D15). Settled facts come
+    from the ``tool-runs`` lane; live facts are overlaid from the glance
+    snapshot so the chip moves without a summary reload.
     """
 
-    from sase.ace.tui.tool_runs.flag import tool_runs_enabled
     from sase.ace.tui.tool_runs.summaries import node_live_runs as _overlay
     from sase.ace.tui.tool_runs.summaries import selector_for_agent
 
-    if not tool_runs_enabled():
-        return None
     if getattr(agent, "fleet_origin_alias", None):
         return None
     if bool(getattr(agent, "is_clan_container", False)):
@@ -336,12 +332,9 @@ def tool_runs_field_entries(
 ) -> tuple[_ToolRunsFieldEntry, ...]:
     """Return one expanded-field entry per label, live winning per label."""
 
-    from sase.ace.tui.tool_runs.flag import tool_runs_enabled
     from sase.ace.tui.tool_runs.summaries import node_live_runs as _overlay
     from sase.ace.tui.tool_runs.summaries import selector_for_agent
 
-    if not tool_runs_enabled():
-        return ()
     if getattr(agent, "fleet_origin_alias", None):
         return ()
     if bool(getattr(agent, "is_clan_container", False)):
@@ -477,16 +470,12 @@ def header_run_id_for_agent(app: object, agent: Agent) -> str | None:
     Reads the cached ``tool-runs`` lane off the prompt panel plus the
     in-memory glance overlay; never touches the store, so copy-mode
     previews and actions stay on a keystroke-safe path. Returns None when
-    the flag is off, the node has no runs, or the panel is unreachable.
+    the node has no runs or the panel is unreachable.
     """
 
     if app is None or agent is None:
         return None
     try:
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-
-        if not tool_runs_enabled():
-            return None
         from sase.ace.tui.tool_runs.snapshot import get_snapshot
 
         query_one = getattr(app, "query_one", None)

@@ -32,7 +32,6 @@ from sase.ace.tui.tool_runs.attribution import (
     row_identity_from_agent,
     select_live_runs,
 )
-from sase.ace.tui.tool_runs.flag import tool_runs_enabled
 from sase.ace.tui.tool_runs.row_chip import tool_run_chip_token
 from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
 from sase.core.time import local_now
@@ -85,20 +84,16 @@ def _finalizer_summary_token(agent: Agent) -> tuple[Any, ...] | None:
 def _tool_run_chip_token(agent: Agent, now: datetime | None) -> tuple[Any, ...] | None:
     """Pure side-cache lookup for the live-only ⚒ chip (plan §3.6).
 
-    Returns None while the flag is off, the snapshot is empty, or the row
-    has no live run. The minute bucket is part of the token so a tick
-    repaints only when the text can have changed. Containers invalidate
-    through the existing recursion into children in ``_runtime_signature``.
+    Returns None while the snapshot is empty or the row has no live run.
+    The minute bucket is part of the token so a tick repaints only when
+    the text can have changed. Containers invalidate through the existing
+    recursion into children in ``_runtime_signature``.
     """
 
-    if not tool_runs_enabled():
-        return None
     if tool_runs_disabled_reason() is not None:
         return None
     snapshot = get_snapshot()
     if snapshot is None or not snapshot.runs:
-        # Flag state alone is a deliberate key edit: turning the flag on
-        # from empty still changes the key via the enabled marker below.
         return None
     row = row_identity_from_agent(agent)
     selected = select_live_runs(snapshot.runs, row)
@@ -119,12 +114,6 @@ def _tool_run_chip_token(agent: Agent, now: datetime | None) -> tuple[Any, ...] 
 
             now_ts = _time.time()
     return tool_run_chip_token(selected, now_ts, snapshot.silent_after_s)
-
-
-def _tool_runs_flag_enabled() -> bool:
-    """Return the beta-flag state for the render key (deliberate key edit)."""
-
-    return bool(tool_runs_enabled())
 
 
 def _quantize_now(now: datetime | None) -> tuple[int, int, int, int, int, int] | None:
@@ -238,7 +227,6 @@ def _runtime_signature(
         agent.fallback_model,
         _finalizer_summary_token(agent),
         _tool_run_chip_token(agent, now),
-        _tool_runs_flag_enabled(),
         _quantize_now(now) if time_sensitive else None,
     )
 
@@ -442,7 +430,6 @@ def agent_render_key(
         tier_styles,
         _runtime_signature(agent, now),
         _tool_run_chip_token(agent, now),
-        _tool_runs_flag_enabled(),
         lanes,
     )
 

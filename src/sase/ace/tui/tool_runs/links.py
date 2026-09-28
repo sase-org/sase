@@ -581,21 +581,11 @@ def context_row_for_agent(
 ) -> Text | None:
     """Return the Context card ``Tool run`` value for *agent*, or None.
 
-    Pure and flag-gated: settled facts come from the ``tool-runs`` lane,
-    live facts overlay from the glance snapshot, and remote/clan rows
-    never carry a row (D15). Returns None when the flag is off, the node
-    has no selector, or it has no runs — so callers stay byte-identical.
+    Pure: settled facts come from the ``tool-runs`` lane, live facts
+    overlay from the glance snapshot, and remote/clan rows never carry
+    a row (D15). Returns None when the node has no selector or no runs.
     """
 
-    try:
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-    except Exception:
-        return None
-    try:
-        if not tool_runs_enabled():
-            return None
-    except Exception:
-        return None
     if getattr(agent, "fleet_origin_alias", None):
         return None
     if bool(getattr(agent, "is_clan_container", False)):
@@ -640,17 +630,6 @@ def context_row_for_agent(
         return None
 
 
-def _flag_on() -> bool:
-    """Return True when the ``ace_tool_runs`` beta flag enables links."""
-
-    try:
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-
-        return bool(tool_runs_enabled())
-    except Exception:
-        return False
-
-
 def _live_snapshot_runs() -> tuple[Any, ...]:
     """Return the in-memory glance runs, or () when unavailable."""
 
@@ -673,12 +652,10 @@ def node_runs_for_agent(
 
     Settled facts come from *node_summary* (falling back to the LRU-only
     cached entry, never a store load); live facts overlay from the
-    in-memory glance snapshot. Returns () when the flag is off, the node
-    has no selector, or it has no runs.
+    in-memory glance snapshot. Returns () when the node has no selector
+    or it has no runs.
     """
 
-    if not _flag_on():
-        return ()
     try:
         from sase.ace.tui.tool_runs.summaries import (
             cached_node_summary_for_selector,
@@ -784,8 +761,6 @@ def context_row_for_agent_cached(
     access stay keystroke-safe.
     """
 
-    if not _flag_on():
-        return None
     try:
         runs = node_runs_for_agent(agent, node_summary, snapshot_runs=snapshot_runs)
     except Exception:

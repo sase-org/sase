@@ -371,7 +371,7 @@ class DeckPanelNavigationMixin:
         except Exception:
             pass
         try:
-            self._merge_tool_runs_availability()
+            self._merge_tool_runs_availability(message)
         except Exception:
             pass
         try:
@@ -396,7 +396,7 @@ class DeckPanelNavigationMixin:
         except Exception:
             pass
 
-    def _merge_tool_runs_availability(self) -> None:
+    def _merge_tool_runs_availability(self, message: Any = None) -> None:
         """Merge the Runs card's availability with the LLM Calls card's."""
         from .availability import DeckAvailability
 
@@ -409,9 +409,17 @@ class DeckPanelNavigationMixin:
         except Exception:
             has_runs = False
         try:
-            runs_count = len(self._tool_runs_document.cards[0].blocks)  # type: ignore[attr-defined]
+            # Prefer the loaded row count: single-run documents render
+            # their run as preamble text (no CardBlock), so len(blocks)
+            # undercounts them as zero.
+            runs_count = int(getattr(message, "n_runs", 0))
         except Exception:
             runs_count = 0
+        if not runs_count:
+            try:
+                runs_count = len(self._tool_runs_document.cards[0].blocks)  # type: ignore[attr-defined]
+            except Exception:
+                runs_count = 0
         calls_has: bool | None = None
         calls_count: int | None = None
         if current is not None:

@@ -25,7 +25,6 @@ from sase.ace.tui.tool_runs.snapshot import (
     get_snapshot,
 )
 from sase.core.tool_run import ToolRunGlance
-from sase.feature_flags import override_flags
 
 
 def _glance(
@@ -244,11 +243,6 @@ def test_row_status_appends_chip_behind_flag() -> None:
         "deadbeef", agent="chip-agent", created_ts=1000, last_activity_ts=1090
     )
     _set_snapshot(_build_snapshot([run], generation=1))
-    with override_flags(ace_tool_runs=True):
-        text = Text("row ")
-        append_agent_row_status(text, agent, now=None)
-        assert "⚒" in text.plain
-    with override_flags(ace_tool_runs=False):
-        text = Text("row ")
-        append_agent_row_status(text, agent, now=None)
-        assert "⚒" not in text.plain
+    text = Text("row ")
+    append_agent_row_status(text, agent, now=None)
+    assert "⚒" in text.plain

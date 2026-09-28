@@ -59,7 +59,6 @@ from sase.ace.tui.tool_runs.attribution import (
     row_identity_from_agent,
     select_live_runs,
 )
-from sase.ace.tui.tool_runs.flag import tool_runs_enabled
 from sase.ace.tui.tool_runs.row_chip import row_chip_for_runs
 from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
 from sase.core.time import local_now
@@ -78,12 +77,9 @@ def _append_tool_run_chip(
     """Append the live-only ⚒ row chip after the ⊛ chip (plan §3.6).
 
     Pure side-cache lookup: reads the app-level glance snapshot plus
-    ``now``. Never stats, opens SQLite, or reads a log. No-op while the
-    ``ace_tool_runs`` beta flag is off.
+    ``now``. Never stats, opens SQLite, or reads a log.
     """
 
-    if not tool_runs_enabled():
-        return
     if tool_runs_disabled_reason() is not None:
         return
     snapshot = get_snapshot()

@@ -41,7 +41,6 @@ from sase.ace.tui.tool_runs.attribution import (
     row_identity_from_agent,
     select_live_runs,
 )
-from sase.ace.tui.tool_runs.flag import tool_runs_enabled
 from sase.ace.tui.tool_runs.row_chip import chip_uses_elapsed_fallback
 from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
 
@@ -193,8 +192,6 @@ def runtime_suffix_ticks(
 def _tool_run_chip_ticks(agent: "Agent") -> bool:
     """Return True when the row's ⚒ chip text depends on time (plan §3.6)."""
 
-    if not tool_runs_enabled():
-        return False
     if tool_runs_disabled_reason() is not None:
         return False
     snapshot = get_snapshot()

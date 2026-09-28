@@ -138,19 +138,11 @@ class DeckPanelChromeMixin:
     def _tools_tabs(self) -> tuple[CardTab, ...]:
         """Return the Tools tabs (``⚒ Runs`` first, then ``LLM Calls``).
 
-        Flag off, this is always today's single ``LLM Calls`` tab. A
-        node without runs keeps the single tab; a monitor or named proc
-        without LLM calls shows only ``⚒ Runs``.
+        A node without runs keeps the single ``LLM Calls`` tab; a monitor
+        or named proc without LLM calls shows only ``⚒ Runs``.
         """
         from sase.ace.tui.tool_runs.deck import tools_tabs
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
 
-        try:
-            enabled = bool(tool_runs_enabled())
-        except Exception:
-            enabled = False
-        if not enabled:
-            return (CardTab("llm-calls", "LLM Calls"),)
         try:
             has_runs = bool(self._tool_runs_document.cards)  # type: ignore[attr-defined]
         except Exception:

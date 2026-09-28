@@ -29,17 +29,8 @@ def _is_command_line_row(task: Any) -> bool:
 
 
 def _tool_run_id(task: Any) -> str | None:
-    """Return the row's ToolRun id while the beta flag is on, else None."""
+    """Return the row's ToolRun id, or None when the row owns no run."""
 
-    try:
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-    except Exception:
-        return None
-    try:
-        if not tool_runs_enabled():
-            return None
-    except Exception:
-        return None
     try:
         from .procs_pane_render import tool_run_id_for_task
 

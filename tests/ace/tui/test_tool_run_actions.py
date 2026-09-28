@@ -26,7 +26,6 @@ from sase.ace.tui.tool_runs.stop import (
     resolve_stoppable_ancestor,
     stop_confirm_copy,
 )
-from sase.feature_flags import override_flags
 
 
 def _run(**overrides: Any) -> dict[str, Any]:
@@ -387,15 +386,12 @@ def test_procs_marker_decoded_from_tags_only() -> None:
     assert _tool_run_label_for_task(_observed_proc(display_name="other")) is None
 
 
-def test_procs_marker_row_gated_by_flag() -> None:
-    """Flag on shows ⚒ check; flag off renders exactly as before."""
+def test_procs_marker_row_shows_tool_run() -> None:
+    """A tool-run proc row carries the ⚒ label marker."""
 
     from sase.ace.tui.modals.procs_pane_render import task_row_label
 
-    with override_flags(ace_tool_runs=True):
-        assert "⚒ check" in task_row_label(_observed_proc()).plain
-    with override_flags(ace_tool_runs=False):
-        assert "⚒" not in task_row_label(_observed_proc()).plain
+    assert "⚒ check" in task_row_label(_observed_proc()).plain
 
 
 # --- palette ----------------------------------------------------------------
@@ -424,7 +420,7 @@ def test_palette_has_four_tool_run_commands() -> None:
 
 
 def test_palette_tool_run_availability() -> None:
-    """Show needs runs, stop needs a live run, and flag off hides all four."""
+    """Show needs runs and stop needs a live run; pane and catalog need no node."""
 
     ids = (
         "tool_runs.show",
@@ -440,18 +436,14 @@ def test_palette_tool_run_availability() -> None:
     )
     settled = CommandContext(tab="agents", selected_node_has_tool_runs=True)
     bare = CommandContext(tab="agents")
-    with override_flags(ace_tool_runs=True):
-        assert is_command_available(specs["tool_runs.show"], live) is True
-        assert is_command_available(specs["tool_runs.stop"], live) is True
-        assert is_command_available(specs["tool_runs.show"], settled) is True
-        assert is_command_available(specs["tool_runs.stop"], settled) is False
-        assert is_command_available(specs["tool_runs.show"], bare) is False
-        assert is_command_available(specs["tool_runs.stop"], bare) is False
-        assert is_command_available(specs["tool_runs.open_pane"], bare) is True
-        assert is_command_available(specs["tool_runs.run_tool"], bare) is True
-    with override_flags(ace_tool_runs=False):
-        for spec_id in ids:
-            assert is_command_available(specs[spec_id], live) is False
+    assert is_command_available(specs["tool_runs.show"], live) is True
+    assert is_command_available(specs["tool_runs.stop"], live) is True
+    assert is_command_available(specs["tool_runs.show"], settled) is True
+    assert is_command_available(specs["tool_runs.stop"], settled) is False
+    assert is_command_available(specs["tool_runs.show"], bare) is False
+    assert is_command_available(specs["tool_runs.stop"], bare) is False
+    assert is_command_available(specs["tool_runs.open_pane"], bare) is True
+    assert is_command_available(specs["tool_runs.run_tool"], bare) is True
 
 
 # --- keymaps ----------------------------------------------------------------

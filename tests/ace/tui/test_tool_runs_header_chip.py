@@ -24,7 +24,6 @@ from sase.core.tool_run import (
     ToolRunNodeSummary,
     ToolRunVerdictSummary,
 )
-from sase.feature_flags import override_flags
 
 _NOW = 2000.0
 
@@ -149,14 +148,11 @@ def test_chip_per_bucket() -> None:
     for bucket, fragment in cases:
         counts: dict[str, Any] = {"new": 3, "known": 1, "unknown": 2}
         terminal = "signal" if bucket == "killed" else None
-        with override_flags(ace_tool_runs=True):
-            rendered = header_chip_for_node(
-                _node(),
-                _summary(
-                    (_brief("r1", bucket=bucket, terminal_cause=terminal, **counts),)
-                ),
-                now_ts=_NOW,
-            )
+        rendered = header_chip_for_node(
+            _node(),
+            _summary((_brief("r1", bucket=bucket, terminal_cause=terminal, **counts),)),
+            now_ts=_NOW,
+        )
         assert rendered is not None, bucket
         text, _style, run_id = rendered
         assert fragment in text, (bucket, text)
@@ -166,22 +162,20 @@ def test_chip_per_bucket() -> None:
 
 
 def test_untriaged_chip() -> None:
-    with override_flags(ace_tool_runs=True):
-        rendered = header_chip_for_node(
-            _node(),
-            _summary((_brief("r1", bucket="undetermined", reasons=("not_triaged",)),)),
-            now_ts=_NOW,
-        )
+    rendered = header_chip_for_node(
+        _node(),
+        _summary((_brief("r1", bucket="undetermined", reasons=("not_triaged",)),)),
+        now_ts=_NOW,
+    )
     assert rendered is not None
     assert "? untriaged" in rendered[0]
 
 
 def test_live_chip_progress_typical_and_amber() -> None:
     run = _glance("live1", stages_done=6, stages_expected=11, typical_ms=253000)
-    with override_flags(ace_tool_runs=True):
-        rendered = header_chip_for_node(
-            _node(), None, snapshot_runs=[run], now_ts=133.0 + 1000
-        )
+    rendered = header_chip_for_node(
+        _node(), None, snapshot_runs=[run], now_ts=133.0 + 1000
+    )
     assert rendered is not None
     text, style, run_id = rendered
     assert "7/11" in text, text
@@ -190,37 +184,29 @@ def test_live_chip_progress_typical_and_amber() -> None:
     assert run_id == "live1"
 
     old = _glance("live2", stages_done=1, stages_expected=None, typical_ms=240000)
-    with override_flags(ace_tool_runs=True):
-        rendered = header_chip_for_node(
-            _node(), None, snapshot_runs=[old], now_ts=1600.0
-        )
+    rendered = header_chip_for_node(_node(), None, snapshot_runs=[old], now_ts=1600.0)
     assert rendered is not None
     assert rendered[1] == "bold #FFAF5F", rendered  # elapsed past typical turns amber
 
 
 def test_silent_chip_and_starting_stopping() -> None:
     silent = _glance("s1", last_activity_ts=500)
-    with override_flags(ace_tool_runs=True):
-        rendered = header_chip_for_node(
-            _node(), None, snapshot_runs=[silent], now_ts=_NOW
-        )
+    rendered = header_chip_for_node(_node(), None, snapshot_runs=[silent], now_ts=_NOW)
     assert rendered is not None
     assert rendered[0].startswith("⚒⚠"), rendered[0]
     assert "silent" in rendered[0]
     assert rendered[1] == "bold #FF5F5F"
 
     starting = _glance("s2", state="created")
-    with override_flags(ace_tool_runs=True):
-        rendered = header_chip_for_node(
-            _node(), None, snapshot_runs=[starting], now_ts=_NOW
-        )
+    rendered = header_chip_for_node(
+        _node(), None, snapshot_runs=[starting], now_ts=_NOW
+    )
     assert rendered is not None and "starting" in rendered[0]
 
     stopping = _glance("s3", stop_requested=True)
-    with override_flags(ace_tool_runs=True):
-        rendered = header_chip_for_node(
-            _node(), None, snapshot_runs=[stopping], now_ts=_NOW
-        )
+    rendered = header_chip_for_node(
+        _node(), None, snapshot_runs=[stopping], now_ts=_NOW
+    )
     assert rendered is not None and "stopping" in rendered[0]
 
 
@@ -229,8 +215,7 @@ def test_multi_label_severity_and_plus_n() -> None:
         _brief("p1", label="test", bucket="pass"),
         _brief("n1", label="check", bucket="new_failures", new=3, known=1),
     )
-    with override_flags(ace_tool_runs=True):
-        rendered = header_chip_for_node(_node(), _summary(briefs), now_ts=_NOW)
+    rendered = header_chip_for_node(_node(), _summary(briefs), now_ts=_NOW)
     assert rendered is not None
     assert "✗ 3 NEW" in rendered[0], rendered[0]
     assert rendered[0].endswith("+1"), rendered[0]
@@ -240,18 +225,14 @@ def test_multi_label_severity_and_plus_n() -> None:
 def test_live_outranks_settled_and_silent_outranks_live() -> None:
     settled = _summary((_brief("old", bucket="new_failures", new=5),))
     live = _glance("live1", created_ts=1500, last_activity_ts=1990)
-    with override_flags(ace_tool_runs=True):
-        rendered = header_chip_for_node(
-            _node(), settled, snapshot_runs=[live], now_ts=_NOW
-        )
+    rendered = header_chip_for_node(_node(), settled, snapshot_runs=[live], now_ts=_NOW)
     assert rendered is not None and rendered[2] == "live1"
 
     quiet = _glance("live2", created_ts=1400, last_activity_ts=1995)
     loud = _glance("live3", created_ts=1500, last_activity_ts=500)
-    with override_flags(ace_tool_runs=True):
-        rendered = header_chip_for_node(
-            _node(), None, snapshot_runs=[quiet, loud], now_ts=_NOW
-        )
+    rendered = header_chip_for_node(
+        _node(), None, snapshot_runs=[quiet, loud], now_ts=_NOW
+    )
     assert rendered is not None and rendered[2] == "live3"
 
 
@@ -302,10 +283,9 @@ def test_monitor_selector_and_starter_annotation() -> None:
         owner_id="m1",
     )
     overlay = _glance("mrun1", agent="starter", owner_kind="monitor", owner_id="m1")
-    with override_flags(ace_tool_runs=True):
-        entries = tool_runs_field_entries(
-            agent, _summary((owned,)), snapshot_runs=[overlay], now_ts=_NOW
-        )
+    entries = tool_runs_field_entries(
+        agent, _summary((owned,)), snapshot_runs=[overlay], now_ts=_NOW
+    )
     assert len(entries) == 1
     assert entries[0].text.endswith(" · starter"), entries[0].text
 
@@ -313,8 +293,7 @@ def test_monitor_selector_and_starter_annotation() -> None:
     handed = _brief(
         "hrun1", bucket="pass", agent="starter", owner_kind="monitor", owner_id="m1"
     )
-    with override_flags(ace_tool_runs=True):
-        entries = tool_runs_field_entries(turn, _summary((handed,)), now_ts=_NOW)
+    entries = tool_runs_field_entries(turn, _summary((handed,)), now_ts=_NOW)
     assert entries[0].text.endswith(" → monitor m1"), entries[0].text
 
 
@@ -323,39 +302,14 @@ def test_remote_and_clan_have_no_chip_or_field() -> None:
     clan = _node("x", is_clan_container=True)
     run = _glance("a", agent="x")
     brief = _summary((_brief("b1", bucket="pass"),))
-    with override_flags(ace_tool_runs=True):
-        assert (
-            header_chip_for_node(remote, brief, snapshot_runs=[run], now_ts=_NOW)
-            is None
-        )
-        assert (
-            header_chip_for_node(clan, brief, snapshot_runs=[run], now_ts=_NOW) is None
-        )
-        assert (
-            tool_runs_field_entries(remote, brief, snapshot_runs=[run], now_ts=_NOW)
-            == ()
-        )
-        assert (
-            tool_runs_field_entries(clan, brief, snapshot_runs=[run], now_ts=_NOW) == ()
-        )
+    assert header_chip_for_node(remote, brief, snapshot_runs=[run], now_ts=_NOW) is None
+    assert header_chip_for_node(clan, brief, snapshot_runs=[run], now_ts=_NOW) is None
+    assert (
+        tool_runs_field_entries(remote, brief, snapshot_runs=[run], now_ts=_NOW) == ()
+    )
+    assert tool_runs_field_entries(clan, brief, snapshot_runs=[run], now_ts=_NOW) == ()
     assert selector_for_agent(remote) is None
     assert selector_for_agent(clan) is None
-
-
-def test_flag_off_has_no_surfaces() -> None:
-    run = _glance("a", agent="x")
-    brief = _summary((_brief("b1", bucket="pass"),))
-    with override_flags(ace_tool_runs=False):
-        assert (
-            header_chip_for_node(_node(), brief, snapshot_runs=[run], now_ts=_NOW)
-            is None
-        )
-        assert (
-            tool_runs_field_entries(_node(), brief, snapshot_runs=[run], now_ts=_NOW)
-            == ()
-        )
-        assert resolve_tool_run_summary(_node(), store_token="t") is None
-        assert header_run_id_for_agent(object(), _node()) is None
 
 
 def test_field_entries_format_per_label() -> None:
@@ -365,8 +319,7 @@ def test_field_entries_format_per_label() -> None:
         ),
         _brief("81ef0cb1" + "0" * 24, label="test", bucket="pass"),
     )
-    with override_flags(ace_tool_runs=True):
-        entries = tool_runs_field_entries(_node(), _summary(briefs), now_ts=_NOW)
+    entries = tool_runs_field_entries(_node(), _summary(briefs), now_ts=_NOW)
     assert [entry.text for entry in entries] == [
         "check ✗ 3 NEW · 1 KNOWN 6c3d5107",
         "test ✓ 81ef0cb1",
@@ -395,22 +348,21 @@ def test_lru_hit_avoids_reload_and_stale_load_rejected(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(core_tool_run, "tool_run_node_summaries", _fake)
-    with override_flags(ace_tool_runs=True):
-        first = resolve_tool_run_summary(_node("x"), store_token="t1")
-        assert first is not None
-        assert len(calls) == 1
-        assert calls[0]["nodes"][0]["agents"] == ["x"]
-        second = resolve_tool_run_summary(_node("x"), store_token="t1")
-        assert second is first
-        assert len(calls) == 1
-        stale = resolve_tool_run_summary(
-            _node("x"), store_token="t2", is_current=lambda: False
-        )
-        assert stale is None  # j/k moved on mid-load: never published
-        assert len(calls) == 2
-        # The stale load still cached under its token for the next selection.
-        assert resolve_tool_run_summary(_node("x"), store_token="t2") is not None
-        assert len(calls) == 2
+    first = resolve_tool_run_summary(_node("x"), store_token="t1")
+    assert first is not None
+    assert len(calls) == 1
+    assert calls[0]["nodes"][0]["agents"] == ["x"]
+    second = resolve_tool_run_summary(_node("x"), store_token="t1")
+    assert second is first
+    assert len(calls) == 1
+    stale = resolve_tool_run_summary(
+        _node("x"), store_token="t2", is_current=lambda: False
+    )
+    assert stale is None  # j/k moved on mid-load: never published
+    assert len(calls) == 2
+    # The stale load still cached under its token for the next selection.
+    assert resolve_tool_run_summary(_node("x"), store_token="t2") is not None
+    assert len(calls) == 2
 
 
 def test_copy_registry_keymap_and_dispatch_cover_tool_run_id() -> None:
@@ -459,10 +411,7 @@ def test_header_run_id_for_agent_copies_full_id(monkeypatch) -> None:
         "get_cached_detail_header_summary",
         lambda _widget, _agent: SimpleNamespace(tool_run_summary=summary),
     )
-    with override_flags(ace_tool_runs=True):
-        assert header_run_id_for_agent(_App(), _node()) == full_id
-    with override_flags(ace_tool_runs=False):
-        assert header_run_id_for_agent(_App(), _node()) is None
+    assert header_run_id_for_agent(_App(), _node()) == full_id
     assert header_chip_module.header_run_id_for_agent(None, _node()) is None
 
 
@@ -483,14 +432,10 @@ def test_compact_header_renders_chip_through_real_builder() -> None:
             (_brief("n1", bucket="new_failures", new=3, known=1),)
         )
     )
-    with override_flags(ace_tool_runs=True):
-        compact = build_agent_compact_lines(agent=agent, summary=summary)
+    compact = build_agent_compact_lines(agent=agent, summary=summary)
     assert isinstance(compact, Text)
     assert "⚒ check" in compact.plain, compact.plain
     assert "3 NEW" in compact.plain, compact.plain
-    with override_flags(ace_tool_runs=False):
-        compact = build_agent_compact_lines(agent=agent, summary=summary)
-    assert "⚒" not in compact.plain, compact.plain
 
 
 def test_expanded_metadata_renders_tool_runs_field() -> None:
@@ -513,31 +458,18 @@ def test_expanded_metadata_renders_tool_runs_field() -> None:
             )
         )
     )
-    with override_flags(ace_tool_runs=True):
-        text = Text()
-        append_agent_metadata_fields(
-            text,
-            agent,
-            cheap=True,
-            hint_state=None,
-            summary=summary,
-            agent_status_buckets=None,
-            cached_bead_display=lambda _agent: None,
-        )
+    text = Text()
+    append_agent_metadata_fields(
+        text,
+        agent,
+        cheap=True,
+        hint_state=None,
+        summary=summary,
+        agent_status_buckets=None,
+        cached_bead_display=lambda _agent: None,
+    )
     assert "Tool runs: " in text.plain, text.plain
     assert "check ✓ 6c3d5107" in text.plain, text.plain
-    with override_flags(ace_tool_runs=False):
-        text = Text()
-        append_agent_metadata_fields(
-            text,
-            agent,
-            cheap=True,
-            hint_state=None,
-            summary=summary,
-            agent_status_buckets=None,
-            cached_bead_display=lambda _agent: None,
-        )
-    assert "Tool runs:" not in text.plain, text.plain
 
 
 def test_tool_runs_lane_resolves_through_header_summary(monkeypatch) -> None:
@@ -554,7 +486,6 @@ def test_tool_runs_lane_resolves_through_header_summary(monkeypatch) -> None:
         build_detail_header_summary,
     )
 
-    with override_flags(ace_tool_runs=True):
-        built = build_detail_header_summary(agent, lanes=frozenset({"tool-runs"}))
+    built = build_detail_header_summary(agent, lanes=frozenset({"tool-runs"}))
     assert built.ready_lanes == frozenset({"tool-runs"})
     assert built.tool_run_summary is summary

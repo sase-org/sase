@@ -257,24 +257,12 @@ class DeckPanel(  # type: ignore[misc]
             pass
 
     def active_tools_card(self) -> str | None:
-        """Return the active Tools card id (``runs`` | ``llm-calls``).
-
-        Flag off, this is always ``llm-calls``: Tools is exactly
-        today's deck.
-        """
+        """Return the active Tools card id (``runs`` | ``llm-calls``)."""
         from sase.ace.tui.tool_runs.deck import (
-            TOOLS_LLM_CALLS_CARD_ID,
             tools_card_ids,
             tools_default_card,
         )
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
 
-        try:
-            enabled = bool(tool_runs_enabled())
-        except Exception:
-            enabled = False
-        if not enabled:
-            return TOOLS_LLM_CALLS_CARD_ID
         try:
             has_runs = bool(self._tool_runs_document.cards)
         except Exception:

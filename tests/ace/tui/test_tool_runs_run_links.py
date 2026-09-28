@@ -14,7 +14,6 @@ from sase.ace.tui.widgets._llm_calls_panel_timeline import (
     build_llm_calls_timeline_text,
 )
 from sase.core.tool_run import ToolRunBrief, ToolRunGlance, ToolRunVerdictSummary
-from sase.feature_flags import override_flags
 
 _NOW_TS = 1_700_000_000.0
 
@@ -190,59 +189,37 @@ def test_slow_tool_suffix_running_and_settled() -> None:
 
 
 def test_monitor_context_row_from_ledger_owner_join() -> None:
-    with override_flags(ace_tool_runs=True):
-        run = _brief(
-            "ab12cd34" * 4,
-            bucket="new_failures",
-            new=3,
-            known=1,
-            agent="starter-turn",
-            owner_kind="monitor",
-            owner_id="mon-1",
-        )
-        summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
-        agent = SimpleNamespace(
-            is_monitor=True,
-            monitor_id="mon-1",
-            is_named_proc=False,
-            proc_id=None,
-            agent_name=None,
-            display_name=None,
-            fleet_origin_alias=None,
-            is_clan_container=False,
-            is_session_container=False,
-            session_member_names=(),
-            container_name=None,
-            start_time=None,
-        )
-        row = run_links.context_row_for_agent(agent, summary, now_ts=_NOW_TS)
-        assert row is not None
-        assert "⚒ check ✗ 3 NEW" in row.plain
-        assert "ab12cd34" in row.plain
+    run = _brief(
+        "ab12cd34" * 4,
+        bucket="new_failures",
+        new=3,
+        known=1,
+        agent="starter-turn",
+        owner_kind="monitor",
+        owner_id="mon-1",
+    )
+    summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
+    agent = SimpleNamespace(
+        is_monitor=True,
+        monitor_id="mon-1",
+        is_named_proc=False,
+        proc_id=None,
+        agent_name=None,
+        display_name=None,
+        fleet_origin_alias=None,
+        is_clan_container=False,
+        is_session_container=False,
+        session_member_names=(),
+        container_name=None,
+        start_time=None,
+    )
+    row = run_links.context_row_for_agent(agent, summary, now_ts=_NOW_TS)
+    assert row is not None
+    assert "⚒ check ✗ 3 NEW" in row.plain
+    assert "ab12cd34" in row.plain
 
 
-def test_flag_off_context_row_is_none() -> None:
-    with override_flags(ace_tool_runs=False):
-        run = _brief("ab12" * 8)
-        summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
-        agent = SimpleNamespace(
-            is_monitor=False,
-            monitor_id=None,
-            is_named_proc=False,
-            proc_id=None,
-            agent_name="0t9--code",
-            display_name=None,
-            fleet_origin_alias=None,
-            is_clan_container=False,
-            is_session_container=False,
-            session_member_names=(),
-            container_name=None,
-            start_time=None,
-        )
-        assert run_links.context_row_for_agent(agent, summary) is None
-
-
-def test_flag_off_timeline_byte_identical() -> None:
+def test_non_tool_timeline_has_no_suffix() -> None:
     entry = _bash_entry("sase tool run check")
     fetch_time = datetime(2023, 11, 14, 22, 14, 0, tzinfo=UTC)
     plain = build_llm_calls_timeline_text((entry,), fetch_time)
@@ -269,52 +246,36 @@ def _node_agent(**overrides: object) -> SimpleNamespace:
 
 
 def test_wiring_links_for_agent_entries() -> None:
-    with override_flags(ace_tool_runs=True):
-        run = _brief("ab12" * 8, bucket="new_failures", new=3, known=1)
-        summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
-        entry = _bash_entry("sase tool run check")
-        links = run_links.run_links_for_agent_entries(
-            _node_agent(), (entry,), summary, snapshot_runs=()
-        )
-        assert links == {id(entry): run}
-
-
-def test_wiring_links_flag_off_is_empty() -> None:
-    with override_flags(ace_tool_runs=False):
-        run = _brief("ab12" * 8)
-        summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
-        entry = _bash_entry("sase tool run check")
-        assert (
-            run_links.run_links_for_agent_entries(
-                _node_agent(), (entry,), summary, snapshot_runs=()
-            )
-            == {}
-        )
+    run = _brief("ab12" * 8, bucket="new_failures", new=3, known=1)
+    summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
+    entry = _bash_entry("sase tool run check")
+    links = run_links.run_links_for_agent_entries(
+        _node_agent(), (entry,), summary, snapshot_runs=()
+    )
+    assert links == {id(entry): run}
 
 
 def test_wiring_slow_suffixes_for_sources() -> None:
-    with override_flags(ace_tool_runs=True):
-        run = _brief("ab12" * 8, bucket="new_failures", new=3, known=1)
-        summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
-        entry = _bash_entry("sase tool run check")
-        sources = (SimpleNamespace(entries=(entry,)),)
-        suffixes = run_links.slow_suffixes_for_agent_sources(
-            _node_agent(), sources, summary, snapshot_runs=()
-        )
-        assert set(suffixes) == {id(entry)}
-        assert "· ⚒ check" in suffixes[id(entry)].plain
+    run = _brief("ab12" * 8, bucket="new_failures", new=3, known=1)
+    summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
+    entry = _bash_entry("sase tool run check")
+    sources = (SimpleNamespace(entries=(entry,)),)
+    suffixes = run_links.slow_suffixes_for_agent_sources(
+        _node_agent(), sources, summary, snapshot_runs=()
+    )
+    assert set(suffixes) == {id(entry)}
+    assert "· ⚒ check" in suffixes[id(entry)].plain
 
 
 def test_wiring_context_row_cached() -> None:
-    with override_flags(ace_tool_runs=True):
-        run = _brief("ab12cd34" * 4, bucket="new_failures", new=3, known=1)
-        summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
-        row = run_links.context_row_for_agent_cached(
-            _node_agent(), summary, snapshot_runs=()
-        )
-        assert row is not None
-        assert "⚒ check ✗ 3 NEW" in row.plain
-        assert "ab12cd34" in row.plain
+    run = _brief("ab12cd34" * 4, bucket="new_failures", new=3, known=1)
+    summary = SimpleNamespace(latest_by_tool=(run,), runs=(run,))
+    row = run_links.context_row_for_agent_cached(
+        _node_agent(), summary, snapshot_runs=()
+    )
+    assert row is not None
+    assert "⚒ check ✗ 3 NEW" in row.plain
+    assert "ab12cd34" in row.plain
 
 
 def test_jump_meta_matches_block_header() -> None:

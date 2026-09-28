@@ -144,16 +144,8 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         }:
             return False
 
-    # The tool-run copy target only exists while the beta flag is on, so the
-    # flag-off palette stays byte-identical.
-    if spec.id == "copy.agents.tool_run_id":
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-
-        return tool_runs_enabled()
-
     # ToolRun palette commands (sase-1bt.11): "Show tool runs" needs a node
-    # with runs; "Stop live tool run" needs a local live run. The pane and
-    # catalog entries have no node precondition beyond the flag gate.
+    # with runs; "Stop live tool run" needs a local live run.
     if spec.id == "tool_runs.show":
         return bool(ctx.selected_node_has_tool_runs)
     if spec.id == "tool_runs.stop":

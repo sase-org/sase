@@ -15,6 +15,7 @@ from textual import events
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from rich.text import Text
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets._option_list import Option
 
@@ -471,7 +472,7 @@ class ToolRunsPane(Vertical):
         else:
             detail.update(self._catalog_detail_text())
 
-    def _runs_detail_text(self, width: int) -> str:
+    def _runs_detail_text(self, width: int) -> str | Text:
         run_id = self._selected_identity() or self._selected_run_id
         brief = next(
             (
@@ -490,20 +491,14 @@ class ToolRunsPane(Vertical):
             return "No tool runs in scope."
         detail_obj = self._detail_for(run_id)
         try:
-            from rich.console import Console
-
             from sase.ace.tui.tool_runs.blocks import render_tool_run_block
 
-            text = render_tool_run_block(
+            return render_tool_run_block(
                 brief,
                 detail_obj,
                 level=ToolRunsDetailLevel.STANDARD,
                 width=width,
             )
-            console = Console(width=width)
-            with console.capture() as capture:
-                console.print(text, end="")
-            return capture.get()
         except Exception:
             return format_run_row("settled", brief)
 

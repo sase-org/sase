@@ -22,7 +22,6 @@ from sase.ace.tui.tool_runs.attribution import (
     row_identity_from_agent,
     select_live_runs,
 )
-from sase.ace.tui.tool_runs.flag import tool_runs_enabled
 from sase.ace.tui.tool_runs.snapshot import (
     ToolRunsLoadState,
     apply_loaded_snapshot,
@@ -65,8 +64,6 @@ class ToolRunGlanceLoaderMixin:
     def _schedule_tool_runs_refresh(self, *, source: str = "unknown") -> None:
         """Queue a coalesced glance load once the first agents load applied."""
         if tool_runs_disabled_reason() is not None:
-            return
-        if not tool_runs_enabled():
             return
         if not getattr(self, "_agents_first_load_done", False):
             return
@@ -152,8 +149,6 @@ class ToolRunGlanceLoaderMixin:
         tab is visible, piggyback on the existing countdown tick. Adds no
         new timer or loop. A quiet tick opens no ToolRun file.
         """
-        if not tool_runs_enabled():
-            return
         if tool_runs_disabled_reason() is not None:
             return
         if getattr(self, "current_tab", None) != "agents":

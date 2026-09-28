@@ -35,14 +35,6 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     """
     if ctx.tab not in spec.tabs:
         return False
-    if spec.id.startswith("tool_runs."):
-        try:
-            from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-
-            if not tool_runs_enabled():
-                return False
-        except Exception:
-            return False
     if spec.id == "app.follow_artifact_link":
         return ctx.link_edges_present is not False
     if ctx.tab == "artifacts":

@@ -334,10 +334,6 @@ class ToolRunsDeckView(CardDocumentView):
         the live tick uses it to re-fetch details only when the glance
         store token drifted (plan §4.8).
         """
-        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
-
-        if not tool_runs_enabled():
-            return
         subject = _subject_key(agent)
         identity = getattr(agent, "identity", None)
         self._current_agent = agent

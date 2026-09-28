@@ -54,7 +54,6 @@ from sase.core.tool_run import (
     ToolRunNodeSummary,
     ToolRunVerdictSummary,
 )
-from sase.feature_flags import override_flags
 
 
 def _verdict(bucket: str, **counts: Any) -> ToolRunVerdictSummary:
@@ -233,6 +232,8 @@ def test_picker_label_counts() -> None:
     assert tools_picker_label(2, 57) == "2 runs · 57 calls"
     assert tools_picker_label(1, 1) == "1 run · 1 call"
     assert tools_picker_label(2, None) == "2 runs"
+    assert tools_picker_label(1, 0) == "1 run"
+    assert tools_picker_label(0, 0) == "0 runs"
     assert tools_picker_label(None, 57) == "57 calls"
     assert tools_picker_label(None, None) == ""
 
@@ -444,54 +445,29 @@ def test_probe_reads_cached_history_without_io() -> None:
 
 
 def test_probe_opens_for_monitor_owned_runs() -> None:
-    with override_flags(ace_tool_runs=True):
-        agent = _node(agent_name=None, monitor_id="mon-1", agent_entry=False)
-        from sase.ace.tui.tool_runs.summaries import selector_for_agent
+    agent = _node(agent_name=None, monitor_id="mon-1", agent_entry=False)
+    from sase.ace.tui.tool_runs.summaries import selector_for_agent
 
-        selector = selector_for_agent(agent)
-        assert selector is not None
-        assert selector.owners == (("monitor", "mon-1"),)
-        _store(
-            selector,
-            ToolRunNodeSummary(
-                key=selector.key,
-                total_runs=1,
-                runs=(
-                    _brief(
-                        "c" * 32,
-                        agent="starter-turn",
-                        owner_kind="monitor",
-                        owner_id="mon-1",
-                    ),
+    selector = selector_for_agent(agent)
+    assert selector is not None
+    assert selector.owners == (("monitor", "mon-1"),)
+    _store(
+        selector,
+        ToolRunNodeSummary(
+            key=selector.key,
+            total_runs=1,
+            runs=(
+                _brief(
+                    "c" * 32,
+                    agent="starter-turn",
+                    owner_kind="monitor",
+                    owner_id="mon-1",
                 ),
             ),
-        )
-        assert probe_tool_runs_card(agent) == (True, 1)
-        availability = probe_tools_deck(agent, attempt_number=None)
-        assert availability.has_content is True
-        assert availability.runs_count == 1
-        assert availability.calls_count == 0
-
-
-def test_flag_off_probe_matches_legacy_deck() -> None:
-    from datetime import datetime
-
-    from sase.ace.tui.models.agent import Agent, AgentType
-
-    agent = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="deck-agent",
-        project_file="/tmp/test.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 5, 31, 12, 0, 0),
-        raw_suffix="20260531120000",
+        ),
     )
-    agent.agent_name = "deck-agent"
-    with override_flags(ace_tool_runs=False):
-        assert probe_tools_deck(_node(clan=True), attempt_number=None).has_content is (
-            False
-        )
-        pinned = probe_tools_deck(_node(), attempt_number=2)
-        assert (pinned.has_content, pinned.count) == (False, 0)
-        cold = probe_tools_deck(agent, attempt_number=None)
-        assert (cold.has_content, cold.count, cold.runs_count) == (None, None, None)
+    assert probe_tool_runs_card(agent) == (True, 1)
+    availability = probe_tools_deck(agent, attempt_number=None)
+    assert availability.has_content is True
+    assert availability.runs_count == 1
+    assert availability.calls_count == 0
