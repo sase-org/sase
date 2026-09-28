@@ -17,8 +17,8 @@ from sase.ace.tui.modals.revive_agent_rendering import (
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_owner_badge import agent_owner_badge_label
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
-from sase.ace.tui.widgets.prompt_panel._agent_display_header_metadata import (
-    _append_identity_fields,
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_metadata_identity import (
+    append_identity_fields,
 )
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from rich.text import Text
@@ -88,7 +88,7 @@ def test_detail_header_renders_owner_field(local_owner: AgentOwnerIdentity) -> N
     )
     agent.presented_agent_name = "crew--code"
     text = Text()
-    _append_identity_fields(text, agent, None, lambda _agent: None, None)
+    append_identity_fields(text, agent, None, lambda _agent: None, None)
     assert "Owner:" in text.plain
     assert "bob@zeus" in text.plain
 

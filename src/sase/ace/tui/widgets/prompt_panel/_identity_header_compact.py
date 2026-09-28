@@ -24,7 +24,7 @@ from .._agent_list_styling import (
     _AGENT_SESSION_NAME_STYLE,
     _NAMED_PROC_ID_STYLE,
 )
-from ._agent_display_header_metadata import _UNASSIGNED_AGENT_NAME_DISPLAY
+from ._agent_display_header_metadata_identity import UNASSIGNED_AGENT_NAME_DISPLAY
 from ._agent_display_state import DetailHeaderSummary
 from ._agent_display_tribe_common import STATUS_STYLES as _TRIBE_STATUS_STYLES
 from ._agent_turn_section import ResponsiveTurnSection
@@ -77,7 +77,7 @@ def _name_chip(agent: Agent) -> Text:
     chip = Text()
     presented_name = agent.presented_agent_name or agent.agent_name
     if not presented_name:
-        chip.append(_UNASSIGNED_AGENT_NAME_DISPLAY, style=_NAME_FALLBACK_STYLE)
+        chip.append(UNASSIGNED_AGENT_NAME_DISPLAY, style=_NAME_FALLBACK_STYLE)
         return chip
     if agent.is_agent_session_container_row:
         style = _AGENT_SESSION_NAME_STYLE

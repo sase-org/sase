@@ -7,8 +7,8 @@ from datetime import datetime
 from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets.prompt_panel._agent_display_header_metadata import (
-    _append_fleet_fields,
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_metadata_remote import (
+    append_fleet_fields,
 )
 
 
@@ -29,7 +29,7 @@ def test_append_fleet_fields_omits_feed_error_line_when_healthy() -> None:
     agent = _remote_agent(fleet_connection_health="online", fleet_freshness="fresh")
 
     text = Text()
-    _append_fleet_fields(text, agent)
+    append_fleet_fields(text, agent)
 
     assert "Feed error:" not in text.plain
 
@@ -42,7 +42,7 @@ def test_append_fleet_fields_surfaces_diagnostic_for_invalid_host() -> None:
     )
 
     text = Text()
-    _append_fleet_fields(text, agent)
+    append_fleet_fields(text, agent)
 
     assert "Feed error: " in text.plain
     assert "invalid_envelope" in text.plain

@@ -26,8 +26,8 @@ from ...widgets._agent_list_styling import (
 )
 from ...widgets.prompt_panel._agent_bead_section import ResponsiveBeadSection
 from ...widgets.prompt_panel._agent_context import append_agent_context_section
-from ...widgets.prompt_panel._agent_display_header_metadata import (
-    _LEGACY_MEMBER_STATUS_STYLES,
+from ...widgets.prompt_panel._agent_display_header_metadata_sections import (
+    LEGACY_MEMBER_STATUS_STYLES,
 )
 from ...widgets.prompt_panel._agent_display_header_summary import (
     build_detail_header_summary,
@@ -79,7 +79,7 @@ def _identity_section(agent: Agent) -> PagerSection | None:
     if agent.status:
         bucket = agent_status_bucket(agent)
         glyph = AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "?")
-        style = _LEGACY_MEMBER_STATUS_STYLES.get(bucket, "bold")
+        style = LEGACY_MEMBER_STATUS_STYLES.get(bucket, "bold")
         _label(text, "Status")
         text.append(f"{glyph} {agent.display_status}", style=style)
         if agent.status_bucket:

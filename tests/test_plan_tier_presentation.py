@@ -57,7 +57,7 @@ class TestPlanTierPresentationLookup:
 
 
 def test_auto_approve_kind_styles_values_unchanged() -> None:
-    from sase.ace.tui.widgets.prompt_panel._agent_display_header_metadata import (
+    from sase.ace.tui.widgets.prompt_panel._agent_display_header_metadata_identity import (
         _AUTO_APPROVE_KIND_STYLES,
     )
 

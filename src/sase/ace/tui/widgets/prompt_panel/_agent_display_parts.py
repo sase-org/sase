@@ -11,10 +11,7 @@ from ._agent_display_content import (
     render_phase_divider,
     render_timestamp_divider,
 )
-from ._agent_display_header import (
-    _UNASSIGNED_AGENT_NAME_DISPLAY,
-    build_header_text,
-)
+from ._agent_display_header import build_header_text
 from ._agent_display_header_summary import (
     _DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES,
     DetailHeaderSummaryCacheEntry,
@@ -49,7 +46,6 @@ __all__ = [
     "_DetailHeaderSummary",
     "_DetailHeaderSummaryCacheEntry",
     "_PHASE_SUFFIX_TOKENS",
-    "_UNASSIGNED_AGENT_NAME_DISPLAY",
     "build_detail_header_summary",
     "build_header_text",
     "cache_detail_header_summary",

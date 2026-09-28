@@ -43,7 +43,6 @@ from ._agent_display_agent_session import (
 )
 from ._agent_display_neighbors import append_lane_neighbors_section
 from ._agent_display_header_metadata import (
-    _UNASSIGNED_AGENT_NAME_DISPLAY,
     append_agent_metadata_fields,
     append_legacy_parallel_members_section,
 )
