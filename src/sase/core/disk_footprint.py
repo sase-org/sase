@@ -44,7 +44,7 @@ from sase.workspace_provider.inventory import collect_workspace_inventory
 
 _DiskFootprintRow = DiskFootprintRow
 _DiskReapStep = DiskReapStep
-_GIB = _inventory._GIB
+_GIB = 1024**3
 _cargo_stray_rows = _inventory.cargo_stray_rows
 _du_size = _utils.du_size
 _format_horizon_seconds = format_horizon_seconds

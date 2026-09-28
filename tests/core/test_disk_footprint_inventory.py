@@ -377,7 +377,7 @@ def test_budget_exhaustion_clips_stray_walk_but_keeps_workspace_rows(
     )
     monkeypatch.setattr("sase.core.disk_footprint._resolve_sase_core_dir", lambda: None)
     monkeypatch.setattr(
-        "sase.core.disk_footprint_inventory._DEFAULT_STRAY_MAX_VISITED", 2
+        "sase.core.disk_footprint_inventory_collect.STRAY_MAX_VISITED", 2
     )
 
     report = collect_disk_footprint(
