@@ -31,6 +31,8 @@ from sase.sdd.artifact_link_event_publisher import (
 )
 from sase.sdd.referenced_by_index import REFERENCED_BY_LINKS_DIR
 
+REPAIRABLE_RENAME_KINDS = frozenset({"plan", "research"})
+
 
 @dataclass(frozen=True)
 class _ArtifactLinkRename:
@@ -110,7 +112,7 @@ def repair_historical_artifact_renames(
         except (TypeError, ValueError, RuntimeError):
             continue
         kind = kind_of_ref(old_ref)
-        if kind not in {"plan", "research"}:
+        if kind not in REPAIRABLE_RENAME_KINDS:
             continue
         root = store.sidecar_roots.get(kind)
         if root is None or not root.is_dir():
@@ -540,6 +542,7 @@ def _follow_rename_chain(
 
 
 __all__ = [
+    "REPAIRABLE_RENAME_KINDS",
     "consume_recent_artifact_renames",
     "repair_historical_artifact_renames",
 ]

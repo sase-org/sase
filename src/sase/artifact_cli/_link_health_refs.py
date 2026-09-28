@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from typing import Any
 
 from sase.artifact_cli._link_health_constants import RESOLVED_STATUSES
@@ -18,17 +18,20 @@ def dangling_refs(
     *,
     context: ArtifactRefContext,
     resolve_reference: Callable[..., Any] = resolve_cli_reference,
+    kinds: Collection[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     seen: set[str] = set()
     dangling: list[str] = []
     unpublished_agents: list[str] = []
-    bead_ids = known_bead_ids(store)
+    bead_ids = known_bead_ids(store) if kinds is None or "bead" in kinds else None
     for row in rows:
         for key in ("source_ref", "target_ref"):
             ref = str(row.get(key) or "")
             if not ref or ref in seen:
                 continue
             seen.add(ref)
+            if kinds is not None and kind_of_ref(ref) not in kinds:
+                continue
             if ref.startswith("bead:") and bead_ids is not None:
                 if ref.removeprefix("bead:") not in bead_ids:
                     dangling.append(ref)

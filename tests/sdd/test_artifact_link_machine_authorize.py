@@ -237,7 +237,7 @@ def test_reconcile_and_repair_reports_skip_and_does_not_commit(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
-        lambda _store: ("plan:202608/old.md",),
+        lambda _store, **_kwargs: ("plan:202608/old.md",),
     )
     monkeypatch.setattr(
         "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",

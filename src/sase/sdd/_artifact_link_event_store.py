@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import ceil
 from pathlib import Path
 import time
@@ -59,6 +59,9 @@ class ArtifactLinkEventSnapshot:
     pending_stats: _ArtifactLinkPendingStats = _ArtifactLinkPendingStats()
     durable_event_count: int = 0
     pending_event_count: int = 0
+    _edge_identity_cache: frozenset[tuple[str, ...]] | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     @property
     def has_inputs(self) -> bool:
@@ -91,12 +94,19 @@ class ArtifactLinkEventSnapshot:
             + _join_problems(self.blocking_problem_messages)
         )
 
+    def _cached_edge_identities(self) -> frozenset[tuple[str, ...]]:
+        cached = self._edge_identity_cache
+        if cached is None:
+            cached = _event_edge_identities(self.edges)
+            object.__setattr__(self, "_edge_identity_cache", cached)
+        return cached
+
     def covers_row(self, row: Mapping[str, Any]) -> bool:
         """Return whether event truth has consulted this row's identity."""
 
         if not self.has_inputs or self.blocking_problem_messages:
             return False
-        identities = _event_edge_identities(self.edges)
+        identities = self._cached_edge_identities()
         if artifact_link_row_identity(row) in identities:
             return True
         try:

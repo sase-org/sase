@@ -10,7 +10,7 @@ not already swept.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 import time
@@ -252,6 +252,7 @@ def reconcile_and_repair_artifact_links(
     store: ArtifactLinkStore,
     *,
     deadline: float | None = None,
+    progress: Callable[[str], None] | None = None,
 ) -> _ArtifactLinkReconcileReport:
     """Run the cross-workspace aggregate reconcile and dangling-ref repair.
 
@@ -269,10 +270,31 @@ def reconcile_and_repair_artifact_links(
 
     from sase.artifact_cli.link_health import dangling_and_orphaned_artifact_link_refs
     from sase.sdd._artifact_link_commit import commit_artifact_link_indexes
-    from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
+    from sase.sdd._artifact_link_renames import (
+        REPAIRABLE_RENAME_KINDS,
+        repair_historical_artifact_renames,
+    )
 
+    if progress is not None:
+        progress("aggregate")
     reconciled = store.reconcile_aggregate(deadline=deadline)
-    refs = dangling_and_orphaned_artifact_link_refs(store)
+    if deadline is not None and time.monotonic() >= deadline:
+        skip_diagnostics = tuple(
+            dict.fromkeys(
+                (
+                    *(str(item) for item in reconciled.get("skip_diagnostics", ())),
+                    "reconcile deadline expired; deferred dangling-ref repair",
+                )
+            )
+        )
+        return _ArtifactLinkReconcileReport(skip_diagnostics=skip_diagnostics)
+    if progress is not None:
+        progress("dangling_scan")
+    refs = dangling_and_orphaned_artifact_link_refs(
+        store, kinds=REPAIRABLE_RENAME_KINDS
+    )
+    if progress is not None:
+        progress("repair")
     repair = repair_historical_artifact_renames(
         store,
         refs,
@@ -280,6 +302,8 @@ def reconcile_and_repair_artifact_links(
         require_machine_writable=True,
     )
     if repair.changed_paths:
+        if progress is not None:
+            progress("commit")
         commit_artifact_link_indexes(
             repair.changed_paths,
             store=store.sdd_store,

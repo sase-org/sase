@@ -609,3 +609,64 @@ def _patch_reconciliation_stores(
         return (self,)
 
     monkeypatch.setattr(ArtifactLinkStore, "_iter_reconciliation_stores", _stores)
+
+
+def test_covers_row_caches_edge_identities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd import _artifact_link_event_store as event_store_module
+    from sase.sdd._artifact_link_event_store import ArtifactLinkEventSnapshot
+
+    edges = (
+        {
+            "edge": {
+                "kind": "directed",
+                "source_ref": "plan:202608/a.md",
+                "relation": "implements",
+                "target_ref": "plan:202608/b.md",
+            }
+        },
+        {
+            "edge": {
+                "kind": "undirected",
+                "left_ref": "plan:202608/c.md",
+                "relation": "related",
+                "right_ref": "plan:202608/d.md",
+            }
+        },
+    )
+    snapshot = ArtifactLinkEventSnapshot(edges=edges, durable_event_count=1)
+    original = event_store_module._event_edge_identities
+    calls: list[int] = []
+
+    def _counting(
+        edges_arg: object,
+    ) -> frozenset[tuple[str, ...]]:
+        calls.append(1)
+        return original(edges_arg)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(event_store_module, "_event_edge_identities", _counting)
+    covered_directed = {
+        "source_ref": "plan:202608/a.md",
+        "relation": "implements",
+        "target_ref": "plan:202608/b.md",
+    }
+    covered_undirected = {
+        "source_ref": "plan:202608/d.md",
+        "relation": "related",
+        "target_ref": "plan:202608/c.md",
+    }
+    uncovered = {
+        "source_ref": "plan:202608/x.md",
+        "relation": "implements",
+        "target_ref": "plan:202608/y.md",
+    }
+
+    assert snapshot.covers_row(covered_directed) is True
+    assert snapshot.covers_row(covered_undirected) is True
+    assert snapshot.covers_row(uncovered) is False
+    assert snapshot.covers_row(covered_directed) is True
+    assert len(calls) == 1
+
+    fresh = ArtifactLinkEventSnapshot(edges=edges, durable_event_count=1)
+    assert snapshot == fresh

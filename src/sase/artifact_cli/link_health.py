@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass, field
 
 from sase.artifact_cli._link_health_coverage import (
@@ -25,7 +26,7 @@ from sase.artifact_cli.references import resolve_cli_reference
 from sase.artifact_read_log import read_artifact_read_events
 from sase.artifact_refs import launch_artifact_ref_context
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
-from sase.sdd._artifact_link_store_support import store_backed_rows
+from sase.sdd._artifact_link_store_support import kind_of_ref, store_backed_rows
 from sase.sdd.artifact_link_drift import (
     ArtifactLinkIndexDrift,
     build_artifact_link_index_drift,
@@ -270,6 +271,8 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
 
 def dangling_and_orphaned_artifact_link_refs(
     store: ArtifactLinkStore,
+    *,
+    kinds: Collection[str] | None = None,
 ) -> tuple[str, ...]:
     """Return the exact candidate refs ``sase artifact doctor --fix`` repairs.
 
@@ -278,6 +281,8 @@ def dangling_and_orphaned_artifact_link_refs(
     ``## Links`` tables in place with no commit of its own) calls this and
     :func:`sase.sdd._artifact_link_renames.repair_historical_artifact_renames`
     directly instead.
+
+    With *kinds* set, only candidates of those kinds are returned.
     """
 
     rows = store_backed_rows(store.load_aggregate().get("rows", []))
@@ -287,8 +292,13 @@ def dangling_and_orphaned_artifact_link_refs(
         store,
         context=resolution_context,
         resolve_reference=resolve_cli_reference,
+        kinds=kinds,
     )
     orphaned_companions = orphaned_link_indexes(store)
+    if kinds is not None:
+        orphaned_companions = [
+            ref for ref in orphaned_companions if kind_of_ref(ref) in kinds
+        ]
     return (*dangling, *orphaned_companions)
 
 

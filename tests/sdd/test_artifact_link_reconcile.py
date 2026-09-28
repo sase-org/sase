@@ -32,9 +32,12 @@ def test_reconciles_and_repairs_with_the_doctor_candidate_refs(
         "reconcile_aggregate",
         lambda _store, **_kwargs: reconcile_calls.append(1) or {},
     )
+    dangling_kwargs: list[object] = []
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
-        lambda _store: ("plan:202608/dangling.md",),
+        lambda _store, **_kwargs: (
+            dangling_kwargs.append(_kwargs) or ("plan:202608/dangling.md",)
+        ),
     )
     repair_calls: list[object] = []
 
@@ -54,6 +57,9 @@ def test_reconciles_and_repairs_with_the_doctor_candidate_refs(
     assert reconcile_calls == [1]
     assert repair_calls == [("plan:202608/dangling.md",)]
     assert report.repaired_renames == 0
+    from sase.sdd._artifact_link_renames import REPAIRABLE_RENAME_KINDS
+
+    assert dangling_kwargs == [{"kinds": REPAIRABLE_RENAME_KINDS}]
 
 
 def test_commits_changed_paths_from_a_repair(
@@ -65,7 +71,7 @@ def test_commits_changed_paths_from_a_repair(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
-        lambda _store: (),
+        lambda _store, **_kwargs: (),
     )
     changed = (tmp_path / "plans" / "links" / "202608" / "renamed.md.json",)
     monkeypatch.setattr(
@@ -99,7 +105,7 @@ def test_no_changed_paths_does_not_commit(
     )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
-        lambda _store: (),
+        lambda _store, **_kwargs: (),
     )
     monkeypatch.setattr(
         "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
@@ -123,6 +129,7 @@ def test_forwards_deadline_and_deferred_refs(
 ) -> None:
     store = _store(tmp_path, monkeypatch)
     reconcile_kwargs: list[object] = []
+    monkeypatch.setattr("sase.sdd.artifact_link_backfill.time.monotonic", lambda: 0.0)
 
     def _fake_reconcile(_store: object, **kwargs: object) -> dict[str, object]:
         reconcile_kwargs.append(kwargs)
@@ -135,7 +142,7 @@ def test_forwards_deadline_and_deferred_refs(
     monkeypatch.setattr(ArtifactLinkStore, "reconcile_aggregate", _fake_reconcile)
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
-        lambda _store: ("plan:202608/dangling.md",),
+        lambda _store, **_kwargs: ("plan:202608/dangling.md",),
     )
     seen: list[object] = []
 
@@ -169,3 +176,96 @@ def test_forwards_deadline_and_deferred_refs(
         "reconcile deadline expired; skipped 1 remaining store(s)",
         "rename deferred",
     )
+
+
+def test_skips_dangling_scan_and_repair_after_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        ArtifactLinkStore,
+        "reconcile_aggregate",
+        lambda _store, **_kwargs: {
+            "skip_diagnostics": ("reconcile did work",),
+        },
+    )
+    monkeypatch.setattr("sase.sdd.artifact_link_backfill.time.monotonic", lambda: 200.0)
+
+    def _fail_dangling(_store: object, **_kwargs: object) -> object:
+        raise AssertionError("dangling scan should be skipped after deadline")
+
+    def _fail_repair(_store: object, _refs: object, **_kwargs: object) -> object:
+        raise AssertionError("repair should be skipped after deadline")
+
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
+        _fail_dangling,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
+        _fail_repair,
+    )
+
+    report = reconcile_and_repair_artifact_links(store, deadline=100.0)
+
+    assert report.repaired_renames == 0
+    assert report.deferred_refs == 0
+    assert report.skip_diagnostics == (
+        "reconcile did work",
+        "reconcile deadline expired; deferred dangling-ref repair",
+    )
+
+
+def test_progress_receives_stages_in_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    monkeypatch.setattr("sase.sdd.artifact_link_backfill.time.monotonic", lambda: 0.0)
+    monkeypatch.setattr(
+        ArtifactLinkStore, "reconcile_aggregate", lambda _store, **_kwargs: {}
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
+        lambda _store, **_kwargs: (),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
+        lambda _store, _refs, **_kwargs: SimpleNamespace(
+            renames=(), changed_paths=(), deferred_refs=0
+        ),
+    )
+    stages: list[str] = []
+
+    reconcile_and_repair_artifact_links(store, progress=stages.append)
+
+    assert stages == ["aggregate", "dangling_scan", "repair"]
+
+
+def test_progress_includes_commit_only_when_changed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    monkeypatch.setattr("sase.sdd.artifact_link_backfill.time.monotonic", lambda: 0.0)
+    monkeypatch.setattr(
+        ArtifactLinkStore, "reconcile_aggregate", lambda _store, **_kwargs: {}
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
+        lambda _store, **_kwargs: (),
+    )
+    changed = (tmp_path / "plans" / "links" / "x.json",)
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
+        lambda _store, _refs, **_kwargs: SimpleNamespace(
+            renames=("one",), changed_paths=changed, deferred_refs=0
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_commit.commit_artifact_link_indexes",
+        lambda paths, **kwargs: None,
+    )
+    stages: list[str] = []
+
+    reconcile_and_repair_artifact_links(store, progress=stages.append)
+
+    assert stages == ["aggregate", "dangling_scan", "repair", "commit"]

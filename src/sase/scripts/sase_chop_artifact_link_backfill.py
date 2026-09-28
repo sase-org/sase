@@ -460,7 +460,11 @@ def _run_project(
     reconcile_started = time.monotonic()
     try:
         reconcile_report = reconcile_and_repair_artifact_links(
-            store, deadline=chop_deadline
+            store,
+            deadline=chop_deadline,
+            progress=lambda stage: _log_project_stage(
+                runtime, project_key, f"reconcile/{stage}"
+            ),
         )
         totals.reconciled += 1
         totals.repaired_renames += reconcile_report.repaired_renames

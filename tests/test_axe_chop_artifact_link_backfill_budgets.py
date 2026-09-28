@@ -146,10 +146,20 @@ def test_per_project_progress_is_logged(
             drained=0, dropped=0, deferred=False
         ),
     )
+
+    def _fake_reconcile(
+        store: object,
+        **kwargs: object,
+    ) -> _ArtifactLinkReconcileReport:
+        progress = kwargs.get("progress")
+        if callable(progress):
+            progress("aggregate")
+        return _ArtifactLinkReconcileReport()
+
     monkeypatch.setattr(
         backfill_chop,
         "reconcile_and_repair_artifact_links",
-        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
+        _fake_reconcile,
     )
 
     runtime, stdout, _stderr = _runtime_with_logs(tmp_path)
@@ -162,6 +172,7 @@ def test_per_project_progress_is_logged(
     assert "proj: sweep" in log_output
     assert "proj: drain" in log_output
     assert "proj: reconcile" in log_output
+    assert "proj: reconcile/aggregate" in log_output
     assert "proj: done" in log_output
 
 
@@ -205,7 +216,9 @@ def test_chop_passes_budget_through_and_warns_on_deferred_refs(
     runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
     backfill_chop._run(runtime)
 
-    assert captured == [{"deadline": backfill_chop._CHOP_WORK_BUDGET_SECONDS}]
+    assert len(captured) == 1
+    assert captured[0]["deadline"] == backfill_chop._CHOP_WORK_BUDGET_SECONDS
+    assert callable(captured[0]["progress"])
     warning = stderr.getvalue()
     assert "proj" in warning
     assert "deferred 4" in warning
