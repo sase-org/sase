@@ -18,7 +18,10 @@ from textual.style import Style
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
-from sase.ace.tui.widgets._agent_list_render_rail import RAIL_CONTENT_CELLS
+from sase.ace.tui.widgets._agent_list_render_rail import (
+    RAIL_CONTENT_CELLS,
+    rail_tooltip_text,
+)
 from sase.ace.tui.widgets._agent_list_styling import BANNER_ROW
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -289,6 +292,47 @@ async def test_overflow_subtitle_tracks_scrolling() -> None:
         plain = subtitle.plain if isinstance(subtitle, Text) else str(subtitle)
         assert "▾" in plain
         assert "▴" not in plain
+
+
+async def test_rail_hover_sets_tooltip_to_expanded_prompt() -> None:
+    """Hovering a rail row shows its full expanded text as a tooltip."""
+    from textual.events import Leave
+
+    app = _RailApp()
+    async with app.run_test(size=(60, 20)) as pilot:
+        await pilot.pause()
+        widget = app.query_one(AgentList)
+        agents = [_agent(f"node-{i:02d}", i) for i in range(4)]
+        widget.update_list(agents, 1, grouping_mode=BY_STATUS)
+        widget.set_rail(True)
+        await pilot.pause()
+
+        row = next(
+            row
+            for row, (local_idx, _attempt) in enumerate(widget._row_entries)
+            if local_idx != BANNER_ROW
+        )
+        option = widget.get_option_at_index(row)
+        expected = rail_tooltip_text(option.prompt)
+        assert expected is not None
+
+        assert widget.tooltip is None
+        # Content starts below the 1-cell top border.
+        landed = await pilot.hover(AgentList, offset=(2, row + 1))
+        await pilot.pause()
+        assert landed
+        assert widget._mouse_hovering_over == row
+        assert widget.tooltip is not None
+        assert widget.tooltip.plain == expected.plain
+
+        # Leaving the list and disabling the rail both clear the tooltip.
+        widget._on_leave(Leave(widget))
+        assert widget.tooltip is None
+        await pilot.hover(AgentList, offset=(2, row + 1))
+        await pilot.pause()
+        assert widget.tooltip is not None
+        widget.set_rail(False)
+        assert widget.tooltip is None
 
 
 async def test_textual_routes_update_lines_and_option_render_through_get_visual(

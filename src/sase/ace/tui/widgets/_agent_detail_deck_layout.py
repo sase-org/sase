@@ -363,10 +363,15 @@ class AgentDetailDeckLayoutMixin:
                 info = getattr(app, "_update_agents_info_panel", None)
                 if callable(info):
                     info()
-                else:
-                    footer = getattr(app, "_refresh_agent_footer_bindings_only", None)
-                    if callable(footer):
-                        footer()
+            except Exception:
+                pass
+            try:
+                # The footer carries mode-conditional entries (Z restore in
+                # zoom, Ctrl+S expand in rail), so it refreshes on every
+                # mode change alongside the info row.
+                footer = getattr(app, "_refresh_agent_footer_bindings_only", None)
+                if callable(footer):
+                    footer()
             except Exception:
                 pass
 

@@ -122,14 +122,18 @@ class AgentDeckLayoutActionsMixin:
         self._refresh_deck_footer()
 
     def on_agent_info_panel_sidebar_chip_clicked(self, _message: object) -> None:
-        """Expand the node rail when the info-row nodes chip is clicked."""
+        """Expand the rail or restore the zoom from an info-row chip click."""
         if self.current_tab != "agents":
             return
         try:
             detail = self._deck_layout_detail()
             if detail is None:
                 return
-            if not detail.is_node_rail:  # type: ignore[attr-defined]
+            # toggle_node_panel restores the zoomed snapshot exactly
+            # like Z, so one call covers both the rail and zoom chips.
+            is_rail = detail.is_node_rail  # type: ignore[attr-defined]
+            is_zoomed = detail.is_deck_zoomed  # type: ignore[attr-defined]
+            if not (is_rail or is_zoomed):
                 return
             detail.toggle_node_panel()  # type: ignore[attr-defined]
         except Exception:

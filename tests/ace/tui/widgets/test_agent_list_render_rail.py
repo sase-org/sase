@@ -25,7 +25,7 @@ from sase.ace.tui.widgets._agent_list_render_rail import (
     rail_overflow_subtitle,
     rail_panel_title,
     rail_tooltip_text,
-    rail_urgency,
+    _rail_urgency,
     row_kind_glyph,
 )
 
@@ -321,11 +321,11 @@ def test_rail_urgency_precedence() -> None:
     stopped = _agent(status="QUESTION")
     failed = _agent(status="FAILED")
     done = _agent(status="DONE")
-    assert rail_urgency([stopped, failed], []).plain == "?"
-    assert rail_urgency([failed, done], []).plain == "✗"
-    assert rail_urgency([done], [done.identity]).plain == "•"
-    assert rail_urgency([done], []).plain == " "
-    assert rail_urgency([], []).plain == " "
+    assert _rail_urgency([stopped, failed], []).plain == "?"
+    assert _rail_urgency([failed, done], []).plain == "✗"
+    assert _rail_urgency([done], [done.identity]).plain == "•"
+    assert _rail_urgency([done], []).plain == " "
+    assert _rail_urgency([], []).plain == " "
 
 
 def test_panel_title_width_and_drop_order() -> None:

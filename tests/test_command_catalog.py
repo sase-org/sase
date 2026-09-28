@@ -310,7 +310,7 @@ def test_zoom_panel_command_is_agents_only_display_command() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.zoom_panel"]
 
-    assert spec.label == "Zoom agent or tribe detail panel"
+    assert spec.label == "Zoom deck panel, hiding the node rail"
     assert spec.category == "Display"
     assert spec.tabs == ("agents",)
     assert spec.key_sequence == ("Z",)

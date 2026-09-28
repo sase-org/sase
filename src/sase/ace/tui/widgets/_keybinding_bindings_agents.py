@@ -67,6 +67,8 @@ class AgentBindingsMixin:
         card_blocks_navigable: bool = False,
         deck_view_cycle_available: bool = False,
         agent_tab_strip_visible: bool = False,
+        deck_zoomed: bool = False,
+        node_rail: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -212,6 +214,13 @@ class AgentBindingsMixin:
             bindings.append(
                 (self._kd("open_artifact_files"), "artifact files (marked)")
             )
+
+        # Sidebar-mode entries are app state, not entry state: they
+        # lead so the no-selection early return below keeps them.
+        if deck_zoomed:
+            bindings.append((self._kd("zoom_panel"), "restore"))
+        if node_rail:
+            bindings.append((self._kd("toggle_node_panel"), "expand nodes"))
 
         if agent is None:
             # Even with no selected agent, show app-state bindings

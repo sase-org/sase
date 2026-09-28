@@ -262,7 +262,7 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "zoom_panel",
-        "Zoom agent or tribe detail panel",
+        "Zoom deck panel, hiding the node rail",
         "Display",
         AGENTS_ONLY,
         ("zoom", "tribe"),

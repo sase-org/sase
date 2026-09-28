@@ -379,6 +379,14 @@ class AgentFooterDisplayMixin:
                     _tab_strip_visible = bool(_tab_visible_fn())
                 except Exception:
                     _tab_strip_visible = False
+            from ...widgets.decks.layout import SidebarMode as _SidebarMode
+
+            try:
+                _sidebar_mode = agent_detail.sidebar_mode  # type: ignore[attr-defined]
+            except Exception:
+                _sidebar_mode = _SidebarMode.EXPANDED
+            deck_zoomed = _sidebar_mode is _SidebarMode.HIDDEN
+            node_rail = _sidebar_mode is _SidebarMode.RAIL
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -426,6 +434,8 @@ class AgentFooterDisplayMixin:
                 card_blocks_navigable=card_blocks_navigable,
                 deck_view_cycle_available=deck_view_cycle_available,
                 agent_tab_strip_visible=_tab_strip_visible,
+                deck_zoomed=deck_zoomed,
+                node_rail=node_rail,
             )
 
     def _refresh_agent_footer_bindings_only(self) -> None:

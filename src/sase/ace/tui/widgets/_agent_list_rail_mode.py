@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
-from textual.events import Resize
+from textual.events import Leave, MouseMove, Resize
 from textual.visual import Visual, visualize
 from textual.widgets.option_list import Option
 
@@ -28,6 +28,7 @@ from ._agent_list_render_rail import (
     rail_agent_cells,
     rail_banner_cells,
     rail_overflow_subtitle,
+    rail_tooltip_text,
 )
 from ._agent_list_styling import BANNER_ROW
 from ..models._agent_tree import agent_tree_depth
@@ -46,16 +47,20 @@ class AgentListRailMixin:
     provide the ``AgentListBase`` row maps (``_option_to_index``,
     ``_row_entries``, ``_group_at_row``, ``_agents``, ``_row_render_ctx``,
     ``_grouping_mode``, ``_unread_agents``, ``_banner_hint_at_row``,
-    ``_banner_mark_at_row``), ``_clear_caches()``, and ``_rail_enabled`` /
-    ``_rail_visual_cache`` state.
+    ``_banner_mark_at_row``), ``_clear_caches()``, ``_rail_enabled`` /
+    ``_rail_visual_cache`` / ``_rail_tooltip_index`` state, and the
+    ``OptionList`` hover/tooltip surface (``_mouse_hovering_over``,
+    ``get_option_at_index``, ``tooltip``).
     """
 
     _rail_enabled: bool
     _rail_overflow_plain: str
+    _rail_tooltip_index: int | None
     _rail_visual_cache: dict[Option, tuple[Any, Visual]]
     # Host-provided Textual surface (typed loosely so this mixin stays
     # combinable without importing the widget hierarchy).
     border_subtitle: Any
+    tooltip: Any
 
     def set_rail(self, enabled: bool) -> None:
         """Enable or disable rail projection without rebuilding the rows.
@@ -72,6 +77,7 @@ class AgentListRailMixin:
             self.set_class(enabled, "-rail")  # type: ignore[attr-defined]
             self._rail_visual_cache.clear()
             self._clear_caches()  # type: ignore[attr-defined]
+            self._clear_rail_tooltip()
             self._refresh_rail_overflow()
 
     def _get_visual(self, option: Option) -> Visual:
@@ -189,6 +195,46 @@ class AgentListRailMixin:
         if plain != self._rail_overflow_plain:
             self._rail_overflow_plain = plain
             self.border_subtitle = plain  # type: ignore[attr-defined]
+
+    def _clear_rail_tooltip(self) -> None:
+        """Drop the hover tooltip and its change guard."""
+        self._rail_tooltip_index = None
+        try:
+            self.tooltip = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def _on_mouse_move(self, event: MouseMove) -> None:
+        """Show the hovered rail row's full expanded text as a tooltip.
+
+        Runs after ``OptionList._on_mouse_move`` refreshes
+        ``_mouse_hovering_over``. Only the hovered index change republishes
+        the tooltip; when the rail is off the event passes through untouched.
+        """
+        super()._on_mouse_move(event)  # type: ignore[misc]
+        if not self._rail_enabled:
+            return
+        hovered = self._mouse_hovering_over  # type: ignore[attr-defined]
+        if hovered == self._rail_tooltip_index:
+            return
+        self._rail_tooltip_index = hovered
+        if hovered is None:
+            self._clear_rail_tooltip()
+            return
+        try:
+            option = self.get_option_at_index(hovered)  # type: ignore[attr-defined]
+        except Exception:
+            self._clear_rail_tooltip()
+            return
+        try:
+            self.tooltip = rail_tooltip_text(option.prompt)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def _on_leave(self, event: Leave) -> None:
+        """Clear the rail tooltip once the pointer leaves the list."""
+        super()._on_leave(event)  # type: ignore[misc]
+        self._clear_rail_tooltip()
 
     def watch_scroll_y(self, old_value: float, new_value: float) -> None:
         """Keep the overflow subtitle in step with scrolling."""

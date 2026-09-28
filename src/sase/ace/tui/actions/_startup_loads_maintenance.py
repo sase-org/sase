@@ -24,8 +24,8 @@ class StartupLoadsMaintenanceMixin:
         self.notify(
             "The Agents detail column now shows agent data decks (Main, Files, "
             "Tools) made of cards. Ctrl+J/K move between cards, Ctrl+N/P between "
-            "decks, \\ and | split panels, Ctrl+F moves focus, Ctrl+S collapses "
-            "the node list, and Z zooms in place. The p view picker is retired. "
+            "decks, \\ and | split panels, Ctrl+F moves focus, Ctrl+S toggles "
+            "the node rail, and Z zooms in place. The p view picker is retired. "
             "Press '?' for the full keymap.",
             title="Agents tab uses decks and cards",
             severity="information",

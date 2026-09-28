@@ -1320,7 +1320,7 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `\` / `                   | `                                                                                                                                                                    | Split deck panels top-bottom / left-right; press again to close the second panel, or press the other key to rotate |
 | `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                            |
 | `Ctrl+F`                  | Move focus to the other deck panel (split layouts only)                                                                                                              |
-| `Ctrl+S`                  | Collapse / expand the node panel (rail preference); while zoomed, restore the snapshot like `Z`                                                                      |
+| `Ctrl+S`                  | Toggle the node rail (persisted preference); while zoomed, restore the snapshot like `Z`                                                                             |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
 > the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
@@ -1412,7 +1412,7 @@ is exactly today's single roster: no strip, no tab keys, and unchanged wording.
 | `T`                 | Open tmux window in the agent's primary project workspace                                                                                                                  |
 | `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it; on a clan row or clan member it sets the clan's recorded tribe) |
 | `z`                 | Start metadata fold mode for clan, agent node (session or single agent), or selected whole-tribe detail panels                                                             |
-| `Z`                 | Zoom the focused deck panel in place (left column hidden); press again to restore                                                                                          |
+| `Z`                 | Zoom the focused deck panel in place (node column hidden); press again to restore                                                                                          |
 | `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                                                                            |
 | `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                     |
 | `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds                                                                  |
@@ -5086,26 +5086,42 @@ falls back to plain text for large content. Pathological outputs above the file-
 safety limit show the first 5,000 lines and an explicit editor notice; press `E` to open
 the complete content.
 
-## Agents Zoom and Node-Panel Collapse
+## Agents Zoom and Node Rail
 
-The left column has three modes, derived from deck-area state: `EXPANDED` by default,
-`RAIL` when the persisted `Ctrl+S` preference is set, and `HIDDEN` while a deck is
-zoomed (`HIDDEN` wins over `RAIL`).
+The left column has three presentations, derived from deck-area state: `EXPANDED` by
+default, `RAIL` when the persisted `Ctrl+S` preference is set, and `HIDDEN` while a deck
+is zoomed (`HIDDEN` wins over `RAIL`). The persisted preference only ever means rail;
+zoom never writes it.
+
+`Ctrl+S` toggles the node rail: the same tribe panels and the same visible rows at a
+fixed 9-cell width, row for row, so a row never moves vertically. Each row carries one
+semantic glyph (`?` needs you, `✗` failed, `▶` running, `◐` starting, `○` queued, `◷`
+waiting, `✓` done, `Ø` user-stopped, plus kind glyphs for monitors, gates, workflows,
+steps, and Patches). Color means urgency; the rail shows no runtimes, badges, or emoji.
+Tribe titles shrink to 5 cells, and the bottom border counts off-screen rows (`▴N▾M`).
+
+Position is identity: rail row _k_ is expanded row _k_. Since glyphs are not labels,
+hovering a rail row shows that row's full expanded text as a tooltip, the identity
+header always names the selection (so `j` / `k` is never blind), and `'` jump hints plus
+the `"` node finder reach every node. Focus stays on the list in rail mode, so every key
+works unchanged; runtime ticks pause and catch up on expand. The footer shows
+`Ctrl+S expand nodes` while railed, and the info row's `nodes i/N · Ctrl+S` chip is
+clickable. The `?` help modal's Node Rail box lists the full glyph legend.
 
 `Z` zooms the focused deck panel in place: it snapshots the deck-area state (layout,
-panels, focus, ratio, collapse), then shows only the focused panel with the left column
-hidden. Zoom never writes the `Ctrl+S` preference. The panel keeps its widget, card, and
-scroll position, and search, `E`, cards, and decks all work normally while zoomed. A
-second `Z` restores the snapshot exactly, as does `Ctrl+S` while zoomed. Using a layout
-key (`\`, `|`) while zoomed ends the zoom without restoring and keeps the pre-zoom
-preference.
+panels, focus, ratio, collapse), then shows only the focused panel with the node column
+hidden entirely — no rail, no spine. The zoomed panel gets a heavy border in its own
+deck accent, a reverse-gold `ZOOM` chip leading its title, and a restore hint
+(`◧ 1 of 2 · Z restore` from a split, `Z restore` from a single deck) leading its
+subtitle. The info row shows the same clickable `ZOOM` chip, then `Z restore`, then
+`node i/N` (`j` / `k` still moves the selection); the footer shows `Z restore` while
+zoomed. The panel keeps its widget, card, and scroll position, and search, `E`, cards,
+and decks all work normally while zoomed.
 
-`Ctrl+S` collapses the left node-panel column into a slim node spine without unmounting
-it, so `j` / `k` keep moving the selection and the header follows it. The spine shows a
-scroll thumb positioned by the selected row, and an info-row chip reports the selected
-position (for example `nodes 12/47`); clicking the spine or pressing `Ctrl+S` again
-restores the panel. Whole-panel focus is not cleared by collapsing, so `Z` plus `j` /
-`k` steps whole tribe summaries.
+A second `Z` restores the snapshot exactly, as does `Ctrl+S` while zoomed ("in zoom, any
+sidebar key gives your layout back"). Using a layout key (`\`, `|`) while zoomed ends
+the zoom without restoring and keeps the pre-zoom preference, so no split is ever
+silently lost.
 
 ## Image Preview Foundation
 

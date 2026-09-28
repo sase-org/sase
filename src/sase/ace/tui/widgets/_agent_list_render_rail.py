@@ -355,7 +355,7 @@ def _banner_rule_char(level: int) -> str:
     return _RAIL_HEAVY_RULE if level == 0 else _RAIL_THIN_RULE
 
 
-def rail_urgency(
+def _rail_urgency(
     agents: Collection[Agent],
     unread: Collection[Any],
 ) -> Text:
@@ -437,7 +437,7 @@ def rail_banner_cells(
         return text
     members = _top_level_members(group, agents)
     count_text = f"{min(len(members), RAIL_COUNT_CAP)}"
-    urgency = rail_urgency(members, unread)
+    urgency = _rail_urgency(members, unread)
     if hint_text:
         text.append(hint_text, style=RAIL_HINT_STYLE)
         head = len(hint_text)
@@ -578,7 +578,7 @@ def rail_tooltip_text(prompt: Text) -> Text | None:
 #: Ordered ``(glyph, meaning)`` pairs backing the help-modal node-rail
 #: legend. Glyphs carry their rail styles.
 RAIL_LEGEND: tuple[tuple[Text, str], ...] = (
-    (Text("?", style=RAIL_NEEDS_YOU_STYLE), "needs you — stopped for input or review"),
+    (Text("?", style=RAIL_NEEDS_YOU_STYLE), "needs you — input or review"),
     (Text("✗", style=RAIL_FAILED_STYLE), "failed"),
     (Text("▶", style=f"bold {RUNNING_COLOR}"), "running"),
     (Text("◐", style="bold #87D7FF"), "starting"),
@@ -615,6 +615,5 @@ __all__ = [
     "rail_overflow_subtitle",
     "rail_panel_title",
     "rail_tooltip_text",
-    "rail_urgency",
     "row_kind_glyph",
 ]

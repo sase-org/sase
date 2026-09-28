@@ -3,6 +3,7 @@
 from ...agent_tabs_flag import agent_tabs_enabled
 from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
 from ...models.agent_live_query_engine import agents_unified_query_enabled
+from ...widgets._agent_list_render_rail import RAIL_LEGEND
 from ...widgets.decks.spec import active_deck_cycle
 from ...widgets.decks.titles import DECK_PICKER_KEYS
 from .binding_common import (
@@ -127,7 +128,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(a.toggle_node_panel)}",
-                    "Collapse/expand node panel",
+                    "Toggle node rail",
                 ),
                 *(
                     [
@@ -200,7 +201,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.view_files), "Hint files/tool calls/commits/clans"),
                 (d(a.view_agent_metadata), "Page metadata, prompts & reply"),
                 ("p (commit view)", "Toggle attached local plan / commit"),
-                (d(a.zoom_panel), "Zoom deck panel in place"),
+                (d(a.zoom_panel), "Zoom deck (hides nodes)"),
                 (
                     d(a.isolate_panels),
                     "Only panel ⇄ restore panels",
@@ -495,17 +496,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Zoom Modal",
-            [
-                ("] / [", "Next / previous panel tab"),
-                ("Ctrl-N / Ctrl-P", "Next / previous file, wraps"),
-                ("/ / ?", "Search forward / backward"),
-                ("n / N", "Next / previous match"),
-                ("Esc", "Exit search before closing"),
-                ("File rail", "Lists files frozen at open"),
-            ],
-        ),
-        (
             "Wait Modal",
             [
                 ("Ctrl-J / Ctrl-K", "Next / prev field, wraps"),
@@ -630,6 +620,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ("◌", "Hidden by default"),
                 ("↳", "Retry chain attempt"),
             ],
+        ),
+        (
+            "Node Rail",
+            [(glyph.plain, meaning) for glyph, meaning in RAIL_LEGEND],
         ),
     ]
     # Insert custom mode sections before "General".

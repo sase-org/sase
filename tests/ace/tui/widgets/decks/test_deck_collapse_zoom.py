@@ -234,8 +234,10 @@ def test_info_chip_renders_collapse_and_zoom() -> None:
             )
         )  # type: ignore[arg-type]
     zoomed_text = collect_text(panel)
-    assert "zoom" in zoomed_text
-    assert "nodes 12/47" in zoomed_text
+    assert "ZOOM" in zoomed_text
+    assert "restore" in zoomed_text
+    assert "node 12/47" in zoomed_text
+    assert "nodes 12/47" not in zoomed_text
 
 
 async def test_collapse_expand_in_single_and_split(tmp_path: Path) -> None:

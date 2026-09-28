@@ -23,7 +23,7 @@ class AgentInfoPanel(Static):
         """The rendered filter-query segment was clicked; open the editor."""
 
     class SidebarChipClicked(Message):
-        """The rendered ``nodes`` chip was clicked; expand the node rail."""
+        """A sidebar chip was clicked: expand the rail or restore the zoom."""
 
     _TOTAL_COUNT_STYLE = "bold #FFFFFF"
     _NAMED_PROC_BADGE_STYLE = "bold #5FD7FF"
@@ -459,13 +459,15 @@ class AgentInfoPanel(Static):
             )
         if self._sidebar_mode is SidebarMode.HIDDEN:
             self._append_separator(text)
+            chip_start = text.cell_len
+            text.append("ZOOM", style="bold #1a1a1a on #FFD700")
             zoom_key = self._registry.app.zoom_panel
-            text.append("zoom", style="bold #FFD700")
             if not is_unbound_key(zoom_key):
-                text.append(_ELEMENT_SEPARATOR, style="dim")
-                text.append(key_display_name(zoom_key), style="dim")
+                text.append(f" {key_display_name(zoom_key)}", style="dim")
+            text.append(" restore", style="dim")
+            self._sidebar_chip_click_span = (chip_start, text.cell_len)
             text.append(_ELEMENT_SEPARATOR, style="dim")
-            text.append("nodes ", style="dim")
+            text.append("node ", style="dim")
             text.append(
                 f"{self._position}/{self._total}", style=self._TOTAL_COUNT_STYLE
             )
@@ -531,7 +533,7 @@ class AgentInfoPanel(Static):
         self._render_panel_text(layout=False)
 
     def on_click(self, event: Click) -> None:
-        """Open the filter editor or expand the rail from a clicked segment."""
+        """Open the filter editor, expand the rail, or restore the zoom."""
         chip_span = self._sidebar_chip_click_span
         if chip_span is not None:
             start, end = chip_span

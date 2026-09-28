@@ -33,7 +33,15 @@ def test_agents_help_describes_zoom_and_isolation_and_capital_h_collapsing() -> 
     assert ("H", "Then remaining sase agents in scope") in agent_pairs
     assert ("H", "Then selected clan / group clans") in agent_pairs
     assert ("H", "Compact expanded LLM Calls detail") in agent_pairs
-    assert ("Z", "Zoom deck panel in place") in agent_pairs
+    assert ("Z", "Zoom deck (hides nodes)") in agent_pairs
+    assert ("Ctrl+S", "Toggle node rail") in agent_pairs
+    section_names = [name for name, _bindings in agents_bindings(reg)]
+    assert "Zoom Modal" not in section_names
+    node_rail_rows = dict(
+        next(rows for name, rows in agents_bindings(reg) if name == "Node Rail")
+    )
+    assert node_rail_rows["?"] == "needs you — input or review"
+    assert node_rail_rows["▶"] == "running"
     assert (
         "=",
         "Only panel ⇄ restore panels",
