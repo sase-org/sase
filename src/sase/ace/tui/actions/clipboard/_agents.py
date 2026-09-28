@@ -123,6 +123,33 @@ class ClipboardAgentsMixin(ClipboardBase):
             task_name="sase-copy-agent-reference",
         )
 
+    def _copy_tool_run_id(self) -> None:
+        """Copy the full run id behind the header ⚒ chip (%r on agents tab)."""
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+        from ...tool_runs.flag import tool_runs_enabled
+
+        if not tool_runs_enabled():
+            self.notify(  # type: ignore[attr-defined]
+                "ToolRun surfaces are behind the ace_tool_runs beta flag",
+                severity="warning",
+            )
+            return
+        from ...tool_runs.header_chip import header_run_id_for_agent
+
+        run_id = header_run_id_for_agent(self, agent)
+        if not run_id:
+            self.notify("No tool runs for this agent", severity="warning")  # type: ignore[attr-defined]
+            return
+        schedule_copy_delivery(
+            self,
+            run_id,
+            copied_label=f"tool run id ({run_id[:8]})",
+            task_name="sase-copy-agent-tool-run-id",
+        )
+
     def _copy_file_path(self) -> None:
         """Copy the file path from the file panel (%E on agents tab)."""
         from ...widgets import AgentDetail

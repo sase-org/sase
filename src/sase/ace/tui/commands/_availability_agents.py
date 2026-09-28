@@ -137,8 +137,19 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return _remote_attention_command_available(ctx)
         if spec.id in _REMOTE_AGENT_LOCAL_COMMANDS:
             return False
-        if spec.id in {"copy.agents.chat", "copy.agents.file_path"}:
+        if spec.id in {
+            "copy.agents.chat",
+            "copy.agents.file_path",
+            "copy.agents.tool_run_id",
+        }:
             return False
+
+    # The tool-run copy target only exists while the beta flag is on, so the
+    # flag-off palette stays byte-identical.
+    if spec.id == "copy.agents.tool_run_id":
+        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+
+        return tool_runs_enabled()
 
     # The cleanup panel is discoverable even when every row action inside it is
     # currently disabled.

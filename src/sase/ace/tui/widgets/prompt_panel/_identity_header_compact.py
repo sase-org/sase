@@ -12,6 +12,8 @@ from sase.plan_tier_presentation import PLAN_TIER_PRESENTATIONS
 from sase.project_display_names import humanize_cl_name
 
 from ...models.agent import Agent, wait_display_agent
+from ...tool_runs.header_chip import header_chip_for_node
+from ...tool_runs.snapshot import get_snapshot
 from ...agent_count_chip import format_agent_count_chip
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
 from ...models.fold_scale import TRIBE_FOLD_SCALE, FoldScale, fold_scale_position
@@ -221,6 +223,35 @@ def _finalizer_activity_chip(agent: Agent) -> Text | None:
     return chip
 
 
+def _tool_runs_chip(
+    agent: Agent,
+    summary: DetailHeaderSummary | None,
+) -> Text | None:
+    """Return the selection-scoped ⚒ header chip (plan §3.7).
+
+    Pure render of the ``tool-runs`` lane plus the in-memory glance
+    overlay; never touches the store. Sits after the activity chip and
+    shows whichever deck is open. Remote and clan rows never carry one.
+    """
+
+    snapshot = get_snapshot()
+    runs = snapshot.runs if snapshot is not None else ()
+    silent_after_s = snapshot.silent_after_s if snapshot is not None else 60
+    node_summary = summary.tool_run_summary if summary is not None else None
+    rendered = header_chip_for_node(
+        agent,
+        node_summary,
+        snapshot_runs=runs,
+        snapshot_silent_after_s=silent_after_s,
+    )
+    if rendered is None:
+        return None
+    text, style, _run_id = rendered
+    chip = Text()
+    chip.append(text, style=style)
+    return chip
+
+
 def fold_chip(level: FoldLevel, scale: FoldScale) -> Text:
     """Return the fold position chip for fold-aware documents."""
     position, size = fold_scale_position(level, scale)
@@ -323,6 +354,9 @@ def build_agent_compact_lines(
     activity_chip = _activity_chip(agent)
     if activity_chip is not None:
         second.append(activity_chip)
+    tool_runs_chip = _tool_runs_chip(agent, summary)
+    if tool_runs_chip is not None:
+        second.append(tool_runs_chip)
     if (
         agent.is_agent_session_container_row
         and fold_level is not None
@@ -353,6 +387,9 @@ def _build_named_proc_compact_lines(agent: Agent) -> Text:
     activity_chip = _activity_chip(agent)
     if activity_chip is not None:
         second.append(activity_chip)
+    tool_runs_chip = _tool_runs_chip(agent, None)
+    if tool_runs_chip is not None:
+        second.append(tool_runs_chip)
 
     second_row = chips_row(second) if second else _fallback_context_line(agent)
     return compact_text(chips_row(first), second_row)

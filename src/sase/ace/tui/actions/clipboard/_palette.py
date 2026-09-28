@@ -133,11 +133,18 @@ def _build_agent_context(app: Any) -> CopyAsContext | None:
     subtitle = f"{project} · {presented_name}" if project else str(presented_name)
     response_path = getattr(agent, "response_path", None)
     status = str(getattr(agent, "status", "")).lower()
+    try:
+        from ...tool_runs.header_chip import header_run_id_for_agent
+
+        tool_run_preview = shorten(header_run_id_for_agent(app, agent) or "")
+    except Exception:
+        tool_run_preview = ""
     previews = {
         "chat": shorten(response_path or ""),
         "file_path": shorten(file_path or ""),
         "name": shorten(str(presented_name)),
         "prompt": f"{status} agent prompt" if status else "agent prompt",
+        "tool_run_id": tool_run_preview,
         "reference": (
             f"@agent:{getattr(agent, 'agent_name', '')}"
             if getattr(agent, "agent_name", None)

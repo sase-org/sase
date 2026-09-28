@@ -119,6 +119,14 @@ AGENT_COPY_TARGETS: tuple[CopyTarget, ...] = (
     ),
     build_copy_target(
         "agents",
+        "tool_run_id",
+        "run id",
+        "Copy tool run id",
+        "Identity",
+        "tool run ids",
+    ),
+    build_copy_target(
+        "agents",
         "snapshot",
         "snap",
         "Copy snapshot",

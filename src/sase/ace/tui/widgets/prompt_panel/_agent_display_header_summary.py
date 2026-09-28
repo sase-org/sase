@@ -18,6 +18,10 @@ lane below instead gets a cadence sized to what actually invalidates it:
   (or gains, in the sibling `stores` phase) its own mtime-keyed cache, so a
   revalidation here is cheap. They share the auto-refresh cadence (10 s)
   instead of a sub-second one.
+- ``tool-runs``: one lean indexed SQLite read behind a 64-entry LRU keyed
+  by ``(selector key, store token)``, so a reload with an unchanged token
+  costs ~0 ms. It shares the auto-refresh cadence (10 s); live movement
+  between reloads comes from the in-memory glance overlay, not a new tick.
 - ``slow-tools``: matched to its own 5 s render tick
   (``_configure_slow_tool_render_tick``) rather than either extreme, so it
   neither outruns the tick that consumes it nor falls back to the 1 s bug.
@@ -88,6 +92,7 @@ _LANE_SLOW_TOOLS_REFRESH_INTERVAL_SECONDS = 5.0
 _LANE_REFRESH_INTERVAL_SECONDS: dict[DetailContextLane, float] = {
     "wait-beads": _LANE_NO_TTL_SECONDS,
     "slow-tools": _LANE_SLOW_TOOLS_REFRESH_INTERVAL_SECONDS,
+    "tool-runs": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "plan-bead": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "artifacts": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "memory": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
@@ -117,6 +122,7 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
     "skills": ("skill_uses",),
     "workspaces": ("opened_workspaces",),
     "slow-tools": ("slow_tool_sources",),
+    "tool-runs": ("tool_run_summary",),
     "xprompts": ("xprompts_used",),
     "page-url": ("agent_page_url",),
     "wait-beads": ("wait_bead_statuses",),
@@ -134,10 +140,15 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
 # batch 1, so they publish separately instead of blocking it. Batch 3
 # (`slow-tools`) is pinned to its own 5 s render-tick cadence
 # (`_LANE_SLOW_TOOLS_REFRESH_INTERVAL_SECONDS`) and must never block the
-# lanes ahead of it. Every `DetailContextLane` appears in exactly one
-# batch; see `test_lane_resolution_batches_cover_every_lane_exactly_once`.
+# lanes ahead of it. `tool-runs` joins batch 1: an LRU hit costs ~0 ms and
+# a miss is one lean indexed SQLite read on the worker thread, so it never
+# blocks the lanes around it. Every `DetailContextLane` appears in exactly
+# one batch; see
+# `test_lane_resolution_batches_cover_every_lane_exactly_once`.
 LANE_RESOLUTION_BATCHES: tuple[frozenset[DetailContextLane], ...] = (
-    frozenset({"wait-beads", "plan-bead", "workspaces", "xprompts", "page-url"}),
+    frozenset(
+        {"wait-beads", "plan-bead", "workspaces", "xprompts", "page-url", "tool-runs"}
+    ),
     frozenset({"artifacts", "memory", "glossary", "skills"}),
     frozenset({"slow-tools"}),
 )
@@ -479,6 +490,13 @@ def _build_detail_header_summary_impl(
         with tui_trace(f"{_TRACE_SPAN_PREFIX}.slow_tool_sources"):
             slow_tool_sources = build_slow_tool_sources(agent)
 
+    tool_run_summary = None
+    if "tool-runs" in lanes:
+        from sase.ace.tui.tool_runs.summaries import resolve_tool_run_summary
+
+        with tui_trace(f"{_TRACE_SPAN_PREFIX}.tool_run_summary"):
+            tool_run_summary = resolve_tool_run_summary(agent)
+
     agent_page_url = None
     if "page-url" in lanes and agent_publishes_page(agent):
         with tui_trace(f"{_TRACE_SPAN_PREFIX}.agent_page_url"):
@@ -591,6 +609,7 @@ def _build_detail_header_summary_impl(
         skill_uses=skill_uses,
         opened_workspaces=opened_workspaces,
         slow_tool_sources=slow_tool_sources,
+        tool_run_summary=tool_run_summary,
         agent_page_url=agent_page_url,
         ready_lanes=lanes,
     )

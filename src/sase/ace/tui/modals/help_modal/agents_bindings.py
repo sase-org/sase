@@ -480,6 +480,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     key_sequence_display(cm.prefix, ag_copy["reference"]),
                     "Copy @agent reference",
                 ),
+                (
+                    f"{d(cm.prefix)}{d(ag_copy['tool_run_id'])}",
+                    "Copy tool run id",
+                ),
                 (f"{d(cm.prefix)}{d(ag_copy['snapshot'])}", "Copy sase tui snapshot"),
             ],
         ),

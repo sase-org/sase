@@ -513,6 +513,40 @@ def _append_retry_fields(text: Text, agent: Agent) -> None:
         text.append(f"{agent.fallback_model}\n", style=style)
 
 
+def _append_tool_runs_field(
+    text: Text,
+    agent: Agent,
+    summary: DetailHeaderSummary | None,
+) -> None:
+    """Append the expanded ``Tool runs:`` field, one entry per label (plan §3.7).
+
+    Pure render of the ``tool-runs`` lane plus the in-memory glance
+    overlay; live runs win per label. Remote and clan rows never show it.
+    """
+
+    from ...tool_runs.header_chip import tool_runs_field_entries
+    from ...tool_runs.snapshot import get_snapshot
+
+    node_summary = summary.tool_run_summary if summary is not None else None
+    snapshot = get_snapshot()
+    runs = snapshot.runs if snapshot is not None else ()
+    silent_after_s = snapshot.silent_after_s if snapshot is not None else 60
+    entries = tool_runs_field_entries(
+        agent,
+        node_summary,
+        snapshot_runs=runs,
+        snapshot_silent_after_s=silent_after_s,
+    )
+    if not entries:
+        return
+    text.append("Tool runs: ", style="bold #87D7FF")
+    for index, entry in enumerate(entries):
+        if index:
+            text.append(" · ", style="dim")
+        text.append(entry.text, style=entry.style)
+    text.append("\n")
+
+
 def _append_timestamp_fields(
     text: Text,
     agent: Agent,
@@ -607,6 +641,7 @@ def append_agent_metadata_fields(
     if agent.bug:
         text.append("BUG: ", style="bold #87D7FF")
         text.append(f"{agent.bug}\n", style="bold underline #569CD6")
+    _append_tool_runs_field(text, agent, summary)
 
     if agent.is_named_proc:
         wait_section = None

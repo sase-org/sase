@@ -387,26 +387,19 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
         --epic-symbol 'sase-1bt(RowIdentity)' \
-        --epic-symbol 'sase-1bt(format_age)' \
-        --epic-symbol 'sase-1bt(ToolRunBrief)' \
         --epic-symbol 'sase-1bt(ToolRunBriefs)' \
         --epic-symbol 'sase-1bt(ToolRunGlanceSnapshot)' \
         --epic-symbol 'sase-1bt(ToolRunGlanceStage)' \
         --epic-symbol 'sase-1bt(ToolRunLiveGlance)' \
         --epic-symbol 'sase-1bt(ToolRunLogTail)' \
         --epic-symbol 'sase-1bt(ToolRunNodeSummaries)' \
-        --epic-symbol 'sase-1bt(ToolRunNodeSummary)' \
         --epic-symbol 'sase-1bt(ToolRunStateStyle)' \
         --epic-symbol 'sase-1bt(ToolRunVerdictSummary)' \
         --epic-symbol 'sase-1bt(format_min_sec)' \
         --epic-symbol 'sase-1bt(format_settled_ts)' \
-        --epic-symbol 'sase-1bt(header_chip_text)' \
-        --epic-symbol 'sase-1bt(severity_rank)' \
-        --epic-symbol 'sase-1bt(style_for_bucket)' \
         --epic-symbol 'sase-1bt(switcher_runs_text)' \
         --epic-symbol 'sase-1bt(tool_run_briefs)' \
         --epic-symbol 'sase-1bt(tool_run_log_tail)' \
-        --epic-symbol 'sase-1bt(tool_run_node_summaries)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

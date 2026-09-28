@@ -197,6 +197,8 @@ def header_chip_text(
     label: str,
     bucket: str,
     *,
+    state: str = "running",
+    stop_requested: bool = False,
     stage: str | None = None,
     stages_done: int = 0,
     stages_expected: int | None = None,
@@ -222,6 +224,10 @@ def header_chip_text(
             f"silent {format_age(silent_age_s)}{suffix}"
         )
     if bucket == "running":
+        if stop_requested:
+            return f"{TOOL_RUN_GLYPH} {label} · stopping{suffix}"
+        if state == "created":
+            return f"{TOOL_RUN_GLYPH} {label} · starting{suffix}"
         if (
             stages_expected is not None
             and stages_expected > 0

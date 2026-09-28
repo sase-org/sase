@@ -128,6 +128,7 @@ class CopyModeKeymaps(ModeKeymaps):
                 "name": "n",
                 "prompt": "p",
                 "reference": "at",
+                "tool_run_id": "r",
                 "snapshot": "s",
             },
             "artifacts_agents": {

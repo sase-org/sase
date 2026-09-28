@@ -592,5 +592,10 @@ class KeybindingModesMixin:
                 continue
             if key_group == "agents" and lookup == "file_path" and not file_visible:
                 continue
+            if key_group == "agents" and lookup == "tool_run_id":
+                from ..tool_runs.flag import tool_runs_enabled
+
+                if not tool_runs_enabled():
+                    continue
             bindings.append((d(key), target.footer_label))
         self._update_display(bindings, mode_label="COPY")

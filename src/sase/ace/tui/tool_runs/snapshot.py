@@ -87,7 +87,7 @@ def tool_runs_disabled_reason() -> str | None:
     return _TOOL_RUNS_DISABLED_REASON
 
 
-def _note_tool_runs_disabled(reason: str) -> None:
+def note_tool_runs_disabled(reason: str) -> None:
     """Disable ToolRun surfaces for the session with one log line."""
 
     global _TOOL_RUNS_DISABLED_REASON, _TOOL_RUNS_DISABLED_LOGGED
@@ -113,7 +113,7 @@ def load_glance_blocking(
     try:
         from sase.core.tool_run import tool_run_live_glance
     except Exception as exc:
-        _note_tool_runs_disabled(f"missing tool_run binding: {exc}")
+        note_tool_runs_disabled(f"missing tool_run binding: {exc}")
         return None
     try:
         result = tool_run_live_glance(
@@ -122,7 +122,7 @@ def load_glance_blocking(
         )
     except AttributeError as exc:
         # Stale wheel: require_rust_binding raises AttributeError.
-        _note_tool_runs_disabled(f"missing tool_run_live_glance binding: {exc}")
+        note_tool_runs_disabled(f"missing tool_run_live_glance binding: {exc}")
         return None
     except Exception as exc:
         log.debug("ToolRun glance load failed, keeping last snapshot: %s", exc)
@@ -196,6 +196,7 @@ __all__ = [
     "ToolRunsLoadState",
     "apply_loaded_snapshot",
     "get_snapshot",
+    "note_tool_runs_disabled",
     "load_glance_blocking",
     "should_probe_drift",
     "tool_runs_disabled_reason",

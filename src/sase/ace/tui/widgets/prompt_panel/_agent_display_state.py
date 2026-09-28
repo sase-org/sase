@@ -14,6 +14,7 @@ from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.llm_calls import SlowToolSource
 from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
+from sase.core.tool_run import ToolRunNodeSummary
 from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 from sase.memory.memory_read_report import MemoryReadReportSpec
 from sase.plan_documents import PlanWorkspace
@@ -87,6 +88,7 @@ type DetailContextLane = Literal[
     "skills",
     "workspaces",
     "slow-tools",
+    "tool-runs",
     "xprompts",
     "page-url",
     "wait-beads",
@@ -95,7 +97,7 @@ type DetailContextLane = Literal[
 # sase-l6.3). `plan-bead`, `artifacts`, `memory`, `glossary`, `skills`, and
 # `workspaces` back the SASE CONTEXT lanes in `CONTEXT_LANE_ORDER`
 # (`_agent_context.py:30`; `plan-bead` covers both PLAN and BEAD, which share
-# one resolver). The remaining four back non-context summary fields resolved
+# one resolver). The remaining five back non-context summary fields resolved
 # by the same worker. `bead_display` is deliberately not a lane: it is a
 # cheap cache read (`cached_bead_display`), not a store parse, and its own
 # dedicated worker (`start_agent_bead_display_resolve`) keeps it fresh
@@ -109,6 +111,7 @@ ALL_DETAIL_CONTEXT_LANES: frozenset[DetailContextLane] = frozenset(
         "skills",
         "workspaces",
         "slow-tools",
+        "tool-runs",
         "xprompts",
         "page-url",
         "wait-beads",
@@ -135,6 +138,7 @@ class DetailHeaderSummary:
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None
+    tool_run_summary: ToolRunNodeSummary | None = None
     agent_page_url: str | None = None
     # Lanes this instance actually resolved (attempted), as opposed to lanes
     # that were never requested. A lane in `ready_lanes` whose field is still
