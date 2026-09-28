@@ -33,7 +33,10 @@ from tests.ace.tui.bench_tui_jk_agents import (
 )
 from tests.ace.tui.bench_tui_jk_blocks import (
     test_bench_block_cycle_paged as test_bench_block_cycle_paged,
-    test_bench_sticky_reply_flag_off_vs_on as test_bench_sticky_reply_flag_off_vs_on,
+    test_bench_sticky_reply_heavy_sessions as test_bench_sticky_reply_heavy_sessions,
+)
+from tests.ace.tui.bench_tui_jk_final import (
+    test_bench_agents_jk_with_final_pinned as test_bench_agents_jk_with_final_pinned,
 )
 from tests.ace.tui.bench_tui_jk_fleet import (
     test_bench_agents_fleet_jk_fault_scenarios as test_bench_agents_fleet_jk_fault_scenarios,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime
 import json
 import os
 from pathlib import Path
@@ -23,6 +22,7 @@ from sase.core.finalizer_run_view import (
 )
 from sase.core.finalizer_wire import FinalizerPlanWire
 from sase.core.rust import require_rust_binding
+from sase.core.time import format_local
 from sase.finalizers.run_view_inputs import (
     RunTarget,
     build_node_request,
@@ -794,7 +794,7 @@ def _declaration_detail(declaration: Any) -> str:
     parts: list[str] = []
     moment = getattr(declaration, "t", None)
     if isinstance(moment, (int, float)) and not isinstance(moment, bool):
-        parts.append(datetime.fromtimestamp(moment).strftime("%H:%M:%S"))
+        parts.append(format_local(moment, "%H:%M:%S"))
     code = getattr(declaration, "code", None)
     if code:
         parts.append(str(code))

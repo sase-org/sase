@@ -5597,24 +5597,24 @@ severity (failed > refused > interrupted > deferred > running), and appends
 same signal as an activity chip (`⊛ finalizing · <id> · <label>`, or `⊛ declaration`
 while the declaration turn runs).
 
-**In context: the ⊛ FINAL receipt.** Each shell's Reply phase ends with a short
-`⊛ FINAL` receipt: one line per finalizer instance with its state glyph, per-instance
-detail (step or op label, `attempt n/m` when retries are budgeted, failure reason or
-headline), and duration. Success lines stay quiet; success with warnings gains a dim
-`⚠N` suffix (detail lives in FINAL, never on the row), and failed or refused instances
-add a dim reason line. When anything needs attention the receipt ends with a
+**In context: the ⊛ FINAL receipt.** Each turn's Reply phase ends with a short `⊛ FINAL`
+receipt: one line per finalizer instance with its state glyph, per-instance detail (step
+or op label, `attempt n/m` when retries are budgeted, failure reason or headline), and
+duration. Success lines stay quiet; success with warnings gains a dim `⚠N` suffix
+(detail lives in FINAL, never on the row), and failed or refused instances add a dim
+reason line. When anything needs attention the receipt ends with a
 `p n  open FINAL deck` hint. There is no receipt before finalization begins (the
-`planned` phase), none for shells skipped by a plan handoff, and none for legacy runs
+`planned` phase), none for turns skipped by a plan handoff, and none for legacy runs
 with no finalizer summary.
 
 **To diagnose: the ⊛ FINAL deck.** Press `p n` (`p N` opens it in the other panel) or
 cycle with `Ctrl+N` / `Ctrl+P`. The deck accent is rose `#FF87D7`; the count noun is
 `finalizer`/`finalizers`. Cards are `Overview` plus one per selected finalizer instance,
 and FINAL cards stick while `j`/`k` move (the status strip and subtitle carry the signal
-instead). Every FINAL card on a session container holds one card block per shell that
-ran finalizers, with the same roster-matched ids Reply uses; skipped and not-triggered
-shells appear only in the ledger. The rail, `(` / `)`, and newest-block landing all work
-as on Reply.
+instead). Every FINAL card on a session container holds one card block per turn that ran
+finalizers, with the same roster-matched ids Reply uses; skipped and not-triggered turns
+appear only in the ledger. The rail, `(` / `)`, and newest-block landing all work as on
+Reply.
 
 - **Overview card.** The run plan in DAG order with per-instance selection reasons,
   configured-but-unselected instances dimmed with their reason (`%final:!lint`,

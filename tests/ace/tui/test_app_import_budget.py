@@ -11,9 +11,11 @@ from typing import Any
 _MAX_ELAPSED_SECONDS = 5.0
 # Feature growth and mechanical toobig splits (the agent-deck cutover, the
 # command line, launch-cwd and usage-refresh helpers) added ~110 small modules
-# since the closure measured 3246. The deferred-module probe below is the
-# heavy-edge guard; this count only catches a wholesale closure regression.
-_MAX_MODULE_COUNT = 3400
+# since the closure measured 3246. A second ~70 (mostly toobig splits, plus
+# FINAL-deck glance surfaces, agent tabs, update-gear state and deck views)
+# took it to 3425. The deferred-module probe below is the heavy-edge guard;
+# this count only catches a wholesale closure regression.
+_MAX_MODULE_COUNT = 3450
 
 
 def _measure_tui_app_import() -> dict[str, Any]:

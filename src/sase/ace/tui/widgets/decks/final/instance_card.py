@@ -9,11 +9,11 @@ completely through this module.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from rich.text import Text
 
+from sase.core.time import parse_local
 from sase.finalizers.view_vocabulary import (
     FAILURE_COLOR,
     FINAL_GLYPH,
@@ -70,10 +70,8 @@ def _clock_text(moment: Any) -> str | None:
     if isinstance(moment, bool):
         return None
     if isinstance(moment, (int, float)):
-        try:
-            return datetime.fromtimestamp(moment).strftime("%H:%M:%S")
-        except (OverflowError, OSError, ValueError):
-            return None
+        parsed = parse_local(moment)
+        return parsed.strftime("%H:%M:%S") if parsed is not None else None
     return None
 
 

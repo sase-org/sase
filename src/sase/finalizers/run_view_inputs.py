@@ -88,7 +88,7 @@ def _runner_identity_from_mapping(data: Any) -> RunnerIdentity | None:
 
 @dataclass(frozen=True)
 class RunTarget:
-    """One concrete shell's finalizer execution to collect inputs for."""
+    """One concrete turn's finalizer execution to collect inputs for."""
 
     run_id: str
     artifacts_dir: str | None

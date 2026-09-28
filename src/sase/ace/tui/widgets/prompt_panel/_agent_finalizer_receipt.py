@@ -1,6 +1,6 @@
-"""⊛ FINAL Reply receipt appended to each shell's phase render (plan §3.5).
+"""⊛ FINAL Reply receipt appended to each turn's phase render (plan §3.5).
 
-Built only from the member shell's summary and returned as plain ``Text``
+Built only from the member turn's summary and returned as plain ``Text``
 so the hint flatteners accept it. One-line call sites live in the session,
 legacy, lone-turn, hint-twin, and monitor phase builders; all logic stays
 here so ``toobig`` stays green.
@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from rich.text import Text
 
+from sase.core.time import parse_local
 from sase.finalizers.view_vocabulary import (
     FINAL_DECK_ACCENT,
     FINAL_GLYPH,
@@ -29,13 +30,10 @@ RECEIPT_LABEL = "FINAL"
 def _started_at(agent: Agent) -> datetime | None:
     summary = agent.finalizer_status
     started = summary.started_at if summary is not None else None
-    if started is None:
-        run_start = agent.run_start_time or agent.start_time
-        return run_start
-    try:
-        return datetime.fromtimestamp(started)
-    except (ValueError, OSError, OverflowError):
+    parsed = parse_local(started)
+    if parsed is None:
         return agent.run_start_time or agent.start_time
+    return parsed.replace(tzinfo=None)
 
 
 def _duration_text(started_at: float | None, finished_at: float | None) -> str | None:
@@ -94,9 +92,9 @@ def _instance_detail(
 
 
 def finalizer_receipt_text(phase: Agent) -> Text | None:
-    """Return the ⊛ FINAL receipt for one shell's phase, or None.
+    """Return the ⊛ FINAL receipt for one turn's phase, or None.
 
-    No receipt for handoff-skipped shells, zero selected instances, legacy
+    No receipt for handoff-skipped turns, zero selected instances, legacy
     runs with no summary, or the ``planned`` phase (plan D8/D9).
     """
     summary = phase.finalizer_status

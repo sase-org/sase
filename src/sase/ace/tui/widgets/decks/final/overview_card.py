@@ -14,11 +14,11 @@ projection's own messages reach the card (plan §3.4 secrecy rule).
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from rich.text import Text
 
+from sase.core.time import format_local
 from sase.finalizers.view_vocabulary import (
     FINAL_GLYPH,
     STATE_STYLES,
@@ -31,7 +31,7 @@ from sase.finalizers.view_vocabulary import (
 OVERVIEW_FOOTER = "sase final status <agent> · sase final list · sase final doctor"
 
 #: Calm explanation for a handoff-skipped run (plan D8).
-SKIPPED_EXPLANATION = "this shell handed off; its successor lands the work"
+SKIPPED_EXPLANATION = "this turn handed off; its successor lands the work"
 
 #: Fallback clock text when a declaration carries no timestamp.
 _UNKNOWN_TIME = "--:--:--"
@@ -160,10 +160,7 @@ def _clock_text(moment: Any) -> str:
         return _UNKNOWN_TIME
     if value is None:
         return _UNKNOWN_TIME
-    try:
-        return datetime.fromtimestamp(value).strftime("%H:%M:%S")
-    except (OSError, OverflowError, ValueError):
-        return _UNKNOWN_TIME
+    return format_local(value, "%H:%M:%S", default=_UNKNOWN_TIME)
 
 
 def _declaration_style(status: str | None) -> FinalizerStateStyle:

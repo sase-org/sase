@@ -83,7 +83,7 @@ def _chip_style(state_key: str) -> str:
 def _member_candidates(
     agent: Agent,
 ) -> list[tuple[str, str | None, str | None, str | None]]:
-    """Return ``(state_key, id, op, step)`` rows for one shell's summary.
+    """Return ``(state_key, id, op, step)`` rows for one turn's summary.
 
     A ``running`` instance on a non-RUNNING turn derives to ``interrupted``:
     the turn ended while finalization never settled.
@@ -158,7 +158,7 @@ def session_finalizer_row_state(
     container: Agent,
     members: Sequence[Agent] | None = None,
 ) -> FinalizerRowState:
-    """Aggregate member shells by the D10 session supersede rule.
+    """Aggregate member turns by the D10 session supersede rule.
 
     Only runs after the newest successful settled run are considered; among
     those the highest severity wins (failed > refused > interrupted >

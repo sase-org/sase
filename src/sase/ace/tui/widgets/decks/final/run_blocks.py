@@ -17,6 +17,8 @@ from typing import Any
 
 from rich.text import Text
 
+from sase.core.time import parse_local
+
 from ..card_block import BlockMeta
 
 #: Run dispositions that earn a card block. Every other disposition
@@ -94,10 +96,8 @@ def _run_start_time(run: Any) -> datetime | None:
         if isinstance(moment, bool):
             continue
         if isinstance(moment, (int, float)):
-            try:
-                return datetime.fromtimestamp(moment)
-            except (OverflowError, OSError, ValueError):
-                return None
+            parsed = parse_local(moment)
+            return parsed.replace(tzinfo=None) if parsed is not None else None
     return None
 
 
