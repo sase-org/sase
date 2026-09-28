@@ -246,7 +246,7 @@ def test_chop_neighbor_without_artifact_target_is_not_missing() -> None:
                 this_is_source=False,
                 neighbor_ref="chop:hooks/build",
                 neighbor_target=None,
-                icon="⚒",
+                icon="⏲",
             ),
         ),
         width=120,

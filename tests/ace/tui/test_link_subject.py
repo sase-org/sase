@@ -158,3 +158,10 @@ def test_axe_tab_returns_none_for_unrecognized_sidebar_rows() -> None:
 def test_unrecognized_tab_returns_none() -> None:
     app = SimpleNamespace(current_tab="somewhere-else")
     assert selected_link_subject(app) is None
+
+
+def test_chop_icon_left_the_tool_run_glyph() -> None:
+    """Pin the epic sase-1bt D1 move: chops paint ⏲, ToolRuns own ⚒."""
+
+    assert accent_and_icon_for_ref("chop", None) == (_CHOP_ACCENT, "⏲")
+    assert accent_and_icon_for_ref("job", None) == (_CHOP_ACCENT, "⏲")

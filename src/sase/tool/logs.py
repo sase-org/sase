@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 import stat
 import threading
+from typing import Any
 
 from sase.config.tools import (
     DEFAULT_TOOL_RUNS_EVENT_MAX_BYTES,
@@ -289,16 +291,231 @@ def _mkdir_private(path: Path, mode: int) -> None:
         pass
 
 
+def retained_log_rotated(path: Path | str) -> bool:
+    """Return True when a retained log has a rotated ``.1`` sibling.
+
+    Shared with the ``sase tool show --log`` replay path, which reports the
+    same rotation as truncation.
+    """
+
+    sibling = Path(str(path)).with_name(f"{Path(str(path)).name}.1")
+    try:
+        return sibling.is_file()
+    except OSError:
+        return False
+
+
+#: Availability words for :class:`ToolRunLogTail`, matching the honest-absence
+#: copy the Runs card renders.
+TOOL_RUN_LOG_AVAILABILITY: tuple[str, ...] = (
+    "available",
+    "truncated",
+    "pruned",
+    "owner-missing",
+    "not-recorded",
+)
+
+#: Tail sources: the run's own retained streams, its owner's log, or neither.
+TOOL_RUN_LOG_SOURCES: tuple[str, ...] = ("run", "owner", "none")
+
+
+@dataclass(frozen=True)
+class ToolRunLogTail:
+    """A bounded tail of a run's output of record.
+
+    ``availability`` is one of ``available``, ``truncated``, ``pruned``,
+    ``owner-missing``, or ``not-recorded``; ``source`` is ``run``, ``owner``,
+    or ``none``. ``lines`` holds the decoded tail lines without endings,
+    ``total_bytes`` the retained bytes on disk, and ``truncated`` whether the
+    tail omits retained output.
+    """
+
+    availability: str = "not-recorded"
+    source: str = "none"
+    lines: tuple[str, ...] = ()
+    total_bytes: int = 0
+    truncated: bool = False
+
+
+def _tail_of_file(
+    path: Path, lines: int, max_bytes: int
+) -> tuple[list[str], int, bool]:
+    """Return the last *lines* lines within the last *max_bytes* of *path*.
+
+    Also returns the file size and whether retained output was left out.
+    """
+
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return [], 0, False
+    if lines <= 0 or max_bytes <= 0:
+        return [], size, size > 0
+    window = min(size, max_bytes)
+    try:
+        with path.open("rb") as handle:
+            handle.seek(size - window)
+            data = handle.read(window)
+    except OSError:
+        return [], size, False
+    text = data.decode("utf-8", "replace")
+    if not text:
+        return [], size, size > window
+    text_lines = text.splitlines()
+    kept = text_lines[-lines:]
+    return kept, size, size > window or len(text_lines) > lines
+
+
+def _rotated_tail(
+    path: Path, lines: int, max_bytes: int
+) -> tuple[list[str], int, bool]:
+    """Return the merged tail of a retained log plus its rotated sibling."""
+
+    sibling = path.with_name(f"{path.name}.1")
+    rotated = retained_log_rotated(path)
+    prior: list[str] = []
+    if rotated:
+        prior, _, _ = _tail_of_file(sibling, lines, max_bytes)
+    kept, size, cut = _tail_of_file(path, lines, max_bytes)
+    try:
+        size += sibling.stat().st_size
+    except OSError:
+        pass
+    merged = (prior + kept)[-lines:] if lines > 0 else []
+    # A rotation marker means retained output lives outside this tail, the
+    # same truncation the show replay path reports.
+    dropped = len(prior) + len(kept) > len(merged)
+    return merged, size, rotated or cut or dropped
+
+
+def _owner_log_tail(
+    kind: str, owner_id: str, metadata: Mapping[str, Any], lines: int, max_bytes: int
+) -> ToolRunLogTail:
+    """Tail the owner's log of record, or report that it is missing."""
+
+    recorded = metadata.get("owner_log_path")
+    if recorded:
+        path = Path(str(recorded))
+        if path.is_file():
+            kept, size, cut = _rotated_tail(path, lines, max_bytes)
+            return ToolRunLogTail(
+                availability="truncated" if cut else "available",
+                source="owner",
+                lines=tuple(kept),
+                total_bytes=size,
+                truncated=cut,
+            )
+        return ToolRunLogTail(availability="owner-missing", source="none")
+    resolved: Path | None = None
+    if kind == "proc" and owner_id:
+        try:
+            from sase.procs.store import get_proc
+
+            proc = get_proc(owner_id)
+        except Exception:  # noqa: BLE001 - expired owners have no log.
+            proc = None
+        if proc is not None and proc.log_path and Path(proc.log_path).is_file():
+            resolved = Path(proc.log_path)
+    elif kind == "monitor" and owner_id:
+        try:
+            from sase.tool.control import monitor_output_path
+
+            found = monitor_output_path(
+                {"project": metadata.get("project") or ""}, owner_id
+            )
+        except Exception:  # noqa: BLE001 - expired owners have no log.
+            found = None
+        if found is not None and found.is_file():
+            resolved = found
+    if resolved is None:
+        return ToolRunLogTail(availability="owner-missing", source="none")
+    kept, size, cut = _rotated_tail(resolved, lines, max_bytes)
+    return ToolRunLogTail(
+        availability="truncated" if cut else "available",
+        source="owner",
+        lines=tuple(kept),
+        total_bytes=size,
+        truncated=cut,
+    )
+
+
+def tool_run_log_tail(
+    run_id: str,
+    logs_metadata: Mapping[str, Any] | None,
+    owner_kind: str | None,
+    owner_id: str | None,
+    lines: int,
+    max_bytes: int,
+) -> ToolRunLogTail:
+    """Return the bounded tail of a run's output of record.
+
+    The selection mirrors the ``sase tool show --log`` path: the run's own
+    retained stdout/stderr streams first, then the owner's log, then the
+    honest-absence cases. ``logs_metadata`` is the run's ``logs`` map
+    (``stdout_path``, ``stderr_path``, ``events_path``, ``owner_log_path``,
+    plus ``detail_pruned``/``log_pruned`` retention signals). The result is
+    pure apart from the file reads it exists to bound.
+    """
+
+    metadata = dict(logs_metadata or {})
+    retained = [
+        Path(str(raw))
+        for key in ("stdout_path", "stderr_path")
+        if (raw := metadata.get(key))
+    ]
+    if retained:
+        existing = [path for path in retained if path.is_file()]
+        if not existing:
+            if metadata.get("detail_pruned") or metadata.get("log_pruned"):
+                return ToolRunLogTail(availability="pruned", source="none")
+            return ToolRunLogTail(availability="not-recorded", source="none")
+        merged: list[str] = []
+        total = 0
+        cut = False
+        for path in existing:
+            kept, size, truncated = _rotated_tail(path, lines, max_bytes)
+            total += size
+            cut = cut or truncated
+            merged.extend(kept)
+        kept_lines = merged[-lines:] if lines > 0 else []
+        if len(merged) > len(kept_lines):
+            cut = True
+        truncation_record = read_truncation_messages(
+            metadata.get("events_path"), run_id
+        )
+        if truncation_record:
+            cut = True
+        return ToolRunLogTail(
+            availability="truncated" if cut else "available",
+            source="run",
+            lines=tuple(kept_lines),
+            total_bytes=total,
+            truncated=cut,
+        )
+    kind = str(owner_kind or "")
+    resolved_owner = str(owner_id or "")
+    if kind and resolved_owner:
+        return _owner_log_tail(kind, resolved_owner, metadata, lines, max_bytes)
+    if metadata.get("detail_pruned") or metadata.get("log_pruned"):
+        return ToolRunLogTail(availability="pruned", source="none")
+    return ToolRunLogTail(availability="not-recorded", source="none")
+
+
 __all__ = [
     "OUTPUT_RECORD_KIND",
+    "TOOL_RUN_LOG_AVAILABILITY",
+    "TOOL_RUN_LOG_SOURCES",
     "BoundedLogSink",
     "LogSinkError",
     "RunLogBudget",
+    "ToolRunLogTail",
     "log_policy",
     "log_write_diagnostics",
     "prepare_run_paths",
     "read_truncation_messages",
     "record_truncation",
     "replay_retained_bytes",
+    "retained_log_rotated",
+    "tool_run_log_tail",
     "truncation_diagnostics",
 ]

@@ -26,7 +26,9 @@ from .artifact_links import parse_link_ref
 # Jobs are a virtual link-graph subject kind (no owning Artifacts pane, no
 # ref-kind catalog entry): the AXE tab resolves them, but nothing else does.
 _CHOP_ACCENT = "#5FD7D7"
-_CHOP_ICON = "⚒"
+# The chop link-trail icon moved from ⚒ to ⏲ (epic sase-1bt D1):
+# ⚒ now means ToolRun everywhere.
+_CHOP_ICON = "⏲"
 _PLAN_REF_ICON = "✎"
 _DEFAULT_ICON = "•"
 

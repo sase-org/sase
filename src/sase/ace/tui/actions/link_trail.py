@@ -24,7 +24,9 @@ if TYPE_CHECKING:
     from .axe_display._loader_state import AxeItemKey
 
 _LINK_TRAIL_MAX = 32
-_AXE_ICON = "⚒"
+# The chop/Services link-trail icon moved from ⚒ to ⏲ (epic sase-1bt D1):
+# ⚒ now means ToolRun everywhere.
+_AXE_ICON = "⏲"
 _UNKNOWN_ICON = "•"
 
 

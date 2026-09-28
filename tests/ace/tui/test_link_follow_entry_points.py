@@ -652,7 +652,7 @@ def test_matrix_chop_via_links_panel_with_trail_and_back() -> None:
         neighbor_ref="job:lj/chop",
         neighbor_target=None,
         accent="#5FD7D7",
-        icon="⚒",
+        icon="⏲",
         why="",
         origin="manual",
         uses=1,

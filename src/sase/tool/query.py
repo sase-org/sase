@@ -17,7 +17,12 @@ from rich.table import Table
 from sase.config.tools import DEFAULT_TOOL_RUNS_DETAIL_DAYS, tool_project_identity
 from sase.core.tool_run import tool_run_list, tool_run_show, tool_run_triage_show
 from sase.tool.liveness import reconcile_unsettled_tool_runs
-from sase.tool.logs import log_policy, read_truncation_messages, replay_retained_bytes
+from sase.tool.logs import (
+    log_policy,
+    read_truncation_messages,
+    replay_retained_bytes,
+    retained_log_rotated,
+)
 from sase.tool.owner import owner_retention
 from sase.tool.render import (
     EMPTY,
@@ -369,7 +374,7 @@ def _replay_tool_files(
             empty = path.stat().st_size == 0
         except OSError:
             empty = False
-        if path.with_name(f"{path.name}.1").exists():
+        if retained_log_rotated(path):
             truncated.append(f"{label} retained log was rotated/truncated")
         dest = sys.stdout if label == "stdout" else sys.stderr
         replay_retained_bytes(path, partial(_write_bytes, dest))
