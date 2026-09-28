@@ -585,9 +585,9 @@ def test_failed_worker_finish_is_recovered_through_the_settlement_hook(
     def busy(_payload: dict[str, Any]) -> None:
         raise RuntimeError("database is locked")
 
-    monkeypatch.setattr("sase.tool.executor_recording.tool_run_finish", busy)
-    assert not finish_tool_run(run_id, state="failed", exit_code=3, duration_ms=5)
-    monkeypatch.undo()
+    with monkeypatch.context() as scoped:
+        scoped.setattr("sase.tool.executor_recording.tool_run_finish", busy)
+        assert not finish_tool_run(run_id, state="failed", exit_code=3, duration_ms=5)
     _clean_env(monkeypatch, tmp_path)
     assert _run(run_id)["state"] == "running"
 

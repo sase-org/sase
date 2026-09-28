@@ -63,6 +63,8 @@ def _tmux_env_args(
     args: list[str] = []
     for key, default in _PROFILING_ENV_DEFAULTS.items():
         args.extend(["-e", f"{key}={os.environ.get(key, default)}"])
+    if os.environ.get("SASE_HOME"):
+        args.extend(["-e", f"SASE_HOME={os.environ['SASE_HOME']}"])
     args.extend(
         [
             "-e",

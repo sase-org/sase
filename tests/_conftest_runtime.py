@@ -367,25 +367,29 @@ def _pin_configured_timezone() -> Iterator[None]:
 
 
 @pytest.fixture
-def tz_divergence(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def tz_divergence() -> Iterator[None]:
     """Force configured tz (``America/New_York``) ≠ system tz (``UTC``).
 
     Reproduces the production bug class where the host's system timezone differs
     from the configured ``timezone``: bare ``datetime.now()`` / ``.astimezone()``
     / ``datetime.fromtimestamp()`` observe UTC while :func:`get_timezone` /
     :func:`local_now` observe Eastern. The system tz is restored on teardown.
+
+    Uses a private :class:`pytest.MonkeyPatch` for ``TZ`` so teardown cannot
+    revert other fixtures' patches on the shared ``monkeypatch`` fixture.
     """
     import time as _time
     from zoneinfo import ZoneInfo
 
     from sase.core import time as core_time
 
-    monkeypatch.setenv("TZ", "UTC")
+    scoped = pytest.MonkeyPatch()
+    scoped.setenv("TZ", "UTC")
     _time.tzset()
     core_time._cached_timezone = ZoneInfo("America/New_York")
     try:
         yield
     finally:
-        monkeypatch.undo()
+        scoped.undo()
         _time.tzset()
         core_time._cached_timezone = ZoneInfo("America/New_York")

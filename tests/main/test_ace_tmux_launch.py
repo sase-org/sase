@@ -151,3 +151,24 @@ def test_exits_with_message_when_tmux_missing(capsys) -> None:
     assert excinfo.value.code == 2
     err = capsys.readouterr().err
     assert "tmux executable not found" in err
+
+
+def test_claim_window_forwards_sase_home_to_tmux(monkeypatch) -> None:
+    """A sandboxed caller gets a TUI on its own home, not the server's."""
+    monkeypatch.setenv("SASE_HOME", "/tmp/fake-sase-home")
+    fake = FakeTmux(in_tmux=True)
+
+    ace_tmux._claim_window("agents-tmux-7", "sleep 60", runner=fake)
+
+    new_window_call = next(c for c in fake.calls if c[1] == "new-window")
+    assert "SASE_HOME=/tmp/fake-sase-home" in new_window_call
+
+
+def test_claim_window_omits_sase_home_when_unset(monkeypatch) -> None:
+    monkeypatch.delenv("SASE_HOME", raising=False)
+    fake = FakeTmux(in_tmux=True)
+
+    ace_tmux._claim_window("agents-tmux-7", "sleep 60", runner=fake)
+
+    new_window_call = next(c for c in fake.calls if c[1] == "new-window")
+    assert not any(arg.startswith("SASE_HOME=") for arg in new_window_call)

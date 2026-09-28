@@ -462,11 +462,21 @@ async def test_failed_read_clears_flags_next_opens(
     assert getattr(harness, "_prompts_stash_pop_newest_pending", False) is False
 
     # Next `@` opens normally (overlay pushed). The tmp store redirect stays
-    # active: no undo() on the shared fixture, so the read cannot fall back
-    # to the account's real prompt stash.
+    # active: the scoped context above reverted only the failing-read patch,
+    # so the read cannot fall back to the account's real prompt stash.
     await harness.action_restore_prompt_stash()
     await _wait_prompt_stash_tasks(harness)
     assert len(harness.pushed) == 1
+
+    from sase.core import paths as _paths
+
+    assert _paths.prompt_stash_path() == path
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert {entry.id for entry in read_prompt_stash_snapshot(path).entries} == {
+        "a",
+        "b",
+    }
 
 
 async def test_single_at_pushes_overlay(

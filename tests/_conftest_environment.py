@@ -105,6 +105,31 @@ def _forbid_real_host_sase_config_layer_writes(
 
 
 @pytest.fixture(scope="session", autouse=True)
+def _sandbox_session_home(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[None]:
+    """Undo-proof session baseline for home isolation.
+
+    Owns a private :class:`pytest.MonkeyPatch` pointing ``HOME`` at a
+    per-worker tmp directory and ``SASE_HOME`` at its ``.sase`` child.
+    Session scope runs before any module-scoped fixture, so module-scoped
+    ``AcePageGroup`` fixtures mount under the sandbox instead of the real
+    ``~/.sase/logs``. Any stray function-level ``undo()`` falls back to this
+    sandbox, never the account home. Undone at session end.
+    """
+    scoped = pytest.MonkeyPatch()
+    worker_home = tmp_path_factory.mktemp("session-home")
+    sase_home = worker_home / ".sase"
+    sase_home.mkdir(parents=True, exist_ok=True)
+    scoped.setenv("HOME", str(worker_home))
+    scoped.setenv("SASE_HOME", str(sase_home))
+    try:
+        yield
+    finally:
+        scoped.undo()
+
+
+@pytest.fixture(scope="session", autouse=True)
 def _publish_pytest_sandbox(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Iterator[None]:

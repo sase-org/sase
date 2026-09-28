@@ -15,6 +15,10 @@ from sase.ace.tui.modals.notification_modal_sent_at import (
     NotificationSentAtMixin,
     _build_sent_at_text,
 )
+from sase.notifications import (
+    format_absolute_time as _real_format_absolute_time,
+    format_relative_time as _real_format_relative_time,
+)
 from tests._notification_modal_helpers import _make_notification
 
 
@@ -146,7 +150,16 @@ class TestUpdateSentAt:
     def test_garbage_timestamp_still_renders_without_raising(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.undo()  # restore real formatters for this one test
+        # Restore the real formatters over the stable autouse mock without
+        # disturbing the shared home isolation (no monkeypatch.undo()).
+        monkeypatch.setattr(
+            "sase.ace.tui.modals.notification_modal_sent_at.format_absolute_time",
+            _real_format_absolute_time,
+        )
+        monkeypatch.setattr(
+            "sase.ace.tui.modals.notification_modal_sent_at.format_relative_time",
+            _real_format_relative_time,
+        )
         label = MagicMock()
         host = _SentAtHost(label)
         notification = _make_notification("n1", timestamp="not-a-real-timestamp")

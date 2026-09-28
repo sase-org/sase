@@ -14,6 +14,7 @@ from tests._conftest_environment import (
     _publish_pytest_sandbox,
     _restore_workflow_metadata_derived_caches,
     _restore_working_directory,
+    _sandbox_session_home,
     _use_placeholder_directory_map_assets,
     allow_axe_lifecycle_in_tests,
     real_directory_map_assets,
