@@ -23,7 +23,9 @@ def test_request_user_kill_writes_intent_before_sigterm(
 ) -> None:
     artifacts_dir = tmp_path / "artifacts"
     calls: list[int] = []
-    monkeypatch.setattr("sase.agent.user_kill.pid_is_thread", lambda _pid: False)
+    monkeypatch.setattr(
+        "sase.agent._user_kill_intent.pid_is_thread", lambda _pid: False
+    )
 
     def fake_killpg(_pgid: int, sig: int) -> None:
         calls.append(sig)
@@ -61,10 +63,12 @@ def test_request_user_kill_identity_mismatch_sends_no_signal(
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "sase.agent.user_kill.process_identity_matches",
+        "sase.agent._user_kill_intent.process_identity_matches",
         lambda _pid, _recorded: False,
     )
-    monkeypatch.setattr("sase.agent.user_kill.pid_is_thread", lambda _pid: False)
+    monkeypatch.setattr(
+        "sase.agent._user_kill_intent.pid_is_thread", lambda _pid: False
+    )
     calls: list[int] = []
 
     def fake_killpg(_pgid: int, sig: int) -> None:
@@ -100,7 +104,7 @@ def test_request_user_kill_wait_runs_the_verified_terminator(
         return AgentTerminationResult(True, "killed", pid, pid)
 
     monkeypatch.setattr(
-        "sase.agent.user_kill.terminate_agent_processes", fake_terminate
+        "sase.agent._user_kill_request.terminate_agent_processes", fake_terminate
     )
 
     result = request_user_kill(
@@ -123,7 +127,9 @@ def test_request_user_kill_background_escalates_through_the_terminator(
     artifacts_dir = tmp_path / "artifacts"
     escalated = threading.Event()
     seen: dict[str, object] = {}
-    monkeypatch.setattr("sase.agent.user_kill.pid_is_thread", lambda _pid: False)
+    monkeypatch.setattr(
+        "sase.agent._user_kill_intent.pid_is_thread", lambda _pid: False
+    )
 
     def fake_terminate(pid: int, **kwargs: object) -> AgentTerminationResult:
         seen["pid"] = pid
@@ -132,7 +138,7 @@ def test_request_user_kill_background_escalates_through_the_terminator(
         return AgentTerminationResult(True, "killed", pid, pid)
 
     monkeypatch.setattr(
-        "sase.agent.user_kill.terminate_agent_processes", fake_terminate
+        "sase.agent._user_kill_request.terminate_agent_processes", fake_terminate
     )
 
     result = request_user_kill(
@@ -162,7 +168,7 @@ def test_escalate_in_background_runs_terminator_on_a_daemon_thread(
         return AgentTerminationResult(True, "killed", pid, pid)
 
     monkeypatch.setattr(
-        "sase.agent.user_kill.terminate_agent_processes", fake_terminate
+        "sase.agent._user_kill_request.terminate_agent_processes", fake_terminate
     )
 
     thread = escalate_user_kill_in_background(

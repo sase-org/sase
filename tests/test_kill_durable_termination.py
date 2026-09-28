@@ -364,7 +364,7 @@ def test_durable_transaction_releases_only_after_the_process_tree_is_dead(
         )
         return False
 
-    monkeypatch.setattr("sase.agent.user_kill.read_process_registry", no_registry)
+    monkeypatch.setattr("sase.agent._user_kill_tree.read_process_registry", no_registry)
     monkeypatch.setattr(
         "sase.ace.dismissed_agents.add_dismissed_agents", lambda _s: set()
     )
