@@ -65,6 +65,7 @@ class _RowInputs:
     parents_with_visible_children: set[str]
     fully_expanded_parents: set[str]
     show_machine_chip: bool
+    tab_chips: dict[int, tuple[str, str]] | None
     wait_status_maps: AgentWaitStatusMaps
     now: datetime | None
 
@@ -157,6 +158,61 @@ def agent_wait_status_maps_for_build(
     return agent_wait_status_maps_for_app(app) or collect_agent_wait_status_maps(agents)
 
 
+def _all_tabs_row_chips(
+    widget: Any, agents: list[Agent]
+) -> dict[int, tuple[str, str]] | None:
+    """Return per-row ``(name, style)`` tab chips for the All-tabs level.
+
+    Only rows on named tabs get a chip, and only while the All-tabs level
+    is effectively active with the ``agent_tabs`` flag on. Otherwise None,
+    which keeps every other view byte-identical. Style inputs come from
+    the token-cached worker resolution, so this performs no disk or
+    network work.
+    """
+    try:
+        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
+        from sase.ace.tui.actions.agents._panel_layout import (
+            effective_panel_layout_for_owner,
+        )
+        from sase.ace.tui.models.agent_panel_layout import AgentPanelLayout
+        from sase.ace.tui.models.agent_tab_descriptors import (
+            resolve_agent_tab_style_inputs,
+        )
+        from sase.ace.tui.widgets.agent_tab_strip import agent_tab_chip_for_key
+    except Exception:
+        return None
+    try:
+        if not agent_tabs_enabled():
+            return None
+        app = getattr(widget, "app", None)
+        if app is None:
+            return None
+        if effective_panel_layout_for_owner(app) is not AgentPanelLayout.ALL_TABS:
+            return None
+        index = getattr(app, "_agent_tab_index", None)
+        key_for = getattr(index, "key_for", None)
+        if not callable(key_for):
+            return None
+        try:
+            styles = resolve_agent_tab_style_inputs(allow_disk=False)
+        except Exception:
+            styles = None
+        colors = dict(styles.colors) if styles is not None else {}
+        projects = tuple(styles.enabled_projects) if styles is not None else ()
+        chips: dict[int, tuple[str, str]] = {}
+        for position, agent in enumerate(agents):
+            try:
+                key = key_for(agent)
+            except Exception:
+                continue
+            chip = agent_tab_chip_for_key(key, colors=colors, enabled_projects=projects)
+            if chip is not None:
+                chips[position] = chip
+        return chips or None
+    except Exception:
+        return None
+
+
 def build_row_inputs(
     widget: Any,
     agents: list[Agent],
@@ -199,6 +255,7 @@ def build_row_inputs(
         fully_expanded_parents=fully_expanded_parents,
         show_machine_chip=_agent_row_chrome_mode(agents)
         and not _machine_tab_chrome_suppressed(widget_app_or_none(widget)),
+        tab_chips=_all_tabs_row_chips(widget, agents),
         wait_status_maps=agent_wait_status_maps_for_build(widget, agents),
         now=now,
     )
@@ -264,6 +321,7 @@ def agent_row_context(inputs: _RowInputs, agent: Agent, index: int) -> dict[str,
             inputs.parents_with_visible_children,
         ),
         "show_machine_chip": inputs.show_machine_chip,
+        "tab_chip": (inputs.tab_chips or {}).get(index),
     }
 
 
@@ -298,6 +356,7 @@ def format_agent_row(
         clan_unknown_wait_count=int(ctx.get("clan_unknown_wait_count", 0)),
         unread_agent_ids=inputs.unread,
         show_machine_chip=ctx["show_machine_chip"],
+        tab_chip=ctx.get("tab_chip"),
     )
 
 

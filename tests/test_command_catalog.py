@@ -271,7 +271,7 @@ def test_grouping_mode_commands_cover_agents_picker_and_artifacts_cycles() -> No
     assert chooser.key_sequence == ("o",)
     assert "machine" in chooser.aliases
     assert "panel layout" in chooser.aliases
-    assert panel_layout.label == "Toggle agent panel layout"
+    assert panel_layout.label == "Cycle agent panel layout (Split / Merged / All tabs)"
     assert panel_layout.category == "Grouping"
     assert panel_layout.tabs == ("agents",)
     assert panel_layout.key_display == "oo"

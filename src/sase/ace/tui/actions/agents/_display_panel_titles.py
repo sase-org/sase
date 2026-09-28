@@ -130,6 +130,7 @@ def agent_panel_border_title(
     lane_count: int,
     *,
     merge_tribe_panels: bool = False,
+    merged_title: str | None = None,
     counts: AgentPanelCounts | None = None,
     collapsed: bool = False,
     selected: bool = False,
@@ -152,7 +153,7 @@ def agent_panel_border_title(
             style=(_PANEL_SELECTED_CHROME_STYLE if selected else _PANEL_COUNT_STYLE),
         )
     if merge_tribe_panels:
-        title.append("All agents", style="bold #AFFFFF")
+        title.append(merged_title or "All agents", style="bold #AFFFFF")
     else:
         if icon:
             title.append(f"{icon} ", style=identity_style)

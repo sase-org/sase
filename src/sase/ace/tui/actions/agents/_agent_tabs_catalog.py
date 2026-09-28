@@ -92,6 +92,13 @@ def bulk_scope_label_for_owner(owner: Any) -> str | None:
 
     if getattr(owner, "_active_agent_tab", None) is ALL_AGENT_TABS:
         return "across all tabs"
+    try:
+        from ...models.agent_panel_layout import AgentPanelLayout
+
+        if getattr(owner, "_agent_panel_layout", None) is AgentPanelLayout.ALL_TABS:
+            return "across all tabs"
+    except Exception:
+        pass
     if not strip_visible_for_owner(owner):
         return None
     return f"on {active_tab_label_for_owner(owner)}"

@@ -318,6 +318,11 @@ def init_agent_state(self: Any) -> None:
     from ..models.agent_panels import AgentPanelGroup, PanelKey
 
     self._agent_panels_grouped = False
+    from ..models.agent_panel_layout import AgentPanelLayout
+
+    self._agent_panel_layout = AgentPanelLayout.SPLIT
+    self._agent_panel_layout_by_tab = {}
+    self._agent_panel_layout_last_tab = None
     self._panel_group = AgentPanelGroup()
     # Whole-panel collapse state is session-scoped in-memory state whose
     # lifetime is each panel's. Group/workflow fold registries are still

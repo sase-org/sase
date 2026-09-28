@@ -60,7 +60,7 @@ def test_agent_panel_layout_command_uses_grouping_picker_sequence() -> None:
     assert not any(c.id == "leader.toggle_agent_panel_grouping" for c in catalog)
     spec = next(c for c in catalog if c.id == "agents.toggle_panel_grouping")
 
-    assert spec.label == "Toggle agent panel layout"
+    assert spec.label == "Cycle agent panel layout (Split / Merged / All tabs)"
     assert spec.key_sequence == ("o", "o")
     assert spec.key_display == "oo"
     assert spec.tabs == ("agents",)

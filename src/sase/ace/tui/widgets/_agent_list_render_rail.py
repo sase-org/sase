@@ -465,6 +465,7 @@ def rail_panel_title(
     selected: bool = False,
     collapsed: bool = False,
     merged: bool = False,
+    merged_title: str | None = None,
     icon: str = "",
     color: str = "",
     counts: AgentPanelCounts | None = None,
@@ -497,7 +498,7 @@ def rail_panel_title(
         mark, mark_style = "", ""
     use_icon = bool(icon) and not merged and Text(icon).cell_len <= 2
     if merged:
-        label_text, label_style = "All agents", "bold #AFFFFF"
+        label_text, label_style = merged_title or "All agents", "bold #AFFFFF"
     else:
         label_text, label_style = agent_panel_label(key), identity_style
     urgency_text, urgency_style = "", ""

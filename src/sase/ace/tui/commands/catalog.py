@@ -115,7 +115,7 @@ def _iter_agents_panel_layout_command(
         display = _format_key_sequence(sequence)
     yield CommandSpec(
         id="agents.toggle_panel_grouping",
-        label="Toggle agent panel layout",
+        label="Cycle agent panel layout (Split / Merged / All tabs)",
         key_sequence=sequence,
         key_display=display,
         category="Grouping",
@@ -131,6 +131,8 @@ def _iter_agents_panel_layout_command(
             "merge",
             "toggle_agent_panel_grouping",
             "panel layout",
+            "layout ladder",
+            "all tabs",
             "split panels",
             "merge panels",
         ),

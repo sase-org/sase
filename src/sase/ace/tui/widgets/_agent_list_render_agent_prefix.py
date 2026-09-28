@@ -129,6 +129,7 @@ def append_agent_row_prefix(
     tribe_colors: Mapping[str, str] | None = None,
     tier_styles: tuple[str, ...] = (),
     show_machine_chip: bool = False,
+    tab_chip: tuple[str, str] | None = None,
 ) -> Text:
     """Build the left-side chrome that precedes the status parenthetical."""
     text = render_tier_gutter(tier_styles)
@@ -258,6 +259,9 @@ def append_agent_row_prefix(
         title = agent_tree_title(agent)
         if title:
             text.append(title, style=name_style)
+        if tab_chip is not None:
+            chip_name, chip_style = tab_chip
+            text.append(f" [{chip_name}]", style=chip_style)
         if tribe_label:
             text.append(
                 f" @{tribe_label}",

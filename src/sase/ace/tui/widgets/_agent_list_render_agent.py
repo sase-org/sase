@@ -156,6 +156,7 @@ def format_agent_option(
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     turn_lanes: TurnLaneCounts | None = None,
     show_machine_chip: bool = False,
+    tab_chip: tuple[str, str] | None = None,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     tribe_label = _inline_tribe_label(tribe_label)
@@ -169,6 +170,7 @@ def format_agent_option(
         tribe_colors=tribe_colors,
         tier_styles=tier_styles,
         show_machine_chip=show_machine_chip,
+        tab_chip=tab_chip,
     )
     append_agent_row_status(
         text,
@@ -360,6 +362,7 @@ def cached_format_agent_option(
     clan_unknown_wait_count: int = 0,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     show_machine_chip: bool = False,
+    tab_chip: tuple[str, str] | None = None,
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
 
@@ -405,6 +408,7 @@ def cached_format_agent_option(
         unread_agent_ids=unread_agent_ids,
         turn_lanes=lanes,
         show_machine_chip=show_machine_chip,
+        tab_chip=tab_chip,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -432,6 +436,7 @@ def cached_format_agent_option(
         unread_agent_ids=unread_agent_ids,
         turn_lanes=lanes,
         show_machine_chip=show_machine_chip,
+        tab_chip=tab_chip,
     )
     cache.put_agent(key, parts)
     return parts

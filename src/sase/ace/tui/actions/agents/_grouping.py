@@ -18,6 +18,12 @@ from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any, Literal
 
 from ...util.pump_tasks import spawn_pump_free_task
+from ...models.agent_panel_layout import AgentPanelLayout, available_panel_layouts
+from ._panel_layout import (
+    multiple_agent_tabs_for_owner,
+    set_panel_layout,
+    stored_panel_layout,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -287,9 +293,21 @@ class AgentGroupingMixin:
             return
         mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         current_panel_grouped = bool(getattr(self, "_agent_panels_grouped", False))
+        current_layout = stored_panel_layout(self)
+        offer_all = multiple_agent_tabs_for_owner(self)
+        available = available_panel_layouts(offer_all)
+        try:
+            from ._agent_tabs_catalog import active_tab_label_for_owner
+
+            active_label = active_tab_label_for_owner(self)
+        except Exception:
+            active_label = ""
 
         def _on_choice(chosen: AgentGroupingResult) -> None:
             if chosen is None or self.current_tab != "agents":
+                return
+            if isinstance(chosen, AgentPanelLayout):
+                self._set_agent_panel_layout(chosen)  # type: ignore[attr-defined]
                 return
             if chosen is AgentGroupingAction.TOGGLE_PANELS:
                 self.action_toggle_agent_panel_grouping()  # type: ignore[attr-defined]
@@ -297,7 +315,13 @@ class AgentGroupingMixin:
             self._set_agents_grouping_mode(chosen)
 
         self.push_screen(  # type: ignore[attr-defined]
-            AgentGroupingModal(mode, current_panel_grouped=current_panel_grouped),
+            AgentGroupingModal(
+                mode,
+                current_panel_grouped=current_panel_grouped,
+                current_layout=current_layout,
+                available_layouts=available,
+                active_tab_label=active_label,
+            ),
             _on_choice,
         )
 
@@ -339,6 +363,14 @@ class AgentGroupingMixin:
         method = getattr(pane, "group_cycle_mode", None)
         if callable(method):
             method(reverse=reverse)
+
+    def _set_agent_panel_layout(self, level: AgentPanelLayout) -> None:
+        """Apply a ladder level from the grouping picker.
+
+        The transition preserves the selected node: zooming out keeps it,
+        and zooming in from All tabs lands on the selected node's tab.
+        """
+        set_panel_layout(self, level, reason="picker")
 
     def _set_agents_grouping_mode(self, mode: GroupingMode) -> None:
         """Apply an explicit Agents grouping mode."""

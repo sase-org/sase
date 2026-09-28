@@ -255,6 +255,7 @@ def agent_render_key(
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     turn_lanes: TurnLaneCounts | None = None,
     show_machine_chip: bool = False,
+    tab_chip: tuple[str, str] | None = None,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -431,6 +432,7 @@ def agent_render_key(
         _runtime_signature(agent, now),
         _tool_run_chip_token(agent, now),
         lanes,
+        tab_chip,
     )
 
 

@@ -61,7 +61,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         [
             (
                 key_sequence_display(a.choose_agent_grouping, "o"),
-                "Toggle tribe panels split/merged",
+                "Panel layout (Split / Merged / All tabs)",
             )
         ]
         if d(a.choose_agent_grouping)

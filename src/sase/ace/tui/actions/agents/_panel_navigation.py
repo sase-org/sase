@@ -7,6 +7,11 @@ from typing import TYPE_CHECKING
 from ._fold_scope import focused_panel_fold_registry
 from ._navigation_order import rendered_panel_slice
 from ._panel_fold_intent import effective_panel_collapses
+from ._panel_layout import (
+    multiple_agent_tabs_for_owner,
+    set_panel_layout,
+    stored_panel_layout,
+)
 from ._panel_types import TabName
 
 if TYPE_CHECKING:
@@ -337,8 +342,29 @@ class AgentPanelNavigationMixin:
             self.call_after_refresh(jk_perf.mark_painted)  # type: ignore[attr-defined]
 
     def action_toggle_agent_panel_grouping(self) -> None:
-        """Toggle Agents tab panels between tribe-split and merged layouts."""
+        """Advance the Agents panel layout ladder (Split → Merged → All tabs).
+
+        With the ``agent_tabs`` flag off this keeps the historical
+        split/merged toggle exactly; with the flag on it steps to the next
+        ladder rung (All tabs is skipped while fewer than two tabs exist).
+        """
         if self.current_tab != "agents":
+            return
+        try:
+            from ...agent_tabs_flag import agent_tabs_enabled
+        except Exception:
+            agent_tabs_enabled = None  # type: ignore[assignment]
+        if callable(agent_tabs_enabled) and agent_tabs_enabled():
+            from ...models.agent_panel_layout import (
+                available_panel_layouts,
+                next_panel_layout,
+            )
+
+            available = available_panel_layouts(multiple_agent_tabs_for_owner(self))
+            current = stored_panel_layout(self)
+            set_panel_layout(
+                self, next_panel_layout(current, available), reason="toggle"
+            )
             return
         if getattr(self, "_panel_fold_hint_mode_active", False):
             self._teardown_panel_fold_hint_mode(  # type: ignore[attr-defined]
@@ -350,6 +376,16 @@ class AgentPanelNavigationMixin:
             # the footer, so no transient-only repaint is needed here.
             disarm_isolation(refresh=False)
         self._agent_panels_grouped = not getattr(self, "_agent_panels_grouped", False)
+        try:
+            from ...models.agent_panel_layout import AgentPanelLayout
+
+            self._agent_panel_layout = (  # type: ignore[attr-defined]
+                AgentPanelLayout.MERGED
+                if self._agent_panels_grouped
+                else AgentPanelLayout.SPLIT
+            )
+        except Exception:
+            pass
         self._expanded_panel_focus = False
         from ._panel_fold_intent import clear_panel_fold_intents
 

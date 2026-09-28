@@ -13,6 +13,7 @@ from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_panel_layout import AgentPanelLayout
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models.agent_tribe_summary import AgentPanelFocus
 
@@ -137,6 +138,13 @@ class _FakeApp(AgentDisplayMixin):
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._current_group_key = None
         self._agent_panels_grouped = agent_panels_grouped
+        # Mirror the grouped flag into ladder state, as prod startup and the
+        # toggle path do: fold-scope reads now key off the ladder level.
+        self._agent_panel_layout = (
+            AgentPanelLayout.MERGED if agent_panels_grouped else AgentPanelLayout.SPLIT
+        )
+        self._agent_panel_layout_by_tab = {}
+        self._agent_panel_layout_last_tab = None
         self._panel_group = AgentPanelGroup.from_agents(
             agents,
             focused_key,

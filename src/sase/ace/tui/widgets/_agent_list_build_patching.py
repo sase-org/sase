@@ -289,6 +289,7 @@ def patch_row(
         clan_unknown_wait_count=clan_unknown,
         unread_agent_ids=effective_unread,
         show_machine_chip=bool(ctx.get("show_machine_chip", False)),
+        tab_chip=ctx.get("tab_chip"),
     )
 
     gap = 2 if suffix.cell_len else 0

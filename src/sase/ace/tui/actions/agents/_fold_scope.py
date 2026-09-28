@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any, cast
 
+from ._panel_layout import panel_layout_merged_for_owner
+
 if TYPE_CHECKING:
     from ...models.agent_group_fold import AgentPanelFoldScope, GroupKey
     from ...models.agent_panels import PanelKey
@@ -27,7 +29,7 @@ def panel_fold_registry(
     if isinstance(registry_owner, AgentGroupFoldRegistry):
         return registry_owner.for_panel(
             panel_key,
-            merged=bool(getattr(owner, "_agent_panels_grouped", False)),
+            merged=panel_layout_merged_for_owner(owner),
             tab_scope=current_agent_tab_scope_token(owner),
         )
     return registry_owner
@@ -54,7 +56,7 @@ def panel_fold_version_signature(
 
         return registry_owner.layout_version_signature(
             keys,
-            merged=bool(getattr(owner, "_agent_panels_grouped", False)),
+            merged=panel_layout_merged_for_owner(owner),
             tab_scope=current_agent_tab_scope_token(owner),
         )
     return (
@@ -77,7 +79,7 @@ def reconcile_panel_fold_registries(
     from ._tab_scope import current_agent_tab_scope_token
 
     registry_owner = getattr(owner, "_group_fold_registry", None)
-    merged = bool(getattr(owner, "_agent_panels_grouped", False))
+    merged = panel_layout_merged_for_owner(owner)
     if isinstance(registry_owner, AgentGroupFoldRegistry):
         group_state_changed = registry_owner.reconcile_layout(
             known_by_scope,

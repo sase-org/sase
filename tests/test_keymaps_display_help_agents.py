@@ -176,7 +176,7 @@ def test_agents_help_lists_grouping_picker_panel_layout_toggle() -> None:
     default_grouping = dict(default_sections["Grouping"])
 
     assert default_grouping["o"] == "Choose grouping"
-    assert default_grouping["oo"] == "Toggle tribe panels split/merged"
+    assert default_grouping["oo"] == "Panel layout (Split / Merged / All tabs)"
 
     rebound_sections = dict(
         agents_bindings(
@@ -185,7 +185,7 @@ def test_agents_help_lists_grouping_picker_panel_layout_toggle() -> None:
     )
     rebound_grouping = dict(rebound_sections["Grouping"])
     assert rebound_grouping["f12"] == "Choose grouping"
-    assert rebound_grouping["f12 o"] == "Toggle tribe panels split/merged"
+    assert rebound_grouping["f12 o"] == "Panel layout (Split / Merged / All tabs)"
 
     unbound_sections = dict(
         agents_bindings(
@@ -196,7 +196,7 @@ def test_agents_help_lists_grouping_picker_panel_layout_toggle() -> None:
     )
     unbound_grouping = dict(unbound_sections["Grouping"])
     assert "Choose grouping" not in unbound_grouping.values()
-    assert "Toggle tribe panels split/merged" not in unbound_grouping.values()
+    assert "Panel layout (Split / Merged / All tabs)" not in unbound_grouping.values()
 
 
 def test_agents_help_lists_deck_picker_row() -> None:

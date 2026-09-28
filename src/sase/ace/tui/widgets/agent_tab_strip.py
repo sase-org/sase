@@ -9,6 +9,7 @@ overflow window so behavior tests never need a Textual pilot.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -90,6 +91,30 @@ def agent_tab_accent_for_name(
         if project_key.casefold() == lowered:
             return project_accent(project_key, among=enabled_projects)
     return PROJECT_ACCENTS[hash_palette_index(name, len(PROJECT_ACCENTS))]
+
+
+def agent_tab_chip_for_key(
+    key: AgentTabKey,
+    *,
+    colors: Mapping[str, str] | None = None,
+    enabled_projects: tuple[str, ...] = (),
+) -> tuple[str, str] | None:
+    """Return the ``(name, style)`` row/roster chip for a named tab key.
+
+    Returns None for default, machine, and unresolved keys: only rows on
+    named tabs get a tab chip. The style is the tab's accent, bold.
+    """
+    if getattr(key, "kind", None) != "named":
+        return None
+    name = getattr(key, "value", "") or ""
+    if not name:
+        return None
+    accent = ""
+    if isinstance(colors, Mapping):
+        accent = colors.get(name) or ""
+    if not accent:
+        accent = agent_tab_accent_for_name(name, enabled_projects=enabled_projects)
+    return (name, f"bold {accent}")
 
 
 def agent_tab_label_style(descriptor: AgentTabDescriptor) -> str:
@@ -672,6 +697,7 @@ __all__ = [
     "AgentTabEmptyState",
     "AgentTabStrip",
     "agent_tab_accent_for_name",
+    "agent_tab_chip_for_key",
     "agent_tab_empty_state",
     "agent_tab_label_style",
 ]

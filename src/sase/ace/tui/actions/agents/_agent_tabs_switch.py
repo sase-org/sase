@@ -44,6 +44,17 @@ _TAB_SWITCH_PERF_ACTION = "agents_tab_switch"
 _NO_SAVED_PANEL_KEY = object()
 
 
+def _all_tabs_level_active(owner: Any) -> bool:
+    """Return True when the All-tabs ladder level is effectively active."""
+    try:
+        from ...models.agent_panel_layout import AgentPanelLayout
+        from ._panel_layout import effective_panel_layout_for_owner
+
+        return effective_panel_layout_for_owner(owner) is AgentPanelLayout.ALL_TABS
+    except Exception:
+        return False
+
+
 def _strip_id_for_key(key: AgentTabKey) -> str:
     """Return the ``PanelTabStrip`` id for *key*.
 
@@ -345,6 +356,15 @@ class AgentTabsSwitchMixin:
             return False
         if not isinstance(key, AgentTabKey):
             return False
+        try:
+            from ...models.agent_panel_layout import AgentPanelLayout
+            from ._panel_layout import ensure_panel_layout_state, stored_panel_layout
+
+            ensure_panel_layout_state(self)
+            if stored_panel_layout(self) is AgentPanelLayout.ALL_TABS:
+                return self._drill_into_tab_from_all(key)
+        except Exception:
+            log.exception("Panel layout drill-in check failed")
         if key == self._active_agent_tab:  # type: ignore[attr-defined]
             return False
         perf_begin = getattr(self, "_jk_perf_begin", None)
@@ -383,6 +403,57 @@ class AgentTabsSwitchMixin:
                     call_after(perf.mark_painted)
                 except Exception:
                     pass
+        return True
+
+    def _drill_into_tab_from_all(self, key: AgentTabKey, *, reason: str = "") -> bool:
+        """Drill from the All-tabs level into *key*.
+
+        Choosing a tab (strip click, ``[``/``]``, picker) at the All-tabs
+        level enters that tab at its remembered per-tab level. The target
+        tab's own selection memory is restored. Always applies, even when
+        *key* is the tab the ladder was entered from.
+        """
+        del reason
+        from ._panel_layout import (
+            ensure_panel_layout_state,
+            remembered_layout_for_tab,
+            sync_panel_grouped_bool,
+        )
+
+        self._ensure_agent_tabs_state()
+        ensure_panel_layout_state(self)
+        level = remembered_layout_for_tab(self, key)
+        self._agent_panel_layout = level  # type: ignore[attr-defined]
+        self._active_agent_tab = key  # type: ignore[attr-defined]
+        self._agent_panel_layout_last_tab = None  # type: ignore[attr-defined]
+        self._agent_tabs_user_switched = True  # type: ignore[attr-defined]
+        try:
+            self._agent_tab_arrivals.discard(key)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        if key != getattr(self, "_agent_tab_latched_key", None):
+            self._agent_tab_latched_key = None  # type: ignore[attr-defined]
+        sync_panel_grouped_bool(self)
+        rescope = getattr(self, "_rescope_agents_to_active_tab", None)
+        if callable(rescope):
+            try:
+                rescope()
+            except Exception:
+                log.exception("Drill-in re-scope failed")
+        self._restore_tab_memory(key)
+        self._refresh_agent_tab_strip()
+        state_changed = getattr(self, "_agent_tab_state_changed", None)
+        if callable(state_changed):
+            try:
+                state_changed()
+            except Exception:
+                pass
+        update_info = getattr(self, "_update_agents_info_panel", None)
+        if callable(update_info):
+            try:
+                update_info()
+            except Exception:
+                pass
         return True
 
     def _cycle_agents_tab(self, step: int) -> None:
@@ -471,7 +542,7 @@ class AgentTabsSwitchMixin:
             log.exception("Tab strip switch failed")
 
     def _descriptors_for_strip(
-        self, entries: tuple[AgentTabCatalogEntry, ...], active: AgentTabKey
+        self, entries: tuple[AgentTabCatalogEntry, ...], active: AgentTabKey | None
     ) -> tuple[Any, ...]:
         """Project query-aware descriptors for *entries* (no I/O).
 
@@ -560,21 +631,25 @@ class AgentTabsSwitchMixin:
         from ...models.agent_tab_descriptors import descriptor_signature
 
         entries = self._agent_tab_catalog_view()
-        active = self._active_agent_tab  # type: ignore[attr-defined]
+        active_key: AgentTabKey | None = self._active_agent_tab  # type: ignore[attr-defined]
+        if _all_tabs_level_active(self):
+            # The All-tabs level keeps the strip mounted with every tab lit
+            # in its accent and no pill: there is never an "ALL" chip.
+            active_key = None
         try:
-            descriptors = self._descriptors_for_strip(entries, active)
+            descriptors = self._descriptors_for_strip(entries, active_key)
         except Exception:
             log.exception("Tab strip descriptor projection failed")
             return
         signature = descriptor_signature(
-            descriptors, active, self._agent_tab_strip_visible()
+            descriptors, active_key, self._agent_tab_strip_visible()
         )
         if signature == self._agent_tab_strip_signature:  # type: ignore[attr-defined]
             return
         set_descriptors = getattr(strip, "set_descriptors", None)
         if callable(set_descriptors):
             try:
-                set_descriptors(descriptors, active)
+                set_descriptors(descriptors, active_key)
             except Exception:
                 # A failed push must not poison the gate: leave the old
                 # signature so the next refresh retries the push.
@@ -597,7 +672,9 @@ class AgentTabsSwitchMixin:
                     )
                     for entry in entries
                 ],
-                active_tab=_strip_id_for_key(active),
+                active_tab=(
+                    _strip_id_for_key(active_key) if active_key is not None else None
+                ),
             )
         except Exception:
             log.exception("Tab strip refresh failed")

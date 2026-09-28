@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -114,6 +114,7 @@ class _TribeUnitSnapshot:
     children: tuple[_TribeUnitChild, ...]
     is_marked: bool
     is_unread: bool
+    tab_chip: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -375,6 +376,7 @@ def _unit_snapshot(
     unread_ids: Collection[AgentIdentity],
     marked_ids: Collection[AgentIdentity],
     now: datetime,
+    tab_chip: tuple[str, str] | None = None,
 ) -> _TribeUnitSnapshot:
     rows = tribe_unit_real_rows(unit)
     nested_rows = tuple(row for row in rows if row.identity != unit.identity)
@@ -435,6 +437,7 @@ def _unit_snapshot(
         is_marked=any(row.identity in marked_ids for row in rows)
         or (unit.identity in marked_ids),
         is_unread=unit.identity in unread_ids,
+        tab_chip=tab_chip,
     )
 
 
@@ -476,16 +479,19 @@ def build_agent_tribe_summary_snapshot(
     marked_ids: Collection[AgentIdentity] = (),
     now: datetime | None = None,
     entry_target: TribeEntryTarget | None = None,
+    tab_chips: Mapping[AgentIdentity, tuple[str, str]] | None = None,
 ) -> AgentTribeSummarySnapshot:
     """Build a fold-independent tribe snapshot using loaded rows only."""
     reference = now or agent_time.local_now()
     roots = tribe_unit_roots(agents)
+    chips = tab_chips or {}
     units = tuple(
         _unit_snapshot(
             agent,
             unread_ids=unread_ids,
             marked_ids=marked_ids,
             now=reference,
+            tab_chip=chips.get(agent.identity),
         )
         for agent in roots
     )

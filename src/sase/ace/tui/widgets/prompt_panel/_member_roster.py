@@ -132,6 +132,7 @@ class MemberRosterEntry:
     target_role: MemberJumpRole | None = None
     is_entry_target: bool = False
     owner_badge: str | None = None
+    tab_chip: tuple[str, str] | None = None
 
 
 @dataclass(slots=True)
@@ -444,6 +445,7 @@ def _append_numbered_entry(
         is_unread=entry.is_unread,
         is_dismissed=entry.is_dismissed,
         owner_badge=entry.owner_badge,
+        tab_chip=entry.tab_chip,
     )
     append_fold_anchor(text, line, section_id=anchor_id)
 
@@ -493,6 +495,7 @@ def _append_member_fields(
     is_unread: bool,
     is_dismissed: bool,
     owner_badge: str | None = None,
+    tab_chip: tuple[str, str] | None = None,
 ) -> None:
     bucket = effective_bucket or status_bucket_for_values(status)
     glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
@@ -503,6 +506,9 @@ def _append_member_fields(
     if is_dismissed:
         text.append("⊘ ", style="dim #FFAF00")
     text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
+    if tab_chip is not None:
+        chip_name, chip_style = tab_chip
+        text.append(f" [{chip_name}]", style=chip_style)
     if owner_badge:
         text.append(" [")
         text.append(owner_badge, style=_OWNER_BADGE_STYLE)

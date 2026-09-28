@@ -47,6 +47,7 @@ class AgentInfoPanel(Static):
         self._interval = 0
         self._sidebar_mode: SidebarMode = SidebarMode.EXPANDED
         self._grouping_mode: str = ""
+        self._panel_layout_label: str = ""
         self._search_query: str = ""
         self._search_query_seeded: bool = False
         self._search_query_rich: Text | None = None
@@ -158,6 +159,15 @@ class AgentInfoPanel(Static):
         self._runner_queue_count = queue_count
         self._update_display()
 
+    def update_panel_layout(self, label: str) -> None:
+        """Update the panel-layout chip (``panels: merged`` / ``all tabs``).
+
+        An empty label hides the chip, which keeps split views and the
+        flag-off info row byte-identical.
+        """
+        self._panel_layout_label = label
+        self._update_display()
+
     def update_grouping_mode(self, label: str) -> None:
         """Update the active grouping-strategy label.
 
@@ -225,6 +235,7 @@ class AgentInfoPanel(Static):
         search_query_partial_history: bool = False,
         runner_queue_count: int = 0,
         sidebar_mode: SidebarMode | str = SidebarMode.EXPANDED,
+        panel_layout: str = "",
     ) -> None:
         """Batch all logical info-panel state into one render.
 
@@ -258,6 +269,7 @@ class AgentInfoPanel(Static):
             search_query_match_count,
             search_query_partial_history,
             sidebar_mode.value,
+            panel_layout,
         )
         old_stable = (
             self._position,
@@ -283,6 +295,7 @@ class AgentInfoPanel(Static):
             self._search_query_match_count,
             self._search_query_partial_history,
             self._sidebar_mode.value,
+            self._panel_layout_label,
         )
         if new_stable == old_stable:
             self.update_countdown_only(countdown, interval)
@@ -309,6 +322,7 @@ class AgentInfoPanel(Static):
             _,
             self._search_query_partial_history,
             _sidebar_mode_value,
+            self._panel_layout_label,
         ) = new_stable
         self._sidebar_mode = SidebarMode(_sidebar_mode_value)
         self._countdown = countdown
@@ -494,6 +508,10 @@ class AgentInfoPanel(Static):
         if not is_unbound_key(grouping_key):
             key = key_display_name(grouping_key)
             text.append(f" ({key})", style="dim")
+        if self._panel_layout_label:
+            self._append_separator(text)
+            text.append("panels: ", style="dim")
+            text.append(self._panel_layout_label, style="bold #87D7FF")
         if self._interval > 0:
             self._append_separator(text)
             text.append("refresh: ", style="dim")

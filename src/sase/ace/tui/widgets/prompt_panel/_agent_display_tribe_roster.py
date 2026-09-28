@@ -65,6 +65,7 @@ def tribe_roster_entries(
                     snapshot.entry_target is not None
                     and unit.identity == snapshot.entry_target.unit_identity
                 ),
+                tab_chip=unit.tab_chip,
             )
         )
     return tuple(entries)

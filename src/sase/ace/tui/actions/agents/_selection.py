@@ -14,10 +14,61 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_panels import PanelKey
     from ...models.agent_tribe_summary import (
+        AgentIdentity,
         AgentPanelFocus,
         AgentTribeSummarySnapshot,
         CollapsedAgentPanelFocus,
     )
+
+
+def _all_tabs_unit_chips(
+    owner: object, agents: list[Agent]
+) -> dict[AgentIdentity, tuple[str, str]] | None:
+    """Return ``{unit identity: (name, style)}`` chips for off-tab members.
+
+    Only while the All-tabs level is effectively active with the
+    ``agent_tabs`` flag on: every unit on a named tab gets a chip in its
+    accent. Otherwise None, which keeps every other summary
+    byte-identical. Style inputs come from the token-cached worker
+    resolution, so this performs no disk or network work.
+    """
+    try:
+        from ...agent_tabs_flag import agent_tabs_enabled
+        from ...models.agent_panel_layout import AgentPanelLayout
+        from ...models.agent_tab_descriptors import resolve_agent_tab_style_inputs
+        from ...widgets.agent_tab_strip import agent_tab_chip_for_key
+        from ._panel_layout import effective_panel_layout_for_owner
+
+        if not agent_tabs_enabled():
+            return None
+        if effective_panel_layout_for_owner(owner) is not AgentPanelLayout.ALL_TABS:
+            return None
+        index = getattr(owner, "_agent_tab_index", None)
+        key_for = getattr(index, "key_for", None)
+        if not callable(key_for):
+            return None
+        try:
+            styles = resolve_agent_tab_style_inputs(allow_disk=False)
+        except Exception:
+            styles = None
+        colors = dict(styles.colors) if styles is not None else {}
+        projects = tuple(styles.enabled_projects) if styles is not None else ()
+        chips: dict[AgentIdentity, tuple[str, str]] = {}
+        for agent in agents:
+            try:
+                key = key_for(agent)
+            except Exception:
+                continue
+            chip = agent_tab_chip_for_key(key, colors=colors, enabled_projects=projects)
+            if chip is None:
+                continue
+            try:
+                chips[agent.identity] = chip
+            except Exception:
+                continue
+        return chips or None
+    except Exception:
+        return None
 
 
 class AgentSelectionMixin:
@@ -229,6 +280,7 @@ class AgentSelectionMixin:
             unread_ids=getattr(self, "_unread_completed_agent_ids", set()),
             marked_ids=getattr(self, "_marked_agents", set()),
             entry_target=entry_target,
+            tab_chips=_all_tabs_unit_chips(self, agents),
         )
 
     def _get_selected_agent(self) -> Agent | None:

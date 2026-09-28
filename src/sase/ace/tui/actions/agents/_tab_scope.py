@@ -15,12 +15,14 @@ from typing import Any, TYPE_CHECKING
 from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
 
 from ...agent_tabs_flag import agent_tabs_enabled
+from ...models.agent_panel_layout import AgentPanelLayout
 from ...models.agent_tab_index import (
     ALL_AGENT_TABS,
     AgentTabScope,
     agent_tab_scope_token,
     scope_agents_to_tab,
 )
+from ._panel_layout import effective_panel_layout_for_owner
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +41,11 @@ def current_agent_tab_scope(owner: Any) -> AgentTabScope:
     """
     if not agent_tabs_enabled():
         return DEFAULT_AGENT_TAB_KEY
+    try:
+        if effective_panel_layout_for_owner(owner) is AgentPanelLayout.ALL_TABS:
+            return ALL_AGENT_TABS
+    except Exception:
+        pass
     scope = getattr(owner, "_active_agent_tab", None)
     if scope is ALL_AGENT_TABS:
         return ALL_AGENT_TABS

@@ -194,6 +194,21 @@ class AgentInfoDisplayMixin:
         grouping_mode = _MODE_LABELS.get(
             self._grouping_mode.name, self._grouping_mode.name
         )
+        panel_layout_label = ""
+        try:
+            from ...agent_tabs_flag import agent_tabs_enabled
+            from ...models.agent_panel_layout import (
+                AgentPanelLayout,
+                layout_info_row_label,
+            )
+            from ._panel_layout import effective_panel_layout_for_owner
+
+            if agent_tabs_enabled():
+                effective_layout = effective_panel_layout_for_owner(self)
+                if effective_layout is not AgentPanelLayout.SPLIT:
+                    panel_layout_label = layout_info_row_label(effective_layout)
+        except Exception:
+            panel_layout_label = ""
         runner_capacity = getattr(
             self, "_agent_runner_capacity", _NEUTRAL_RUNNER_CAPACITY
         )
@@ -249,6 +264,7 @@ class AgentInfoDisplayMixin:
                 grouping_mode=grouping_mode,
                 runner_queue_count=runner_capacity.queued_count,
                 sidebar_mode=sidebar_mode_value,
+                panel_layout=panel_layout_label,
             )
             return
 
@@ -282,3 +298,6 @@ class AgentInfoDisplayMixin:
             partial_history=query_partial_history,
         )
         agent_info_panel.update_grouping_mode(grouping_mode)
+        update_panel_layout = getattr(agent_info_panel, "update_panel_layout", None)
+        if callable(update_panel_layout):
+            update_panel_layout(panel_layout_label)
