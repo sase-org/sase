@@ -20,6 +20,8 @@ from sase.ace.tui.tool_runs.deck import (
 )
 from sase.ace.tui.tool_runs import detail as _detail_module
 from sase.ace.tui.widgets.decks.tool_runs import view as _view_module
+from sase.ace.tui.widgets.decks.tool_runs import widget as _widget_module
+from sase.ace.tui.widgets.decks.tool_runs import widget_live as _widget_live_module
 from sase.ace.tui.widgets.decks.tool_runs.document import build_tool_runs_document
 from sase.ace.tui.widgets.decks.tool_runs.live import (
     live_detail_drifted,
@@ -327,8 +329,12 @@ def test_pure_repaint_advances_without_io(monkeypatch: Any) -> None:
 
     monkeypatch.setattr(detail_module, "load_tool_run_detail_blocking", _boom)
     monkeypatch.setattr(detail_module, "cached_tool_run_detail", _boom)
-    monkeypatch.setattr(_view_module, "_tool_runs_render_width", lambda view: 100)
-    monkeypatch.setattr(_view_module, "_tool_runs_hint_numbers", lambda view: None)
+    monkeypatch.setattr(_widget_live_module, "tool_runs_render_width", lambda view: 100)
+    monkeypatch.setattr(
+        _widget_live_module, "tool_runs_hint_numbers", lambda view: None
+    )
+    monkeypatch.setattr(_widget_module, "tool_runs_render_width", lambda view: 100)
+    monkeypatch.setattr(_widget_module, "tool_runs_hint_numbers", lambda view: None)
     live = _glance(run_id="d" * 32)
     settled = ToolRunBrief(
         run_id="e" * 32,
@@ -348,7 +354,7 @@ def test_pure_repaint_advances_without_io(monkeypatch: Any) -> None:
         lambda self, document, card: shown.append(document) or card,
     )
     frozen = {"now": NOW}
-    monkeypatch.setattr(_view_module.time, "time", lambda: frozen["now"])
+    monkeypatch.setattr(_widget_live_module.time, "time", lambda: frozen["now"])
     view._live_pure_repaint()
     assert len(shown) == 1
     first_ids = [block.block_id for block in shown[0].cards[0].blocks]
@@ -367,9 +373,9 @@ def test_pure_repaint_advances_without_io(monkeypatch: Any) -> None:
 def test_tick_reloads_only_on_drift(monkeypatch: Any) -> None:
     row = _brief("e" * 32)
     view = _live_view((row,), {})
-    monkeypatch.setattr(_view_module, "live_host_visible", lambda view: True)
-    monkeypatch.setattr(_view_module, "live_navigating", lambda view: False)
-    monkeypatch.setattr(_view_module, "live_typing", lambda view: False)
+    monkeypatch.setattr(_widget_live_module, "live_host_visible", lambda view: True)
+    monkeypatch.setattr(_widget_live_module, "live_navigating", lambda view: False)
+    monkeypatch.setattr(_widget_live_module, "live_typing", lambda view: False)
     calls: dict[str, Any] = {}
     monkeypatch.setattr(
         _view_module.ToolRunsDeckView,

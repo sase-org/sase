@@ -81,7 +81,11 @@ def _pin_tool_run_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
     from sase.ace.tui.widgets import _agent_list_render_agent_status as row_module
     from sase.ace.tui.tool_runs import header_chip as header_chip_module
     from sase.ace.tui.tool_runs import links as links_module
-    from sase.ace.tui.widgets.decks.tool_runs import view as runs_view_module
+    from sase.ace.tui.widgets.decks.tool_runs import loader as runs_loader_module
+    from sase.ace.tui.widgets.decks.tool_runs import widget as runs_widget_module
+    from sase.ace.tui.widgets.decks.tool_runs import (
+        widget_live as runs_widget_live_module,
+    )
     from sase.ace.tui.widgets.prompt_panel import _agent_display_header
 
     pin_agents_visual_now(monkeypatch, _NOW.replace(tzinfo=None))
@@ -92,7 +96,13 @@ def _pin_tool_run_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
     naive = _NOW.replace(tzinfo=None)
     monkeypatch.setattr(row_module, "local_now", lambda: naive)
     monkeypatch.setattr(agent_time_module, "local_now", lambda: naive)
-    for module in (header_chip_module, links_module, runs_view_module):
+    for module in (
+        header_chip_module,
+        links_module,
+        runs_loader_module,
+        runs_widget_module,
+        runs_widget_live_module,
+    ):
         monkeypatch.setattr(module, "time", _FakeTime)
 
 
@@ -230,7 +240,7 @@ def _seed_tool_run_surfaces(
     from sase.ace.tui.tool_runs import loader as loader_module
     from sase.ace.tui.tool_runs import snapshot as snapshot_module
     from sase.ace.tui.tool_runs import summaries as summaries_module
-    from sase.ace.tui.widgets.decks.tool_runs import view as runs_view_module
+    from sase.ace.tui.widgets.decks.tool_runs import loader as runs_loader_module
 
     snap = _build_snapshot(list(glances), generation=3)
     snapshot_module._set_snapshot(snap)
@@ -252,7 +262,7 @@ def _seed_tool_run_surfaces(
         return detail_map.get(str(run_id))
 
     monkeypatch.setattr(detail_module, "load_tool_run_detail_blocking", _load)
-    monkeypatch.setattr(runs_view_module, "load_tool_run_detail_blocking", _load)
+    monkeypatch.setattr(runs_loader_module, "load_tool_run_detail_blocking", _load)
 
 
 def _rows_agents() -> list[Agent]:
@@ -715,9 +725,9 @@ async def test_tool_runs_card_png_snapshots(
     # Freeze the 1 Hz live repaint so the live card converges: the initial
     # worker paint still renders progress/elapsed, only the per-second
     # re-render is suppressed (tick gating itself is unit-tested).
-    from sase.ace.tui.widgets.decks.tool_runs import view as runs_view_module
+    from sase.ace.tui.widgets.decks.tool_runs import widget_live as runs_live_module
 
-    monkeypatch.setattr(runs_view_module, "want_live_tick", lambda **kw: False)
+    monkeypatch.setattr(runs_live_module, "want_live_tick", lambda **kw: False)
     _seed_tool_run_surfaces(
         monkeypatch,
         glances=_card_glances(),
