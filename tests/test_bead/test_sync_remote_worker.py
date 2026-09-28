@@ -11,7 +11,8 @@ from contextlib import contextmanager
 
 import pytest
 
-from sase.bead.sync_worker import _ManagedSyncOutcome, run_managed_sync_worker
+from sase.bead._sync_worker_run import _ManagedSyncOutcome
+from sase.bead.sync_worker import run_managed_sync_worker
 
 from .sync_test_helpers import configure_git_identity, init_git_repo
 
@@ -26,7 +27,7 @@ def test_managed_sync_worker_default_lock_wait_skips_immediately(
     lock_file = open(tmp_path / ".git/sase-bead-sync.lock", "a+", encoding="utf-8")
     fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     monkeypatch.setattr(
-        "sase.bead.sync_worker._run_locked_sync",
+        "sase.bead._sync_worker_run._run_locked_sync",
         lambda *_args, **_kwargs: pytest.fail("locked worker must not run"),
     )
 
@@ -54,7 +55,7 @@ def test_managed_sync_worker_positive_lock_wait_acquires_after_release(
     tmp_path,
     monkeypatch,
 ):
-    from sase.bead import sync_worker as sync_worker_module
+    from sase.bead import _sync_worker_run as sync_worker_module
 
     init_git_repo(tmp_path)
     beads_dir = tmp_path / "beads"
@@ -74,7 +75,7 @@ def test_managed_sync_worker_positive_lock_wait_acquires_after_release(
         observed_acquire_worker_lock,
     )
     monkeypatch.setattr(
-        "sase.bead.sync_worker._run_locked_sync",
+        "sase.bead._sync_worker_run._run_locked_sync",
         lambda *_args, **_kwargs: _ManagedSyncOutcome(
             pushed=True,
             integrated=False,
@@ -132,7 +133,7 @@ def test_managed_sync_worker_positive_lock_wait_times_out_with_waited_seconds(
     lock_file = open(tmp_path / ".git/sase-bead-sync.lock", "a+", encoding="utf-8")
     fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     monkeypatch.setattr(
-        "sase.bead.sync_worker._run_locked_sync",
+        "sase.bead._sync_worker_run._run_locked_sync",
         lambda *_args, **_kwargs: pytest.fail("timed-out worker must not run"),
     )
 
@@ -311,7 +312,7 @@ def test_managed_sync_worker_locks_local_integration_only(tmp_path, monkeypatch)
         "sase.sdd._git_contention.store_git_write_lock",
         probe_store_write_lock,
     )
-    monkeypatch.setattr("sase.bead.sync_worker._git", fake_git)
+    monkeypatch.setattr("sase.bead._sync_worker_run._git", fake_git)
 
     outcome = run_managed_sync_worker(
         tmp_path,

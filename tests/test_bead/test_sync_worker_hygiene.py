@@ -67,7 +67,7 @@ def test_managed_sync_worker_clears_failed_integration_marker(tmp_path, monkeypa
     )
     _stub_successful_integration(monkeypatch)
     monkeypatch.setattr(
-        "sase.bead.sync_worker._git",
+        "sase.bead._sync_worker_run._git",
         _fake_git_factory(
             subprocess.CompletedProcess(
                 ["git", "push"], returncode=0, stdout="", stderr=""
@@ -128,7 +128,7 @@ def test_managed_sync_worker_redacts_credentials_in_push_errors(tmp_path, monkey
     _stub_successful_integration(monkeypatch)
     log_path = tmp_path / "sync.log"
     monkeypatch.setattr(
-        "sase.bead.sync_worker._git",
+        "sase.bead._sync_worker_run._git",
         _fake_git_factory(
             subprocess.CompletedProcess(
                 ["git", "push"],
@@ -200,7 +200,7 @@ def test_managed_sync_worker_reintegrates_after_push_race(tmp_path, monkeypatch)
             return next(pushes)
         raise AssertionError(f"unexpected git call: {args}")
 
-    monkeypatch.setattr("sase.bead.sync_worker._git", fake_git)
+    monkeypatch.setattr("sase.bead._sync_worker_run._git", fake_git)
     log_path = tmp_path / "sync.log"
 
     outcome = run_managed_sync_worker(tmp_path, beads_dir, log_path=log_path)
@@ -251,7 +251,7 @@ def _push_outcome_worker(tmp_path, monkeypatch, pushes):
             return next(remaining)
         raise AssertionError(f"unexpected git call: {args}")
 
-    monkeypatch.setattr("sase.bead.sync_worker._git", fake_git)
+    monkeypatch.setattr("sase.bead._sync_worker_run._git", fake_git)
     log_path = tmp_path / "sync.log"
     outcome = run_managed_sync_worker(tmp_path, beads_dir, log_path=log_path)
     events = [
@@ -361,7 +361,7 @@ def test_managed_sync_worker_bounds_rejected_push_retries(tmp_path, monkeypatch)
             )
         raise AssertionError(f"unexpected git call: {args}")
 
-    monkeypatch.setattr("sase.bead.sync_worker._git", fake_git)
+    monkeypatch.setattr("sase.bead._sync_worker_run._git", fake_git)
 
     outcome = run_managed_sync_worker(
         tmp_path,
@@ -398,9 +398,9 @@ def test_managed_sync_worker_retries_only_transient_local_changes(
         "sase.sdd._repository_transaction.integrate_sdd_repository",
         lambda *_args, **_kwargs: next(outcomes),
     )
-    monkeypatch.setattr("sase.bead.sync_worker.time.sleep", lambda _delay: None)
+    monkeypatch.setattr("sase.bead._sync_worker_run.time.sleep", lambda _delay: None)
     monkeypatch.setattr(
-        "sase.bead.sync_worker._git",
+        "sase.bead._sync_worker_run._git",
         _fake_git_factory(
             subprocess.CompletedProcess(
                 ["git", "push"], returncode=0, stdout="", stderr=""

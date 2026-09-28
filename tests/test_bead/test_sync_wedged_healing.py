@@ -260,7 +260,7 @@ def test_forced_post_guard_failure_restores_starting_head(
 def test_deadline_timeout_mid_rebase_restores_clone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import sase.bead.sync_worker as worker_mod
+    import sase.bead._sync_worker_run as worker_mod
 
     remote, _seed, issue_id = _seed_remote(tmp_path)
     # Clone before the upstream push so the sync must rebase onto it.

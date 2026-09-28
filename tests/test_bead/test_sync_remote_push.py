@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 
 from sase.bead.sync import _PushOutcome, publish_bead_claim, push_bead_work_launch
-from sase.bead.sync_worker import _ManagedSyncOutcome
+from sase.bead._sync_worker_run import _ManagedSyncOutcome
 
 from .sync_test_helpers import configure_git_identity, init_git_repo
 
@@ -349,7 +349,7 @@ def test_push_bead_work_launch_rebases_and_retries_rejected_push(tmp_path, monke
         )
 
     monkeypatch.setattr(
-        "sase.bead.sync_worker._git",
+        "sase.bead._sync_worker_run._git",
         push_remote_just_before_local_push,
     )
 
