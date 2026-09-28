@@ -843,18 +843,284 @@ def tool_run_node_summaries(
     )
 
 
+@dataclass(frozen=True)
+class ToolRunDetailStageCounts:
+    """Per-stage triage counts for one detail stage row."""
+
+    new: int = 0
+    known: int = 0
+    flaky: int = 0
+    unknown: int = 0
+
+    @classmethod
+    def from_wire(cls, data: Mapping[str, Any]) -> ToolRunDetailStageCounts:
+        """Build stage counts from a result wire, ignoring unknown keys."""
+
+        if not isinstance(data, Mapping):
+            return cls()
+        return cls(
+            new=_count(data.get("new")),
+            known=_count(data.get("known")),
+            flaky=_count(data.get("flaky")),
+            unknown=_count(data.get("unknown")),
+        )
+
+
+@dataclass(frozen=True)
+class ToolRunDetailStage:
+    """One stage of a run; every stamp is milliseconds and says so."""
+
+    description: str
+    incomplete: bool = False
+    started_ms: int | None = None
+    finished_ms: int | None = None
+    elapsed_ms: int | None = None
+    exit_code: int | None = None
+    output_bytes: int | None = None
+    counts: ToolRunDetailStageCounts = field(default_factory=ToolRunDetailStageCounts)
+
+    @classmethod
+    def from_wire(cls, data: Mapping[str, Any]) -> ToolRunDetailStage:
+        """Build a stage row from a result wire, ignoring unknown keys."""
+
+        return cls(
+            description=str(data.get("description") or ""),
+            incomplete=bool(data.get("incomplete", False)),
+            started_ms=_optional_int(data.get("started_ms")),
+            finished_ms=_optional_int(data.get("finished_ms")),
+            elapsed_ms=_optional_int(data.get("elapsed_ms")),
+            exit_code=_optional_int(data.get("exit_code")),
+            output_bytes=_optional_int(data.get("output_bytes")),
+            counts=ToolRunDetailStageCounts.from_wire(data.get("counts") or {}),
+        )
+
+
+@dataclass(frozen=True)
+class ToolRunExpectedStage:
+    """One stage of the reference run behind pending/not-reached rows."""
+
+    description: str
+    elapsed_ms: int | None = None
+
+    @classmethod
+    def from_wire(cls, data: Mapping[str, Any]) -> ToolRunExpectedStage:
+        """Build an expected stage from a result wire, ignoring unknown keys."""
+
+        return cls(
+            description=str(data.get("description") or ""),
+            elapsed_ms=_optional_int(data.get("elapsed_ms")),
+        )
+
+
+@dataclass(frozen=True)
+class ToolRunDetailTriageItem:
+    """One witnessed triage item; ``class`` is absent for unlabeled items."""
+
+    stage_key: str
+    display: str
+    occurrences: int = 0
+    witness_runs: int = 0
+    witness_agents: int = 0
+    item_class: str | None = None
+    locator_paths: tuple[str, ...] = ()
+    first_seen_ts: int | None = None
+    last_seen_ts: int | None = None
+
+    @classmethod
+    def from_wire(cls, data: Mapping[str, Any]) -> ToolRunDetailTriageItem:
+        """Build a triage item from a result wire, ignoring unknown keys."""
+
+        raw_paths = data.get("locator_paths") or ()
+        paths = (
+            tuple(str(item) for item in raw_paths)
+            if isinstance(raw_paths, (list, tuple))
+            else ()
+        )
+        return cls(
+            stage_key=str(data.get("stage_key") or ""),
+            display=str(data.get("display") or ""),
+            occurrences=_count(data.get("occurrences")),
+            witness_runs=_count(data.get("witness_runs")),
+            witness_agents=_count(data.get("witness_agents")),
+            item_class=_optional_str(data.get("class")),
+            locator_paths=paths,
+            first_seen_ts=_optional_int(data.get("first_seen_ts")),
+            last_seen_ts=_optional_int(data.get("last_seen_ts")),
+        )
+
+
+@dataclass(frozen=True)
+class ToolRunLogMetadata:
+    """Log retention metadata for one run; never a log body."""
+
+    has_private_argv: bool = False
+    stdout_path: str | None = None
+    stderr_path: str | None = None
+    events_path: str | None = None
+    owner_log_path: str | None = None
+
+    @classmethod
+    def from_wire(cls, data: Mapping[str, Any]) -> ToolRunLogMetadata:
+        """Build log metadata from a result wire, ignoring unknown keys."""
+
+        if not isinstance(data, Mapping):
+            return cls()
+        return cls(
+            has_private_argv=bool(data.get("has_private_argv", False)),
+            stdout_path=_optional_str(data.get("stdout_path")),
+            stderr_path=_optional_str(data.get("stderr_path")),
+            events_path=_optional_str(data.get("events_path")),
+            owner_log_path=_optional_str(data.get("owner_log_path")),
+        )
+
+    def to_tail_metadata(self) -> dict[str, Any]:
+        """Return the ``tool_run_log_tail`` metadata map for this run."""
+
+        return {
+            "stdout_path": self.stdout_path,
+            "stderr_path": self.stderr_path,
+            "events_path": self.events_path,
+            "owner_log_path": self.owner_log_path,
+        }
+
+
+@dataclass(frozen=True)
+class ToolRunDetail:
+    """One run for one card block: brief, argv, stages, items, children."""
+
+    store_exists: bool
+    found: bool
+    display_argv: tuple[str, ...] = ()
+    stages: tuple[ToolRunDetailStage, ...] = ()
+    expected_stages: tuple[ToolRunExpectedStage, ...] = ()
+    triage_items: tuple[ToolRunDetailTriageItem, ...] = ()
+    child_runs: tuple[ToolRunBrief, ...] = ()
+    logs: ToolRunLogMetadata = field(default_factory=ToolRunLogMetadata)
+    brief: ToolRunBrief | None = None
+    items_truncated: bool = False
+    detail_pruned: bool = False
+    diagnostics: tuple[str, ...] = ()
+
+    @classmethod
+    def from_wire(cls, data: Mapping[str, Any]) -> ToolRunDetail:
+        """Build a detail result from a result wire, ignoring unknown keys."""
+
+        def _stages(value: Any) -> tuple[ToolRunDetailStage, ...]:
+            if not isinstance(value, (list, tuple)):
+                return ()
+            return tuple(
+                ToolRunDetailStage.from_wire(item)
+                for item in value
+                if isinstance(item, Mapping)
+            )
+
+        def _expected(value: Any) -> tuple[ToolRunExpectedStage, ...]:
+            if not isinstance(value, (list, tuple)):
+                return ()
+            return tuple(
+                ToolRunExpectedStage.from_wire(item)
+                for item in value
+                if isinstance(item, Mapping)
+            )
+
+        def _items(value: Any) -> tuple[ToolRunDetailTriageItem, ...]:
+            if not isinstance(value, (list, tuple)):
+                return ()
+            return tuple(
+                ToolRunDetailTriageItem.from_wire(item)
+                for item in value
+                if isinstance(item, Mapping)
+            )
+
+        def _briefs(value: Any) -> tuple[ToolRunBrief, ...]:
+            if not isinstance(value, (list, tuple)):
+                return ()
+            return tuple(
+                ToolRunBrief.from_wire(item)
+                for item in value
+                if isinstance(item, Mapping)
+            )
+
+        brief = data.get("brief")
+        logs = data.get("logs")
+        diagnostics = data.get("diagnostics") or ()
+        argv = data.get("display_argv") or ()
+        return cls(
+            store_exists=bool(data.get("store_exists", False)),
+            found=bool(data.get("found", False)),
+            display_argv=(
+                tuple(str(item) for item in argv)
+                if isinstance(argv, (list, tuple))
+                else ()
+            ),
+            stages=_stages(data.get("stages")),
+            expected_stages=_expected(data.get("expected_stages")),
+            triage_items=_items(data.get("triage_items")),
+            child_runs=_briefs(data.get("child_runs")),
+            logs=(
+                ToolRunLogMetadata.from_wire(logs)
+                if isinstance(logs, Mapping)
+                else ToolRunLogMetadata()
+            ),
+            brief=(
+                ToolRunBrief.from_wire(brief) if isinstance(brief, Mapping) else None
+            ),
+            items_truncated=bool(data.get("items_truncated", False)),
+            detail_pruned=bool(data.get("detail_pruned", False)),
+            diagnostics=(
+                tuple(str(item) for item in diagnostics)
+                if isinstance(diagnostics, (list, tuple))
+                else ()
+            ),
+        )
+
+
+def tool_run_detail(
+    run_id: str,
+    request: Mapping[str, Any] | None = None,
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 250,
+) -> ToolRunDetail:
+    """Return one run's card-block detail as typed rows.
+
+    Only ``display_argv`` reaches the caller; ``private_argv`` never
+    leaves core.
+    """
+
+    payload: dict[str, Any] = {"schema_version": 1, "run_id": run_id}
+    if request:
+        payload.update(dict(request))
+    return ToolRunDetail.from_wire(
+        dict(
+            require_rust_binding("tool_run_detail")(
+                store_path or str(tool_run_store_path()),
+                payload,
+                busy_timeout_ms,
+            )
+        )
+    )
+
+
 __all__ = [
     "ToolRunBrief",
     "ToolRunBriefs",
+    "ToolRunDetail",
+    "ToolRunDetailStage",
+    "ToolRunDetailStageCounts",
+    "ToolRunDetailTriageItem",
+    "ToolRunExpectedStage",
     "ToolRunGlance",
     "ToolRunGlanceStage",
     "ToolRunLiveGlance",
+    "ToolRunLogMetadata",
     "ToolRunNodeSummaries",
     "ToolRunNodeSummary",
     "ToolRunVerdictSummary",
     "tool_run_append_event",
     "tool_run_begin",
     "tool_run_briefs",
+    "tool_run_detail",
     "tool_run_canonicalize_fingerprint",
     "tool_run_claim",
     "tool_run_finish",

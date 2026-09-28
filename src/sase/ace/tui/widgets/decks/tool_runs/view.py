@@ -1,12 +1,12 @@
-"""``⚒ Runs`` deck view with an off-thread node-summary loader.
+"""``⚒ Runs`` deck view with off-thread node-summary and block loaders.
 
 Thin :class:`DeckId.TOOLS` specialization of
 :class:`~sase.ace.tui.widgets.decks.document_view.CardDocumentView` that
 paints the cached node summary instantly, otherwise a loading line, then
-loads through the node-summary LRU on a worker thread. Stale results
-are rejected by subject identity and detail generation. Live in-place
-progress arrives with ``runs-card-live``; this phase paints settled
-outcome lines only.
+loads through the node-summary LRU on a worker thread. The same worker
+loads each visible block's detail plus its bounded log tail through the
+detail LRU; stale results are rejected by subject identity and detail
+generation. Live in-place progress arrives with ``runs-card-live``.
 """
 
 from __future__ import annotations
@@ -25,6 +25,11 @@ from sase.ace.tui.tool_runs.deck import (
     ToolRunsDetailLevel,
     coerce_tool_runs_detail_level,
     tool_run_display_bucket,
+)
+from sase.ace.tui.tool_runs.detail import (
+    LoadedToolRunDetail,
+    cached_tool_run_detail,
+    load_tool_run_detail_blocking,
 )
 from sase.ace.tui.tool_runs.summaries import (
     cached_node_summary_for_selector,
@@ -138,6 +143,105 @@ def tool_runs_rows_for_document(
     return (tuple(merged), total, truncated)
 
 
+def _tool_runs_render_width(view: Any) -> int:
+    """Return the block render width for *view* (narrow-safe, never raises)."""
+
+    try:
+        width = int(view.size.width or 0)
+    except Exception:
+        width = 0
+    return width if width > 0 else 100
+
+
+def _tool_runs_hint_numbers(view: Any) -> dict[str, int] | None:
+    """Return mapped run-id → ``v`` hint numbers while hint mode is active.
+
+    Single source of truth is the app's ``_hint_mappings``; the tail
+    header shows a ``[N]`` marker only for targets mapped right now.
+    Never raises.
+    """
+
+    try:
+        app = view.app
+    except Exception:
+        return None
+    try:
+        if not bool(getattr(app, "_hint_mode_active", False)):
+            return None
+        mappings = getattr(app, "_hint_mappings", None)
+    except Exception:
+        return None
+    if not mappings:
+        return None
+    try:
+        from sase.ace.tui.tool_runs.hints import run_id_from_hint_target
+
+        numbers: dict[str, int] = {}
+        for number, target in dict(mappings).items():
+            run_id = run_id_from_hint_target(target)
+            if run_id and run_id not in numbers:
+                numbers[run_id] = int(number)
+    except Exception:
+        return None
+    return numbers or None
+
+
+def _cached_block_details(
+    rows: tuple[Any, ...] | list[Any],
+    store_token: Any | None,
+) -> dict[str, LoadedToolRunDetail]:
+    """Return LRU-cached details for *rows* (memory-only, never raises)."""
+
+    details: dict[str, LoadedToolRunDetail] = {}
+    for row in rows or ():
+        run_id = str(getattr(row, "run_id", "") or "")
+        if not run_id:
+            continue
+        try:
+            hit = cached_tool_run_detail(run_id, row, store_token)
+        except Exception:
+            hit = None
+        if hit is not None:
+            details[run_id] = hit
+    return details
+
+
+def _load_block_details(
+    rows: tuple[Any, ...] | list[Any],
+    store_token: Any | None,
+    *,
+    is_current: Any | None = None,
+) -> dict[str, LoadedToolRunDetail]:
+    """Load every row's detail plus tail on a worker thread (never raises).
+
+    Settled hits never re-read; live rows refetch only when the store
+    token drifted (their LRU key carries the token). ``is_current``
+    rejects the whole batch when the subject moved on mid-load.
+    """
+
+    details: dict[str, LoadedToolRunDetail] = {}
+    for row in rows or ():
+        run_id = str(getattr(row, "run_id", "") or "")
+        if not run_id:
+            continue
+        try:
+            loaded = load_tool_run_detail_blocking(
+                run_id, row, store_token, is_current=is_current
+            )
+        except Exception:
+            loaded = None
+        if loaded is None:
+            if is_current is not None:
+                try:
+                    if not is_current():
+                        return details
+                except Exception:
+                    return details
+            continue
+        details[run_id] = loaded
+    return details
+
+
 class ToolRunsDeckView(CardDocumentView):
     """One ``⚒ Runs`` card view that lives inside a VerticalScroll."""
 
@@ -170,15 +274,32 @@ class ToolRunsDeckView(CardDocumentView):
         return self.set_detail_level(self._detail_level - 1)
 
     def set_detail_level(self, level: ToolRunsDetailLevel | int) -> bool:
-        """Set the Runs detail level; False when unchanged."""
+        """Set the Runs detail level and rebuild; False when unchanged."""
         next_level = coerce_tool_runs_detail_level(level)
         if next_level == self._detail_level:
             return False
         self._detail_level = next_level
         try:
-            self.refresh()
+            agent = self._current_agent
         except Exception:
-            pass
+            agent = None
+        if agent is None:
+            try:
+                self.refresh()
+            except Exception:
+                pass
+            return True
+        try:
+            self.update_display(
+                agent,
+                generation=self._current_generation,
+                preferred_card=self._current_preferred,
+            )
+        except Exception:
+            try:
+                self.refresh()
+            except Exception:
+                pass
         return True
 
     def update_display(
@@ -234,6 +355,10 @@ class ToolRunsDeckView(CardDocumentView):
             )
             if signature and signature == self._painted_signature:
                 return
+            try:
+                store_token = snapshot.store_token if snapshot else None
+            except Exception:
+                store_token = None
             self._paint_tool_runs_result(
                 ToolRunsDeckLoadResult(
                     subject_identity=identity,
@@ -245,6 +370,10 @@ class ToolRunsDeckView(CardDocumentView):
                         digest=signature,
                         total_runs=total,
                         truncated=truncated,
+                        details=_cached_block_details(rows, store_token),
+                        level=self._detail_level,
+                        width=_tool_runs_render_width(self),
+                        hint_numbers=_tool_runs_hint_numbers(self),
                     ),
                     runs=rows,
                     total_runs=total,
@@ -270,11 +399,26 @@ class ToolRunsDeckView(CardDocumentView):
         self._show_loading()
 
         def _fetch() -> ToolRunsDeckLoadResult:
+            try:
+                level = self._detail_level
+            except Exception:
+                level = DEFAULT_TOOL_RUNS_DETAIL_LEVEL
+            try:
+                width = _tool_runs_render_width(self)
+            except Exception:
+                width = 100
+            try:
+                hints = _tool_runs_hint_numbers(self)
+            except Exception:
+                hints = None
             return load_tool_runs_deck(
                 agent,
                 subject=subject,
                 subject_identity=identity,
                 generation=generation,
+                level=level,
+                width=width,
+                hint_numbers=hints,
             )
 
         try:
@@ -446,8 +590,15 @@ def load_tool_runs_deck(
     subject: object | None,
     subject_identity: object | None,
     generation: int,
+    level: ToolRunsDetailLevel | int = DEFAULT_TOOL_RUNS_DETAIL_LEVEL,
+    width: int = 100,
+    hint_numbers: dict[str, int] | None = None,
 ) -> ToolRunsDeckLoadResult:
-    """Load one ``⚒ Runs`` document on a worker thread; never raise."""
+    """Load one ``⚒ Runs`` document on a worker thread; never raise.
+
+    The same worker call loads each visible block's detail plus its
+    bounded log tail through the detail LRU (§3.5.3).
+    """
     try:
         selector = selector_for_agent(agent)
         selector_key = selector.key if selector is not None else ""
@@ -506,6 +657,15 @@ def load_tool_runs_deck(
                 continue
     except Exception:
         silent = 0
+    try:
+        store_token = snapshot.store_token if snapshot else None
+    except Exception:
+        store_token = None
+    details = _load_block_details(rows, store_token)
+    try:
+        render_width = max(20, int(width))
+    except (TypeError, ValueError):
+        render_width = 100
     return ToolRunsDeckLoadResult(
         subject_identity=subject_identity,
         generation=generation,
@@ -516,6 +676,10 @@ def load_tool_runs_deck(
             digest=signature,
             total_runs=total,
             truncated=truncated,
+            details=details,
+            level=level,
+            width=render_width,
+            hint_numbers=hint_numbers,
         ),
         runs=rows,
         total_runs=total,

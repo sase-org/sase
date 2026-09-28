@@ -388,15 +388,19 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-18i(RetiredGate)' \
         --epic-symbol 'sase-1bt(RowIdentity)' \
         --epic-symbol 'sase-1bt(ToolRunBriefs)' \
+        --epic-symbol 'sase-1bt(ToolRunDetailStage)' \
+        --epic-symbol 'sase-1bt(ToolRunDetailStageCounts)' \
+        --epic-symbol 'sase-1bt(ToolRunDetailTriageItem)' \
+        --epic-symbol 'sase-1bt(ToolRunExpectedStage)' \
         --epic-symbol 'sase-1bt(ToolRunGlanceSnapshot)' \
         --epic-symbol 'sase-1bt(ToolRunGlanceStage)' \
         --epic-symbol 'sase-1bt(ToolRunLiveGlance)' \
+        --epic-symbol 'sase-1bt(ToolRunLogMetadata)' \
         --epic-symbol 'sase-1bt(ToolRunLogTail)' \
         --epic-symbol 'sase-1bt(ToolRunNodeSummaries)' \
         --epic-symbol 'sase-1bt(ToolRunStateStyle)' \
         --epic-symbol 'sase-1bt(ToolRunVerdictSummary)' \
         --epic-symbol 'sase-1bt(tool_run_briefs)' \
-        --epic-symbol 'sase-1bt(tool_run_log_tail)' \
         --epic-symbol 'sase-1bu(GoalWriteError)' \
         --epic-symbol 'sase-1bu(GoalWriteOutcome)' \
         --epic-symbol 'sase-1bu(apply_goal_action)' \

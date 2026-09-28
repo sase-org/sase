@@ -124,7 +124,7 @@ class ClipboardAgentsMixin(ClipboardBase):
         )
 
     def _copy_tool_run_id(self) -> None:
-        """Copy the full run id behind the header ⚒ chip (%r on agents tab)."""
+        """Copy the selected Runs block's run id, else the header chip's."""
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
@@ -137,9 +137,11 @@ class ClipboardAgentsMixin(ClipboardBase):
                 severity="warning",
             )
             return
-        from ...tool_runs.header_chip import header_run_id_for_agent
+        run_id = self._selected_tool_runs_block_run_id()
+        if not run_id:
+            from ...tool_runs.header_chip import header_run_id_for_agent
 
-        run_id = header_run_id_for_agent(self, agent)
+            run_id = header_run_id_for_agent(self, agent)
         if not run_id:
             self.notify("No tool runs for this agent", severity="warning")  # type: ignore[attr-defined]
             return
@@ -149,6 +151,30 @@ class ClipboardAgentsMixin(ClipboardBase):
             copied_label=f"tool run id ({run_id[:8]})",
             task_name="sase-copy-agent-tool-run-id",
         )
+
+    def _selected_tool_runs_block_run_id(self) -> str | None:
+        """Return the selected ``⚒ Runs`` block's run id, if any.
+
+        Only applies while the focused panel shows the Tools deck with
+        the ``runs`` card active; otherwise None so the caller falls
+        back to the header chip's run. Never raises.
+        """
+        try:
+            from ...widgets import AgentDetail
+            from ...widgets.decks.model import DeckId
+
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            panel = agent_detail.deck_area.focused_panel()
+            if panel.deck != DeckId.TOOLS:
+                return None
+            if panel.active_tools_card() != "runs":
+                return None
+            block_id = panel.tool_runs_view.active_block_id("runs")
+        except Exception:
+            return None
+        if not block_id:
+            return None
+        return str(block_id)
 
     def _copy_file_path(self) -> None:
         """Copy the file path from the file panel (%E on agents tab)."""

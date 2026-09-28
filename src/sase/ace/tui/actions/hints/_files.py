@@ -409,6 +409,7 @@ class FileViewingMixin(HintMixinBase):
                 return None
 
             self._hint_mappings = hint_render.file_hints
+            self._append_tool_run_log_hint_targets(agent)
             self._hint_tool_call_reports = hint_render.tool_call_reports
             self._hint_glossary_reports = hint_render.glossary_reports
             self._hint_memory_reports = hint_render.memory_reports
@@ -429,6 +430,64 @@ class FileViewingMixin(HintMixinBase):
             if self._agent_hint_render_session == session:
                 self._agent_hint_render_task = None
                 ready.set()
+
+    def _append_tool_run_log_hint_targets(self, agent: Agent) -> None:
+        """Append one ``⚒ run log`` target per visible run block.
+
+        Numbers continue past the file and commit hints so every
+        visible run block on the ``⚒ Runs`` card is addressable from
+        ``v`` hint mode. Never raises; a missing summary simply adds
+        no targets.
+        """
+        try:
+            from ...tool_runs.flag import tool_runs_enabled
+            from ...tool_runs.hints import (
+                hint_number_for_tool_run,
+                visible_tool_run_log_targets,
+            )
+            from ...tool_runs.summaries import (
+                cached_node_summary_for_selector,
+                selector_for_agent,
+            )
+            from ...tool_runs.snapshot import get_snapshot
+            from ...widgets.decks.tool_runs.view import tool_runs_rows_for_document
+        except Exception:
+            return
+        try:
+            if not tool_runs_enabled():
+                return
+            selector = selector_for_agent(agent)
+            if selector is None:
+                return
+            summary = cached_node_summary_for_selector(selector)
+            if summary is None:
+                return
+            snapshot = get_snapshot()
+            snapshot_runs = tuple(snapshot.runs or ()) if snapshot else ()
+            rows, _total, _truncated = tool_runs_rows_for_document(
+                summary, snapshot_runs
+            )
+        except Exception:
+            return
+        try:
+            mappings = self._hint_mappings
+            commit_views = getattr(self, "_hint_commit_views", {}) or {}
+            try:
+                next_number = max([*mappings, *commit_views]) + 1
+            except (TypeError, ValueError):
+                next_number = 1
+            for _label, target in visible_tool_run_log_targets(rows):
+                from ...tool_runs.hints import run_id_from_hint_target
+
+                run_id = run_id_from_hint_target(target)
+                if run_id is None:
+                    continue
+                if hint_number_for_tool_run(mappings, run_id) is not None:
+                    continue
+                mappings[next_number] = target
+                next_number += 1
+        except Exception:
+            pass
 
     def _agent_hint_render_session_is_current(
         self,

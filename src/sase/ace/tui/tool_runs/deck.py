@@ -173,12 +173,12 @@ def tool_run_outcome_line(brief: Any) -> Text:
     text = Text()
     text.append(f"{TOOL_RUN_GLYPH} {label} ", style="")
     text.append(style.glyph, style=style.color)
-    words = _bucket_words(brief, bucket)
+    words = tool_run_bucket_words(brief, bucket)
     if words:
         text.append(f" {words}", style="")
     duration_ms = getattr(brief, "duration_ms", None)
     typical_ms = getattr(brief, "typical_ms", None)
-    duration_part = _duration_part(duration_ms, typical_ms)
+    duration_part = tool_run_duration_part(duration_ms, typical_ms)
     if duration_part:
         text.append(f" {duration_part}", style="dim")
     settled_ts = getattr(brief, "settled_ts", None)
@@ -209,7 +209,7 @@ def tool_run_display_bucket(brief: Any) -> str:
     return "undetermined"
 
 
-def _bucket_words(brief: Any, bucket: str) -> str:
+def tool_run_bucket_words(brief: Any, bucket: str) -> str:
     """Return the bucket words and counts for one outcome line."""
     verdict = getattr(brief, "verdict", None)
     style_words = style_for_bucket(bucket).word
@@ -246,7 +246,7 @@ def _bucket_words(brief: Any, bucket: str) -> str:
     return str(style_words or bucket)
 
 
-def _duration_part(duration_ms: Any, typical_ms: Any) -> str:
+def tool_run_duration_part(duration_ms: Any, typical_ms: Any) -> str:
     """Return the ``4m12s (typ 4m13s)`` duration fragment, if any."""
     try:
         duration = float(duration_ms) if duration_ms is not None else None
@@ -428,7 +428,9 @@ __all__ = [
     "probe_tool_runs_card",
     "tool_run_block_header_text",
     "tool_run_block_meta",
+    "tool_run_bucket_words",
     "tool_run_display_bucket",
+    "tool_run_duration_part",
     "tool_run_outcome_line",
     "tool_runs_card_search_text",
     "tools_card_ids",

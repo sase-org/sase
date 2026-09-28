@@ -6,6 +6,7 @@ import asyncio
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from typing import Any
 
 from sase.memory.legacy_glossary_read_report import (
     GlossaryReadReportSpec,
@@ -16,6 +17,7 @@ from sase.memory.memory_read_report import (
     write_memory_read_report,
 )
 from sase.ace.tui.bead_hint_targets import bead_id_from_hint_target
+from sase.ace.tui.tool_runs.hints import run_id_from_hint_target
 from sase.pager.document import PagerSection
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.resolve import resolve_link
@@ -47,6 +49,52 @@ class _ViewRequest:
     commit_specs: tuple[CommitViewSpec, ...]
     captured_link_context: CapturedLinkContext
     bead_ids: tuple[str, ...] = ()
+    tool_run_log_ids: tuple[str, ...] = ()
+
+
+def _materialize_tool_run_log_documents(
+    run_ids: tuple[str, ...],
+) -> tuple[list[Any], list[str]]:
+    """Build one pager document per retained run log (runs off-thread).
+
+    Returns ``(documents, failures)``. Each document holds a single
+    text section from the run's bounded tail, read through the detail
+    LRU so a visible block never re-reads.
+    """
+
+    from sase.ace.tui.tool_runs.detail import load_tool_run_detail_blocking
+    from sase.ace.tui.tool_runs.hints import build_tool_run_log_pager_document
+
+    documents: list[Any] = []
+    failures: list[str] = []
+    for run_id in run_ids:
+        try:
+            loaded = load_tool_run_detail_blocking(run_id)
+        except Exception:
+            loaded = None
+        tail = getattr(loaded, "tail", None) if loaded is not None else None
+        lines = tuple(getattr(tail, "lines", ()) or ()) if tail is not None else ()
+        if not lines:
+            failures.append(f"⚒ run log {run_id[:8]} has no retained log")
+            continue
+        brief = getattr(loaded, "detail", None)
+        brief = getattr(brief, "brief", None) if brief is not None else None
+        label = (
+            str(getattr(brief, "label", "") or "run") if brief is not None else "run"
+        )
+        try:
+            documents.append(
+                build_tool_run_log_pager_document(
+                    run_id,
+                    label,
+                    lines,
+                    availability=str(getattr(tail, "availability", "available") or ""),
+                    truncated=bool(getattr(tail, "truncated", False)),
+                )
+            )
+        except Exception:
+            failures.append(f"⚒ run log {run_id[:8]} could not be opened")
+    return (documents, failures)
 
 
 @dataclass(frozen=True)
@@ -223,6 +271,8 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
         )
         bead_ids_list: list[str] = []
         seen_bead_ids: set[str] = set()
+        tool_run_log_list: list[str] = []
+        seen_tool_run_logs: set[str] = set()
         files: list[str] = []
         for raw_file in raw_files:
             bead_id = bead_id_from_hint_target(raw_file)
@@ -230,11 +280,18 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
                 if bead_id not in seen_bead_ids:
                     seen_bead_ids.add(bead_id)
                     bead_ids_list.append(bead_id)
-            else:
-                files.append(raw_file)
+                continue
+            run_id = run_id_from_hint_target(raw_file)
+            if run_id is not None:
+                if run_id not in seen_tool_run_logs:
+                    seen_tool_run_logs.add(run_id)
+                    tool_run_log_list.append(run_id)
+                continue
+            files.append(raw_file)
         bead_ids: tuple[str, ...] = tuple(bead_ids_list)
+        tool_run_log_ids: tuple[str, ...] = tuple(tool_run_log_list)
 
-        if not files and not commit_hint_nums and not bead_ids:
+        if not files and not commit_hint_nums and not bead_ids and not tool_run_log_ids:
             self.notify("No valid files selected", severity="warning")  # type: ignore[attr-defined]
             return None
 
@@ -269,6 +326,7 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
             commit_specs=commit_specs,
             captured_link_context=self._capture_view_link_context(),
             bead_ids=bead_ids,
+            tool_run_log_ids=tool_run_log_ids,
         )
         tool_reports: dict[str, SlowToolCallReportSpec] = getattr(
             self, "_hint_tool_call_reports", {}
@@ -334,6 +392,26 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
         for bead_failure in outcome.bead_failures:
             self.notify(bead_failure, severity="warning")  # type: ignore[attr-defined]
 
+        tool_run_log_ids = request.tool_run_log_ids
+        if tool_run_log_ids and (request.copy_to_clipboard or request.open_in_editor):
+            self.notify(  # type: ignore[attr-defined]
+                "Tool run logs cannot be opened in an editor or copied as paths",
+                severity="warning",
+            )
+            tool_run_log_ids = ()
+        tool_run_sections: list[Any] = []
+        if tool_run_log_ids:
+            tool_run_docs, tool_run_failures = await asyncio.to_thread(
+                _materialize_tool_run_log_documents, tool_run_log_ids
+            )
+            for failure in tool_run_failures:
+                self.notify(failure, severity="warning")  # type: ignore[attr-defined]
+            for document in tool_run_docs:
+                try:
+                    tool_run_sections.extend(document.sections)
+                except Exception:
+                    continue
+
         files = list(outcome.files)
         if request.copy_to_clipboard:
             items = [*request.bead_ids, *files]
@@ -360,7 +438,7 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
             self._open_files_in_editor(result)  # type: ignore[attr-defined]
             return
 
-        if not files and not outcome.bead_sections:
+        if not files and not outcome.bead_sections and not tool_run_sections:
             if not request.commit_specs:
                 self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
             return
@@ -390,6 +468,18 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
                 severity="error",
             )
             return
+        if tool_run_sections:
+            try:
+                from sase.pager.document import PagerDocument
+
+                document = PagerDocument(
+                    sections=(*tool_run_sections, *document.sections),
+                    title=document.title,
+                    origin=document.origin,
+                    link_context=document.link_context,
+                )
+            except Exception:
+                pass
         if not bool(getattr(self, "is_running", True)):
             return
         self._view_files_with_pager_screen(document)  # type: ignore[attr-defined]
