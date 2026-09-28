@@ -299,6 +299,20 @@ Platform note: a terminal-launched proc stays in the terminal's cgroup unless it
 `show` on a run whose owner row or logs were pruned reports the owner and the log as no
 longer retained, by name — the summary survives.
 
+## In the TUI
+
+The Agents tab surfaces each node's runs without ever touching the ledger: a live-only
+`⚒` chip on the owning row (the monitor row for monitor-owned runs, never the starter),
+a header chip answering whether the latest check added NEW failures, and the Tools
+deck's `⚒ Runs` card with a stage waterfall, triage items, and a bounded log tail. LLM
+Calls rows, the slow-tool list, and monitor/proc Context cards link to the run instead
+of copying it. Admin Center → Tools (tab `7`) covers project-wide runs, failure
+signatures, and the tool catalog. Stopping a run and starting a catalog tool are
+explicit, confirmed flows; when a hand-off settles, an `OpenToolRun` notification jumps
+back to the run. See [Agents Tab Tool Runs](ace.md#agents-tab-tool-runs) and the
+[Tools tab](ace.md#tools-tab) for the full surface. The TUI never reconciles: a silent
+run is shown in red and left for its owner (or a backend reconcile) to settle.
+
 ## Rerunnable harness
 
 ```bash

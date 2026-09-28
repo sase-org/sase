@@ -516,7 +516,7 @@ the other legs finish. The context-sensitive keymaps are:
 | `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                                                                                                  |
 | `/`                 | Focus the filter input (matches every row's own name / description / topics, across all sections); a filter matching nothing in the current scope names the scopes with matches |
 | `#` (default)       | From home, resume the last section used; in a section, jump to the previous one, press again to toggle                                                                          |
-| `Tab` / `Shift+Tab` | From home enter Config / Updates; otherwise switch SASE Admin Center tabs (`1`–`7` jump directly)                                                                               |
+| `Tab` / `Shift+Tab` | From home enter Config / Updates; otherwise switch SASE Admin Center tabs (`1`–`8` jump directly)                                                                               |
 | `Esc`               | Clear every mark first, including any hidden by the filter; close when no marks are active                                                                                      |
 | `q`                 | Close SASE Admin Center                                                                                                                                                         |
 
@@ -1315,6 +1315,34 @@ scoped to the Machines pane and do not become app-level sase's TUI shortcuts.
 | `show_agents`     | `enter`         | Open Agents filtered to the selected machine.               |
 | `copy_command`    | `y`             | Copy the current Machines action command.                   |
 | `reload`          | `U`             | Reload the machine inventory.                               |
+
+**`tool_runs`** — focused Admin Center [Tools-tab](ace.md#tools-tab) keybindings (Runs,
+Failures, and Catalog views). These bindings are scoped to the Tools pane and do not
+become app-level sase's TUI shortcuts. A value may list more than one key, separated by
+commas:
+
+| Field                  | Default                | Action                                               |
+| ---------------------- | ---------------------- | ---------------------------------------------------- |
+| `next_option`          | `j,down,ctrl+n`        | Select the next run, group, or catalog row.          |
+| `prev_option`          | `k,up,ctrl+p`          | Select the previous run, group, or catalog row.      |
+| `focus_filter`         | `slash`                | Focus the Runs filter input.                         |
+| `cycle_subtab`         | `right_square_bracket` | Cycle to the next sub-tab (Runs, Failures, Catalog). |
+| `cycle_subtab_reverse` | `left_square_bracket`  | Cycle to the previous sub-tab.                       |
+| `toggle_scope`         | `A`                    | Toggle between the current project and all projects. |
+| `focus_detail`         | `enter`                | Focus the selected run's detail.                     |
+| `jump_to_agent`        | `a`                    | Jump to the owning Agents-tab row.                   |
+| `open_log`             | `v`                    | Open the retained run log in the pager.              |
+| `copy_run_id`          | `y`                    | Copy the selected run id.                            |
+| `stop_run`             | `s`                    | Stop the focused live run (with confirmation).       |
+| `run_tool`             | `r`                    | Run the focused catalog tool (with confirmation).    |
+| `reload`               | `R`                    | Reload the active view from the run ledger.          |
+
+Like the Machines-tab keys, Tools-tab keys are scoped to the pane and may overlap
+app-level bindings.
+
+The Agents-tab copy mode (`%`) gains a `tool run id` target on nodes with tool runs,
+configured as `ace.keymaps.modes.copy_mode.keys.agents.tool_run_id` (default `r`, so
+`%r`).
 
 **`app`** — App-level keybindings. Each key is an action name mapped to a key string.
 See `src/sase/default_config.yml` for the full list of configurable actions and their

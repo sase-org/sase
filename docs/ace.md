@@ -1394,7 +1394,7 @@ drawn, the jump is cancelled with a warning rather than landing somewhere stale.
 | `n`                 | Name agent                                                                                                                                                                 |
 | `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                                                                               |
 | `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                                                                                      |
-| `v`                 | View files (hint mode; annotates clan/session containers in place)                                                                                                         |
+| `v`                 | View files (hint mode; annotates clan/session containers in place; adds `⚒ run log` targets on the Runs card that open the retained run log in the pager)                  |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                                                                                          |
 | `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                                                                                  |
 | `.`                 | Expand / collapse the jump panel (sticky jump targets below the detail panels)                                                                                             |
@@ -3066,6 +3066,7 @@ which case the target wins.
 | `%@` | Copy the focused concrete agent's durable global `@agent:` reference                        |
 | `%n` | Copy the focused agent's `agent_name` (falls back to `display_name`; toast indicates which) |
 | `%p` | Copy agent prompt                                                                           |
+| `%r` | Copy the selected node's tool run id (when it has tool runs)                                |
 | `%s` | Copy sase tui snapshot                                                                      |
 
 ## Keybindings: Services Tab
@@ -3912,9 +3913,10 @@ the run ledger). The pane is filtered to the current project by default; press `
 widen it to all projects. Use `[` / `]` to move between views, `/` to filter Runs with
 `tool:`, `state:`, `agent:`, and `verdict:` tokens, `enter` to focus detail, `a` to jump
 to the owning Agents row, `v` to open the retained log in the pager, `y` to copy the run
-id, and `R` to reload. The Runs detail reuses the Agents tab Runs block renderer. The
-pane never settles or reconciles runs; stopping a run and running a tool from the
-catalog arrive with the follow-up phase.
+id, `s` to stop the focused live run (same DANGER confirm as the Agents tab), `r` to run
+the focused catalog tool at the current project root, and `R` to reload. The Runs detail
+reuses the Agents tab Runs block renderer. The pane never settles or reconciles runs;
+the only writes it offers are the explicit stop and catalog-run flows.
 
 <a id="models-panel"></a>
 
@@ -5468,31 +5470,31 @@ skips legacy dismissal-prefixed candidates so it anchors on a live, visible agen
 ### Agents Deck Picker
 
 On the Agents tab, `p` opens a small centered deck picker for the focused deck panel.
-One more keypress picks the deck directly: `m` Main, `f` Files, `t` Tools (`pp` or `Esc`
-closes without changing anything). `j`/`k` move the highlight (wrapping) and `Enter`
-picks the highlighted row; any other printable key is swallowed so nothing leaks through
-to the tab. The picker heading names the focused panel (`deck panel` single, `top` /
-`bottom` or `left` / `right` in a split, `zoomed` while zoomed), each row shows its deck
-letter, glyph, count, and whether it is already showing (or shown in the other split
-panel), and the palette offers the same jumps as
+One more keypress picks the deck directly: `m` Main, `f` Files, `t` Tools, `n` FINAL
+(`pp` or `Esc` closes without changing anything). `j`/`k` move the highlight (wrapping)
+and `Enter` picks the highlighted row; any other printable key is swallowed so nothing
+leaks through to the tab. The picker heading names the focused panel (`deck panel`
+single, `top` / `bottom` or `left` / `right` in a split, `zoomed` while zoomed), each
+row shows its deck letter, glyph, count, and whether it is already showing (or shown in
+the other split panel), and the palette offers the same jumps as
 `Show <Main|Files|Tools> deck in focused panel`. The old detail-view picker is retired:
 the Agents tab now always shows
 [agent data decks and cards](#agent-data-decks-and-cards). The in-picker deck letters
 are fixed and not configurable. `p` keeps its unrelated Artifacts project-scope meaning
 on the Artifacts tab.
 
-The capital deck letters (`M` / `F` / `T`) show that deck in the **other** panel instead
-of the focused one. From a single panel they open a new panel below (top-bottom) showing
-the picked deck; in an existing top-bottom or left-right split they fill the other panel
-and keep the layout as is (a left-right split is never rotated). While zoomed, the zoom
-ends first, the way `Z` ends it, and the split comes back in its original orientation
-(or a new bottom panel opens when the zoom came from a single panel). Focus always stays
-on the panel the picker was opened from, unlike `\`, which moves focus into the new
-panel; `Ctrl+F` moves it if you want. A muted hint line at the bottom of the picker
-(`M/F/T  open in a new bottom panel`, `show in the left panel`, and so on) says where
-the capital letter will go. Picking a capital letter for the deck the other panel
-already shows changes nothing. `Enter` and mouse clicks keep their focused-panel
-meaning. The palette offers the same jumps as
+The capital deck letters (`M` / `F` / `T` / `N`) show that deck in the **other** panel
+instead of the focused one. From a single panel they open a new panel below (top-bottom)
+showing the picked deck; in an existing top-bottom or left-right split they fill the
+other panel and keep the layout as is (a left-right split is never rotated). While
+zoomed, the zoom ends first, the way `Z` ends it, and the split comes back in its
+original orientation (or a new bottom panel opens when the zoom came from a single
+panel). Focus always stays on the panel the picker was opened from, unlike `\`, which
+moves focus into the new panel; `Ctrl+F` moves it if you want. A muted hint line at the
+bottom of the picker (`M/F/T/N  open in a new bottom panel`, `show in the left panel`,
+and so on) says where the capital letter will go. Picking a capital letter for the deck
+the other panel already shows changes nothing. `Enter` and mouse clicks keep their
+focused-panel meaning. The palette offers the same jumps as
 `Show <Main|Files|Tools> deck in other panel`.
 
 ### Agent Data Decks and Cards
@@ -5513,8 +5515,15 @@ opens the [deck picker](#agents-deck-picker) for a two-key jump to any deck; `Ct
 - **Files deck.** One card per file page (commit diffs, the live diff, linked-repo
   diffs, then extra files), titled by file. The default card is the same default page
   the file view always chose.
-- **Tools deck.** The `LLM Calls` card with the selected agent's tool-call timeline (see
-  [Agents Tab LLM Calls Panel](#agents-tab-llm-calls-panel)).
+- **Tools deck.** Two cards: `⚒ Runs` first, then `LLM Calls` (see
+  [Agents Tab Tool Runs](#agents-tab-tool-runs) and
+  [Agents Tab LLM Calls Panel](#agents-tab-llm-calls-panel)). The Runs card exists only
+  when the selected node has at least one tool run. The default card is the panel's
+  sticky Tools preference when it names a card that exists, otherwise Runs, otherwise
+  LLM Calls — so a reader who prefers LLM Calls stays there. Tools is paged-only: it
+  never spreads, `P` stays a no-op, and there is no deck-view badge. The border
+  subtitle's Tools segment reads `tools ⚒N M` (N runs, M LLM calls; `tools ⚒N` when
+  there are no calls), bold accent while a run is live and red while one is silent.
 - **FINAL deck.** The `⊛ FINAL` deck shows how the selected node's turns landed: an
   `Overview` card plus one card per finalizer instance (see
   [Finalizers on the Agents tab](#finalizers-on-the-agents-tab)).
@@ -5527,7 +5536,7 @@ header to the top. The deck panel's border title names the deck, its
 [deck view](#deck-views) badge (Main and Files decks only), and its cards with the
 active card highlighted (and an `N/M` position when there is more than one card); the
 border subtitle is a `main · files · tools · final` switcher showing each deck's card,
-file, LLM-call, or finalizer count when known, dimming decks with no content. A deck
+file, run/call, or finalizer count when known, dimming decks with no content. A deck
 with no content for the selection shows an empty-state card instead, so the layout never
 jumps.
 
@@ -6077,6 +6086,115 @@ file paths rather than shown raw. See
 [LLM Providers — Antigravity (`agy`) Integration](llms.md#antigravity-agy-integration),
 and [LLM Providers — Grok Tool-Call Capture](llms.md#grok-tool-call-capture) for
 provider integration details.
+
+## Agents Tab Tool Runs
+
+The Agents tab surfaces the machine-local ToolRun ledger (see
+[Named Tools and ToolRuns](tool.md)) at three zoom levels: a live-only `⚒` chip on the
+owning row, a header chip plus `Tool runs` field on the selection, and the Tools deck's
+`⚒ Runs` card for diagnosis. Project-wide runs live in the Admin Center
+[Tools tab](#tools-tab). `⚒` (U+2692) means ToolRun everywhere — row, header, card,
+pane, notification icon, and Procs cell. The old chop/Services link-trail icon moved to
+`⏲` so the two are never confused. Say "tool run" or "ToolRun": never "tool call" for a
+ToolRun.
+
+The view is read-only. The TUI never reconciles, settles, or writes to the ledger on any
+UI path: stopping a run goes through the explicit stop flow below, and everything else
+only reads.
+
+### State vocabulary
+
+Every state shows glyph + word + color together, so meaning never depends on color
+alone:
+
+| State        | Glyph | Words (examples)                                             | Color                                      |
+| ------------ | ----- | ------------------------------------------------------------ | ------------------------------------------ |
+| running      | `⚒`   | `check 7/11`, `check 2m`, `check starting`, `check stopping` | bold Tools accent `#87D7FF`                |
+| silent       | `⚒⚠`  | `check silent 4m`                                            | bold `#FF5F5F`                             |
+| pass         | `✓`   | `pass`                                                       | `#5FD75F`                                  |
+| new failures | `✗`   | `3 NEW · 1 KNOWN`                                            | `#FF5F5F`                                  |
+| known only   | `≈`   | `known only · 2 KNOWN`                                       | `#87AF87` (calm: the known red, not yours) |
+| undetermined | `?`   | `2 UNKNOWN`, or `untriaged`                                  | `#FFAF5F`                                  |
+| killed       | `⊘`   | `killed at 9m00s · signal`, `timed out at 30m00s`            | `#D75FFF`                                  |
+| stopped      | `⊘`   | `stopped at 1m02s`                                           | dim                                        |
+| lost         | `⊘`   | `lost · wrapper_lost`                                        | dim `#FF5F5F`                              |
+
+A live run is one in state `created` or `running`. A live run is **silent** when nothing
+was heard from it for 60 seconds (six missed samples): the TUI says `silent` in red and
+never claims an outcome. Severity picks one chip among several tools —
+`new_failures > undetermined > killed > lost > stopped > known_only > pass` — with live
+always outranking settled and silent outranking live. Ages format as `<1m`, `Nm`, `Nh`,
+`Nd`.
+
+### At a glance: the row chip
+
+A row carries a `⚒` chip only while one of its runs is live; settled history never marks
+the row. The chip shows the tool label plus progress against the reference run
+(`check 7/11`), elapsed minutes (`check 2m`), `starting` for a created run, or
+`stopping` once a stop is requested. All times are minute-resolution snapshots — a
+relative time that doesn't tick would be a lie, and rows don't repaint on a tick.
+
+Attribution is by node kind, never by name guessing. A monitor-owned run chips the
+monitor row, not its starter; a named-proc run chips the proc row. History still shows
+both relationships (a handed-off run is labeled `→ monitor <name>` or `→ proc <id>`). A
+session container inherits its members' most severe live chip. Rows on remote machines
+get no chip: the ledger is machine-local, so absence must never read as "no runs".
+
+### In context: the header chip and `Tool runs` field
+
+The selected node's header chip answers "did its latest check add NEW failures?" at a
+glance: a live run wins over settled history (silent first), otherwise the most severe
+settled run per label wins, with `+N` when other tool labels exist. Live elapsed turns
+amber past the run's typical duration; settled times are absolute (`16:21`), never
+relative. The expanded `Tool runs` field lists each run with its verdict line, and `%r`
+(copy mode) copies the focused run's id.
+
+### To diagnose: the `⚒ Runs` card
+
+One block per run, newest first; `(` / `)` step between blocks. Selecting a node lands
+on the newest block. A reader sitting on the newest block follows new arrivals; a reader
+who moved back holds position and sees an arrival dot. A nested run renders as a `↳`
+line inside its parent block, never as its own block.
+
+Each block shows the outcome and context lines (tool label, verdict, argv, owner), a
+stage waterfall, triage items with cross-run and cross-agent witness counts, child runs,
+and a bounded log tail. Three detail levels come from `h` / `l` (full / compact via `H`
+/ `L`), routed by the active card — while the Runs card is active those keys drive run
+detail, not folds. When the detail or the log is pruned the block says so honestly
+(`detail pruned · summary retained`) instead of showing an empty success.
+
+A live block progresses in place: elapsed repaints once a second, pending stages come
+from the reference run, and the block settles in place when the run does — no full
+refetch unless the glance drifts. `v` hint mode gains one `⚒ run log <8hex>` target per
+visible block, opening the retained log in the pager. A node with no runs and no calls
+shows `No tool runs or LLM calls for this node`; on a remote row it says
+`ToolRun history lives on <machine>` instead.
+
+### Links from LLM Calls, slow tools, and Context cards
+
+An LLM Calls row whose command ran `sase tool run` (or a wrapping `sase monitor start`)
+gains a verdict suffix and a jump to the run's block. A `sase tool run` row in the Main
+deck slow-tool list gains a live-stage or verdict suffix. Monitor and named-proc Context
+cards gain a `Tool run` row. The run itself is never copied into those surfaces — they
+link to it.
+
+### Stopping a run and running a tool
+
+The command palette offers `Stop live tool run` and `Run project tool…` whenever a local
+live run (for stop) or a local node (for run) is in play.
+
+Stopping asks for confirmation in a DANGER dialog with Cancel focused, and the copy
+names the consequence for the owner: an inline agent run's `sase tool run` exits 143
+(its agent keeps running and sees a failed check), a monitor-owned run's monitor stops
+and its follow-up agent never launches, and a hand-off proc is killed with the run
+settling as stopped. A nested run resolves to its outermost stoppable ancestor first.
+The stop itself runs as a durable proc (`sase tool stop RUN -j` with a typed result), so
+it appears in the Procs tab and survives quit.
+
+`Run project tool…` confirms the argv and the root, then hands `sase tool run -H <tool>`
+off at the current project's primary checkout root through a session worker. When that
+run settles, an `OpenToolRun` notification arrives; selecting it jumps to the run's
+Agents-tab node and Tools deck (or opens Admin Center → Tools focused on the run).
 
 ## Plan Workflows
 
