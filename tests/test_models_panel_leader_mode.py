@@ -7,7 +7,6 @@ from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
-    ProviderDisablesIndicator,
     ProviderUsageIndicator,
 )
 from sase.ace.tui.widgets.launch_context_source import LaunchContextSource
@@ -71,7 +70,6 @@ def _launch_indicators_mixin() -> tuple[MagicMock, MagicMock, dict[str, MagicMoc
     source = MagicMock(spec=LaunchContextSource)
     indicators = {
         "#alias-overrides-indicator": MagicMock(spec=AliasOverridesIndicator),
-        "#provider-disables-indicator": MagicMock(spec=ProviderDisablesIndicator),
         "#provider-usage-indicator": MagicMock(spec=ProviderUsageIndicator),
         "#launch-context-source": source,
     }
@@ -86,14 +84,12 @@ def test_refresh_launch_indicators_refreshes_all_indicators() -> None:
 
     assert mixin.query_one.call_args_list == [
         call("#alias-overrides-indicator", AliasOverridesIndicator),
-        call("#provider-disables-indicator", ProviderDisablesIndicator),
         call("#provider-usage-indicator", ProviderUsageIndicator),
         call("#launch-context-source", LaunchContextSource),
     ]
     source.invalidate_launch_default.assert_called_once()
     for selector in (
         "#alias-overrides-indicator",
-        "#provider-disables-indicator",
         "#provider-usage-indicator",
     ):
         indicators[selector].refresh.assert_called_once_with()
@@ -134,7 +130,6 @@ def test_open_models_panel_invalidates_default_on_provider_routing_change() -> N
     source.invalidate_launch_default.assert_called_once()
     for selector in (
         "#alias-overrides-indicator",
-        "#provider-disables-indicator",
         "#provider-usage-indicator",
     ):
         indicators[selector].refresh.assert_called_once_with()

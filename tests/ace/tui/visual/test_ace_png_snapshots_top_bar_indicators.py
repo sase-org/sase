@@ -1,6 +1,6 @@
 """PNG visual snapshots for the labeled top-bar indicator cluster.
 
-Two goldens pin the full Busy cluster: all seven groups visible at a wide
+Two goldens pin the full Busy cluster: all five groups visible at a wide
 size (full labels) and the same state at a narrow size (compact, labels
 dropped together). Until-cleared overrides keep the frame deterministic.
 """
@@ -10,15 +10,12 @@ from __future__ import annotations
 import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
-import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
-import sase.ace.tui.widgets.provider_priority_indicator as provider_priority_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
     NotificationIndicator,
     ProcIndicator,
-    ProviderDisablesIndicator,
     StashedPromptsIndicator,
     UpdatesAvailableIndicator,
 )
@@ -100,9 +97,6 @@ async def _drive_busy(page: AcePage) -> None:
         3, core=True, agent_cli_count=2
     )
     page.app.query_one("#alias-overrides-indicator", AliasOverridesIndicator).refresh()
-    page.app.query_one(
-        "#provider-disables-indicator", ProviderDisablesIndicator
-    ).refresh()
     page.app.query_one("#stashed-prompts-indicator", StashedPromptsIndicator).set_count(
         4
     )
@@ -126,7 +120,7 @@ async def test_top_bar_indicators_full_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """All seven groups visible at a wide size with full labels."""
+    """All five groups visible at a wide size with full labels."""
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
         alias_overrides_indicator,
@@ -134,12 +128,7 @@ async def test_top_bar_indicators_full_png_snapshot(
         lambda: {"medium": _override()},
     )
     monkeypatch.setattr(
-        provider_disables_indicator,
-        "peek_provider_routing_context",
-        lambda *a, **k: _busy_context(),
-    )
-    monkeypatch.setattr(
-        provider_priority_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: _busy_context(),
     )
@@ -157,7 +146,7 @@ async def test_top_bar_indicators_compact_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Same busy seven-group state at a narrow size with labels dropped together."""
+    """Same busy five-group state at a narrow size with labels dropped together."""
     from sase.llm_provider.provider_priority import (
         provider_routing_context_from_parts as _ctx_from_parts,
     )
@@ -170,12 +159,7 @@ async def test_top_bar_indicators_compact_png_snapshot(
     )
     empty = _ctx_from_parts({}, None, captured_at=100.0)
     monkeypatch.setattr(
-        provider_disables_indicator,
-        "peek_provider_routing_context",
-        lambda *a, **k: empty,
-    )
-    monkeypatch.setattr(
-        provider_priority_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: empty,
     )
@@ -187,12 +171,7 @@ async def test_top_bar_indicators_compact_png_snapshot(
         await page.expect_state("tab", "patches")
         await wait_for_svg_contains(page, "visual_auth")
         monkeypatch.setattr(
-            provider_disables_indicator,
-            "peek_provider_routing_context",
-            lambda *a, **k: _busy_context(),
-        )
-        monkeypatch.setattr(
-            provider_priority_indicator,
+            alias_overrides_indicator,
             "peek_provider_routing_context",
             lambda *a, **k: _busy_context(),
         )
@@ -202,9 +181,6 @@ async def test_top_bar_indicators_compact_png_snapshot(
         ).set_available(3, core=True, agent_cli_count=2)
         page.app.query_one(
             "#alias-overrides-indicator", AliasOverridesIndicator
-        ).refresh()
-        page.app.query_one(
-            "#provider-disables-indicator", ProviderDisablesIndicator
         ).refresh()
         page.app.query_one(
             "#stashed-prompts-indicator", StashedPromptsIndicator

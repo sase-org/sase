@@ -9,10 +9,7 @@ from sase.ace.tui.widgets._override_pill import (
     PROVIDER_SOFT_DISABLE_PALETTE,
 )
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets.provider_disables_indicator import (
-    ProviderDisablesIndicator,
-    _ACTIVE_STYLE,
-)
+from sase.ace.tui.widgets.provider_disables_indicator import _ACTIVE_STYLE
 from sase.ace.tui.widgets.provider_priority_indicator import (
     ProviderPriorityIndicator,
 )
@@ -23,10 +20,6 @@ from tests._provider_disables_indicator_helpers import (
     _patch_priority_facts,
     _priority,
 )
-
-
-def test_group_label_is_priority() -> None:
-    assert ProviderPriorityIndicator.GROUP_LABEL == "priority"
 
 
 def test_no_priority_renders_empty() -> None:
@@ -183,9 +176,11 @@ def test_unavailable_priority_uses_hard_accent(
 async def test_single_peek_drives_both_routing_groups(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import sase.ace.tui.widgets.provider_disables_indicator as disables_module
-    import sase.ace.tui.widgets.provider_priority_indicator as priority_module
+    import sase.ace.tui.widgets.alias_overrides_indicator as alias_module
 
+    from sase.ace.tui.widgets import AliasOverridesIndicator
+
+    _patch_priority_facts(monkeypatch)
     context = provider_routing_context_from_parts(
         {"claude": _disable("claude", expires_at=None)},
         _priority("codex", expires_at=None),
@@ -197,43 +192,39 @@ async def test_single_peek_drives_both_routing_groups(
         calls["count"] += 1
         return context
 
-    monkeypatch.setattr(disables_module, "peek_provider_routing_context", _peek)
-    monkeypatch.setattr(priority_module, "peek_provider_routing_context", _peek)
+    monkeypatch.setattr(alias_module, "peek_provider_routing_context", _peek)
+    monkeypatch.setattr(alias_module, "get_active_alias_overrides", lambda: {})
     async with AcePage(size=(220, 40)) as page:
-        disables = page.app.query_one(
-            "#provider-disables-indicator", ProviderDisablesIndicator
-        )
-        priority = page.app.query_one(
-            "#provider-priority-indicator", ProviderPriorityIndicator
+        merged = page.app.query_one(
+            "#alias-overrides-indicator", AliasOverridesIndicator
         )
         calls["count"] = 0
-        disables._apply_content()
+        merged._apply_content()
         await page.pause()
         assert calls["count"] == 1
-        assert priority.group_visible
-        assert disables.group_visible
-        # Each fact gets its own label, color, and tooltip.
-        assert "CODEX" in priority._body.plain
-        assert "CLAUDE" in disables._body.plain
-        assert "+1" not in priority._body.plain
+        assert merged.group_visible
+        # Both pills render on the one widget with no +N on the priority pill.
+        assert "CODEX" in merged._body.plain
+        assert "CLAUDE" in merged._body.plain
+        assert "+1" not in merged._body.plain
         cluster = page.app.query_one("#top-bar-indicators", _cluster_type())
         visible_ids = [child.id for child in cluster.groups() if child.group_visible]
-        assert "provider-priority-indicator" in visible_ids
-        assert "provider-disables-indicator" in visible_ids
+        assert "alias-overrides-indicator" in visible_ids
 
-        # Clearing the priority hides the priority group.
+        # Clearing the priority removes only that pill.
         cleared = provider_routing_context_from_parts(
             {"claude": _disable("claude", expires_at=None)},
             None,
             captured_at=100.0,
         )
         monkeypatch.setattr(
-            disables_module, "peek_provider_routing_context", lambda *a, **k: cleared
+            alias_module, "peek_provider_routing_context", lambda *a, **k: cleared
         )
-        disables._apply_content()
+        merged._apply_content()
         await page.pause()
-        assert not priority.group_visible
-        assert disables.group_visible
+        assert "CODEX" not in merged._body.plain
+        assert "CLAUDE" in merged._body.plain
+        assert merged.group_visible
 
 
 def _cluster_type():  # type: ignore[no-untyped-def]

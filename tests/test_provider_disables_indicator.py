@@ -15,10 +15,6 @@ from tests._provider_disables_indicator_helpers import (
 )
 
 
-def test_group_label_is_disabled() -> None:
-    assert ProviderDisablesIndicator.GROUP_LABEL == "disabled"
-
-
 def test_no_provider_disables_renders_empty() -> None:
     assert ProviderDisablesIndicator._build_content({}).plain == ""
 

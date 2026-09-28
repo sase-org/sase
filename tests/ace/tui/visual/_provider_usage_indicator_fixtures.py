@@ -8,7 +8,6 @@ import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
 import sase.ace.tui.widgets.launch_context_source as launch_context_source
-import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
 from sase.ace.tui.project_styles import project_accent
@@ -99,7 +98,7 @@ def quiet_top_bar(
         lambda: dict(alias_overrides or {}),
     )
     monkeypatch.setattr(
-        provider_disables_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: provider_routing_context_from_parts(
             dict(disables or {}),

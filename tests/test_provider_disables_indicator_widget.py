@@ -1,47 +1,39 @@
-"""ProviderDisablesIndicator widget lifecycle tests."""
+"""Merged overrides widget lifecycle tests (disable-pill coverage)."""
 
 from __future__ import annotations
-
-from unittest.mock import MagicMock
 
 from rich.text import Text
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets.alias_overrides_indicator import AliasOverridesIndicator
 from sase.ace.tui.widgets.provider_disables_indicator import (
     ProviderDisablesIndicator,
     _text_signature,
 )
 from sase.llm_provider.provider_priority import provider_routing_context_from_parts
-from tests._provider_disables_indicator_helpers import (
-    _MODULE,
-    _disable,
-)
+from tests._provider_disables_indicator_helpers import _disable
+
+_ALIAS_MODULE = "sase.ace.tui.widgets.alias_overrides_indicator"
 
 
 def test_initial_content_uses_peek_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    context = provider_routing_context_from_parts(
+    rendered = ProviderDisablesIndicator._build_content(
         {"claude": _disable(expires_at=None)},
-        None,
-        captured_at=100.0,
+        now=100.0,
     )
-    peek = MagicMock(return_value=context)
-    monkeypatch.setattr(f"{_MODULE}.peek_provider_routing_context", peek)
-
-    rendered = ProviderDisablesIndicator()._build_initial_content()
 
     assert isinstance(rendered, Text)
     assert rendered.plain == " CLAUDE off ∞ "
-    peek.assert_called()
 
 
 async def test_provider_disables_indicator_is_mounted() -> None:
     async with AcePage() as page:
         indicator = page.query_one_widget(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
+            "#alias-overrides-indicator",
+            AliasOverridesIndicator,
         )
 
-    assert isinstance(indicator, ProviderDisablesIndicator)
+    assert isinstance(indicator, AliasOverridesIndicator)
 
 
 async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -54,8 +46,8 @@ async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None
             lambda: calls.append("opened"),
         )
         indicator = page.query_one_widget(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
+            "#alias-overrides-indicator",
+            AliasOverridesIndicator,
         )
         await indicator.on_click()
         await page.pause()
@@ -77,13 +69,17 @@ async def test_unchanged_apply_content_does_not_reissue_static_update(
 ) -> None:
     context = provider_routing_context_from_parts({}, None, captured_at=100.0)
     monkeypatch.setattr(
-        f"{_MODULE}.peek_provider_routing_context",
+        f"{_ALIAS_MODULE}.peek_provider_routing_context",
         lambda *a, **k: context,
+    )
+    monkeypatch.setattr(
+        f"{_ALIAS_MODULE}.get_active_alias_overrides",
+        lambda: {},
     )
     async with AcePage() as page:
         indicator = page.query_one_widget(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
+            "#alias-overrides-indicator",
+            AliasOverridesIndicator,
         )
         indicator._apply_content()
 

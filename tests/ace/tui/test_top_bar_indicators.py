@@ -5,16 +5,12 @@ from __future__ import annotations
 import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
-import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
-import sase.ace.tui.widgets.provider_priority_indicator as provider_priority_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
     NotificationIndicator,
     ProcIndicator,
-    ProviderDisablesIndicator,
-    ProviderPriorityIndicator,
     StashedPromptsIndicator,
     TopBarIndicators,
     UpdatesAvailableIndicator,
@@ -87,12 +83,7 @@ async def _drive_busy(page: AcePage, monkeypatch: pytest.MonkeyPatch) -> None:
         {"claude": _disable()}, _priority(), captured_at=100.0
     )
     monkeypatch.setattr(
-        provider_disables_indicator,
-        "peek_provider_routing_context",
-        lambda *a, **k: context,
-    )
-    monkeypatch.setattr(
-        provider_priority_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: context,
     )
@@ -101,9 +92,6 @@ async def _drive_busy(page: AcePage, monkeypatch: pytest.MonkeyPatch) -> None:
         3, core=True, agent_cli_count=2
     )
     page.app.query_one("#alias-overrides-indicator", AliasOverridesIndicator).refresh()
-    page.app.query_one(
-        "#provider-disables-indicator", ProviderDisablesIndicator
-    ).refresh()
     page.app.query_one("#stashed-prompts-indicator", StashedPromptsIndicator).set_count(
         4
     )
@@ -125,12 +113,16 @@ async def test_busy_cluster_renders_all_labels_wide(
             "procs:",
             "updates:",
             "overrides:",
-            "priority:",
-            "disabled:",
             "stash:",
             "inbox:",
         ):
             assert label in text
+        assert text.count("overrides:") == 1
+        assert "priority:" not in text
+        assert "disabled:" not in text
+        assert "@medium@max" in text
+        assert "CODEX ★" in text
+        assert "CLAUDE off" in text
         assert "monitors:" not in text
         assert "procs:  ⚙ 2  ⚙ 1 " in text
         assert "stash:  ≡ 4 " in text
@@ -209,9 +201,14 @@ async def test_busy_cluster_compacts_narrow_and_restores_wide(
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
         await page.pause()
+        # The live proc observer can reset manual counts to the real (empty)
+        # projection; re-drive them so the narrow frame stays busy.
+        page.app.query_one("#proc-indicator", ProcIndicator).set_counts(2, 1)
+        await page.pause()
         assert cluster.density == "compact"
         narrow_text = _cluster_text(page)
         assert "procs:" not in narrow_text
+        assert "overrides:" not in narrow_text
         assert "priority:" not in narrow_text
         assert "disabled:" not in narrow_text
         assert " · " in narrow_text
@@ -229,8 +226,12 @@ async def test_busy_cluster_compacts_narrow_and_restores_wide(
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
         await page.pause()
+        # Re-drive proc counts for the same observer reason as above.
+        page.app.query_one("#proc-indicator", ProcIndicator).set_counts(2, 1)
+        await page.pause()
         assert cluster.density == "full"
         assert "procs:" in _cluster_text(page)
+        assert "overrides:" in _cluster_text(page)
 
 
 async def test_newly_clickable_groups_run_home_actions(
@@ -253,14 +254,10 @@ async def test_newly_clickable_groups_run_home_actions(
             "#stashed-prompts-indicator", StashedPromptsIndicator
         ).on_click()
         await page.app.query_one(
-            "#provider-priority-indicator", ProviderPriorityIndicator
-        ).on_click()
-        await page.app.query_one(
-            "#provider-disables-indicator", ProviderDisablesIndicator
+            "#alias-overrides-indicator", AliasOverridesIndicator
         ).on_click()
         assert calls == [
             "open_tasks_panel",
             "open_prompt_stash",
-            "open_models_panel",
             "open_models_panel",
         ]

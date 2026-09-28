@@ -280,3 +280,203 @@ async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None
         await page.pause()
 
     assert calls == ["opened"]
+
+
+# ---------------------------------------------------------------------------
+# _build_combined_content / _build_combined_tooltip — merged overrides group
+# ---------------------------------------------------------------------------
+
+
+def _combined_disable(
+    provider: str = "claude",
+    *,
+    expires_at: float | None = None,
+):
+    from sase.llm_provider.provider_disable import (
+        PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        TemporaryProviderDisable,
+    )
+
+    return TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=expires_at,
+        source="test",
+    )
+
+
+def _combined_priority(
+    provider: str = "codex",
+    *,
+    expires_at: float | None = None,
+):
+    from sase.llm_provider.provider_priority import (
+        PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+        TemporaryProviderPriority,
+    )
+
+    return TemporaryProviderPriority(
+        version=PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=expires_at,
+        source="test",
+    )
+
+
+def _combined_context(
+    disables: dict | None = None,
+    priority=None,
+):
+    from sase.llm_provider.provider_priority import provider_routing_context_from_parts
+
+    return provider_routing_context_from_parts(
+        disables or {},
+        priority,
+        captured_at=100.0,
+    )
+
+
+def test_combined_alias_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests._provider_disables_indicator_helpers import _patch_priority_facts
+
+    _patch_priority_facts(monkeypatch)
+    overrides = {"medium": _override(expires_at=None, effort="max")}
+    context = _combined_context()
+
+    body = AliasOverridesIndicator._build_combined_content(
+        overrides, context, now=100.0
+    )
+
+    assert body.plain == " @medium@max ∞ "
+
+
+def test_combined_priority_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests._provider_disables_indicator_helpers import _patch_priority_facts
+
+    _patch_priority_facts(monkeypatch)
+    context = _combined_context(priority=_combined_priority())
+
+    body = AliasOverridesIndicator._build_combined_content({}, context, now=100.0)
+
+    assert body.plain == " CODEX ★ ∞ "
+
+
+def test_combined_disable_only() -> None:
+    context = _combined_context({"claude": _combined_disable()})
+
+    body = AliasOverridesIndicator._build_combined_content({}, context, now=100.0)
+
+    assert body.plain == " CLAUDE off ∞ "
+
+
+def test_combined_all_three(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests._provider_disables_indicator_helpers import _patch_priority_facts
+
+    _patch_priority_facts(monkeypatch)
+    overrides = {"medium": _override(expires_at=None, effort="max")}
+    context = _combined_context(
+        {"claude": _combined_disable()},
+        _combined_priority(),
+    )
+
+    body = AliasOverridesIndicator._build_combined_content(
+        overrides, context, now=100.0
+    )
+
+    assert body.plain == " @medium@max ∞  CODEX ★ ∞  CLAUDE off ∞ "
+
+
+def test_combined_none_renders_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests._provider_disables_indicator_helpers import _patch_priority_facts
+
+    _patch_priority_facts(monkeypatch)
+    context = _combined_context()
+
+    body = AliasOverridesIndicator._build_combined_content({}, context, now=100.0)
+
+    assert body.plain == ""
+    assert (
+        AliasOverridesIndicator._build_combined_tooltip({}, context, now=100.0) is None
+    )
+
+
+def test_combined_single_fact_tooltip_matches_original(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.widgets.provider_disables_indicator import (
+        ProviderDisablesIndicator,
+    )
+    from sase.ace.tui.widgets.provider_priority_indicator import (
+        ProviderPriorityIndicator,
+    )
+    from tests._provider_disables_indicator_helpers import _patch_priority_facts
+
+    _patch_priority_facts(monkeypatch)
+    overrides = {
+        "medium": _override(
+            provider="claude", model="opus", effort="xhigh", expires_at=3_820.0
+        )
+    }
+    empty = _combined_context()
+    assert AliasOverridesIndicator._build_combined_tooltip(
+        overrides, empty, now=100.0
+    ) == AliasOverridesIndicator._build_tooltip(overrides, now=100.0)
+
+    priority = _combined_priority(expires_at=3_820.0)
+    priority_context = _combined_context(priority=priority)
+    availability = ProviderPriorityIndicator._priority_availability(priority_context)
+    assert AliasOverridesIndicator._build_combined_tooltip(
+        {}, priority_context, now=100.0
+    ) == ProviderPriorityIndicator._build_tooltip(
+        priority, priority_availability=availability, now=100.0
+    )
+
+    disables = {"claude": _combined_disable(expires_at=3_820.0)}
+    disable_context = _combined_context(disables)
+    assert AliasOverridesIndicator._build_combined_tooltip(
+        {}, disable_context, now=100.0
+    ) == ProviderDisablesIndicator._build_tooltip(disables, now=100.0)
+
+
+def test_combined_all_three_tooltip_joins_sections_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests._provider_disables_indicator_helpers import _patch_priority_facts
+
+    _patch_priority_facts(monkeypatch)
+    overrides = {
+        "medium": _override(
+            provider="claude", model="opus", effort="xhigh", expires_at=3_820.0
+        )
+    }
+    context = _combined_context(
+        {"claude": _combined_disable(expires_at=3_820.0)},
+        _combined_priority(expires_at=3_820.0),
+    )
+
+    tooltip = AliasOverridesIndicator._build_combined_tooltip(
+        overrides, context, now=100.0
+    )
+
+    assert tooltip is not None
+    assert tooltip.count("Press ,m for Config > Launch.") == 1
+    assert tooltip.endswith("Press ,m for Config > Launch.")
+    assert "Temporary model overrides:" in tooltip
+    assert "Provider priority:" in tooltip
+    assert "Disabled providers:" in tooltip
+    alias_section, priority_section, disable_section = tooltip.rsplit(
+        "Press ,m for Config > Launch.", 1
+    )[0].split("\n\n")
+    assert "@medium" in alias_section
+    assert "CODEX" in priority_section
+    assert "CLAUDE" in disable_section

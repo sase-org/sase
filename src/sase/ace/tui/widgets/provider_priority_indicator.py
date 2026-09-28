@@ -1,4 +1,9 @@
-"""Provider-priority indicator for the ACE top bar."""
+"""Provider-priority pill builders for the ACE top bar.
+
+The priority pill now renders inside the merged ``overrides:`` group owned
+by :class:`AliasOverridesIndicator`; this module keeps the static pill and
+tooltip builders so plain-text and palette tests can keep calling them.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +18,6 @@ from sase.llm_provider.provider_priority import (
     TemporaryProviderPriority,
     classify_provider_availability,
 )
-from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 from sase.llm_provider.registry import provider_routing_facts
 
 from ._override_pill import (
@@ -24,41 +28,10 @@ from ._override_pill import (
     format_pill_remaining,
     format_remaining_until,
 )
-from .top_bar_group import TopBarGroup
 
 
-class ProviderPriorityIndicator(TopBarGroup):
-    """Shows the active provider priority in its own ``priority:`` group."""
-
-    GROUP_LABEL = "priority"
-    CLICK_ACTION = "open_models_panel"
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        context = peek_provider_routing_context()
-        self.apply_routing_context(context)
-
-    def apply_routing_context(
-        self,
-        context: ProviderRoutingContext,
-        *,
-        now: float | None = None,
-    ) -> None:
-        """Render *context*'s priority from one shared routing snapshot."""
-        availability = self._priority_availability(context)
-        content = self._build_content(
-            context.priority,
-            priority_availability=availability,
-            now=now,
-        )
-        tooltip = self._build_tooltip(
-            context.priority,
-            priority_availability=availability,
-            now=now,
-        )
-        self._set_body(content)
-        if self.tooltip != tooltip:
-            self.tooltip = tooltip
+class ProviderPriorityIndicator:
+    """Static builders for the priority pill inside the merged overrides group."""
 
     @staticmethod
     def _build_content(

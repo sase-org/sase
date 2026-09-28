@@ -9,7 +9,7 @@ from textual.widgets._header import HeaderClockSpace, HeaderIcon, HeaderTitle
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.models_panel_usage_modal import ProviderUsageModal
-from sase.ace.tui.widgets.provider_disables_indicator import ProviderDisablesIndicator
+from sase.ace.tui.widgets.alias_overrides_indicator import AliasOverridesIndicator
 from sase.ace.tui.widgets.provider_usage_indicator import ProviderUsageIndicator
 from sase.ace.tui.widgets.usage_header import UsageHeader
 from sase.llm_provider.provider_priority import provider_routing_context_from_parts
@@ -24,7 +24,7 @@ from tests.llm_provider.test_muse_usage_indicator_default import (
 )
 
 _USAGE_MODULE = "sase.ace.tui.widgets.provider_usage_indicator"
-_ROUTING_MODULE = "sase.ace.tui.widgets.provider_disables_indicator"
+_ROUTING_MODULE = "sase.ace.tui.widgets.alias_overrides_indicator"
 _HEADER_WIDTHS = (60, 80, 120, 140, 160, 240)
 
 
@@ -389,11 +389,11 @@ async def test_routing_click_stays_on_launch_with_usage_present(
         )
         await _settle(page)
         routing = page.app.query_one(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
+            "#alias-overrides-indicator",
+            AliasOverridesIndicator,
         )
         assert "CLAUDE" in routing.render().plain
-        await page.click("#provider-disables-indicator")
+        await page.click("#alias-overrides-indicator")
         await page.pause()
         assert calls == ["launch"]
         assert page.state["modal"] is None

@@ -1,15 +1,16 @@
-"""Temporary provider-disable indicator for the ACE top bar."""
+"""Temporary provider-disable pill builders for the ACE top bar.
+
+The disable pill now renders inside the merged ``overrides:`` group owned
+by :class:`AliasOverridesIndicator`; this module keeps the static pill and
+tooltip builders so plain-text tests can keep calling them.
+"""
 
 from __future__ import annotations
-
-from typing import Any
 
 from rich.text import Text
 
 from sase.ace.tui.provider_disable_display import provider_disable_provenance_label
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
-from sase.llm_provider.provider_priority import ProviderRoutingContext
-from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 
 from ._override_pill import (
     PROVIDER_DISABLE_PALETTE,
@@ -19,101 +20,12 @@ from ._override_pill import (
     format_remaining_until,
 )
 from ._text_signature import text_signature
-from .top_bar_group import TopBarGroup
 
 _ACTIVE_STYLE = PROVIDER_DISABLE_PALETTE.base_style
 
 
-class ProviderDisablesIndicator(TopBarGroup):
-    """Shows active machine-wide provider disables in one compact pill.
-
-    This widget owns the one routing poll that drives both routing groups:
-    each refresh peeks once and pushes the same snapshot to the sibling
-    ``ProviderPriorityIndicator`` so the two groups can never disagree.
-    """
-
-    GROUP_LABEL = "disabled"
-    CLICK_ACTION = "open_models_panel"
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        context = self._active_provider_routing_context()
-        initial_content = self._build_content(
-            context.provider_disables,
-        )
-        self._set_body(initial_content)
-        self.tooltip = self._build_tooltip(
-            context.provider_disables,
-        )
-
-    def on_mount(self) -> None:
-        """Poll routing expiration on the top-bar cadence."""
-        self._apply_content()
-        self.set_interval(30.0, self.refresh)
-
-    def refresh(self, *args: Any, **kwargs: Any) -> Any:
-        """Rebuild content on a bare refresh, preserving Widget.refresh kwargs."""
-        if args or kwargs:
-            return super().refresh(*args, **kwargs)
-        self._apply_content()
-        return super().refresh()
-
-    def _build_initial_content(self, *, now: float | None = None) -> Text:
-        """Render the current provider-disable map."""
-        context = self._active_provider_routing_context(now=now)
-        return self._build_content(
-            context.provider_disables,
-            now=now,
-        )
-
-    def _apply_content(self, *, now: float | None = None) -> None:
-        """Update content and tooltip from one current peek snapshot."""
-        context = self._active_provider_routing_context(now=now)
-        content = self._build_content(
-            context.provider_disables,
-            now=now,
-        )
-        tooltip = self._build_tooltip(
-            context.provider_disables,
-            now=now,
-        )
-        self._replace_content(content, tooltip)
-        self._apply_priority_sibling(context, now)
-
-    def _apply_priority_sibling(
-        self,
-        context: ProviderRoutingContext,
-        now: float | None,
-    ) -> None:
-        """Push *context* to the priority sibling when it is mounted."""
-        try:
-            parent = self.parent
-            if parent is None:
-                return
-            sibling = parent.query_one("#provider-priority-indicator")
-        except Exception:
-            return
-        apply = getattr(sibling, "apply_routing_context", None)
-        if not callable(apply):
-            return
-        try:
-            apply(context, now=now)
-        except Exception:
-            return
-
-    def _replace_content(self, content: Text, tooltip: str | None) -> None:
-        """Update the widget only when the selected rendering actually changed."""
-        self._set_body(content)
-        if self.tooltip != tooltip:
-            self.tooltip = tooltip
-
-    @staticmethod
-    def _active_provider_routing_context(
-        *,
-        now: float | None = None,
-    ) -> ProviderRoutingContext:
-        """Return active routing state from one lock-free display cache read."""
-        return peek_provider_routing_context(now)
+class ProviderDisablesIndicator:
+    """Static builders for the disable pill inside the merged overrides group."""
 
     @staticmethod
     def _build_content(

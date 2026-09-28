@@ -342,22 +342,21 @@ class LeaderModeMixin:
     ) -> None:
         from ...widgets import (
             AliasOverridesIndicator,
-            ProviderDisablesIndicator,
             ProviderUsageIndicator,
         )
         from ...widgets.launch_context_source import LaunchContextSource
 
         _ = provider_routing_changed
         # Refresh the override pills: the gold ``default`` pill (one per
-        # tab status row) and the violet non-``default`` pill. A single
-        # override action may touch either lane. Every Launch Control write
-        # also invalidates the cached launch default so effort and persistent
-        # default-model edits land without waiting on the peek token. The gold
-        # pill is a render-only view now, so the invalidation goes through the
-        # app-scoped source, which rebroadcasts to every mounted view.
+        # tab status row) and the merged ``overrides:`` pill covering alias,
+        # priority, and disable facts. A single override action may touch
+        # either lane. Every Launch Control write also invalidates the cached
+        # launch default so effort and persistent default-model edits land
+        # without waiting on the peek token. The gold pill is a render-only
+        # view now, so the invalidation goes through the app-scoped source,
+        # which rebroadcasts to every mounted view.
         for selector, widget_type in (
             ("#alias-overrides-indicator", AliasOverridesIndicator),
-            ("#provider-disables-indicator", ProviderDisablesIndicator),
             ("#provider-usage-indicator", ProviderUsageIndicator),
         ):
             try:

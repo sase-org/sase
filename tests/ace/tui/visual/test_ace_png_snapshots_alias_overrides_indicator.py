@@ -25,7 +25,6 @@ import pytest
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
 import sase.ace.tui.widgets.launch_context_source as launch_context_source
 import sase.ace.tui.widgets._override_pill as override_pill
-import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 import sase.ace.tui.widgets.provider_priority_indicator as provider_priority_indicator
 from sase.ace.testing import AcePage
 from sase.llm_provider import (
@@ -59,12 +58,7 @@ pytestmark = pytest.mark.visual
 @pytest.fixture(autouse=True)
 def _no_provider_priority(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        provider_disables_indicator,
-        "peek_provider_routing_context",
-        lambda *a, **k: _routing_context(),
-    )
-    monkeypatch.setattr(
-        provider_priority_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: _routing_context(),
     )
@@ -216,7 +210,7 @@ async def test_provider_disables_indicator_single_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
-        provider_disables_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: _routing_context({"claude": _disable("claude")}),
     )
@@ -241,7 +235,7 @@ async def test_provider_disables_indicator_multiple_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
-        provider_disables_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: _routing_context(
             {
@@ -272,7 +266,7 @@ async def test_provider_disables_indicator_soft_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
-        provider_disables_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: _routing_context({"claude": _disable("claude", mode="soft")}),
     )
@@ -302,12 +296,7 @@ async def test_provider_priority_indicator_combined_png_snapshot(
         _priority("codex", expires_at=_FROZEN_NOW + 42 * 60),
     )
     monkeypatch.setattr(
-        provider_disables_indicator,
-        "peek_provider_routing_context",
-        lambda *a, **k: combined,
-    )
-    monkeypatch.setattr(
-        provider_priority_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: combined,
     )
@@ -342,12 +331,7 @@ async def test_provider_priority_unavailable_indicator_png_snapshot(
         priority=_priority("codex", expires_at=_FROZEN_NOW + 42 * 60)
     )
     monkeypatch.setattr(
-        provider_disables_indicator,
-        "peek_provider_routing_context",
-        lambda *a, **k: only_priority,
-    )
-    monkeypatch.setattr(
-        provider_priority_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: only_priority,
     )

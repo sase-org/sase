@@ -6,7 +6,6 @@ import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
 import sase.ace.tui.widgets.launch_context_source as launch_context_source
-import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
 from sase.ace.tui.project_styles import project_accent
@@ -15,7 +14,6 @@ from sase.ace.tui.widgets import (
     CurrentProjectIndicator,
     LaunchContextBar,
     LLMOverrideIndicator,
-    ProviderDisablesIndicator,
     UpdatesAvailableIndicator,
 )
 from sase.ace.tui.widgets.launch_context_source import CurrentProjectSnapshot
@@ -38,14 +36,12 @@ EXPECTED_TOP_BAR_ORDER = [
 ]
 
 # Expected left-to-right child order inside ``#top-bar-indicators``: the
-# seven labeled groups (procs, updates, overrides, priority, disabled,
-# stash, inbox) with separators interleaved.
+# five labeled groups (procs, updates, overrides, stash, inbox) with
+# separators interleaved.
 EXPECTED_TOP_BAR_CLUSTER_ORDER = [
     "proc-indicator",
     "updates-indicator",
     "alias-overrides-indicator",
-    "provider-priority-indicator",
-    "provider-disables-indicator",
     "stashed-prompts-indicator",
     "notification-indicator",
 ]
@@ -211,7 +207,7 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         },
     )
     monkeypatch.setattr(
-        provider_disables_indicator,
+        alias_overrides_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: provider_routing_context_from_parts(
             {"claude": _disable("claude")},
@@ -237,18 +233,18 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
             "#alias-overrides-indicator",
             AliasOverridesIndicator,
         )
-        provider_indicator = page.app.query_one(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
-        )
         project_indicator = _paint_current_project_chip(page)
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
 
         assert default_indicator.render().plain == "CODEX(o3)@xhigh ∞"
         # At 80 cells the cluster is compact, so group labels are dropped.
-        assert alias_indicator.render().plain == " @medium@max ∞ "
-        assert provider_indicator.render().plain == " CLAUDE off ∞ "
+        # Both the alias pill and the disable pill live on the one widget.
+        assert alias_indicator.render().plain == " @medium@max ∞  CLAUDE off ∞ "
+        assert "@medium@max" in alias_indicator.render().plain
+        assert "CLAUDE off" in alias_indicator.render().plain
+        assert "priority:" not in alias_indicator.render().plain
+        assert "disabled:" not in alias_indicator.render().plain
         assert project_indicator.render().plain == "+sase"
         visible_children = [
             child for child in top_bar.children if child.region.width > 0

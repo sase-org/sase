@@ -4248,18 +4248,17 @@ providers stay in the model picker (header labelled `soft`, rows dimmed one step
 `%model` completion (annotated `soft` in the provenance column). Hard-disabled providers
 are still omitted from both.
 
-sase's TUI also shows active provider routing state in the labeled `priority:` and
-`disabled:` top-bar groups beside the violet `overrides:` group (the launch-default and
-current-project chips moved one row down, to each tab's status-row launch-context
-cluster). An active priority renders like `priority: CODEX ★ 42m` (with a state word
-only for soft-disabled or unavailable, such as `priority: CODEX ★ soft-disabled 42m`).
-One hard-disabled provider renders like `disabled: CLAUDE off 42m`; one soft-disabled
-provider renders like `disabled: CLAUDE soft 42m`. Several disables render the most
-severe (hard first) provider plus a count, such as `disabled: CLAUDE +2`, and use the
-soft palette only when every active disable is soft. When priority and disables are both
-active each fact keeps its own label, color, and tooltip. Hovering `priority:` lists the
-priority provider and expiry; hovering `disabled:` lists every active disable, mode,
-provenance, and expiry; clicking either pill opens Launch Control.
+sase's TUI also shows active provider routing state as pills inside the violet
+`overrides:` top-bar group (the launch-default and current-project chips moved one row
+down, to each tab's status-row launch-context cluster). An active priority renders like
+`overrides: CODEX ★ 42m` (with a state word only for soft-disabled or unavailable, such
+as `overrides: CODEX ★ soft-disabled 42m`). One hard-disabled provider renders like
+`overrides: CLAUDE off 42m`; one soft-disabled provider renders like
+`overrides: CLAUDE soft 42m`. Several disables render the most severe (hard first)
+provider plus a count, such as `overrides: CLAUDE +2`, and use the soft palette only
+when every active disable is soft. When alias, priority, and disable facts are active
+their pills sit side by side under the one `overrides:` label. Each pill keeps its color
+and its tooltip section, and clicking the group opens Launch Control.
 
 ### Disabled-provider launch panel
 
@@ -4486,13 +4485,14 @@ Overrides are per-alias and per-launch-setting, and independent:
   `default model` and of each other.
 
 Every non-default override (an alias, `epic lander`, or `big epic lander`) is surfaced
-by the labeled `overrides:` violet top-bar group: a single active override renders as
-`overrides: @<alias>[@<effort>] <time-left>` or as `overrides: epic lander <time-left>`
-/ `overrides: big epic lander <time-left>`, and several render as
-`overrides: <first> +N`, naming the alphabetically first overridden alias or
-launch-setting label and counting the rest. In both pills, lane color carries the
+by the alias pill inside the labeled `overrides:` violet top-bar group: a single active
+override renders as `overrides: @<alias>[@<effort>] <time-left>` or as
+`overrides: epic lander <time-left>` / `overrides: big epic lander <time-left>`, and
+several render as `overrides: <first> +N`, naming the alphabetically first overridden
+alias or launch-setting label and counting the rest. That alias pill sits beside the
+priority and disable pills when those are active. In both pills, lane color carries the
 "override" meaning while the effort suffix and time use a recessive tone; `∞` means
-until cleared. Hover either pill for full target and expiry details, or click it to open
+until cleared. Hover the group for full target and expiry details, or click it to open
 Launch Control.
 
 When no override is active, the same status-row chip instead names the current launch

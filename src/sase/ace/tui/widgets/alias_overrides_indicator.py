@@ -2,18 +2,11 @@
 
 A concise, uniform sidecar to :class:`LLMOverrideIndicator`. Where that
 widget renders the gold launch-default override pill, this one surfaces
-temporary overrides on aliases and the other launch settings in a single violet
-pill, visually parallel to but clearly distinct from the gold default pill. The
-Launch settings (leader ``,m``) remain the authoritative detail view; this pill
-is intentionally terse:
+temporary launch overrides — non-default alias pills plus provider priority
+and provider-disable pills — side by side under one ``overrides:`` label.
+The Launch settings (leader ``,m``) remain the authoritative detail view;
+these pills are intentionally terse.
 
-* no non-default override active → empty (the pill collapses to zero width);
-* exactly one → ``@<alias>[@<effort>] <remaining>`` or a launch-setting label;
-* several → ``@<alphabetically-first-alias> +<remaining-count>``.
-
-It reads :func:`get_active_alias_overrides` (minus the default-launch setting)
-on each refresh; that read self-cleans expired entries, so the pill never shows
-a stale override.
 Hover reveals the full targets and remaining durations; clicking opens Launch settings.
 """
 
@@ -27,6 +20,8 @@ from sase.llm_provider.config import (
     DEFAULT_MODEL_FIELD,
     launch_model_setting_override_key,
 )
+from sase.llm_provider.provider_priority import ProviderRoutingContext
+from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 from sase.llm_provider.temporary_override import (
     TemporaryLLMOverride,
     get_active_alias_overrides,
@@ -39,15 +34,20 @@ from ._override_pill import (
     format_remaining_until,
     format_tooltip_target,
 )
+from .provider_disables_indicator import ProviderDisablesIndicator
+from .provider_priority_indicator import ProviderPriorityIndicator
 from .top_bar_group import TopBarGroup
 
 #: Violet pill, parallel to the gold default pill but unmistakably distinct;
 #: matches the launch override-chip accent for a uniform override style.
 _ACTIVE_STYLE = ALIAS_LANE_PALETTE.base_style
 
+#: Shared tooltip footer; each section builder ends with this line.
+_TOOLTIP_FOOTER = "Press ,m for Config > Launch."
+
 
 class AliasOverridesIndicator(TopBarGroup):
-    """Shows a terse pill whenever a non-default alias/setting is overridden."""
+    """Shows terse pills for alias, priority, and disable launch overrides."""
 
     GROUP_LABEL = "overrides"
     CLICK_ACTION = "open_models_panel"
@@ -55,8 +55,9 @@ class AliasOverridesIndicator(TopBarGroup):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         overrides = self._active_non_default_overrides()
-        self._set_body(self._build_content(overrides))
-        self.tooltip = self._build_tooltip(overrides)
+        context = peek_provider_routing_context()
+        self._set_body(self._build_combined_content(overrides, context))
+        self.tooltip = self._build_combined_tooltip(overrides, context)
 
     def on_mount(self) -> None:
         """Poll on the same cadence as the default-override pill."""
@@ -71,14 +72,17 @@ class AliasOverridesIndicator(TopBarGroup):
         return super().refresh()
 
     def _build_initial_content(self, *, now: float | None = None) -> Text:
-        """Render the pill from the current non-default override map."""
-        return self._build_content(self._active_non_default_overrides(), now=now)
+        """Render the merged pills from the current override and routing state."""
+        overrides = self._active_non_default_overrides()
+        context = peek_provider_routing_context(now)
+        return self._build_combined_content(overrides, context, now=now)
 
     def _apply_content(self, *, now: float | None = None) -> None:
-        """Update content and tooltip from one current override snapshot."""
+        """Update content and tooltip from one current snapshot."""
         overrides = self._active_non_default_overrides()
-        self._set_body(self._build_content(overrides, now=now))
-        tooltip = self._build_tooltip(overrides, now=now)
+        context = peek_provider_routing_context(now)
+        self._set_body(self._build_combined_content(overrides, context, now=now))
+        tooltip = self._build_combined_tooltip(overrides, context, now=now)
         if self.tooltip != tooltip:
             self.tooltip = tooltip
 
@@ -95,7 +99,7 @@ class AliasOverridesIndicator(TopBarGroup):
         *,
         now: float | None = None,
     ) -> Text:
-        """Build the pill text for the given non-default override map.
+        """Build the alias pill text for the given non-default override map.
 
         Empty (zero-width) when nothing is overridden; a single
         ``@alias[@effort] <remaining>`` pill for one alias; an
@@ -127,6 +131,36 @@ class AliasOverridesIndicator(TopBarGroup):
         )
 
     @staticmethod
+    def _build_combined_content(
+        overrides: dict[str, TemporaryLLMOverride],
+        context: ProviderRoutingContext,
+        *,
+        now: float | None = None,
+    ) -> Text:
+        """Build the merged alias + priority + disable pill body.
+
+        Each pill is built exactly as its original indicator built it; empty
+        pills are omitted so a missing fact leaves no hole. Non-empty pills
+        are joined with ``Text.append_text`` and no extra characters.
+        """
+        alias_pill = AliasOverridesIndicator._build_content(overrides, now=now)
+        availability = ProviderPriorityIndicator._priority_availability(context)
+        priority_pill = ProviderPriorityIndicator._build_content(
+            context.priority,
+            priority_availability=availability,
+            now=now,
+        )
+        disable_pill = ProviderDisablesIndicator._build_content(
+            context.provider_disables,
+            now=now,
+        )
+        body = Text("")
+        for pill in (alias_pill, priority_pill, disable_pill):
+            if pill.plain != "":
+                body.append_text(pill)
+        return body
+
+    @staticmethod
     def _build_tooltip(
         overrides: dict[str, TemporaryLLMOverride],
         *,
@@ -150,9 +184,54 @@ class AliasOverridesIndicator(TopBarGroup):
             (
                 "Temporary model overrides:",
                 *lines,
-                "Press ,m for Config > Launch.",
+                _TOOLTIP_FOOTER,
             )
         )
+
+    @staticmethod
+    def _build_combined_tooltip(
+        overrides: dict[str, TemporaryLLMOverride],
+        context: ProviderRoutingContext,
+        *,
+        now: float | None = None,
+    ) -> str | None:
+        """Build the merged tooltip from the three section builders.
+
+        Each active section contributes its builder output minus the shared
+        trailing footer; sections are joined with one blank line and the
+        footer is appended once. A single active fact matches that fact's
+        original tooltip exactly.
+        """
+        availability = ProviderPriorityIndicator._priority_availability(context)
+        sections: list[str] = []
+        for section in (
+            AliasOverridesIndicator._build_tooltip(overrides, now=now),
+            ProviderPriorityIndicator._build_tooltip(
+                context.priority,
+                priority_availability=availability,
+                now=now,
+            ),
+            ProviderDisablesIndicator._build_tooltip(
+                context.provider_disables,
+                now=now,
+            ),
+        ):
+            if section is None:
+                continue
+            sections.append(_strip_tooltip_footer(section))
+        if not sections:
+            return None
+        return "\n\n".join(sections) + f"\n{_TOOLTIP_FOOTER}"
+
+
+def _strip_tooltip_footer(section: str) -> str:
+    """Remove the shared trailing footer from one tooltip section."""
+    suffix = f"\n{_TOOLTIP_FOOTER}"
+    if section.endswith(suffix):
+        return section[: -len(suffix)]
+    if section == _TOOLTIP_FOOTER:
+        return ""
+    return section
 
 
 def _override_subject(key: str) -> str:
