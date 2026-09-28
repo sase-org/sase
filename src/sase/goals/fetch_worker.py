@@ -119,9 +119,16 @@ def _fetch_under_lock(
         logger.warning("goals fetch reconcile for %s failed: %s", ledger.project, exc)
     try:
         from sase.core.goal_ledger_facade import goal_projection_refresh
+        from sase.goals.config import goals_fetch_ttl_seconds
 
         goal_projection_refresh(
-            ledger.root, ledger.projection_path, ledger.project, ledger.mode
+            ledger.root,
+            ledger.projection_path,
+            ledger.project,
+            ledger.mode,
+            watermark_path=ledger.watermark_path,
+            outbox_path=ledger.outbox_path,
+            fetch_ttl_seconds=goals_fetch_ttl_seconds(),
         )
         outcome["refreshed"] = True
     except Exception as exc:  # noqa: BLE001 - projection refresh fails open.

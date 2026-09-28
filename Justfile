@@ -415,19 +415,12 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1bt(tool_run_jump_target)' \
         --epic-symbol 'sase-1bt(visible_tool_run_jump_targets)' \
         --epic-symbol 'sase-1bu(GoalWriteError)' \
-        --epic-symbol 'sase-1bu(GoalWriteOutcome)' \
-        --epic-symbol 'sase-1bu(apply_goal_action)' \
         --epic-symbol 'sase-1bu(default_goal_actor)' \
-        --epic-symbol 'sase-1bu(goal_ledger_history)' \
-        --epic-symbol 'sase-1bu(goal_ledger_list)' \
         --epic-symbol 'sase-1bu(goal_ledger_probe_list)' \
         --epic-symbol 'sase-1bu(goal_ledger_store_schema_version)' \
         --epic-symbol 'sase-1bu(goal_projection_status)' \
         --epic-symbol 'sase-1bu(goals_config)' \
         --epic-symbol 'sase-1bu(validate_goals_config)' \
-        --epic-symbol 'sase-1bu.5(goal_sync_status)' \
-        --epic-symbol 'sase-1bu.5(maybe_spawn_goals_fetch)' \
-        --epic-symbol 'sase-1bu.5(run_goals_fetch)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

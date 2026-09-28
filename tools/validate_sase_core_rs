@@ -409,6 +409,9 @@ REQUIRED_BINDINGS = (
     "goal_card_view",
     "goal_card_markdown",
     "goal_citation_line",
+    "goal_render_list",
+    "goal_render_card",
+    "goal_fast_path",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the

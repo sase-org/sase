@@ -189,10 +189,17 @@ def resolve_goal_ledger(
 def _refresh_projection(ledger: GoalLedger) -> GoalLedger:
     """Stamp the projection header so the fast path finds the ledger."""
     from sase.core.goal_ledger_facade import goal_projection_refresh
+    from sase.goals.config import goals_fetch_ttl_seconds
 
     try:
         goal_projection_refresh(
-            ledger.root, ledger.projection_path, ledger.project, ledger.mode
+            ledger.root,
+            ledger.projection_path,
+            ledger.project,
+            ledger.mode,
+            watermark_path=ledger.watermark_path,
+            outbox_path=ledger.outbox_path,
+            fetch_ttl_seconds=goals_fetch_ttl_seconds(),
         )
     except Exception as exc:  # noqa: BLE001 - a stale projection never breaks reads.
         logger.warning(

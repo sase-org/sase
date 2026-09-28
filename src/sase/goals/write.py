@@ -37,6 +37,8 @@ class GoalWriteOutcome:
 
     status: GoalWriteStatus
     goal_id: str | None
+    code: str | None = None
+    message: str | None = None
     events: tuple[dict[str, Any], ...] = ()
     states: tuple[dict[str, Any], ...] = ()
     committed: bool = False
@@ -242,6 +244,8 @@ def _apply_shared(
         outcome = GoalWriteOutcome(
             status=outcome.status,
             goal_id=outcome.goal_id,
+            code=outcome.code,
+            message=outcome.message,
             events=outcome.events,
             states=outcome.states,
             committed=committed,
@@ -272,9 +276,13 @@ def _outcome_from_append(
         goal_id = states[0].get("id")
     if goal_id is None and events and isinstance(events[0], dict):
         goal_id = events[0].get("goal_id")
+    code = append_outcome.get("code")
+    message = append_outcome.get("message")
     return GoalWriteOutcome(
         status=status,  # type: ignore[arg-type]
         goal_id=goal_id,
+        code=str(code) if code is not None else None,
+        message=str(message) if message is not None else None,
         events=events,
         states=states,
         recovery_commit=recovery_commit,
@@ -317,6 +325,8 @@ def _record_publish_result(
     return GoalWriteOutcome(
         status=outcome.status,
         goal_id=outcome.goal_id,
+        code=outcome.code,
+        message=outcome.message,
         events=outcome.events,
         states=outcome.states,
         committed=outcome.committed,
@@ -369,6 +379,14 @@ def _recover_uncommitted_goals(repo: Path) -> str | None:
         logger.warning("recovered uncommitted goal ledger files in %s", repo)
         return tagged
     return None
+
+
+def commit_goal_paths(repo: Path, message: str) -> bool:
+    """Stage exactly ``goals/`` and commit; return True on a new commit.
+
+    The caller holds the store write lock (see ``sase goal doctor``).
+    """
+    return _commit_goal_paths(repo, message)
 
 
 def _commit_goal_paths(repo: Path, message: str) -> bool:

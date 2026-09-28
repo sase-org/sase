@@ -89,10 +89,40 @@ def goal_projection_refresh(
     projection_path: str | Path,
     project: str,
     mode: str,
+    *,
+    watermark_path: str | Path = "",
+    outbox_path: str | Path = "",
+    fetch_ttl_seconds: float = 60.0,
 ) -> dict[str, Any]:
     """Refresh the hot projection header and rows; return the refresh wire."""
     binding = _require_goal_binding("goal_projection_refresh")
-    return dict(binding(str(root), str(projection_path), project, mode))
+    return dict(
+        binding(
+            str(root),
+            str(projection_path),
+            {
+                "project": project,
+                "mode": mode,
+                "watermark_path": str(watermark_path),
+                "outbox_path": str(outbox_path),
+                "fetch_ttl_seconds": float(fetch_ttl_seconds),
+            },
+        )
+    )
+
+
+def goal_render_list(request: dict[str, Any]) -> str:
+    """Render reduced goal states through the core terminal renderer."""
+    binding = _require_goal_binding("goal_render_list")
+    return str(dict(binding(dict(request)))["text"])
+
+
+def goal_render_card(state: dict[str, Any], now: str, *, color: bool) -> str:
+    """Render one reduced goal state as a terminal card."""
+    binding = _require_goal_binding("goal_render_card")
+    return str(
+        dict(binding({"state": dict(state), "now": now, "color": bool(color)}))["text"]
+    )
 
 
 def goal_mint_id() -> str:

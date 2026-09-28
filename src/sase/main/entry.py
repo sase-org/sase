@@ -18,6 +18,13 @@ def main() -> NoReturn:
         if exit_code is not None:
             sys.exit(exit_code)
 
+    if len(sys.argv) >= 2 and sys.argv[1] == "goal":
+        from .goal_fast_path import try_handle_goal_fast_path
+
+        exit_code = try_handle_goal_fast_path(sys.argv[2:])
+        if exit_code is not None:
+            sys.exit(exit_code)
+
     if sys.argv[1:3] == ["completion", "candidates"]:
         from .completion_fast_path import try_handle_completion_candidates
 
@@ -278,6 +285,12 @@ def main() -> NoReturn:
         from .gate_handler import handle_gate_command
 
         handle_gate_command(args)
+
+    # --- goal ---
+    if args.command == "goal":
+        from .goal_handler import handle_goal_group
+
+        handle_goal_group(args)
 
     # --- init ---
     if args.command == "init":
