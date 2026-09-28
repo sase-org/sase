@@ -11,8 +11,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-import pytest
-
 from sase.ace.tui.actions.agents._agent_tabs import (
     AgentTabsMixin,
     bulk_scope_label_for_owner,
@@ -32,19 +30,9 @@ from sase.ace.tui.modals.confirm_kill_modal import (
     ConfirmKillAllModal,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_tab_index import (
-    build_agent_tab_index,
-    clear_agent_tab_index_cache,
-)
+from sase.ace.tui.models.agent_tab_index import build_agent_tab_index
 from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
 from sase.feature_flags import override_flags
-
-
-@pytest.fixture(autouse=True)
-def _clear_index_cache() -> Any:
-    clear_agent_tab_index_cache()
-    yield
-    clear_agent_tab_index_cache()
 
 
 def _view(token: Any = ("scope-honesty-test",)) -> AgentTabsViewConfig:

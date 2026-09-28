@@ -11,13 +11,17 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.agents import _loading_finalize as loading_finalize
 from sase.ace.tui.actions.agents._loading_compute_finalize import (
+    PreparedStatusOverridePlan,
     _compute_finalize_plan,
     make_finalize_stale_token,
 )
@@ -185,6 +189,23 @@ def test_flag_on_two_tabs_scope_filters() -> None:
         assert agent_tab_scope_token(AgentTabKey.named("sase")) == "named:sase"
 
 
+def test_refresh_agent_tab_index_memo_hits_and_tracks_in_place_roster_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.ace.tui.agent_tabs_settings as settings
+
+    rows = [_row("a")]
+    owner = _StubOwner(rows)
+    monkeypatch.setattr(settings, "agent_tabs_view_config", lambda: _view())
+    with override_flags(agent_tabs=True):
+        first = refresh_agent_tab_index(owner)
+        assert refresh_agent_tab_index(owner) is first
+        owner._agents_with_children.append(_row("b", tab="sase"))
+        second = refresh_agent_tab_index(owner)
+        assert second is not first
+        assert second.root_count(AgentTabKey.named("sase")) == 1
+
+
 def test_starting_roots_count_toward_catalog() -> None:
     rows = [_row("a", status="STARTING"), _row("b", tab="sase", status="STARTING")]
     index = build_agent_tab_index(rows, _view())
@@ -250,6 +271,70 @@ def test_worker_plan_flag_off_is_identical_to_today() -> None:
     assert [r.raw_suffix for r in plan.scoped_agents] == ["a", "b"]
     assert plan.tab_index is None
     assert [r.raw_suffix for r in plan.agents_query_result] == ["a", "b"]
+
+
+def test_worker_apply_keeps_off_tab_status_overrides_and_cache_entries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = [_row("a"), _row("b", tab="sase")]
+    snapshot = _snapshot(
+        enabled=True,
+        scope_key=AgentTabKey.named("sase"),
+        scope_token="named:sase",
+        view=_view(),
+    )
+    plan = _compute_finalize_plan(rows, snapshot, unfiltered_agents=rows)
+    plan = replace(
+        plan,
+        overrides=PreparedStatusOverridePlan(
+            overrides_to_apply=[(rows[0].identity, "FAILED")],
+            cleared_identities=[],
+        ),
+    )
+
+    class _ContentCache:
+        def __init__(self) -> None:
+            self.pruned: list[Agent] | None = None
+
+        def prune(self, agents: list[Agent]) -> None:
+            self.pruned = list(agents)
+
+    cache = _ContentCache()
+    app = SimpleNamespace(
+        _agents_query_result=[],
+        _agent_tab_index=None,
+        _active_agent_tab=AgentTabKey.named("sase"),
+        _agent_status_overrides={rows[0].identity: "FAILED"},
+        _agent_content_search_cache=cache,
+    )
+    monkeypatch.setattr(
+        loading_finalize, "_sync_unread_completed_agents", lambda *_args: None
+    )
+    monkeypatch.setattr(
+        loading_finalize, "reconcile_panel_fold_registries", lambda *_args: None
+    )
+
+    with override_flags(agent_tabs=True):
+        loading_finalize._apply_finalize_plan(
+            app,
+            on_agents_tab=False,
+            selected_identity=None,
+            plan=plan,
+            prior_pos=None,
+            previous_agents=None,
+            refresh_display=False,
+        )
+
+    assert [row.raw_suffix for row in app._agents] == ["b"]
+    assert app._agents_query_result[0].status == "FAILED"
+    assert cache.pruned == rows
+    active_a = scope_agents_to_tab(
+        app._agents_query_result,
+        app._agent_tab_index,
+        DEFAULT_AGENT_TAB_KEY,
+        enabled=True,
+    )
+    assert [(row.raw_suffix, row.status) for row in active_a] == [("a", "FAILED")]
 
 
 def test_folds_survive_rescope_to_other_tab_and_back() -> None:

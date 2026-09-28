@@ -102,8 +102,12 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
         except Exception:
             state["active_agent_tab"] = None
         try:
-            _tab_index = getattr(app, "_agent_tab_index", None)
-            _catalog = getattr(_tab_index, "catalog", ()) or ()
+            catalog_view = getattr(app, "_agent_tab_catalog_view", None)
+            if callable(catalog_view):
+                _catalog = catalog_view()
+            else:
+                _tab_index = getattr(app, "_agent_tab_index", None)
+                _catalog = getattr(_tab_index, "catalog", ()) or ()
             state["agent_tabs"] = [entry.label for entry in _catalog]
         except Exception:
             state["agent_tabs"] = []

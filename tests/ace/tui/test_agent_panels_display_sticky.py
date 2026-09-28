@@ -8,6 +8,8 @@ from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.core.agent_tab import AgentTabKey
+from sase.feature_flags import override_flags
 
 from ._agent_panels_display_helpers import (
     _FakeApp,
@@ -241,6 +243,25 @@ def test_explicit_partial_member_removal_keeps_the_container_key() -> None:
 
     assert app._retire_session_mounted_identities({first.identity}) == set()
     assert app._session_mounted_panel_key_set() == {None, "epic"}
+
+
+def test_retiring_sticky_keys_is_active_scope_only_and_unscoped() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, [1, 1, 1], container_height=30)
+    active_identity, other_identity = agents[1].identity, agents[2].identity
+    app._active_agent_tab = AgentTabKey.named("sase")  # type: ignore[attr-defined]
+    app._session_mounted_panel_identities = {  # type: ignore[attr-defined]
+        ("named:sase", "apple"): {active_identity},
+        ("default", "banana"): {other_identity},
+    }
+
+    with override_flags(agent_tabs=True):
+        retired = app._prune_session_mounted_gone({active_identity, other_identity})
+
+    assert retired == {"apple"}
+    mounted = app._session_mounted_panel_identities  # type: ignore[attr-defined]
+    assert ("named:sase", "apple") not in mounted
+    assert mounted[("default", "banana")] == {other_identity}
 
 
 def test_complete_history_apply_retires_identities_missing_from_roster() -> None:

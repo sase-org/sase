@@ -206,7 +206,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         skipped = skip_keys or set()
         retired: set[PanelKey] = set()
         for key in list(mounted):
-            if key in skipped:
+            if key in skipped or not sticky_key_in_scope(self, key):
                 continue
             remaining = mounted[key]
             before = set(remaining)
@@ -219,7 +219,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 backing.pop(identity, None)
             if not remaining:
                 del mounted[key]
-                retired.add(key)
+                retired.add(unstick_panel_key(key))
         return retired
 
     def _reconcile_session_mounted_for_apply(self, load_state: object) -> set[PanelKey]:

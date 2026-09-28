@@ -278,6 +278,17 @@ def _apply_finalize_plan(
     # stage (scope-stage phase), then prune the content cache to match.
     app._agents_query_result = list(plan.agents_query_result)
     app._agent_tab_index = plan.tab_index
+    # Status overrides belong to the tab-independent result. A worker apply
+    # can land while another tab is active, and the override must remain on
+    # the off-tab row when the user switches back.
+    overrides_by_identity = dict(plan.overrides.overrides_to_apply)
+    for agent in app._agents_query_result:
+        override = overrides_by_identity.get(agent.identity)
+        if override is not None:
+            agent.status = override
+    for identity in plan.overrides.cleared_identities:
+        app._agent_status_overrides.pop(identity, None)
+
     # Tab-state-keys maintenance on the worker path: the plan's scope may
     # predate a startup selection or machine fallback, so reconcile first
     # and re-scope from the query result when the active key moved.
@@ -302,16 +313,7 @@ def _apply_finalize_plan(
         )
     else:
         app._agents = list(plan.scoped_agents)
-    app._agent_content_search_cache.prune(app._agents)
-
-    # Apply status overrides + clean stale entries based on the worker plan.
-    overrides_by_identity = dict(plan.overrides.overrides_to_apply)
-    for agent in app._agents:
-        override = overrides_by_identity.get(agent.identity)
-        if override is not None:
-            agent.status = override
-    for identity in plan.overrides.cleared_identities:
-        app._agent_status_overrides.pop(identity, None)
+    app._agent_content_search_cache.prune(app._agents_query_result)
 
     saved_idx = plan.selection.restored_idx
     identity_restored = plan.selection.identity_restored

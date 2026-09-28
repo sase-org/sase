@@ -64,7 +64,8 @@ def refresh_agent_tab_index(owner: Any, roster: list[Agent] | None = None) -> An
     from ...agent_tabs_settings import agent_tabs_view_config
 
     if roster is None:
-        roster = list(getattr(owner, "_agents_with_children", None) or ())
+        candidate = getattr(owner, "_agents_with_children", None)
+        roster = candidate if isinstance(candidate, list) else []
     from ...models.agent_tab_index import cached_agent_tab_index
 
     try:

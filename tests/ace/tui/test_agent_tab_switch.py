@@ -8,11 +8,13 @@ minimal strip refresh — in both flag states.
 
 from __future__ import annotations
 
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from sase.ace.testing.ace_page import _extract_state
 from sase.ace.tui.actions.agents._agent_tabs import (
     AgentTabsMixin,
     _key_for_strip_id,
@@ -31,7 +33,7 @@ from sase.ace.tui.models.agent_tab_persistence import (
     load_active_agent_tab,
     save_active_agent_tab,
 )
-from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
+from sase.core.agent_tab import AgentTabCatalogEntry, DEFAULT_AGENT_TAB_KEY, AgentTabKey
 from sase.feature_flags import override_flags
 
 
@@ -52,20 +54,39 @@ def _view(token: Any = ("switch-test",)) -> AgentTabsViewConfig:
     )
 
 
+def _machine_view(
+    *,
+    machine_mode: bool = True,
+    machine_order: tuple[tuple[str, str], ...] = (("machine-id", "apollo"),),
+) -> AgentTabsViewConfig:
+    return AgentTabsViewConfig(
+        machine_mode=machine_mode,
+        machine_order=machine_order,
+        pinned_by_alias={
+            alias: installation_id for installation_id, alias in machine_order
+        },
+        named_order={},
+        token=("switch-machine-test", machine_mode, machine_order),
+    )
+
+
 def _row(
     suffix: str,
     *,
     tab: str | None = None,
     status: str = "RUNNING",
+    start_time: datetime | None = None,
+    parent_timestamp: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="proj",
         project_file="/proj/project.yml",
         status=status,
-        start_time=None,
+        start_time=start_time,
         raw_suffix=suffix,
         agent_tab=tab,
+        parent_timestamp=parent_timestamp,
     )
 
 
@@ -166,6 +187,64 @@ def test_per_tab_selection_restore_by_identity() -> None:
         assert owner._agents[owner.current_idx].raw_suffix == "c"
 
 
+def test_first_visit_starts_at_row_zero_after_multirow_source() -> None:
+    owner = _TabOwner(
+        [_row("main-0"), _row("main-1"), _row("main-2"), _row("sase-0", tab="sase")]
+    )
+    owner.reindex(owner._agents_with_children)
+    owner.current_idx = 2
+    with override_flags(agent_tabs=True):
+        owner._switch_agents_tab(_SASE, reason="cycle")
+        assert owner.current_idx == 0
+        assert [row.raw_suffix for row in owner._agents] == ["sase-0"]
+
+
+def test_selection_fallback_uses_target_tabs_remembered_row_index() -> None:
+    owner = _TabOwner(
+        [
+            _row("main-0"),
+            _row("main-1"),
+            _row("sase-0", tab="sase"),
+            _row("sase-1", tab="sase"),
+            _row("sase-2", tab="sase"),
+        ]
+    )
+    owner.reindex(owner._agents_with_children)
+    with override_flags(agent_tabs=True):
+        owner._switch_agents_tab(_SASE, reason="cycle")
+        owner.current_idx = 2
+        owner._agents_last_idx = 2
+        owner._agents_last_identity = owner._agents[2].identity
+        owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle")
+        assert owner.current_idx == 0
+
+        remaining = [
+            row for row in owner._agents_with_children if row.raw_suffix != "sase-2"
+        ]
+        owner.reindex(remaining)
+        owner._switch_agents_tab(_SASE, reason="cycle")
+        assert owner.current_idx == 1
+        assert owner._agents[owner.current_idx].raw_suffix == "sase-1"
+
+
+def test_restore_remembers_focused_panel_and_scroll_anchor() -> None:
+    owner = _two_tab_owner()
+    owner._panel_group = SimpleNamespace(panel_keys=["main", "sase"], focused_idx=0)
+    owner._agent_tab_memory[_SASE] = (None, 0, "sase", 17)
+    scroll = SimpleNamespace(scroll_y=0)
+
+    def query_one(selector: str, *_args: Any, **_kwargs: Any) -> Any:
+        if selector == "#agent-list-panel":
+            return scroll
+        raise LookupError("no widget")
+
+    owner.query_one = query_one  # type: ignore[method-assign]
+    with override_flags(agent_tabs=True):
+        owner._switch_agents_tab(_SASE, reason="cycle")
+        assert owner._panel_group.focused_idx == 1
+        assert scroll.scroll_y == 17
+
+
 def test_selection_falls_back_to_nearest_row() -> None:
     owner = _two_tab_owner()
     with override_flags(agent_tabs=True):
@@ -211,6 +290,59 @@ def test_startup_selection_attention_tab() -> None:
         assert owner._active_agent_tab == _SASE
 
 
+def test_empty_first_catalog_does_not_consume_startup_selection() -> None:
+    owner = _TabOwner([])
+    owner._agent_tab_index = build_agent_tab_index([], _view())
+    owner._agent_tab_loaded_key = _SASE
+    with override_flags(agent_tabs=True):
+        assert owner._reconcile_active_agent_tab() is False
+        assert owner._agent_tabs_reconciled_once is False
+
+        owner.reindex([_row("main"), _row("sase", tab="sase")])
+        assert owner._reconcile_active_agent_tab() is True
+        assert owner._active_agent_tab == _SASE
+
+
+def test_startup_selection_does_not_override_an_early_user_switch() -> None:
+    owner = _two_tab_owner()
+    owner._agent_tabs_user_switched = True
+    owner._agent_tab_loaded_key = _SASE
+    with override_flags(agent_tabs=True):
+        assert owner._reconcile_active_agent_tab() is False
+        assert owner._agent_tabs_reconciled_once is True
+        assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
+
+
+def test_attention_startup_uses_newest_attention_root_only() -> None:
+    owner = _TabOwner(
+        [
+            _row(
+                "sase-root",
+                tab="sase",
+                status="RUNNING",
+                start_time=datetime(2026, 1, 1),
+            ),
+            _row(
+                "sase-child",
+                tab="sase",
+                status="FAILED",
+                start_time=datetime(2026, 3, 1),
+                parent_timestamp="sase-root",
+            ),
+            _row(
+                "blog-root",
+                tab="blog",
+                status="FAILED",
+                start_time=datetime(2026, 2, 1),
+            ),
+        ]
+    )
+    owner.reindex(owner._agents_with_children)
+    with override_flags(agent_tabs=True):
+        assert owner._reconcile_active_agent_tab() is True
+        assert owner._active_agent_tab == AgentTabKey.named("blog")
+
+
 def test_latch_keeps_emptied_tab() -> None:
     owner = _two_tab_owner()
     with override_flags(agent_tabs=True):
@@ -233,7 +365,72 @@ def test_latch_keeps_emptied_tab() -> None:
         assert strip_visible_for_owner(owner) is True
 
 
-def test_machine_fallback_toasts_and_defaults() -> None:
+def test_ace_page_state_includes_latched_catalog_entry() -> None:
+    owner = SimpleNamespace(
+        current_tab="agents",
+        current_artifacts_subtab="",
+        current_files_subtab="",
+        current_idx=0,
+        patches=[],
+        query_string="",
+        canonical_query_string="",
+        marked_indices=set(),
+        screen_stack=[],
+        hide_reverted=False,
+        hooks_collapsed=SimpleNamespace(value=False),
+        commits_collapsed=SimpleNamespace(value=False),
+        mentors_collapsed=SimpleNamespace(value=False),
+        deltas_collapsed=SimpleNamespace(value=False),
+        _agents=[],
+        _agents_last_idx=0,
+        _active_agent_tab=_SASE,
+        _agent_tab_index=SimpleNamespace(
+            catalog=(AgentTabCatalogEntry(DEFAULT_AGENT_TAB_KEY, "default", "main", 1),)
+        ),
+        _agent_tab_latched_key=_SASE,
+        _agent_tab_known_labels={_SASE: "sase"},
+    )
+    owner._agent_tab_catalog_view = lambda: _catalog_view_for_owner(owner)
+
+    assert _extract_state(owner)["agent_tabs"] == ["main", "sase"]
+
+
+def test_machine_tab_latches_when_roots_disappear_and_clears_on_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.ace.tui.agent_tabs_settings as settings
+
+    machine = AgentTabKey.machine("machine-id")
+    owner = _TabOwner([_row("main")])
+    owner.reindex(owner._agents_with_children)
+    owner._agent_tabs_reconciled_once = True
+    owner._agent_tab_prev_catalog_keys = (DEFAULT_AGENT_TAB_KEY, machine)
+    owner._active_agent_tab = machine
+    owner._agent_tab_known_labels[machine] = "\u2328 apollo"
+    monkeypatch.setattr(settings, "agent_tabs_view_config", _machine_view)
+
+    with override_flags(agent_tabs=True):
+        assert owner._reconcile_active_agent_tab() is False
+        assert owner._active_agent_tab == machine
+        assert owner._agent_tab_latched_key == machine
+        assert [
+            (entry.key, entry.label, entry.root_count)
+            for entry in owner._agent_tab_catalog_view()
+        ][-1] == (
+            machine,
+            "\u2328 apollo",
+            0,
+        )
+
+        assert owner._switch_agents_tab(DEFAULT_AGENT_TAB_KEY, reason="cycle") is True
+        assert owner._agent_tab_latched_key is None
+
+
+def test_machine_fallback_toasts_and_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.ace.tui.agent_tabs_settings as settings
+
     machine = AgentTabKey.machine("dead-id")
     owner = _TabOwner([_row("a")])
     owner.reindex(owner._agents_with_children)
@@ -241,9 +438,42 @@ def test_machine_fallback_toasts_and_defaults() -> None:
         owner._agent_tabs_reconciled_once = True
         owner._agent_tab_prev_catalog_keys = (machine,)
         owner._active_agent_tab = machine
-        owner._agent_tab_known_labels[machine] = "apollo"
+        owner._agent_tab_known_labels[machine] = "\u2328 apollo"
+        monkeypatch.setattr(
+            settings,
+            "agent_tabs_view_config",
+            lambda: _machine_view(
+                machine_mode=False,
+                machine_order=(("dead-id", "apollo"),),
+            ),
+        )
         assert owner._reconcile_active_agent_tab() is True
         assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
+        assert owner.notices == ["agent tab \u2328 apollo is gone; showing main"]
+
+
+def test_machine_fallback_uses_configured_alias_when_label_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.ace.tui.agent_tabs_settings as settings
+
+    machine = AgentTabKey.machine("dead-id")
+    owner = _TabOwner([_row("a")])
+    owner.reindex(owner._agents_with_children)
+    owner._agent_tabs_reconciled_once = True
+    owner._agent_tab_prev_catalog_keys = (machine,)
+    owner._active_agent_tab = machine
+    monkeypatch.setattr(
+        settings,
+        "agent_tabs_view_config",
+        lambda: _machine_view(
+            machine_mode=False,
+            machine_order=(("dead-id", "apollo"),),
+        ),
+    )
+
+    with override_flags(agent_tabs=True):
+        assert owner._reconcile_active_agent_tab() is True
         assert owner.notices == ["agent tab \u2328 apollo is gone; showing main"]
 
 

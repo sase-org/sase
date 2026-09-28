@@ -39,6 +39,7 @@ log = logging.getLogger(__name__)
 
 _TAB_SWITCH_PERF_ACTION = "agents_tab_switch"
 _FLUSH_TIMEOUT_SECONDS = 2.0
+_NO_SAVED_PANEL_KEY = object()
 
 
 def _catalog_view_for_owner(owner: Any) -> tuple[AgentTabCatalogEntry, ...]:
@@ -184,7 +185,20 @@ def _selected_identity_for_owner(owner: Any) -> Any | None:
     return getattr(owner, "_agents_last_identity", None)
 
 
-def _focused_panel_key_for_owner(owner: Any) -> str | None:
+def _selected_row_index_for_owner(owner: Any) -> int:
+    """Return the active tab's selected row index, defaulting to its first row."""
+    try:
+        agents = getattr(owner, "_agents", ()) or ()
+        if getattr(owner, "current_tab", None) == "agents":
+            idx = int(getattr(owner, "current_idx", 0))
+        else:
+            idx = int(getattr(owner, "_agents_last_idx", 0))
+        return max(0, idx) if agents else 0
+    except Exception:
+        return 0
+
+
+def _focused_panel_key_for_owner(owner: Any) -> Any:
     """Return the focused whole-panel key, if any."""
     for resolver_name in ("_resolve_focused_panel", "_resolve_focused_collapsed_panel"):
         resolver = getattr(owner, resolver_name, None)
@@ -195,9 +209,8 @@ def _focused_panel_key_for_owner(owner: Any) -> str | None:
         except Exception:
             continue
         if focus is not None:
-            key = getattr(focus, "panel_key", None)
-            return key if isinstance(key, str) else None
-    return None
+            return getattr(focus, "panel_key", _NO_SAVED_PANEL_KEY)
+    return _NO_SAVED_PANEL_KEY
 
 
 def _scroll_anchor_for_owner(owner: Any) -> Any | None:
@@ -233,7 +246,7 @@ class AgentTabsMixin:
 
     _active_agent_tab: AgentTabKey
     _agent_tab_index: AgentTabIndex | None
-    _agent_tab_memory: dict[AgentTabKey, tuple[Any | None, str | None, Any | None]]
+    _agent_tab_memory: dict[AgentTabKey, tuple[Any | None, int, Any, Any | None]]
     _agent_tab_latched_key: AgentTabKey | None
     _agent_tab_known_labels: dict[AgentTabKey, str]
     _agent_tab_prev_catalog_keys: tuple[AgentTabKey, ...]
@@ -300,6 +313,7 @@ class AgentTabsMixin:
         active = self._active_agent_tab  # type: ignore[attr-defined]
         self._agent_tab_memory[active] = (  # type: ignore[attr-defined]
             _selected_identity_for_owner(self),
+            _selected_row_index_for_owner(self),
             _focused_panel_key_for_owner(self),
             _scroll_anchor_for_owner(self),
         )
@@ -307,8 +321,16 @@ class AgentTabsMixin:
     def _restore_tab_memory(self, key: AgentTabKey) -> None:
         """Restore *key*'s remembered selection with nearest-row fallback."""
         self._ensure_agent_tabs_state()
-        memory = self._agent_tab_memory.get(key, (None, None, None))  # type: ignore[attr-defined]
-        identity, _panel_key, scroll_anchor = memory
+        memory = self._agent_tab_memory.get(key)  # type: ignore[attr-defined]
+        if memory is None:
+            identity, remembered_idx, panel_key, scroll_anchor = (
+                None,
+                0,
+                _NO_SAVED_PANEL_KEY,
+                None,
+            )
+        else:
+            identity, remembered_idx, panel_key, scroll_anchor = memory
         agents = list(getattr(self, "_agents", ()) or [])
         prior_row: int | None = None
         if identity is not None:
@@ -323,11 +345,10 @@ class AgentTabsMixin:
             try:
                 from ...util.selection import restore_selection_by_identity
 
-                prior_visual = getattr(self, "_agents_last_idx", 0)
                 prior_row = restore_selection_by_identity(
                     agents,
                     prior_identity=identity,
-                    prior_visual_row=int(prior_visual or 0),
+                    prior_visual_row=int(remembered_idx or 0),
                     identity_fn=lambda row: row.identity,
                 )
             except Exception:
@@ -350,6 +371,25 @@ class AgentTabsMixin:
                 self._agents_last_identity = identity  # type: ignore[attr-defined]
         else:
             self._agents_last_identity = None  # type: ignore[attr-defined]
+        if panel_key is None or isinstance(panel_key, str):
+            panel_group = getattr(self, "_panel_group", None)
+            if panel_group is not None:
+                panel_keys = getattr(panel_group, "panel_keys", ())
+                try:
+                    from ...models.agent_panels import normalize_panel_key
+
+                    normalized_panel_key = normalize_panel_key(panel_key)
+                    if normalized_panel_key in panel_keys:
+                        panel_group.focused_idx = panel_keys.index(normalized_panel_key)
+                        from ._panel_fold_intent import panel_is_collapsed
+
+                        if not panel_is_collapsed(self, normalized_panel_key):
+                            self._expanded_panel_focus = True  # type: ignore[attr-defined]
+                        focus_panel = getattr(self, "_focus_focused_panel_widget", None)
+                        if callable(focus_panel):
+                            focus_panel()
+                except Exception:
+                    pass
         if scroll_anchor is not None:
             try:
                 node = self.query_one("#agent-list-panel")  # type: ignore[attr-defined]
@@ -545,18 +585,22 @@ class AgentTabsMixin:
         changed = False
 
         if not getattr(self, "_agent_tabs_reconciled_once", False):
-            self._agent_tabs_reconciled_once = True  # type: ignore[attr-defined]
-            chosen = self._startup_tab_selection(keys)
-            if chosen is not None and chosen != active:
-                self._active_agent_tab = chosen  # type: ignore[attr-defined]
-                active = chosen
-                changed = True
+            # The initial loader can publish an empty catalog before the
+            # first real roster arrives. Keep startup selection pending until
+            # there is something to select, and never override an early user
+            # switch.
+            if keys:
+                self._agent_tabs_reconciled_once = True  # type: ignore[attr-defined]
+                if not getattr(self, "_agent_tabs_user_switched", False):
+                    chosen = self._startup_tab_selection(keys)
+                    if chosen is not None and chosen != active:
+                        self._active_agent_tab = chosen  # type: ignore[attr-defined]
+                        active = chosen
+                        changed = True
         else:
             latched = getattr(self, "_agent_tab_latched_key", None)
             if isinstance(latched, AgentTabKey) and latched in keys:
                 self._agent_tab_latched_key = None  # type: ignore[attr-defined]
-            if active not in keys and active in prev_keys and active.kind != "machine":
-                self._agent_tab_latched_key = active  # type: ignore[attr-defined]
             elif active not in keys:
                 fallback = self._machine_fallback(active)
                 if fallback is not None:
@@ -565,6 +609,10 @@ class AgentTabsMixin:
                     active = fallback
                     changed = True
                     self._agent_tab_state_changed()
+                elif active in prev_keys or (
+                    isinstance(active, AgentTabKey) and active.kind == "machine"
+                ):
+                    self._agent_tab_latched_key = active  # type: ignore[attr-defined]
         self._agent_tab_prev_catalog_keys = keys  # type: ignore[attr-defined]
         if changed:
             self._refresh_agent_tab_strip()
@@ -592,26 +640,45 @@ class AgentTabsMixin:
         return keys[0]
 
     def _attention_tab(self, keys: tuple[AgentTabKey, ...]) -> AgentTabKey | None:
-        """Return the first catalog key holding a root needing attention."""
+        """Return the key of the newest root needing attention."""
         index = getattr(self, "_agent_tab_index", None)
         if index is None:
             return None
+        from ...models._agent_tree_anchor import presentation_anchor_lookup
+
         roster = list(getattr(self, "_agents_with_children", ()) or ())
+        anchors = presentation_anchor_lookup(roster)
         wanted = set(keys)
+        seen_roots: set[int] = set()
+        newest_key: AgentTabKey | None = None
+        newest_at = float("-inf")
         for row in roster:
+            root = anchors.get(id(row), row)
+            if root is not row or id(root) in seen_roots:
+                continue
+            seen_roots.add(id(root))
             try:
-                key = index.key_for(row)
+                key = index.key_for(root)
             except Exception:
                 continue
             if key not in wanted:
                 continue
             try:
-                status = row.status
+                status = root.status
             except Exception:
                 continue
-            if _attention_status(status):
-                return key
-        return None
+            if not _attention_status(status):
+                continue
+            try:
+                started_at = (
+                    root.start_time.timestamp() if root.start_time else float("-inf")
+                )
+            except Exception:
+                started_at = float("-inf")
+            if newest_key is None or started_at > newest_at:
+                newest_key = key
+                newest_at = started_at
+        return newest_key
 
     def _machine_fallback(self, active: AgentTabKey) -> AgentTabKey | None:
         """Return the default key when a machine tab disappeared, else None.
@@ -627,14 +694,40 @@ class AgentTabsMixin:
             view = agent_tabs_view_config()
         except Exception:
             return None
+        machine_alias = next(
+            (
+                alias
+                for installation_id, alias in (view.machine_order or ())
+                if installation_id == active.value
+            ),
+            None,
+        )
         order_ids = {pinned for pinned, _alias in (view.machine_order or ())}
         if view.machine_mode and active.value in order_ids:
             return None
-        label = self._agent_tab_known_labels.get(active, active.value)  # type: ignore[attr-defined]
+        label = self._agent_tab_known_labels.get(active)  # type: ignore[attr-defined]
+        if not label and machine_alias:
+            label = (
+                "\u2328 local\u00b7remote"
+                if machine_alias.casefold() == "local"
+                else f"\u2328 {machine_alias}"
+            )
+        if not label:
+            label = "\u2328 machine"
+        default_label = next(
+            (
+                entry.label
+                for entry in getattr(
+                    getattr(self, "_agent_tab_index", None), "catalog", ()
+                )
+                if entry.key == DEFAULT_AGENT_TAB_KEY
+            ),
+            "\u2328 local" if view.machine_mode else "main",
+        )
         notify = getattr(self, "notify", None)
         if callable(notify):
             try:
-                notify(f"agent tab \u2328 {label} is gone; showing main")
+                notify(f"agent tab {label} is gone; showing {default_label}")
             except Exception:
                 pass
         return DEFAULT_AGENT_TAB_KEY

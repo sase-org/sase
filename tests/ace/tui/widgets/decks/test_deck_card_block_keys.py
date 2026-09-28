@@ -21,6 +21,7 @@ from sase.ace.tui.keymaps import (
 from sase.ace.tui.modals.help_modal.bindings import agents_bindings
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.feature_flags import override_flags
 from tests._keymaps_helpers import default_app_keymaps
 
 
@@ -192,7 +193,6 @@ def _two_tab_gating_app(**kwargs: object) -> object:
 
 
 def test_bracket_keys_do_nothing_on_agents() -> None:
-    from sase.feature_flags import override_flags
 
     reg = load_keymap_registry({})
     owners = keymap_actions_by_key(reg.app)
@@ -294,7 +294,31 @@ def test_legacy_bracket_yield_keeps_explicit_tab_bindings(
             }
         )
     assert reg.app.next_agents_tab == "f11"
-    assert reg.app.prev_agents_tab == "unbound"
+    assert reg.app.prev_agents_tab == "left_square_bracket"
+
+
+def test_legacy_bracket_yield_respects_explicit_default_tab_binding() -> None:
+    """Presence in user config protects a default-valued tab action."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "next_card_block": "right_square_bracket",
+                    "next_agents_tab": "right_square_bracket",
+                }
+            }
+        }
+    )
+    assert reg.app.next_agents_tab == "right_square_bracket"
+    # The customized card-block action yields because the explicit tab action
+    # owns their shared key. Artifacts sub-tab cycling keeps its contextual
+    # binding on the same key, as the two actions run on different tabs.
+    assert reg.app.next_card_block == "right_parenthesis"
+    owners = keymap_actions_by_key(reg.app)
+    assert owners["right_square_bracket"] == (
+        "next_agents_tab",
+        "cycle_artifacts_subtab",
+    )
 
 
 def test_paren_keys_resolve_per_tab() -> None:

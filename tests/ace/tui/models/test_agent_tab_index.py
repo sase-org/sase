@@ -284,3 +284,27 @@ def test_memo_survives_roster_identity_reuse() -> None:
     first = cached_agent_tab_index(roster, view)
     assert first.root_count(AgentTabKey.default()) == 1
     assert index_mod._index_cache[(id(roster), len(roster), view.token)][0] is roster
+
+
+def test_memo_rebuilds_after_in_place_membership_change() -> None:
+    roster = [_row("a")]
+    view = _view(token=("test", 10))
+    first = cached_agent_tab_index(roster, view)
+    roster.append(_row("b", tab="sase"))
+    second = cached_agent_tab_index(roster, view)
+    assert second is not first
+    assert second.root_count(AgentTabKey.default()) == 1
+    assert second.root_count(AgentTabKey.named("sase")) == 1
+
+    roster.pop(0)
+    third = cached_agent_tab_index(roster, view)
+    assert third is not second
+    assert third.root_count(AgentTabKey.default()) == 0
+    assert third.root_count(AgentTabKey.named("sase")) == 1
+
+
+def test_memo_retains_at_most_two_rosters() -> None:
+    view = _view(token=("test", 11))
+    for idx in range(8):
+        cached_agent_tab_index([_row(str(idx))], view)
+    assert len(index_mod._index_cache) <= 2

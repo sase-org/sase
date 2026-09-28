@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from typing import Any, TYPE_CHECKING
 
 from sase.core.agent_tab import (
@@ -213,11 +214,11 @@ def build_agent_tab_index(
     )
 
 
-_INDEX_CACHE_SIZE = 16
-_index_cache: dict[
+_INDEX_CACHE_SIZE = 2
+_index_cache: OrderedDict[
     tuple[int, int, tuple[Any, ...]],
-    tuple[list[Agent], AgentTabIndex],
-] = {}
+    tuple[list[Agent], tuple[int, ...], AgentTabIndex],
+] = OrderedDict()
 
 
 def cached_agent_tab_index(
@@ -226,18 +227,23 @@ def cached_agent_tab_index(
 ) -> AgentTabIndex:
     """Return the cached index for *roster* on a memo hit, else build it.
 
-    The memo key is ``(id(roster), len(roster), view_config.token)``. The
-    cache holds a strong reference to each roster so a cached list id can
-    never be reused by a newer roster while its entry lives.
+    The memo key is ``(id(roster), len(roster), view_config.token)`` plus an
+    identity snapshot of its members. The snapshot catches in-place append,
+    remove, and reorder mutations. The cache holds strong references to at
+    most two rosters, so a cached list id cannot be reused while its entry
+    lives and old rosters do not accumulate across refreshes.
     """
     cache_key = (id(roster), len(roster), view_config.token)
+    membership = tuple(id(row) for row in roster)
     hit = _index_cache.get(cache_key)
-    if hit is not None and hit[0] is roster:
-        return hit[1]
+    if hit is not None and hit[0] is roster and hit[1] == membership:
+        _index_cache.move_to_end(cache_key)
+        return hit[2]
     index = build_agent_tab_index(roster, view_config)
-    _index_cache[cache_key] = (roster, index)
+    _index_cache[cache_key] = (roster, membership, index)
+    _index_cache.move_to_end(cache_key)
     while len(_index_cache) > _INDEX_CACHE_SIZE:
-        _index_cache.pop(next(iter(_index_cache)))
+        _index_cache.popitem(last=False)
     return index
 
 

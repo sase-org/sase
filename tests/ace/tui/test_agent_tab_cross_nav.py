@@ -13,8 +13,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-import pytest
-
 from sase.ace.tui.actions.agents._agent_tab_jump import (
     ensure_agent_tab_for_identity,
     off_tab_labels_for_owner,
@@ -23,7 +21,7 @@ from sase.ace.tui.actions.agents._agent_tab_jump import (
 from sase.ace.tui.actions.agents._agent_tabs import AgentTabsMixin
 from sase.ace.tui.actions.agents._agent_tab_jump import AgentTabJumpMixin
 from sase.ace.tui.actions.agents._revive_state import AgentReviveStateMixin
-from sase.ace.tui.actions.agents._tab_scope import scoped_agents_for_owner
+from sase.ace.tui.actions.agents._tab_scope import _scoped_agents_for_owner
 from sase.ace.tui.actions.agents._node_finder_finalize import (
     apply_snapshot_omission,
 )
@@ -34,10 +32,7 @@ from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
 from sase.ace.tui.models import Agent
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
-from sase.ace.tui.models.agent_tab_index import (
-    build_agent_tab_index,
-    clear_agent_tab_index_cache,
-)
+from sase.ace.tui.models.agent_tab_index import build_agent_tab_index
 from sase.ace.tui.models.node_finder import (
     NodeFinderRole,
     NodeFinderRow,
@@ -46,13 +41,6 @@ from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
 from sase.feature_flags import override_flags
 
 from ._agent_unread_navigation_helpers import UnreadJumpApp
-
-
-@pytest.fixture(autouse=True)
-def _clear_index_cache() -> Any:
-    clear_agent_tab_index_cache()
-    yield
-    clear_agent_tab_index_cache()
 
 
 def _view(token: Any = ("cross-nav-test",)) -> AgentTabsViewConfig:
@@ -103,7 +91,7 @@ class _TabOwner(AgentTabsMixin, AgentTabJumpMixin):
         self._ensure_agent_tabs_state()
 
     def _rescope_agents_to_active_tab(self) -> None:
-        self._agents = scoped_agents_for_owner(self, list(self._agents_query_result))
+        self._agents = _scoped_agents_for_owner(self, list(self._agents_query_result))
 
     def query_one(self, *args: Any, **kwargs: Any) -> Any:
         """Fail closed: no list panel or strip is mounted in unit tests."""
@@ -123,7 +111,9 @@ def _two_tab_owner() -> _TabOwner:
     owner = _TabOwner([_row("a"), _row("b", tab="sase")])
     owner.reindex(owner._agents_with_children)
     with override_flags(agent_tabs=True):
-        owner._agents = scoped_agents_for_owner(owner, list(owner._agents_query_result))
+        owner._agents = _scoped_agents_for_owner(
+            owner, list(owner._agents_query_result)
+        )
     return owner
 
 
@@ -202,7 +192,9 @@ def test_select_revived_agent_switches_tabs() -> None:
     owner = _ReviveOwner([_row("a"), _row("b", tab="sase")])
     owner.reindex(owner._agents_with_children)
     with override_flags(agent_tabs=True):
-        owner._agents = scoped_agents_for_owner(owner, list(owner._agents_query_result))
+        owner._agents = _scoped_agents_for_owner(
+            owner, list(owner._agents_query_result)
+        )
         target = owner._agents_with_children[1]
         assert owner._select_revived_agent(target) is True
         assert owner._active_agent_tab == _SASE
@@ -219,7 +211,9 @@ def test_select_file_agent_switches_tabs() -> None:
     owner = _FilesOwner([_row("a"), _row("b", tab="sase")])
     owner.reindex(owner._agents_with_children)
     with override_flags(agent_tabs=True):
-        owner._agents = scoped_agents_for_owner(owner, list(owner._agents_query_result))
+        owner._agents = _scoped_agents_for_owner(
+            owner, list(owner._agents_query_result)
+        )
         target = owner._agents_with_children[1]
         assert owner._select_file_agent(target.identity, None) is True
         assert owner._active_agent_tab == _SASE
@@ -255,7 +249,7 @@ def _cross_tab_harness_class() -> Any:
     class _CrossTabHarness(JumpHarness, _Tabs, _Jump):
         def _rescope_agents_to_active_tab(self) -> None:
             with override_flags(agent_tabs=True):
-                self._agents = scoped_agents_for_owner(
+                self._agents = _scoped_agents_for_owner(
                     self, list(self._agents_query_result)
                 )
                 self._panel_group = AgentPanelGroup.from_agents(self._agents)
@@ -263,7 +257,7 @@ def _cross_tab_harness_class() -> Any:
         def _refilter_agents(self, **kwargs: Any) -> None:
             super()._refilter_agents(**kwargs)
             with override_flags(agent_tabs=True):
-                self._agents = scoped_agents_for_owner(self, list(self._agents))
+                self._agents = _scoped_agents_for_owner(self, list(self._agents))
                 self._panel_group = AgentPanelGroup.from_agents(self._agents)
 
     return _CrossTabHarness
@@ -279,7 +273,7 @@ def test_try_reveal_agent_row_switches_tabs() -> None:
     app._agents_query_result = list(rows)
     app._agent_tab_index = build_agent_tab_index(list(rows), _view())
     with override_flags(agent_tabs=True):
-        app._agents = scoped_agents_for_owner(app, list(rows))
+        app._agents = _scoped_agents_for_owner(app, list(rows))
         app._panel_group = AgentPanelGroup.from_agents(app._agents)
         app.current_idx = 0
         failure = app._try_reveal_agent_row(rows[1].identity)
@@ -300,7 +294,7 @@ def test_failed_reveal_restores_previous_tab() -> None:
     app._agents_query_result = [rows[0]]
     app._agent_tab_index = build_agent_tab_index(list(rows), _view())
     with override_flags(agent_tabs=True):
-        app._agents = scoped_agents_for_owner(app, list(app._agents_query_result))
+        app._agents = _scoped_agents_for_owner(app, list(app._agents_query_result))
         app._panel_group = AgentPanelGroup.from_agents(app._agents)
         app.current_idx = 0
         from sase.ace.tui.actions.navigation._agent_reveal import AgentRevealFailure
@@ -341,7 +335,9 @@ def test_jump_anchor_records_tab_and_restores_across_tabs() -> None:
     owner = _AnchorOwner([_row("a"), _row("b", tab="sase")])
     owner.reindex(owner._agents_with_children)
     with override_flags(agent_tabs=True):
-        owner._agents = scoped_agents_for_owner(owner, list(owner._agents_query_result))
+        owner._agents = _scoped_agents_for_owner(
+            owner, list(owner._agents_query_result)
+        )
         owner.current_idx = 0
         owner._save_agents_jump_anchor()
         saved = owner._entry_jump_agents_anchor_stack[-1]
@@ -358,7 +354,9 @@ def test_jump_forward_returns_across_tabs() -> None:
     owner = _AnchorOwner([_row("a"), _row("b", tab="sase")])
     owner.reindex(owner._agents_with_children)
     with override_flags(agent_tabs=True):
-        owner._agents = scoped_agents_for_owner(owner, list(owner._agents_query_result))
+        owner._agents = _scoped_agents_for_owner(
+            owner, list(owner._agents_query_result)
+        )
         owner.current_idx = 0
         owner._save_agents_jump_anchor()
         assert (
@@ -379,7 +377,9 @@ def test_jump_anchor_with_gone_tab_is_dropped() -> None:
     owner = _AnchorOwner([_row("a"), _row("b", tab="sase")])
     owner.reindex(owner._agents_with_children)
     with override_flags(agent_tabs=True):
-        owner._agents = scoped_agents_for_owner(owner, list(owner._agents_query_result))
+        owner._agents = _scoped_agents_for_owner(
+            owner, list(owner._agents_query_result)
+        )
         owner._entry_jump_agents_anchor_stack.append(("agent", 0, None, "named:gone"))
         assert owner._restore_agents_jump_anchor() is False
         assert owner._active_agent_tab == DEFAULT_AGENT_TAB_KEY
@@ -393,12 +393,12 @@ def test_stopped_jump_crosses_tabs() -> None:
     app._agent_tab_index = build_agent_tab_index(list(rows), _view())
     app._ensure_agent_tabs_state()
     with override_flags(agent_tabs=True):
-        app._agents = scoped_agents_for_owner(app, list(rows))
+        app._agents = _scoped_agents_for_owner(app, list(rows))
         app._panel_group = AgentPanelGroup.from_agents(app._agents)
         app.current_idx = 0
 
         def _rescope() -> None:
-            app._agents = scoped_agents_for_owner(app, list(app._agents_query_result))
+            app._agents = _scoped_agents_for_owner(app, list(app._agents_query_result))
             app._panel_group = AgentPanelGroup.from_agents(app._agents)
 
         app._rescope_agents_to_active_tab = _rescope  # type: ignore[method-assign]

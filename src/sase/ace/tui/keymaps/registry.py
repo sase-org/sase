@@ -414,6 +414,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         for fname in app_field_names
         if app_kwargs[fname] != builtin_defaults[fname]
     }
+    explicitly_configured = set(app_overrides) & app_field_names
     for fname in sorted(user_overridden):
         key = app_kwargs[fname]
         if not is_valid_key(key):
@@ -449,16 +450,20 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
             "agent tab cycling yields the brackets",
             ", ".join(legacy_card_block_brackets),
         )
-    # Legacy bracket yield (tab-state-keys phase): when card blocks are
-    # explicitly bound to [ / ], unbind whichever next/prev_agents_tab
-    # defaults collide, unless the user explicitly bound those too.
+    # Legacy bracket yield (tab-state-keys phase): unbind only the tab action
+    # whose bracket collides with a card-block bracket override. Presence in
+    # config counts as explicit even when the value equals the default.
     for _agents_tab_action, _bracket in (
         ("next_agents_tab", "right_square_bracket"),
         ("prev_agents_tab", "left_square_bracket"),
     ):
+        card_block_uses_bracket = any(
+            _bracket in split_key_alternatives(app_kwargs.get(_card_action, ""))
+            for _card_action in legacy_card_block_brackets
+        )
         if (
-            legacy_card_block_brackets
-            and _agents_tab_action not in user_overridden
+            card_block_uses_bracket
+            and _agents_tab_action not in explicitly_configured
             and _bracket
             in split_key_alternatives(app_kwargs.get(_agents_tab_action, ""))
         ):
