@@ -19,12 +19,10 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import (
     surface_token_drifted,
 )
 from sase.ace.tui.tool_runs.attribution import (
-    RowIdentity,
     row_identity_from_agent,
     select_live_runs,
 )
 from sase.ace.tui.tool_runs.snapshot import (
-    ToolRunGlanceSnapshot,
     ToolRunsLoadState,
     apply_loaded_snapshot,
     get_snapshot,
@@ -188,7 +186,7 @@ class ToolRunGlanceLoaderMixin:
         agents = list(getattr(self, "_agents", ()) or ())
         if not agents:
             return
-        snapshot: ToolRunGlanceSnapshot | None = get_snapshot()
+        snapshot = get_snapshot()
         if snapshot is None:
             return
         visible_by_identity: dict[Any, Any] = {}
@@ -207,7 +205,7 @@ class ToolRunGlanceLoaderMixin:
         needs_rebuild = False
         for identity, target in visible_by_identity.items():
             try:
-                row: RowIdentity = row_identity_from_agent(target)
+                row = row_identity_from_agent(target)
                 selected = select_live_runs(snapshot.runs, row)
             except Exception:
                 continue

@@ -11,7 +11,6 @@ from sase.ace.tui.tool_runs._links_shared import is_live_run, run_bucket
 from sase.tool.view_vocabulary import (
     TOOL_RUN_ACCENT,
     TOOL_RUN_GLYPH,
-    ToolRunStateStyle,
     format_age,
     style_for_bucket,
 )
@@ -79,7 +78,7 @@ def _short_suffix_fragment(run: Any, *, now_ts: float) -> str:
             return f"{label} {position}/{expected_int}"
         return f"{label} {format_age(_elapsed_s(run, now_ts))}"
     bucket = run_bucket(run)
-    style: ToolRunStateStyle = style_for_bucket(bucket)
+    style = style_for_bucket(bucket)
     verdict = getattr(run, "verdict", None)
     try:
         new = int(getattr(verdict, "new", 0) or 0)

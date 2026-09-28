@@ -13,8 +13,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
 
-    from sase.tool.logs import ToolRunLogTail
-
     from .config_center_session import ToolRunsSessionState
 else:
     _MixinBase = object
@@ -242,8 +240,8 @@ class ToolRunsPaneToolActionsMixin(_MixinBase):
             self.notify(f"Could not open pager: {exc}", severity="error")
 
     @staticmethod
-    def _read_tail(brief: Any, detail_obj: Any) -> ToolRunLogTail:
-        from sase.tool.logs import ToolRunLogTail, tool_run_log_tail
+    def _read_tail(brief: Any, detail_obj: Any) -> Any:
+        from sase.tool.logs import tool_run_log_tail
 
         logs = getattr(detail_obj, "logs", None) if detail_obj is not None else None
         metadata = (
@@ -251,7 +249,7 @@ class ToolRunsPaneToolActionsMixin(_MixinBase):
             if logs is not None and hasattr(logs, "to_tail_metadata")
             else {}
         )
-        tail: ToolRunLogTail = tool_run_log_tail(
+        return tool_run_log_tail(
             str(getattr(brief, "run_id", "") or ""),
             metadata,
             getattr(brief, "owner_kind", None),
@@ -259,7 +257,6 @@ class ToolRunsPaneToolActionsMixin(_MixinBase):
             60,
             256 * 1024,
         )
-        return tail
 
     def action_stop_run(self) -> None:
         """Confirm and stop the selected live run as a durable proc."""
