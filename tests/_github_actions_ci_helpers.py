@@ -21,16 +21,31 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CORE_ARTIFACT_CONSUMER_JOBS = (
     "lint",
     "test",
-    "coverage-contexts",
     "visual-test",
     "ace-page-group-isolation",
-    "contention-test",
     "perf-floors",
+)
+
+# Same idea as CORE_ARTIFACT_CONSUMER_JOBS, scoped to telemetry.yml's own jobs.
+TELEMETRY_CORE_ARTIFACT_CONSUMER_JOBS = (
+    "test-cost",
+    "coverage-contexts",
+    "contention-test",
 )
 
 
 def _load_ci_workflow() -> dict[str, Any]:
     workflow_path = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+    return yaml.safe_load(workflow_path.read_text())
+
+
+def _load_build_core_workflow() -> dict[str, Any]:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "build-core.yml"
+    return yaml.safe_load(workflow_path.read_text())
+
+
+def _load_telemetry_workflow() -> dict[str, Any]:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "telemetry.yml"
     return yaml.safe_load(workflow_path.read_text())
 
 

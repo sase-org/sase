@@ -17,12 +17,15 @@ from pathlib import Path
 import pytest
 
 from tests._github_actions_ci_helpers import REPO_ROOT
+from tests._github_actions_ci_helpers import TELEMETRY_CORE_ARTIFACT_CONSUMER_JOBS
 from tests._github_actions_ci_helpers import _job_run_text
+from tests._github_actions_ci_helpers import _load_build_core_workflow
 from tests._github_actions_ci_helpers import _load_ci_workflow
 from tests._github_actions_ci_helpers import _load_core_pin_ratchet_workflow
 from tests._github_actions_ci_helpers import _load_full_workflow
 from tests._github_actions_ci_helpers import _load_master_gate_workflow
 from tests._github_actions_ci_helpers import _load_shard_timings_ratchet_workflow
+from tests._github_actions_ci_helpers import _load_telemetry_workflow
 from tests._github_actions_ci_helpers import _workflow_triggers
 from tests._test_shards import DEFAULT_SHARD_COUNT
 from tests._test_shards import SHARD_TIMINGS_ARTIFACT_NAME
@@ -229,10 +232,8 @@ def test_heavy_lane_jobs_are_defined_once_in_the_reusable_workflow() -> None:
     heavy_jobs = {
         "build-core",
         "test",
-        "coverage-contexts",
         "visual-test",
         "ace-page-group-isolation",
-        "contention-test",
         "perf-floors",
     }
 
@@ -251,6 +252,120 @@ def test_readme_explains_the_three_ci_badges() -> None:
         "CI checks pull requests, Master Gate is the per-SHA master release gate, "
         "and Full CI runs the scheduled exhaustive lane."
     ) in readme
+
+
+# --------------------------------------------------------------------------
+# build-core.yml
+# --------------------------------------------------------------------------
+
+
+def test_build_core_workflow_is_reusable_only() -> None:
+    workflow = _load_build_core_workflow()
+    triggers = _workflow_triggers(workflow)
+
+    assert set(triggers) == {"workflow_call"}
+    assert triggers["workflow_call"] is None
+    assert workflow["permissions"] == {"contents": "read"}
+
+
+def test_build_core_workflow_is_the_only_consumer_of_its_own_artifact_name() -> None:
+    """ci.yml and telemetry.yml both call this one workflow, not inline copies."""
+    ci_workflow_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    telemetry_workflow_text = (
+        REPO_ROOT / ".github" / "workflows" / "telemetry.yml"
+    ).read_text()
+
+    for workflow_text in (ci_workflow_text, telemetry_workflow_text):
+        assert "uses: ./.github/workflows/build-core.yml" in workflow_text
+        assert "sase-org/sase-core" not in workflow_text
+
+
+# --------------------------------------------------------------------------
+# telemetry.yml
+# --------------------------------------------------------------------------
+
+
+def test_telemetry_workflow_triggers_on_a_schedule_offset_from_full_ci() -> None:
+    ci_workflow = _load_ci_workflow()
+    workflow = _load_telemetry_workflow()
+    triggers = _workflow_triggers(workflow)
+
+    assert set(triggers) == {"schedule", "workflow_dispatch"}
+    full_ci_triggers = _workflow_triggers(_load_full_workflow())
+    assert triggers["schedule"] != full_ci_triggers["schedule"]
+    assert workflow["concurrency"] == {
+        "group": "ci-telemetry",
+        "cancel-in-progress": False,
+    }
+    assert workflow["permissions"] == {"contents": "read"}
+    # ci.yml itself carries no schedule of its own: only full.yml and
+    # telemetry.yml (both callers) schedule it.
+    assert "schedule" not in _workflow_triggers(ci_workflow)
+
+
+def test_telemetry_workflow_builds_core_through_the_shared_reusable_workflow() -> None:
+    job = _load_telemetry_workflow()["jobs"]["build-core"]
+
+    assert job == {"uses": "./.github/workflows/build-core.yml"}
+
+
+def test_telemetry_workflow_runs_cost_attribution_with_realistic_timeout() -> None:
+    job = _load_telemetry_workflow()["jobs"]["test-cost"]
+
+    assert job["needs"] == "build-core"
+    assert job["timeout-minutes"] == 180
+    setup_step = next(
+        step
+        for step in job["steps"]
+        if step.get("uses") == "./.github/actions/setup-sase"
+    )
+    assert setup_step["with"] == {"python-version": "3.13"}
+    assert any(step.get("run") == "just test-cost" for step in job["steps"])
+
+
+def test_telemetry_workflow_publishes_contexts_on_master_only_with_headroom() -> None:
+    job = _load_telemetry_workflow()["jobs"]["coverage-contexts"]
+
+    assert job["needs"] == "build-core"
+    assert job["if"] == "github.ref == 'refs/heads/master'"
+    assert job["timeout-minutes"] == 120
+    assert any(step.get("run") == "just test-contexts" for step in job["steps"])
+    upload_step = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Upload coverage contexts database"
+    )
+    assert upload_step["with"]["name"] == "sase-coverage-contexts-${{ github.sha }}"
+
+
+def test_telemetry_workflow_runs_one_contention_repeat_within_the_same_ceiling() -> (
+    None
+):
+    """REPEAT dropped 3 -> 1 because three repeats missed Full CI's 90-minute ceiling."""
+    job = _load_telemetry_workflow()["jobs"]["contention-test"]
+    run_text = _job_run_text(job)
+
+    assert job["needs"] == "build-core"
+    assert job["timeout-minutes"] == 90
+    assert "SASE_CONTENTION_REPEAT=1 just test-contention" in run_text
+    assert "SASE_CONTENTION_REPEAT=3" not in run_text
+
+
+def test_telemetry_lane_jobs_run_just_recipes_against_the_shared_core_artifact() -> (
+    None
+):
+    jobs = _load_telemetry_workflow()["jobs"]
+
+    for job_name in TELEMETRY_CORE_ARTIFACT_CONSUMER_JOBS:
+        steps = jobs[job_name]["steps"]
+        setup_index = next(
+            index
+            for index, step in enumerate(steps)
+            if step.get("uses") == "./.github/actions/setup-sase"
+        )
+        assert any(
+            "just " in step.get("run", "") for step in steps[setup_index + 1 :]
+        ), f"{job_name} runs no just recipe after setup-sase"
 
 
 # --------------------------------------------------------------------------

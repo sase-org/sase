@@ -1,0 +1,100 @@
+name: CI Telemetry
+
+# Measurement and soak lanes, off the release-gating path entirely: `ci_watch`
+# only reads Full CI (`full.yml`), so a timeout here can never block a
+# release. See decisions:ci-two-speed-split.
+on:
+  schedule:
+    # Every 6 hours, offset from Full CI's `17 */2` so the two heavy
+    # schedules never collide on the same runner minute.
+    - cron: '47 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-telemetry
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-core:
+    uses: ./.github/workflows/build-core.yml
+
+  # Cost attribution over the fast suite, plus the committed budget check and
+  # report already built into `just test-cost`. Moved off `ci.yml`'s test
+  # matrix: it repeatedly missed Full CI's 90-minute ceiling.
+  test-cost:
+    needs: build-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.13'
+      - name: Run cost-attribution suite
+        run: just test-cost
+
+  # Per-test coverage contexts are the ground-truth source the diff-scoped
+  # selector unions into `just check`. This is a dedicated job, not an
+  # addition to the coverage leg, because the measurement said so: adding
+  # `--cov-context=test` to the branch-coverage leg took its database from
+  # 17 MB to 906 MB (283 MB gzipped) and its runtime from 470s to 538s. Line
+  # coverage alone answers the only question selection asks and costs 49 MB
+  # (12 MB gzipped) at 474s -- noise against the same leg without contexts.
+  #
+  # Master runs only. Baselines are looked up as ancestors of an agent's
+  # HEAD, so a per-PR run would burn a CI job to produce a database nobody
+  # resolves.
+  coverage-contexts:
+    needs: build-core
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
+          install-recipe: install-visual
+      - name: Record per-test coverage contexts
+        run: just test-contexts
+      # `always()` so a red suite still publishes: contexts are unioned into
+      # the selection, so partial ground truth is strictly better than none.
+      # Keep the SHA in the artifact name -- the local cache is keyed by it.
+      - name: Upload coverage contexts database
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sase-coverage-contexts-${{ github.sha }}
+          path: .coverage
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Reproduces the default lane's timing flakes under pinned-CPU
+  # oversubscription. A single repeat, not three: three repeats at the
+  # default 26-worker/two-CPU pool repeatedly missed Full CI's 90-minute
+  # ceiling; one repeat still tallies per-node failures without the timeout.
+  contention-test:
+    needs: build-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install visual dependencies
+        uses: ./.github/actions/setup-sase
+        with:
+          python-version: '3.12'
+          install-recipe: install-visual
+      - name: Run default-lane contention harness
+        run: SASE_CONTENTION_REPEAT=1 just test-contention
+      - name: Upload contention failure records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: default-lane-contention-records
+          path: .pytest_cache/sase-contention
+          if-no-files-found: ignore

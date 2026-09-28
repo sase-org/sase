@@ -20,66 +20,11 @@ permissions:
 # holds an org runner slot for GitHub's 6-hour default and starves every
 # other workflow in the org, including release publishes.
 jobs:
+  # Builds the shared Rust core wheel once through the reusable workflow so
+  # ci.yml and telemetry.yml build the exact same artifact from the exact
+  # same steps instead of drifting copies.
   build-core:
-    # All source-based lanes depend on this root job, so the release-please
-    # exclusion propagates without repeating the condition on every consumer.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      CARGO_HTTP_MULTIPLEXING: "false"
-      CARGO_NET_RETRY: "10"
-    steps:
-      - uses: actions/checkout@v4
-      # sase-core-revision.txt is the pinned source of truth (not the
-      # checkout's HEAD): it keeps this build reproducible across runs of the
-      # same sase SHA and stops an ordinary sase-core push from reddening
-      # master on its own. tools/ratchet_core_revision proposes bumps when
-      # sase-core moves.
-      - name: Resolve pinned Rust core revision
-        id: core-sha
-        run: |
-          set -euo pipefail
-          core_sha="$(tr -d '[:space:]' < sase-core-revision.txt)"
-          if [[ ! "$core_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "error: sase-core-revision.txt does not contain a 40 hex character SHA: $core_sha" >&2
-            exit 1
-          fi
-          echo "sha=$core_sha" >> "$GITHUB_OUTPUT"
-          echo "Building pinned sase-core commit $core_sha"
-      - name: Check out Rust core
-        uses: actions/checkout@v4
-        with:
-          repository: sase-org/sase-core
-          ref: ${{ steps.core-sha.outputs.sha }}
-          path: sase-core
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "sase-core/**/pyproject.toml"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: sase-core -> target
-          shared-key: sase-core-${{ steps.core-sha.outputs.sha }}
-      - name: Build abi3 Rust core wheel
-        working-directory: sase-core/crates/sase_core_py
-        run: uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"
-      - name: Build xprompt LSP
-        working-directory: sase-core
-        run: |
-          cargo build --release -p sase_xprompt_lsp
-          install -m 0755 target/release/sase-xprompt-lsp "$GITHUB_WORKSPACE/dist/sase-xprompt-lsp"
-      - name: Record wheel provenance
-        run: echo "${{ steps.core-sha.outputs.sha }}" > dist/sase-core-sha.txt
-      - name: Upload Rust core artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: sase-core-wheel
-          path: dist/
-          if-no-files-found: error
+    uses: ./.github/workflows/build-core.yml
 
   lint:
     needs: build-core
@@ -189,7 +134,9 @@ jobs:
   test:
     needs: build-core
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # 120, not 90: the 3.12 coverage leg already takes 74-79 of a 90-minute
+    # ceiling, and it must not become the fourth permanent Full CI timeout.
+    timeout-minutes: 120
     strategy:
       # One flaky leg must not cancel its siblings: the default fail-fast has
       # been observed erasing the 3.12 coverage gate over a 3.14-only failure.
@@ -206,10 +153,7 @@ jobs:
         if: matrix.python-version == '3.12'
         run: just test-cov
       - name: Run tests
-        if: matrix.python-version == '3.13'
-        run: just test-cost
-      - name: Run tests
-        if: matrix.python-version == '3.14'
+        if: matrix.python-version == '3.13' || matrix.python-version == '3.14'
         run: just test
       - name: Build shard timings table
         if: always() && matrix.python-version == '3.14' && github.ref == 'refs/heads/master'
@@ -234,43 +178,6 @@ jobs:
         with:
           files: coverage.xml
           fail_ci_if_error: false
-
-  # Per-test coverage contexts are the ground-truth source the diff-scoped
-  # selector unions into `just check`. This is a dedicated job, not an addition
-  # to the coverage leg, because the measurement said so: adding
-  # `--cov-context=test` to the branch-coverage leg took its database from
-  # 17 MB to 906 MB (283 MB gzipped) and its runtime from 470s to 538s. Line
-  # coverage alone answers the only question selection asks and costs 49 MB
-  # (12 MB gzipped) at 474s — noise against the same leg without contexts.
-  #
-  # Full CI master runs only. Baselines are looked up as ancestors of an agent's
-  # HEAD, so a per-PR run would burn a CI job to produce a database nobody
-  # resolves.
-  coverage-contexts:
-    needs: build-core
-    if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        uses: ./.github/actions/setup-sase
-        with:
-          python-version: '3.12'
-          install-recipe: install-visual
-      - name: Record per-test coverage contexts
-        run: just test-contexts
-      # `always()` so a red suite still publishes: contexts are unioned into the
-      # selection, so partial ground truth is strictly better than none. Keep
-      # the SHA in the artifact name — the local cache is keyed by it.
-      - name: Upload coverage contexts database
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sase-coverage-contexts-${{ github.sha }}
-          path: .coverage
-          if-no-files-found: warn
-          retention-days: 14
 
   visual-test:
     needs: build-core
@@ -372,28 +279,6 @@ jobs:
           install-recipe: install-visual
       - name: Run ACE shared-page isolation lane
         run: just test-ace-page-group-isolated
-
-  contention-test:
-    needs: build-core
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install visual dependencies
-        uses: ./.github/actions/setup-sase
-        with:
-          python-version: '3.12'
-          install-recipe: install-visual
-      - name: Run default-lane contention harness
-        run: SASE_CONTENTION_REPEAT=3 just test-contention
-      - name: Upload contention failure records
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: default-lane-contention-records
-          path: .pytest_cache/sase-contention
-          if-no-files-found: ignore
 
   # Share one runner setup across the latency floors and bead benchmark smoke.
   # Every floor step uses `always()` so an earlier regression cannot erase the

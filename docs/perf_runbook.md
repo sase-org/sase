@@ -294,7 +294,7 @@ breakdown alongside wall seconds and count), then prints `tools/test_cost_report
 Recordings live under `${SASE_HOME:-~/.sase}/test-selection/<project>/timings/cost/`;
 set `SASE_TEST_COST_DIR` to redirect them. `tools/check_test_cost_budgets` compares the
 newest recording with `tests/perf/baselines/test_cost_budgets.json`, and
-`just check-full` plus the Python 3.13 CI test leg enforce that comparison.
+`just check-full` plus CI Telemetry's `test-cost` job enforce that comparison.
 
 ### Severity model: hard vs. advisory
 

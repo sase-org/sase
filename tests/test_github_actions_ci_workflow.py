@@ -8,7 +8,9 @@ import yaml
 from tests._github_actions_ci_helpers import CORE_ARTIFACT_CONSUMER_JOBS
 from tests._github_actions_ci_helpers import REPO_ROOT
 from tests._github_actions_ci_helpers import _job_run_text
+from tests._github_actions_ci_helpers import _load_build_core_workflow
 from tests._github_actions_ci_helpers import _load_ci_workflow
+from tests._github_actions_ci_helpers import _load_telemetry_workflow
 from tests._github_actions_ci_helpers import _workflow_triggers
 from tests._test_selection_contexts import ARTIFACT_PREFIX
 from tests._test_shards import SHARD_TIMINGS_ARTIFACT_NAME
@@ -100,10 +102,20 @@ def test_lint_job_checks_pinned_core_bindings_before_sidecars() -> None:
     assert "ratchet-core-revision" in run_text
 
 
+def test_ci_build_core_job_delegates_to_the_reusable_build_core_workflow() -> None:
+    """ci.yml builds the wheel through one shared reusable workflow, not inline steps.
+
+    telemetry.yml needs the identical artifact from the identical steps; a
+    `uses:` call is what keeps the two from drifting into copies.
+    """
+    build_core = _load_ci_workflow()["jobs"]["build-core"]
+
+    assert build_core == {"uses": "./.github/workflows/build-core.yml"}
+
+
 def test_rust_core_is_built_once_and_shared_with_source_based_jobs() -> None:
-    workflow = _load_ci_workflow()
-    jobs = workflow["jobs"]
-    build_core = jobs["build-core"]
+    jobs = _load_ci_workflow()["jobs"]
+    build_core = _load_build_core_workflow()["jobs"]["build-core"]
     build_steps = build_core["steps"]
     build_run_text = _job_run_text(build_core)
 
@@ -169,7 +181,7 @@ def test_build_core_resolves_pinned_revision_before_checking_out_sase_core() -> 
     with no sase commit involved, and made two runs of the same sase SHA
     build different Rust cores.
     """
-    build_core = _load_ci_workflow()["jobs"]["build-core"]
+    build_core = _load_build_core_workflow()["jobs"]["build-core"]
     steps = build_core["steps"]
 
     resolve_index = next(
@@ -241,8 +253,9 @@ def test_redundant_lanes_are_consolidated_without_dropping_commands() -> None:
 
 
 def test_test_job_timeout_allows_slow_3_12_leg() -> None:
+    """120, not 90: headroom for the 3.12 coverage leg's 74-79 of 90 minutes."""
     workflow = _load_ci_workflow()
-    assert workflow["jobs"]["test"]["timeout-minutes"] == 90
+    assert workflow["jobs"]["test"]["timeout-minutes"] == 120
 
 
 def test_test_job_only_collects_coverage_on_3_12_leg() -> None:
@@ -255,19 +268,16 @@ def test_test_job_only_collects_coverage_on_3_12_leg() -> None:
     assert coverage_step["if"] == "matrix.python-version == '3.12'"
     assert coverage_step["run"] == "just test-cov"
 
-    cost_step = next(
-        step
-        for step in steps
-        if step.get("name") == "Run tests" and step.get("run") == "just test-cost"
-    )
-    assert cost_step["if"] == "matrix.python-version == '3.13'"
-
     plain_step = next(
         step
         for step in steps
         if step.get("name") == "Run tests" and step.get("run") == "just test"
     )
-    assert plain_step["if"] == "matrix.python-version == '3.14'"
+    assert (
+        plain_step["if"]
+        == "matrix.python-version == '3.13' || matrix.python-version == '3.14'"
+    )
+    assert not any("test-cost" in str(step.get("run", "")) for step in steps)
 
 
 def test_test_job_publishes_shard_timings_from_the_master_fast_leg() -> None:
@@ -309,16 +319,18 @@ def test_contexts_job_publishes_the_per_test_database_on_master_only() -> None:
     ``HEAD``: a per-PR database is one nobody would ever look up. The artifact
     name carries the commit SHA because the local cache is keyed by it, and
     asserting the prefix against the consumer's own constant keeps the producer
-    and consumer from drifting apart silently.
+    and consumer from drifting apart silently. The job lives in the scheduled
+    CI Telemetry workflow, not ci.yml: it is a measurement lane, not a
+    correctness gate, so it must not be able to block a release on its own.
     """
-    job = _load_ci_workflow()["jobs"]["coverage-contexts"]
+    job = _load_telemetry_workflow()["jobs"]["coverage-contexts"]
     fetcher_text = (REPO_ROOT / "tools" / "fetch_coverage_contexts").read_text(
         encoding="utf-8"
     )
 
     assert job["if"] == "github.ref == 'refs/heads/master'"
     assert any(step.get("run") == "just test-contexts" for step in job["steps"])
-    assert 'WORKFLOW = "full.yml"' in fetcher_text
+    assert 'WORKFLOW = "telemetry.yml"' in fetcher_text
 
     step = next(
         step
@@ -416,7 +428,13 @@ def test_ci_and_master_gate_never_run_the_diff_scoped_test_lane() -> None:
     master gate) running everything on every push; neither gate may be the
     thing that skips tests.
     """
-    for workflow_name in ("ci.yml", "master-gate.yml", "full.yml"):
+    for workflow_name in (
+        "ci.yml",
+        "master-gate.yml",
+        "full.yml",
+        "build-core.yml",
+        "telemetry.yml",
+    ):
         workflow_text = (
             REPO_ROOT / ".github" / "workflows" / workflow_name
         ).read_text()
@@ -491,6 +509,24 @@ def test_docs_build_once_per_event_and_deploys_are_serialized() -> None:
         step.get("uses") == "actions/cache@v4"
         and step.get("with", {}).get("path") == "~/.cache/ms-playwright"
         for step in deploy["jobs"]["deploy"]["steps"]
+    )
+
+
+def test_ci_workflow_no_longer_contains_the_telemetry_lanes() -> None:
+    """The three measurement/soak lanes moved to telemetry.yml.
+
+    ``ci_watch`` only reads Full CI's own run, which is ``ci.yml`` reused
+    through ``full.yml``; a lane that never runs inside ``ci.yml`` can never
+    time out that run, regardless of what telemetry.yml does on its own
+    schedule.
+    """
+    jobs = _load_ci_workflow()["jobs"]
+
+    assert "coverage-contexts" not in jobs
+    assert "contention-test" not in jobs
+    assert "test-cost" not in jobs
+    assert not any(
+        "test-cost" in str(step.get("run", "")) for step in jobs["test"]["steps"]
     )
 
 

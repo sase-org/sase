@@ -1,0 +1,73 @@
+name: Build Core
+
+# Builds the shared Rust core wheel and xprompt LSP binary once, as a reusable
+# workflow, so both the correctness lane (ci.yml) and the measurement lane
+# (telemetry.yml) build the exact same artifact from the exact same steps
+# instead of drifting copies.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build-core:
+    # All source-based lanes depend on this root job, so the release-please
+    # exclusion propagates without repeating the condition on every consumer.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_HTTP_MULTIPLEXING: "false"
+      CARGO_NET_RETRY: "10"
+    steps:
+      - uses: actions/checkout@v4
+      # sase-core-revision.txt is the pinned source of truth (not the
+      # checkout's HEAD): it keeps this build reproducible across runs of the
+      # same sase SHA and stops an ordinary sase-core push from reddening
+      # master on its own. tools/ratchet_core_revision proposes bumps when
+      # sase-core moves.
+      - name: Resolve pinned Rust core revision
+        id: core-sha
+        run: |
+          set -euo pipefail
+          core_sha="$(tr -d '[:space:]' < sase-core-revision.txt)"
+          if [[ ! "$core_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "error: sase-core-revision.txt does not contain a 40 hex character SHA: $core_sha" >&2
+            exit 1
+          fi
+          echo "sha=$core_sha" >> "$GITHUB_OUTPUT"
+          echo "Building pinned sase-core commit $core_sha"
+      - name: Check out Rust core
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase-core
+          ref: ${{ steps.core-sha.outputs.sha }}
+          path: sase-core
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "sase-core/**/pyproject.toml"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sase-core -> target
+          shared-key: sase-core-${{ steps.core-sha.outputs.sha }}
+      - name: Build abi3 Rust core wheel
+        working-directory: sase-core/crates/sase_core_py
+        run: uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"
+      - name: Build xprompt LSP
+        working-directory: sase-core
+        run: |
+          cargo build --release -p sase_xprompt_lsp
+          install -m 0755 target/release/sase-xprompt-lsp "$GITHUB_WORKSPACE/dist/sase-xprompt-lsp"
+      - name: Record wheel provenance
+        run: echo "${{ steps.core-sha.outputs.sha }}" > dist/sase-core-sha.txt
+      - name: Upload Rust core artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sase-core-wheel
+          path: dist/
+          if-no-files-found: error

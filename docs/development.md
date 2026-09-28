@@ -52,7 +52,7 @@ just check-full    # Exhaustive verification: whole-repo gates + the full test s
 just validate      # sase-core-rs minimum, static feature flags, and sase validate
 just selection-health  # Health of the diff-scoped test lane, including false negatives
 just selection-backtest  # Replay real history and measure selection recall against coverage
-just refresh-contexts-baseline  # Cache Full CI's per-test coverage baseline for selection
+just refresh-contexts-baseline  # Cache CI Telemetry's per-test coverage baseline for selection
 just refresh-contract-manifest  # Regenerate tests/contract_manifest.txt from the marker
 just refresh-shard-timings  # Refresh tests/shard_timings.json, the master gate's shard balance table
 just test-tox      # Test across Python 3.12, 3.13, 3.14
@@ -278,12 +278,12 @@ is exactly the gap the per-input map above closes for every run recorded from he
 #### Coverage-context ground truth
 
 The import graph cannot see dynamic dispatch, plugin lookup, or config discovery.
-Per-test coverage can. Full CI's `coverage-contexts` job runs the fast suite with
+Per-test coverage can. CI Telemetry's `coverage-contexts` job runs the fast suite with
 `--cov-context=test`, so its `.coverage` database records which test executed each line,
 and publishes it as the `sase-coverage-contexts-<sha>` artifact.
 
-That job is deliberately separate from the per-PR coverage leg, and runs in scheduled
-Full CI master jobs only. Measured on athena on 2026-08-06 over the full fast suite at
+That job is deliberately separate from the per-PR coverage leg, and runs in scheduled CI
+Telemetry master jobs only. Measured on athena on 2026-08-06 over the full fast suite at
 12 workers:
 
 | Variant                            | Suite runtime | `.coverage` |  gzipped |
@@ -299,16 +299,16 @@ and its 50% gate untouched. Baselines are resolved as ancestors of an agent's `H
 a per-PR database would be one nobody ever looks up.
 
 ```bash
-just test-contexts                      # record a baseline locally (what Full CI runs) and cache it
+just test-contexts                      # record a baseline locally (what CI Telemetry runs) and cache it
 just refresh-contexts-baseline          # newest master baseline that is an ancestor of HEAD
 just refresh-contexts-baseline --force  # re-download even if already cached
 ```
 
 There are two supply routes, and neither is a network dependency at selection time. The
-artifact is published by scheduled Full CI runs and retained 14 days, so a host that has
-been idle longer than that — or is offline, or never fetched — would otherwise run the
-scoped lane on the static closure alone. `just test-contexts` closes that hole: on
-success it runs `tools/install_coverage_contexts`, which files its own `.coverage` in
+artifact is published by scheduled CI Telemetry runs and retained 14 days, so a host
+that has been idle longer than that — or is offline, or never fetched — would otherwise
+run the scoped lane on the static closure alone. `just test-contexts` closes that hole:
+on success it runs `tools/install_coverage_contexts`, which files its own `.coverage` in
 the cache as `<HEAD sha>.sqlite`. Because the cache is host-local rather than
 per-workspace, one instrumented run in one numbered workspace supplies every workspace
 on the machine. Instrumentation stays opt-in — nothing on the `just check` or
@@ -710,8 +710,9 @@ comparison the ratchet runs.
 The master gate's `lint` job is kept byte-for-byte identical to `ci.yml`'s own `lint`
 job steps (a contract test in `tests/test_github_actions_ci_master_gate.py` polices the
 equality), so this gate's lint signal cannot drift from what PR CI already promises. It
-does not run the diff-scoped lane, coverage, cost, slow, coverage-contexts, or visual
-lanes — those stay on `ci.yml`'s own jobs and schedule.
+does not run the diff-scoped lane, coverage, slow, or visual lanes — those stay on
+`ci.yml`'s own jobs and schedule. Cost attribution and coverage-contexts moved further
+out still, onto `telemetry.yml`'s own schedule.
 
 ### Reproducing Timing Flakes (`just test-contention`)
 

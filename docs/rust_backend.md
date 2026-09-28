@@ -799,12 +799,14 @@ just phase7-perf-check       # Phase 7 regression-floor check against the record
 The reusable CI workflow (`.github/workflows/ci.yml`) runs the full Python suite under
 CPython 3.12 / 3.13 / 3.14 for pull requests and for the scheduled Full CI lane. The
 per-SHA master gate (`.github/workflows/master-gate.yml`) runs the sharded Python 3.12
-fast suite on every master push, while Full CI carries the coverage-contexts, visual,
-contention, and performance-floor jobs off the push path. The publish workflow's
-`install-smoke` job installs the built `sase` wheel into a fresh venv and runs
-`sase core health`; on failure it dumps `pip list`, Python/platform info, and
-`sase_core_rs.__file__` / `__version__` so missing-wheel or ABI-mismatch failures are
-diagnosable from the build log without a manual repro.
+fast suite on every master push, while Full CI carries the visual and performance-floor
+jobs off the push path. Coverage-contexts, cost attribution, and the contention soak
+move further out still, onto the scheduled `.github/workflows/telemetry.yml` (CI
+Telemetry) lane, so a timeout in one of those measurement jobs can never block a
+release. The publish workflow's `install-smoke` job installs the built `sase` wheel into
+a fresh venv and runs `sase core health`; on failure it dumps `pip list`,
+Python/platform info, and `sase_core_rs.__file__` / `__version__` so missing-wheel or
+ABI-mismatch failures are diagnosable from the build log without a manual repro.
 
 #### The CI source revision pin
 
