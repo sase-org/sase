@@ -4747,6 +4747,40 @@
         }
       }
     },
+    "goals": {
+      "type": "object",
+      "description": "Goal ledger resolution and publication policy (epic sase-1bu).",
+      "additionalProperties": false,
+      "properties": {
+        "visibility": {
+          "type": "string",
+          "description": "Goal ledger visibility: 'shared' publishes through the hosting sidecar's hidden clone, 'local' keeps the ledger machine-local and never publishes it.",
+          "enum": [
+            "shared",
+            "local"
+          ],
+          "default": "shared"
+        },
+        "host_role": {
+          "type": "string",
+          "description": "Sidecar role whose repository hosts goals/.",
+          "default": "beads"
+        },
+        "fetch_ttl_seconds": {
+          "type": "number",
+          "description": "Background freshness fetch triggered by `sase goal list`.",
+          "minimum": 0,
+          "default": 60
+        },
+        "push_timeout_seconds": {
+          "type": "number",
+          "description": "Bound on synchronous publish for goal writes.",
+          "minimum": 0,
+          "default": 20
+        }
+      },
+      "default": {}
+    },
     "workspace": {
       "type": "object",
       "description": "Workspace directory layout policy (Phase 1+: sase-3p WorkspaceStore).",

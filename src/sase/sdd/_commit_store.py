@@ -569,9 +569,14 @@ def normalize_sdd_commit_pathspecs(
     sdd_dir: Path,
     paths: Iterable[str | Path] | None,
 ) -> list[str]:
-    """Return git pathspecs rooted at ``sdd_dir`` for targeted SDD commits."""
+    """Return git pathspecs rooted at ``sdd_dir`` for targeted SDD commits.
+
+    A pathspec that resolves to the repo root never sweeps the goal
+    ledger: ``goals/`` belongs to the goal write transaction (epic
+    ``sase-1bu``), so bead commits exclude it explicitly.
+    """
     if paths is None:
-        return ["."]
+        return [".", ":(exclude)goals"]
 
     sdd_root = sdd_dir.resolve()
     pathspecs: list[str] = []
@@ -585,7 +590,9 @@ def normalize_sdd_commit_pathspecs(
         pathspec = path.as_posix()
         if pathspec and pathspec != ".":
             pathspecs.append(pathspec)
-    return pathspecs or ["."]
+    if not pathspecs:
+        return [".", ":(exclude)goals"]
+    return pathspecs
 
 
 def changed_sdd_files(sdd_dir: Path, pathspecs: list[str]) -> list[str]:

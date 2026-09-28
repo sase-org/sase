@@ -1855,6 +1855,19 @@ sdd:
   # Failed publication preserves the local transition for periodic retry.
   push_after_commit: async
 
+goals:
+  # Visibility of this project's goal ledger: "shared" publishes through the
+  # hosting sidecar's hidden clone; "local" keeps the ledger machine-local
+  # and never publishes it.
+  visibility: shared # shared | local
+  # Sidecar role whose repository hosts goals/. Splitting goals into their
+  # own repository later is a config change.
+  host_role: beads
+  # Background freshness fetch triggered by `sase goal list`.
+  fetch_ttl_seconds: 60
+  # Bound on synchronous publish for goal writes.
+  push_timeout_seconds: 20
+
 workspace:
   # Workspace root policy: "xdg-state" (default platform state dir),
   # "adjacent" (legacy opt-in `primary_<num>/` layout), or an absolute path.

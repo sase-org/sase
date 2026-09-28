@@ -99,6 +99,35 @@ def machine_document_sidecar_roots(
     return _hidden_document_roots(project_key, store, deadline=deadline)
 
 
+def ensure_hidden_sidecar_clone_root(
+    project_key: str,
+    store: SddStore,
+    role: str,
+    remote_url: str,
+    *,
+    fresh: bool = False,
+    deadline: float | None = None,
+) -> tuple[Path | None, str | None]:
+    """Materialize one role's hidden host-owned clone for machine writes.
+
+    Public wrapper around :func:`_ensure_hidden_document_root` for callers
+    outside this module (goal ledger resolution owns ``goals/`` in the
+    hosting sidecar). Returns the clone root and ``None`` on success, or
+    ``None`` and a human-readable diagnostic when it cannot be materialized.
+    """
+    hidden_dir, diagnostic = _ensure_hidden_document_root(
+        project_key,
+        store,
+        role,
+        remote_url,
+        fresh=fresh,
+        deadline=deadline,
+    )
+    if hidden_dir is None:
+        return None, diagnostic
+    return hidden_dir.expanduser().resolve(strict=False), None
+
+
 def _hidden_document_store(
     project_key: str, store: SddStore, *, deadline: float | None = None
 ) -> SddStore:

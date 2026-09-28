@@ -394,6 +394,18 @@ REQUIRED_BINDINGS = (
     "tool_run_triage_stage",
     "tool_run_triage_settle",
     "tool_run_failures",
+    "goal_ledger_wire_schema_version",
+    "goal_ledger_store_schema_version",
+    "goal_mint_id",
+    "goal_ledger_init",
+    "goal_ledger_append",
+    "goal_ledger_list",
+    "goal_ledger_show",
+    "goal_ledger_history",
+    "goal_ledger_doctor",
+    "goal_projection_status",
+    "goal_projection_refresh",
+    "goal_ledger_probe_list",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the
@@ -825,6 +837,28 @@ def _validate_disk_inventory_wire_schema(module: ModuleType) -> bool:
         )
         return False
     return True
+
+
+def _validate_goal_ledger_wire_schema(module: ModuleType) -> bool:
+    expected = {
+        "goal_ledger_wire_schema_version": 1,
+        "goal_ledger_store_schema_version": 1,
+    }
+    valid = True
+    for binding_name, expected_version in expected.items():
+        try:
+            actual_version = int(getattr(module, binding_name)())
+        except Exception as exc:
+            _error(f"{binding_name}() probe failed: {exc}")
+            valid = False
+            continue
+        if actual_version != expected_version:
+            _error(
+                f"{binding_name}() returned stale schema: "
+                f"got {actual_version}, expected {expected_version}"
+            )
+            valid = False
+    return valid
 
 
 def _validate_gate_decision_lifecycle_contract(module: ModuleType) -> bool:
@@ -3212,6 +3246,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_vcs_log_wire_schema(module):
         return 1
     if not _validate_disk_inventory_wire_schema(module):
+        return 1
+    if not _validate_goal_ledger_wire_schema(module):
         return 1
     if not _validate_gate_decision_lifecycle_contract(module):
         return 1
