@@ -97,7 +97,8 @@ class AgentListBase(OptionList, inherit_bindings=False):
         # ``_agent_list_rail_mode``.
         self._rail_enabled: bool = False
         self._rail_overflow_plain: str = ""
-        self._rail_visual_cache: dict[Any, tuple[Any, Any]] = {}
+        self._rail_visual_cache: dict[Any, tuple[Any, ...]] = {}
+        self._rail_anchor_rows: dict[int, int] | None = None
         self._rail_tooltip_index: int | None = None
         # Active grouping mode for the current render.  Updated on every
         # ``update_list`` call so the test/inspection helpers

@@ -13,22 +13,23 @@ import re
 from collections.abc import Collection, Mapping
 from typing import TYPE_CHECKING, Any
 
+from rich.cells import cell_len
 from rich.text import Text
 
 from sase.agent.status_buckets import agent_status_bucket
 
-from ..models._agent_clan import clan_members
-from ..models._agent_tree import agent_is_tree_child, agent_tree_depth
+from ..models._agent_tree import agent_tree_depth
 from ..models.agent import AgentType
 from ..models.agent_groups import GroupingMode, banner_label
-from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent_panels import agent_panel_label
-from ..models.agent_session_members import (
-    gate_row_is_settled,
-    monitor_row_is_settled,
-)
+from ..models.agent_relative_label import relative_agent_label
 from ..models.agent_status import RUNNING_COLOR, STOPPED_COLOR, STOPPED_STATUS
 from ..models.tribe_display import compose_tribe_identity_style
+from ._agent_list_render_rail_names import (
+    rail_middle_elide,
+    rail_name_is_dimmed,
+    rail_row_name,
+)
 from ._agent_list_styling import (
     _AGENT_SESSION_NAME_STYLE,
     _AGENT_TYPE_COLORS,
@@ -40,16 +41,16 @@ from ._agent_list_styling import (
     _MONITOR_GLYPH,
     _MONITOR_GLYPH_STYLE,
     _MONITOR_SETTLED_GLYPH_STYLE,
-    _NAME_ROOT_BANNER_BRANCH_STYLE,
-    _NAME_ROOT_BANNER_LABEL_STYLE,
     _NAMED_PROC_GLYPH,
     _NAMED_PROC_GLYPH_STYLE,
-    _PATCH_BANNER_BAR_STYLE,
-    _PROJECT_BANNER_BAR_STYLE,
     _STEP_TYPE_COLORS,
     _STEP_TYPE_GLYPHS,
     _TYPE_GLYPHS,
     TREE_DEPTH_COLORS,
+)
+from ..models.agent_session_members import (
+    gate_row_is_settled,
+    monitor_row_is_settled,
 )
 
 if TYPE_CHECKING:
@@ -59,15 +60,15 @@ if TYPE_CHECKING:
     from ..actions.agents._display_panel_titles import AgentPanelCounts
 
 # Total rail width in cells: 2 tribe-panel border cells + 1 selection
-# gutter (where the highlight bar lands) + 6 content cells.
-NODE_RAIL_WIDTH = 9
+# gutter (where the highlight bar lands) + 19 content cells.
+NODE_RAIL_WIDTH = 22
 # Fixed content width every rail row builder returns.
-RAIL_CONTENT_CELLS = 6
+RAIL_CONTENT_CELLS = 19
 # Maximum tribe-title width inside the rail border.
-RAIL_TITLE_CELLS = 5
-# Tree guides clamp here so a row's cells never depend on deep nesting.
-RAIL_MAX_DEPTH = 2
-# Container member counts saturate here (two count cells).
+RAIL_TITLE_CELLS = 18
+# Tree guides clamp here; relative names stay short.
+RAIL_MAX_DEPTH = 3
+# Container member counts saturate here.
 RAIL_COUNT_CAP = 99
 
 # Reverse amber chip for rows that need the user; deliberately distinct
@@ -112,13 +113,14 @@ RAIL_UNREAD_PIP = "•"
 # Expanded-density tree connector vocabulary, reused single-cell.
 _RAIL_BRANCH_GLYPH = "└"
 _RAIL_GUIDE_GLYPH = "│"
-# Expanded banner rule vocabulary: heavy for L0, light below.
-_RAIL_HEAVY_RULE = "━"
-_RAIL_THIN_RULE = "─"
 
 # Tooltip collapsing: the expanded row's right-alignment pad run becomes
 # two spaces so hover text stays compact.
 _TOOLTIP_PAD_RUN = re.compile(r" {3,}")
+
+# Agent-row tail: 3-cell right-aligned count ending at cell 16, 1-cell gap,
+# 1-cell pip at cell 18.
+_RAIL_COUNT_CELLS = 3
 
 
 def monitor_glyph_style(agent: Agent) -> str:
@@ -184,7 +186,7 @@ def row_kind_glyph(
     )
     if (
         is_appears_as_agent
-        or agent_is_tree_child(agent)
+        or agent_tree_depth(agent) > 0
         or agent.is_monitor
         or agent.is_gate
         or agent.is_named_proc
@@ -209,38 +211,32 @@ def row_kind_glyph(
     return (type_glyph, f"bold {color}")
 
 
-def _container_member_count(agent: Agent) -> tuple[int, str] | None:
-    """Return ``(count, style)`` for clan/session container rows.
-
-    Counts come from the same member sources as the expanded row's member
-    chip and fold state: clan members for clan containers, direct session
-    follow-ups for agent-session containers.
-    """
-    if agent.is_clan_container:
-        seen: set[Any] = set()
-        for member in clan_members(agent):
-            seen.add(member.identity)
-        return (len(seen), _CLAN_NAME_STYLE)
-    if agent.is_agent_session_container_row:
-        seen_followups: set[Any] = set()
-        for member in agent.followup_agents:
-            if is_agents_tab_agent_node(member):
-                seen_followups.add(member.identity)
-        return (len(seen_followups), _AGENT_SESSION_NAME_STYLE)
-    return None
-
-
 def _tree_guide_cells(depth: int) -> Text:
-    """Return the leading ``│``/``└`` guide cells for a clamped *depth*."""
+    """Return the leading guide cells for a clamped *depth*.
+
+    One ``│`` per ancestor level plus a terminal ``└``, each in its
+    level's ``TREE_DEPTH_COLORS`` color.
+    """
     text = Text()
     if depth <= 0:
         return text
-    if depth == 1:
-        text.append(_RAIL_BRANCH_GLYPH, style=TREE_DEPTH_COLORS[0])
-        return text
-    text.append(_RAIL_GUIDE_GLYPH, style=TREE_DEPTH_COLORS[0])
-    text.append(_RAIL_BRANCH_GLYPH, style=TREE_DEPTH_COLORS[1 % len(TREE_DEPTH_COLORS)])
+    for level in range(depth - 1):
+        text.append(
+            _RAIL_GUIDE_GLYPH, style=TREE_DEPTH_COLORS[level % len(TREE_DEPTH_COLORS)]
+        )
+    text.append(
+        _RAIL_BRANCH_GLYPH,
+        style=TREE_DEPTH_COLORS[(depth - 1) % len(TREE_DEPTH_COLORS)],
+    )
     return text
+
+
+def _pad_cells(text: str, width: int) -> str:
+    """Pad ASCII *text* on the right to *width* cells."""
+    shortfall = width - cell_len(text)
+    if shortfall <= 0:
+        return text
+    return text + " " * shortfall
 
 
 def rail_agent_cells(
@@ -248,32 +244,31 @@ def rail_agent_cells(
     ctx: Mapping[str, Any],
     *,
     depth: int,
+    anchor_name: str | None = None,
 ) -> Text:
     """Build the fixed-width rail cells for one agent row.
 
-    Returns exactly ``RAIL_CONTENT_CELLS`` cells from the agent and its
-    ``_row_render_ctx`` entry (``hint_char``, ``is_unread``, ``is_marked``):
+    Returns exactly ``RAIL_CONTENT_CELLS`` cells: guides, one glyph cell,
+    the (possibly relative, middle-elided) name, a right-aligned ``×N``
+    count ending at cell 16, and the pip at cell 18.
 
-    - depth 0: ``G c c · · p``; depth 1: ``└ G c c · p``; depth 2+ clamps
-      to ``│ └ G c c p`` (guides in ``TREE_DEPTH_COLORS``);
-    - ``G`` is the jump-hint chip, else the kind glyph for non-agent
-      nodes, else the status glyph (raw ``STOPPED`` maps to ``Ø``);
-    - ``c`` is the clan/session member count (capped at 99, tinted by
-      container kind), else blank;
-    - ``p`` is the pip: marked ``▪`` wins over unread ``•``.
-
-    A 1-character hint replaces ``G``; a 2-character hint also takes the
-    first count cell (the count keeps its final digit).
+    - ``G`` is the jump-hint chip, else the kind glyph, else the status
+      glyph (raw ``STOPPED`` maps to ``Ø``);
+    - a 1-character hint replaces ``G``; a 2-character hint replaces ``G``
+      and the following space, so the name column never moves;
+    - ``×N`` shows only when ``ctx["folded_total"]`` is set (the folded
+      total from the expanded row), capped at ``×99`` and tinted dim in
+      the container color;
+    - the pip is marked ``▪`` winning over unread ``•``;
+    - settled-and-read names render dim.
     """
     clamped = min(max(depth, 0), RAIL_MAX_DEPTH)
-    text = _tree_guide_cells(clamped)
+    guides = _tree_guide_cells(clamped)
     hint = ctx.get("hint_char")
     hint_text = hint[:2] if isinstance(hint, str) and hint else ""
     is_unread = bool(ctx.get("is_unread"))
     is_marked = bool(ctx.get("is_marked"))
 
-    # The fold state matches the expanded row's prompt input so the kind
-    # badge agrees with the expanded density in both fold states.
     kind = row_kind_glyph(agent, is_expanded=bool(ctx.get("is_expanded", False)))
     if kind is not None:
         glyph, glyph_style = kind
@@ -286,12 +281,22 @@ def rail_agent_cells(
             style = RAIL_DONE_READ_STYLE
         glyph_style = style
 
-    member_count = _container_member_count(agent)
-    count_text = ""
-    count_style = ""
-    if member_count is not None:
-        count_text = f"{min(member_count[0], RAIL_COUNT_CAP):2d}"
-        count_style = member_count[1]
+    folded_total = ctx.get("folded_total")
+    if folded_total is not None:
+        try:
+            total = int(folded_total)
+        except (TypeError, ValueError):
+            total = 0
+        count_str = f"×{min(max(total, 0), RAIL_COUNT_CAP)}"
+        if agent.is_clan_container:
+            count_style = f"dim {_CLAN_NAME_STYLE}"
+        elif agent.is_agent_session_container_row:
+            count_style = f"dim {_AGENT_SESSION_NAME_STYLE}"
+        else:
+            count_style = "dim"
+    else:
+        count_str = ""
+        count_style = ""
 
     if is_marked:
         pip, pip_style = RAIL_MARKED_PIP, RAIL_MARKED_PIP_STYLE
@@ -300,80 +305,42 @@ def rail_agent_cells(
     else:
         pip, pip_style = " ", ""
 
+    full_name, name_style = rail_row_name(agent)
+    relative = relative_agent_label(full_name, anchor_name)
+    if relative and rail_name_is_dimmed(agent, is_unread=is_unread):
+        name_style = (
+            f"dim {name_style}" if not name_style.startswith("dim ") else name_style
+        )
+
+    name_budget = RAIL_CONTENT_CELLS - (clamped + 2) - _RAIL_COUNT_CELLS - 2
+    shown = rail_middle_elide(relative, name_budget) if relative else ""
+    name_cells = cell_len(shown)
+    name_pad = " " * max(0, name_budget - name_cells)
+
+    text = Text()
+    text.append_text(guides)
     if hint_text:
         text.append(hint_text, style=RAIL_HINT_STYLE)
-        if len(hint_text) == 2:
-            # The hint takes the first count cell; the count keeps its
-            # final digit so containers still read as counted.
-            text.append(count_text[1:] if count_text else " ", style=count_style)
-        else:
-            text.append(count_text or "  ", style=count_style or "")
+        if len(hint_text) == 1:
+            text.append(" ")
     else:
         text.append(glyph, style=glyph_style)
-        text.append(count_text or "  ", style=count_style or "")
-    # Guides + glyph-or-hint + count lanes always occupy ``clamped + 3``
-    # cells: a 2-character hint takes the first count cell while the count
-    # keeps its final digit, so the width math stays uniform.
-    fill = RAIL_CONTENT_CELLS - (clamped + 3) - 1
-    if fill > 0:
-        text.append(" " * fill)
+        text.append(" ")
+    if shown:
+        text.append(shown, style=name_style)
+    if name_pad:
+        text.append(name_pad)
+    if count_str:
+        text.append(_pad_cells("", _RAIL_COUNT_CELLS - cell_len(count_str)), style="")
+        text.append(count_str, style=count_style)
+    else:
+        text.append(" " * _RAIL_COUNT_CELLS)
+    text.append(" ")
     if pip == " ":
         text.append(" ")
     else:
         text.append(pip, style=pip_style)
     return text
-
-
-def _banner_lead(
-    label: str,
-    *,
-    level: int,
-    mode: GroupingMode,
-    group_has_children: bool,
-    is_patch_banner: bool,
-) -> tuple[str, str]:
-    """Return the ``(lead, style)`` cell for a banner row.
-
-    ``BY_STATUS`` L0 and ``BY_MACHINE`` L1 banners lead with the rail
-    bucket glyph so one visual language spans both densities; every other
-    banner leads with the label's first character as written.
-    """
-    if level == 0 and mode is GroupingMode.BY_STATUS and label in RAIL_BUCKET_GLYPHS:
-        return RAIL_BUCKET_GLYPHS[label]
-    if level == 1 and mode is GroupingMode.BY_MACHINE and label in RAIL_BUCKET_GLYPHS:
-        return RAIL_BUCKET_GLYPHS[label]
-    lead = label[:1] if label else "?"
-    if level == 0:
-        return (lead, _PROJECT_BANNER_BAR_STYLE)
-    if is_patch_banner or group_has_children:
-        return (lead, _PATCH_BANNER_BAR_STYLE)
-    return (lead, _NAME_ROOT_BANNER_LABEL_STYLE)
-
-
-def _banner_rule_char(level: int) -> str:
-    """Return the heavy (L0) or thin (deeper) banner rule character."""
-    return _RAIL_HEAVY_RULE if level == 0 else _RAIL_THIN_RULE
-
-
-def _rule_style_from_lead(lead_style: str) -> str:
-    """Foreground-only rule/fold-mark/count style derived from a lead style.
-
-    A lead style may paint its glyph as a reverse chip (explicit
-    foreground + background, e.g. the ``Stopped`` ``?`` chip) so it reads
-    as a chip against the row. Only the lead cell should carry that
-    background — the rule, fold mark, and count must not, or the whole
-    banner reads as a solid block. When the lead style sets a background,
-    that background color becomes the new (background-free) foreground;
-    otherwise the lead style already has no background and is returned
-    unchanged.
-    """
-    tokens = lead_style.split()
-    if "on" in tokens:
-        on_idx = tokens.index("on")
-        attrs = tokens[: on_idx - 1]
-        bg = tokens[on_idx + 1]
-        return " ".join([*attrs, bg])
-    return lead_style
 
 
 def _rail_urgency(
@@ -419,58 +386,74 @@ def rail_banner_cells(
 ) -> Text:
     """Build the fixed-width rail cells for one banner row.
 
-    Returns exactly ``RAIL_CONTENT_CELLS`` cells:
+    Returns exactly ``RAIL_CONTENT_CELLS`` cells: the shared expanded
+    prefix vocabulary, the middle-elided label, and the heavy (L0) or
+    light rule in the expanded rule style (always at least 1 cell).
+    Folded banners add the top-level member count ``×N`` in the shared
+    count column and the 1-cell urgency roll-up in the pip column; the
+    ``▸`` fold mark is retired, so ``×N`` means "folded, N inside".
 
-    - expanded L0: lead + heavy rule (``s━━━━━``);
-    - expanded L1+: lead + thin rule in the tier color (``p─────``);
-    - folded: fold mark, lead, rule, count, roll-up (``▸b━━4?``),
-      with the count right-aligned to end at cell 4.
-
-    A hint chip replaces the fold mark and lead. ``mark_state`` is
-    accepted for API parity with the expanded banner (marks stay visible
-    in the expanded density) and does not alter the 6-cell layout.
+    A hint chip plus a space replaces the prefix, or is prepended when
+    the prefix is empty. ``mark_state`` is accepted for API parity with
+    the expanded banner and does not alter the layout.
     """
     del mark_state
+    from ._agent_list_render_banner import banner_prefix_segments
+
     label = banner_label(group)
     hint_text = hint[:2] if isinstance(hint, str) and hint else ""
-    is_patch_banner = (
-        group.level == 1
-        and mode is GroupingMode.STANDARD
-        and len(group.group_key) == 2
-        and any(agent.cl_name for agent in agents)
+    prefix_segments, rule_char, label_style, rule_style = banner_prefix_segments(
+        group, agents, mode
     )
-    lead, lead_style = _banner_lead(
-        label,
-        level=group.level,
-        mode=mode,
-        group_has_children=group.has_child_groups,
-        is_patch_banner=is_patch_banner,
-    )
-    rule = _banner_rule_char(group.level)
-    rule_style = _rule_style_from_lead(lead_style)
+
     text = Text()
-    if not group.is_collapsed:
-        if hint_text:
-            text.append(hint_text, style=RAIL_HINT_STYLE)
-            text.append(rule * (RAIL_CONTENT_CELLS - len(hint_text)), style=rule_style)
-        else:
-            text.append(lead, style=lead_style)
-            text.append(rule * (RAIL_CONTENT_CELLS - 1), style=rule_style)
-        return text
-    members = _top_level_members(group, agents)
-    count_text = f"{min(len(members), RAIL_COUNT_CAP)}"
-    urgency = _rail_urgency(members, unread)
     if hint_text:
         text.append(hint_text, style=RAIL_HINT_STYLE)
-        head = len(hint_text)
+        text.append(" ")
+        prefix_cells = cell_len(hint_text) + 1
+        prefix_styles: list[tuple[str, str]] = []
     else:
-        text.append(RAIL_FOLD_GLYPH, style=rule_style)
-        text.append(lead, style=lead_style)
-        head = 2
-    # The count ends at cell 4; the roll-up owns cell 5.
-    count_start = RAIL_CONTENT_CELLS - 1 - len(count_text)
-    text.append(rule * max(0, count_start - head), style=rule_style)
-    text.append(count_text, style=rule_style)
+        prefix_cells = 0
+        prefix_styles = []
+        for segment_text, segment_style in prefix_segments:
+            if segment_text:
+                text.append(segment_text, style=segment_style)
+                prefix_cells += cell_len(segment_text)
+                prefix_styles.append((segment_text, segment_style))
+
+    if not group.is_collapsed:
+        label_budget = RAIL_CONTENT_CELLS - prefix_cells - 2
+        shown_label = rail_middle_elide(label, label_budget) if label_budget > 0 else ""
+        if shown_label:
+            text.append(shown_label, style=label_style)
+        text.append(" ", style=rule_style)
+        rule_len = RAIL_CONTENT_CELLS - prefix_cells - cell_len(shown_label) - 1
+        text.append(rule_char * max(1, rule_len), style=rule_style)
+        return text
+
+    members = _top_level_members(group, agents)
+    count_str = f"×{min(len(members), RAIL_COUNT_CAP)}"
+    urgency = _rail_urgency(members, unread)
+    label_budget = RAIL_CONTENT_CELLS - prefix_cells - 1 - 1 - _RAIL_COUNT_CELLS - 1 - 1
+    shown_label = rail_middle_elide(label, label_budget) if label_budget > 0 else ""
+    if shown_label:
+        text.append(shown_label, style=label_style)
+    text.append(" ", style=rule_style)
+    rule_len = (
+        RAIL_CONTENT_CELLS
+        - prefix_cells
+        - cell_len(shown_label)
+        - 1
+        - _RAIL_COUNT_CELLS
+        - 1
+        - 1
+    )
+    text.append(rule_char * max(1, rule_len), style=rule_style)
+    text.append(
+        _pad_cells("", _RAIL_COUNT_CELLS - cell_len(count_str)), style=rule_style
+    )
+    text.append(count_str, style=rule_style)
+    text.append(" ")
     text.append_text(urgency)
     return text
 
@@ -488,18 +471,18 @@ def rail_panel_title(
 ) -> Text:
     """Build the rail tribe title, at most ``RAIL_TITLE_CELLS`` cells.
 
-    Pieces in display order mirror :func:`agent_panel_border_title`:
+    Left-aligned pieces mirror :func:`agent_panel_border_title`:
 
     1. ``[hint]`` while panel hints are up (never dropped);
-    2. ``❖`` for whole-panel focus, or ``▸`` for a collapsed tribe
-       (gold when selected);
-    3. the configured tribe icon when its ``cell_len`` is at most 2,
-       else the tribe's uppercase bold initial in its identity color;
-       the merged panel shows ``All``;
-    4. on collapsed tribes only, the urgency roll-up.
+    2. ``❖`` for whole-panel focus, or ``▸`` for a collapsed tribe;
+    3. the configured tribe icon when its ``cell_len`` is at most 2;
+    4. ``agent_panel_label(key)`` or ``All agents`` for merged panels;
+    5. on collapsed tribes only, `` ×{lane_count}`` in dim;
+    6. on collapsed tribes only, the urgency roll-up.
 
-    When over budget, pieces drop in this order: mark, urgency,
-    identity (reduced to its single-cell initial).
+    When over budget, pieces drop in this order: mark, then icon, then
+    ``×N``. The hint, the label (middle-elided, minimum 3 cells), and
+    the roll-up are never dropped.
     """
     identity_style = compose_tribe_identity_style(color, bold=True)
     hint_text = hint[:2] if isinstance(hint, str) and hint else ""
@@ -512,76 +495,145 @@ def rail_panel_title(
         )
     else:
         mark, mark_style = "", ""
+    use_icon = bool(icon) and not merged and Text(icon).cell_len <= 2
     if merged:
-        identity, identity_style_full = "All", "bold #AFFFFF"
-        identity_initial = "A"
-    elif icon and Text(icon).cell_len <= 2:
-        identity, identity_style_full = icon, identity_style
-        label = agent_panel_label(key).lstrip("@")
-        identity_initial = label[:1].upper() if label else "?"
+        label_text, label_style = "All agents", "bold #AFFFFF"
     else:
-        label = agent_panel_label(key).lstrip("@")
-        identity_initial = label[:1].upper() if label else "?"
-        identity, identity_style_full = identity_initial, identity_style
-    urgency = ""
-    urgency_style = ""
+        label_text, label_style = agent_panel_label(key), identity_style
+    urgency_text, urgency_style = "", ""
+    count_text = ""
     if collapsed and counts is not None:
         asking = getattr(counts, "asking", 0) or 0
         failed = getattr(counts, "failed", 0) or 0
         unread_count = getattr(counts, "unread", 0) or 0
         if asking:
-            urgency, urgency_style = "?", RAIL_NEEDS_YOU_STYLE
+            urgency_text, urgency_style = "?", RAIL_NEEDS_YOU_STYLE
         elif failed:
-            urgency, urgency_style = "✗", RAIL_FAILED_STYLE
+            urgency_text, urgency_style = "✗", RAIL_FAILED_STYLE
         elif unread_count:
-            urgency, urgency_style = "•", RAIL_UNREAD_STYLE
+            urgency_text, urgency_style = "•", RAIL_UNREAD_STYLE
+        lane_count = getattr(counts, "lane_count", 0) or 0
+        count_text = f" ×{lane_count}"
 
-    def width(*parts: str) -> int:
-        return sum(Text(part).cell_len for part in parts if part)
+    def width(
+        *,
+        with_mark: bool,
+        with_icon: bool,
+        with_count: bool,
+        label_cells: int,
+    ) -> int:
+        total = 0
+        if hint_text:
+            total += Text(hint_text).cell_len + 1
+        if with_mark and mark:
+            total += Text(mark).cell_len + 1
+        if with_icon and use_icon:
+            total += Text(icon).cell_len + 1
+        total += label_cells
+        if with_count and count_text:
+            total += Text(count_text).cell_len
+        if urgency_text:
+            total += 1 + Text(urgency_text).cell_len
+        return total
 
-    # Drop order: mark, urgency, identity (reduced to its initial).
-    use_mark = mark
-    use_urgency = urgency
-    use_identity = identity
-    use_identity_style = identity_style_full
-    if width(hint_text, use_mark, use_identity, use_urgency) > RAIL_TITLE_CELLS:
-        use_mark = ""
-    if width(hint_text, use_mark, use_identity, use_urgency) > RAIL_TITLE_CELLS:
-        use_urgency = ""
-    if width(hint_text, use_mark, use_identity, use_urgency) > RAIL_TITLE_CELLS:
-        use_identity = identity_initial
-        use_identity_style = identity_style
+    use_mark = bool(mark)
+    with_icon = use_icon
+    with_count = bool(count_text)
+    label_budget = RAIL_TITLE_CELLS - (
+        width(
+            with_mark=use_mark,
+            with_icon=with_icon,
+            with_count=with_count,
+            label_cells=cell_len(label_text),
+        )
+        - cell_len(label_text)
+    )
+    if (
+        width(
+            with_mark=use_mark,
+            with_icon=with_icon,
+            with_count=with_count,
+            label_cells=cell_len(label_text),
+        )
+        > RAIL_TITLE_CELLS
+    ):
+        use_mark = False
+    if (
+        width(
+            with_mark=use_mark,
+            with_icon=with_icon,
+            with_count=with_count,
+            label_cells=cell_len(label_text),
+        )
+        > RAIL_TITLE_CELLS
+    ):
+        with_icon = False
+    if (
+        width(
+            with_mark=use_mark,
+            with_icon=with_icon,
+            with_count=with_count,
+            label_cells=cell_len(label_text),
+        )
+        > RAIL_TITLE_CELLS
+    ):
+        with_count = False
+    fixed = width(
+        with_mark=use_mark,
+        with_icon=with_icon,
+        with_count=with_count,
+        label_cells=0,
+    )
+    label_budget = max(3, RAIL_TITLE_CELLS - fixed)
+    shown_label = rail_middle_elide(label_text, label_budget)
+
     title = Text()
     if hint_text:
         title.append(hint_text, style=RAIL_HINT_STYLE)
-    if use_mark:
-        title.append(use_mark, style=mark_style)
-    if use_identity:
-        title.append(use_identity, style=use_identity_style)
-    if use_urgency:
-        title.append(use_urgency, style=urgency_style)
+        title.append(" ")
+    if use_mark and mark:
+        title.append(mark, style=mark_style)
+        title.append(" ")
+    if with_icon and use_icon:
+        title.append(icon, style=identity_style)
+        title.append(" ")
+    title.append(shown_label, style=label_style)
+    if with_count and count_text:
+        title.append(count_text, style="dim")
+    if urgency_text:
+        title.append(" ")
+        title.append(urgency_text, style=urgency_style)
     return title
 
 
 def rail_overflow_subtitle(above: int, below: int) -> Text:
-    """Build the rail overflow subtitle, at most 5 cells.
+    """Build the rail overflow subtitle, at most ``RAIL_TITLE_CELLS`` cells.
 
-    ``▴N▾M`` names the rows above and below the viewport, degrading to
-    ``▴▾`` when both counts cannot fit, or a single ``▴N`` / ``▾M`` arrow
-    when only one side overflows. Empty when everything fits.
+    ``▴N ▾M`` names the rows above and below the viewport, degrading to
+    ``▴▾`` when both counts cannot fit, then to a single arrow. A lone
+    side degrades to its bare arrow. Empty when everything fits.
     """
     above_count = max(0, int(above))
     below_count = max(0, int(below))
     if not above_count and not below_count:
         return Text("")
     if above_count and below_count:
-        full = f"▴{above_count}▾{below_count}"
+        full = f"▴{above_count} ▾{below_count}"
         if Text(full).cell_len <= RAIL_TITLE_CELLS:
             return Text(full)
-        return Text("▴▾")
+        degraded = "▴▾"
+        if Text(degraded).cell_len <= RAIL_TITLE_CELLS:
+            return Text(degraded)
+        return Text("▴" if above_count >= below_count else "▾")
     if above_count:
-        return Text(f"▴{min(above_count, 9999)}")
-    return Text(f"▾{min(below_count, 9999)}")
+        full = f"▴{min(above_count, 9999)}"
+        if Text(full).cell_len <= RAIL_TITLE_CELLS:
+            return Text(full)
+        return Text("▴")
+    full = f"▾{min(below_count, 9999)}"
+    if Text(full).cell_len <= RAIL_TITLE_CELLS:
+        return Text(full)
+    return Text("▾")
 
 
 def rail_tooltip_text(prompt: Text) -> Text | None:
@@ -613,7 +665,9 @@ RAIL_LEGEND: tuple[tuple[Text, str], ...] = (
     (Text(RAIL_WORKFLOW_GLYPH, style="bold #FF87D7"), "workflow"),
     (Text(RAIL_STEP_GLYPH, style="bold #FFAF5F"), "bash / python step"),
     (Text(RAIL_PATCH_GLYPH, style="bold #FF87D7"), "Patch"),
-    (Text(RAIL_FOLD_GLYPH, style=_NAME_ROOT_BANNER_BRANCH_STYLE), "folded group"),
+    (Text("×N"), "folded — N inside"),
+    (Text(".x"), "name continues its parent's"),
+    (Text("✓", style=RAIL_DONE_READ_STYLE), "done and read (dim name)"),
     (Text(RAIL_MARKED_PIP, style=RAIL_MARKED_PIP_STYLE), "marked"),
     (Text(RAIL_UNREAD_PIP, style=RAIL_UNREAD_STYLE), "unread"),
 )

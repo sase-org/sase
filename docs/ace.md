@@ -5113,28 +5113,33 @@ is zoomed (`HIDDEN` wins over `RAIL`). The persisted preference only ever means 
 zoom never writes it.
 
 `Ctrl+S` toggles the node rail: the same tribe panels and the same visible rows at a
-fixed 9-cell width, row for row, so a row never moves vertically. Each row carries one
-semantic glyph (`?` needs you, `✗` failed, `▶` running, `◐` starting, `○` queued, `◷`
-waiting, `✓` done, `Ø` user-stopped, plus kind glyphs for monitors, gates, workflows,
-steps, and Patches). Color means urgency; the rail shows no runtimes, badges, or emoji.
-Tribe titles shrink to 5 cells, and the bottom border counts off-screen rows (`▴N▾M`).
+fixed 22-cell width, row for row, so a row never moves vertically. Each agent row
+carries its glyph plus its name: the glyph cell (`?` needs you, `✗` failed, `▶` running,
+`◐` starting, `○` queued, `◷` waiting, `✓` done, `Ø` user-stopped, plus kind glyphs for
+monitors, gates, workflows, steps, and Patches) followed by the expanded row's identity
+token. Nested names render relative to their parent (`.cld`, `--plan`), long names use a
+middle ellipsis, and the width never fits to content, so the deck edge stays stable.
+Color means urgency; the rail shows no runtimes, badges, or emoji. Settled-and-read
+names render dim. Tribe titles are left-aligned (up to 18 cells), and the bottom border
+counts off-screen rows (`▴N ▾M`).
 
-Position is identity: rail row _k_ is expanded row _k_. Since glyphs are not labels,
-hovering a rail row shows that row's full expanded text as a tooltip, the identity
-header always names the selection (so `j` / `k` is never blind), and `'` jump hints plus
-the `"` node finder reach every node. Focus stays on the list in rail mode, so every key
-works unchanged; runtime ticks pause and catch up on expand. The footer shows
-`Ctrl+S expand nodes` while railed, and the info row's `nodes i/N · Ctrl+S` chip is
-clickable. The `?` help modal's Node Rail box lists the full glyph legend.
+Position is identity: rail row _k_ is expanded row _k_. Hovering a rail row shows that
+row's full expanded text as a tooltip, the identity header always names the selection
+(so `j` / `k` is never blind), and `'` jump hints plus the `"` node finder reach every
+node. Focus stays on the list in rail mode, so every key works unchanged; runtime ticks
+pause and catch up on expand. The footer shows `Ctrl+S expand nodes` while railed, and
+the info row's `nodes i/N · Ctrl+S` chip is clickable. The `?` help modal's Node Rail
+box lists the full glyph legend.
 
-Each rail cell packs more than its lead glyph. The trailing pip cell shows the marked
-`▪` pip when marked, the unread `•` pip when unread and unmarked, and blank otherwise —
-marked always wins over unread. Clan and agent-session container rows also carry a
-member count (capped at `99`, tinted by container kind). Tree guides (`│` continuing,
-`└` terminal) prefix child rows and clamp at depth 2, so a row's cells never depend on
-how deeply it is nested. A folded banner instead reads a `▸` fold mark, the lead glyph,
-the rule, the hidden-row count, and a 1-cell urgency roll-up for the group's most urgent
-member: `?` needs-you beats red `✗` failed beats gold `•` unread, else blank.
+Each rail agent row ends with a right-aligned `×N` count in the shared count column and
+a pip at the edge. `×N` means "folded, N inside": it shows only when the expanded row
+shows `×N`, capped at `×99`. The trailing pip cell shows the marked `▪` pip when marked,
+the unread `•` pip when unread and unmarked, and blank otherwise — marked always wins
+over unread. Tree guides (`│` continuing, `└` terminal) prefix child rows and clamp at
+depth 3. Banners keep the expanded prefix vocabulary with the label and a heavy (L0) or
+light rule that is always at least 1 cell; folded banners add the `×N` count and a
+1-cell urgency roll-up (`?` needs-you beats red `✗` failed beats gold `•` unread, else
+blank). Collapsed tribe titles add their `×N` lane roll-up the same way.
 
 `Z` zooms the focused deck panel in place: it snapshots the deck-area state (layout,
 panels, focus, ratio), then shows only the focused panel with the node column hidden

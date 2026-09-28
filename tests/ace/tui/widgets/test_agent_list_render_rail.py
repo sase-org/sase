@@ -1,14 +1,21 @@
-"""Tests for the pure node-rail vocabulary module."""
+"""Tests for the labeled node-rail vocabulary module."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
 import pytest
+from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode, GroupRow
+from sase.ace.tui.models.agent_relative_label import relative_agent_label
+from sase.ace.tui.widgets._agent_list_helpers import (
+    compute_fold_annotation,
+    folded_member_total,
+)
+from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.widgets._agent_list_render_agent_prefix import (
     append_agent_row_prefix,
 )
@@ -29,9 +36,12 @@ from sase.ace.tui.widgets._agent_list_render_rail import (
     _rail_urgency,
     row_kind_glyph,
 )
+from sase.ace.tui.widgets._agent_list_render_rail_names import (
+    rail_middle_elide,
+    rail_name_is_dimmed,
+    rail_row_name,
+)
 
-# Glyphs the research banned from the rail: hourglass/waiting emoji
-# register, lightning, maximize, and timeout glyphs, plus emoji generally.
 BANNED_GLYPHS = {"⏳", "⚡", "⤢", "⧖", "…", "▲"}
 
 _START = datetime(2026, 6, 23, 12, 0, 0)
@@ -55,6 +65,7 @@ def _ctx(**overrides: object) -> dict[str, object]:
         "hint_char": None,
         "is_unread": False,
         "is_marked": False,
+        "folded_total": None,
     }
     ctx.update(overrides)
     return ctx
@@ -101,10 +112,10 @@ def _group(
 
 
 def test_constants() -> None:
-    assert NODE_RAIL_WIDTH == 9
-    assert RAIL_CONTENT_CELLS == 6
-    assert RAIL_TITLE_CELLS == 5
-    assert RAIL_MAX_DEPTH == 2
+    assert NODE_RAIL_WIDTH == 22
+    assert RAIL_CONTENT_CELLS == 19
+    assert RAIL_TITLE_CELLS == 18
+    assert RAIL_MAX_DEPTH == 3
     assert RAIL_COUNT_CAP == 99
     assert set(RAIL_BUCKET_GLYPHS) == {
         "Stopped",
@@ -137,6 +148,11 @@ def _kind_agents() -> list[Agent]:
         step_type="python",
         agent_type=AgentType.WORKFLOW,
     )
+    bash_child = _agent(
+        parent_workflow="flow",
+        step_type="bash",
+        agent_type=AgentType.WORKFLOW,
+    )
     agent_step = _agent(
         parent_workflow="flow",
         step_type="agent",
@@ -154,22 +170,26 @@ def _kind_agents() -> list[Agent]:
     )
     session.followup_agents = [session_child]
     assert session.is_agent_session_container_row
+    named = _agent(agent_type=AgentType.NAMED_PROC, proc_label="lint")
+    workflow = _agent(agent_type=AgentType.WORKFLOW, appears_as_agent=True)
     return [
         _agent(),
         _monitor(),
         _monitor(monitor_state="completed", stop_time=_START),
         _gate(),
         _gate(gate_state="failed"),
-        _agent(agent_type=AgentType.NAMED_PROC),
+        named,
         child,
+        bash_child,
         agent_step,
-        _agent(agent_type=AgentType.WORKFLOW, appears_as_agent=True),
+        workflow,
         clan,
         session,
     ]
 
 
 def test_agent_cells_exact_width_exhaustive() -> None:
+    names = ["", "a", "2l", "bob-cli-29", "sase-1bn.land", "×" * 2, "研" * 6, "x" * 44]
     ctx_variants = [
         _ctx(),
         _ctx(is_unread=True),
@@ -179,19 +199,29 @@ def test_agent_cells_exact_width_exhaustive() -> None:
         _ctx(hint_char="ab"),
         _ctx(hint_char="a", is_unread=True),
         _ctx(hint_char="ab", is_marked=True),
+        _ctx(folded_total=4),
+        _ctx(folded_total=99),
+        _ctx(folded_total=150),
     ]
     agents = _bucket_agents() + _kind_agents()
-    for agent in agents:
-        for ctx in ctx_variants:
-            for depth in range(5):
-                cells = rail_agent_cells(agent, ctx, depth=depth)
-                assert cells.cell_len == RAIL_CONTENT_CELLS, (
-                    agent.status,
-                    agent.agent_type,
-                    ctx,
-                    depth,
-                    repr(cells.plain),
-                )
+    for base in agents:
+        for name in names:
+            agent = _agent(
+                status=base.status,
+                agent_type=base.agent_type,
+                agent_name=name or base.agent_name,
+                raw_suffix=f"20260623120000-{name[:8]}-{base.status}",
+            )
+            for ctx in ctx_variants:
+                for depth in range(6):
+                    cells = rail_agent_cells(agent, ctx, depth=depth, anchor_name=None)
+                    assert cells.cell_len == RAIL_CONTENT_CELLS, (
+                        agent.status,
+                        name,
+                        ctx,
+                        depth,
+                        repr(cells.plain),
+                    )
 
 
 def test_agent_cells_glyph_choices() -> None:
@@ -210,7 +240,6 @@ def test_agent_cells_glyph_choices() -> None:
     assert done_read.plain[-1] == " "
     marked = rail_agent_cells(_agent(status="RUNNING"), _ctx(is_marked=True), depth=0)
     assert marked.plain[-1] == "▪"
-    # Marked wins over unread.
     both = rail_agent_cells(
         _agent(status="RUNNING"), _ctx(is_marked=True, is_unread=True), depth=0
     )
@@ -223,37 +252,168 @@ def test_agent_cells_hint_replaces_glyph() -> None:
     two = rail_agent_cells(_agent(status="RUNNING"), _ctx(hint_char="qd"), depth=0)
     assert two.plain[:2] == "qd"
     assert two.cell_len == RAIL_CONTENT_CELLS
+    # The name column never moves: 2-char hint takes G plus the space.
+    plain_one = rail_agent_cells(
+        _agent(agent_name="2l"), _ctx(hint_char="q"), depth=0
+    ).plain
+    plain_two = rail_agent_cells(
+        _agent(agent_name="2l"), _ctx(hint_char="qd"), depth=0
+    ).plain
+    assert plain_one.index("2l") == plain_two.index("2l")
 
 
 def test_agent_cells_depth_guides_and_clamp() -> None:
     assert rail_agent_cells(_agent(), _ctx(), depth=1).plain[0] == "└"
-    deep = rail_agent_cells(_agent(), _ctx(), depth=2)
-    assert deep.plain[:2] == "│└"
-    assert rail_agent_cells(_agent(), _ctx(), depth=3).plain == deep.plain
-    assert rail_agent_cells(_agent(), _ctx(), depth=4).plain == deep.plain
+    two = rail_agent_cells(_agent(), _ctx(), depth=2)
+    assert two.plain[:2] == "│└"
+    three = rail_agent_cells(_agent(), _ctx(), depth=3)
+    assert three.plain[:3] == "││└"
+    assert rail_agent_cells(_agent(), _ctx(), depth=4).plain == three.plain
+    assert rail_agent_cells(_agent(), _ctx(), depth=5).plain == three.plain
     assert (
         rail_agent_cells(_agent(), _ctx(), depth=-1).plain
         == rail_agent_cells(_agent(), _ctx(), depth=0).plain
     )
 
 
-def test_agent_cells_container_counts() -> None:
-    clan_child = _agent(agent_name="map.one", agent_clan="map")
-    clan = _agent(is_clan_container=True, agent_clan="map")
-    clan.runtime_children = [clan_child, clan_child]
-    cells = rail_agent_cells(clan, _ctx(), depth=0)
-    # Duplicate identities count once, like the expanded member chip.
-    assert cells.plain[1:3] == " 1"
-    many = _agent(is_clan_container=True, agent_clan="map")
-    many.runtime_children = [
-        _agent(
-            agent_name=f"m.{i}",
-            agent_clan="map",
-            raw_suffix=f"202606231200{i:02d}",
+def test_agent_cells_name_visible() -> None:
+    cells = rail_agent_cells(_agent(agent_name="2l"), _ctx(), depth=0)
+    assert "2l" in cells.plain
+    assert cells.cell_len == RAIL_CONTENT_CELLS
+
+
+def test_agent_cells_count_present_iff_folded_total() -> None:
+    plain = _agent(agent_name="2l")
+    assert "×" not in rail_agent_cells(plain, _ctx(), depth=0).plain
+    folded = rail_agent_cells(plain, _ctx(folded_total=4), depth=0)
+    assert "×4" in folded.plain
+    assert folded.cell_len == RAIL_CONTENT_CELLS
+    capped = rail_agent_cells(plain, _ctx(folded_total=150), depth=0)
+    assert "×99" in capped.plain
+    # Shared count column: count ends at cell 16, pip at cell 18.
+    assert capped.plain.index("×99") == 14
+    assert capped.plain[-1] in {" ", "•", "▪"}
+
+
+def test_folded_session_container_regression_reads_four() -> None:
+    session_child = _agent(agent_session="alpha", role_suffix="--code")
+    session = _agent(
+        agent_session="alpha",
+        agent_session_role="root",
+        role_suffix="--0",
+        plan_chain_root=True,
+    )
+    session.followup_agents = [session_child]
+    assert session.is_agent_session_container_row
+    cells = rail_agent_cells(session, _ctx(folded_total=4), depth=0)
+    assert "×4" in cells.plain
+    assert "×0" not in cells.plain
+    assert " 0" not in cells.plain.replace("×0", "")
+
+
+def test_folded_member_total_agrees_with_annotation() -> None:
+    agent = _agent(agent_type=AgentType.WORKFLOW, raw_suffix="fold-parent")
+    fold_counts = {"fold-parent": (3, 1)}
+    visible: set[str] = set()
+    assert folded_member_total(agent, fold_counts, visible) == 4
+    assert compute_fold_annotation(agent, fold_counts, visible) == " ×4"
+    unfolded = {"fold-parent"}
+    assert folded_member_total(agent, fold_counts, unfolded) is None
+    assert "×4 −1" in compute_fold_annotation(
+        agent, fold_counts, unfolded
+    ) or compute_fold_annotation(agent, fold_counts, unfolded) in {"", " ×4 −1"}
+    # Anonymous single-child exception.
+    anon = _agent(
+        agent_type=AgentType.WORKFLOW,
+        appears_as_agent=True,
+        is_anonymous=True,
+        raw_suffix="anon-parent",
+    )
+    assert folded_member_total(anon, {"anon-parent": (1, 0)}, set()) is None
+    assert compute_fold_annotation(anon, {"anon-parent": (1, 0)}, set()) == ""
+
+
+def test_rail_row_name_parity_with_expanded() -> None:
+    from sase.ace.tui.models._agent_tree import agent_tree_title as _tree_title
+
+    for agent in _kind_agents() + _bucket_agents():
+        # Untitled turns carry identity on the right-hand annotation; give
+        # nameless ones a name so parity is defined.
+        if _tree_title(agent) is None and not (
+            agent.presented_agent_name or agent.agent_name
+        ):
+            agent.agent_name = f"turn-{agent.monitor_id or agent.gate_id or 'x'}"
+            agent.refresh_raw_presented_agent_name()
+        name, _style = rail_row_name(agent)
+        if not name:
+            continue
+        left, _suffix, _option_id = format_agent_option(
+            agent, 0, is_selected=False, is_expanded=False
         )
-        for i in range(150)
-    ]
-    assert rail_agent_cells(many, _ctx(), depth=0).plain[1:3] == "99"
+        assert name in left.plain, (name, left.plain)
+
+
+def test_rail_row_name_resolution() -> None:
+    named = _agent(agent_type=AgentType.NAMED_PROC, proc_label="lint")
+    name, _style = rail_row_name(named)
+    assert name == "lint"
+    child = _agent(
+        parent_workflow="flow", step_type="python", agent_type=AgentType.WORKFLOW
+    )
+    child_name, _child_style = rail_row_name(child)
+    assert child_name
+    clan = _agent(is_clan_container=True, agent_clan="map")
+    clan_name, clan_style = rail_row_name(clan)
+    assert clan_name == "map"
+    assert clan_style == "#D75FFF"
+    session = _agent(
+        agent_session="alpha",
+        agent_session_role="root",
+        role_suffix="--0",
+        plan_chain_root=True,
+    )
+    session.followup_agents = [_agent(agent_session="alpha", role_suffix="--code")]
+    assert session.is_agent_session_container_row
+    session_name, session_style = rail_row_name(session)
+    assert session_name
+    assert session_style == "#00AFFF"
+
+
+def test_relative_names() -> None:
+    assert relative_agent_label("research.9.cld", "research.9") == ".cld"
+    assert relative_agent_label("1h--plan", "1h") == "--plan"
+    assert relative_agent_label("sase-10", "sase-1") == "sase-10"
+    assert relative_agent_label("alpha.", "alpha") == "alpha."
+    assert relative_agent_label("alpha--", "alpha") == "alpha--"
+    assert relative_agent_label("alpha.cld", None) == "alpha.cld"
+    # Rail cells use the anchor's full name.
+    parent = _agent(agent_name="bob-cli-29")
+    parent_name, _style = rail_row_name(parent)
+    child = _agent(agent_name="bob-cli-29.1")
+    cells = rail_agent_cells(child, _ctx(), depth=1, anchor_name=parent_name)
+    assert ".1" in cells.plain
+    assert "bob-cli-29.1" not in cells.plain
+
+
+def test_elision_budget_tail_biased_and_cell_aware() -> None:
+    assert rail_middle_elide("abc", 5) == "abc"
+    assert rail_middle_elide("", 3) == ""
+    assert rail_middle_elide("abcdef", 0) == ""
+    elided = rail_middle_elide("sase-1aq.10.7.5.land", 10)
+    assert cell_len(elided) <= 10
+    assert "…" in elided
+    assert elided.endswith("land") or "land" in elided
+    wide = rail_middle_elide("研" * 10, 7)
+    assert cell_len(wide) <= 7
+
+
+def test_dimming_only_settled_and_read() -> None:
+    assert rail_name_is_dimmed(_agent(status="DONE"), is_unread=False) is True
+    assert rail_name_is_dimmed(_agent(status="DONE"), is_unread=True) is False
+    assert rail_name_is_dimmed(_agent(status="STOPPED"), is_unread=True) is True
+    assert rail_name_is_dimmed(_agent(status="STOPPED"), is_unread=False) is True
+    assert rail_name_is_dimmed(_agent(status="RUNNING"), is_unread=False) is False
+    assert rail_name_is_dimmed(_agent(status="FAILED"), is_unread=False) is False
 
 
 def test_banner_cells_exact_width_exhaustive() -> None:
@@ -280,13 +440,32 @@ def test_banner_cells_exact_width_exhaustive() -> None:
                     )
 
 
-def test_banner_cells_expanded_layout() -> None:
+def test_banner_prefix_registers() -> None:
     agents = [_agent()]
-    l0 = rail_banner_cells(_group(level=0), agents)
-    assert l0.plain[0] == "p"
-    assert l0.plain[1:] == "━" * 5
-    l1 = rail_banner_cells(_group(level=1, key=("b", "sub")), agents)
-    assert l1.plain[1:] == "─" * 5
+    standard_l0 = rail_banner_cells(_group(level=0), agents)
+    assert standard_l0.plain[0] == "▌"
+    middle = rail_banner_cells(_group(level=1, key=("b", "sub")), agents)
+    assert middle.plain[0] == "▎"
+    name_root = rail_banner_cells(_group(level=2, key=("b", "sub", "leaf")), agents)
+    assert name_root.plain[0] == "▸"
+    for bucket, (glyph, _style) in RAIL_BUCKET_GLYPHS.items():
+        group = _group(level=0, key=(bucket,), collapsed=False)
+        cells = rail_banner_cells(group, agents, mode=GroupingMode.BY_STATUS)
+        assert cells.plain[0] == glyph, bucket
+        machine = _group(level=1, key=("here", bucket), collapsed=False)
+        mid = rail_banner_cells(machine, agents, mode=GroupingMode.BY_MACHINE)
+        assert "▎" in mid.plain and glyph in mid.plain, bucket
+    by_date = rail_banner_cells(
+        _group(level=0, key=("2026-09-28",)), agents, mode=GroupingMode.BY_DATE
+    )
+    assert by_date.cell_len == RAIL_CONTENT_CELLS
+    hinted = rail_banner_cells(
+        _group(level=0, key=("2026-09-28",)),
+        agents,
+        mode=GroupingMode.BY_DATE,
+        hint="q",
+    )
+    assert hinted.plain[0] == "q"
 
 
 def test_banner_cells_folded_layout() -> None:
@@ -298,61 +477,21 @@ def test_banner_cells_folded_layout() -> None:
         is_collapsed=True,
     )
     cells = rail_banner_cells(group, agents)
-    assert cells.plain[0] == "▸"
-    assert cells.plain[4] == "3"
-    # A failed member rolls up red.
-    assert cells.plain[5] == "✗"
-    hinted = rail_banner_cells(group, agents, hint="q")
-    assert hinted.plain[0] == "q"
-    assert hinted.cell_len == RAIL_CONTENT_CELLS
+    assert "×3" in cells.plain
+    assert "▸" not in cells.plain
+    assert cells.plain[-1] == "✗"
+    assert cells.cell_len == RAIL_CONTENT_CELLS
 
 
-def test_banner_cells_bucket_lead_parity() -> None:
-    for bucket, (glyph, _style) in RAIL_BUCKET_GLYPHS.items():
-        agents = [_agent()]
-        group = _group(level=0, key=(bucket,), collapsed=False)
-        cells = rail_banner_cells(group, agents, mode=GroupingMode.BY_STATUS)
-        assert cells.plain[0] == glyph, bucket
-        machine = _group(level=1, key=("here", bucket), collapsed=False)
-        mid = rail_banner_cells(machine, agents, mode=GroupingMode.BY_MACHINE)
-        assert mid.plain[0] == glyph, bucket
-
-
-def _style_at(text: Text, index: int) -> str:
-    for span in text.spans:
-        if span.start <= index < span.end:
-            return span.style
-    return ""
-
-
-def test_stopped_banner_rule_is_not_a_solid_amber_bar() -> None:
-    """Only the ``?`` lead cell keeps a background; the rule, fold mark,
-    and count read as foreground-only amber (``#FFAF00``)."""
-    # A RUNNING member keeps the folded roll-up glyph blank so the ``?``
-    # lead is the banner's only background-carrying cell.
-    agents = [_agent(status="RUNNING")]
-
-    expanded = rail_banner_cells(
-        _group(level=0, key=("Stopped",)), agents, mode=GroupingMode.BY_STATUS
-    )
-    assert expanded.plain[0] == "?"
-    assert " on " in _style_at(expanded, 0)
-    for i in range(1, expanded.cell_len):
-        style = _style_at(expanded, i)
-        assert " on " not in style, (i, style)
-        assert "#FFAF00" in style, (i, style)
-
-    folded_group = GroupRow(
-        level=0, group_key=("Stopped",), agent_indices=(0,), is_collapsed=True
-    )
-    folded = rail_banner_cells(folded_group, agents, mode=GroupingMode.BY_STATUS)
-    assert folded.plain[0] == "▸"
-    assert folded.plain[1] == "?"
-    bg_cells = [i for i in range(folded.cell_len) if " on " in _style_at(folded, i)]
-    assert bg_cells == [1]
-    for i in (0, 2, 3, 4):
-        style = _style_at(folded, i)
-        assert "#FFAF00" in style, (i, style)
+def test_banner_rule_at_least_one_cell_with_maximal_label() -> None:
+    agents = [_agent()]
+    group = _group(level=0, key=("x" * 60,), collapsed=False)
+    cells = rail_banner_cells(group, agents)
+    assert cells.cell_len == RAIL_CONTENT_CELLS
+    assert "━" in cells.plain or "─" in cells.plain
+    folded = rail_banner_cells(_group(level=0, key=("y" * 60,), collapsed=True), agents)
+    assert folded.cell_len == RAIL_CONTENT_CELLS
+    assert "━" in folded.plain or "─" in folded.plain
 
 
 def test_rail_urgency_precedence() -> None:
@@ -369,8 +508,7 @@ def test_rail_urgency_precedence() -> None:
 def test_panel_title_width_and_drop_order() -> None:
     from sase.ace.tui.actions.agents._display_panel_titles import AgentPanelCounts
 
-    counts = AgentPanelCounts(lane_count=3, failed=1)
-    # Over budget: 2-char hint + mark + 2-cell icon + urgency drops the mark.
+    counts = AgentPanelCounts(lane_count=14, failed=1, unread=2)
     title = rail_panel_title(
         key="agents",
         hint="ab",
@@ -384,34 +522,38 @@ def test_panel_title_width_and_drop_order() -> None:
     assert "ab" in title.plain
     assert "▸" not in title.plain
     assert "✗" in title.plain
-    # Hint is never dropped.
-    assert "ab" in title.plain
-    # Wide emoji icons fall back to the uppercase initial.
+    assert "@" in title.plain
+    assert "×14" in title.plain
+    # Wide emoji icons are dropped, not used as initials.
     emoji = rail_panel_title(key="agents", icon="🤖x", color="#00FF00")
     assert emoji.cell_len <= RAIL_TITLE_CELLS
-    assert emoji.plain == "A"
-    # Merged panel shows All.
+    assert "🤖" not in emoji.plain
+    # Merged panel shows All agents.
     merged = rail_panel_title(key="agents", merged=True)
-    assert merged.plain == "All"
+    assert merged.plain == "All agents"
     # Selected focus marker.
-    assert rail_panel_title(key="agents", selected=True).plain == "❖A"
-    # Collapsed marker, gold when selected.
+    assert rail_panel_title(key="agents", selected=True).plain.startswith("❖")
+    # Collapsed marker.
     assert rail_panel_title(key="agents", collapsed=True).plain[0] == "▸"
-    # Long names and 2-character hints stay within budget.
+    # Long labels elide but hint and roll-up survive.
     long_name = rail_panel_title(
-        key="a-very-long-tribe-name", hint="xy", selected=True, collapsed=True
+        key="a-very-long-tribe-name",
+        hint="xy",
+        selected=True,
+        collapsed=True,
+        counts=AgentPanelCounts(lane_count=3, failed=1),
     )
     assert long_name.cell_len <= RAIL_TITLE_CELLS
     assert "xy" in long_name.plain
+    assert "✗" in long_name.plain
 
 
 def test_overflow_subtitle() -> None:
     assert rail_overflow_subtitle(0, 0).plain == ""
     assert rail_overflow_subtitle(3, 0).plain == "▴3"
     assert rail_overflow_subtitle(0, 12).plain == "▾12"
-    assert rail_overflow_subtitle(12, 3).plain == "▴12▾3"
-    degraded = rail_overflow_subtitle(123, 45)
-    assert degraded.plain == "▴▾"
+    assert rail_overflow_subtitle(12, 3).plain == "▴12 ▾3"
+    degraded = rail_overflow_subtitle(123456789, 987654321)
     assert degraded.cell_len <= RAIL_TITLE_CELLS
 
 
@@ -424,18 +566,23 @@ def test_tooltip_text() -> None:
 
 
 def test_legend_entries() -> None:
-    assert len(RAIL_LEGEND) >= 12
+    plains = [glyph.plain for glyph, _meaning in RAIL_LEGEND]
+    assert "×N" in plains
+    assert ".x" in plains
+    assert any(meaning == "done and read (dim name)" for _glyph, meaning in RAIL_LEGEND)
     for glyph, meaning in RAIL_LEGEND:
-        assert glyph.cell_len == 1
+        assert glyph.cell_len <= 2
         assert meaning.strip()
 
 
 def test_rail_glyphs_single_cell_and_banned() -> None:
     texts = [Text(glyph, style=style) for glyph, style in RAIL_BUCKET_GLYPHS.values()]
-    texts += [glyph for glyph, _meaning in RAIL_LEGEND]
+    texts += [
+        glyph for glyph, _meaning in RAIL_LEGEND if glyph.plain not in {"×N", ".x"}
+    ]
     for agent in _bucket_agents() + _kind_agents():
         texts.append(rail_agent_cells(agent, _ctx(), depth=0))
-        texts.append(rail_agent_cells(agent, _ctx(hint_char="ab"), depth=2))
+        texts.append(rail_agent_cells(agent, _ctx(hint_char="ab"), depth=3))
     for group_collapsed in (False, True):
         texts.append(
             rail_banner_cells(_group(collapsed=group_collapsed), [_agent()], hint="ab")
@@ -457,11 +604,9 @@ def test_row_kind_glyph_parity_with_expanded_prefix() -> None:
             continue
         glyph, _style = kind
         assert glyph in prefix, (glyph, prefix)
-    # Plain agents have no kind badge; the expanded row keeps its [agent] tag.
     plain = _agent()
     assert row_kind_glyph(plain) is None
     assert "[agent]" in append_agent_row_prefix(plain, is_selected=False).plain
-    # Expanded anonymous workflows show the workflow badge in both densities.
     workflow = _agent(
         agent_type=AgentType.WORKFLOW, appears_as_agent=True, is_anonymous=True
     )

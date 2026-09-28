@@ -74,6 +74,36 @@ def _attempt_count_suffix(attempts_count: int) -> str:
     return f" ↻{attempts_count}"
 
 
+def folded_member_total(
+    agent: Agent,
+    fold_counts: dict[str, tuple[int, int]] | None,
+    parents_with_visible_children: set[str],
+) -> int | None:
+    """Return the folded ``×N`` total exactly when it renders, else ``None``.
+
+    Mirrors the folded branch of :func:`compute_fold_annotation`,
+    honoring the anonymous-single-child exception. Derived from the same
+    inputs as the prompt so prompt identity stays a sound validator.
+    """
+    fold_key = agent_fold_key(agent)
+    if _is_foldable_parent(agent) and fold_counts and fold_key:
+        counts = fold_counts.get(fold_key)
+        if counts:
+            non_hidden, hidden = counts
+            total = non_hidden + hidden
+            if total > 0 and fold_key not in parents_with_visible_children:
+                attempts_count = len(agent.attempt_history)
+                if (
+                    agent.is_anonymous
+                    and agent.appears_as_agent
+                    and total == 1
+                    and attempts_count == 0
+                ):
+                    return None
+                return total
+    return None
+
+
 def compute_fold_annotation(
     agent: Agent,
     fold_counts: dict[str, tuple[int, int]] | None,
@@ -104,14 +134,12 @@ def compute_fold_annotation(
                 has_visible_children = fold_key in parents_with_visible_children
                 suffix = _attempt_count_suffix(attempts_count)
                 if not has_visible_children:
-                    if (
-                        agent.is_anonymous
-                        and agent.appears_as_agent
-                        and total == 1
-                        and attempts_count == 0
-                    ):
+                    folded_total = folded_member_total(
+                        agent, fold_counts, parents_with_visible_children
+                    )
+                    if folded_total is None:
                         return ""
-                    return f" ×{total}{suffix}"
+                    return f" ×{folded_total}{suffix}"
                 is_fully_expanded = (
                     fully_expanded_parents is not None
                     and fold_key in fully_expanded_parents

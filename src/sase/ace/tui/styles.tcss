@@ -4170,8 +4170,8 @@ AgentList > .option-list--option-highlighted {
     padding: 0;
     scrollbar-size-vertical: 0;
     scrollbar-gutter: auto;
-    border-title-align: center;
-    border-subtitle-align: center;
+    border-title-align: left;
+    border-subtitle-align: right;
 }
 
 #agent-list-container AgentList.-rail > .option-list--option {

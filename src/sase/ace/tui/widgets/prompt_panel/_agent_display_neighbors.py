@@ -122,18 +122,15 @@ def append_lane_neighbors_section(
 
 
 def _neighbor_label(row: LaneNeighborRow) -> str:
+    from ...models.agent_relative_label import relative_agent_label
+
     agent = row.agent
     presented_name = (
         agent.presented_agent_name
         or agent.presented_identity_name
         or agent.display_name
     )
-    prefix = row.label_prefix
-    if prefix and presented_name.startswith(prefix):
-        suffix = presented_name[len(prefix) :]
-        if suffix.startswith((".", "--")):
-            return suffix
-    return presented_name
+    return relative_agent_label(presented_name, row.label_prefix)
 
 
 __all__ = [

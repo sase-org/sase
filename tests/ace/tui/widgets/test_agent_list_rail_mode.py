@@ -408,3 +408,123 @@ async def test_spacer_rows_render_without_rail_fallback_trace(
             assert text.plain == " " * RAIL_CONTENT_CELLS
 
     assert "widget.agent_list.rail_fallback" not in events
+
+
+def _named_agent(name: str, minute: int, **fields: Any) -> Agent:
+    return _agent(name, minute, **fields)
+
+
+async def test_anchor_map_depth_stack_and_banner_reset() -> None:
+    """Anchor map points children at parents and resets at banners."""
+    from sase.ace.tui.widgets._agent_list_styling import BANNER_ROW
+
+    app = _RailApp()
+    async with app.run_test(size=(60, 20)) as pilot:
+        await pilot.pause()
+        widget = app.query_one(AgentList)
+        parent = _named_agent("alpha", 1)
+        child = _named_agent("alpha.cld", 2, tree_depth=1)
+        grandchild = _named_agent("alpha.cld.x", 3, tree_depth=2)
+        sibling = _named_agent("beta", 4)
+        widget._agents = [parent, child, grandchild, sibling]
+        widget._row_entries = [
+            (0, None),
+            (1, None),
+            (2, None),
+            (BANNER_ROW, None),
+            (3, None),
+        ]
+        widget._rail_anchor_rows = None
+        anchors = widget._build_rail_anchor_map()
+        assert anchors.get(1) == 0
+        assert anchors.get(2) == 1
+        assert 4 not in anchors
+
+
+async def test_anchor_map_clamps_depth_beyond_max() -> None:
+    """A depth-4 row anchors to the ancestor its clamped guides point to."""
+    from sase.ace.tui.widgets._agent_list_styling import BANNER_ROW
+    from sase.ace.tui.widgets._agent_list_render_rail import RAIL_MAX_DEPTH
+
+    assert RAIL_MAX_DEPTH == 3
+    app = _RailApp()
+    async with app.run_test(size=(60, 20)) as pilot:
+        await pilot.pause()
+        widget = app.query_one(AgentList)
+        rows = [
+            _named_agent("a", 1),
+            _named_agent("a.7", 2, tree_depth=1),
+            _named_agent("a.7.5", 3, tree_depth=2),
+            _named_agent("a.7.5.2", 4, tree_depth=4),
+        ]
+        widget._agents = rows
+        widget._row_entries = [(i, None) for i in range(4)]
+        widget._rail_anchor_rows = None
+        anchors = widget._build_rail_anchor_map()
+        assert anchors.get(3) == 2
+
+
+async def test_anchor_rename_busts_child_but_unrelated_patch_keeps_cache() -> None:
+    """Patching an anchor re-renders children; unrelated patches do not."""
+    app = _RailApp()
+    async with app.run_test(size=(60, 20)) as pilot:
+        await pilot.pause()
+        widget = app.query_one(AgentList)
+        parent = _named_agent("alpha", 1)
+        child = _named_agent(
+            "alpha.cld", 2, parent_timestamp="20260425120100", tree_depth=1
+        )
+        other = _named_agent("other", 3)
+        agents = [parent, child, other]
+        widget.update_list(agents, 0, grouping_mode=BY_STATUS)
+        widget.set_rail(True)
+        await pilot.pause()
+
+        child_row = widget._row_by_agent_idx[1]
+        child_option = widget.get_option_at_index(child_row)
+        before_cells = (widget._rail_cells_for_option(child_option) or Text("")).plain
+        assert ".cld" in before_cells
+        before_visual = widget._get_visual(child_option)
+
+        other_row = widget._row_by_agent_idx[2]
+        other_option = widget.get_option_at_index(other_row)
+        other_before = widget._get_visual(other_option)
+
+        # Unrelated patch leaves the child cached.
+        widget._agents[2].status = "FAILED"
+        assert widget.patch_agent_row(2) is True
+        await pilot.pause()
+        assert widget._get_visual(child_option) is before_visual
+
+        # Renaming the anchor busts the child's cache and full name returns.
+        widget._agents[0].agent_name = "beta"
+        widget._agents[0].refresh_raw_presented_agent_name()
+        assert widget.patch_agent_row(0) is True
+        await pilot.pause()
+        after_visual = widget._get_visual(child_option)
+        assert after_visual is not before_visual
+        after_cells = (widget._rail_cells_for_option(child_option) or Text("")).plain
+        assert "alpha.cld" in after_cells
+        assert other_before is not None
+
+
+async def test_structural_paths_reset_anchor_map() -> None:
+    """Structural paths drop the anchor map; fallback never raises."""
+    app = _RailApp()
+    async with app.run_test(size=(60, 20)) as pilot:
+        await pilot.pause()
+        widget = app.query_one(AgentList)
+        widget.update_list([_agent("node-00", 0)], 0, grouping_mode=BY_STATUS)
+        widget.set_rail(True)
+        await pilot.pause()
+        assert widget._rail_anchor_map() is not None
+        widget._rail_rows_changed()
+        assert widget._rail_anchor_rows is None
+        widget.set_rail(False)
+        widget.set_rail(True)
+        assert widget._rail_anchor_rows is None
+        # Fallback on unknown options never raises and traces blank cells.
+        from textual.widgets.option_list import Option
+
+        assert widget._rail_cells_for_option(Option(Text("nope"))) is None
+        assert widget._get_visual(Option(Text("nope"))) is not None

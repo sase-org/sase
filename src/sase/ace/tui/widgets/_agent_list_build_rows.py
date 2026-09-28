@@ -33,7 +33,7 @@ from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent_wait_beads import cached_wait_bead_status_snapshot
 from ..models.tribe_display import named_tribe_identity_colors
 from ._agent_list_build_analysis import compute_visible_parents
-from ._agent_list_helpers import compute_fold_annotation
+from ._agent_list_helpers import compute_fold_annotation, folded_member_total
 from ._agent_list_rendering import (
     AgentRenderCache,
     BannerMarkState,
@@ -190,6 +190,11 @@ def agent_row_context(inputs: _RowInputs, agent: Agent, index: int) -> dict[str,
             clan_unknown_wait_dependency_count(agent, wait_status_maps)
             if agent.is_clan_container
             else 0
+        ),
+        "folded_total": folded_member_total(
+            agent,
+            inputs.fold_counts,
+            inputs.parents_with_visible_children,
         ),
         "show_machine_chip": inputs.show_machine_chip,
     }

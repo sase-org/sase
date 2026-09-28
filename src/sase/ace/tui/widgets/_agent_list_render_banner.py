@@ -38,6 +38,75 @@ from ._agent_list_styling import (
 BannerMarkState = Literal["none", "partial", "all"]
 
 
+def banner_prefix_segments(
+    group: GroupRow,
+    agents: list[Agent],
+    mode: GroupingMode = GroupingMode.STANDARD,
+) -> tuple[list[tuple[str, str]], str, str, str]:
+    """Return the shared banner prefix vocabulary.
+
+    Returns ``(prefix_segments, rule_char, label_style, rule_style)``
+    so the expanded banner and the rail density cannot drift. Mirrors
+    the glyph selection in :func:`format_banner_option` exactly.
+    """
+    label = banner_label(group)
+    panel_uses_patch = mode is GroupingMode.STANDARD and any(a.cl_name for a in agents)
+    is_patch_banner = (
+        group.level == 1 and panel_uses_patch and len(group.group_key) == 2
+    )
+    is_middle_tier_banner = (
+        is_patch_banner
+        or (group.level == 1 and mode is GroupingMode.BY_DATE)
+        or (group.level == 1 and mode is GroupingMode.BY_MACHINE)
+        or (group.level > 0 and group.has_child_groups)
+    )
+    if group.level == 0 and mode is GroupingMode.STANDARD:
+        return (
+            [(_PROJECT_BAR_GLYPH + " ", _PROJECT_BANNER_BAR_STYLE)],
+            _PROJECT_RULE,
+            _PROJECT_BANNER_BAR_STYLE,
+            _PROJECT_BANNER_RULE_STYLE,
+        )
+    if group.level == 0:
+        if mode is GroupingMode.BY_STATUS and label in RAIL_BUCKET_GLYPHS:
+            glyph, glyph_style = RAIL_BUCKET_GLYPHS[label]
+            return (
+                [(f"{glyph} ", glyph_style)],
+                _PROJECT_RULE,
+                _PROJECT_BANNER_BAR_STYLE,
+                _PROJECT_BANNER_RULE_STYLE,
+            )
+        return (
+            [("", _PROJECT_BANNER_BAR_STYLE)],
+            _PROJECT_RULE,
+            _PROJECT_BANNER_BAR_STYLE,
+            _PROJECT_BANNER_RULE_STYLE,
+        )
+    if is_middle_tier_banner:
+        segments: list[tuple[str, str]] = [
+            (_PATCH_BAR_GLYPH + " ", _PATCH_BANNER_BAR_STYLE)
+        ]
+        if (
+            group.level == 1
+            and mode is GroupingMode.BY_MACHINE
+            and label in RAIL_BUCKET_GLYPHS
+        ):
+            glyph, glyph_style = RAIL_BUCKET_GLYPHS[label]
+            segments.append((f"{glyph} ", glyph_style))
+        return (
+            segments,
+            _PATCH_RULE,
+            _PATCH_BANNER_BAR_STYLE,
+            _PATCH_BANNER_RULE_STYLE,
+        )
+    return (
+        [(_NAME_ROOT_BRANCH_GLYPH + " ", _NAME_ROOT_BANNER_BRANCH_STYLE)],
+        _NAME_ROOT_RULE,
+        _NAME_ROOT_BANNER_LABEL_STYLE,
+        _NAME_ROOT_BANNER_BRANCH_STYLE,
+    )
+
+
 def format_banner_option(
     group: GroupRow,
     agents: list[Agent],
@@ -83,66 +152,10 @@ def format_banner_option(
     summary = compute_banner_summary(group, agents, mode=mode)
     chip = banner_summary_text(summary)
 
-    # Only STANDARD mode uses agents' Patch names for banner rows;
-    # BY_DATE / BY_STATUS collapse the project + Patch layers into
-    # the bucket.  BY_DATE's real L1 time windows still reuse the same
-    # visual register as STANDARD Patch banners.
-    panel_uses_patch = mode is GroupingMode.STANDARD and any(a.cl_name for a in agents)
-    is_patch_banner = (
-        group.level == 1 and panel_uses_patch and len(group.group_key) == 2
+    prefix_segments, rule_char, label_style, rule_style = banner_prefix_segments(
+        group, agents, mode
     )
-    is_middle_tier_banner = (
-        is_patch_banner
-        or (group.level == 1 and mode is GroupingMode.BY_DATE)
-        or (group.level == 1 and mode is GroupingMode.BY_MACHINE)
-        or (group.level > 0 and group.has_child_groups)
-    )
-    if group.level == 0 and mode is GroupingMode.STANDARD:
-        prefix = f"{_PROJECT_BAR_GLYPH} "
-        rule_char = _PROJECT_RULE
-        prefix_style = _PROJECT_BANNER_BAR_STYLE
-        label_style = _PROJECT_BANNER_BAR_STYLE
-        rule_style = _PROJECT_BANNER_RULE_STYLE
-    elif group.level == 0:
-        # Bucket banner (BY_DATE / BY_STATUS): drop the project bar so the
-        # bucket name leads.  In BY_STATUS mode, prepend the rail bucket
-        # glyph in its rail style so both densities share one language.
-        if mode is GroupingMode.BY_STATUS and label in RAIL_BUCKET_GLYPHS:
-            glyph, glyph_style = RAIL_BUCKET_GLYPHS[label]
-            prefix = f"{glyph} "
-            prefix_style = glyph_style
-        else:
-            prefix = ""
-            prefix_style = _PROJECT_BANNER_BAR_STYLE
-        rule_char = _PROJECT_RULE
-        label_style = _PROJECT_BANNER_BAR_STYLE
-        rule_style = _PROJECT_BANNER_RULE_STYLE
-    elif is_middle_tier_banner:
-        prefix = f"{_PATCH_BAR_GLYPH} "
-        rule_char = _PATCH_RULE
-        prefix_style = _PATCH_BANNER_BAR_STYLE
-        label_style = _PATCH_BANNER_BAR_STYLE
-        rule_style = _PATCH_BANNER_RULE_STYLE
-    else:
-        prefix = f"{_NAME_ROOT_BRANCH_GLYPH} "
-        rule_char = _NAME_ROOT_RULE
-        prefix_style = _NAME_ROOT_BANNER_BRANCH_STYLE
-        label_style = _NAME_ROOT_BANNER_LABEL_STYLE
-        rule_style = _NAME_ROOT_BANNER_BRANCH_STYLE
-
-    # Status subgroup banners (BY_MACHINE L1) insert the bucket's rail
-    # glyph between the ``▎`` bar and the label, echoing the glyphs
-    # BY_STATUS L0 banners already use.  Each glyph carries its own rail
-    # style; the bar keeps the middle-tier accent.
-    prefix_segments: list[tuple[str, str]] = [(prefix, prefix_style)]
-    if (
-        group.level == 1
-        and mode is GroupingMode.BY_MACHINE
-        and label in RAIL_BUCKET_GLYPHS
-    ):
-        glyph, glyph_style = RAIL_BUCKET_GLYPHS[label]
-        prefix_segments = [(prefix, prefix_style), (f"{glyph} ", glyph_style)]
-        prefix = f"{prefix}{glyph} "
+    prefix = "".join(segment for segment, _style in prefix_segments)
 
     text = render_tier_gutter(tier_styles)
     gutter_cells = len(tier_styles) * _TIER_GUIDE_SEGMENT_WIDTH
