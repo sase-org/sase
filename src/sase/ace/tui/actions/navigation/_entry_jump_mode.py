@@ -2,18 +2,26 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ..agents._panel_fold_intent import effective_panel_collapses
 from ._entry_jump_agents import EntryJumpAgentHistoryMixin
 from .jump_hints import (
     BannerJumpTarget,
     JumpTarget,
     PanelJumpTarget,
+    TabJumpTarget,
     build_jump_hint_maps,
 )
+
+if TYPE_CHECKING:
+    from sase.core.agent_tab import AgentTabKey
 
 
 class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
     """Mixin providing entry-jump mode setup and teardown."""
+
+    _agent_tab_jump_hints: dict[AgentTabKey, str]
 
     def action_jump_to_entry(self) -> None:
         """Enter adaptive jump mode for the current tab's left-panel entries."""
@@ -94,15 +102,43 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._update_jump_footer()
         self._refresh_current_tab()  # type: ignore[attr-defined]
 
+    def _tab_jump_targets(self) -> list[TabJumpTarget]:
+        """Return strip-chip jump targets for the visible agent tabs.
+
+        Empty with the flag off, off the Agents tab, or while the strip
+        is hidden, so row hints stay byte-identical outside tab-strip
+        mode.
+        """
+        try:
+            from ...agent_tabs_flag import agent_tabs_enabled
+        except Exception:
+            return []
+        try:
+            if not agent_tabs_enabled():
+                return []
+            if getattr(self, "current_tab", None) != "agents":
+                return []
+            visible = getattr(self, "_agent_tab_strip_visible", None)
+            if not callable(visible) or not visible():
+                return []
+            catalog = getattr(self, "_agent_tab_catalog_view", None)
+            if not callable(catalog):
+                return []
+            return [("tab", entry.key) for entry in catalog()]
+        except Exception:
+            return []
+
     def _prepare_agents_jump_maps(self) -> bool:
-        """Allocate agent-row, banner, and panel-title hints without rendering."""
+        """Allocate agent-row, banner, panel-title, and tab hints."""
         guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return False
+        tab_targets = self._tab_jump_targets()
         targets = self._jump_candidate_targets()
-        if not targets:
+        combined: list[JumpTarget] = [*tab_targets, *targets]
+        if not combined:
             return False
-        hint_to_target, _ = build_jump_hint_maps(targets)
+        hint_to_target, _ = build_jump_hint_maps(combined)
         if not hint_to_target:
             return False
         self._entry_jump_hint_to_target = dict(hint_to_target)
@@ -114,8 +150,15 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         banner_to_hint: dict[BannerJumpTarget, str] = {}
         panel_hint_to_target: dict[str, PanelJumpTarget] = {}
         panel_to_hint: dict[PanelJumpTarget, str] = {}
+        tab_hint_to_key: dict[str, TabJumpTarget] = {}
+        tab_key_to_hint: dict[TabJumpTarget, str] = {}
+        agent_tab_hints: dict[AgentTabKey, str] = {}
         for hint, target in hint_to_target.items():
-            if target[0] == "agent":
+            if target[0] == "tab":
+                tab_hint_to_key[hint] = target
+                tab_key_to_hint[target] = hint
+                agent_tab_hints[target[1]] = hint
+            elif target[0] == "agent":
                 agent_hint_to_idx[hint] = target[1]
                 agent_idx_to_hint[target[1]] = hint
             elif target[0] == "banner":
@@ -131,6 +174,12 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_banner_to_hint = banner_to_hint
         self._entry_jump_hint_to_panel = panel_hint_to_target
         self._entry_jump_panel_to_hint = panel_to_hint
+        self._entry_jump_hint_to_tab = tab_hint_to_key
+        self._entry_jump_tab_to_hint = tab_key_to_hint
+        try:
+            self._agent_tab_jump_hints = agent_tab_hints
+        except Exception:
+            pass
         return True
 
     def _begin_agents_jump_mode(self) -> None:
@@ -143,6 +192,12 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
     def _refresh_agents_jump_hint_display(self) -> None:
         """Refresh jump-hint overlays without forcing a full display rebuild."""
+        refresh_strip = getattr(self, "_refresh_agent_tab_strip", None)
+        if callable(refresh_strip):
+            try:
+                refresh_strip()
+            except Exception:
+                pass
         panel_group = getattr(self, "_panel_group", None)
         refresh_affected = getattr(self, "_refresh_affected_panel_widgets", None)
         if (
@@ -233,6 +288,12 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_patch_banner_to_hint = {}
         self._entry_jump_hint_to_patch_banner = {}
         self._entry_jump_patch_banner_to_hint = {}
+        self._entry_jump_hint_to_tab = {}
+        self._entry_jump_tab_to_hint = {}
+        try:
+            self._agent_tab_jump_hints = {}
+        except Exception:
+            pass
         if self.current_tab == "agents":
             self._refresh_agents_jump_hint_display()
         else:

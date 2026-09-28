@@ -40,6 +40,15 @@ class AgentFleetHeaderMixin:
             status.update("")
         else:
             text = self._agents_fleet_problem_text()
+            if strip_visible:
+                # The strip's right side names the active machine tab's
+                # health, falling back to today's fleet diagnostic text.
+                try:
+                    active_health = getattr(self, "_active_tab_health_text", None)
+                    if callable(active_health):
+                        text = active_health() or text
+                except Exception:
+                    pass
             if not text and not strip_visible:
                 header.add_class("hidden")
                 return

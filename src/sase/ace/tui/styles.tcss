@@ -3758,10 +3758,13 @@ HintInputBar #hint-escape-hint {
     padding-left: 1;
 }
 
-/* Minimal agent-tab strip (tab-state-keys phase): labels only, sized to
-   content at the left of #agents-header. The tab-strip phase restyles it. */
+/* Agent tab strip: content-sized but never wider than the header row, so
+   narrow widths fall into the tier ladder and the active-centered overflow
+   window instead of clipping. Tabs render left-aligned; the 1fr fleet-status
+   sibling keeps the row's right side. */
 #agents-tab-strip {
     width: auto;
+    max-width: 100%;
     height: 1;
 }
 

@@ -123,7 +123,7 @@ class AgentDetailRenderMixin:
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         self._sync_selected_named_proc_detail_proc(current_agent)
         if current_agent is None:
-            agent_detail.show_empty()
+            self._render_agents_detail_empty(agent_detail)
             return False
         if current_agent.is_clan_container:
             return False
@@ -268,9 +268,26 @@ class AgentDetailRenderMixin:
                     attempt_number=self.current_attempt_number,
                 )
         else:
-            agent_detail.show_empty()
+            self._render_agents_detail_empty(agent_detail)
 
         self._apply_agent_footer_update(agent_detail, footer_widget, current_agent)
+
+    def _render_agents_detail_empty(self, agent_detail: AgentDetail) -> None:
+        """Render the empty detail: the active tab's cause, else the default.
+
+        With the tab strip up, an empty active tab names its empty cause
+        (genuinely empty, query-hidden, or unavailable feed) instead of the
+        generic empty state. Falls back to the default on any failure so
+        the detail panel never goes blank.
+        """
+        show_tab_empty = getattr(self, "_show_active_tab_empty_state", None)
+        if callable(show_tab_empty):
+            try:
+                if show_tab_empty(agent_detail):
+                    return
+            except Exception:
+                pass
+        agent_detail.show_empty()
 
     def _defer_projected_record_detail(self, current_agent: Agent) -> bool:
         """Start full-record hydration and defer detail rendering while pending."""

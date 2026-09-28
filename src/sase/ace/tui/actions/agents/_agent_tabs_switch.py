@@ -22,6 +22,8 @@ from sase.core.agent_tab import (
 from ...agent_tabs_flag import agent_tabs_enabled
 from ...models.agent_tab_index import AgentTabCatalogEntry
 from ._agent_tabs_catalog import (
+    active_tab_label_for_owner,
+    agent_tab_health_for_owner,
     bulk_scope_label_for_owner,
     catalog_view_for_owner,
     strip_visible_for_owner,
@@ -32,7 +34,9 @@ if TYPE_CHECKING:
 
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...models.agent_tab_descriptors import AgentTabStyleInputs
     from ...models.agent_tab_index import AgentTabIndex
+    from ...widgets.agent_tab_strip import AgentTabEmptyState
 
 log = logging.getLogger(__name__)
 
@@ -119,6 +123,23 @@ def _scroll_anchor_for_owner(owner: Any) -> Any | None:
         return None
 
 
+def _top_level_count(rows: list[Any]) -> int:
+    """Count top-level rows, degrading to the raw count on error."""
+    try:
+        from ...models._agent_tree import agent_is_tree_child
+
+        count = 0
+        for row in rows:
+            try:
+                if not agent_is_tree_child(row):
+                    count += 1
+            except Exception:
+                count += 1
+        return count
+    except Exception:
+        return len(rows)
+
+
 class AgentTabsSwitchMixin:
     """Synchronous tab switching with per-tab memory and the strip."""
 
@@ -139,6 +160,10 @@ class AgentTabsSwitchMixin:
     _agent_tab_save_generation: int
     _agent_tab_save_completed_generation: int
     _agent_tab_strip_signature: Any | None
+    _agent_tab_arrivals: set[AgentTabKey]
+    _agent_tab_seen_identities: set[Any]
+    _agent_tab_arrivals_baselined: bool
+    _agent_tab_jump_hints: dict[AgentTabKey, str]
 
     def _ensure_agent_tabs_state(self) -> None:
         """Initialize tab-switch fields for mixin tests that skip startup."""
@@ -160,6 +185,10 @@ class AgentTabsSwitchMixin:
             ("_agent_tab_save_generation", 0),
             ("_agent_tab_save_completed_generation", 0),
             ("_agent_tab_strip_signature", None),
+            ("_agent_tab_arrivals", set()),
+            ("_agent_tab_seen_identities", set()),
+            ("_agent_tab_arrivals_baselined", False),
+            ("_agent_tab_jump_hints", {}),
         )
         for name, value in defaults:
             if not hasattr(self, name):
@@ -327,6 +356,10 @@ class AgentTabsSwitchMixin:
         self._remember_active_tab_memory()
         self._active_agent_tab = key  # type: ignore[attr-defined]
         self._agent_tabs_user_switched = True  # type: ignore[attr-defined]
+        try:
+            self._agent_tab_arrivals.discard(key)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         if key != getattr(self, "_agent_tab_latched_key", None):
             self._agent_tab_latched_key = None  # type: ignore[attr-defined]
         rescope = getattr(self, "_rescope_agents_to_active_tab", None)
@@ -413,8 +446,13 @@ class AgentTabsSwitchMixin:
                 log.exception("Tab picker switch failed")
 
         try:
+            descriptors = self._descriptors_for_strip(entries, active)
+        except Exception:
+            descriptors = ()
+        try:
             self.push_screen(  # type: ignore[attr-defined]
-                AgentTabPickerModal(entries, active), _on_choice
+                AgentTabPickerModal(entries, active, descriptors=descriptors),
+                _on_choice,
             )
         except Exception:
             log.exception("Tab picker failed to open")
@@ -432,27 +470,109 @@ class AgentTabsSwitchMixin:
         except Exception:
             log.exception("Tab strip switch failed")
 
+    def _descriptors_for_strip(
+        self, entries: tuple[AgentTabCatalogEntry, ...], active: AgentTabKey
+    ) -> tuple[Any, ...]:
+        """Project query-aware descriptors for *entries* (no I/O).
+
+        Existence comes from *entries* (built over the tab-independent
+        roster); counts and attention come from the committed
+        tab-independent query result. Style inputs are the token-cached
+        worker resolution, so this stays free of disk and network work.
+        """
+        from ...models.agent_tab_descriptors import (
+            AgentTabStyleInputs,
+            project_agent_tab_descriptors,
+            resolve_agent_tab_style_inputs,
+        )
+
+        index = getattr(self, "_agent_tab_index", None)
+        key_for = getattr(index, "key_for", None) if index is not None else None
+        if not callable(key_for):
+
+            def key_for(
+                _row: Any, _default: AgentTabKey = DEFAULT_AGENT_TAB_KEY
+            ) -> AgentTabKey:
+                return _default
+
+        query_result = list(getattr(self, "_agents_query_result", None) or [])
+        unread: set[Any] = getattr(self, "_unread_completed_agent_ids", set()) or set()
+        load_state = getattr(self, "_agent_load_state", None)
+        incomplete = bool(
+            getattr(load_state, "has_more", False)
+            or getattr(load_state, "query_incomplete", False)
+        )
+        health, extras, _active_text = agent_tab_health_for_owner(self)
+        styles: AgentTabStyleInputs | None
+        try:
+            styles = resolve_agent_tab_style_inputs(allow_disk=False)
+        except Exception:
+            styles = None
+        jump_hints = dict(getattr(self, "_agent_tab_jump_hints", None) or {})
+        return project_agent_tab_descriptors(
+            tuple(entries),
+            query_result,
+            key_for,
+            active_key=active,
+            unread_ids=unread,
+            incomplete=incomplete,
+            health_by_key=health,
+            arrivals=set(getattr(self, "_agent_tab_arrivals", set()) or set()),
+            config_colors=dict(styles.colors) if styles is not None else {},
+            config_icons=dict(styles.icons) if styles is not None else {},
+            config_descriptions=dict(styles.descriptions) if styles is not None else {},
+            enabled_projects=tuple(styles.enabled_projects)
+            if styles is not None
+            else (),
+            machine_mode=bool(styles.machine_mode) if styles is not None else False,
+            jump_hints=jump_hints,
+            extra_tooltips=extras,
+        )
+
     def _refresh_agent_tab_strip(self) -> None:
-        """Push catalog labels and the active key; skip on no change."""
+        """Project descriptors and push them; skip on no change.
+
+        ``AgentTabStrip`` owners get the full descriptors; a legacy
+        ``PanelTabStrip`` owner keeps the minimal labels-only strip so
+        phase-6 surfaces stay byte-identical.
+        """
         self._ensure_agent_tabs_state()
         try:
             strip = self.query_one("#agents-tab-strip")  # type: ignore[attr-defined]
         except Exception:
             return
+        from ...models.agent_tab_descriptors import descriptor_signature
+
         entries = self._agent_tab_catalog_view()
         active = self._active_agent_tab  # type: ignore[attr-defined]
-        signature = (
-            tuple((entry.key, entry.label, entry.root_count) for entry in entries),
-            active,
-            self._agent_tab_strip_visible(),
+        try:
+            descriptors = self._descriptors_for_strip(entries, active)
+        except Exception:
+            log.exception("Tab strip descriptor projection failed")
+            return
+        signature = descriptor_signature(
+            descriptors, active, self._agent_tab_strip_visible()
         )
         if signature == self._agent_tab_strip_signature:  # type: ignore[attr-defined]
             return
-        self._agent_tab_strip_signature = signature  # type: ignore[attr-defined]
+        set_descriptors = getattr(strip, "set_descriptors", None)
+        if callable(set_descriptors):
+            try:
+                set_descriptors(descriptors, active)
+            except Exception:
+                # A failed push must not poison the gate: leave the old
+                # signature so the next refresh retries the push.
+                log.exception("Tab strip refresh failed")
+                return
+            self._agent_tab_strip_signature = signature  # type: ignore[attr-defined]
+            return
+        set_tabs = getattr(strip, "set_tabs", None)
+        if not callable(set_tabs):
+            return
         try:
             from ...widgets.panel_tab_strip import PanelTab
 
-            strip.set_tabs(
+            set_tabs(
                 [
                     PanelTab(
                         id=_strip_id_for_key(entry.key),
@@ -465,6 +585,136 @@ class AgentTabsSwitchMixin:
             )
         except Exception:
             log.exception("Tab strip refresh failed")
+            return
+        self._agent_tab_strip_signature = signature  # type: ignore[attr-defined]
+
+    def _track_tab_arrivals(self) -> None:
+        """Mark inactive tabs that gained a new root since the last visit.
+
+        New presentation-root identities on a non-active tab raise its
+        arrival dot; visiting a tab clears its dot. The first catalog
+        only baselines what exists so startup paints no dots. Pure
+        in-memory work over the already-loaded roster.
+        """
+        self._ensure_agent_tabs_state()
+        if not agent_tabs_enabled():
+            return
+        index = getattr(self, "_agent_tab_index", None)
+        if index is None:
+            return
+        key_for = getattr(index, "key_for", None)
+        if not callable(key_for):
+            return
+        roster = list(getattr(self, "_agents_with_children", ()) or [])
+        try:
+            from ...models._agent_tree_anchor import presentation_anchor_lookup
+
+            anchors = presentation_anchor_lookup(roster)
+        except Exception:
+            return
+        active = self._active_agent_tab  # type: ignore[attr-defined]
+        seen = self._agent_tab_seen_identities  # type: ignore[attr-defined]
+        arrivals = self._agent_tab_arrivals  # type: ignore[attr-defined]
+        baselined = bool(getattr(self, "_agent_tab_arrivals_baselined", False))
+        current_identities: set[Any] = set()
+        seen_root_ids: set[int] = set()
+        for row in roster:
+            try:
+                anchor = anchors.get(id(row), row)
+            except Exception:
+                anchor = row
+            if id(anchor) in seen_root_ids:
+                continue
+            seen_root_ids.add(id(anchor))
+            try:
+                identity = anchor.identity
+            except Exception:
+                continue
+            current_identities.add(identity)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            if not baselined:
+                continue
+            try:
+                key = key_for(anchor)
+            except Exception:
+                continue
+            if key != active:
+                arrivals.add(key)
+        try:
+            seen.intersection_update(current_identities)
+        except Exception:
+            pass
+        self._agent_tab_arrivals_baselined = True  # type: ignore[attr-defined]
+        try:
+            arrivals.discard(active)
+        except Exception:
+            pass
+
+    def _active_tab_health_text(self) -> str:
+        """Return the right-side health text for the active machine tab."""
+        _health, _extras, active_text = agent_tab_health_for_owner(self)
+        return active_text
+
+    def _active_tab_empty_state(self) -> AgentTabEmptyState | None:
+        """Return the visible empty cause for the active tab, if empty."""
+        from ...widgets.agent_tab_strip import (
+            AgentTabEmptyState,
+            agent_tab_empty_state,
+        )
+
+        if not agent_tabs_enabled():
+            return None
+        scoped = list(getattr(self, "_agents", ()) or [])
+        if scoped:
+            return None
+        if not self._agent_tab_strip_visible():
+            if getattr(self, "_agent_tab_latched_key", None) is None:
+                return None
+        index = getattr(self, "_agent_tab_index", None)
+        active = getattr(self, "_active_agent_tab", None)
+        try:
+            tab_has_roots = bool(index is not None and index.root_count(active) > 0)
+        except Exception:
+            tab_has_roots = False
+        query = str(getattr(self, "_agent_search_query", "") or "")
+        query_result = list(getattr(self, "_agents_query_result", None) or [])
+        matches_elsewhere = _top_level_count(query_result)
+        health, _extras, _active_text = agent_tab_health_for_owner(self)
+        try:
+            feed_unavailable = isinstance(active, AgentTabKey) and health.get(
+                active, "ok"
+            ) in ("invalid", "offline")
+        except Exception:
+            feed_unavailable = False
+        return agent_tab_empty_state(
+            scoped_count=0,
+            tab_has_roots=tab_has_roots,
+            query=query,
+            matches_elsewhere=matches_elsewhere,
+            feed_unavailable=bool(feed_unavailable),
+            tab_label=active_tab_label_for_owner(self),
+        )
+
+    def _show_active_tab_empty_state(self, agent_detail: Any) -> bool:
+        """Render the active tab's empty cause into the detail panel.
+
+        Returns True when a cause was rendered and callers should skip
+        the default empty state. Falls back to False (default empty) on
+        any failure so the detail panel never goes blank.
+        """
+        state = self._active_tab_empty_state()
+        if state is None:
+            return False
+        show_cause = getattr(agent_detail, "show_tab_empty_state", None)
+        if not callable(show_cause):
+            return False
+        try:
+            show_cause(state.title, state.detail)
+        except Exception:
+            return False
+        return True
 
 
 __all__ = [

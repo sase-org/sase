@@ -349,6 +349,7 @@ def _compute_finalize_plan(
     """
     from ...models.agent_group_fold import enumerate_panel_group_keys
     from ...models.agent_groups import GroupingMode
+    from ...models.agent_tab_descriptors import resolve_agent_tab_style_inputs
     from ...models.agent_tab_index import (
         AgentTabIndex,
         build_agent_tab_index,
@@ -374,6 +375,13 @@ def _compute_finalize_plan(
     if snapshot.agent_tabs_enabled and snapshot.agent_tabs_view_config is not None:
         from ...models.agent_tab_index import ALL_AGENT_TABS
 
+        # Off-thread style resolution (disk is allowed here): warms the
+        # token-cached style inputs the UI-thread strip refresh reads, so
+        # rendering never touches disk or the network.
+        try:
+            resolve_agent_tab_style_inputs(allow_disk=True)
+        except Exception:
+            pass
         index_roster = (
             unfiltered_agents if unfiltered_agents is not None else visible_agents
         )

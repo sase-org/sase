@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Hashable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from ...models.agent_panels import PanelKey
 from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
@@ -38,12 +38,14 @@ class _JumpHintMatch[T]:
 
 
 # Agents-tab jump targets distinguish a global agent index, a panel-scoped
-# banner identity, and a stable-key panel header. Patches and AXE
-# tabs continue to pass plain ints — the generic map builder accepts hashables.
+# banner identity, a stable-key panel header, and an agent-tab strip chip.
+# Patches and AXE tabs continue to pass plain ints — the generic map
+# builder accepts hashables.
 AgentJumpTarget = tuple[Literal["agent"], int]
 BannerJumpTarget = tuple[Literal["banner"], int, tuple[str, ...]]
 PanelJumpTarget = tuple[Literal["panel"], PanelKey]
-JumpTarget = AgentJumpTarget | BannerJumpTarget | PanelJumpTarget
+TabJumpTarget = tuple[Literal["tab"], Any]
+JumpTarget = AgentJumpTarget | BannerJumpTarget | PanelJumpTarget | TabJumpTarget
 AgentJumpAnchor = (
     tuple[Literal["agent"], int, PanelKey]
     | tuple[Literal["agent"], int, PanelKey, str]

@@ -76,6 +76,10 @@ class AgentTabsLifecycleMixin:
     _agent_tab_save_generation: int
     _agent_tab_save_completed_generation: int
     _agent_tab_strip_signature: Any | None
+    _agent_tab_arrivals: set[AgentTabKey]
+    _agent_tab_seen_identities: set[Any]
+    _agent_tab_arrivals_baselined: bool
+    _agent_tab_jump_hints: dict[AgentTabKey, str]
 
     def _ensure_agent_tabs_state(self) -> None:
         """Initialize tab-switch fields for mixin tests that skip startup."""
@@ -97,6 +101,10 @@ class AgentTabsLifecycleMixin:
             ("_agent_tab_save_generation", 0),
             ("_agent_tab_save_completed_generation", 0),
             ("_agent_tab_strip_signature", None),
+            ("_agent_tab_arrivals", set()),
+            ("_agent_tab_seen_identities", set()),
+            ("_agent_tab_arrivals_baselined", False),
+            ("_agent_tab_jump_hints", {}),
         )
         for name, value in defaults:
             if not hasattr(self, name):
@@ -124,6 +132,10 @@ class AgentTabsLifecycleMixin:
         for entry in entries:
             if isinstance(entry.label, str) and entry.label:
                 self._agent_tab_known_labels[entry.key] = entry.label  # type: ignore[attr-defined]
+        try:
+            self._track_tab_arrivals()  # type: ignore[attr-defined]
+        except Exception:
+            log.exception("Agent tab arrival tracking failed")
         prev_keys = tuple(getattr(self, "_agent_tab_prev_catalog_keys", ()) or ())
         active = self._active_agent_tab  # type: ignore[attr-defined]
         changed = False

@@ -50,7 +50,20 @@ class AgentsOnboardingMixin:
             self, "_agents_fleet_last_error", None
         ):
             return False
-        return not bool(getattr(self, "_agents", []))
+        if not bool(getattr(self, "_agents", [])):
+            # With the tab strip up, an empty active tab keeps its pill and
+            # names its empty cause in the detail panel; the global
+            # onboarding card only owns the truly tab-less roster.
+            try:
+                from ...agent_tabs_flag import agent_tabs_enabled
+                from ._agent_tabs import strip_visible_for_owner
+
+                if agent_tabs_enabled() and strip_visible_for_owner(self):
+                    return False
+            except Exception:
+                pass
+            return True
+        return False
 
     def _set_agents_onboarding_layout(self, active: bool) -> None:
         """Collapse the Agents-tab chrome while onboarding is visible."""

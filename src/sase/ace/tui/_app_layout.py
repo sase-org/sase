@@ -129,9 +129,9 @@ class AppLayoutMixin:
                     profile=agents_live_query_profile(),
                 )
                 with Horizontal(id="agents-header", classes="hidden"):
-                    from .widgets.panel_tab_strip import PanelTabStrip
+                    from .widgets.agent_tab_strip import AgentTabStrip
 
-                    yield PanelTabStrip(
+                    yield AgentTabStrip(
                         [],
                         None,
                         id="agents-tab-strip",

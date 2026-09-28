@@ -155,6 +155,25 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             return True
 
         if self.current_tab == "agents":
+            tab_target = (
+                resolved_target[1]
+                if isinstance(resolved_target, tuple)
+                and len(resolved_target) == 2
+                and resolved_target[0] == "tab"
+                else None
+            )
+            if tab_target is not None:
+                switch = getattr(self, "_switch_agents_tab", None)
+                if callable(switch):
+                    try:
+                        switch(tab_target, reason="jump")
+                    except Exception:
+                        pass
+                self._exit_entry_jump_mode()
+                refresh_detail = getattr(self, "_refresh_agent_focus_detail", None)
+                if callable(refresh_detail):
+                    refresh_detail()
+                return True
             banner_target = (
                 resolved_target
                 if isinstance(resolved_target, tuple) and resolved_target[0] == "banner"

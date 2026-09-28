@@ -60,6 +60,91 @@ class AgentDetailStateMixin:
         self._publish_metadata_identity_change(previous_identity)
         self._sync_header_visibility()
 
+    def show_tab_empty_state(self, title: str, detail: str = "") -> None:
+        """Show a named empty cause for the active agent tab.
+
+        Mirrors :meth:`show_empty` through the child widgets — the detail
+        surface renders its prompt/deck children, never the parent Static
+        content — then replaces the prompt panel's empty text with the
+        cause. In deck mode the Main sink drops source content while no
+        agent is selected (subject None), so the cause is also pushed
+        straight into the visible Main panels as a card document.
+        Falls back to the plain empty state when the prompt panel is
+        unreachable.
+        """
+        self.show_empty()
+        try:
+            from rich.text import Text
+
+            body = Text()
+            body.append(title, style="bold #AFAFAF")
+            if detail:
+                body.append(f"\n{detail}", style="dim")
+            if self._push_tab_empty_cause_to_main_deck(body):
+                return
+            source = self._deck_source_panel()  # type: ignore[attr-defined]
+            source.update(body)
+        except Exception:  # noqa: BLE001 - show_empty above already holds.
+            pass
+
+    def _push_tab_empty_cause_to_main_deck(self, body: object) -> bool:
+        """Push the empty-cause body to the visible Main deck panels.
+
+        Deck-mode ``AgentDetail`` renders its deck children, and the Main
+        document sink discards prompt-source content while no agent is
+        selected — so the cause goes straight into the visible Main
+        panels as a card document instead of through the prompt source
+        (whose identical digest would dedup-skip the real push).
+        Returns True when at least one panel took the document; otherwise
+        the caller falls back to updating the prompt source directly,
+        which is what non-deck surfaces render.
+        """
+        from .decks.card_part import split_card_parts
+        from .decks.main_document import MainDeckDocument
+        from .decks.model import DeckId
+        from ..util.renderable_digest import renderable_content_digest
+
+        cards = split_card_parts(body)
+        if not cards:
+            return False
+        try:
+            digest = renderable_content_digest(body)
+        except Exception:
+            digest = None
+        document = MainDeckDocument(
+            cards=cards, subject=None, partial=False, digest=digest
+        )
+        try:
+            self._main_deck_document = document  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+        except Exception:
+            return False
+        try:
+            panels = tuple(area.panels_showing(DeckId.MAIN))
+        except Exception:
+            return False
+        if not panels:
+            return False
+        for panel in panels:
+            try:
+                preferred = area.state.panels[panel.panel_index].preferred_card_for(
+                    DeckId.MAIN
+                )
+            except Exception:
+                preferred = None
+            try:
+                panel.show_main_document(document, preferred_card=preferred)
+            except Exception:
+                pass
+            try:
+                panel.refresh_chrome()
+            except Exception:
+                pass
+        return True
+
     def show_tribe_summary(
         self,
         snapshot: AgentTribeSummarySnapshot,

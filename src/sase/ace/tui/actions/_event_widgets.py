@@ -259,6 +259,31 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         except Exception:
             return
 
+    def on_agent_tab_strip_picker_requested(self, event: Any) -> None:
+        """Open the tab picker from an overflow chip.
+
+        Other ``PanelTabStrip`` owners (help, config hub, statistics,
+        plugins) live on modal screens and handle their own clicks, so
+        modal-screen messages are ignored here, mirroring the tab-click
+        handler above.
+        """
+        try:
+            from textual.screen import ModalScreen
+
+            if isinstance(getattr(self, "screen", None), ModalScreen):
+                return
+        except Exception:
+            pass
+        if getattr(self, "current_tab", None) != "agents":
+            return
+        action = getattr(self, "action_pick_agents_tab", None)
+        if not callable(action):
+            return
+        try:
+            action()
+        except Exception:
+            return
+
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""
         if event.tab != self.current_tab:
