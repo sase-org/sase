@@ -280,6 +280,7 @@ def test_wiring_context_row_cached() -> None:
 
 def test_jump_meta_matches_block_header() -> None:
     from sase.ace.tui.tool_runs.deck import tool_run_block_header_text
+    from sase.ace.tui.tool_runs.links_jumps import TOOLRUN_JUMP_META_KEY
 
     run = _brief("ab12cd34" * 4, bucket="new_failures", new=3, known=1)
     suffix = run_links.suffix_text_with_jump(run, prefix="→", now_ts=_NOW_TS)
@@ -288,20 +289,26 @@ def test_jump_meta_matches_block_header() -> None:
         DECK_BLOCK_META_KEY,
     )
 
-    def _meta_ids(text: object) -> set[str]:
+    def _meta_ids(text: object, key: str) -> set[str]:
         ids: set[str] = set()
         for span in getattr(text, "spans", ()):
             meta = getattr(span.style, "meta", None) if span.style else None
-            if isinstance(meta, dict) and DECK_BLOCK_META_KEY in meta:
-                ids.add(str(meta[DECK_BLOCK_META_KEY]))
+            if isinstance(meta, dict) and key in meta:
+                ids.add(str(meta[key]))
         style = getattr(text, "style", None)
         meta = getattr(style, "meta", None) if style else None
-        if isinstance(meta, dict) and DECK_BLOCK_META_KEY in meta:
-            ids.add(str(meta[DECK_BLOCK_META_KEY]))
+        if isinstance(meta, dict) and key in meta:
+            ids.add(str(meta[key]))
         return ids
 
-    assert _meta_ids(suffix) == {"ab12cd34" * 4}
-    assert _meta_ids(header) == {"ab12cd34" * 4}
+    assert _meta_ids(suffix, TOOLRUN_JUMP_META_KEY) == {"ab12cd34" * 4}
+    assert _meta_ids(suffix, DECK_BLOCK_META_KEY) == set()
+    assert _meta_ids(header, DECK_BLOCK_META_KEY) == {"ab12cd34" * 4}
+    context_row = run_links.context_tool_run_line(run, now_ts=_NOW_TS)
+    assert _meta_ids(context_row, TOOLRUN_JUMP_META_KEY) == {"ab12cd34" * 4}
+    # No DECK_BLOCK meta means segment_section_identity can never emit
+    # a bogus block:<run_id> anchor for this row.
+    assert _meta_ids(context_row, DECK_BLOCK_META_KEY) == set()
 
 
 def test_monitor_section_tool_run_row() -> None:
@@ -369,3 +376,109 @@ def test_named_proc_section_tool_run_row() -> None:
         if isinstance(part, Text):
             without_row.append_text(part)
     assert "Tool run:" not in without_row.plain
+
+
+def _click_app() -> object:
+    from types import SimpleNamespace
+
+    app = SimpleNamespace()
+    app._pending_tool_run_block = None
+    app._get_selected_agent = lambda: SimpleNamespace(identity=("agent", "a", ""))  # type: ignore[attr-defined]
+    panel = SimpleNamespace()
+    panel.selected: list[str] = []
+    panel.cards: list[str] = []
+    panel.select_block = lambda block_id: panel.selected.append(block_id) or True  # type: ignore[attr-defined]
+    panel._show_tools_card = lambda card_id: panel.cards.append(card_id) or card_id  # type: ignore[attr-defined]
+    panel._tool_runs_document = SimpleNamespace(cards=[SimpleNamespace(blocks=[1])])
+    panel._availability = {}
+    app._panels = [panel]
+    app._test_tool_run_panels = [panel]
+    app.action_show_tool_runs_card = lambda: None  # type: ignore[attr-defined]
+    return app
+
+
+def test_llm_suffix_click_selects_block() -> None:
+    from sase.ace.tui.tool_runs.links_jumps import TOOLRUN_JUMP_META_KEY
+    from sase.ace.tui.tool_runs.reveal import run_id_from_click_meta
+    from sase.ace.tui.widgets.llm_calls_panel import AgentLLMCallsPanel
+    from types import SimpleNamespace
+
+    run = _brief("ab12cd34" * 4, bucket="pass")
+    suffix = run_links.suffix_text_with_jump(run, prefix="→", now_ts=_NOW_TS)
+    style = None
+    for span in suffix.spans:
+        meta = getattr(span.style, "meta", None) if span.style else None
+        if isinstance(meta, dict) and TOOLRUN_JUMP_META_KEY in meta:
+            style = span.style
+            break
+    if style is None:
+        style = suffix.style
+    event = SimpleNamespace(style=style, _stopped=False)
+    event.stop = lambda: setattr(event, "_stopped", True)
+    assert run_id_from_click_meta(event) == "ab12cd34" * 4
+    panel = AgentLLMCallsPanel.__new__(AgentLLMCallsPanel)
+    posted: list[object] = []
+    panel.post_message = lambda message: posted.append(message)  # type: ignore[attr-defined]
+    panel.on_click(event)
+    assert len(posted) == 1
+    assert getattr(posted[0], "run_id", "") == "ab12cd34" * 4
+    assert event._stopped is True
+
+
+def test_context_row_click_selects_block() -> None:
+    from sase.ace.tui.tool_runs.links_jumps import TOOLRUN_JUMP_META_KEY
+    from sase.ace.tui.tool_runs.reveal import reveal_selected_node_run
+    from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+    from types import SimpleNamespace
+
+    run = _brief("ab12cd34" * 4, bucket="pass")
+    row = run_links.context_tool_run_line(run, now_ts=_NOW_TS)
+    style = None
+    for span in row.spans:
+        meta = getattr(span.style, "meta", None) if span.style else None
+        if isinstance(meta, dict) and TOOLRUN_JUMP_META_KEY in meta:
+            style = span.style
+            break
+    if style is None:
+        style = row.style
+    event = SimpleNamespace(style=style, _stopped=False)
+    event.stop = lambda: setattr(event, "_stopped", True)
+    panel = AgentPromptPanel.__new__(AgentPromptPanel)
+    posted: list[object] = []
+    panel.post_message = lambda message: posted.append(message)  # type: ignore[attr-defined]
+    panel.on_click(event)
+    assert len(posted) == 1
+    app = _click_app()
+    assert reveal_selected_node_run(app, getattr(posted[0], "run_id", "")) is True
+    assert app._panels[0].selected == ["ab12cd34" * 4]  # type: ignore[attr-defined]
+
+
+def test_jump_targets_listed_and_open_selects_block() -> None:
+    from sase.ace.tui.tool_runs.links_jumps import (
+        run_id_from_jump_target,
+        visible_tool_run_jump_targets,
+    )
+    from sase.ace.tui.tool_runs.reveal import reveal_selected_node_run
+
+    runs = [_brief("aa" + "0" * 30), _brief("bb" + "0" * 30)]
+    pairs = visible_tool_run_jump_targets(runs)
+    assert [label for label, _ in pairs] == ["⚒ run aa000000", "⚒ run bb000000"]
+    assert run_id_from_jump_target(pairs[0][1]) == "aa" + "0" * 30
+    app = _click_app()
+    assert reveal_selected_node_run(app, "aa" + "0" * 30) is True
+    assert app._panels[0].selected == ["aa" + "0" * 30]  # type: ignore[attr-defined]
+
+
+def test_toolrun_jump_never_reaches_file_opener() -> None:
+    from sase.ace.tui.actions.hints._view_processing import _ViewRequest
+    from sase.ace.tui.tool_runs.links_jumps import tool_run_jump_target
+
+    target = tool_run_jump_target("cc" + "0" * 30)
+    assert target is not None and target.startswith("toolrun-jump:")
+    # The jump branch in _view_processing consumes this target before the
+    # file-path fallback, so it never reaches the file opener.
+    from sase.ace.tui.tool_runs.links_jumps import run_id_from_jump_target as _from_jump
+    from sase.ace.tui.tool_runs.hints import run_id_from_hint_target as _from_log
+
+    assert _from_jump(target) == "cc" + "0" * 30
+    assert _from_log(target) is None

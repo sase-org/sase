@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from textual.message import Message
+
 __all__ = [
+    "TOOLRUN_JUMP_META_KEY",
     "TOOLRUN_JUMP_TARGET_PREFIX",
+    "ToolRunJumpRequested",
     "run_id_from_jump_target",
     "run_jump_hint_label",
     "tool_run_jump_target",
@@ -17,6 +21,11 @@ __all__ = [
 #: :mod:`sase.ace.tui.tool_runs.hints`; the suffix click handler and
 #: ``v`` hint mode both resolve through it.
 TOOLRUN_JUMP_TARGET_PREFIX = "toolrun-jump:"
+
+#: Rich-text meta key carrying the run id for click-to-jump suffixes and
+#: Context rows. Dedicated so prompt-panel section navigation never sees a
+#: bogus ``block:<run_id>`` anchor.
+TOOLRUN_JUMP_META_KEY = "sase_toolrun_jump"
 
 
 def tool_run_jump_target(run_id: str) -> str | None:
@@ -62,3 +71,17 @@ def visible_tool_run_jump_targets(
         seen.add(run_id)
         entries.append((run_jump_hint_label(run_id), target))
     return entries
+
+
+class ToolRunJumpRequested(Message):
+    """A click or hint asked to select one run's Runs block.
+
+    Posted as a message (modelled on ``BlockRailSelected``) so the deck or
+    app performs the reveal; widgets never reach into navigation directly.
+    """
+
+    def __init__(self, run_id: str) -> None:
+        """Store the requested run id."""
+
+        super().__init__()
+        self.run_id = str(run_id or "")

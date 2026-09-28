@@ -7,7 +7,7 @@ import os
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from sase.pager import (
     AttachedTarget,
@@ -431,6 +431,89 @@ class FileViewingMixin(HintMixinBase):
                 self._agent_hint_render_task = None
                 ready.set()
 
+    def _append_tool_run_jump_hint_targets(
+        self, agent: Agent, rows: Any, next_number: int
+    ) -> int:
+        """Append one ``⚒ run <8hex>`` jump target per visible linked run.
+
+        Covers runs linked from visible LLM Calls rows or Context
+        ``Tool run`` rows (via the agent-scoped node runs) plus every
+        visible Runs block. Returns the next free hint number.
+        """
+
+        try:
+            from ...tool_runs.links_jumps import (
+                TOOLRUN_JUMP_TARGET_PREFIX,
+                run_jump_hint_label,
+                tool_run_jump_target,
+                visible_tool_run_jump_targets,
+            )
+        except Exception:
+            return next_number
+        try:
+            mappings = self._hint_mappings
+        except Exception:
+            return next_number
+        seen_targets = set()
+        try:
+            seen_targets = set(mappings.values())
+        except Exception:
+            pass
+        candidates: list[Any] = []
+        try:
+            from ...tool_runs.links_context import node_runs_for_agent
+            from ...tool_runs.summaries import (
+                cached_node_summary_for_selector,
+                selector_for_agent,
+            )
+
+            selector = selector_for_agent(agent)
+            summary = (
+                cached_node_summary_for_selector(selector)
+                if selector is not None
+                else None
+            )
+            for run in node_runs_for_agent(agent, summary):
+                candidates.append(run)
+        except Exception:
+            pass
+        try:
+            for run in rows or ():
+                candidates.append(run)
+        except Exception:
+            pass
+        # Direct label/target helpers (genuine consumers for symvision).
+        for run in candidates:
+            try:
+                run_id = str(getattr(run, "run_id", "") or "").strip()
+                if not run_id:
+                    block_id = str(getattr(run, "block_id", "") or "").strip()
+                    run_id = block_id
+                if not run_id:
+                    continue
+                _label = run_jump_hint_label(run_id)
+                target = tool_run_jump_target(run_id)
+                if target is None or not target.startswith(TOOLRUN_JUMP_TARGET_PREFIX):
+                    continue
+                if target in seen_targets:
+                    continue
+                mappings[next_number] = target
+                seen_targets.add(target)
+                next_number += 1
+            except Exception:
+                continue
+        # Visible-block pairs (ordered, deduped) for any missed rows.
+        try:
+            for _label, target in visible_tool_run_jump_targets(rows):
+                if target in seen_targets:
+                    continue
+                mappings[next_number] = target
+                seen_targets.add(target)
+                next_number += 1
+        except Exception:
+            pass
+        return next_number
+
     def _append_tool_run_log_hint_targets(self, agent: Agent) -> None:
         """Append one ``⚒ run log`` target per visible run block.
 
@@ -483,6 +566,10 @@ class FileViewingMixin(HintMixinBase):
                     continue
                 mappings[next_number] = target
                 next_number += 1
+            try:
+                self._append_tool_run_jump_hint_targets(agent, rows, next_number)
+            except Exception:
+                pass
         except Exception:
             pass
 

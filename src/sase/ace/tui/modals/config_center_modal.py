@@ -349,6 +349,8 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         except Exception:
             log.debug("tool run focus target failed", exc_info=True)
             return False
+        if accepted:
+            self._tool_run_focus_target = None
         return accepted
 
     def switch_to_tab(self, tab: CenterTab) -> None:

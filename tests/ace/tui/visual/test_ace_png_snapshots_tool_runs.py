@@ -80,7 +80,9 @@ def _pin_tool_run_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
     from sase.ace.tui.models import agent_time as agent_time_module
     from sase.ace.tui.widgets import _agent_list_render_agent_status as row_module
     from sase.ace.tui.tool_runs import header_chip as header_chip_module
-    from sase.ace.tui.tool_runs import links as links_module
+    from sase.ace.tui.tool_runs import links_context as links_context_module
+    from sase.ace.tui.tool_runs import links_matching as links_matching_module
+    from sase.ace.tui.tool_runs import links_suffixes as links_suffixes_module
     from sase.ace.tui.widgets.decks.tool_runs import loader as runs_loader_module
     from sase.ace.tui.widgets.decks.tool_runs import widget as runs_widget_module
     from sase.ace.tui.widgets.decks.tool_runs import (
@@ -98,7 +100,9 @@ def _pin_tool_run_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(agent_time_module, "local_now", lambda: naive)
     for module in (
         header_chip_module,
-        links_module,
+        links_context_module,
+        links_matching_module,
+        links_suffixes_module,
         runs_loader_module,
         runs_widget_module,
         runs_widget_live_module,
@@ -843,7 +847,7 @@ def _admin_seams(monkeypatch: pytest.MonkeyPatch) -> None:
     """Seed the Admin Tools pane data sources with fixed fixtures."""
     import sase.config.tools as config_tools
     from sase.ace.tui.actions.agents import _tool_run_actions as actions_module
-    from sase.ace.tui.modals import tool_runs_pane as pane_module
+    from sase.ace.tui.modals import tool_runs_pane_loading as pane_module
     from sase.core import tool_run as core_tool_run
 
     briefs = (

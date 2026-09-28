@@ -167,28 +167,13 @@ OPEN_TOOL_RUN_ACTION = "OpenToolRun"
 def _tool_run_node_matches(run: dict[str, object]) -> Callable[[Any], bool]:
     """Build a row predicate matching the run's owning node (§3.3, owner first)."""
 
-    owner_kind = str(run.get("owner_kind") or "")
-    owner_id = str(run.get("owner_id") or "")
-    agent_name = str(run.get("agent") or "")
+    from sase.ace.tui.tool_runs.reveal import build_tool_run_owner_predicate
 
-    def _matches(agent: object) -> bool:
-        if getattr(agent, "fleet_origin_alias", None):
-            return False
-        if owner_kind == "monitor" and owner_id:
-            return bool(
-                getattr(agent, "is_monitor", False)
-                and getattr(agent, "monitor_id", None) == owner_id
-            )
-        if owner_kind == "proc" and owner_id:
-            return bool(
-                getattr(agent, "is_named_proc", False)
-                and getattr(agent, "proc_id", None) == owner_id
-            )
-        if not agent_name:
-            return False
-        return getattr(agent, "agent_name", None) == agent_name
-
-    return _matches
+    return build_tool_run_owner_predicate(
+        str(run.get("agent") or ""),
+        str(run.get("owner_kind") or ""),
+        str(run.get("owner_id") or ""),
+    )
 
 
 def _resolve_visible_tool_run_node(app: object, run_id: str) -> object | None:
@@ -213,7 +198,7 @@ def _resolve_visible_tool_run_node(app: object, run_id: str) -> object | None:
         return None
 
 
-def _show_tools_deck_best_effort(app: object) -> None:
+def show_tools_deck_best_effort(app: object) -> None:
     """Show the Tools deck in the focused panel without ever raising."""
 
     try:
@@ -267,8 +252,18 @@ def handle_open_tool_run(app: object, notification: Notification) -> bool:
             jumped = bool(jump_to_loaded_agent(app, target))
         except Exception:
             return False
-        _show_tools_deck_best_effort(app)
-        return jumped
+        if not jumped:
+            return False
+        try:
+            from sase.ace.tui.tool_runs.reveal import reveal_selected_node_run
+
+            reveal_selected_node_run(app, run_id)
+        except Exception:
+            try:
+                show_tools_deck_best_effort(app)
+            except Exception:
+                pass
+        return True
     opener = getattr(app, "_open_config_center", None)
     if callable(opener):
         try:

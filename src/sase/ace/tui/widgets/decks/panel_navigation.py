@@ -378,6 +378,28 @@ class DeckPanelNavigationMixin:
             self._sync_tools_hosts()  # type: ignore[attr-defined]
         except Exception:
             pass
+        try:
+            from sase.ace.tui.tool_runs.reveal import (
+                apply_pending_tool_run_select,
+            )
+
+            app = getattr(self, "app", None)
+            if app is not None:
+                try:
+                    n_runs = int(getattr(message, "n_runs", 0) or 0)
+                except Exception:
+                    n_runs = None
+                if apply_pending_tool_run_select(app, self, n_runs=n_runs):
+                    try:
+                        self._sync_block_navigable()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                    try:
+                        self._sync_block_rail()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         if self._deck is DeckId.TOOLS:
             try:
                 self.set_deck(DeckId.TOOLS)

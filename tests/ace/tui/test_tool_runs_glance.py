@@ -220,6 +220,112 @@ def test_snapshot_surface_token_has_tool_runs() -> None:
     assert full.token_for("tool_runs").surface == "tool_runs"
 
 
+def _glance_app(
+    visible: list[object],
+    *,
+    current_tab: str = "agents",
+    previous: set[object] | None = None,
+) -> object:
+    from types import SimpleNamespace
+
+    from sase.ace.tui.tool_runs.loader import ToolRunGlanceLoaderMixin
+
+    app = SimpleNamespace()
+    app._agents = list(visible)
+    app._agents_with_children = list(visible)
+    app.current_tab = current_tab
+    app._tool_runs_last_chip_identities = set(previous or set())
+    app.patched: list[object] = []
+    app.rebuilt: list[dict[str, object]] = []
+
+    def _try_patch(target: object) -> bool:
+        app.patched.append(getattr(target, "identity", None))
+        return True
+
+    def _refresh(**kwargs: object) -> None:
+        app.rebuilt.append(dict(kwargs))
+
+    app._try_patch_agent_row = _try_patch  # type: ignore[attr-defined]
+    app._refresh_agents_display = _refresh  # type: ignore[attr-defined]
+    loader = ToolRunGlanceLoaderMixin.__new__(ToolRunGlanceLoaderMixin)
+    loader._apply_tool_runs_snapshot.__get__(app, type(app))  # noqa: B018
+    app._apply_tool_runs_snapshot = (  # type: ignore[attr-defined]
+        ToolRunGlanceLoaderMixin._apply_tool_runs_snapshot.__get__(app, type(app))
+    )
+    return app
+
+
+def _visible_agent(name: str) -> object:
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        identity=("agent", name, ""),
+        agent_name=name,
+        is_monitor=False,
+        monitor_id=None,
+        is_named_proc=False,
+        proc_id=None,
+        fleet_origin_alias=None,
+        is_clan_container=False,
+        is_agent_session_container_row=False,
+        followup_agents=(),
+        runtime_children=(),
+    )
+
+
+def test_glance_off_tab_row_triggers_no_rebuild() -> None:
+    hidden = _visible_agent("hidden-agent")
+    visible = _visible_agent("visible-agent")
+    run = _glance("a" * 32, agent="hidden-agent")
+    _set_snapshot(_build_snapshot([run], generation=1))
+    app = _glance_app([visible])
+    app._agents_with_children = [visible, hidden]  # type: ignore[attr-defined]
+    app._apply_tool_runs_snapshot(source="test")  # type: ignore[attr-defined]
+    assert app.rebuilt == []  # type: ignore[attr-defined]
+    assert app.patched == []  # type: ignore[attr-defined]
+
+
+def test_glance_non_agents_tab_is_noop() -> None:
+    visible = _visible_agent("visible-agent")
+    run = _glance("a" * 32, agent="visible-agent")
+    _set_snapshot(_build_snapshot([run], generation=1))
+    app = _glance_app([visible], current_tab="patches")
+    app._apply_tool_runs_snapshot(source="test")  # type: ignore[attr-defined]
+    assert app.rebuilt == []  # type: ignore[attr-defined]
+    assert app.patched == []  # type: ignore[attr-defined]
+
+
+def test_glance_settled_chip_patched_off() -> None:
+    visible = _visible_agent("visible-agent")
+    _set_snapshot(_build_snapshot([], generation=2))
+    app = _glance_app([visible], previous={("agent", "visible-agent", "")})
+    app._apply_tool_runs_snapshot(source="test")  # type: ignore[attr-defined]
+    assert app.patched == [(("agent", "visible-agent", ""))]  # type: ignore[attr-defined]
+    assert app.rebuilt == []  # type: ignore[attr-defined]
+
+
+def test_glance_progress_change_is_patch_not_rebuild() -> None:
+    visible = _visible_agent("visible-agent")
+    run = _glance("a" * 32, agent="visible-agent", stages_done=7)
+    _set_snapshot(_build_snapshot([run], generation=3))
+    app = _glance_app([visible])
+    app._apply_tool_runs_snapshot(source="test")  # type: ignore[attr-defined]
+    assert app.patched == [(("agent", "visible-agent", ""))]  # type: ignore[attr-defined]
+    assert app.rebuilt == []  # type: ignore[attr-defined]
+
+
+def test_glance_no_reconcile_on_new_paths() -> None:
+    import sase.ace.tui.tool_runs.loader as loader_module
+    import sase.ace.tui.tool_runs.reveal as reveal_module
+
+    for module in (loader_module, reveal_module):
+        try:
+            source = open(module.__file__, encoding="utf-8").read()  # type: ignore[arg-type]
+        except Exception:
+            continue
+        assert "reconcile_unsettled_tool_runs" not in source
+
+
 def test_row_status_appends_chip_behind_flag() -> None:
     from rich.text import Text
 

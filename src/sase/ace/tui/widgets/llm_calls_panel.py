@@ -412,6 +412,27 @@ class AgentLLMCallsPanel(Static):
         if current is not None:
             self._start_background_fetch(current)
 
+    def on_click(self, event: Any) -> None:
+        """Select the clicked run's Runs block via a posted jump message."""
+
+        try:
+            from sase.ace.tui.tool_runs.links_jumps import ToolRunJumpRequested
+            from sase.ace.tui.tool_runs.reveal import run_id_from_click_meta
+
+            run_id = run_id_from_click_meta(event)
+        except Exception:
+            return
+        if not run_id:
+            return
+        try:
+            self.post_message(ToolRunJumpRequested(run_id))
+        except Exception:
+            return
+        try:
+            event.stop()
+        except Exception:
+            pass
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker state changes."""
         if event.worker != self._current_worker:

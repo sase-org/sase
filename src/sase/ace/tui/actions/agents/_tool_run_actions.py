@@ -277,6 +277,22 @@ class ToolRunActionsMixin:
             return
         request_tool_run_stop(self, run)
 
+    def on_tool_run_jump_requested(self, message: Any) -> None:
+        """Reveal the clicked/hinted run's block on the selected node."""
+
+        try:
+            from sase.ace.tui.tool_runs.reveal import reveal_selected_node_run
+
+            reveal_selected_node_run(self, str(getattr(message, "run_id", "") or ""))
+        except Exception:
+            pass
+        try:
+            stop = getattr(message, "stop", None)
+            if callable(stop):
+                stop()
+        except Exception:
+            pass
+
     def action_open_tool_runs_catalog(self) -> None:
         """Open the Admin Center Tools pane on the Catalog view."""
 

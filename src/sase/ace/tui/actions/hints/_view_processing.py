@@ -18,6 +18,10 @@ from sase.memory.memory_read_report import (
 )
 from sase.ace.tui.bead_hint_targets import bead_id_from_hint_target
 from sase.ace.tui.tool_runs.hints import run_id_from_hint_target
+from sase.ace.tui.tool_runs.links_jumps import (
+    TOOLRUN_JUMP_TARGET_PREFIX,
+    run_id_from_jump_target,
+)
 from sase.pager.document import PagerSection
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.resolve import resolve_link
@@ -50,6 +54,7 @@ class _ViewRequest:
     captured_link_context: CapturedLinkContext
     bead_ids: tuple[str, ...] = ()
     tool_run_log_ids: tuple[str, ...] = ()
+    tool_run_jump_ids: tuple[str, ...] = ()
 
 
 def _materialize_tool_run_log_documents(
@@ -273,6 +278,8 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
         seen_bead_ids: set[str] = set()
         tool_run_log_list: list[str] = []
         seen_tool_run_logs: set[str] = set()
+        tool_run_jump_list: list[str] = []
+        seen_tool_run_jumps: set[str] = set()
         files: list[str] = []
         for raw_file in raw_files:
             bead_id = bead_id_from_hint_target(raw_file)
@@ -281,6 +288,15 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
                     seen_bead_ids.add(bead_id)
                     bead_ids_list.append(bead_id)
                 continue
+            if isinstance(raw_file, str) and raw_file.startswith(
+                TOOLRUN_JUMP_TARGET_PREFIX
+            ):
+                jump_id = run_id_from_jump_target(raw_file)
+                if jump_id is not None:
+                    if jump_id not in seen_tool_run_jumps:
+                        seen_tool_run_jumps.add(jump_id)
+                        tool_run_jump_list.append(jump_id)
+                    continue
             run_id = run_id_from_hint_target(raw_file)
             if run_id is not None:
                 if run_id not in seen_tool_run_logs:
@@ -290,8 +306,15 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
             files.append(raw_file)
         bead_ids: tuple[str, ...] = tuple(bead_ids_list)
         tool_run_log_ids: tuple[str, ...] = tuple(tool_run_log_list)
+        tool_run_jump_ids: tuple[str, ...] = tuple(tool_run_jump_list)
 
-        if not files and not commit_hint_nums and not bead_ids and not tool_run_log_ids:
+        if (
+            not files
+            and not commit_hint_nums
+            and not bead_ids
+            and not tool_run_log_ids
+            and not tool_run_jump_ids
+        ):
             self.notify("No valid files selected", severity="warning")  # type: ignore[attr-defined]
             return None
 
@@ -327,6 +350,7 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
             captured_link_context=self._capture_view_link_context(),
             bead_ids=bead_ids,
             tool_run_log_ids=tool_run_log_ids,
+            tool_run_jump_ids=tool_run_jump_ids,
         )
         tool_reports: dict[str, SlowToolCallReportSpec] = getattr(
             self, "_hint_tool_call_reports", {}
@@ -391,6 +415,26 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
             )
         for bead_failure in outcome.bead_failures:
             self.notify(bead_failure, severity="warning")  # type: ignore[attr-defined]
+
+        tool_run_jump_ids = tuple(getattr(request, "tool_run_jump_ids", ()) or ())
+        if tool_run_jump_ids:
+            try:
+                from sase.ace.tui.tool_runs.reveal import reveal_selected_node_run
+
+                for jump_id in tool_run_jump_ids:
+                    try:
+                        reveal_selected_node_run(self, jump_id)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            if (
+                not outcome.files
+                and not outcome.bead_sections
+                and not request.tool_run_log_ids
+                and not request.commit_specs
+            ):
+                return
 
         tool_run_log_ids = request.tool_run_log_ids
         if tool_run_log_ids and (request.copy_to_clipboard or request.open_in_editor):

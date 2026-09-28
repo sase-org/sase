@@ -11,6 +11,7 @@ from sase.ace.tui.tool_runs._links_shared import is_live_run, run_bucket
 from sase.tool.view_vocabulary import (
     TOOL_RUN_ACCENT,
     TOOL_RUN_GLYPH,
+    ToolRunStateStyle,
     format_age,
     style_for_bucket,
 )
@@ -78,7 +79,7 @@ def _short_suffix_fragment(run: Any, *, now_ts: float) -> str:
             return f"{label} {position}/{expected_int}"
         return f"{label} {format_age(_elapsed_s(run, now_ts))}"
     bucket = run_bucket(run)
-    style = style_for_bucket(bucket)
+    style: ToolRunStateStyle = style_for_bucket(bucket)
     verdict = getattr(run, "verdict", None)
     try:
         new = int(getattr(verdict, "new", 0) or 0)
@@ -159,12 +160,10 @@ def _stamp_jump_meta(text: Text, run_id: str) -> None:
     try:
         from rich.style import Style
 
-        from sase.ace.tui.widgets.prompt_panel._section_navigation import (
-            DECK_BLOCK_META_KEY,
-        )
+        from sase.ace.tui.tool_runs.links_jumps import TOOLRUN_JUMP_META_KEY
 
         text.stylize(
-            Style(meta={DECK_BLOCK_META_KEY: run_id}),
+            Style(meta={TOOLRUN_JUMP_META_KEY: run_id}),
             0,
             len(text.plain),
         )

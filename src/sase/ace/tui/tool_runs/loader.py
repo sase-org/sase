@@ -19,10 +19,12 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import (
     surface_token_drifted,
 )
 from sase.ace.tui.tool_runs.attribution import (
+    RowIdentity,
     row_identity_from_agent,
     select_live_runs,
 )
 from sase.ace.tui.tool_runs.snapshot import (
+    ToolRunGlanceSnapshot,
     ToolRunsLoadState,
     apply_loaded_snapshot,
     get_snapshot,
@@ -179,32 +181,48 @@ class ToolRunGlanceLoaderMixin:
             self._schedule_tool_runs_refresh(source=source)  # type: ignore[attr-defined]
 
     def _apply_tool_runs_snapshot(self, *, source: str = "unknown") -> None:
-        """Patch only rows whose chip token changed; escalate on failure."""
+        """Patch visible rows with live or newly settled chips; never rebuild for hidden rows."""
         del source
+        if getattr(self, "current_tab", "agents") != "agents":
+            return
         agents = list(getattr(self, "_agents", ()) or ())
         if not agents:
             return
-        snapshot = get_snapshot()
+        snapshot: ToolRunGlanceSnapshot | None = get_snapshot()
         if snapshot is None:
             return
-        current_by_identity: dict[Any, Any] = {}
-        for agent in getattr(self, "_agents_with_children", ()) or ():
-            current_by_identity.setdefault(agent.identity, agent)
+        visible_by_identity: dict[Any, Any] = {}
         for agent in agents:
-            current_by_identity[agent.identity] = agent
-        # Compare chip tokens before/after the load is not possible here
-        # (the snapshot already applied); instead patch rows whose current
-        # chip is non-empty or whose cached token disagrees. The cheapest
-        # correct rule: patch every row with a live chip, plus rows the
-        # cache says changed. Track patched rows to escalate once.
-        needs_rebuild = False
-        for identity, target in current_by_identity.items():
             try:
-                row = row_identity_from_agent(target)
+                visible_by_identity[agent.identity] = agent
+            except Exception:
+                continue
+        try:
+            previous = set(
+                getattr(self, "_tool_runs_last_chip_identities", set()) or set()
+            )
+        except Exception:
+            previous = set()
+        current: set[Any] = set()
+        needs_rebuild = False
+        for identity, target in visible_by_identity.items():
+            try:
+                row: RowIdentity = row_identity_from_agent(target)
                 selected = select_live_runs(snapshot.runs, row)
             except Exception:
                 continue
             if not selected:
+                continue
+            current.add(identity)
+            try:
+                patched = self._try_patch_agent_row(target)  # type: ignore[attr-defined]
+            except Exception:
+                patched = False
+            if not patched:
+                needs_rebuild = True
+        for identity in previous - current:
+            target = visible_by_identity.get(identity)
+            if target is None:
                 continue
             try:
                 patched = self._try_patch_agent_row(target)  # type: ignore[attr-defined]
@@ -212,10 +230,10 @@ class ToolRunGlanceLoaderMixin:
                 patched = False
             if not patched:
                 needs_rebuild = True
-        # Rows whose chip disappeared (settle) also need a patch: find rows
-        # with no live chip but a stale chip token in the render cache is
-        # expensive; rely on the next auto-refresh to rebuild those. A
-        # failed patch already escalates to a rebuild here.
+        try:
+            self._tool_runs_last_chip_identities = current  # type: ignore[attr-defined]
+        except Exception:
+            pass
         if needs_rebuild:
             refresh = getattr(self, "_refresh_agents_display", None)
             if callable(refresh):

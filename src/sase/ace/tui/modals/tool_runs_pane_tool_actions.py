@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
 
+    from sase.tool.logs import ToolRunLogTail
+
     from .config_center_session import ToolRunsSessionState
 else:
     _MixinBase = object
@@ -39,10 +41,13 @@ class ToolRunsPaneToolActionsMixin(_MixinBase):
         def _set_view(self, view: str) -> None: ...
 
     def action_jump_to_agent(self) -> None:
-        """Close the modal and reveal the selected run's owning agent row."""
+        """Close the modal and reveal the selected run's Runs block."""
 
         from .config_center_modal import ConfigCenterModal
 
+        if self._view == "failures":
+            self.action_jump_to_failure_agent()
+            return
         brief = next(
             (
                 item
@@ -52,9 +57,15 @@ class ToolRunsPaneToolActionsMixin(_MixinBase):
             ),
             None,
         )
-        agent_name = str(getattr(brief, "agent", "") or "") if brief is not None else ""
-        if not agent_name:
-            self.notify("No owning agent for the selected run", severity="warning")
+        if brief is None:
+            self.notify("No run selected", severity="warning")
+            return
+        run_id = str(getattr(brief, "run_id", "") or "")
+        agent_name = str(getattr(brief, "agent", "") or "")
+        owner_kind = getattr(brief, "owner_kind", None)
+        owner_id = getattr(brief, "owner_id", None)
+        if not run_id:
+            self.notify("No run selected", severity="warning")
             return
         screen = self.screen
         if not isinstance(screen, ConfigCenterModal):
@@ -64,15 +75,104 @@ class ToolRunsPaneToolActionsMixin(_MixinBase):
 
         def _reveal() -> None:
             try:
-                app._save_current_tab_position()  # type: ignore[attr-defined]
-                app.current_tab = "agents"  # type: ignore[attr-defined]
-                app._reveal_agent_row(  # type: ignore[attr-defined]
-                    agent_name, subject="Tool run agent"
+                from sase.ace.tui.tool_runs.reveal import reveal_tool_run_block
+
+                reveal_tool_run_block(
+                    app,
+                    run_id,
+                    agent=agent_name or None,
+                    owner_kind=str(owner_kind) if owner_kind else None,
+                    owner_id=str(owner_id) if owner_id else None,
                 )
             except Exception as exc:
                 self.notify(f"Could not reveal agent: {exc}", severity="warning")
 
         app.call_after_refresh(_reveal)
+
+    def action_jump_to_failure_agent(self) -> None:
+        """Jump to the newest resolvable run in the selected failure group."""
+
+        from .config_center_modal import ConfigCenterModal
+
+        target = self._newest_resolvable_failure_run()
+        if target is None:
+            self.notify("No owning agent for the selected run", severity="warning")
+            return
+        run_id, agent_name, owner_kind, owner_id = target
+        screen = self.screen
+        if not isinstance(screen, ConfigCenterModal):
+            return
+        screen.action_close()
+        app = self.app
+
+        def _reveal() -> None:
+            try:
+                from sase.ace.tui.tool_runs.reveal import reveal_tool_run_block
+
+                reveal_tool_run_block(
+                    app,
+                    run_id,
+                    agent=agent_name or None,
+                    owner_kind=owner_kind,
+                    owner_id=owner_id,
+                )
+            except Exception as exc:
+                self.notify(f"Could not reveal agent: {exc}", severity="warning")
+
+        app.call_after_refresh(_reveal)
+
+    def _newest_resolvable_failure_run(
+        self,
+    ) -> tuple[str, str, str | None, str | None] | None:
+        """Return the newest failure run with owner facts, if any."""
+
+        identity = None
+        try:
+            identity = self._selected_identity()
+        except Exception:
+            identity = None
+        index = 0
+        if identity and identity.startswith("failure-"):
+            try:
+                index = int(identity.split("-", 1)[1])
+            except (ValueError, IndexError):
+                index = 0
+        try:
+            groups = list(getattr(self, "_failure_groups", ()) or ())
+        except Exception:
+            return None
+        if not 0 <= index < len(groups):
+            return None
+        group = groups[index]
+        if not isinstance(group, dict):
+            return None
+        for entry in list(group.get("affected_runs", ()) or ()):
+            if not isinstance(entry, dict):
+                continue
+            run_id = str(entry.get("run_id") or "")
+            if not run_id:
+                continue
+            return (
+                run_id,
+                str(entry.get("agent") or ""),
+                str(entry.get("owner_kind") or "") or None,
+                str(entry.get("owner_id") or "") or None,
+            )
+        last_run_id = str(group.get("last_run_id") or "")
+        if last_run_id:
+            owners = group.get("newest_owners", [])
+            owner_name = ""
+            try:
+                if isinstance(owners, list) and owners:
+                    first = owners[0]
+                    if isinstance(first, dict):
+                        owner_name = str(first.get("agent") or first.get("name") or "")
+                    else:
+                        owner_name = str(first or "")
+            except Exception:
+                owner_name = ""
+            return (last_run_id, owner_name, None, None)
+        return None
 
     def action_open_log(self) -> None:
         """Open the selected run's retained log in the pager."""
@@ -142,8 +242,8 @@ class ToolRunsPaneToolActionsMixin(_MixinBase):
             self.notify(f"Could not open pager: {exc}", severity="error")
 
     @staticmethod
-    def _read_tail(brief: Any, detail_obj: Any) -> Any:
-        from sase.tool.logs import tool_run_log_tail
+    def _read_tail(brief: Any, detail_obj: Any) -> ToolRunLogTail:
+        from sase.tool.logs import ToolRunLogTail, tool_run_log_tail
 
         logs = getattr(detail_obj, "logs", None) if detail_obj is not None else None
         metadata = (
@@ -151,7 +251,7 @@ class ToolRunsPaneToolActionsMixin(_MixinBase):
             if logs is not None and hasattr(logs, "to_tail_metadata")
             else {}
         )
-        return tool_run_log_tail(
+        tail: ToolRunLogTail = tool_run_log_tail(
             str(getattr(brief, "run_id", "") or ""),
             metadata,
             getattr(brief, "owner_kind", None),
@@ -159,6 +259,7 @@ class ToolRunsPaneToolActionsMixin(_MixinBase):
             60,
             256 * 1024,
         )
+        return tail
 
     def action_stop_run(self) -> None:
         """Confirm and stop the selected live run as a durable proc."""

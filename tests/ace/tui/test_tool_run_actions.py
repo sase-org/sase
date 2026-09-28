@@ -335,7 +335,7 @@ def test_open_tool_run_with_node_jumps(monkeypatch: Any) -> None:
         lambda _app, _target: jumped.append(_target) or True,
     )
     monkeypatch.setattr(
-        handlers, "_show_tools_deck_best_effort", lambda _app: shown.append(True)
+        handlers, "show_tools_deck_best_effort", lambda _app: shown.append(True)
     )
 
     class _JumpApp(_StubApp):
@@ -461,3 +461,49 @@ def test_tool_runs_keymaps_gain_stop_and_run() -> None:
     actions = {binding.action for binding in build_tool_runs_bindings(keymaps)}
     assert "stop_run" in actions
     assert "run_tool" in actions
+
+
+def test_open_tool_run_selects_runs_block(monkeypatch: Any) -> None:
+    """OpenToolRun on a visible node ends with Runs active and block selected."""
+
+    from types import SimpleNamespace
+
+    from sase.ace.tui.actions.agents import _notification_handlers as handlers
+
+    row = SimpleNamespace(
+        identity=("agent", "node-a", ""),
+        display_name="node-a",
+        agent_name="node-a",
+        is_monitor=False,
+        monitor_id=None,
+        is_named_proc=False,
+        proc_id=None,
+        fleet_origin_alias=None,
+        is_clan_container=False,
+    )
+    panel = SimpleNamespace()
+    panel.selected: list[str] = []
+    panel.cards: list[str] = []
+    panel.select_block = lambda block_id: panel.selected.append(block_id) or True  # type: ignore[attr-defined]
+    panel._show_tools_card = lambda card_id: panel.cards.append(card_id) or card_id  # type: ignore[attr-defined]
+    panel._tool_runs_document = SimpleNamespace(cards=[SimpleNamespace(blocks=[1])])
+    panel._availability = {}
+    app = SimpleNamespace()
+    app._agents = [row]
+    app._agents_with_children = [row]
+    app._hideable_agents = []
+    app.current_tab = "agents"
+    app.current_idx = 0
+    app._get_selected_agent = lambda: row  # type: ignore[attr-defined]
+    app._panels = [panel]
+    app._test_tool_run_panels = [panel]
+    app.action_show_tool_runs_card = lambda: None  # type: ignore[attr-defined]
+    app.notifies: list[tuple[str, object]] = []
+    app.notify = lambda msg, severity=None: app.notifies.append((msg, severity))  # type: ignore[attr-defined]
+    monkeypatch.setattr(
+        handlers, "_resolve_visible_tool_run_node", lambda _app, _run_id: row
+    )
+    notification = SimpleNamespace(action_data={"run_id": "d" * 32})
+    assert handlers.handle_open_tool_run(app, notification) is True  # type: ignore[arg-type]
+    assert panel.cards == ["runs"]
+    assert panel.selected == ["d" * 32]

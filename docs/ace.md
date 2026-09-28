@@ -3916,12 +3916,14 @@ newest first), **Failures** (failure-signature groups with run and agent witness
 counts), and **Catalog** (the current project's named tools with LAST and TYPICAL from
 the run ledger). The pane is filtered to the current project by default; press `A` to
 widen it to all projects. Use `[` / `]` to move between views, `/` to filter Runs with
-`tool:`, `state:`, `agent:`, and `verdict:` tokens, `enter` to focus detail, `a` to jump
-to the owning Agents row, `v` to open the retained log in the pager, `y` to copy the run
-id, `s` to stop the focused live run (same DANGER confirm as the Agents tab), `r` to run
-the focused catalog tool at the current project root, and `R` to reload. The Runs detail
-reuses the Agents tab Runs block renderer. The pane never settles or reconciles runs;
-the only writes it offers are the explicit stop and catalog-run flows.
+`tool:`, `state:`, `agent:`, and `verdict:` tokens, `enter` to focus detail (`Failures`
+lists the group's affected runs newest first with their agents), `a` to jump to the
+run's ⚒ Runs block on the owning Agents row, `v` to open the retained log in the pager,
+`y` to copy the run id, `s` to stop the focused live run (same DANGER confirm as the
+Agents tab), `r` to run the focused catalog tool at the current project root, and `R` to
+reload. The Runs detail reuses the Agents tab Runs block renderer. The pane never
+settles or reconciles runs; the only writes it offers are the explicit stop and
+catalog-run flows.
 
 <a id="models-panel"></a>
 
@@ -4749,7 +4751,7 @@ is selected. The following notification action types are supported:
 | `JumpToPatch`         | Sync/workflow   | Jumps to the referenced Patch on the Patches sub-tab                                                                                                                                                   |
 | `JumpToMentorReview`  | Mentors         | Jumps to the Patch and opens mentor review output when available                                                                                                                                       |
 | `LaunchApproval`      | Agent           | Opens the launch approval modal for an agent-requested launch                                                                                                                                          |
-| `OpenToolRun`         | Tool run        | Selects the settled run's Agents-tab node and its Tools deck, or opens Admin Center → Tools focused on the run                                                                                         |
+| `OpenToolRun`         | Tool run        | Selects the settled run's Agents-tab node with its ⚒ Runs card active and the run's block selected, or opens Admin Center → Tools focused on the run                                                   |
 | `PlanApproval`        | Agent           | Opens the plan approval modal                                                                                                                                                                          |
 | `RemoteAttention`     | Remote machine  | Opens the remote question or gate modal and submits to the owning machine                                                                                                                              |
 | `SudoRequest`         | Agent           | Opens the [sudo review modal](sudo.md#review-ux); approving runs in a terminal                                                                                                                         |
@@ -6178,10 +6180,11 @@ shows `No tool runs or LLM calls for this node`; on a remote row it says
 ### Links from LLM Calls, slow tools, and Context cards
 
 An LLM Calls row whose command ran `sase tool run` (or a wrapping `sase monitor start`)
-gains a verdict suffix and a jump to the run's block. A `sase tool run` row in the Main
-deck slow-tool list gains a live-stage or verdict suffix. Monitor and named-proc Context
-cards gain a `Tool run` row. The run itself is never copied into those surfaces — they
-link to it.
+gains a verdict suffix that clicks through to the run's block. A `sase tool run` row in
+the Main deck slow-tool list gains a live-stage or verdict suffix. Monitor and
+named-proc Context cards gain a clickable `Tool run` row. The run itself is never copied
+into those surfaces — they link to it. In `v` hint mode each linked run also offers a
+`⚒ run <8hex>` jump target alongside the `⚒ run log` targets.
 
 ### Stopping a run and running a tool
 
@@ -6199,7 +6202,8 @@ it appears in the Procs tab and survives quit.
 `Run project tool…` confirms the argv and the root, then hands `sase tool run -H <tool>`
 off at the current project's primary checkout root through a session worker. When that
 run settles, an `OpenToolRun` notification arrives; selecting it jumps to the run's
-Agents-tab node and Tools deck (or opens Admin Center → Tools focused on the run).
+Agents-tab node with its ⚒ Runs card active and the run's block selected (or opens Admin
+Center → Tools focused on the run).
 
 ## Plan Workflows
 

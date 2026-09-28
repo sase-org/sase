@@ -226,9 +226,50 @@ class ToolRunsPaneRenderMixin(_MixinBase):
             f"first seen: {group.get('first_seen', group.get('first_seen_ts', ''))}"
             f" · last seen: {group.get('last_seen', group.get('last_seen_ts', ''))}",
             "",
+            *self._affected_runs_lines(group),
+            "",
             "enter lists affected runs · a jumps to one",
         ]
         return "\n".join(str(line) for line in lines)
+
+    def _affected_runs_lines(self, group: dict[str, object]) -> list[str]:
+        """Format the group's affected runs, newest first and bounded."""
+
+        raw = group.get("affected_runs", ())
+        entries: list[dict[str, object]] = []
+        seen: set[str] = set()
+        agents: set[str] = set()
+        if isinstance(raw, (list, tuple)):
+            items: list[Any] = list(raw)
+        else:
+            items = []
+        for item in items[:20]:
+            if not isinstance(item, dict):
+                continue
+            run_id = str(item.get("run_id") or "")
+            if not run_id or run_id in seen:
+                continue
+            seen.add(run_id)
+            entries.append(item)
+            name = str(item.get("agent") or "")
+            if name:
+                agents.add(name)
+        if not entries:
+            last_run_id = str(group.get("last_run_id") or "")
+            if last_run_id:
+                return [f"affected: {last_run_id[:8]} (latest only)"]
+            return ["affected: none recorded"]
+        lines = ["affected runs (newest first):"]
+        for item in entries:
+            run_id = str(item.get("run_id") or "")
+            agent = str(item.get("agent") or "—")
+            created = str(item.get("created_ts") or "")
+            cls = str(item.get("class") or "")
+            tail = f" {created} {cls}".rstrip()
+            lines.append(f"  {run_id[:8]}  {agent}{tail}")
+        if agents:
+            lines.append(f"agents: {', '.join(sorted(agents))}")
+        return lines
 
     def _catalog_detail_text(self) -> str:
         name = self._selected_identity()

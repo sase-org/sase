@@ -471,3 +471,70 @@ def test_probe_opens_for_monitor_owned_runs() -> None:
     assert availability.has_content is True
     assert availability.runs_count == 1
     assert availability.calls_count == 0
+
+
+def _deck_panel() -> object:
+    from types import SimpleNamespace
+
+    panel = SimpleNamespace()
+    panel.selected: list[str] = []
+    panel.cards_shown: list[str] = []
+    panel.select_block = lambda block_id: panel.selected.append(block_id) or True  # type: ignore[attr-defined]
+    panel._show_tools_card = lambda card_id: (
+        panel.cards_shown.append(card_id) or card_id
+    )  # type: ignore[attr-defined]
+    panel._tool_runs_document = SimpleNamespace(cards=[SimpleNamespace(blocks=[1, 2])])
+    panel._availability = {}
+    return panel
+
+
+def _deck_app(selected_identity: object) -> object:
+    from types import SimpleNamespace
+
+    app = SimpleNamespace()
+    app._pending_tool_run_block = None
+    selected = SimpleNamespace(identity=selected_identity)
+    app._get_selected_agent = lambda: selected  # type: ignore[attr-defined]
+    app._panels: list[object] = []
+    app._test_tool_run_panels = app._panels
+    app.action_show_tool_runs_card = lambda: None  # type: ignore[attr-defined]
+    return app
+
+
+def test_pending_selection_applies_after_document_loads() -> None:
+    from sase.ace.tui.tool_runs.reveal import apply_pending_tool_run_select
+
+    app = _deck_app(("agent", "a", ""))
+    panel = _deck_panel()
+    app._panels.append(panel)  # type: ignore[attr-defined]
+    app._pending_tool_run_block = {"run_id": "a" * 32, "identity": ("agent", "a", "")}  # type: ignore[attr-defined]
+    assert apply_pending_tool_run_select(app, panel, n_runs=2) is True
+    assert panel.selected == ["a" * 32]  # type: ignore[attr-defined]
+    assert app._pending_tool_run_block is None  # type: ignore[attr-defined]
+
+
+def test_pending_selection_dropped_on_node_change() -> None:
+    from sase.ace.tui.tool_runs.reveal import apply_pending_tool_run_select
+
+    app = _deck_app(("agent", "b", ""))
+    panel = _deck_panel()
+    app._pending_tool_run_block = {"run_id": "a" * 32, "identity": ("agent", "a", "")}  # type: ignore[attr-defined]
+    assert apply_pending_tool_run_select(app, panel, n_runs=2) is False
+    assert app._pending_tool_run_block is None  # type: ignore[attr-defined]
+    assert panel.selected == []  # type: ignore[attr-defined]
+
+
+def test_single_run_document_counts_as_success() -> None:
+    from sase.ace.tui.tool_runs.reveal import apply_pending_tool_run_select
+    from types import SimpleNamespace
+
+    app = _deck_app(("agent", "a", ""))
+    panel = SimpleNamespace()
+    panel.selected: list[str] = []
+    panel.select_block = lambda block_id: False  # type: ignore[attr-defined]
+    panel._show_tools_card = lambda card_id: card_id  # type: ignore[attr-defined]
+    panel._tool_runs_document = SimpleNamespace(cards=[SimpleNamespace(blocks=[])])
+    panel._availability = {}
+    app._pending_tool_run_block = {"run_id": "a" * 32, "identity": ("agent", "a", "")}  # type: ignore[attr-defined]
+    assert apply_pending_tool_run_select(app, panel, n_runs=1) is True
+    assert app._pending_tool_run_block is None  # type: ignore[attr-defined]

@@ -3102,6 +3102,14 @@
                   "type": "string",
                   "description": "Copy the selected run id"
                 },
+                "stop_run": {
+                  "type": "string",
+                  "description": "Stop the selected live tool run"
+                },
+                "run_tool": {
+                  "type": "string",
+                  "description": "Run the selected catalog tool as a hand-off"
+                },
                 "reload": {
                   "type": "string",
                   "description": "Reload the tool-run list"

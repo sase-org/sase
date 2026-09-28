@@ -179,17 +179,19 @@ class ToolRunsPaneShellMixin(_MixinBase):
             pass
 
     def focus_tool_run(self, target: ToolRunFocusTarget | str) -> bool:
-        """Hold *run_id* as pending until the first load lands, then select."""
+        """Switch to Runs, then select (loaded) or hold pending (not loaded)."""
 
         run_id = target.run_id if isinstance(target, ToolRunFocusTarget) else target
         if not run_id:
             return False
+        if self._view != "runs":
+            self._set_view("runs")
         self._pending_run_id = run_id
         self._session_state.pending_run_id = run_id
         if self._loaded_once:
-            return self._select_run(run_id)
-        if self._view != "runs":
-            self._set_view("runs")
+            if self._select_run(run_id):
+                return True
+            return True
         return True
 
     def _is_active_tab(self) -> bool:

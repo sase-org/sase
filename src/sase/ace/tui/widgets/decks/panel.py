@@ -20,6 +20,7 @@ from ..file_panel import (
     FileVisibilityChanged,
 )
 from ..llm_calls_panel import AgentLLMCallsPanel, LLMCallsVisibilityChanged
+from sase.ace.tui.tool_runs.links_jumps import ToolRunJumpRequested
 from .availability import DeckAvailability
 from .block_rail import BlockRail
 from .card_documents import DeckPanelCardDocumentsMixin
@@ -175,6 +176,23 @@ class DeckPanel(  # type: ignore[misc]
             pass
         try:
             self.post_message(DeckPanelFocusRequested(self._panel_index))
+        except Exception:
+            pass
+
+    @on(ToolRunJumpRequested)
+    def _on_tool_run_jump_requested(self, message: ToolRunJumpRequested) -> None:
+        """Reveal the clicked run's Runs block on this panel's node."""
+
+        try:
+            from sase.ace.tui.tool_runs.reveal import reveal_selected_node_run
+
+            reveal_selected_node_run(
+                self.app, str(getattr(message, "run_id", "") or "")
+            )
+        except Exception:
+            pass
+        try:
+            message.stop()
         except Exception:
             pass
 

@@ -231,6 +231,27 @@ class AgentPromptPanel(
         is_navigating = getattr(gate, "is_navigating", None)
         return bool(callable(is_navigating) and is_navigating())
 
+    def on_click(self, event: Any) -> None:
+        """Select the clicked Context run's Runs block via a jump message."""
+
+        try:
+            from sase.ace.tui.tool_runs.links_jumps import ToolRunJumpRequested
+            from sase.ace.tui.tool_runs.reveal import run_id_from_click_meta
+
+            run_id = run_id_from_click_meta(event)
+        except Exception:
+            return
+        if not run_id:
+            return
+        try:
+            self.post_message(ToolRunJumpRequested(run_id))
+        except Exception:
+            return
+        try:
+            event.stop()
+        except Exception:
+            pass
+
     def on_unmount(self) -> None:
         self._cancel_slow_tool_render_tick()
 

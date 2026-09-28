@@ -128,10 +128,17 @@ class ToolRunsPaneLoadingMixin(_MixinBase):
             self._failure_groups = []
             return
         try:
-            request: dict[str, Any] = {"days": 7, "limit": 50}
+            request: dict[str, Any] = {"days": 7, "limit": 50, "runs_limit": 20}
             if project is not None:
                 request["project"] = project
-            result = tool_run_failures(request)
+            try:
+                result = tool_run_failures(request)
+            except Exception:
+                # Pinned core without the opt-in field: fall back to the
+                # counts plus last_run_id/newest_owners shape.
+                fallback = dict(request)
+                fallback.pop("runs_limit", None)
+                result = tool_run_failures(fallback)
             groups = result.get("groups", ())
             self._failure_groups = [
                 dict(group) for group in groups if isinstance(group, dict)
