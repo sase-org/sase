@@ -14,6 +14,14 @@ PROMPT_STASH_WIRE_SCHEMA_VERSION = 1
 #: v1 bindings keep their shape while lifecycle results evolve independently.
 PROMPT_STASH_LIFECYCLE_WIRE_SCHEMA_VERSION = 1
 
+#: Wire schema version for the append-only stash archive endpoints. Versioned
+#: separately so the v1 stash and v1 lifecycle bindings keep their shape
+#: while archive results evolve independently.
+PROMPT_STASH_ARCHIVE_WIRE_SCHEMA_VERSION = 1
+
+#: Tag written on every archive line of ``prompt_stash_archive.jsonl``.
+PROMPT_STASH_ARCHIVE_LINE_KIND = "archived"
+
 
 @dataclass(frozen=True)
 class PromptStashCursorWire:
@@ -245,9 +253,79 @@ def prompt_stash_lifecycle_outcome_from_dict(
     )
 
 
+@dataclass(frozen=True)
+class PromptStashArchiveRecordWire:
+    """One append-only archive record: the entry as it looked before removal."""
+
+    kind: str
+    archived_at: str
+    reason: str
+    pid: int
+    entry: PromptStashEntryWire
+    trashed_at: str | None = None
+
+
+@dataclass(frozen=True)
+class PromptStashArchiveSnapshotWire:
+    """Newest-first view of the append-only stash archive (``limit``-capped)."""
+
+    schema_version: int
+    records: list[PromptStashArchiveRecordWire] = field(default_factory=list)
+    stats: _PromptStashStoreStatsWire = field(
+        default_factory=_PromptStashStoreStatsWire
+    )
+
+
+def _require_archive_schema(schema: int) -> None:
+    if schema != PROMPT_STASH_ARCHIVE_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            "prompt stash archive wire schema mismatch: got "
+            f"{schema}, expected {PROMPT_STASH_ARCHIVE_WIRE_SCHEMA_VERSION}"
+        )
+
+
+def _prompt_stash_archive_record_from_dict(
+    data: dict[str, Any],
+) -> PromptStashArchiveRecordWire:
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"prompt stash archive record must be a dict, got {type(data).__name__}"
+        )
+    trashed_at = data.get("trashed_at")
+    return PromptStashArchiveRecordWire(
+        kind=str(data.get("kind", PROMPT_STASH_ARCHIVE_LINE_KIND)),
+        archived_at=str(data.get("archived_at", "")),
+        reason=str(data.get("reason", "")),
+        pid=int(data.get("pid", 0)),
+        entry=_prompt_stash_entry_from_dict(data["entry"]),
+        trashed_at=None if trashed_at is None else str(trashed_at),
+    )
+
+
+def prompt_stash_archive_snapshot_from_dict(
+    data: dict[str, Any],
+) -> PromptStashArchiveSnapshotWire:
+    schema = int(data["schema_version"])
+    _require_archive_schema(schema)
+    return PromptStashArchiveSnapshotWire(
+        schema_version=schema,
+        records=[
+            _prompt_stash_archive_record_from_dict(item)
+            for item in data.get("records") or []
+        ],
+        stats=_PromptStashStoreStatsWire(
+            **known_field_kwargs(_PromptStashStoreStatsWire, data.get("stats") or {})
+        ),
+    )
+
+
 __all__ = [
+    "PROMPT_STASH_ARCHIVE_LINE_KIND",
+    "PROMPT_STASH_ARCHIVE_WIRE_SCHEMA_VERSION",
     "PROMPT_STASH_LIFECYCLE_WIRE_SCHEMA_VERSION",
     "PROMPT_STASH_WIRE_SCHEMA_VERSION",
+    "PromptStashArchiveRecordWire",
+    "PromptStashArchiveSnapshotWire",
     "PromptStashCursorWire",
     "PromptStashEntryWire",
     "PromptStashLifecycleOutcomeWire",
@@ -256,9 +334,11 @@ __all__ = [
     "PromptStashSnapshotWire",
     "PromptStashTrashRecordWire",
     "_PromptStashStoreStatsWire",
+    "_prompt_stash_archive_record_from_dict",
     "_prompt_stash_cursor_from_dict",
     "_prompt_stash_entry_from_dict",
     "_prompt_stash_trash_record_from_dict",
+    "prompt_stash_archive_snapshot_from_dict",
     "prompt_stash_lifecycle_outcome_from_dict",
     "prompt_stash_lifecycle_snapshot_from_dict",
     "prompt_stash_pop_outcome_from_dict",

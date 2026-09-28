@@ -7189,10 +7189,11 @@ permanent deletion and `Enter` asks for explicit confirmation before purging; `C
 copies a row. Trash holds at most `ace.prompt_stash.trash_limit` entries (default 100;
 this is an entry-count limit, not a byte quota): a discard batch that would overflow it
 names the expected permanent-loss count up front, and the success toast names the actual
-evictions. Setting the limit to `0` disables recovery: Stash `d`/`D` plus `Enter` then
-delete permanently, and a partial discard is applied without a confirmation prompt. A
-lowered limit is applied the next time the overlay opens, before that window is shown.
-Over-limit rows are permanently deleted, oldest discarded first. The toast reads
+evictions. Setting the limit to `0` disables Trash recovery: Stash `d`/`D` plus `Enter`
+then delete permanently (still archived; see below), and a partial discard is applied
+without a confirmation prompt. A lowered limit is applied the next time the overlay
+opens, before that window is shown. Over-limit rows are permanently deleted, oldest
+discarded first. The toast reads
 `Trash limit lowered to N: permanently deleted K oldest draft` (or `drafts`). The Trash
 view in the window that just opened still lists the rows and `Trash N/LIMIT` count from
 before that deletion, so the count can be higher than the new limit. Close the overlay
@@ -7204,6 +7205,17 @@ stored Trash is left unchanged and the overlay still opens. The error toast is
 lock times out. Trash recovers only drafts deliberately discarded from Stash. A
 successful restore of an unpinned Stash row removes that row without putting it in
 Trash. This overlay has no action that deletes History rows.
+
+Every row that permanently leaves the stash is archived first to the append-only
+`prompt_stash_archive.jsonl` sitting next to `prompt_stash.jsonl`: restored, deleted,
+purged, evicted, and overwritten drafts all land there with their full text, so even a
+confirmed purge stays recoverable. List recent archive rows with
+`sase prompt stash-archive` (a bare invocation defaults to `list`), filter with
+`-q/--query` and `-r/--reason`, inspect one draft with
+`sase prompt stash-archive show ID`, and append drafts back to Stash with
+`sase prompt stash-archive restore ID...` (unique id prefixes work). The purge
+confirmation, purge and eviction toasts, and the in-place delete toast all name this
+recovery command.
 
 Compact demo — discard `fix flaky parser test`, then recover it. Leave at least one
 other Stash row unmarked. Discarding every Stash row closes the overlay, so the later

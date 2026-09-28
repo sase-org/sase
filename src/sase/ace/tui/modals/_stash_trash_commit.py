@@ -13,6 +13,14 @@ from dataclasses import dataclass
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 
 
+#: Recovery hint appended to every permanent-deletion confirmation and
+#: toast. The stash archive keeps every removed row, so even confirmed
+#: purges, evictions, and in-place deletes stay recoverable.
+STASH_ARCHIVE_RECOVERY_HINT = (
+    "Drafts stay recoverable with `sase prompt stash-archive`."
+)
+
+
 @dataclass(frozen=True, slots=True)
 class TrashCommitPreview:
     """Preview of a staged Stash → Trash commit.

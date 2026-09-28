@@ -281,11 +281,14 @@ class PromptBarStashRestoreOverlayMixin(PromptBarStashStoreMixin):
             )
             return
         if outcome.evicted:
+            from ...modals._stash_trash_commit import STASH_ARCHIVE_RECOVERY_HINT
+
             lost = len(outcome.evicted)
             noun = "draft" if lost == 1 else "drafts"
             self.notify(  # type: ignore[attr-defined]
                 f"Trash limit lowered to {overlay.trash_limit}: "
-                f"permanently deleted {lost} oldest {noun}"
+                f"permanently deleted {lost} oldest {noun}. "
+                f"{STASH_ARCHIVE_RECOVERY_HINT}"
             )
         self._apply_prompt_stash_lifecycle_counts(outcome)  # type: ignore[attr-defined]
 

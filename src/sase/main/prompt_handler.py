@@ -82,6 +82,12 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
         handle_prompt_show(args)
         sys.exit(0)
 
+    if sub == "stash-archive":
+        from sase.prompt.cli_stash_archive import handle_prompt_stash_archive
+
+        handle_prompt_stash_archive(args)
+        sys.exit(0)
+
     if sub == "stats":
         from sase.prompt.cli_stats import handle_prompt_stats
 
@@ -90,6 +96,7 @@ def handle_prompt_command(args: argparse.Namespace) -> None:
 
     print(
         "Usage: sase prompt"
-        " {copy,delete,doctor,edit,export,list,prune,run,save,search,select,show,stats}"
+        " {copy,delete,doctor,edit,export,list,prune,run,save,search,select,"
+        "show,stash-archive,stats}"
     )
     sys.exit(1)

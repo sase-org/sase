@@ -172,7 +172,13 @@ async def test_confirm_delete_only_pops_without_loading(
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["b"]
-    assert harness.notifications == [("Deleted stashed prompt", None)]
+    assert harness.notifications == [
+        (
+            "Deleted stashed prompt. Drafts stay recoverable with "
+            "`sase prompt stash-archive`.",
+            None,
+        )
+    ]
 
 
 async def test_confirm_restore_and_delete_mixed_summary(
@@ -197,7 +203,13 @@ async def test_confirm_restore_and_delete_mixed_summary(
     await _wait_prompt_stash_tasks(harness)
 
     assert _restore_pairs(bar) == [("alpha", "")]
-    assert harness.notifications == [("Restored prompt, deleted 1", None)]
+    assert harness.notifications == [
+        (
+            "Restored prompt, deleted 1. Drafts stay recoverable with "
+            "`sase prompt stash-archive`.",
+            None,
+        )
+    ]
 
 
 async def test_confirm_none_is_noop() -> None:
@@ -504,7 +516,13 @@ async def test_delete_requested_removes_one_and_refreshes_badge(
     assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["b"]
     assert bar.restored is None  # nothing loaded
     assert harness.home_mounts == []
-    assert harness.notifications == [("Deleted stashed prompt", None)]
+    assert harness.notifications == [
+        (
+            "Deleted stashed prompt. Drafts stay recoverable with "
+            "`sase prompt stash-archive`.",
+            None,
+        )
+    ]
     assert harness.applied_counts == [1]
 
 
@@ -532,7 +550,13 @@ async def test_delete_requested_two_ids_plural_message(
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["c"]
-    assert harness.notifications == [("Deleted 2 stashed prompts", None)]
+    assert harness.notifications == [
+        (
+            "Deleted 2 stashed prompts. Drafts stay recoverable with "
+            "`sase prompt stash-archive`.",
+            None,
+        )
+    ]
     assert harness.applied_counts == [1]
 
 
@@ -650,7 +674,7 @@ async def test_spawned_task_exception_is_logged_and_toasted(
 
     with caplog.at_level(logging.ERROR, logger="sase"):
         harness._spawn_prompt_stash_task(_boom())
-        await asyncio.sleep(0.1)  # let the task fail and the callback run
+        await asyncio.sleep(0.1)  # sase-test-wait: let failure callback run
 
     assert ("Prompt stash task failed: kablam", "error") in harness.notifications
     assert any(
@@ -664,12 +688,12 @@ async def test_spawned_task_cancelled_stays_silent() -> None:
     harness = _RestoreHarness()
 
     async def _hang() -> None:
-        await asyncio.sleep(30)
+        await asyncio.sleep(30)  # sase-test-wait: simulate a hung task until cancelled
 
     harness._spawn_prompt_stash_task(_hang())
     pending = list(getattr(harness, "_prompt_stash_async_tasks", set()))
     assert len(pending) == 1
     pending[0].cancel()
-    await asyncio.sleep(0.05)
+    await asyncio.sleep(0.05)  # sase-test-wait: let task cancellation propagate
 
     assert harness.notifications == []

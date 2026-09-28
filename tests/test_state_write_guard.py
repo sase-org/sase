@@ -266,6 +266,8 @@ def _prompt_stash_calls(real_path: Path) -> list[tuple[str, tuple, dict]]:
         ("restore_prompt_stash", (real_path, []), {}),
         ("purge_prompt_stash", (real_path, []), {}),
         ("reconcile_prompt_stash_trash", (real_path, 0), {}),
+        ("read_prompt_stash_archive", (real_path,), {}),
+        ("recover_prompt_stash_archive", (real_path, []), {}),
     ]
 
 
@@ -318,8 +320,10 @@ def test_pytest_prompt_stash_facade_allows_sandbox(
         snapshot = prompt_stash_facade.read_prompt_stash_snapshot(sandbox_path)
         assert snapshot.entries == []
         prompt_stash_facade.append_prompt_stash(sandbox_path, {"id": "x"})
+        archive = prompt_stash_facade.read_prompt_stash_archive(sandbox_path)
+        assert archive.records == []
 
-    assert call_binding.call_count == 2
+    assert call_binding.call_count == 3
 
 
 def test_pytest_prompt_history_writes_refuse_real_home(

@@ -287,6 +287,7 @@ class PromptBarStashRestoreTrashMixin(PromptBarStashStoreMixin):
         """Permanently delete Trash rows and repaint from the store outcome."""
         import asyncio
 
+        from ...modals._stash_trash_commit import STASH_ARCHIVE_RECOVERY_HINT
         from sase.core.paths import prompt_stash_path
         from sase.core.prompt_stash_facade import purge_prompt_stash
 
@@ -312,7 +313,9 @@ class PromptBarStashRestoreTrashMixin(PromptBarStashStoreMixin):
         purged = sum(1 for entry_id in entry_ids if entry_id not in remaining)
         if purged:
             noun = "draft" if purged == 1 else "drafts"
-            self.notify(f"Permanently deleted {purged} {noun}")  # type: ignore[attr-defined]
+            self.notify(  # type: ignore[attr-defined]
+                f"Permanently deleted {purged} {noun}. {STASH_ARCHIVE_RECOVERY_HINT}"
+            )
         self._apply_prompt_stash_lifecycle_outcome(outcome)
 
     def _apply_prompt_stash_lifecycle_outcome(

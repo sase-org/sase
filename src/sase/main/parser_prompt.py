@@ -405,6 +405,85 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
 
+    # sase prompt stash-archive
+    stash_archive_parser = prompt_sub.add_parser(
+        "stash-archive",
+        help="List, show, and restore archived stashed drafts",
+        description=(
+            "Recover drafts that permanently left the prompt stash. Every row"
+            " that leaves the stash — restored, deleted, purged, evicted, or"
+            " overwritten — is archived first to prompt_stash_archive.jsonl,"
+            " newest first. Running 'sase prompt stash-archive' with no"
+            " subcommand lists recent archive rows."
+        ),
+    )
+    stash_archive_sub = stash_archive_parser.add_subparsers(
+        dest="stash_archive_subcommand", help="Stash-archive subcommands"
+    )
+
+    # sase prompt stash-archive list
+    archive_list_parser = stash_archive_sub.add_parser(
+        "list",
+        help="List archived drafts (pretty table by default, JSON with -j)",
+    )
+    archive_list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON array (stable schema)",
+    )
+    archive_list_parser.add_argument(
+        "-n",
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum number of archive rows to return (default: 20)",
+    )
+    archive_list_parser.add_argument(
+        "-q",
+        "--query",
+        default=None,
+        help="Case-insensitive substring filter over draft text and frontmatter",
+    )
+    archive_list_parser.add_argument(
+        "-r",
+        "--reason",
+        choices=("evicted", "overwritten", "popped", "purged"),
+        default=None,
+        help="Keep only rows archived for REASON",
+    )
+
+    # sase prompt stash-archive restore
+    archive_restore_parser = stash_archive_sub.add_parser(
+        "restore",
+        help="Restore archived drafts back to Stash by id",
+    )
+    archive_restore_parser.add_argument(
+        "ids",
+        nargs="+",
+        metavar="ID",
+        help=(
+            "Archived draft id or unique id prefix (repeatable); skipped ids"
+            " are reported with reasons"
+        ),
+    )
+
+    # sase prompt stash-archive show
+    archive_show_parser = stash_archive_sub.add_parser(
+        "show",
+        help="Print one archived draft with its full text",
+    )
+    archive_show_parser.add_argument(
+        "id",
+        help="Archived draft id or unique id prefix",
+    )
+    archive_show_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object (stable schema)",
+    )
+
     # sase prompt stats
     stats_parser = prompt_sub.add_parser(
         "stats",

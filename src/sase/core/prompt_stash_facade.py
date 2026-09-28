@@ -7,12 +7,14 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.prompt_stash_wire import (
+    PromptStashArchiveSnapshotWire,
     PromptStashCursorWire,
     PromptStashEntryWire,
     PromptStashLifecycleOutcomeWire,
     PromptStashLifecycleSnapshotWire,
     PromptStashPopOutcomeWire,
     PromptStashSnapshotWire,
+    prompt_stash_archive_snapshot_from_dict,
     prompt_stash_lifecycle_outcome_from_dict,
     prompt_stash_lifecycle_snapshot_from_dict,
     prompt_stash_pop_outcome_from_dict,
@@ -195,7 +197,39 @@ def reconcile_prompt_stash_trash(
     return prompt_stash_lifecycle_outcome_from_dict(payload)
 
 
+def read_prompt_stash_archive(
+    path: Path | str, limit: int = 20
+) -> PromptStashArchiveSnapshotWire:
+    """Read the newest-first archive view through ``sase_core_rs``.
+
+    Requires a core wheel with the archive bindings; a stale wheel raises
+    :class:`AttributeError` naming the missing binding.
+    """
+    _guard_prompt_stash_path(path)
+    payload: dict[str, Any] = _call_binding(
+        "read_prompt_stash_archive", str(path), int(limit)
+    )
+    return prompt_stash_archive_snapshot_from_dict(payload)
+
+
+def recover_prompt_stash_archive(
+    path: Path | str,
+    ids: Sequence[str],
+) -> PromptStashLifecycleOutcomeWire:
+    """Append the newest archived version of each id back to Stash.
+
+    Ids currently active or in Trash, and unknown ids, are skipped and
+    reported by their absence from ``changed``.
+    """
+    _guard_prompt_stash_path(path)
+    payload: dict[str, Any] = _call_binding(
+        "recover_prompt_stash_archive", str(path), [str(i) for i in ids]
+    )
+    return prompt_stash_lifecycle_outcome_from_dict(payload)
+
+
 __all__ = [
+    "PromptStashArchiveSnapshotWire",
     "PromptStashCursorWire",
     "PromptStashEntryWire",
     "PromptStashLifecycleOutcomeWire",
@@ -206,9 +240,11 @@ __all__ = [
     "append_prompt_stash",
     "pop_prompt_stash",
     "purge_prompt_stash",
+    "read_prompt_stash_archive",
     "read_prompt_stash_lifecycle",
     "read_prompt_stash_snapshot",
     "reconcile_prompt_stash_trash",
+    "recover_prompt_stash_archive",
     "restore_prompt_stash",
     "rewrite_prompt_stash",
     "set_prompt_stash_pinned",

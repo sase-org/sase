@@ -43,6 +43,7 @@ from sase.core.prompt_stash_wire import (
 from sase.project_display_names import ProjectDisplaySnapshot
 
 from ._prompt_stash_preview import PromptStashPreviewPane, tagified_stash_text
+from ._stash_trash_commit import STASH_ARCHIVE_RECOVERY_HINT
 from .base import OptionListNavigationMixin
 from .prompt_stash_row import (
     DEFAULT_STASH_PREVIEW_WIDTH,
@@ -144,8 +145,9 @@ def _trash_empty_text(*, trash_limit: int, has_stash_rows: bool = False) -> str:
     """Return the empty-Trash explanation for the given configuration."""
     if trash_limit == 0:
         return (
-            "Recovery is disabled (trash_limit is 0). "
-            "Discarded drafts are permanently deleted."
+            "Trash recovery is disabled (trash_limit is 0). "
+            "Discarded drafts are permanently deleted. "
+            f"{STASH_ARCHIVE_RECOVERY_HINT}"
         )
     return (
         "Discarded drafts appear here. Stash d moves a draft to Trash."
@@ -176,6 +178,7 @@ def purge_confirm_text(
         lines.append(f"  • {first}")
     if count > 5:
         lines.append(f"  … and {count - 5} more")
+    lines.append(STASH_ARCHIVE_RECOVERY_HINT)
     return "\n".join(lines)
 
 

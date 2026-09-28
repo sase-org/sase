@@ -303,6 +303,8 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
 
     def _notify_restore_outcome(self, restored: int, deleted: int) -> None:
         """Toast a count-aware summary of the restore / delete outcome."""
+        from ...modals._stash_trash_commit import STASH_ARCHIVE_RECOVERY_HINT
+
         messages: list[str] = []
         if restored:
             messages.append(
@@ -318,4 +320,7 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
                     else f"Deleted {deleted} stashed prompts"
                 )
         if messages:
-            self.notify(", ".join(messages))  # type: ignore[attr-defined]
+            text = ", ".join(messages)
+            if deleted:
+                text += f". {STASH_ARCHIVE_RECOVERY_HINT}"
+            self.notify(text)  # type: ignore[attr-defined]
