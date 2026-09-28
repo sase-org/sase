@@ -38,8 +38,12 @@ def test_all_active_retry_skips_cleanup_reservations_and_publication(
     monkeypatch.setattr("sase.agent.names.reserve_registered_names", fail)
     monkeypatch.setattr("sase.agent.names.mutate_registered_name_reservations", fail)
     monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fail)
-    monkeypatch.setattr("sase.bead.cli_work_handler.checkpoint_epic_work_launch", fail)
-    monkeypatch.setattr("sase.bead.cli_work_handler.launch_bead_work_agents", fail)
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch", fail
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents", fail
+    )
 
     with BeadProject(project_dir) as project:
         result = launch_epic_bead_work(

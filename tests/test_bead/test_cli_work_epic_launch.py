@@ -60,7 +60,7 @@ def test_prelaunch_visibility_failure_never_reaches_agent_launcher(
         )
 
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
         unexpected_launch,
     )
 
@@ -317,11 +317,11 @@ def test_preflight_conflict_raises_before_side_effects(
     monkeypatch.setattr(BeadProject, "mark_ready_to_work", track("mark_ready_to_work"))
     monkeypatch.setattr(BeadProject, "preclaim_epic_work", track("preclaim_epic_work"))
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
         track("graph_publication"),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
         track("launch_bead_work_agents"),
     )
 
@@ -400,7 +400,7 @@ def test_dry_run_does_not_snapshot_epic_plan(
     with BeadProject(project_dir) as project:
         project.update(epic_id, design="sdd/plans/202607/diamond.md")
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler._snapshot_epic_plan",
+        "sase.bead.cli_work_handler_launch.snapshot_epic_plan",
         lambda *args, **kwargs: pytest.fail("dry run attempted to write a snapshot"),
     )
 
@@ -424,7 +424,7 @@ def test_snapshot_failure_warns_and_launches_without_snapshot_metadata(
         lambda: "project",
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler._atomic_copy_epic_plan",
+        "sase.bead.cli_work_handler_launch.atomic_copy_epic_plan",
         lambda *_args: (_ for _ in ()).throw(PermissionError("snapshot denied")),
     )
     launched: dict[str, Any] = {}
@@ -473,7 +473,7 @@ def test_snapshot_source_resolution_uses_non_vc_bead_store_root(
     plan_ref: str,
     source_relative: str,
 ) -> None:
-    from sase.bead.cli_work_handler import _epic_plan_source_path
+    from sase.bead.cli_work_plan_snapshot import epic_plan_source_path
 
     root = tmp_path / (".sase/sdd" if layout == "local" else "plans-sidecar")
     with BeadProject.init(root, beads_dirname="beads"):
@@ -488,4 +488,4 @@ def test_snapshot_source_resolution_uses_non_vc_bead_store_root(
     )
 
     with BeadProject(root, beads_dirname="beads") as project:
-        assert _epic_plan_source_path(project, plan_ref) == source.resolve()
+        assert epic_plan_source_path(project, plan_ref) == source.resolve()

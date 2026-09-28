@@ -82,7 +82,7 @@ def test_epic_preflight_blocks_before_preclaim(
         return result
 
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.prepare_selected_bead_work_force_reuse",
+        "sase.bead.cli_work_handler_launch.prepare_selected_bead_work_force_reuse",
         after_prepare,
     )
     monkeypatch.setattr(
@@ -91,7 +91,7 @@ def test_epic_preflight_blocks_before_preclaim(
         lambda *_args, **_kwargs: pytest.fail("preflight must not preclaim"),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
         lambda *_args, **_kwargs: pytest.fail("preflight must not checkpoint"),
     )
 
@@ -212,7 +212,7 @@ def test_launch_time_collision_rolls_back_and_explains_owner(
         real_preflight(launch_names, resume_command=resume_command, timer=timer)
 
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.preflight_bead_work_launch_names",
+        "sase.bead.cli_work_handler_launch.preflight_bead_work_launch_names",
         wrapped_preflight,
     )
     monkeypatch.setattr(
@@ -220,18 +220,18 @@ def test_launch_time_collision_rolls_back_and_explains_owner(
         wrapped_preflight,
     )
 
-    from sase.bead.cli_work_handler import rollback_work_launch as real_rollback
+    from sase.bead.cli_work_cleanup import rollback_work_launch as real_rollback
 
     def wrapped_rollback(*args: Any, **kwargs: Any) -> None:
         rollback_calls.append(dict(kwargs))
         return real_rollback(*args, **kwargs)
 
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.rollback_work_launch",
+        "sase.bead.cli_work_handler_publish.rollback_work_launch",
         wrapped_rollback,
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
         lambda *_args, **_kwargs: True,
     )
     colliding = phase_ids[0]
@@ -252,7 +252,7 @@ def test_launch_time_collision_rolls_back_and_explains_owner(
         ),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             RegisteredNameReservationBatchError(
                 [

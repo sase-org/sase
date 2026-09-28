@@ -222,11 +222,11 @@ def test_task_launch_waits_for_overlapping_epic_launch_and_claims_task(
             events.append(event)
 
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.resolve_vcs_launch_context",
+        "sase.bead.cli_work_handler_launch.resolve_vcs_launch_context",
         lambda: VCSLaunchContext(vcs_workflow="git", project_name="sase"),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
         lambda *_args, **_kwargs: record("epic-checkpoint") or True,
     )
     monkeypatch.setattr(
@@ -247,7 +247,7 @@ def test_task_launch_waits_for_overlapping_epic_launch_and_claims_task(
         return [FakeLaunchResult()]
 
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
         launch_epic_agents,
     )
     monkeypatch.setattr(

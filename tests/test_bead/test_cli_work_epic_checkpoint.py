@@ -136,7 +136,7 @@ def test_work_ignores_foreign_relocation_and_launches_original_ids(
         return [FakeLaunchResult()]
 
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
         fake_launch,
     )
 
@@ -185,7 +185,7 @@ def test_work_rolls_back_on_moved_ids_when_own_graph_relocated(
         pytest.fail("relocated launch must not spawn agents")
 
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
         fake_launch,
     )
     monkeypatch.setattr(
@@ -210,7 +210,7 @@ def test_work_rolls_back_on_moved_ids_when_own_graph_relocated(
         )
 
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.rollback_work_launch",
+        "sase.bead.cli_work_handler_publish.rollback_work_launch",
         fake_rollback,
     )
 

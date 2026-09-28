@@ -132,7 +132,7 @@ def test_unrepairable_drift_blocks_before_preclaim(
 
     monkeypatch.setattr(BeadProject, "preclaim_epic_work", fail_preclaim)
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
         lambda *_args, **_kwargs: pytest.fail("must not checkpoint"),
     )
 

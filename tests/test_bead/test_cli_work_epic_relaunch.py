@@ -266,11 +266,11 @@ def test_work_preserves_running_phase_and_launches_only_missing_segments(
 
     monkeypatch.setattr(BeadProject, "preclaim_epic_work", fake_preclaim)
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
         lambda *_args, **_kwargs: False,
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents", fake_launch
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents", fake_launch
     )
     monkeypatch.setattr(
         "sase.agent.names.wipe_agent_name_for_reuse",
@@ -351,14 +351,16 @@ def test_waiting_phase_that_starts_running_before_cleanup_is_preserved(
         captured["expected_names"] = expected_names
         return [FakeLaunchResult()]
 
-    monkeypatch.setattr("sase.bead.cli_work_handler.confirm_cleanup", confirm_cleanup)
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler_launch.confirm_cleanup", confirm_cleanup
+    )
     monkeypatch.setattr(BeadProject, "preclaim_epic_work", fake_preclaim)
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
         lambda *_args, **_kwargs: False,
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents", fake_launch
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents", fake_launch
     )
     monkeypatch.setattr(
         "sase.agent.names.wipe_agent_name_for_reuse",
@@ -399,11 +401,11 @@ def test_work_all_running_epic_is_idempotent_without_mutation(
         lambda *_args, **_kwargs: pytest.fail("must not preclaim"),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
         lambda *_args, **_kwargs: pytest.fail("must not checkpoint"),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
         lambda *_args, **_kwargs: pytest.fail("must not launch"),
     )
 
@@ -489,11 +491,11 @@ def test_work_all_closed_epic_launches_only_missing_lander(
 
         monkeypatch.setattr(BeadProject, "preclaim_epic_work", fake_preclaim)
         monkeypatch.setattr(
-            "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+            "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
             lambda *_args, **_kwargs: False,
         )
         monkeypatch.setattr(
-            "sase.bead.cli_work_handler.launch_bead_work_agents",
+            "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
             fake_launch,
         )
 
@@ -581,15 +583,15 @@ def test_work_all_closed_epic_preserves_matching_live_lander_without_mutation(
         lambda *_args, **_kwargs: pytest.fail("must not preclaim"),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        "sase.bead.cli_work_handler_publish.checkpoint_epic_work_launch",
         lambda *_args, **_kwargs: pytest.fail("must not checkpoint"),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.prepare_selected_bead_work_force_reuse",
+        "sase.bead.cli_work_handler_launch.prepare_selected_bead_work_force_reuse",
         lambda *_args, **_kwargs: pytest.fail("must not clean up"),
     )
     monkeypatch.setattr(
-        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        "sase.bead.cli_work_handler_publish.launch_bead_work_agents",
         lambda *_args, **_kwargs: pytest.fail("must not launch"),
     )
 
