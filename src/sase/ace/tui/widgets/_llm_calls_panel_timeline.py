@@ -146,6 +146,8 @@ def build_llm_calls_timeline_text(
     rows: Sequence[ToolTimelineRow] | None = None,
     detail_level: ToolDetailLevel | int = ToolDetailLevel.COMPACT,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
+    run_links: dict[int, object] | None = None,
+    now_ts: float | None = None,
 ) -> Text:
     """Build the Rich Text timeline for tool-call entries."""
     detail_level = coerce_detail_level(detail_level)
@@ -213,6 +215,8 @@ def build_llm_calls_timeline_text(
         if detail:
             output.append("\n    ")
             _append_bounded(output, detail, style="dim", limit=140)
+        if run_links is not None:
+            _append_run_link_suffix(output, entry, run_links, now_ts=now_ts)
         output.append("\n")
         if detail_level >= ToolDetailLevel.EXPANDED:
             append_expanded_block(output, entry, detail_level=detail_level)
@@ -228,6 +232,8 @@ def build_llm_calls_timeline_markdown(
     rows: Sequence[ToolTimelineRow] | None = None,
     detail_level: ToolDetailLevel | int = ToolDetailLevel.COMPACT,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
+    run_links: dict[int, object] | None = None,
+    now_ts: float | None = None,
 ) -> str | None:
     """Build a plain markdown rendering for editor/export actions."""
     detail_level = coerce_detail_level(detail_level)
@@ -269,8 +275,70 @@ def build_llm_calls_timeline_markdown(
         lines.append(" | ".join(pieces))
         if entry.detail:
             lines.append(f"  {entry.detail}")
+        if run_links is not None:
+            suffix = _run_link_markdown_suffix(entry, run_links, now_ts=now_ts)
+            if suffix:
+                lines.append(f"  {suffix}")
         if detail_level >= ToolDetailLevel.EXPANDED:
             lines.extend(expanded_markdown_lines(entry, detail_level=detail_level))
             lines.append("")
     lines.append("")
     return "\n".join(lines)
+
+
+def _linked_run_for_entry(
+    entry: object, run_links: dict[int, object] | None
+) -> object | None:
+    """Return the linked run for *entry* through the id-keyed map, if any."""
+
+    if not run_links:
+        return None
+    try:
+        return run_links.get(id(entry))
+    except Exception:
+        return None
+
+
+def _append_run_link_suffix(
+    output: Text,
+    entry: object,
+    run_links: dict[int, object] | None,
+    *,
+    now_ts: float | None = None,
+) -> None:
+    """Append the ``→ ⚒ <label> <bucket>`` suffix for a linked run (plan §3.9)."""
+
+    run = _linked_run_for_entry(entry, run_links)
+    if run is None:
+        return
+    try:
+        from sase.ace.tui.tool_runs.links import suffix_text_with_jump
+    except Exception:
+        return
+    try:
+        suffix = suffix_text_with_jump(run, prefix="→", now_ts=now_ts)
+    except Exception:
+        return
+    output.append("  ")
+    output.append_text(suffix)
+
+
+def _run_link_markdown_suffix(
+    entry: object,
+    run_links: dict[int, object] | None,
+    *,
+    now_ts: float | None = None,
+) -> str:
+    """Return the markdown twin of the run-link suffix, or "" when unlinked."""
+
+    run = _linked_run_for_entry(entry, run_links)
+    if run is None:
+        return ""
+    try:
+        from sase.ace.tui.tool_runs.links import llm_call_run_suffix_text
+    except Exception:
+        return ""
+    try:
+        return llm_call_run_suffix_text(run, now_ts=now_ts)
+    except Exception:
+        return ""

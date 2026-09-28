@@ -218,6 +218,7 @@ class AgentLLMCallsPanel(Static):
             rows=self._last_rows,
             detail_level=self._detail_level,
             slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
+            run_links=self._tool_run_links_for(self._last_entries, self._last_rows),
         )
 
     def show_empty(self) -> None:
@@ -280,9 +281,40 @@ class AgentLLMCallsPanel(Static):
                 slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(
                     self
                 ),
+                run_links=self._tool_run_links_for(entries, rows),
             )
         )
         self._has_displayed_content = True
+
+    def _tool_run_links_for(
+        self,
+        entries: tuple[ToolCallEntry, ...] | None,
+        rows: tuple[ToolTimelineRow, ...] | None,
+    ) -> dict[int, object] | None:
+        """Return id-keyed run links for the current agent (plan §3.9, no I/O).
+
+        The join runs against the node summary's runs already in memory
+        (the ``tool-runs`` lane LRU plus the glance snapshot); a miss or a
+        disabled flag yields None so rendering stays byte-identical.
+        """
+
+        try:
+            from sase.ace.tui.tool_runs.links import run_links_for_agent_entries
+        except Exception:
+            return None
+        agent = self._current_agent
+        if agent is None:
+            return None
+        items = (
+            entries if entries is not None else tuple(row.entry for row in rows or ())
+        )
+        if not items:
+            return None
+        try:
+            links = run_links_for_agent_entries(agent, tuple(items))
+        except Exception:
+            return None
+        return links or None
 
     def _display_llm_calls_result(
         self,

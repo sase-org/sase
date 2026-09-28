@@ -389,6 +389,19 @@ def build_header_text(
             _overflow_keys = resolve_slow_tool_overflow_keys()
         except Exception:
             _overflow_keys = {}
+        try:
+            from ...tool_runs.links import slow_suffixes_for_agent_sources
+
+            _tool_run_suffixes = (
+                slow_suffixes_for_agent_sources(
+                    agent,
+                    summary.slow_tool_sources,
+                    getattr(summary, "tool_run_summary", None),
+                )
+                or None
+            )
+        except Exception:
+            _tool_run_suffixes = None
         slow_tool_section = append_slow_tool_calls_section(
             header_text,
             sources=summary.slow_tool_sources,
@@ -401,6 +414,7 @@ def build_header_text(
             section_fold_overrides=lane_overrides,
             responsive_ranges=responsive_ranges,
             overflow_hint_keys=_overflow_keys,
+            tool_run_suffixes=_tool_run_suffixes,
         )
 
     is_failed = agent.display_status == "FAILED"

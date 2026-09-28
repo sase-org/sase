@@ -111,10 +111,15 @@ def _proc_field_parts(
     include_diagnostics: bool,
     annotate: NamedProcTextAnnotator | None = None,
     prefix: Text | None = None,
+    tool_run_row: Text | None = None,
 ) -> list[object]:
     parts: list[object] = []
     text = prefix if prefix is not None else Text(end="")
 
+    if tool_run_row is not None:
+        text.append(_field_label("Tool run:"), style=COLOR_SUMMARY)
+        text.append_text(tool_run_row)
+        text.append("\n")
     text.append(_field_label("Status:"), style=COLOR_SUMMARY)
     text.append_text(_status_text(agent))
     if agent.monitor_exit_code is not None:
@@ -189,6 +194,7 @@ def build_named_proc_section(
     panel_level: FoldLevel = FoldLevel.COLLAPSED,
     scale: FoldScale = AGENT_FOLD_SCALE,
     annotate: NamedProcTextAnnotator | None = None,
+    tool_run_row: Text | None = None,
 ) -> list[object]:
     """Return the foldable named-proc metadata section."""
     text = Text(end="")
@@ -210,6 +216,7 @@ def build_named_proc_section(
         include_diagnostics=include_diagnostics,
         annotate=annotate,
         prefix=text,
+        tool_run_row=tool_run_row,
     )
 
 

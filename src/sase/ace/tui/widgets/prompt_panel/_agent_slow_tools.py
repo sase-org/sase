@@ -144,6 +144,7 @@ def append_slow_tool_calls_section(
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None = None,
     overflow_hint_keys: Mapping[str, str] | None = None,
+    tool_run_suffixes: Mapping[int, Text] | None = None,
 ) -> ResponsiveSlowToolCallsSection | None:
     """Append the SLOW TOOL CALLS section when any calls qualify."""
     overrides = section_fold_overrides or {}
@@ -164,6 +165,7 @@ def append_slow_tool_calls_section(
         heading_scale=scale,
         responsive_ranges=responsive_ranges,
         overflow_hint_keys=overflow_hint_keys,
+        tool_run_suffixes=tool_run_suffixes,
     )
 
 
@@ -206,6 +208,7 @@ def _append_slow_tool_calls_section(
     heading_scale: FoldScale | None,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
     overflow_hint_keys: Mapping[str, str] | None = None,
+    tool_run_suffixes: Mapping[int, Text] | None = None,
 ) -> ResponsiveSlowToolCallsSection | None:
     if not sources:
         return None
@@ -278,6 +281,7 @@ def _append_slow_tool_calls_section(
             labeled=labeled,
             hint_marker=hint_marker,
             hint_marker_width=hint_marker_width,
+            tool_run_suffixes=tool_run_suffixes,
         )
         rows.append(
             SlowToolSectionRow(
@@ -398,6 +402,7 @@ def _append_slow_tool_call_row(
     labeled: bool,
     hint_marker: str | None = None,
     hint_marker_width: int = 0,
+    tool_run_suffixes: Mapping[int, Text] | None = None,
 ) -> None:
     slow_call = sourced.slow_call
     entry = slow_call.entry
@@ -431,6 +436,14 @@ def _append_slow_tool_call_row(
         text.append(" did not complete", style=_COLOR_DID_NOT_COMPLETE)
     else:
         text.append(duration, style=_COLOR_COMPLETED_DURATION)
+    if tool_run_suffixes is not None:
+        try:
+            suffix = tool_run_suffixes.get(id(slow_call.entry))
+        except Exception:
+            suffix = None
+        if suffix is not None:
+            text.append("  ")
+            text.append_text(suffix)
     text.append("\n")
 
 

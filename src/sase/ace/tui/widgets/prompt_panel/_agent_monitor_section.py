@@ -134,6 +134,7 @@ def _monitor_field_parts(
     *,
     annotate: MonitorTextAnnotator | None = None,
     prefix: Text | None = None,
+    tool_run_row: Text | None = None,
 ) -> list[object]:
     """Return the MONITOR field block currently after the fold heading."""
     parts: list[object] = []
@@ -177,6 +178,10 @@ def _monitor_field_parts(
     text.append(_field_label("Status:"), style=COLOR_SUMMARY)
     text.append_text(_status_pair_text(agent))
     text.append("\n")
+    if tool_run_row is not None:
+        text.append(_field_label("Tool run:"), style=COLOR_SUMMARY)
+        text.append_text(tool_run_row)
+        text.append("\n")
     text.append(_field_label("State:"), style=COLOR_SUMMARY)
     text.append_text(_state_text(agent.monitor_state))
     if agent.monitor_exit_code is not None:
@@ -251,6 +256,7 @@ def build_monitor_section(
     panel_level: FoldLevel = FoldLevel.COLLAPSED,
     scale: FoldScale = AGENT_FOLD_SCALE,
     annotate: MonitorTextAnnotator | None = None,
+    tool_run_row: Text | None = None,
 ) -> list[object]:
     """Return the MONITOR section renderables: heading, fields, and command.
 
@@ -271,7 +277,9 @@ def build_monitor_section(
         style=_COLOR_HEADER,
     )
     text.append_text(heading)
-    return _monitor_field_parts(agent, annotate=annotate, prefix=text)
+    return _monitor_field_parts(
+        agent, annotate=annotate, prefix=text, tool_run_row=tool_run_row
+    )
 
 
 def build_monitor_output(

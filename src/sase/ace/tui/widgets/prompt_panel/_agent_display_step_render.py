@@ -35,6 +35,23 @@ from ._helpers import append_section_heading, format_output
 from ._traceback_section import build_traceback_block
 
 
+def _cached_tool_run_row(agent: Agent) -> Text | None:
+    """Return the Context card ``Tool run`` value from cached state (no I/O).
+
+    Reads the ``tool-runs`` lane LRU plus the glance snapshot; a miss or a
+    disabled flag yields None so sections render exactly as before.
+    """
+
+    try:
+        from ...tool_runs.links import context_row_for_agent_cached
+    except Exception:
+        return None
+    try:
+        return context_row_for_agent_cached(agent)
+    except Exception:
+        return None
+
+
 class AgentStepDisplayMixin:
     """Render bash, Python, and parallel workflow steps."""
 
@@ -135,7 +152,11 @@ class AgentStepDisplayMixin:
 
         context_parts: list[Any] = [
             header_text,
-            *build_monitor_section(agent, panel_level=section_level),
+            *build_monitor_section(
+                agent,
+                panel_level=section_level,
+                tool_run_row=_cached_tool_run_row(agent),
+            ),
         ]
         output_parts: list[Any] = [
             *build_traceback_block(error_tb_syntax),
@@ -194,7 +215,11 @@ class AgentStepDisplayMixin:
         context_parts = [
             header_text,
             *build_named_proc_preview(agent),
-            *build_named_proc_section(agent, panel_level=section_level),
+            *build_named_proc_section(
+                agent,
+                panel_level=section_level,
+                tool_run_row=_cached_tool_run_row(agent),
+            ),
         ]
         output_parts: list[Any] = [
             *build_traceback_block(error_tb_syntax),
