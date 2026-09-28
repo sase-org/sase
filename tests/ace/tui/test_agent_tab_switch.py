@@ -17,10 +17,12 @@ import pytest
 from sase.ace.testing.ace_page import _extract_state
 from sase.ace.tui.actions.agents._agent_tabs import (
     AgentTabsMixin,
+    strip_visible_for_owner,
+)
+from sase.ace.tui.actions.agents._agent_tabs_catalog import catalog_view_for_owner
+from sase.ace.tui.actions.agents._agent_tabs_switch import (
     _key_for_strip_id,
     _strip_id_for_key,
-    _catalog_view_for_owner,
-    strip_visible_for_owner,
 )
 from sase.ace.tui.actions.agents._tab_scope import _scoped_agents_for_owner
 from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
@@ -416,7 +418,7 @@ def test_latch_keeps_emptied_tab() -> None:
         owner.reindex([_row("a")])
         assert owner._reconcile_active_agent_tab() is False
         assert owner._active_agent_tab == _SASE
-        view = _catalog_view_for_owner(owner)
+        view = catalog_view_for_owner(owner)
         assert [(e.key, e.root_count) for e in view] == [
             (DEFAULT_AGENT_TAB_KEY, 1),
             (_SASE, 0),
@@ -449,7 +451,7 @@ def test_ace_page_state_includes_latched_catalog_entry() -> None:
         _agent_tab_latched_key=_SASE,
         _agent_tab_known_labels={_SASE: "sase"},
     )
-    owner._agent_tab_catalog_view = lambda: _catalog_view_for_owner(owner)
+    owner._agent_tab_catalog_view = lambda: catalog_view_for_owner(owner)
 
     assert _extract_state(owner)["agent_tabs"] == ["main", "sase"]
 
@@ -553,7 +555,7 @@ def test_strip_id_round_trip() -> None:
         _strip_id_for_key(AgentTabKey.unresolved_machine("apollo"))
         == "unresolved:apollo"
     )
-    entries = _catalog_view_for_owner(_two_tab_owner())
+    entries = catalog_view_for_owner(_two_tab_owner())
     assert _key_for_strip_id("named:sase", entries) == _SASE
     assert _key_for_strip_id("bogus", entries) is None
 
