@@ -19,10 +19,16 @@ class TuiExitImpact:
     session_labels: tuple[str, ...] = ()
     pending_durable_submits: int = 0
     pending_launches: int = 0
+    has_prompt_draft: bool = False
 
     @property
     def is_empty(self) -> bool:
-        """Return whether nothing would be lost (pending launches never count)."""
+        """Return whether nothing would be lost (pending launches never count).
+
+        An open prompt draft never forces a confirmation: quitting stashes
+        it silently, and the confirm summary mentions it when shown for
+        other reasons.
+        """
         return not self.session_labels and self.pending_durable_submits <= 0
 
     @property
@@ -53,6 +59,8 @@ class TuiExitImpact:
                 f"{'launch' if self.pending_launches == 1 else 'launches'} "
                 "will be stashed for @"
             )
+        if self.has_prompt_draft:
+            lines.append("Your unsent prompt draft will be stashed")
         if limit <= 0:
             return []
         if len(lines) <= limit:
@@ -122,6 +130,26 @@ def _pending_launch_count(app: Any) -> int:
     return count
 
 
+def _has_stashable_prompt_draft(app: Any) -> bool:
+    """Return whether a prompt-mode bar holds a stashable draft, I/O-free."""
+    mounted = getattr(app, "_mounted_prompt_bar", None)
+    if not callable(mounted):
+        return False
+    try:
+        bar = mounted()
+    except Exception:
+        return False
+    if bar is None or getattr(bar, "_mode", None) != "prompt":
+        return False
+    capture = getattr(bar, "capture_stashable_panes", None)
+    if not callable(capture):
+        return False
+    try:
+        return bool(capture())
+    except Exception:
+        return False
+
+
 def collect_tui_exit_impact(app: Any) -> TuiExitImpact:
     """Collect the in-memory exit impact for *app* without doing I/O."""
     try:
@@ -136,10 +164,15 @@ def collect_tui_exit_impact(app: Any) -> TuiExitImpact:
         launches = _pending_launch_count(app)
     except Exception:
         launches = 0
+    try:
+        has_draft = _has_stashable_prompt_draft(app)
+    except Exception:
+        has_draft = False
     return TuiExitImpact(
         session_labels=labels,
         pending_durable_submits=max(0, submits),
         pending_launches=max(0, launches),
+        has_prompt_draft=has_draft,
     )
 
 

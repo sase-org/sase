@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
 from ..util.shutdown import request_shutdown
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ...patch import Patch
@@ -285,19 +288,54 @@ class LifecycleMixin:
         finally:
             self._do_quit()
 
+    def _stash_quit_draft_or_cancel(self) -> bool:
+        """Stash a mounted prompt draft before quit; ``False`` cancels exit.
+
+        Runs at most once per exit attempt: a failed stash leaves the flag
+        clear so the next quit retries the write instead of dropping the
+        draft. Never called from signal handlers — only from the explicit
+        quit paths below, which ``_stop_axe_and_quit`` also funnels through.
+        """
+        if getattr(self, "_quit_draft_stash_attempted", False):
+            return True
+        stash = getattr(self, "_stash_prompt_bar_before_exit", None)
+        if not callable(stash):
+            return True
+        try:
+            outcome = stash(source="quit")
+        except Exception:
+            log.exception("Failed to stash prompt draft before quit")
+            outcome = None
+        if outcome is None:
+            self._quit_draft_stash_attempted = False  # type: ignore[attr-defined]
+            try:
+                self.notify(  # type: ignore[attr-defined]
+                    "Failed to stash prompt draft — staying so no text is lost",
+                    severity="error",
+                )
+            except Exception:
+                pass
+            return False
+        self._quit_draft_stash_attempted = True  # type: ignore[attr-defined]
+        return True
+
     async def _begin_controlled_exit(self) -> None:
         """Start the shared flush-and-exit sequence at most once."""
-        request_shutdown()
         if getattr(self, "_controlled_exit_started", False):
             return
+        if not self._stash_quit_draft_or_cancel():
+            return
+        request_shutdown()
         self._controlled_exit_started = True  # type: ignore[attr-defined]
         await self._flush_then_do_quit()
 
     def _request_controlled_exit(self) -> None:
         """Schedule the shared async exit sequence from a sync callback."""
-        request_shutdown()
         if getattr(self, "_controlled_exit_started", False):
             return
+        if not self._stash_quit_draft_or_cancel():
+            return
+        request_shutdown()
         self._controlled_exit_started = True  # type: ignore[attr-defined]
         if not any(
             callable(getattr(self, name, None))

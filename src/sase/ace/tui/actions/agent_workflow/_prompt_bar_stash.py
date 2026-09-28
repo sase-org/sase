@@ -36,8 +36,13 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
 
     _prompt_context: PromptContext | None
 
-    def _stash_prompt_bar_before_restart(self) -> bool:
-        """Synchronously stash the mounted agent prompt before a TUI restart."""
+    def _stash_prompt_bar_before_exit(self, *, source: str) -> bool | None:
+        """Synchronously stash the mounted agent prompt draft before TUI exit.
+
+        Returns ``True`` when a draft was stashed, ``False`` when no
+        stashable draft was mounted, and ``None`` when a draft existed but
+        the stash write failed.
+        """
         try:
             bar = self._mounted_prompt_bar()
             if bar is None or bar._mode != "prompt":
@@ -45,11 +50,17 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
             panes = bar.capture_stashable_panes()
             if not panes:
                 return False
-            self._persist_stashed_panes(panes, source=_RESTART_STASH_SOURCE)
+            self._persist_stashed_panes(panes, source=source)
         except Exception:
-            log.exception("Failed to stash prompt draft before TUI restart")
-            return False
+            log.exception(
+                "Failed to stash prompt draft before TUI exit (source=%s)", source
+            )
+            return None
         return True
+
+    def _stash_prompt_bar_before_restart(self) -> bool:
+        """Synchronously stash the mounted agent prompt before a TUI restart."""
+        return self._stash_prompt_bar_before_exit(source=_RESTART_STASH_SOURCE) is True
 
     def on_prompt_input_bar_stashed(self, event: object) -> None:
         """Optimistically stage a stash and persist it in a tracked worker."""

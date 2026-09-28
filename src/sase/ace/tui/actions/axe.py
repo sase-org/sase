@@ -429,6 +429,10 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
                 draft_stashed = bool(stash_before_restart())
             except Exception:
                 draft_stashed = False
+        # The restart stash already ran with source="restart": mark the
+        # quit-draft attempt done so _request_controlled_exit below does not
+        # stash the same draft a second time with source="quit".
+        self._quit_draft_stash_attempted = True  # type: ignore[attr-defined]
         if draft_stashed:
             try:
                 self.notify(  # type: ignore[attr-defined]
