@@ -444,6 +444,8 @@ class DeckPanelFilesMixin:
             pass
 
     def _apply_files_transition(self, new_mode: RenderMode) -> None:
+        self._files_transition_generation += 1  # type: ignore[attr-defined]
+        generation = self._files_transition_generation  # type: ignore[attr-defined]
         self._render_mode[DeckId.FILES] = new_mode
         self._sync_files_views()
         if new_mode is RenderMode.SPREAD:
@@ -477,6 +479,8 @@ class DeckPanelFilesMixin:
 
             # Scroll after anchors are ready.
             def _restore() -> None:
+                if generation != self._files_transition_generation:  # type: ignore[attr-defined]
+                    return
                 row = self._files_body_start(current)
                 target = (row or 0) + paged_y if row is not None else paged_y
                 try:

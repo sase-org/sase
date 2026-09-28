@@ -100,6 +100,18 @@ class SectionViewMixin(Static):
         """Whether this metadata panel is following the real document bottom."""
         return getattr(self, "_pinned_to_bottom", False)
 
+    @property
+    def is_bottom_pin_settled(self) -> bool:
+        """Whether the pending bottom-pin restore has reached its target."""
+        if not self.is_pinned_to_bottom or getattr(
+            self, "_bottom_pin_reapply_scheduled", False
+        ):
+            return False
+        scroll = self._bottom_pin_container()
+        return scroll is not None and int(scroll.scroll_y) == self.bottom_scroll_target(
+            scroll
+        )
+
     def pin_to_bottom(self) -> None:
         """Keep the metadata viewport pinned to the real document bottom."""
         if not self._section_view_features_enabled():

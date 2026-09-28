@@ -10,6 +10,7 @@ import pytest
 from rich.text import Text
 from textual.app import App, ComposeResult
 from sase.ace.tui._app_action_availability import check_app_action
+from sase.ace.testing import wait_for
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.agent_header_panel import AgentHeaderPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
@@ -692,6 +693,7 @@ async def test_expanded_overflowing_header_claims_half_page_scroll(
         main_view = detail.deck_area.panel(0).main_view
         main_view.pin_to_bottom()
         assert bool(main_view.is_pinned_to_bottom) is True
+        await wait_for(pilot, lambda: main_view.is_bottom_pin_settled)
         deck_y = float(deck_scroll.scroll_y)
         header_h = int(panel.scrollable_content_region.height)
         expected_step = max(1, header_h // 2)

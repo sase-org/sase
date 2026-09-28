@@ -152,7 +152,27 @@ async def test_files_ctrl_j_scrolls_page_anchor_to_top(tmp_path: Path) -> None:
             pilot,
             lambda: len(getattr(panel.file_view, "_file_list", ())) > 1,
         )
+
+        # Hold the transition's first-frame restore so Ctrl-J can race ahead
+        # of it. The old restore must not pull the view back to page zero.
+        pending_restores: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
+        original_call_after_refresh = panel.call_after_refresh
+
+        def hold_transition_restore(callback: Any, *args: Any, **kwargs: Any) -> Any:
+            if getattr(callback, "__name__", "") == "_restore":
+                pending_restores.append((callback, args, kwargs))
+                return None
+            return original_call_after_refresh(callback, *args, **kwargs)
+
+        panel.call_after_refresh = hold_transition_restore  # type: ignore[method-assign]
+        try:
+            panel._apply_files_transition(RenderMode.SPREAD)
+        finally:
+            panel.call_after_refresh = original_call_after_refresh  # type: ignore[method-assign]
+        assert len(pending_restores) == 1
         panel.cycle_card(1)
+        callback, args, kwargs = pending_restores[0]
+        callback(*args, **kwargs)
         await wait_for(pilot, lambda: _files_scroll_on_separator_anchor(panel, 1))
         anchor = panel._files_anchor_row(1)
         assert anchor is not None and anchor > 0

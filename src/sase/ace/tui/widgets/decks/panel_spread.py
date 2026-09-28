@@ -36,6 +36,7 @@ class DeckPanelSpreadMixin:
     _files_media_toast_armed: bool
     _resize_decision_pending: bool
     _one_shot_spread_card: str | None
+    _files_transition_generation: int
 
     def _init_spread_state(self) -> None:
         self._render_mode = dict.fromkeys(CARD_DOCUMENT_DECKS, RenderMode.PAGED)
@@ -58,6 +59,7 @@ class DeckPanelSpreadMixin:
         self._files_media_toast_armed = False
         self._resize_decision_pending = False
         self._one_shot_spread_card = None
+        self._files_transition_generation = 0
 
     def _spread_settings_max_screens(self) -> float:
         try:
@@ -386,6 +388,9 @@ class DeckPanelSpreadMixin:
             slots = list(getattr(file_view, "_file_list", []))
             if len(slots) <= 1:
                 return
+            # A pending mode transition may still have a deferred restore
+            # queued for the old page. Let this navigation own the scroll.
+            self._files_transition_generation += 1
             current = self._files_spread_active_index()
             nxt = (current + direction) % len(slots)
             spread_view = self.files_spread_view  # type: ignore[attr-defined]
