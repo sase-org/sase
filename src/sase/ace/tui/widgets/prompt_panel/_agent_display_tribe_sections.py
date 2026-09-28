@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Collection
 
 from rich.syntax import Syntax
 from rich.text import Text
@@ -12,6 +13,7 @@ from sase.core.output_variable_display import var_value_preview
 from sase.telemetry.render import format_duration
 
 from ...models._agent_clan_sections import (
+    ClanAgentIdentity,
     ClanErrorEntry,
     ClanVariableEntry,
     first_meaningful_line,
@@ -156,10 +158,13 @@ def append_replies(
     snapshot: TribeSectionSnapshot | None,
     *,
     level: FoldLevel,
+    present_units: Collection[ClanAgentIdentity] | None = None,
 ) -> None:
     disk = snapshot.disk if snapshot is not None else None
     loaded = disk is not None and "replies" in disk.loaded_sections
     entries = disk.replies if loaded and disk is not None else ()
+    if present_units is not None:
+        entries = tuple(item for item in entries if item.unit_identity in present_units)
     if not loaded or not entries:
         return
     append_fold_heading(
@@ -202,10 +207,13 @@ def append_slow_tool_calls(
     snapshot: TribeSectionSnapshot | None,
     *,
     level: FoldLevel,
+    present_units: Collection[ClanAgentIdentity] | None = None,
 ) -> None:
     disk = snapshot.disk if snapshot is not None else None
     loaded = disk is not None and "slow-tool-calls" in disk.loaded_sections
     entries = disk.slow_tool_calls if loaded and disk is not None else ()
+    if present_units is not None:
+        entries = tuple(item for item in entries if item.unit_identity in present_units)
     if not loaded or not entries:
         return
     append_fold_heading(

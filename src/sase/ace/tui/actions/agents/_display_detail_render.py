@@ -79,6 +79,23 @@ class AgentDetailRenderMixin:
         cheap: bool = False,
     ) -> bool:
         """Render the live tribe document when whole-panel focus is active."""
+        if cheap:
+            try:
+                focus = self._focused_tribe_panel_context()
+            except Exception:
+                focus = None
+            if focus is not None:
+                focus_identity = getattr(focus, "container_identity", None)
+                shows_complete = getattr(
+                    agent_detail, "shows_complete_tribe_document", None
+                )
+                try:
+                    if callable(shows_complete) and bool(
+                        shows_complete(focus_identity)
+                    ):
+                        return True
+                except Exception:
+                    pass
         resolver = getattr(self, "_focused_tribe_summary", None)
         snapshot = resolver(with_entry_target=not cheap) if callable(resolver) else None
         if snapshot is None:
@@ -181,6 +198,25 @@ class AgentDetailRenderMixin:
         snapshot = resolver() if callable(resolver) else None
         if snapshot is None:
             return False
+        try:
+            focus = self._focused_tribe_panel_context()
+        except Exception:
+            focus = None
+        if focus is not None:
+            prompt_active = getattr(self, "_prompt_input_active", None)
+            try:
+                is_active = bool(prompt_active()) if callable(prompt_active) else False
+            except Exception:
+                is_active = False
+            if is_active:
+                debouncer = getattr(self, "_agent_detail_debouncer", None)
+                schedule = getattr(debouncer, "schedule", None)
+                if callable(schedule):
+                    try:
+                        schedule(self._fire_debounced_detail_update)
+                    except Exception:
+                        pass
+                return True
         from textual.css.query import NoMatches
 
         from ...widgets import AgentDetail
@@ -203,6 +239,23 @@ class AgentDetailRenderMixin:
             # interval instead of laying out a document mid-navigation.
             self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
             return
+        try:
+            tribe_focus = self._focused_tribe_panel_context()
+        except Exception:
+            tribe_focus = None
+        if tribe_focus is not None:
+            prompt_active = getattr(self, "_prompt_input_active", None)
+            try:
+                input_active = (
+                    bool(prompt_active()) if callable(prompt_active) else False
+                )
+            except Exception:
+                input_active = False
+            if input_active:
+                self._agent_detail_debouncer.schedule(
+                    self._fire_debounced_detail_update
+                )
+                return
         update_info = getattr(self, "_update_agents_info_panel", None)
         if callable(update_info):
             update_info()

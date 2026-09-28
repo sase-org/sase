@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ..decks.card_part import card_document, context_card, reply_card, summary_card
 from ._traceback_section import build_traceback_block
 
@@ -10,6 +12,7 @@ from ...models.agent import Agent, wait_display_agent
 from ...models.agent_session_members import agent_session_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
+from ...models.fold_state import FoldLevel
 from ...llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.trace import tui_trace
 from ._agent_display_attempts import (
@@ -35,6 +38,7 @@ from ._agent_display_render import AgentDisplayRenderMixin
 from ._agent_display_xprompt import attach_memoized_xprompt
 from ._member_roster import member_jump_map_publisher_for
 from ._agent_tribe_aggregation import (
+    TribeSectionSnapshot,
     get_cached_tribe_section_snapshot,
     prepare_tribe_section_snapshot,
 )
@@ -48,6 +52,39 @@ _should_render_merged = should_render_merged
 class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
     """Mixin providing agent-specific display methods for AgentPromptPanel."""
 
+    _tribe_complete_render_key: tuple[object, ...] | None = None
+    _tribe_complete_render_digest: str | None = None
+
+    def _clear_tribe_complete_memo(self) -> None:
+        """Drop the last complete tribe render key so the next one rebuilds."""
+        try:
+            self._tribe_complete_render_key = None
+            self._tribe_complete_render_digest = None
+        except Exception:
+            pass
+
+    def _tribe_theme_name(self) -> str | None:
+        try:
+            app = self.app  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        for attr in ("theme", "current_theme"):
+            try:
+                value = getattr(app, attr, None)
+            except Exception:
+                continue
+            if value is None:
+                continue
+            try:
+                name = getattr(value, "name", None)
+            except Exception:
+                name = None
+            if isinstance(name, str) and name:
+                return name
+            if isinstance(value, str) and value:
+                return value
+        return None
+
     def update_display(self, agent: Agent) -> None:
         """Update with agent information and prompt.
 
@@ -55,6 +92,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             agent: The Agent to display.
         """
         with tui_trace("widget.prompt_panel.update_display"):
+            self._clear_tribe_complete_memo()
             self._cancel_tribe_section_worker_for_agent_selection()
             self._cancel_clan_section_worker_for_selection_change(agent)
             if agent.is_clan_container:
@@ -90,6 +128,39 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             )
             if callable(configure_slow_tick):
                 configure_slow_tick(agent)
+
+    def _tribe_complete_render_key_for(
+        self,
+        snapshot: AgentTribeSummarySnapshot,
+        section_snapshot: TribeSectionSnapshot | None,
+        fold_level: FoldLevel,
+        fold_overrides: Mapping[str, FoldLevel] | None,
+        *,
+        publish_member_jump_map: bool,
+    ) -> tuple[object, ...]:
+        try:
+            overrides_map = dict(fold_overrides or {})
+        except Exception:
+            overrides_map = {}
+        try:
+            frozen_overrides = tuple(
+                (key, overrides_map[key]) for key in sorted(overrides_map)
+            )
+        except Exception:
+            frozen_overrides = ()
+        try:
+            detaches = bool(getattr(self, "detaches_identity_header", False))
+        except Exception:
+            detaches = False
+        return (
+            snapshot,
+            section_snapshot,
+            fold_level,
+            frozen_overrides,
+            detaches,
+            bool(publish_member_jump_map),
+            self._tribe_theme_name(),
+        )
 
     def update_tribe_display(
         self,
@@ -137,14 +208,50 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                     snapshot,
                     agents_resolver(),
                 )
+            section_snapshot = get_cached_tribe_section_snapshot(
+                self,
+                snapshot.container_identity,
+            )
+            if not cheap:
+                render_key = self._tribe_complete_render_key_for(
+                    snapshot,
+                    section_snapshot,
+                    fold_level,
+                    fold_overrides,
+                    publish_member_jump_map=publish_member_jump_map,
+                )
+                last_key = getattr(self, "_tribe_complete_render_key", None)
+                last_digest = getattr(self, "_tribe_complete_render_digest", None)
+                current_digest = getattr(self, "_section_content_digest", None)
+                keys_equal = False
+                try:
+                    if last_key is not None:
+                        keys_equal = last_key == render_key
+                except Exception:
+                    keys_equal = False
+                if (
+                    keys_equal
+                    and last_digest is not None
+                    and current_digest == last_digest
+                ):
+                    required = tribe_enrichment_sections_for_fold_state(
+                        fold_level,
+                        fold_overrides,
+                    )
+                    if required:
+                        self.start_tribe_section_enrichment(
+                            snapshot.container_identity,
+                            sections=required,
+                            slow_tool_threshold_ms=slow_tool_call_threshold_ms_from_widget(
+                                self
+                            ),
+                        )
+                    return
             from ._agent_display_tribe import build_tribe_detail_text
 
             tribe_document = build_tribe_detail_text(
                 snapshot,
-                section_snapshot=get_cached_tribe_section_snapshot(
-                    self,
-                    snapshot.container_identity,
-                ),
+                section_snapshot=section_snapshot,
                 fold_level=fold_level,
                 section_fold_overrides=fold_overrides,
                 member_jump_map_publisher=(
@@ -159,6 +266,13 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 card_document(summary_card(tribe_document))  # type: ignore[arg-type]
             )
             if not cheap:
+                try:
+                    self._tribe_complete_render_key = render_key
+                    self._tribe_complete_render_digest = getattr(
+                        self, "_section_content_digest", None
+                    )
+                except Exception:
+                    pass
                 required = tribe_enrichment_sections_for_fold_state(
                     fold_level,
                     fold_overrides,
@@ -190,6 +304,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         prompt body, reply, tools, and file content shortly after.
         """
         with tui_trace("widget.prompt_panel.update_header_only"):
+            self._clear_tribe_complete_memo()
             self._cancel_tribe_section_worker_for_agent_selection()
             self._cancel_clan_section_worker_for_selection_change(agent)
             if agent.is_clan_container:

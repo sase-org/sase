@@ -30,6 +30,7 @@ class AgentDetailDisplayMixin:
     # ------------------------------------------------------------------
     _current_agent: Agent | None
     _current_tribe_identity: TribePanelIdentity | None
+    _tribe_document_complete: bool
     _current_attempt_number: int | None
     _attempt_view_mode: str
     _agent_detail_generation: int
@@ -83,6 +84,7 @@ class AgentDetailDisplayMixin:
         previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_tribe_identity = None
+        self._tribe_document_complete = False
         with tui_trace("widget.agent_detail.update_display", status=agent.status):
             self._update_display_impl(
                 agent,
@@ -107,6 +109,7 @@ class AgentDetailDisplayMixin:
         previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_tribe_identity = None
+        self._tribe_document_complete = False
         with tui_trace(
             "widget.agent_detail.update_display_immediate", status=agent.status
         ):
@@ -177,6 +180,7 @@ class AgentDetailDisplayMixin:
         previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_tribe_identity = None
+        self._tribe_document_complete = False
         prompt_panel = self.query_one("#agent-prompt-panel", agent_prompt_panel_type())
         cancel_slow_tick = getattr(prompt_panel, "_cancel_slow_tool_render_tick", None)
         if callable(cancel_slow_tick):

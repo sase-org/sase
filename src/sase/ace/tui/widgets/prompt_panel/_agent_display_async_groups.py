@@ -32,6 +32,7 @@ from ._agent_tribe_aggregation import (
     TribeEnrichmentSection,
     cache_tribe_enrichment,
     clear_tribe_snapshot_loading,
+    get_cached_tribe_section_snapshot,
     get_cached_tribe_sources,
     mark_tribe_snapshot_loading,
     tribe_sections_to_refresh,
@@ -299,10 +300,28 @@ class AgentDisplayGroupWorkerMixin:
             )
         if state is WorkerState.SUCCESS and request is not None:
             result = cast(TribeEnrichmentResult, worker.result)
-            if cache_tribe_enrichment(self, result) is not None:
-                post_message = getattr(self, "post_message", None)
-                if callable(post_message):
-                    post_message(TribeSectionSnapshotLoaded(request.panel_identity))
+            try:
+                before = get_cached_tribe_section_snapshot(self, request.panel_identity)
+            except Exception:
+                before = None
+            merged = cache_tribe_enrichment(self, result)
+            if merged is not None:
+                changed = True
+                try:
+                    if before is not None:
+                        changed = (
+                            before.disk != merged.disk
+                            or before.runtime_statistics_loaded
+                            != merged.runtime_statistics_loaded
+                            or before.runtime_statistics != merged.runtime_statistics
+                            or before.clan_summaries != merged.clan_summaries
+                        )
+                except Exception:
+                    changed = True
+                if changed:
+                    post_message = getattr(self, "post_message", None)
+                    if callable(post_message):
+                        post_message(TribeSectionSnapshotLoaded(request.panel_identity))
         pending: TribeSectionEnrichmentRequest | None = getattr(
             self, "_tribe_section_pending_request", None
         )

@@ -407,6 +407,7 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "sudo_command",
         "supersedes",
         "syntax",
+        "tab",
         "target",
         "targets",
         "template",

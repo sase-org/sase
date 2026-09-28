@@ -8,7 +8,7 @@ this renderer only appends text and replays spans.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 
 from rich.text import Text
 
@@ -50,12 +50,29 @@ def append_prompts(
     level: FoldLevel,
     overrides: Mapping[str, FoldLevel],
     unit_numbers: Mapping[ClanAgentIdentity, str],
+    present_units: Collection[ClanAgentIdentity] | None = None,
 ) -> None:
     """Append the PROMPTS section after the TRIBE MEMBERS roster."""
     disk = section_snapshot.disk if section_snapshot is not None else None
     loaded = disk is not None and "prompts" in disk.loaded_sections
     snapshot = disk.prompts if loaded and disk is not None else None
     groups = snapshot.groups if snapshot is not None else ()
+    if present_units is not None:
+        filtered: list[TribePromptGroup] = []
+        for group in groups:
+            members = tuple(
+                member
+                for member in group.members
+                if member.unit_identity in present_units
+            )
+            if members:
+                if len(members) != len(group.members):
+                    filtered.append(
+                        TribePromptGroup(digest=group.digest, members=members)
+                    )
+                else:
+                    filtered.append(group)
+        groups = tuple(filtered)
     if not loaded or not groups:
         return
     distinct = len(groups)

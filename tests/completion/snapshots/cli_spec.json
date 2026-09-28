@@ -3486,7 +3486,7 @@
                       "--tab"
                     ],
                     "takes_value": true,
-                    "value_hint": null
+                    "value_hint": "text"
                   }
                 ],
                 "path": [
@@ -36634,7 +36634,7 @@
               "--tab"
             ],
             "takes_value": true,
-            "value_hint": null
+            "value_hint": "text"
           },
           {
             "choices": null,

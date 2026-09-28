@@ -195,13 +195,14 @@ def _append_tribe_body(
     unit_numbers = {
         target.member_identity: target.number for target in jump_map.targets
     }
+    present_units = {unit.identity for unit in snapshot.units}
     append_clan_summaries(
         text,
         section_snapshot,
         level=effective_level(SECTIONS.clan_summaries, fold_level, overrides),
         overrides=overrides,
         unit_numbers=unit_numbers,
-        present_units={unit.identity for unit in snapshot.units},
+        present_units=present_units,
     )
     append_prompts(
         text,
@@ -209,6 +210,7 @@ def _append_tribe_body(
         level=effective_level(SECTIONS.prompts, fold_level, overrides),
         overrides=overrides,
         unit_numbers=unit_numbers,
+        present_units=present_units,
     )
     append_errors(
         text,
@@ -233,11 +235,13 @@ def _append_tribe_body(
         text,
         section_snapshot,
         level=effective_level(SECTIONS.replies, fold_level, overrides),
+        present_units=present_units,
     )
     append_slow_tool_calls(
         text,
         section_snapshot,
         level=effective_level(SECTIONS.slow_tool_calls, fold_level, overrides),
+        present_units=present_units,
     )
     append_runtime_statistics(
         text,

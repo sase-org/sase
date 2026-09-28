@@ -26,6 +26,7 @@ class AgentDetailDeckRefreshMixin:
     _main_deck_document: MainDeckDocument
     _current_agent: Any | None
     _current_tribe_identity: Any | None
+    _tribe_document_complete: bool
     _current_attempt_number: int | None
     _agent_detail_generation: int
 
@@ -239,6 +240,7 @@ class AgentDetailDeckRefreshMixin:
     ) -> None:
         prev_agent = self._current_agent
         self._current_agent = agent
+        self._tribe_document_complete = False  # type: ignore[attr-defined]
         self._current_attempt_number = attempt_number
         if prev_agent is not None and prev_agent.identity != agent.identity:
             self._main_deck_document = EMPTY_MAIN_DOCUMENT
@@ -252,6 +254,7 @@ class AgentDetailDeckRefreshMixin:
         self._agent_detail_generation += 1
         self._current_agent = None
         self._current_tribe_identity = None
+        self._tribe_document_complete = False  # type: ignore[attr-defined]
         self._current_attempt_number = None
         try:
             source = self._deck_source_panel()  # type: ignore[attr-defined]
@@ -300,6 +303,7 @@ class AgentDetailDeckRefreshMixin:
         self._agent_detail_generation += 1
         self._current_agent = None
         self._current_tribe_identity = snapshot.container_identity
+        self._tribe_document_complete = not cheap  # type: ignore[attr-defined]
         self._current_attempt_number = None
         try:
             source = self._deck_source_panel()  # type: ignore[attr-defined]

@@ -207,7 +207,7 @@ def prepare_tribe_section_snapshot(
     snapshot = TribeSectionSnapshot(
         panel_identity=summary.container_identity,
         source_signature=signature,
-        disk=(cached.snapshot.disk if same_sources and cached is not None else None),
+        disk=(cached.snapshot.disk if cached is not None else None),
         runtime_statistics_loaded=(
             cached.snapshot.runtime_statistics_loaded if cached is not None else False
         ),

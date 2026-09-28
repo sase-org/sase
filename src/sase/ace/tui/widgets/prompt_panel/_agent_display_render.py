@@ -643,6 +643,9 @@ class AgentDisplayRenderMixin(
 
     def show_empty(self) -> None:
         """Show empty state."""
+        clearer = getattr(self, "_clear_tribe_complete_memo", None)
+        if callable(clearer):
+            clearer()
         reset_sections = getattr(self, "reset_section_document", None)
         if callable(reset_sections):
             reset_sections()

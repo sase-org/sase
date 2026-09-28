@@ -31,6 +31,7 @@ class AgentDetailStateMixin:
     # ------------------------------------------------------------------
     _current_agent: Agent | None
     _current_tribe_identity: TribePanelIdentity | None
+    _tribe_document_complete: bool
     _current_attempt_number: int | None
     _attempt_view_mode: str
     _agent_detail_generation: int

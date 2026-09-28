@@ -20,6 +20,7 @@ class AgentDetailDeckMixin(
     _main_deck_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
     _current_agent: Any | None
     _current_tribe_identity: Any | None
+    _tribe_document_complete: bool
     _current_attempt_number: int | None
     _attempt_view_mode: str
     _agent_detail_generation: int

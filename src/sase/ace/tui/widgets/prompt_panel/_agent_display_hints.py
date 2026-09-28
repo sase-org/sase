@@ -169,6 +169,9 @@ class AgentHintsDisplayMixin(AgentHintRenderMixin):
         cost: how much text was annotated, how many hints came out, and whether
         the render ran against a warm or cold detail-header summary.
         """
+        clearer = getattr(self, "_clear_tribe_complete_memo", None)
+        if callable(clearer):
+            clearer()
         prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
         if callable(prepare_sections):
             prepare_sections(agent)

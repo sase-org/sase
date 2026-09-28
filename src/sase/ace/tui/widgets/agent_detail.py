@@ -48,6 +48,7 @@ class AgentDetail(
         super().__init__(**kwargs)
         self._current_agent: Agent | None = None
         self._current_tribe_identity: TribePanelIdentity | None = None
+        self._tribe_document_complete: bool = False
         self._attempt_view_mode: str = "merged"
         self._current_attempt_number: int | None = None
         # Two-phase update guard. ``update_display_immediate`` and
@@ -72,6 +73,17 @@ class AgentDetail(
                 yield AgentPromptPanel(id="agent-prompt-panel", classes="-deck-source")
             yield DeckArea(id="agent-deck-area", classes="-single")
             yield AgentJumpPanel(id="agent-jump-panel", classes="hidden")
+
+    def shows_complete_tribe_document(self, identity: object | None) -> bool:
+        """Return whether the Main deck holds the complete document for identity."""
+        try:
+            return (
+                identity is not None
+                and getattr(self, "_current_tribe_identity", None) == identity
+                and bool(getattr(self, "_tribe_document_complete", False))
+            )
+        except Exception:
+            return False
 
     @property
     def metadata_identity(self) -> object | None:
