@@ -275,3 +275,45 @@ def test_launch_preview_ignores_retired_flag_override(
 
     assert "## Holds" in preview
     assert "%hold(pending)" in preview
+
+
+def test_launch_preview_renders_tab_field_for_named_tab(tmp_path: Path) -> None:
+    request = build_launch_preview_request(
+        plan=plan_fake_fanout("agent", ["%tab:blog\nWrite the post"]),
+        context=_context(tmp_path),
+        source_surface="cli",
+        request_id="launch-tab",
+        created_at_unix=10.0,
+    )
+
+    preview = render_launch_preview_markdown(request)
+
+    assert "tab `blog`" in preview
+
+
+def test_launch_preview_renders_explicit_default_tab(tmp_path: Path) -> None:
+    request = build_launch_preview_request(
+        plan=plan_fake_fanout("agent", ["%tab:main\nWrite the post"]),
+        context=_context(tmp_path),
+        source_surface="cli",
+        request_id="launch-tab-default",
+        created_at_unix=10.0,
+    )
+
+    preview = render_launch_preview_markdown(request)
+
+    assert "tab `main (default)`" in preview
+
+
+def test_launch_preview_omits_tab_field_without_directive(tmp_path: Path) -> None:
+    request = build_launch_preview_request(
+        plan=plan_fake_fanout("agent", ["Write the post"]),
+        context=_context(tmp_path),
+        source_surface="cli",
+        request_id="launch-no-tab",
+        created_at_unix=10.0,
+    )
+
+    preview = render_launch_preview_markdown(request)
+
+    assert "tab `" not in preview

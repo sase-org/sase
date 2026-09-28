@@ -21,6 +21,7 @@ from sase.monitor.supervise import _reexport_member_agent_tab
 from sase.xprompt.directive_edit import (
     apply_inherited_agent_tab,
     inherited_agent_tab,
+    scan_tab_directive,
     set_agent_tab_directive,
 )
 from tests.conftest import redirect_sase_home
@@ -271,3 +272,45 @@ def test_contract_version_parsing() -> None:
     )
     assert launch._contract_version_for_alias({"hosts": []}, "apollo") is None
     assert launch._contract_version_for_alias({}, "apollo") is None
+
+
+def test_scan_tab_directive_absent() -> None:
+    assert scan_tab_directive("do work") is None
+    assert scan_tab_directive("```\n%tab:blog\n```\ndo work") is None
+
+
+def test_scan_tab_directive_named_forms() -> None:
+    assert scan_tab_directive("%tab:blog\ndo work").tab == "blog"  # type: ignore[union-attr]
+    assert scan_tab_directive("%tab(Blog)\ndo work").tab == "blog"  # type: ignore[union-attr]
+
+
+def test_scan_tab_directive_explicit_default() -> None:
+    scan = scan_tab_directive("%tab:main\ndo work")
+    assert scan is not None
+    assert scan.tab is None
+    assert scan.explicit_default is True
+    assert scan.error is None
+
+
+def test_scan_tab_directive_reserved_names_error() -> None:
+    assert scan_tab_directive("%tab:local\ndo work").error is not None  # type: ignore[union-attr]
+    assert scan_tab_directive("%tab:all\ndo work").error is not None  # type: ignore[union-attr]
+
+
+def test_scan_tab_directive_duplicate_errors() -> None:
+    scan = scan_tab_directive("%tab:a\n%tab:b\ndo work")
+    assert scan is not None
+    assert "Only one %tab" in (scan.error or "")
+
+
+def test_scan_tab_directive_fan_out_shows_first() -> None:
+    scan = scan_tab_directive("%{%tab:a | %tab:b}\ndo work")
+    assert scan is not None
+    assert scan.tab == "a"
+    assert scan.error is None
+
+
+def test_scan_tab_directive_bare_form_errors() -> None:
+    scan = scan_tab_directive("%tab\ndo work")
+    assert scan is not None
+    assert scan.error is not None

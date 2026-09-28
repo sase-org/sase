@@ -118,6 +118,77 @@ class PromptInputBarDispatchMixin(_MixinBase):
             )
         self._refresh_dispatch_context_line()
 
+    def request_launch_tab_picker(self) -> None:
+        """Open the prompt-local Launch Tab picker (``gb``)."""
+        if self._mode != "prompt" or getattr(
+            self._stack.selected_item, "is_auxiliary_pane", False
+        ):
+            return
+        self._sync_state_from_widgets()
+        from sase.ace.tui.actions.agents._agent_tabs_catalog import (
+            catalog_view_for_owner,
+        )
+        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
+        from sase.ace.tui.modals.launch_tab_picker_modal import (
+            LaunchTabPickerModal,
+            LaunchTabPickerResult,
+        )
+        from sase.xprompt.directive_edit import scan_tab_directive
+
+        current: str | None = None
+        try:
+            scan = scan_tab_directive(self.active_text_area().text)
+            if scan is not None and scan.tab:
+                current = scan.tab
+        except Exception:  # noqa: BLE001 - picker still opens unpreselected.
+            current = None
+        try:
+            entries = catalog_view_for_owner(self.app) if agent_tabs_enabled() else ()
+        except Exception:  # noqa: BLE001 - picker still lists the default.
+            entries = ()
+        owner = self._capture_dispatch_picker_focus_owner()
+
+        def _on_result(result: object) -> None:
+            if isinstance(result, LaunchTabPickerResult) and result.action in (
+                "tab",
+                "default",
+            ):
+                self._apply_launch_tab(result)
+            self._restore_dispatch_picker_focus(
+                owner,
+                restore_cursor=not isinstance(result, LaunchTabPickerResult)
+                or result.action == "cancel",
+            )
+
+        self.app.push_screen(
+            LaunchTabPickerModal(entries, current=current),
+            _on_result,
+        )
+
+    def _apply_launch_tab(self, result: object) -> None:
+        """Apply a Launch Tab picker result to the active prompt pane."""
+        from sase.xprompt.directive_edit import set_agent_tab_directive
+
+        action = getattr(result, "action", None)
+        if action == "default":
+            tab: str | None = None
+        elif action == "tab":
+            tab = getattr(result, "tab", None)
+            if not isinstance(tab, str) or not tab:
+                return
+        else:
+            return
+        try:
+            text_area = self.active_text_area()
+            text_area.text = set_agent_tab_directive(text_area.text, tab)
+        except Exception:  # noqa: BLE001 - picker selection stays best-effort.
+            return
+        self._cursor_to_end(text_area)
+        text_area.focus()
+        self._sync_state_from_widgets()
+        self._refresh_dispatch_context_line()
+        self._schedule_height_update()
+
     def request_dispatch_target_picker(self) -> None:
         """Open the prompt-local launch target picker."""
         if self._mode != "prompt" or getattr(
@@ -300,10 +371,19 @@ class PromptInputBarDispatchMixin(_MixinBase):
             text.append("error", style="bold #FF5F5F")
             text.append("  ")
             text.append(str(exc), style="#FFAF5F")
+            tab_segment, _ = self._tab_context_segment(prompt)
+            if tab_segment is not None:
+                text.append("  ")
+                text.append_text(tab_segment)
             return text, "error", True
 
         if scan is None:
-            return Text(), "ok", False
+            tab_segment, tab_severity = self._tab_context_segment(prompt)
+            if tab_segment is None:
+                return Text(), "ok", False
+            tab_only = Text()
+            tab_only.append_text(tab_segment)
+            return tab_only, tab_severity, True
 
         target = "local"
         target_status = "local"
@@ -336,6 +416,12 @@ class PromptInputBarDispatchMixin(_MixinBase):
         text.append(f" {target_status}", style="dim")
         text.append("  Source ", style="bold #87D7FF")
         text.append(source, style="#00D7AF")
+        tab_segment, tab_severity = self._tab_context_segment(prompt)
+        if tab_segment is not None:
+            text.append("  ")
+            text.append_text(tab_segment)
+            if tab_severity == "error":
+                severity = "error"
         override = self._dispatch_preflight_override
         if override is not None and (not override[2] or override[2] == prompt):
             text.append("  ")
@@ -357,6 +443,90 @@ class PromptInputBarDispatchMixin(_MixinBase):
                 return project
         project_name = getattr(ctx, "project_name", "") if ctx is not None else ""
         return str(project_name or "current")
+
+    def _tab_context_segment(
+        self, prompt: str
+    ) -> tuple[Text | None, _DispatchSeverity]:
+        """Return the launch-tab segment for the context line, if any.
+
+        Shows one of: the prompt's explicit ``%tab`` (named or default),
+        the view-inherited named tab, or the remote-machine-tab note. The
+        read is prompt text plus in-memory app state only — no I/O. None
+        keeps the line hidden when no dispatch target is shown either.
+        """
+        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
+        from sase.ace.tui.agent_tabs_launch_view import (
+            active_machine_tab_alias,
+            view_inherited_tab_name,
+        )
+        from sase.xprompt.directive_edit import scan_tab_directive
+
+        if not agent_tabs_enabled():
+            return None, "ok"
+        try:
+            scan = scan_tab_directive(prompt)
+        except Exception:  # noqa: BLE001 - launch validation owns the error.
+            return None, "ok"
+        if scan is not None:
+            if scan.error:
+                segment = Text()
+                segment.append("Tab ", style="bold #87D7FF")
+                segment.append("error", style="bold #FF5F5F")
+                segment.append("  ")
+                segment.append(scan.error, style="#FFAF5F")
+                return segment, "error"
+            if scan.tab is not None:
+                return self._named_tab_segment(scan.tab, inherited=False), "ok"
+            segment = Text()
+            segment.append("Tab ", style="bold #87D7FF")
+            segment.append("main (default)", style="#AFAFAF")
+            return segment, "ok"
+        try:
+            inherited = view_inherited_tab_name(self.app)
+        except Exception:  # noqa: BLE001 - no chip without view state.
+            inherited = None
+        if inherited:
+            return self._named_tab_segment(inherited, inherited=True), "ok"
+        try:
+            machine_alias = active_machine_tab_alias(self.app)
+        except Exception:  # noqa: BLE001 - no chip without view state.
+            machine_alias = None
+        if machine_alias:
+            segment = Text()
+            segment.append("runs on ⌨ local", style="dim")
+            segment.append(f"  gD launch on {machine_alias}", style="dim")
+            return segment, "ok"
+        return None, "ok"
+
+    def _named_tab_segment(self, name: str, *, inherited: bool) -> Text:
+        """Return the ``tab: <name>`` chip segment for a named tab."""
+        from sase.ace.tui.widgets.agent_tab_strip import agent_tab_accent_for_name
+
+        try:
+            from sase.ace.tui.models.agent_tab_descriptors import (
+                resolve_agent_tab_style_inputs,
+            )
+
+            styles = resolve_agent_tab_style_inputs(allow_disk=False)
+            accent = agent_tab_accent_for_name(
+                name,
+                config_color=dict(styles.colors).get(name, ""),
+                enabled_projects=tuple(styles.enabled_projects),
+            )
+        except Exception:  # noqa: BLE001 - degrade to the hash accent.
+            accent = agent_tab_accent_for_name(name)
+        segment = Text()
+        segment.append("Tab ", style="bold #87D7FF")
+        segment.append(name, style=f"bold {accent}")
+        if inherited:
+            segment.append("  from view", style="dim")
+        aliases = getattr(self, "_dispatch_target_rows", None)
+        if isinstance(aliases, dict) and name.casefold() in {
+            str(alias).casefold() for alias in aliases
+        }:
+            segment.append("  named tab wins over ⌨ machine", style="dim")
+        segment.append("  Ctrl+G b change · %tab:main for default", style="dim")
+        return segment
 
 
 def _override_style(severity: _DispatchSeverity) -> str:

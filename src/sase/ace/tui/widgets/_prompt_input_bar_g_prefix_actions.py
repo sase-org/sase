@@ -74,6 +74,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_dispatch_target",
     ),
     _PromptGPrefixBinding(
+        "b",
+        "request_launch_tab_picker",
+        "_g_prefix_label_launch_tab",
+        "_g_prefix_available_launch_tab",
+    ),
+    _PromptGPrefixBinding(
         "enter",
         "submit_active_pane",
         "_g_prefix_label_submit_active",
@@ -483,6 +489,20 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             self._mode == "prompt" and not self._stack.selected_item.is_auxiliary_pane
         )
 
+    def _g_prefix_available_launch_tab(self) -> bool:
+        """Whether ``gb`` / ``^Gb`` can open the Launch Tab picker."""
+        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
+
+        try:
+            enabled = agent_tabs_enabled()
+        except Exception:  # noqa: BLE001 - picker stays hidden without flags.
+            enabled = False
+        return (
+            enabled
+            and self._mode == "prompt"
+            and not self._stack.selected_item.is_auxiliary_pane
+        )
+
     def _g_prefix_available_snippets(self) -> bool:
         """Whether ``gT`` / ``^GT`` can open the snippets panel."""
         return self._mode == "prompt"
@@ -608,6 +628,9 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_label_dispatch_target(self) -> str:
         return "launch target…"
+
+    def _g_prefix_label_launch_tab(self) -> str:
+        return "launch tab…"
 
     def _g_prefix_label_snippets(self) -> str:
         return "snippets…"

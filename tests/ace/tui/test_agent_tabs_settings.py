@@ -253,3 +253,19 @@ def test_config_schema_agent_tabs_parity() -> None:
     ):
         with pytest.raises(ValidationError):
             validator.validate({"ace": {"agent_tabs": invalid}})
+
+
+def test_launch_from_view_enabled_reads_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_view_config(monkeypatch, {}, (), token=("lfv", 1))
+    assert settings.launch_from_view_enabled() is True
+    _install_view_config(monkeypatch, {"launch_from_view": False}, (), token=("lfv", 2))
+    assert settings.launch_from_view_enabled() is False
+
+
+def test_launch_from_view_enabled_falls_back_on_bad_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "load_merged_config", lambda: None)
+    assert settings.launch_from_view_enabled() is True

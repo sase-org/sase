@@ -190,6 +190,25 @@ def agent_tabs_view_config() -> AgentTabsViewConfig:
     return _agent_tabs_view_config_for_token(current_config_token())
 
 
+def launch_from_view_enabled() -> bool:
+    """Return the ``ace.agent_tabs.launch_from_view`` setting (default True).
+
+    Reads the token-cached merged config, so this is free of disk and
+    network work on the UI thread; any load failure falls back to the
+    default.
+    """
+    try:
+        config = load_merged_config()
+    except Exception:  # noqa: BLE001 - fail open to the default.
+        return DEFAULT_LAUNCH_FROM_VIEW
+    if not isinstance(config, dict):
+        return DEFAULT_LAUNCH_FROM_VIEW
+    ace_cfg = config.get("ace", {})
+    return parse_agent_tabs_settings(
+        ace_cfg if isinstance(ace_cfg, dict) else {}
+    ).launch_from_view
+
+
 __all__ = [
     "DEFAULT_AGENT_TABS_SETTINGS",
     "DEFAULT_LAUNCH_FROM_VIEW",
@@ -197,5 +216,6 @@ __all__ = [
     "AgentTabsSettings",
     "AgentTabsViewConfig",
     "agent_tabs_view_config",
+    "launch_from_view_enabled",
     "parse_agent_tabs_settings",
 ]

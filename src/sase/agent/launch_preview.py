@@ -195,6 +195,9 @@ def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
         )
         if clan_annotation is not None:
             lines.extend([f"clan `{clan_annotation}`", ""])
+        tab_annotation = _tab_annotation_for_preview(prompt)
+        if tab_annotation is not None:
+            lines.extend([f"tab `{tab_annotation}`", ""])
         lines.append(opening_fence)
         lines.extend(prompt.split("\n") if prompt else [""])
         lines.extend(
@@ -232,6 +235,25 @@ def _clan_annotations_for_preview(
             # malformed directives and will report the precise error.
             annotations.append(None)
     return annotations
+
+
+def _tab_annotation_for_preview(prompt: str) -> str | None:
+    """Return the ``Tab:`` field value for a slot prompt, if it has one."""
+    try:
+        from sase.xprompt.directive_edit import scan_tab_directive
+
+        scan = scan_tab_directive(prompt)
+    except Exception:
+        # Preview rendering remains best-effort; launch validation owns
+        # malformed directives and will report the precise error.
+        return None
+    if scan is None or scan.error:
+        return None
+    if scan.tab is not None:
+        return scan.tab
+    if scan.explicit_default:
+        return "main (default)"
+    return None
 
 
 def _agent_count_label(count: int) -> str:

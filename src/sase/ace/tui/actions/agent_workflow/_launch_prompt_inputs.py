@@ -186,6 +186,8 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
 
+        prompt = self._apply_launch_view_tab(prompt)
+
         if not self._preflight_project_tags(prompt):
             return
 
@@ -196,6 +198,29 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
         )
         if launch is not None:
             self._preflight_dispatch_pending_launch(launch.launch_id)
+
+    def _apply_launch_view_tab(self, prompt: str) -> str:
+        """Insert the view-inherited ``%tab`` for R1 launches.
+
+        Applies only while Agents shows a named tab and
+        ``ace.agent_tabs.launch_from_view`` is on; every other view is a
+        no-op. Skip rules (existing ``%tab`` including ``%tab:main``,
+        session attach, per-swarm-segment) live in
+        :func:`apply_inherited_agent_tab`.
+        """
+        from sase.ace.tui.agent_tabs_launch_view import view_inherited_tab_name
+        from sase.xprompt.directive_edit import apply_inherited_agent_tab
+
+        try:
+            tab = view_inherited_tab_name(self)
+        except Exception:  # noqa: BLE001 - launch proceeds without inheritance.
+            return prompt
+        if not tab:
+            return prompt
+        try:
+            return apply_inherited_agent_tab(prompt, tab)
+        except Exception:  # noqa: BLE001 - launch proceeds without inheritance.
+            return prompt
 
     def _preflight_project_tags(self, prompt: str) -> bool:
         """Reject D3 project-tag errors before the bar unmounts, if possible.

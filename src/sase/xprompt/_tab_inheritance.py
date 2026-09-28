@@ -11,7 +11,9 @@ supervisors.
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 from ._directive_types import _DIRECTIVE_ALIASES
 from ._disabled_regions import protect_disabled_regions, unprotect_disabled_regions
@@ -23,11 +25,29 @@ SASE_AGENT_TAB_ENV = "SASE_AGENT_TAB"
 
 __all__ = [
     "SASE_AGENT_TAB_ENV",
+    "TabDirectiveScan",
     "apply_inherited_agent_tab",
     "inherited_agent_tab",
+    "scan_tab_directive",
     "segment_has_active_tab_directive",
     "set_agent_tab_directive",
 ]
+
+
+@dataclass(frozen=True)
+class TabDirectiveScan:
+    """Lightweight read of the first active ``%tab`` in a prompt.
+
+    ``tab`` is the canonical stored name, or None for an explicit
+    ``%tab:main`` default. ``explicit_default`` is True only for that
+    explicit-default form. ``error`` carries the user-facing message when
+    the directive is present but invalid (or duplicated); launch
+    validation still owns the authoritative error.
+    """
+
+    tab: str | None
+    explicit_default: bool = False
+    error: str | None = None
 
 
 def inherited_agent_tab(
@@ -58,13 +78,87 @@ def segment_has_active_tab_directive(segment: str) -> bool:
     return _scan_segment(segment, "tab") is not None
 
 
+def scan_tab_directive(prompt: str) -> TabDirectiveScan | None:
+    """Return the first active ``%tab`` in *prompt*, or None when absent.
+
+    Fenced and disabled regions are ignored through the existing
+    literal-zone pipeline. The raw value is canonicalized through the
+    core; an invalid value (or a second ``%tab``) yields a scan with
+    ``error`` set instead of raising, so display surfaces can show the
+    problem while launch validation reports it authoritatively.
+    """
+    if "%tab" not in prompt:
+        return None
+    from ._directive_types import _DIRECTIVE_PATTERN
+
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+    disabled_regions: list[str] = []
+    protected = protect_disabled_regions(protected, disabled_regions)
+    raws: list[str] = []
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name != "tab":
+            continue
+        try:
+            raw, _ = _tab_raw_value(protected, match)
+        except ValueError as exc:
+            return TabDirectiveScan(tab=None, error=str(exc))
+        raws.append(raw)
+    if not raws:
+        return None
+    if len(raws) > 1 and "%{" not in protected:
+        return TabDirectiveScan(
+            tab=None, error="Only one %tab directive is allowed per launch."
+        )
+    # A fan-out (`%{%tab:a | %tab:b}`) carries one tab per branch; display
+    # surfaces show the first destination while each unit validates alone.
+    from sase.core.agent_tab import canonicalize_agent_tab
+
+    try:
+        stored = canonicalize_agent_tab(raws[0])
+    except (ValueError, TypeError) as exc:
+        return TabDirectiveScan(tab=None, error=str(exc))
+    if stored is None:
+        return TabDirectiveScan(tab=None, explicit_default=True)
+    return TabDirectiveScan(tab=stored)
+
+
+def _tab_raw_value(prompt: str, match: re.Match[str]) -> tuple[str, int]:
+    """Return the raw ``%tab`` value and match end for *match*."""
+    if match.group(2) is not None:
+        paren_start = match.end() - 1
+        paren_end = find_matching_paren_for_args(prompt, paren_start)
+        if paren_end is None:
+            raise ValueError("Malformed %tab(...) directive: missing closing ')'.")
+        positional_args, named_args = parse_args(
+            prompt[paren_start + 1 : paren_end],
+            reject_duplicate_named_args=True,
+        )
+        if named_args:
+            keys = ", ".join(f"{key}=" for key in sorted(named_args))
+            raise ValueError(
+                f"Unsupported keyword on %tab: {keys}. %tab only accepts one tab name."
+            )
+        non_empty = [arg for arg in positional_args if arg]
+        if len(non_empty) > 1:
+            raise ValueError("%tab accepts exactly one tab name.")
+        return (positional_args[0] if positional_args else ""), paren_end + 1
+    colon_arg = match.group(3)
+    if colon_arg is not None:
+        if colon_arg.startswith("`") and colon_arg.endswith("`"):
+            return colon_arg[1:-1], match.end()
+        return colon_arg, match.end()
+    if match.group(4) is not None:
+        raise ValueError("%tab does not support '+'; use %tab:<name>.")
+    raise ValueError("%tab requires a tab name; use %tab:<name>.")
+
+
 def _segment_is_session_attach(segment: str) -> bool:
     """Return whether *segment* is a session attach (``%id(..., session=...)``)."""
     if "session" not in segment:
         return False
     from ._directive_types import _DIRECTIVE_PATTERN
-
-    import re
 
     fenced_blocks: list[str] = []
     protected = protect_fenced_blocks(segment, fenced_blocks)
@@ -155,8 +249,6 @@ def _scan_segment(segment: str, directive: str) -> _TabScan | None:
     if f"%{directive}" not in segment:
         return None
     from ._directive_types import _DIRECTIVE_PATTERN
-
-    import re
 
     fenced_blocks: list[str] = []
     protected = protect_fenced_blocks(segment, fenced_blocks)

@@ -244,10 +244,48 @@ class LaunchSubmissionMixin:
         if bulk_patches:
             self._bulk_patches = None
             self._clear_bulk_patch_marks()  # type: ignore[attr-defined]
+        destination = self._launch_destination_tab(prompt)
+        label = launch_toast_label(prompt, launch.context.display_name)
+        suffix = f" → {destination}" if destination else ""
         self.notify(  # type: ignore[attr-defined]
-            f"Launching agent for {launch_toast_label(prompt, launch.context.display_name)}..."
+            f"Launching agent for {label}{suffix}..."
         )
         return launch
+
+    def _launch_destination_tab(self, prompt: str) -> str | None:
+        """Return the named tab this launch lands on, if off the active tab.
+
+        A launch to another tab also marks that tab's arrival dot so the
+        strip lights up when the agent appears. Same-tab, default, and
+        flag-off launches return None and leave the toast unchanged. The
+        pure prompt scan runs before the flag read so tab-less launches
+        never touch flags or config.
+        """
+        from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
+        from sase.core.agent_tab import AgentTabKey
+        from sase.xprompt.directive_edit import scan_tab_directive
+
+        try:
+            scan = scan_tab_directive(prompt)
+        except Exception:  # noqa: BLE001 - toast stays unchanged.
+            return None
+        if scan is None or scan.error or not scan.tab:
+            return None
+        try:
+            if not agent_tabs_enabled():
+                return None
+        except Exception:  # noqa: BLE001 - toast stays unchanged.
+            return None
+        key = AgentTabKey.named(scan.tab)
+        try:
+            if key == getattr(self, "_active_agent_tab", None):
+                return None
+            arrivals = getattr(self, "_agent_tab_arrivals", None)
+            if isinstance(arrivals, set):
+                arrivals.add(key)
+        except Exception:  # noqa: BLE001 - toast stays unchanged.
+            return None
+        return scan.tab
 
     def _continue_pending_launch(self, launch: PendingLaunch) -> None:
         """Run the remaining stages of *launch*, parking it behind open barriers."""
