@@ -13,7 +13,8 @@ import pytest
 from rich.console import Console
 
 from sase.core.finalizer_run_view import FinalizerNodeView, _RunViewUnselected
-from sase.finalizers.cli import _render_status_pretty, handle_final_status
+from sase.finalizers.cli import handle_final_status
+from sase.finalizers.cli_status import _render_status_pretty
 from sase.finalizers.config import (
     ConfiguredFinalizerInstance,
     FinalizerConfig,
@@ -156,7 +157,7 @@ def test_status_json_matches_projection_verbatim(
     # binding payload must reach stdout untransformed.
     sentinel: dict[str, Any] = {"schema_version": 1, "custom": ["x"]}
     monkeypatch.setattr(
-        "sase.finalizers.cli.require_rust_binding",
+        "sase.finalizers.cli_status.require_rust_binding",
         lambda _name: lambda _request: dict(sentinel),
     )
     code = handle_final_status(artifacts_dir=str(artifacts), format_name="json")

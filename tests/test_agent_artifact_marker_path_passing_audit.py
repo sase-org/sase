@@ -264,7 +264,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "rescan; no marker is written here."
         ),
     ),
-    "src/sase/finalizers/cli.py:_target_for_dir": PathPassingReview(
+    "src/sase/finalizers/cli_status.py:_target_for_dir": PathPassingReview(
         exemption=(
             "Read-only final-status target assembly: done.json is inspected "
             "only to set turn_terminal via an existence check, and "

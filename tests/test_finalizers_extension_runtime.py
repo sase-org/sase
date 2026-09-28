@@ -87,7 +87,7 @@ def test_final_list_json_includes_unconfigured_plugin_provider(
         defaults=("commit",),
     )
     monkeypatch.setattr(
-        "sase.finalizers.cli.collect_finalizer_providers",
+        "sase.finalizers.cli_inventory.collect_finalizer_providers",
         lambda: (
             FinalizerProviderRecord(
                 provider_ref="builtin@commit",
@@ -108,7 +108,7 @@ def test_final_list_json_includes_unconfigured_plugin_provider(
         ),
     )
     monkeypatch.setattr(
-        "sase.finalizers.cli.diagnose_finalizer_providers",
+        "sase.finalizers.cli_inventory.diagnose_finalizer_providers",
         lambda _config, plan=None: (),
     )
 
