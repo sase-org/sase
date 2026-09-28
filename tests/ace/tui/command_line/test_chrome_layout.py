@@ -19,6 +19,7 @@ import pytest
 from rich.cells import cell_len
 from rich.text import Text
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.command_line.chrome import _compose_border_label
 from sase.ace.tui.command_line.context import (
     CommandLineContext,
@@ -244,6 +245,36 @@ def _frame(screen: Any) -> Any:
     return screen.query_one(CommandLineFrame)
 
 
+async def _resize_terminal(page: Any, width: int, height: int) -> None:
+    """Resize the headless terminal and wait until the screen has laid out.
+
+    Textual stores App-level ``Resize`` until ``_on_idle``, then forwards it
+    to the active screen. ACE's event-driven ``pause`` does not wait for that
+    idle turn, so a pair of pauses is not a settle signal under xdist load.
+    """
+    await page._pilot.resize_terminal(width, height)
+
+    def screen_matches_terminal() -> bool:
+        return tuple(page.app.size) == (width, height) and tuple(
+            page.app.screen.size
+        ) == (width, height)
+
+    await wait_for(page._pilot, screen_matches_terminal)
+
+
+async def _wait_for_border_recompose(page: Any, frame: Any) -> None:
+    """Wait until both border labels span the laid-out frame width."""
+
+    def labels_span_frame() -> bool:
+        budget = frame.outer_size.width - 6
+        return budget > 0 and all(
+            cell_len(label) == budget
+            for label in (frame.top_label.plain, frame.bottom_label.plain)
+        )
+
+    await wait_for(page._pilot, labels_span_frame)
+
+
 # -- pilot: border chrome -------------------------------------------------------------
 
 
@@ -296,9 +327,8 @@ async def test_chrome_recomposes_and_stays_aligned_on_resize(
         widths: list[int] = []
         chips: list[str] = []
         for size in (wide, narrow, wide):
-            await page._pilot.resize_terminal(*size)
-            await page.pause()
-            await page.pause()
+            await _resize_terminal(page, *size)
+            await _wait_for_border_recompose(page, frame)
             budget = frame.outer_size.width - 6
             widths.append(frame.outer_size.width)
             for label in (frame.top_label.plain, frame.bottom_label.plain):
@@ -334,9 +364,8 @@ async def test_frame_width_cap_and_full_height_toggle_keep_the_labels(
         assert frame.region.y == 4
         below = 40 - (frame.region.y + frame.outer_size.height)
         assert below == frame.region.y == 4
-        await page._pilot.resize_terminal(100, 40)
-        await page.pause()
-        await page.pause()
+        await _resize_terminal(page, 100, 40)
+        await _wait_for_border_recompose(page, frame)
         assert frame.outer_size.width == 96
         await page.press("ctrl+t")
         await page.pause()
@@ -443,9 +472,14 @@ async def test_popup_reclamps_when_the_terminal_shrinks(grammar_handle: Any) -> 
         frame = _frame(screen)
         card = screen.query_one("#command-line-popup-card")
         wide_x = card.region.x
-        await page._pilot.resize_terminal(80, 30)
-        await page.pause()
-        await page.pause()
+        await _resize_terminal(page, 80, 30)
+
+        def popup_reclamped() -> bool:
+            return card.region.x < wide_x and frame.content_region.contains_region(
+                card.region
+            )
+
+        await wait_for(page._pilot, popup_reclamped)
         assert frame.content_region.contains_region(card.region)
         assert card.region.x < wide_x
 
