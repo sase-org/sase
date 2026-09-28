@@ -12,6 +12,7 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType, Resolution, Status
 from sase.bead.project import BeadProject
 from sase.core import bead_touch_index_facade as touch_index
+from sase.core.bead_touch_index_store import _refresh_touch_index
 from sase.main import bead_fast_path
 from sase.main.bead_fast_path import try_handle_bead_fast_path
 from sase.main.parser import create_parser
@@ -219,7 +220,7 @@ def test_close_without_note_credits_acting_agent_not_creator(
 
     with BeadProject(project_dir) as project:
         index_path = project_dir / "agent_bead_touches.json"
-        touch_index._refresh_touch_index(project.beads_dir, index_path)
+        _refresh_touch_index(project.beads_dir, index_path)
     query = touch_index.query_touch_index(index_path)
     closer_rows = [
         touch

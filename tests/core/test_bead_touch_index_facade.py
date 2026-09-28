@@ -11,6 +11,8 @@ from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
 )
+from sase.core.bead_touch_index_query import _touch_from_dict, _touches_for_agent
+from sase.core.bead_touch_index_store import _refresh_touch_index
 
 _CREATOR = "claude_coder"
 _OWNER = AgentOwnerIdentity("bbugyi200", "athena")
@@ -32,7 +34,7 @@ def test_mutation_refresh_reduces_exactly_the_streams_it_wrote(
         bead = project.create("Indexed work", IssueType.PLAN, created_by=_CREATOR)
         index_path = tmp_path / "agent_bead_touches.json"
 
-        report = touch_index._refresh_touch_index(project.beads_dir, index_path)
+        report = _refresh_touch_index(project.beads_dir, index_path)
 
         on_disk = {
             path.stem
@@ -55,7 +57,7 @@ def test_mutation_refresh_reduces_exactly_the_streams_it_wrote(
         assert rows[0].title == "Indexed work"
         assert rows[0].verbs.get("created") == 1
 
-        steady = touch_index._refresh_touch_index(project.beads_dir, index_path)
+        steady = _refresh_touch_index(project.beads_dir, index_path)
         assert steady.full_rebuild is False
         assert steady.wrote is False
         assert steady.reduced_streams == ()
@@ -73,7 +75,7 @@ def test_query_actor_filter_and_missing_index_are_harmless(
     with _make_store(tmp_path) as project:
         project.create("Indexed work", IssueType.PLAN, created_by=_CREATOR)
         index_path = tmp_path / "agent_bead_touches.json"
-        touch_index._refresh_touch_index(project.beads_dir, index_path)
+        _refresh_touch_index(project.beads_dir, index_path)
 
         assert len(touch_index.query_touch_index(index_path, [_CREATOR]).touches) == 1
         assert touch_index.query_touch_index(index_path, ["nobody"]).touches == ()
@@ -89,7 +91,7 @@ def test_query_actor_filter_and_missing_index_are_harmless(
 
 
 def test_note_preview_wire_conversion_is_additive_and_defensive() -> None:
-    touch = touch_index._touch_from_dict(
+    touch = _touch_from_dict(
         {
             "actor": "owner.machine.alpha",
             "bead_id": "sase-note.2",
@@ -117,7 +119,7 @@ def test_note_preview_wire_conversion_is_additive_and_defensive() -> None:
         truncated=True,
     )
 
-    malformed = touch_index._touch_from_dict(
+    malformed = _touch_from_dict(
         {
             "actor": "owner.machine.alpha",
             "bead_id": "sase-note.2",
@@ -135,7 +137,7 @@ def test_note_preview_wire_conversion_is_additive_and_defensive() -> None:
 
 
 def test_close_wire_conversion_is_additive_and_defensive() -> None:
-    touch = touch_index._touch_from_dict(
+    touch = _touch_from_dict(
         {
             "actor": "owner.machine.beta",
             "bead_id": "sase-close.2",
@@ -154,12 +156,12 @@ def test_close_wire_conversion_is_additive_and_defensive() -> None:
         standing=True,
     )
 
-    missing = touch_index._touch_from_dict(
+    missing = _touch_from_dict(
         {"actor": "owner.machine.beta", "bead_id": "sase-close.2"}
     )
     assert missing.close is None
 
-    malformed = touch_index._touch_from_dict(
+    malformed = _touch_from_dict(
         {
             "actor": "owner.machine.beta",
             "bead_id": "sase-close.2",
@@ -173,7 +175,7 @@ def test_close_wire_conversion_is_additive_and_defensive() -> None:
     )
     assert malformed.close is None
 
-    defaults = touch_index._touch_from_dict(
+    defaults = _touch_from_dict(
         {
             "actor": "owner.machine.beta",
             "bead_id": "sase-close.2",
@@ -189,7 +191,7 @@ def test_close_wire_conversion_is_additive_and_defensive() -> None:
 
 
 def test_creation_reason_wire_conversion_is_additive_and_defensive() -> None:
-    touch = touch_index._touch_from_dict(
+    touch = _touch_from_dict(
         {
             "actor": "owner.machine.alpha",
             "bead_id": "sase-1ap.3",
@@ -200,13 +202,11 @@ def test_creation_reason_wire_conversion_is_additive_and_defensive() -> None:
     assert touch.creation_reason == "A second agent reproduced dropped retries"
     assert touch.creation_reason_truncated is True
 
-    legacy = touch_index._touch_from_dict(
-        {"actor": "owner.machine.alpha", "bead_id": "sase-1ap.3"}
-    )
+    legacy = _touch_from_dict({"actor": "owner.machine.alpha", "bead_id": "sase-1ap.3"})
     assert legacy.creation_reason == ""
     assert legacy.creation_reason_truncated is False
 
-    malformed = touch_index._touch_from_dict(
+    malformed = _touch_from_dict(
         {
             "actor": "owner.machine.alpha",
             "bead_id": "sase-1ap.3",
@@ -254,9 +254,7 @@ def test_touch_matches_agent_identity_rules() -> None:
         touch_index.BeadTouch(actor="someone.else", bead_id="sase-2"),
         touch_index.BeadTouch(actor=_GLOBALIZED, bead_id="sase-3"),
     ]
-    matched = touch_index._touches_for_agent(
-        rows, globalized_name=_GLOBALIZED, identity=_IDENTITY
-    )
+    matched = _touches_for_agent(rows, globalized_name=_GLOBALIZED, identity=_IDENTITY)
     assert [touch.bead_id for touch in matched] == ["sase-1", "sase-3"]
 
 
