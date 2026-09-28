@@ -22,6 +22,7 @@ ArtifactRefKindType = Literal[
     "agent",
     "stitch",
     "patch",
+    "goal",
     "document",
 ]
 ArtifactRefPayloadType = ArtifactRefKindType

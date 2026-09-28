@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
+import re
 from pathlib import Path
 
 from sase.artifact_ref_models import ArtifactRefContext
@@ -34,6 +36,24 @@ class ArtifactRefAgentCandidate:
     label: str
     detail: str
     updated_at: float
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefGoalCandidate:
+    """One unsettled goal row from the machine-local hot projection."""
+
+    payload: str
+    label: str
+    detail: str
+    updated_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ArtifactRefGoalCandidateCatalog:
+    """Bounded goal rows plus the number omitted by the provider cap."""
+
+    rows: tuple[ArtifactRefGoalCandidate, ...]
+    truncated: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,11 +213,72 @@ def _agent_detail(
     return project if prefix == local_prefix else prefix
 
 
+def load_goal_candidate_catalog(
+    project: str | None,
+    context: ArtifactRefContext,
+) -> _ArtifactRefGoalCandidateCatalog:
+    """Load bounded unsettled-goal rows from the hot projection.
+
+    The projection is machine-local JSON, so this stays fast enough for
+    the off-thread completion catalog and never touches the ledger.
+    Anything unreadable yields no rows rather than failing completion.
+    """
+    try:
+        key = _goal_project_key(project, context)
+        if key is None:
+            return _ArtifactRefGoalCandidateCatalog((), 0)
+        from sase.goals.store import goal_hot_projection_path
+
+        raw = json.loads(goal_hot_projection_path(key).read_text(encoding="utf-8"))
+    except Exception:
+        return _ArtifactRefGoalCandidateCatalog((), 0)
+    try:
+        goals = raw.get("goals") or {}
+        rows = [
+            ArtifactRefGoalCandidate(
+                payload=str(goal_id),
+                label=str(row.get("title") or goal_id),
+                detail=str(row.get("status") or ""),
+                updated_at=str(row.get("updated_at") or ""),
+            )
+            for goal_id, entry in goals.items()
+            for row in [entry.get("row") or {}]
+            if row.get("status") in {"draft", "active", "review"}
+        ]
+    except Exception:
+        return _ArtifactRefGoalCandidateCatalog((), 0)
+    return _ArtifactRefGoalCandidateCatalog(
+        tuple(rows[:_MAX_ENTITY_ROWS]),
+        max(0, len(rows) - _MAX_ENTITY_ROWS),
+    )
+
+
+def _goal_project_key(project: str | None, context: ArtifactRefContext) -> str | None:
+    """Map the completion project (or selection) to a project key."""
+    for ref in (project, context.selected_project):
+        if not ref:
+            continue
+        folded = ref.casefold()
+        for candidate in context.projects:
+            names = {candidate.name.casefold(), candidate.key.casefold()}
+            names.update(alias.casefold() for alias in candidate.aliases)
+            if folded in names:
+                return candidate.key
+        if _SAFE_PROJECT_KEY_RE.fullmatch(ref):
+            return ref
+    return None
+
+
+_SAFE_PROJECT_KEY_RE = re.compile(r"[A-Za-z0-9._-]+")
+
+
 __all__ = [
     "ArtifactRefAgentCandidate",
     "ArtifactRefBeadCandidate",
+    "ArtifactRefGoalCandidate",
     "_BEAD_CACHE",
     "_read_cached_bead_store",
     "load_agent_candidate_catalog",
     "load_bead_candidate_catalog",
+    "load_goal_candidate_catalog",
 ]

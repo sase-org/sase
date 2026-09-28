@@ -72,6 +72,18 @@ def _local_ledger(project_key: str, host_role: str, reason: str) -> GoalLedger:
     )
 
 
+def goal_hot_projection_path(project_key: str) -> Path:
+    """Return the machine-local hot projection path without resolving.
+
+    Read-only: unlike :func:`resolve_goal_ledger` this never materializes
+    clones or stamps headers, so completion rows can call it off the event
+    loop.
+    """
+    from sase.core.paths import sase_projects_dir
+
+    return sase_projects_dir() / project_key / "goals-hot.json"
+
+
 def resolve_goal_ledger(
     project_key: str, *, deadline: float | None = None
 ) -> GoalLedger:

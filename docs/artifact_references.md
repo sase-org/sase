@@ -43,6 +43,8 @@ Canonical live categories are:
 | `@patch:<name>`                | Patch in the prompt segment's project                                   |
 | `@bead:<id>`                   | Bead by full id or unambiguous shorthand                                |
 | `@agent:<name>`                | Published agent page and related transcript context                     |
+| `@goal:<id>`                   | Goal in the prompt segment's project (a citation that never binds)      |
+| `@goal:<project>@<id>`         | Goal in a named project                                                 |
 | `@file:<path>`                 | Allow-listed local file captured by content digest                      |
 | `@file:<source>:<digest>`      | Indexed file, where source is `explicit` or `default`                   |
 | `@<document-kind>:<repo-path>` | Document in a configured artifact sidecar, such as `plan` or `research` |
@@ -76,6 +78,9 @@ Context affects ambiguity:
 - A short `@bead:<suffix>` searches the selected project first, then rejects
   cross-project collisions instead of guessing.
 - `@agent:<local-name>` canonicalizes to the durable global agent identity.
+- `@goal:<id>` cites the segment project's goal ledger; qualify with
+  `@goal:<project>@<id>` when needed. A citation never binds (binding is a later epic's
+  `%goal`); citing a settled goal is allowed.
 
 ### On-demand document sidecars
 
@@ -214,11 +219,13 @@ Built-in non-document kinds follow the same portable-prose rule. `@file:` become
 `the <canonical-id> bead in the <project> project`; `@agent:<name>` becomes
 `the <canonical-name> agent in the <project> project`; `@stitch:` / `@commit:` become
 `the <full-sha> stitch in the <repository> repo`; `@patch:<name>` becomes
-`the <name> Patch in the <project> project`. Historical `@chat:` becomes
-`the <resolved-path> file`, and historical `@bug:` becomes
-`issue #<number> in the <project> project (<resolved-url>)`. Authored citations remain
-`@<kind>:<argument>`; none of these expansions inject an `@` sigil in front of a
-filesystem path. Fragments such as `(lines 10-20)` are appended after that pointer.
+`the <name> Patch in the <project> project`; `@goal:<id>` becomes the one-line goal
+citation (`goal ⌖<id> "<title>" in the <project> project (<status>)` with outcome and
+criteria). Historical `@chat:` becomes `the <resolved-path> file`, and historical
+`@bug:` becomes `issue #<number> in the <project> project (<resolved-url>)`. Authored
+citations remain `@<kind>:<argument>`; none of these expansions inject an `@` sigil in
+front of a filesystem path. Fragments such as `(lines 10-20)` are appended after that
+pointer.
 
 ## Publication
 

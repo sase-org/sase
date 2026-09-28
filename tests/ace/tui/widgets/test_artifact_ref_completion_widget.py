@@ -14,6 +14,9 @@ from sase.ace.tui.widgets._file_completion_workers import (
     PromptCommitInventoryWorkerResult,
     PromptPathInventoryWorkerResult,
 )
+from sase.ace.tui.widgets._artifact_ref_entity_catalogs import (
+    ArtifactRefGoalCandidate,
+)
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
     AtReferenceFileCompletionMetadata,
@@ -406,6 +409,7 @@ async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
         ("@bug:", "bug: bugs", "@bug:sase#42"),
         ("@bead:", "bead: beads", "@bead:sase-9z"),
         ("@agent:", "agent: agents", "@agent:bbugyi200.athena.9w"),
+        ("@goal:", "goal: goals", "@goal:7k2mq"),
     ),
 )
 async def test_all_payload_sources_render_stage_title_and_canonical_insertion(
@@ -417,7 +421,21 @@ async def test_all_payload_sources_render_stage_title_and_canonical_insertion(
     async with app.run_test():
         text_area = app.query_one(PromptTextArea)
         panel = app.query_one("#prompt-completion", Static)
-        seed_catalog(text_area, CATALOG)
+        catalog = CATALOG
+        if token == "@goal:":
+            catalog = replace(
+                CATALOG,
+                kinds=(*CATALOG.kinds, "goal"),
+                goals=(
+                    ArtifactRefGoalCandidate(
+                        "7k2mq",
+                        "Kind goal",
+                        "active",
+                        "2026-09-28T15:00:00Z",
+                    ),
+                ),
+            )
+        seed_catalog(text_area, catalog)
         text_area._prompt_commit_snapshots[None] = PromptCommitSnapshot(
             None,
             (

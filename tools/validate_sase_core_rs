@@ -406,6 +406,9 @@ REQUIRED_BINDINGS = (
     "goal_projection_status",
     "goal_projection_refresh",
     "goal_ledger_probe_list",
+    "goal_card_view",
+    "goal_card_markdown",
+    "goal_citation_line",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the

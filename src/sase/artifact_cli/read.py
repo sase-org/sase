@@ -154,6 +154,12 @@ def _prepare_body(result: ResolvedArtifactReference) -> tuple[str, Path | None, 
             result.resolution.resolved_path,
             should_record_read_link(),
         )
+    if result.parsed.kind_type == "goal":
+        return (
+            goal_card_body(result),
+            result.resolution.resolved_path,
+            should_record_read_link(),
+        )
 
     path = None
     if result.is_filesystem_backed or result.parsed.kind_type == "file":
@@ -172,6 +178,23 @@ def _prepare_body(result: ResolvedArtifactReference) -> tuple[str, Path | None, 
     if result.resolution.status not in _RESOLVED_STATUSES:
         raise ArtifactReadError("\n".join(resolution_error_lines(result)))
     return _binary_card(result, path), path, should_record_read_link()
+
+
+def goal_card_body(result: ResolvedArtifactReference) -> str:
+    """Render the markdown goal card for ``read`` and ``open``."""
+    from sase.artifact_providers.builtin_entry_goal import goal_now
+    from sase.core.goal_ledger_facade import goal_card_markdown, goal_card_view
+    from sase.goals.store import resolve_goal_ledger
+
+    goal_id = result.parsed.payload.id or ""
+    project = None if result.entry is None else result.entry.project_display_name
+    if project is None:
+        raise ArtifactReadError(
+            "\n".join(resolution_error_lines(result)),
+        )
+    ledger = resolve_goal_ledger(project)
+    card = goal_card_view(ledger.root, goal_id, goal_now())
+    return goal_card_markdown(card)
 
 
 def _strip_managed_text(text: str) -> str:
@@ -410,4 +433,4 @@ def _ensure_trailing_newline(text: str) -> str:
     return text if text.endswith("\n") else f"{text}\n"
 
 
-__all__ = ["handle_read"]
+__all__ = ["goal_card_body", "handle_read"]

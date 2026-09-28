@@ -67,6 +67,7 @@ def load_artifact_ref_completion_catalog(
     )
     beads = entity_catalogs.load_bead_candidate_catalog(context)
     agents = entity_catalogs.load_agent_candidate_catalog(context)
+    goals = entity_catalogs.load_goal_candidate_catalog(project, context)
     return ArtifactRefCompletionCatalog(
         project=project,
         kinds=tuple(context.known_kinds),
@@ -74,12 +75,14 @@ def load_artifact_ref_completion_catalog(
         artifact_files=tuple(artifact_files.rows),
         beads=beads.rows,
         agents=agents.rows,
+        goals=goals.rows,
         kind_details=document_kind_details(context),
         truncated_payloads_by_kind=(
             *documents.truncated_by_kind,
             *artifact_files.truncated_by_kind,
             ("bead", beads.truncated),
             ("agent", agents.truncated),
+            ("goal", goals.truncated),
         ),
     )
 

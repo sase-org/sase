@@ -113,6 +113,8 @@ def _replacement_text(
         return _path_file_text(resolved_path, display_path=display_path)
     if kind_type == "bead":
         return _bead_text(reference, resolution, entry)
+    if kind_type == "goal":
+        return _goal_text(reference, entry)
     if kind_type == "agent":
         return _agent_text(reference, resolution, entry)
     if kind_type in {"stitch", "commit"}:
@@ -209,6 +211,28 @@ def _bead_text(
         _BEAD_EXPANSION_FORMAT,
         {"canonical_argument": bead_id, "project": project},
     )
+
+
+def _goal_text(
+    reference: ArtifactRef,
+    entry: ArtifactEntry | None,
+) -> str:
+    """Expand ``@goal:<id>`` to the one-line goal citation.
+
+    A citation never binds; binding is G2's ``%goal``.
+    """
+
+    from sase.artifact_providers.builtin_entry_goal import goal_now
+    from sase.core.goal_ledger_facade import goal_card_view, goal_citation_line
+    from sase.goals.store import resolve_goal_ledger
+
+    goal_id = reference.payload.id or ""
+    project = None if entry is None else entry.project_display_name
+    if not goal_id or project is None:
+        raise RuntimeError("resolver returned no goal identity")
+    ledger = resolve_goal_ledger(project)
+    card = goal_card_view(ledger.root, goal_id, goal_now())
+    return goal_citation_line(card)
 
 
 def _agent_text(

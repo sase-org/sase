@@ -407,7 +407,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1bu(goal_ledger_history)' \
         --epic-symbol 'sase-1bu(goal_ledger_list)' \
         --epic-symbol 'sase-1bu(goal_ledger_probe_list)' \
-        --epic-symbol 'sase-1bu(goal_ledger_show)' \
         --epic-symbol 'sase-1bu(goal_ledger_store_schema_version)' \
         --epic-symbol 'sase-1bu(goal_projection_status)' \
         --epic-symbol 'sase-1bu(goals_config)' \

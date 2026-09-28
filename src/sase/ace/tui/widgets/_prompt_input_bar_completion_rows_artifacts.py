@@ -30,6 +30,7 @@ _ARTIFACT_SOURCE_BADGES = {
     "bug": ("[B] ", "bold #FF875F"),
     "bead": ("[◆] ", "bold #FFD700"),
     "agent": ("[A] ", "bold #FF5FD7"),
+    "goal": ("[⌖] ", "bold #FF87AF"),
 }
 
 # Stand-in "accent" color: this rendering module has no access to the live

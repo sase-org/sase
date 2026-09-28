@@ -1,9 +1,10 @@
 """Dispatcher over the Python-owned builtin artifact-reference kinds.
 
-``stitch``, ``patch``, ``bead`` (short ids), and ``agent`` (transcript
-pointer) resolve here instead of through the Rust resolver, which
-deliberately returns ``unknown_kind`` for ``Stitch``/``Patch`` payloads and
-leaves ``bead``/``agent`` entry-property enrichment to Python. See
+``stitch``, ``patch``, ``bead`` (short ids), ``agent`` (transcript
+pointer), and ``goal`` (ledger citation) resolve here instead of through
+the Rust resolver, which deliberately returns ``unknown_kind`` for
+``Stitch``/``Patch``/``Goal`` payloads and leaves ``bead``/``agent``/``goal``
+entry-property enrichment to Python. See
 ``@plan:202608/artifact_ref_contract.md`` S3.6-S3.7.
 """
 
@@ -26,7 +27,7 @@ from sase.artifact_ref_prompt_context import PromptRefContext
 log = logging.getLogger(__name__)
 
 
-BUILTIN_ENTRY_KIND_TYPES = ("stitch", "patch", "bead", "agent")
+BUILTIN_ENTRY_KIND_TYPES = ("stitch", "patch", "bead", "agent", "goal")
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +73,10 @@ def resolve_builtin_entry(
         from sase.artifact_providers.builtin_entry_agent import resolve_agent_entry
 
         return resolve_agent_entry(reference, context=context, ref_context=ref_context)
+    if reference.kind_type == "goal":
+        from sase.artifact_providers.builtin_entry_goal import resolve_goal_entry
+
+        return resolve_goal_entry(reference, context=context, ref_context=ref_context)
     return None
 
 

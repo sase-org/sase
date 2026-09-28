@@ -123,6 +123,7 @@ def test_split_link_location_leaves_non_locations_whole(target: str) -> None:
     ("reference", "kind", "payload_field", "payload_value"),
     [
         ("bead:sase-9z.1", "bead", "id", "sase-9z.1"),
+        ("goal:7k2mq", "goal", "id", "7k2mq"),
         (
             "agent:alice.athena.9w--code",
             "agent",
@@ -150,7 +151,7 @@ def test_entity_references_round_trip_through_python_facade(
 
 @pytest.mark.parametrize(
     "reference",
-    ["bead:sase-9z#L1", "agent:9w#L1"],
+    ["bead:sase-9z#L1", "agent:9w#L1", "goal:7k2mq#L1"],
 )
 def test_entity_references_reject_fragments(reference: str) -> None:
     with pytest.raises(ValueError, match="references do not support fragments"):

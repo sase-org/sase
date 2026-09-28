@@ -46,7 +46,14 @@ class ResolvedArtifactReference:
 
     @property
     def is_filesystem_backed(self) -> bool:
-        return self.parsed.kind_type in {"chat", "document", "file", "bead", "agent"}
+        return self.parsed.kind_type in {
+            "chat",
+            "document",
+            "file",
+            "bead",
+            "agent",
+            "goal",
+        }
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
@@ -80,11 +87,11 @@ def resolve_cli_reference(
 ) -> ResolvedArtifactReference:
     """Parse, canonically render, resolve once, and attach file metadata.
 
-    Builtin kinds (``stitch``, ``patch``, short-id ``bead``, ``agent``)
-    resolve through the same Python dispatcher the prompt path uses, so
-    ``sase artifact show stitch:<sha>`` behaves like a prompt's ``@stitch``.
-    The CLI's own working directory is the intentional source of the
-    resolution context here, unlike the prompt path.
+    Builtin kinds (``stitch``, ``patch``, short-id ``bead``, ``agent``,
+    ``goal``) resolve through the same Python dispatcher the prompt path
+    uses, so ``sase artifact show stitch:<sha>`` behaves like a prompt's
+    ``@stitch``. The CLI's own working directory is the intentional source
+    of the resolution context here, unlike the prompt path.
     """
 
     normalized = _normalize_artifact_reference(value)

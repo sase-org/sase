@@ -159,6 +159,7 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         "stitch",
         "patch",
         "bead",
+        "goal",
         "agent",
         "file",
         "tool",

@@ -98,7 +98,7 @@ def test_completion_kinds_include_public_job_alias_but_exclude_historical_kinds(
     completion = set(completion_artifact_ref_kinds())
     parsable = set(parsable_artifact_ref_kinds())
 
-    assert {"stitch", "patch", "bead", "agent", "file", "job"} <= completion
+    assert {"stitch", "patch", "bead", "agent", "file", "job", "goal"} <= completion
     assert not {"commit", "plans", "chat", "bug", "tool"} & completion
     assert {
         "stitch",
@@ -112,6 +112,7 @@ def test_completion_kinds_include_public_job_alias_but_exclude_historical_kinds(
         "bug",
         "job",
         "tool",
+        "goal",
     } <= parsable
 
 
@@ -144,5 +145,6 @@ def test_known_kinds_no_longer_silently_drops_builtin_or_alias_kinds() -> None:
         "bead",
         "agent",
         "job",
+        "goal",
     ):
         assert kind in known, f"{kind} silently dropped from known_kinds"

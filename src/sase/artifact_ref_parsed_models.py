@@ -44,6 +44,7 @@ class ArtifactRefPayload:
             "agent",
             "stitch",
             "patch",
+            "goal",
             "document",
         }:
             raise RuntimeError(
@@ -142,6 +143,7 @@ class ArtifactRef:
             "agent",
             "stitch",
             "patch",
+            "goal",
             "document",
         }:
             raise RuntimeError(

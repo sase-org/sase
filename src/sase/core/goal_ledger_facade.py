@@ -111,3 +111,21 @@ def goal_ledger_probe_list(root: str | Path) -> dict[str, Any]:
     """Count file opens per path class during a hot read; tests only."""
     binding = _require_goal_binding("goal_ledger_probe_list")
     return dict(binding(str(root)))
+
+
+def goal_card_view(root: str | Path, goal_id: str, now: str) -> dict[str, Any]:
+    """Reduce one goal and return its presentation-neutral card view wire."""
+    binding = _require_goal_binding("goal_card_view")
+    return dict(binding(str(root), goal_id, now))
+
+
+def goal_card_markdown(card: dict[str, Any]) -> str:
+    """Render a card view wire as markdown for ``sase artifact read``."""
+    binding = _require_goal_binding("goal_card_markdown")
+    return str(binding(dict(card)))
+
+
+def goal_citation_line(card: dict[str, Any]) -> str:
+    """Render a card view wire as the one-line ``@goal`` prompt citation."""
+    binding = _require_goal_binding("goal_citation_line")
+    return str(binding(dict(card)))

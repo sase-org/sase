@@ -45,6 +45,8 @@ def handle_open(args: argparse.Namespace) -> int:
         return 2
     if result.parsed.kind_type == "bug":
         return _open_bug(result)
+    if result.parsed.kind_type == "goal":
+        return _open_goal(result)
     try:
         path = resolved_file_path(result)
     except (ImportError, OSError, RuntimeError, ValueError) as exc:
@@ -76,6 +78,27 @@ def handle_open(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
+    return 0
+
+
+def _open_goal(result: ResolvedArtifactReference) -> int:
+    """Page the markdown goal card; goals have no file viewer."""
+    from sase.artifact_cli.read import goal_card_body
+    from sase.cli_pager import PagerMode, page_or_print
+
+    try:
+        body = goal_card_body(result)
+    except (ImportError, OSError, RuntimeError, ValueError) as exc:
+        print(
+            f"Error: failed to render {result.canonical_reference}: {exc}",
+            file=sys.stderr,
+        )
+        for line in resolution_error_lines(result)[1:]:
+            print(line, file=sys.stderr)
+        return 1
+    if not body.endswith("\n"):
+        body += "\n"
+    page_or_print(body, mode=PagerMode.ALWAYS)
     return 0
 
 

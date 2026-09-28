@@ -57,6 +57,7 @@ class ArtifactRefCompletionCatalog:
     artifact_files: tuple[ArtifactRefFileCandidate, ...] = ()
     beads: tuple[entity_catalogs.ArtifactRefBeadCandidate, ...] = ()
     agents: tuple[entity_catalogs.ArtifactRefAgentCandidate, ...] = ()
+    goals: tuple[entity_catalogs.ArtifactRefGoalCandidate, ...] = ()
     kind_details: tuple[tuple[str, str], ...] = ()
     truncated_payloads_by_kind: tuple[tuple[str, int], ...] = ()
     payload_indexes: Mapping[str, object] = field(
@@ -312,6 +313,7 @@ def build_catalog_payload_memos(
             catalog.artifact_files,
             catalog.beads,
             catalog.agents,
+            catalog.goals,
         )
     ):
         return {}, {}
@@ -321,6 +323,7 @@ def build_catalog_payload_memos(
         "file",
         "bead",
         "agent",
+        "goal",
     ]
     indexes: dict[str, object] = {}
     metadata: dict[
@@ -443,9 +446,17 @@ def payload_rows(
             )
             for row in bugs
         )
-    elif folded in {"bead", "agent"} and catalog is not None:
-        entities = catalog.beads if folded == "bead" else catalog.agents
-        source: ArtifactRefPayloadSource = "bead" if folded == "bead" else "agent"
+    elif folded in {"bead", "agent", "goal"} and catalog is not None:
+        entities = (
+            catalog.beads
+            if folded == "bead"
+            else catalog.agents
+            if folded == "agent"
+            else catalog.goals
+        )
+        source: ArtifactRefPayloadSource = (
+            "bead" if folded == "bead" else "agent" if folded == "agent" else "goal"
+        )
         rows.extend(
             (
                 row.payload,

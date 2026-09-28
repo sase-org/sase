@@ -17,6 +17,7 @@ ArtifactRefPayloadSource = Literal[
     "bug",
     "bead",
     "agent",
+    "goal",
 ]
 
 

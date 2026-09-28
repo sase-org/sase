@@ -134,4 +134,6 @@ def artifact_ref_payload_panel_title(kind: str) -> str:
         return "bead: beads"
     if folded == "agent":
         return "agent: agents"
+    if folded == "goal":
+        return "goal: goals"
     return f"{kind}: documents"
