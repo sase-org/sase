@@ -308,3 +308,16 @@ def test_memo_retains_at_most_two_rosters() -> None:
     for idx in range(8):
         cached_agent_tab_index([_row(str(idx))], view)
     assert len(index_mod._index_cache) <= 2
+
+
+def test_memo_misses_when_row_object_is_replaced() -> None:
+    """A same-length in-place replacement must not hit a recycled-id snapshot."""
+    roster = [_row("a")]
+    view = _view(token=("test", 12))
+    first = cached_agent_tab_index(roster, view)
+    roster.pop()
+    replacement = _row("b", tab="sase")
+    roster.append(replacement)
+    second = cached_agent_tab_index(roster, view)
+    assert second is not first
+    assert second.key_for(replacement) == AgentTabKey.named("sase")

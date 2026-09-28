@@ -25,6 +25,7 @@ from sase.ace.tui.actions.agents._agent_tabs import (
 from sase.ace.tui.actions.agents._tab_scope import _scoped_agents_for_owner
 from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
 from sase.ace.tui.models.agent_tab_index import (
     build_agent_tab_index,
     _index_cache,
@@ -77,6 +78,7 @@ def _row(
     status: str = "RUNNING",
     start_time: datetime | None = None,
     parent_timestamp: str | None = None,
+    tribe: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -87,6 +89,7 @@ def _row(
         raw_suffix=suffix,
         agent_tab=tab,
         parent_timestamp=parent_timestamp,
+        tribe=tribe,
     )
 
 
@@ -197,6 +200,62 @@ def test_first_visit_starts_at_row_zero_after_multirow_source() -> None:
         owner._switch_agents_tab(_SASE, reason="cycle")
         assert owner.current_idx == 0
         assert [row.raw_suffix for row in owner._agents] == ["sase-0"]
+
+
+class _PanelTabOwner(_TabOwner):
+    """Tab owner with tribe panels and a real-shaped panel-group sync."""
+
+    def __init__(self, rows: list[Agent]) -> None:
+        super().__init__(rows)
+        self._expanded_panel_focus = False
+        self._agent_panels_grouped = False
+        self._collapsed_panel_keys: set[Any] = set()
+        self._panel_group = AgentPanelGroup.from_agents(self._agents)
+
+    def _panel_keys_per_agent(self) -> list[Any]:
+        return panel_key_per_agent(
+            self._agents, merge_tribe_panels=self._agent_panels_grouped
+        )
+
+    def _sync_panel_group(self) -> set[Any]:
+        prev_focused = self._panel_group.focused_key
+        self._panel_group = AgentPanelGroup.from_agents(self._agents, prev_focused)
+        known = set(self._panel_group.panel_keys)
+        if prev_focused not in known or not self._panel_group.panel_keys:
+            self._expanded_panel_focus = False
+        return set()
+
+    def _rescope_agents_to_active_tab(self) -> None:
+        self._agents = _scoped_agents_for_owner(self, list(self._agents_query_result))
+        self._sync_panel_group()
+
+
+def test_first_visit_does_not_inherit_source_tab_panel_focus() -> None:
+    """A never-visited tab selects row 0's panel, not the source tab's focus."""
+    rows = [
+        _row("a0", tribe="alpha"),
+        _row("a1", tribe="beta"),
+        _row("b0", tab="sase", tribe="alpha"),
+        _row("b1", tab="sase", tribe="beta"),
+    ]
+    owner = _PanelTabOwner(rows)
+    owner.reindex(rows)
+    with override_flags(agent_tabs=True):
+        owner._agents = _scoped_agents_for_owner(owner, list(rows))
+        owner._panel_group = AgentPanelGroup.from_agents(owner._agents)
+        owner.current_idx = 1
+        owner._agents_last_idx = 1
+        owner._agents_last_identity = owner._agents[1].identity
+        owner._panel_group.focused_idx = owner._panel_group.panel_keys.index("beta")
+        owner._expanded_panel_focus = True
+
+        owner._switch_agents_tab(_SASE, reason="cycle")
+
+        assert owner.current_idx == 0
+        assert owner._agents[0].raw_suffix == "b0"
+        row_zero_panel = owner._panel_keys_per_agent()[0]
+        assert owner._panel_group.focused_key == row_zero_panel
+        assert owner._expanded_panel_focus is False
 
 
 def test_selection_fallback_uses_target_tabs_remembered_row_index() -> None:

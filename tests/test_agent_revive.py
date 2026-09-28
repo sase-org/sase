@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.ace.tui.actions.agents._revive_delta import AgentReviveDelta
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
@@ -309,7 +310,7 @@ def test_do_revive_agents_batch_skips_non_revivable_archive() -> None:
     ):
         delta = app._do_revive_agents([one, two])
 
-    assert delta is not False
+    assert isinstance(delta, AgentReviveDelta)
     assert delta.revived_identities == (one.identity,)
     assert len(delta.failed) == 1
     assert delta.failed[0].identity == two.identity
@@ -398,7 +399,7 @@ def test_do_revive_agents_delta_records_partial_artifact_restore_failure() -> No
     ):
         delta = app._do_revive_agents([one, two])
 
-    assert delta is not False
+    assert isinstance(delta, AgentReviveDelta)
     assert delta.revived_identities == (one.identity,)
     assert len(delta.failed) == 1
     assert delta.failed[0].identity == two.identity

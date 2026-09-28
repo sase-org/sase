@@ -371,6 +371,7 @@ class AgentTabsMixin:
                 self._agents_last_identity = identity  # type: ignore[attr-defined]
         else:
             self._agents_last_identity = None  # type: ignore[attr-defined]
+        restored_saved_panel = False
         if panel_key is None or isinstance(panel_key, str):
             panel_group = getattr(self, "_panel_group", None)
             if panel_group is not None:
@@ -388,6 +389,32 @@ class AgentTabsMixin:
                         focus_panel = getattr(self, "_focus_focused_panel_widget", None)
                         if callable(focus_panel):
                             focus_panel()
+                        restored_saved_panel = True
+                except Exception:
+                    pass
+        if not restored_saved_panel:
+            # First visit, or the remembered panel is gone: select the
+            # panel that holds the restored row and drop expanded-panel
+            # focus so a previous tab's panel focus cannot carry over.
+            self._expanded_panel_focus = False  # type: ignore[attr-defined]
+            panel_group = getattr(self, "_panel_group", None)
+            keys_for = getattr(self, "_panel_keys_per_agent", None)
+            if (
+                panel_group is not None
+                and callable(keys_for)
+                and agents
+                and 0 <= new_idx < len(agents)
+            ):
+                try:
+                    per_agent = keys_for()
+                    if 0 <= new_idx < len(per_agent):
+                        target_key = per_agent[new_idx]
+                        panel_keys = getattr(panel_group, "panel_keys", ())
+                        if target_key in panel_keys:
+                            panel_group.focused_idx = panel_keys.index(target_key)
+                    focus_panel = getattr(self, "_focus_focused_panel_widget", None)
+                    if callable(focus_panel):
+                        focus_panel()
                 except Exception:
                     pass
         if scroll_anchor is not None:

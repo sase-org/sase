@@ -144,14 +144,19 @@ class LinkTrailMixin:
         )
         if match is None:
             return False
-        if self.current_tab != "agents":
+        previous_tab = self.current_tab
+        switched = False
+        if previous_tab != "agents":
             self._save_current_tab_position()  # type: ignore[attr-defined]
             self.current_tab = "agents"
+            switched = True
         # Reveal through the fold-expanding, tab-restoring ladder rather
         # than a plain scan, so a target hidden under a fold or on another
         # agent tab is still reachable and a failed reveal restores the tab.
         reveal = getattr(self, "_try_reveal_agent_row", None)
         if not callable(reveal) or reveal(match.identity) is not None:
+            if switched:
+                self.current_tab = previous_tab
             return False
         self._agents_last_idx = self.current_idx  # type: ignore[attr-defined]
         self._agents_last_identity = match.identity  # type: ignore[attr-defined]

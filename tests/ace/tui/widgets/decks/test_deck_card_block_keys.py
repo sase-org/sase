@@ -275,7 +275,11 @@ def test_legacy_bracket_yield_unbinds_tab_cycling(
     assert reg.legacy_card_block_brackets == frozenset(
         {"next_card_block", "prev_card_block"}
     )
-    assert "yields the brackets" in caplog.text or "yielded the brackets" in caplog.text
+    assert "explicit bracket override(s) for" in caplog.text
+    assert "next_card_block" in caplog.text
+    assert "prev_card_block" in caplog.text
+    assert "are honored" in caplog.text
+    assert "agent tab cycling yielded the brackets" in caplog.text
 
 
 def test_legacy_bracket_yield_keeps_explicit_tab_bindings(
@@ -297,18 +301,21 @@ def test_legacy_bracket_yield_keeps_explicit_tab_bindings(
     assert reg.app.prev_agents_tab == "left_square_bracket"
 
 
-def test_legacy_bracket_yield_respects_explicit_default_tab_binding() -> None:
+def test_legacy_bracket_yield_respects_explicit_default_tab_binding(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Presence in user config protects a default-valued tab action."""
-    reg = load_keymap_registry(
-        {
-            "keymaps": {
-                "app": {
-                    "next_card_block": "right_square_bracket",
-                    "next_agents_tab": "right_square_bracket",
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "app": {
+                        "next_card_block": "right_square_bracket",
+                        "next_agents_tab": "right_square_bracket",
+                    }
                 }
             }
-        }
-    )
+        )
     assert reg.app.next_agents_tab == "right_square_bracket"
     # The customized card-block action yields because the explicit tab action
     # owns their shared key. Artifacts sub-tab cycling keeps its contextual
@@ -319,6 +326,11 @@ def test_legacy_bracket_yield_respects_explicit_default_tab_binding() -> None:
         "next_agents_tab",
         "cycle_artifacts_subtab",
     )
+    assert "reverting to default" in caplog.text
+    assert "next_card_block" in caplog.text
+    assert "are honored" not in caplog.text
+    assert "yielded the brackets" not in caplog.text
+    assert "yields the brackets" not in caplog.text
 
 
 def test_paren_keys_resolve_per_tab() -> None:

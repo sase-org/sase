@@ -443,17 +443,10 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
             for part in split_key_alternatives(app_kwargs[fname])
         )
     )
-    if legacy_card_block_brackets:
-        log.warning(
-            "Card-block stepping moved from [ / ] to ( / ); "
-            "explicit bracket override(s) for %s are honored, "
-            "but prefer left_parenthesis/right_parenthesis; "
-            "agent tab cycling yields the brackets",
-            ", ".join(legacy_card_block_brackets),
-        )
     # Legacy bracket yield (tab-state-keys phase): unbind only the tab action
     # whose bracket collides with a card-block bracket override. Presence in
     # config counts as explicit even when the value equals the default.
+    yielded_tab_actions: list[str] = []
     for _agents_tab_action, _bracket in (
         ("next_agents_tab", "right_square_bracket"),
         ("prev_agents_tab", "left_square_bracket"),
@@ -469,6 +462,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
             in split_key_alternatives(app_kwargs.get(_agents_tab_action, ""))
         ):
             app_kwargs[_agents_tab_action] = "unbound"
+            yielded_tab_actions.append(_agents_tab_action)
     legacy_bracket_pairs = frozenset(
         {
             frozenset({"next_card_block", "cycle_artifacts_subtab"}),
@@ -516,6 +510,28 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
                 default_val,
             )
             app_kwargs[fname] = default_val
+
+    remaining_legacy_brackets = [
+        fname
+        for fname in legacy_card_block_brackets
+        if any(
+            part in _LEGACY_CARD_BLOCK_BRACKETS
+            for part in split_key_alternatives(app_kwargs.get(fname, ""))
+        )
+    ]
+    if remaining_legacy_brackets or yielded_tab_actions:
+        message = "Card-block stepping moved from [ / ] to ( / )"
+        if remaining_legacy_brackets:
+            message += (
+                f"; explicit bracket override(s) for "
+                f"{', '.join(remaining_legacy_brackets)} are honored, "
+                "but prefer left_parenthesis/right_parenthesis"
+            )
+        else:
+            message += "; prefer left_parenthesis/right_parenthesis"
+        if yielded_tab_actions:
+            message += "; agent tab cycling yielded the brackets"
+        log.warning("%s", message)
 
     app_km = AppKeymaps(**app_kwargs)
     command_line_km = load_command_line_keymaps(keymaps_cfg)

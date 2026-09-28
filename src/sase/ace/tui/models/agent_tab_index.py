@@ -217,8 +217,15 @@ def build_agent_tab_index(
 _INDEX_CACHE_SIZE = 2
 _index_cache: OrderedDict[
     tuple[int, int, tuple[Any, ...]],
-    tuple[list[Agent], tuple[int, ...], AgentTabIndex],
+    tuple[list[Agent], tuple[Agent, ...], AgentTabIndex],
 ] = OrderedDict()
+
+
+def _membership_is(snapshot: tuple[Agent, ...], roster: list[Agent]) -> bool:
+    """Return True when *snapshot* is the same objects as *roster*, in order."""
+    if len(snapshot) != len(roster):
+        return False
+    return all(left is right for left, right in zip(snapshot, roster, strict=True))
 
 
 def cached_agent_tab_index(
@@ -227,16 +234,18 @@ def cached_agent_tab_index(
 ) -> AgentTabIndex:
     """Return the cached index for *roster* on a memo hit, else build it.
 
-    The memo key is ``(id(roster), len(roster), view_config.token)`` plus an
-    identity snapshot of its members. The snapshot catches in-place append,
-    remove, and reorder mutations. The cache holds strong references to at
-    most two rosters, so a cached list id cannot be reused while its entry
-    lives and old rosters do not accumulate across refreshes.
+    The memo key is ``(id(roster), len(roster), view_config.token)`` plus a
+    snapshot of its member objects compared element-wise with ``is``. The
+    snapshot catches in-place append, remove, reorder, and recycled-id
+    replacements. The cache holds strong references to at most two rosters
+    and to the row objects in each snapshot, so a cached list id cannot be
+    reused while its entry lives, a recycled row id cannot match a live
+    snapshot, and old rosters do not accumulate across refreshes.
     """
     cache_key = (id(roster), len(roster), view_config.token)
-    membership = tuple(id(row) for row in roster)
+    membership = tuple(roster)
     hit = _index_cache.get(cache_key)
-    if hit is not None and hit[0] is roster and hit[1] == membership:
+    if hit is not None and hit[0] is roster and _membership_is(hit[1], roster):
         _index_cache.move_to_end(cache_key)
         return hit[2]
     index = build_agent_tab_index(roster, view_config)
