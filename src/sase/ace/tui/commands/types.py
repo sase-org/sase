@@ -250,6 +250,9 @@ class CommandContext:
     fleet_enabled: bool = False
     selected_agent_remote: bool = False
     agent_tab_strip_visible: bool = False
+    # ToolRun palette state (flag-gated; False when the flag is off).
+    selected_node_has_tool_runs: bool = False
+    selected_node_has_live_tool_run: bool = False
     # Axe tab state
     axe_running: bool = False
     selected_axe_slot_done: bool = False

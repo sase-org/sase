@@ -702,6 +702,8 @@ ace:
       jump_to_agent: "a"
       open_log: "v"
       copy_run_id: "y"
+      stop_run: "s"
+      run_tool: "r"
       reload: "R"
     app:
       # Navigation

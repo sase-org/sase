@@ -180,6 +180,10 @@ def test_every_command_spec_has_label_and_key_display() -> None:
             "agents.deck_view.spread",
             "agents.deck_view.page_cards",
             "agents.deck_view.page_blocks",
+            "tool_runs.show",
+            "tool_runs.stop",
+            "tool_runs.open_pane",
+            "tool_runs.run_tool",
         }:
             assert spec.key_sequence == (), f"{spec.id}: expected keyless"
             assert spec.key_display == "", f"{spec.id}: expected blank key display"

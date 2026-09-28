@@ -18,6 +18,7 @@ else:
 
 MONITOR_AGENT_JUMP_HINT = "⏎: agent"
 COMMAND_LINE_BLOCK_JUMP_HINT = "⏎: block"
+TOOL_RUN_JUMP_HINT = "⏎: run"
 
 
 def _is_command_line_row(task: Any) -> bool:
@@ -25,6 +26,26 @@ def _is_command_line_row(task: Any) -> bool:
     from sase.procs.command_line import COMMAND_LINE_PROC_TAG
 
     return COMMAND_LINE_PROC_TAG in tuple(getattr(task, "tags", None) or ())
+
+
+def _tool_run_id(task: Any) -> str | None:
+    """Return the row's ToolRun id while the beta flag is on, else None."""
+
+    try:
+        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+    except Exception:
+        return None
+    try:
+        if not tool_runs_enabled():
+            return None
+    except Exception:
+        return None
+    try:
+        from .procs_pane_render import tool_run_id_for_task
+
+        return tool_run_id_for_task(task)
+    except Exception:
+        return None
 
 
 def _monitor_jump_agent(app: Any, proc_id: str) -> Agent | None:
@@ -65,7 +86,35 @@ class ProcsPaneAgentJumpMixin(_MixinBase):
         if task is not None and _is_command_line_row(task):
             self.action_open_command_line_block()
             return
+        if task is not None and _tool_run_id(task) is not None:
+            self.action_open_tool_run()
+            return
         self.action_open_monitor_agent()
+
+    def _tool_run_jump_hint(self) -> str | None:
+        """Return the hints-line token for a selected hand-off ToolRun row."""
+        task = self._get_selected_task()
+        if task is None or _tool_run_id(task) is None:
+            return None
+        return TOOL_RUN_JUMP_HINT
+
+    def action_open_tool_run(self) -> None:
+        """Switch the Admin Center to Tools → Runs focused on the row's run."""
+        if self.jump_mode_active:  # type: ignore[attr-defined]
+            return
+        task = self._get_selected_task()
+        if task is None:
+            return
+        run_id = _tool_run_id(task)
+        if not run_id:
+            return
+        from .config_center_modal import ConfigCenterModal
+
+        screen = self.screen  # type: ignore[attr-defined]
+        if not isinstance(screen, ConfigCenterModal):
+            return
+        screen._tool_run_focus_target = run_id
+        screen.switch_to_tab("tools")
 
     def _monitor_jump_hint(self) -> str | None:
         """Return the conditional hints-line token for the selected row."""
@@ -217,5 +266,6 @@ async def _ensure_and_open(app: Any, session: Any, proc_id: str) -> None:
 __all__ = [
     "COMMAND_LINE_BLOCK_JUMP_HINT",
     "MONITOR_AGENT_JUMP_HINT",
+    "TOOL_RUN_JUMP_HINT",
     "ProcsPaneAgentJumpMixin",
 ]

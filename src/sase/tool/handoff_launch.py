@@ -11,8 +11,15 @@ from sase.tool.argv import ToolRunUsageError, resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest
 
 
-def execute_handoff(request: ToolRunCliRequest) -> int:
-    """Reserve a hand-off run and submit its adopting proc."""
+def execute_handoff(
+    request: ToolRunCliRequest, *, cwd: Path | str | None = None
+) -> int:
+    """Reserve a hand-off run and submit its adopting proc.
+
+    *cwd* overrides the process working directory for catalog resolution
+    and proc attribution, so the TUI can hand off at a project's primary
+    checkout root without mutating its own cwd or env.
+    """
 
     if request.keep_going or request.fail_fast:
         print(
@@ -73,8 +80,9 @@ def execute_handoff(request: ToolRunCliRequest) -> int:
         )
         return 2
 
+    launch_root = Path(cwd).expanduser() if cwd is not None else Path.cwd()
     try:
-        resolved = resolve_run_argv(words, cwd=Path.cwd())
+        resolved = resolve_run_argv(words, cwd=launch_root)
     except ToolRunUsageError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -124,8 +132,7 @@ def execute_handoff(request: ToolRunCliRequest) -> int:
     from sase.procs import infer_proc_attribution
     from sase.sessions import SessionRefError, resolve_session_ref
 
-    cwd = Path.cwd()
-    project, workspace_num = infer_proc_attribution(cwd, None)
+    project, workspace_num = infer_proc_attribution(launch_root, None)
     try:
         identity = resolve_session_ref(None)
         session_id = identity.session_id if identity is not None else None
@@ -138,7 +145,7 @@ def execute_handoff(request: ToolRunCliRequest) -> int:
                 argv=worker_argv(run_id),
                 command=command,
                 label=label,
-                cwd=cwd,
+                cwd=launch_root,
                 origin="tool-run",
                 proc_id=proc_id,
                 project=project,

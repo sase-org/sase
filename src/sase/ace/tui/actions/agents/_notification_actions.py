@@ -4,10 +4,12 @@ Re-exports from split submodules for backwards compatibility.
 """
 
 from ._notification_handlers import (
+    OPEN_TOOL_RUN_ACTION as OPEN_TOOL_RUN_ACTION,
     handle_jump_to_agent as handle_jump_to_agent,
     handle_jump_to_patch as handle_jump_to_patch,
     handle_jump_to_mentor_review as handle_jump_to_mentor_review,
     handle_open_launch_control as handle_open_launch_control,
+    handle_open_tool_run as handle_open_tool_run,
     handle_tmux as handle_tmux,
     handle_view_error_report as handle_view_error_report,
     handle_view_report as handle_view_report,
@@ -50,6 +52,8 @@ __all__ = [
     "handle_jump_to_mentor_review",
     "handle_launch_approval",
     "handle_open_launch_control",
+    "handle_open_tool_run",
+    "OPEN_TOOL_RUN_ACTION",
     "handle_plan_approval",
     "handle_remote_attention_notification",
     "handle_sudo_request",

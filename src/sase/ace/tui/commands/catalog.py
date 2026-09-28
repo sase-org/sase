@@ -426,13 +426,83 @@ def _iter_provider_usage_command() -> Iterator[CommandSpec]:
     )
 
 
+def _iter_tool_runs_commands() -> Iterator[CommandSpec]:
+    """Yield the keyless ToolRun palette commands (epic sase-1bt).
+
+    All four are context-sensitive with availability rules in
+    ``_availability_agents`` (and the flag gate in ``availability``);
+    with the flag off none of them appear.
+    """
+    yield CommandSpec(
+        id="tool_runs.show",
+        label="Show tool runs",
+        key_sequence=(),
+        key_display="",
+        category="Agents",
+        tabs=AGENTS_ONLY,
+        executor=CommandExecutor(kind="app_action", action="show_tool_runs_card"),
+        aliases=(
+            "tool runs",
+            "runs card",
+            "show runs",
+            "tool run history",
+        ),
+    )
+    yield CommandSpec(
+        id="tool_runs.stop",
+        label="Stop live tool run",
+        key_sequence=(),
+        key_display="",
+        category="Agents",
+        tabs=AGENTS_ONLY,
+        executor=CommandExecutor(kind="app_action", action="stop_live_tool_run"),
+        aliases=(
+            "stop tool run",
+            "stop live run",
+            "kill tool run",
+            "stop check",
+        ),
+    )
+    yield CommandSpec(
+        id="tool_runs.open_pane",
+        label="Open Tools pane",
+        key_sequence=(),
+        key_display="",
+        category="Display",
+        tabs=ALL_TABS,
+        executor=CommandExecutor(kind="app_action", action="open_tool_runs_panel"),
+        aliases=(
+            "tools pane",
+            "tool runs pane",
+            "admin tools",
+            "admin center tools",
+        ),
+    )
+    yield CommandSpec(
+        id="tool_runs.run_tool",
+        label="Run project tool…",
+        key_sequence=(),
+        key_display="",
+        category="Display",
+        tabs=ALL_TABS,
+        executor=CommandExecutor(kind="app_action", action="open_tool_runs_catalog"),
+        aliases=(
+            "run tool",
+            "run project tool",
+            "catalog",
+            "tool catalog",
+            "hand off tool",
+        ),
+    )
+
+
 def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     """Construct the full catalog from a :class:`KeymapRegistry`.
 
     Order is deterministic: app commands (in ``_APP_COMMAND_META``
     order), then saved-query sequences, numbered Artifacts jumps, the keyless
-    Tasks, Statistics, Logs, Projects, and Provider Usage commands, then
-    mode commands (fold, copy, leader, bang, custom; each in registry
+    Tasks, Statistics, Logs, Projects, Provider Usage, and ToolRun commands,
+    then mode commands (fold, copy, leader, bang, custom; each in registry
     insertion order).
     """
     catalog: list[CommandSpec] = []
@@ -448,6 +518,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog.extend(_iter_logs_command())
     catalog.extend(_iter_projects_command())
     catalog.extend(_iter_provider_usage_command())
+    catalog.extend(_iter_tool_runs_commands())
     catalog.extend(iter_mode_commands(registry))
     return catalog
 

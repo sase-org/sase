@@ -274,6 +274,8 @@ _TOOL_RUNS_BINDING_META: tuple[tuple[str, str, str], ...] = (
     ("jump_to_agent", "jump_to_agent", "Open Agent"),
     ("open_log", "open_log", "Open Log"),
     ("copy_run_id", "copy_run_id", "Copy Run ID"),
+    ("stop_run", "stop_run", "Stop"),
+    ("run_tool", "run_tool", "Run"),
     ("reload", "reload_tool_runs", "Reload"),
 )
 

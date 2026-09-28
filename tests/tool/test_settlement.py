@@ -626,6 +626,19 @@ def test_proc_settlement_hook_settles_run_and_publishes_once(tmp_path: Path) -> 
         "run_id": run_id,
         "command": f"sase tool show {run_id}",
     }
+    from sase.feature_flags import override_flags
+    from sase.tool.notify import _build_notification
+
+    with override_flags(ace_tool_runs=False):
+        off = _build_notification(run, run_id, note.id)
+    with override_flags(ace_tool_runs=True):
+        on = _build_notification(run, run_id, note.id)
+    assert off.action is None
+    assert on.action == "OpenToolRun"
+    assert on.action_data == {
+        "run_id": run_id,
+        "command": f"sase tool show {run_id}",
+    }
     assert f"sase tool show {run_id}" in note.notes
     assert note.notes[0].startswith("Tool run ad-hoc failed")
     assert "(exit 3)" in note.notes[0]

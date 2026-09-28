@@ -204,8 +204,9 @@ class ToolRunsPane(Vertical):
 
     def _hints(self) -> str:
         return (
-            "j/k: move  enter: detail  a: agent  v: log  y: copy id"
-            "  /: filter  [ ]: view  A: all projects  R: reload  Esc: close"
+            "j/k: move  enter: detail  a: agent  s: stop  r: run"
+            "  v: log  y: copy id  /: filter  [ ]: view  A: all  R: reload"
+            "  Esc: close"
         )
 
     def _set_view(self, view: str) -> None:
@@ -317,7 +318,15 @@ class ToolRunsPane(Vertical):
             self._catalog_entries = []
             return
         try:
-            catalog = load_project_tool_catalog_at(None)
+            from sase.ace.tui.actions.agents._tool_run_actions import (
+                primary_checkout_root,
+            )
+
+            root = primary_checkout_root(self._scope_project) or None
+        except Exception:
+            root = None
+        try:
+            catalog = load_project_tool_catalog_at(root)
         except Exception:
             self._catalog_entries = []
             return
@@ -572,7 +581,7 @@ class ToolRunsPane(Vertical):
             f" · args: {definition.get('args', 'deny')}",
             self._catalog_row(str(name or "")),
             "",
-            "Read-only in this phase; running a tool lands with sase-1bt.11.",
+            "r runs the selected tool at the project root.",
         ]
         return "\n".join(lines)
 
@@ -806,6 +815,131 @@ class ToolRunsPane(Vertical):
             60,
             256 * 1024,
         )
+
+    def action_stop_run(self) -> None:
+        """Confirm and stop the selected live run as a durable proc."""
+
+        if self._view != "runs":
+            self.notify("Switch to the Runs view to stop a run", severity="warning")
+            return
+        run_id = self._selected_identity() or self._selected_run_id
+        if not run_id or run_id.startswith("failure-"):
+            self.notify("No run selected", severity="warning")
+            return
+        brief = next(
+            (
+                item
+                for _, item in self._run_rows
+                if str(getattr(item, "run_id", "")) == run_id
+            ),
+            None,
+        )
+        if brief is None:
+            self.notify("No run selected", severity="warning")
+            return
+        from sase.ace.tui.actions.agents._tool_run_actions import request_tool_run_stop
+
+        try:
+            request_tool_run_stop(self.app, brief)
+        except Exception as exc:
+            self.notify(f"Could not stop run: {exc}", severity="error")
+
+    def action_run_tool(self) -> None:
+        """Confirm and hand off the selected catalog tool (``-H`` worker)."""
+
+        if self._view != "catalog":
+            self.notify("Switch to the Catalog view to run a tool", severity="warning")
+            return
+        name = self._selected_identity()
+        entry = next(
+            (
+                item
+                for item in self._catalog_entries
+                if str(getattr(item, "name", "")) == name
+            ),
+            None,
+        )
+        if entry is None and self._catalog_entries:
+            entry = self._catalog_entries[0]
+        if entry is None:
+            self.notify("No tools in catalog", severity="warning")
+            return
+        tool_name = str(getattr(entry, "name", "") or "")
+        definition = getattr(entry, "definition", {}) or {}
+        argv = tuple(str(part) for part in (definition.get("argv", ()) or ()))
+        from sase.ace.tui.actions.agents._tool_run_actions import (
+            confirm_catalog_tool_run,
+            launch_catalog_tool,
+            primary_checkout_root,
+        )
+
+        root = primary_checkout_root(self._scope_project)
+
+        def _on_answer(confirmed: bool | None) -> None:
+            if confirmed:
+                self._launch_catalog_tool(tool_name, root)
+
+        try:
+            confirm_catalog_tool_run(
+                self.app,
+                tool_name=tool_name,
+                argv=argv,
+                root=root,
+                on_confirmed=_on_answer,
+            )
+        except Exception as exc:
+            self.notify(f"Could not run tool: {exc}", severity="error")
+
+    def _launch_catalog_tool(self, tool_name: str, root: str) -> None:
+        """Hand off one catalog tool from a session worker (never durable)."""
+
+        from sase.ace.tui.actions.agents._tool_run_actions import launch_catalog_tool
+        from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+
+        submit = getattr(self.app, "_submit_session_worker", None)
+        if not callable(submit):
+            self.notify("Could not run: worker queue unavailable.", severity="error")
+            return
+
+        def _body() -> Any:
+            from sase.ace.tui.actions._proc_action_types import TrackedProcResult
+
+            outcome = launch_catalog_tool(self.app, tool_name=tool_name, root=root)
+            if outcome.get("ok"):
+                return TrackedProcResult(
+                    success=True,
+                    message=f"Tool {tool_name} handed off as run {outcome['ok'][:8]}",
+                    payload=outcome,
+                )
+            return TrackedProcResult(
+                success=False,
+                message=str(outcome.get("error") or "hand-off refused"),
+                payload=outcome,
+            )
+
+        def _on_complete(completion: TrackedProcCompletion[Any]) -> None:
+            payload = completion.payload if isinstance(completion.payload, dict) else {}
+            run_id = str(payload.get("ok") or "") if payload else ""
+            if completion.success and run_id:
+                self._pending_run_id = run_id
+                self._session_state.pending_run_id = run_id
+                self._set_view("runs")
+                self._request_reload(force=True)
+            self.notify(
+                completion.message,
+                severity="information" if completion.success else "error",
+            )
+
+        try:
+            submit(
+                "tool-run-catalog",
+                _body,
+                display_name=f"run tool {tool_name}",
+                cl_name=tool_name,
+                on_complete=_on_complete,
+            )
+        except Exception as exc:
+            self.notify(f"Could not run tool: {exc}", severity="error")
 
     def action_copy_run_id(self) -> None:
         """Copy the selected run's full 32-hex id."""

@@ -44,6 +44,10 @@ _RULE = "─" * 60
 _DETACHED_MARKER = "◆ detached"
 _MONITOR_GLYPH_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
 _UPDATE_GLYPH_STYLE = f"bold {UPDATE_GEAR_HUE}"
+_TOOL_RUN_GLYPH = "⚒"
+_TOOL_RUN_GLYPH_STYLE = "bold #87D7FF"
+_TOOL_RUN_TAG_PREFIX = "tool-run:"
+_TOOL_RUN_LABEL_PREFIX = "tool:"
 _TAIL_CAP_NOTICE = f"… showing the last {DETAIL_LOG_LINES} lines …"
 
 # Rendered body cache: task id -> (log version, static text, rendered body).
@@ -155,6 +159,64 @@ def _append_update_marker(
         text.append(f"{prefix}{MONITOR_GLYPH}{suffix}", style=_UPDATE_GLYPH_STYLE)
 
 
+def tool_run_id_for_task(task: ObservedProc) -> str | None:
+    """Return the ToolRun id decoded from the row's tags, or None.
+
+    Pure: only the ``tool-run:<id>`` tag (from ``owner_tags`` in
+    ``sase.tool.handoff``) counts, never the bare ``tool-run`` tag.
+    """
+
+    for tag in tuple(getattr(task, "tags", None) or ()):
+        if isinstance(tag, str) and tag.startswith(_TOOL_RUN_TAG_PREFIX):
+            run_id = tag[len(_TOOL_RUN_TAG_PREFIX) :].strip()
+            if run_id:
+                return run_id
+    return None
+
+
+def _tool_run_label_for_task(task: ObservedProc) -> str | None:
+    """Return the tool name decoded from a ``tool:<name>`` proc label."""
+
+    for candidate in (getattr(task, "display_name", None), task.label):
+        if isinstance(candidate, str) and candidate.startswith(_TOOL_RUN_LABEL_PREFIX):
+            name = candidate[len(_TOOL_RUN_LABEL_PREFIX) :].strip()
+            if name:
+                return name
+    return None
+
+
+def _tool_runs_visible() -> bool:
+    """Return whether the ToolRun marker may render (beta flag on)."""
+
+    try:
+        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+    except Exception:
+        return False
+    try:
+        return bool(tool_runs_enabled())
+    except Exception:
+        return False
+
+
+def _append_tool_run_marker(
+    text: Text,
+    task: ObservedProc,
+    *,
+    prefix: str = "",
+    suffix: str = "",
+) -> None:
+    """Mark a hand-off ToolRun owner proc with ``⚒ <label>`` (flag-gated)."""
+
+    if not _tool_runs_visible():
+        return
+    if tool_run_id_for_task(task) is None:
+        return
+    label = _tool_run_label_for_task(task) or "run"
+    text.append(
+        f"{prefix}{_TOOL_RUN_GLYPH} {label}{suffix}", style=_TOOL_RUN_GLYPH_STYLE
+    )
+
+
 def _resolved_agent_name(
     task: ObservedProc, agent_names: Mapping[str, str] | None
 ) -> str | None:
@@ -208,6 +270,7 @@ def task_row_label(
     _append_detached_marker(text, task, prefix="", suffix=" ")
     _append_monitor_marker(text, task, prefix="", suffix=" ")
     _append_update_marker(text, task, prefix="", suffix=" ")
+    _append_tool_run_marker(text, task, prefix="", suffix=" ")
     text.append(task.label, style="bold")
     time_ref = task.finished_at or task.started_at
     text.append(f"  {_relative_time(time_ref)}", style="dim")
@@ -243,6 +306,7 @@ def output_header(
     icon, style = _task_status_token(task, spinner_index=spinner_index)
     _append_monitor_marker(out, task, suffix=" ")
     _append_update_marker(out, task, suffix=" ")
+    _append_tool_run_marker(out, task, suffix=" ")
     out.append(task.label, style="bold")
     _append_detached_marker(out, task)
     out.append("  ")

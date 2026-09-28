@@ -151,6 +151,14 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
         return tool_runs_enabled()
 
+    # ToolRun palette commands (sase-1bt.11): "Show tool runs" needs a node
+    # with runs; "Stop live tool run" needs a local live run. The pane and
+    # catalog entries have no node precondition beyond the flag gate.
+    if spec.id == "tool_runs.show":
+        return bool(ctx.selected_node_has_tool_runs)
+    if spec.id == "tool_runs.stop":
+        return bool(ctx.selected_node_has_live_tool_run)
+
     # The cleanup panel is discoverable even when every row action inside it is
     # currently disabled.
     if spec.id == "app.open_agent_cleanup_panel":

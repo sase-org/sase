@@ -444,6 +444,10 @@ def test_command_specs_are_well_formed() -> None:
             "agents.deck_view.spread",
             "agents.deck_view.page_cards",
             "agents.deck_view.page_blocks",
+            "tool_runs.show",
+            "tool_runs.stop",
+            "tool_runs.open_pane",
+            "tool_runs.run_tool",
         }:
             # These Admin Center panels and the palette-only deck-view
             # choices are intentionally keyless: searchable commands with

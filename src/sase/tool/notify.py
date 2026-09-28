@@ -74,6 +74,19 @@ def _notes(run: Mapping[str, Any], run_id: str) -> list[str]:
     return notes
 
 
+def _open_action() -> str | None:
+    """Return the settlement action while the ToolRun surfaces flag is on."""
+
+    try:
+        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+    except Exception:
+        return None
+    try:
+        return "OpenToolRun" if tool_runs_enabled() else None
+    except Exception:  # noqa: BLE001 - delivery never depends on the flag read.
+        return None
+
+
 def _build_notification(
     run: Mapping[str, Any], run_id: str, notification_id: str
 ) -> Notification:
@@ -91,7 +104,7 @@ def _build_notification(
         notes=_notes(run, run_id),
         files=files,
         tags=normalize_notification_tags(_TAGS),
-        action=None,
+        action=_open_action(),
         action_data={"run_id": run_id, "command": f"sase tool show {run_id}"},
     )
 

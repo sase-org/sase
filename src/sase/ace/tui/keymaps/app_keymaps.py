@@ -350,6 +350,8 @@ class ToolRunsPaneKeymaps:
     jump_to_agent: str = "a"
     open_log: str = "v"
     copy_run_id: str = "y"
+    stop_run: str = "s"
+    run_tool: str = "r"
     reload: str = "R"
 
 

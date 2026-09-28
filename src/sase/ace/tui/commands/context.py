@@ -312,6 +312,55 @@ def _agents_mark_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     return len(getattr(app, "_marked_agents", set()))
 
 
+def _selected_node_tool_run_state(app: AceApp, agent) -> tuple[bool, bool]:  # type: ignore[no-untyped-def]
+    """Return ``(has_runs, has_live)`` for the selected Agents node.
+
+    Flag-gated and best-effort: anything unreadable (flag off, no
+    snapshot, no cached summary) reads as no runs. Only in-memory
+    state is touched — no stat, no SQLite open, no log read.
+    """
+    try:
+        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+
+        if not tool_runs_enabled():
+            return (False, False)
+    except Exception:
+        return (False, False)
+    if agent is None or getattr(agent, "fleet_origin_alias", None):
+        return (False, False)
+    try:
+        from sase.ace.tui.tool_runs import summaries
+        from sase.ace.tui.tool_runs.snapshot import get_snapshot
+
+        selector = summaries.selector_for_agent(agent)
+    except Exception:
+        return (False, False)
+    if selector is None:
+        return (False, False)
+    has_live = False
+    try:
+        snapshot = get_snapshot()
+        live = summaries.node_live_runs(
+            snapshot.runs if snapshot is not None else (), selector
+        )
+        has_live = bool(live)
+    except Exception:
+        has_live = False
+    if has_live:
+        return (True, True)
+    try:
+        cached = summaries.cached_node_summary_for_selector(selector)
+    except Exception:
+        return (False, False)
+    if cached is None:
+        return (False, False)
+    try:
+        total = int(getattr(cached, "total_runs", 0) or 0)
+    except Exception:
+        total = 0
+    return (total > 0, False)
+
+
 def _has_live_launch_record(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
     from sase.ace.tui.actions.agent_workflow._launch_records import (
         latest_live_launch_record,
@@ -450,6 +499,9 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     except Exception:
         deck_split = False
     deck_view_deck, deck_view_policy, deck_view_cycle = _deck_view_state(app)
+    node_has_runs, node_has_live = (
+        _selected_node_tool_run_state(app, agent) if tab == "agents" else (False, False)
+    )
     return CommandContext(
         tab=tab,
         artifacts_subtab=getattr(app, "current_artifacts_pane_key", "patches"),
@@ -483,6 +535,8 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         deck_view_cycle_available=deck_view_cycle,
         fleet_enabled=bool(fleet_available()) if callable(fleet_available) else False,
         selected_agent_remote=selected_remote,
+        selected_node_has_tool_runs=node_has_runs,
+        selected_node_has_live_tool_run=node_has_live,
         agent_tab_strip_visible=_agent_tab_strip_visible(app),
         link_edges_present=link_edges_present,
         axe_running=bool(getattr(app, "axe_running", False)),

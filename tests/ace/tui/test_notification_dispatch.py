@@ -56,6 +56,7 @@ _ROUTED_ACTIONS: list[tuple[str, str, bool]] = [
     ("GateExecutionFailed", "handle_gate_execution_failed", False),
     ("ViewReport", "handle_view_report", False),
     ("OpenLaunchControl", "handle_open_launch_control", False),
+    ("OpenToolRun", "handle_open_tool_run", False),
 ]
 
 _HANDLER_ATTRS = sorted({handler for _, handler, _ in _ROUTED_ACTIONS})

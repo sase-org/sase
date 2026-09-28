@@ -221,6 +221,7 @@ class ProcsPane(
             return f"JUMP ' {action}  <esc> cancel"
         agent_hint = self._monitor_jump_hint()
         block_hint = self._command_line_jump_hint()
+        run_hint = self._tool_run_jump_hint()
         tokens = [
             "j/k: move",
             "/: filter",
@@ -235,6 +236,8 @@ class ProcsPane(
             tokens.append(agent_hint)
         if block_hint:
             tokens.append(block_hint)
+        if run_hint:
+            tokens.append(run_hint)
         tokens.extend(
             (
                 "': jump",
@@ -245,7 +248,14 @@ class ProcsPane(
         )
         return self._fit_hints(
             tokens,
-            protected={agent_hint, block_hint, "': jump", "/: filter", "m: monitor"},
+            protected={
+                agent_hint,
+                block_hint,
+                run_hint,
+                "': jump",
+                "/: filter",
+                "m: monitor",
+            },
         )
 
     def _hint_width(self) -> int:

@@ -52,6 +52,7 @@ def open_notification_action(app: Any, notification: Notification) -> bool:
         handle_jump_to_mentor_review,
         handle_launch_approval,
         handle_open_launch_control,
+        handle_open_tool_run,
         handle_plan_approval,
         handle_remote_attention_notification,
         handle_sudo_request,
@@ -98,6 +99,8 @@ def open_notification_action(app: Any, notification: Notification) -> bool:
         handle_view_report(app, notification)
     elif notification.action == "OpenLaunchControl":
         handle_open_launch_control(app, notification)
+    elif notification.action == "OpenToolRun":
+        handle_open_tool_run(app, notification)
     elif notification.action and notification.action.strip():
         app.notify(
             f"Unsupported notification action: {notification.action}",

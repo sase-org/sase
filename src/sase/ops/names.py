@@ -44,6 +44,7 @@ MACHINE_AGENT_ACTION = "machine.agent-action"
 MACHINE_ATTENTION_ACTION = "machine.attention-action"
 MONITOR_STOP = "monitor.stop"
 PROC_KILL = "proc.kill"
+TOOL_STOP = "tool.stop"
 RUN_LAUNCH = "run.launch"
 SASE_UPDATE = "sase.update"
 SUDO_FINALIZE = "sudo.finalize"
@@ -86,4 +87,5 @@ __all__ = [
     "RUN_LAUNCH",
     "SASE_UPDATE",
     "SUDO_FINALIZE",
+    "TOOL_STOP",
 ]

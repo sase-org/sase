@@ -6,7 +6,8 @@ Launch settings actions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from sase.project_display_names import humanize_cl_name
 
@@ -157,6 +158,133 @@ def handle_open_launch_control(app: object, notification: Notification) -> bool:
         return False
     opener()
     return True
+
+
+OPEN_TOOL_RUN_ACTION = "OpenToolRun"
+"""Notification action that opens a settled ToolRun (epic sase-1bt, sase-189)."""
+
+
+def _tool_run_node_matches(run: dict[str, object]) -> Callable[[Any], bool]:
+    """Build a row predicate matching the run's owning node (§3.3, owner first)."""
+
+    owner_kind = str(run.get("owner_kind") or "")
+    owner_id = str(run.get("owner_id") or "")
+    agent_name = str(run.get("agent") or "")
+
+    def _matches(agent: object) -> bool:
+        if getattr(agent, "fleet_origin_alias", None):
+            return False
+        if owner_kind == "monitor" and owner_id:
+            return bool(
+                getattr(agent, "is_monitor", False)
+                and getattr(agent, "monitor_id", None) == owner_id
+            )
+        if owner_kind == "proc" and owner_id:
+            return bool(
+                getattr(agent, "is_named_proc", False)
+                and getattr(agent, "proc_id", None) == owner_id
+            )
+        if not agent_name:
+            return False
+        return getattr(agent, "agent_name", None) == agent_name
+
+    return _matches
+
+
+def _resolve_visible_tool_run_node(app: object, run_id: str) -> object | None:
+    """Return the visible local row owning *run_id*, or None (best-effort)."""
+
+    try:
+        from sase.core.tool_run import tool_run_show
+
+        from ._notification_navigation import resolve_loaded_agent
+    except Exception:
+        return None
+    try:
+        envelope = tool_run_show(run_id)
+    except Exception:
+        return None
+    run = envelope.get("run")
+    if not isinstance(run, dict):
+        return None
+    try:
+        return resolve_loaded_agent(app, _tool_run_node_matches(run))
+    except Exception:
+        return None
+
+
+def _show_tools_deck_best_effort(app: object) -> None:
+    """Show the Tools deck in the focused panel without ever raising."""
+
+    try:
+        from sase.ace.tui.widgets.decks.spec import active_deck_cycle
+    except Exception:
+        return
+    try:
+        cycle = active_deck_cycle()
+        index = next(
+            i
+            for i, deck in enumerate(cycle)
+            if str(getattr(deck, "value", deck)) == "tools"
+        )
+    except Exception:
+        return
+    show = getattr(app, "action_show_deck_at", None)
+    if not callable(show):
+        return
+    try:
+        show(index)
+    except Exception:
+        return
+
+
+def handle_open_tool_run(app: object, notification: Notification) -> bool:
+    """Open the settled ToolRun referenced by an OpenToolRun notification.
+
+    When the run owns a visible local node, that node is selected and its
+    Tools deck is shown; otherwise the Admin Center Tools pane opens focused
+    on the run. Never raises: every lookup is best-effort.
+
+    Args:
+        app: The AceApp instance.
+        notification: The notification with action_data containing run_id.
+
+    Returns:
+        True if a handler ran.
+    """
+    from ._notification_navigation import jump_to_loaded_agent
+
+    run_id = str((notification.action_data or {}).get("run_id") or "").strip()
+    if not run_id:
+        app.notify("No tool run in notification", severity="warning")  # type: ignore[attr-defined]
+        return False
+    try:
+        target = _resolve_visible_tool_run_node(app, run_id)
+    except Exception:
+        target = None
+    if target is not None:
+        try:
+            jumped = bool(jump_to_loaded_agent(app, target))
+        except Exception:
+            return False
+        _show_tools_deck_best_effort(app)
+        return jumped
+    opener = getattr(app, "_open_config_center", None)
+    if callable(opener):
+        try:
+            opener("tools", tool_run_focus_target=run_id)
+            return True
+        except Exception:
+            pass
+    legacy = getattr(app, "action_open_tool_runs_panel", None)
+    if callable(legacy):
+        try:
+            legacy()
+            return True
+        except Exception:
+            pass
+    app.notify("Tools pane is unavailable", severity="warning")  # type: ignore[attr-defined]
+    return False
 
 
 def handle_jump_to_patch(app: object, notification: Notification) -> bool:

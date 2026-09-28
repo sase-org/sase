@@ -32,6 +32,7 @@ from ._panel_hint_folding import AgentPanelHintFoldingMixin
 from ._query_persistence import AgentQueryPersistenceMixin
 from ._revert import AgentRevertMixin
 from ._revive import AgentRevivalMixin
+from ._tool_run_actions import ToolRunActionsMixin
 from ._selection import AgentSelectionMixin
 from ._agent_tab_jump import AgentTabJumpMixin
 from ._agent_tabs import AgentTabsMixin
@@ -100,6 +101,7 @@ class AgentsMixinCore(
     AgentKillingMixin,
     AgentRevertMixin,
     AgentRevivalMixin,
+    ToolRunActionsMixin,
     AgentLoadingMixin,
     AgentDisplayMixin,
 ):

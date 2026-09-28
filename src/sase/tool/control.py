@@ -164,12 +164,34 @@ def _owner_terminal(run: dict[str, Any]) -> bool | None:
     return None
 
 
+def _emit_stop_result(
+    *,
+    success: bool,
+    run_id: str,
+    outcome: str,
+    state: str,
+    message: str,
+) -> None:
+    """Write the typed ``tool.stop`` result for a durable-proc submission."""
+    from sase.ops.commands.tool import emit_tool_stop_result
+
+    emit_tool_stop_result(
+        success=success,
+        message=message,
+        payload={"run_id": run_id, "outcome": outcome, "state": state},
+    )
+
+
 def handle_stop(request: ToolStopCliRequest) -> int:
     """Record a durable stop request, then route through the run's owner."""
 
     run_id = request.run_id.strip()
     if not run_id:
-        print("Usage: sase tool stop RUN", file=sys.stderr)
+        message = "Usage: sase tool stop RUN"
+        print(message, file=sys.stderr)
+        _emit_stop_result(
+            success=False, run_id="", outcome="usage", state="", message=message
+        )
         return 2
     try:
         stop_result = tool_run_request_stop(
@@ -182,15 +204,31 @@ def handle_stop(request: ToolStopCliRequest) -> int:
         )
     except Exception as exc:  # noqa: BLE001 - unknown runs exit 2.
         if "not found" in str(exc).lower() or "notfound" in type(exc).__name__.lower():
-            print(f"tool run {run_id} was not found", file=sys.stderr)
+            message = f"tool run {run_id} was not found"
+            print(message, file=sys.stderr)
+            _emit_stop_result(
+                success=False,
+                run_id=run_id,
+                outcome="not_found",
+                state="",
+                message=message,
+            )
             return 2
-        print(f"sase tool stop {run_id}: {exc}", file=sys.stderr)
+        message = f"sase tool stop {run_id}: {exc}"
+        print(message, file=sys.stderr)
+        _emit_stop_result(
+            success=False, run_id=run_id, outcome="error", state="", message=message
+        )
         return 1
     outcome = str(stop_result.get("outcome") or "")
     try:
         run = _load_run(run_id)
     except UnknownRunError as exc:
-        print(str(exc), file=sys.stderr)
+        message = str(exc)
+        print(message, file=sys.stderr)
+        _emit_stop_result(
+            success=False, run_id=run_id, outcome="not_found", state="", message=message
+        )
         return 2
     state = str(run.get("state") or "")
     if state not in UNSETTLED_RUN_STATES:
@@ -208,11 +246,27 @@ def handle_stop(request: ToolStopCliRequest) -> int:
         )
     control_error = _route_owner_stop(run)
     if control_error is not None:
+        message = f"sase tool stop {run_id} failed (exit {control_error})"
+        _emit_stop_result(
+            success=False,
+            run_id=run_id,
+            outcome="owner_stop_failed",
+            state=str(run.get("state") or ""),
+            message=message,
+        )
         return control_error
     try:
         settled = _load_run(run_id)
     except UnknownRunError as exc:  # noqa: BLE001 - the ledger lost the run.
-        print(str(exc), file=sys.stderr)
+        message = str(exc)
+        print(message, file=sys.stderr)
+        _emit_stop_result(
+            success=False,
+            run_id=run_id,
+            outcome="error",
+            state="",
+            message=message,
+        )
         return 1
     if _is_settled(settled):
         return _report_stop_outcome(
@@ -244,11 +298,18 @@ def _report_stop_outcome(
                 sort_keys=True,
             )
         )
-        return 0
-    if already:
+    elif already:
         print(f"tool run {run_id} is {outcome}; nothing to do")
     else:
         print(f"tool run {run_id}: {outcome}")
+    message = (
+        f"tool run {run_id} is {outcome}; nothing to do"
+        if already
+        else f"tool run {run_id}: {outcome}"
+    )
+    _emit_stop_result(
+        success=True, run_id=run_id, outcome=outcome, state=state, message=message
+    )
     return 0
 
 
