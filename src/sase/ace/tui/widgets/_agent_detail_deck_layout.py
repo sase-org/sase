@@ -254,7 +254,7 @@ class AgentDetailDeckLayoutMixin:
 
     @property
     def is_nodes_collapsed(self) -> bool:
-        """Return whether the node panel is collapsed in deck mode."""
+        """Return whether the node-rail preference is set in deck mode."""
         try:
             return bool(self.deck_area.state.nodes_collapsed)  # type: ignore[attr-defined]
         except Exception:
@@ -282,7 +282,7 @@ class AgentDetailDeckLayoutMixin:
         return self.sidebar_mode is SidebarMode.RAIL
 
     def toggle_node_panel(self) -> None:
-        """Collapse or expand the node panel without unmounting it.
+        """Toggle the node panel between expanded and rail without unmounting it.
 
         While zoomed, restore the snapshot exactly like Z.
         """

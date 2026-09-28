@@ -146,14 +146,20 @@ def format_banner_option(
 
     text = render_tier_gutter(tier_styles)
     gutter_cells = len(tier_styles) * _TIER_GUIDE_SEGMENT_WIDTH
+    hint_cells = 0
     if hint_char is not None:
-        text.append(f"[{hint_char}] ", style="bold #FFFF00")
-    hint_cells = 4 if hint_char is not None else 0
+        hint_text = f"[{hint_char}] "
+        text.append(hint_text, style="bold #FFFF00")
+        hint_cells = cell_len(hint_text)
+    mark_cells = 0
     if mark_state == "all":
-        text.append("[✓] ", style="bold #00D700")
+        mark_text = "[✓] "
+        text.append(mark_text, style="bold #00D700")
+        mark_cells = cell_len(mark_text)
     elif mark_state == "partial":
-        text.append("[~] ", style="dim #00D700")
-    mark_cells = 4 if mark_state != "none" else 0
+        mark_text = "[~] "
+        text.append(mark_text, style="dim #00D700")
+        mark_cells = cell_len(mark_text)
     for segment_text, segment_style in prefix_segments:
         text.append(segment_text, style=segment_style)
     text.append(label, style=label_style)

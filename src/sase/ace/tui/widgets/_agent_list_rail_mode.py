@@ -112,11 +112,16 @@ class AgentListRailMixin:
         """Build the fixed-width rail cells for *option*, or ``None``.
 
         ``None`` means the row maps do not cover this option yet (stale or
-        mid-update maps, spacers, or rows without render context); the
-        caller renders blank cells. Banner rows resolve through the
-        all-banner ``_group_at_row`` map; agent rows through ``_agents``,
-        ``_row_render_ctx``, and tree depth.
+        mid-update maps, or rows without render context); the caller
+        renders blank cells and traces a fallback. Spacer rows have no
+        ``_group_at_row`` entry by design, so they are recognised by id and
+        return blank cells directly instead of going through the fallback.
+        Banner rows resolve through the all-banner ``_group_at_row`` map;
+        agent rows through ``_agents``, ``_row_render_ctx``, and tree depth.
         """
+        option_id = getattr(option, "id", None)
+        if option_id is not None and option_id.startswith("spacer:"):
+            return Text(" " * RAIL_CONTENT_CELLS)
         index = self._option_to_index.get(option)  # type: ignore[attr-defined]
         if index is None:
             return None

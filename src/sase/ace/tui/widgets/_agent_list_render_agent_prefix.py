@@ -45,6 +45,17 @@ def _should_render_reverted_badge(agent: Agent) -> bool:
     return agent.reverted and not agent_is_tree_child(agent)
 
 
+def _is_early_top_level_kind(agent: Agent) -> bool:
+    """Return whether *agent*'s top-level kind glyph renders early.
+
+    Monitor, gate, and named-proc rows lead the row (as they did before
+    55e4bf73b). The top-level type badge (e.g. workflow ``≡``) instead
+    renders later, after the hidden icon, retry badge, and machine chip —
+    where the old ``_TYPE_GLYPHS`` badge sat.
+    """
+    return agent.is_monitor or agent.is_gate or agent.is_named_proc
+
+
 def _is_indented_member_turn(agent: Agent) -> bool:
     """Return whether *agent* is a turn nested under an already-chipped node.
 
@@ -159,7 +170,7 @@ def append_agent_row_prefix(
         if kind is not None:
             glyph, glyph_style = kind
             text.append(f"{glyph} ", style=glyph_style)
-    elif kind is not None:
+    elif kind is not None and _is_early_top_level_kind(agent):
         glyph, glyph_style = kind
         text.append(f"{glyph} ", style=glyph_style)
 
@@ -204,7 +215,13 @@ def append_agent_row_prefix(
     # already marks tree depth).  Other top-level types render as a
     # single-glyph badge; unknown types fall back to ``[X] `` for debug
     # readability.
-    if (
+    if tree_depth == 0 and kind is not None and not _is_early_top_level_kind(agent):
+        # The top-level type badge (e.g. workflow ``≡``) renders here,
+        # after the hidden icon, retry badge, and machine chip — where
+        # the old ``_TYPE_GLYPHS`` badge sat before 55e4bf73b.
+        glyph, glyph_style = kind
+        text.append(f"{glyph} ", style=glyph_style)
+    elif (
         kind is None
         and not (agent.is_clan_container or is_agent_session_container_row)
         and not (
@@ -215,8 +232,7 @@ def append_agent_row_prefix(
             or agent.is_named_proc
         )
     ):
-        # Known display types already rendered through ``row_kind_glyph``
-        # above; unknown ones keep the ``[X]`` debug badge.
+        # Unknown display types keep the ``[X]`` debug badge.
         text.append(f"[{dt}] ", style=f"bold {color}")
 
     if _should_render_provider_badge(agent):

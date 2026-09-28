@@ -126,21 +126,46 @@ async def test_rail_keeps_focus_and_jk_navigation(monkeypatch) -> None:
 async def test_rail_preserves_row_positions_and_scroll(monkeypatch) -> None:
     """Toggling the rail never moves a row vertically or the scroll offset."""
     patch_startup_loaders(monkeypatch, agents=_agents())
-    async with AcePage(query='"visual"', patches=patches()) as page:
+    # A viewport this small makes the sase panel overflow (9 options at this
+    # fixture's grouping don't fit in 6 content rows), so scrolling to a
+    # non-zero offset before toggling actually exercises the scroll-position
+    # guarantee instead of trivially passing at offset 0.
+    async with AcePage(query='"visual"', patches=patches(), size=(90, 16)) as page:
         await _goto_agents(page, 4)
         widget = _lists(page)[0]
         rows_before = [widget.get_option_at_index(i).id for i in range(4)]
+
+        max_scroll = (
+            widget.virtual_size.height - widget.scrollable_content_region.height
+        )
+        assert max_scroll > 0
+        widget.scroll_to(y=max_scroll, animate=False)
+        await wait_for_visual_idle(page)
+        scroll_before = widget.scroll_offset
+        assert scroll_before.y > 0
+        highlighted_before = widget.highlighted
+        assert highlighted_before is not None
+        line_before = widget._index_to_line[highlighted_before]
+        region_y_before = widget.region.y
+
         await page.press("ctrl+s")
         await wait_for_visual_idle(page)
-        assert widget.scroll_offset.y == 0
+        assert widget.scroll_offset == scroll_before
         rows_rail = [widget.get_option_at_index(i).id for i in range(4)]
         assert rows_rail == rows_before
         rail_ys = [widget.get_option_at_index(i) for i in range(4)]
         assert all(option is not None for option in rail_ys)
+        assert widget.highlighted == highlighted_before
+        assert widget._index_to_line[widget.highlighted] == line_before
+        assert widget.region.y == region_y_before
+
         await page.press("ctrl+s")
         await wait_for_visual_idle(page)
-        assert widget.scroll_offset.y == 0
+        assert widget.scroll_offset == scroll_before
         assert [widget.get_option_at_index(i).id for i in range(4)] == rows_before
+        assert widget.highlighted == highlighted_before
+        assert widget._index_to_line[widget.highlighted] == line_before
+        assert widget.region.y == region_y_before
 
 
 async def test_split_in_rail_keeps_rail(monkeypatch) -> None:
@@ -177,6 +202,30 @@ async def test_zoom_from_rail_is_flush_and_restores_rail(monkeypatch) -> None:
         assert container.display is not False
         assert container.region.width == NODE_RAIL_WIDTH
         assert all(widget._rail_enabled for widget in _lists(page))
+
+
+async def test_zoom_then_split_key_clears_hidden_class_and_shows_container(
+    monkeypatch,
+) -> None:
+    """From EXPANDED, Z hides the node column; a split key ends the zoom."""
+    patch_startup_loaders(monkeypatch, agents=_agents())
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        detail = await _goto_agents(page, 4)
+        assert detail.sidebar_mode is SidebarMode.EXPANDED
+        content = page.app.query_one("#agents-content")
+        container = page.app.query_one("#agent-list-container")
+
+        await page.press("Z")
+        await wait_for_visual_idle(page)
+        assert detail.sidebar_mode is SidebarMode.HIDDEN
+        assert content.has_class("-nodes-hidden")
+        assert container.display is False
+
+        await page.press("backslash")
+        await wait_for_visual_idle(page)
+        assert not content.has_class("-nodes-hidden")
+        assert container.display is not False
+        assert container.region.width > 0
 
 
 async def test_panel_mounted_in_rail_starts_in_rail(monkeypatch) -> None:

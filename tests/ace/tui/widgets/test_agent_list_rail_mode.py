@@ -365,3 +365,46 @@ async def test_textual_routes_update_lines_and_option_render_through_get_visual(
         calls = 0
         widget._get_option_render(widget.get_option_at_index(0), Style())
         assert calls >= 1
+
+
+async def test_spacer_rows_render_without_rail_fallback_trace(
+    monkeypatch: Any,
+) -> None:
+    """Spacer rows return blank cells directly, never the fallback path."""
+    from sase.ace.tui.widgets import _agent_list_rail_mode
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        _agent_list_rail_mode,
+        "trace_event",
+        lambda event, **fields: events.append(event),
+    )
+
+    app = _RailApp()
+    async with app.run_test(size=(60, 20)) as pilot:
+        await pilot.pause()
+        widget = app.query_one(AgentList)
+        agents = [
+            _agent("running", 1, status="RUNNING"),
+            _agent("done", 2, status="DONE"),
+        ]
+        widget.update_list(agents, 0, grouping_mode=BY_STATUS)
+        widget.set_rail(True)
+        await pilot.pause()
+
+        spacer_options = [
+            option
+            for option in widget._options
+            if str(option.id or "").startswith("spacer:")
+        ]
+        assert spacer_options
+
+        widget._rail_visual_cache.clear()
+        for option in widget._options:
+            widget._get_visual(option)
+        for option in spacer_options:
+            text = widget._rail_cells_for_option(option)
+            assert text is not None
+            assert text.plain == " " * RAIL_CONTENT_CELLS
+
+    assert "widget.agent_list.rail_fallback" not in events

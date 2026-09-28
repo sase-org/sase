@@ -144,7 +144,7 @@ def toggle_split(
 
 
 def toggle_nodes_collapsed(state: DeckAreaState) -> DeckAreaState:
-    """Collapse or expand the node panel without unmounting it.
+    """Toggle the node panel between expanded and rail without unmounting it.
 
     While zoomed, Ctrl+S restores the snapshot exactly, like Z.
     """
@@ -159,7 +159,7 @@ def is_zoomed(state: DeckAreaState) -> bool:
 
 
 def _enter_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:
-    """Zoom the focused panel in place, hiding the node panel.
+    """Zoom the focused panel in place, hiding the node panel or rail.
 
     Snapshots the deck-area state (layout, panels, focus, ratio, collapse)
     and shows only the focused panel as SINGLE. The ``nodes_collapsed``

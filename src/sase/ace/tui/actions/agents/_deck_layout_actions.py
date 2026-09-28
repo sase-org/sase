@@ -109,7 +109,7 @@ class AgentDeckLayoutActionsMixin:
         self._refresh_deck_footer()
 
     def action_toggle_node_panel(self) -> None:
-        """Collapse or expand the node panel without unmounting it."""
+        """Toggle the node panel between expanded and rail without unmounting it."""
         if self.current_tab != "agents":
             return
         try:

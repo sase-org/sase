@@ -52,7 +52,14 @@ def test_watch_highlighted_delegates_when_user_navigation() -> None:
     widget._programmatic_update = False
 
     delegated: list[int | None] = []
-    base_class = widget.__class__.__mro__[1]
+    # AgentListRailMixin now sits at __mro__[1] and has no
+    # watch_highlighted of its own, so patch the first class in the MRO
+    # that actually defines it (Textual's OptionList).
+    base_class = next(
+        klass
+        for klass in widget.__class__.__mro__[1:]
+        if "watch_highlighted" in klass.__dict__
+    )
 
     original = base_class.watch_highlighted
 

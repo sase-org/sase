@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+from rich.cells import cell_len
 
 from sase.ace.tui.models.agent_groups import GroupingMode, GroupRow
 from sase.core.time import local_now
@@ -361,6 +362,66 @@ def test_banner_width_math_uses_cell_widths() -> None:
     plain = option.prompt.plain  # type: ignore[union-attr]
     # "▌ "(2 cells) + "日本語"(6 cells) + 1 gap = 9 used; pad = 40 - 9.
     assert plain == "▌ 日本語 " + "━" * 31
+
+
+_BUCKET_AND_WIDE_LABELS = list(RAIL_BUCKET_GLYPHS) + ["日本語"]
+_HINT_CHARS = pytest.mark.parametrize(
+    "hint_char", [None, "a", "ab"], ids=["no-hint", "1char-hint", "2char-hint"]
+)
+
+
+@_HINT_CHARS
+@pytest.mark.parametrize("label", _BUCKET_AND_WIDE_LABELS)
+@pytest.mark.parametrize("has_chip", [False, True], ids=["no-chip", "chip"])
+def test_by_status_l0_banner_width_exact(
+    label: str, has_chip: bool, hint_char: str | None
+) -> None:
+    """Every BY_STATUS L0 banner (real bucket or wide label) fits ``width``
+    exactly, across the no-hint / 1-char-hint / 2-char-hint and
+    chip / no-chip branches."""
+    width = 60
+    agents = [make_agent(status="RUNNING")] if has_chip else []
+    group = GroupRow(
+        level=0, group_key=(label,), agent_indices=tuple(range(len(agents)))
+    )
+    option = format_banner_option(
+        group,
+        agents,
+        width=width,
+        sequence=0,
+        mode=GroupingMode.BY_STATUS,
+        hint_char=hint_char,
+    )
+    plain = option.prompt.plain  # type: ignore[union-attr]
+    assert cell_len(plain) == width
+
+
+@_HINT_CHARS
+@pytest.mark.parametrize("label", _BUCKET_AND_WIDE_LABELS)
+@pytest.mark.parametrize("has_chip", [False, True], ids=["no-chip", "chip"])
+def test_by_machine_l1_banner_width_exact(
+    label: str, has_chip: bool, hint_char: str | None
+) -> None:
+    """Every BY_MACHINE L1 status banner (real bucket or wide label) fits
+    ``width`` exactly, across the no-hint / 1-char-hint / 2-char-hint and
+    chip / no-chip branches."""
+    width = 60
+    agents = [make_agent(status="RUNNING")] if has_chip else []
+    group = GroupRow(
+        level=1,
+        group_key=("here", label),
+        agent_indices=tuple(range(len(agents))),
+    )
+    option = format_banner_option(
+        group,
+        agents,
+        width=width,
+        sequence=0,
+        mode=GroupingMode.BY_MACHINE,
+        hint_char=hint_char,
+    )
+    plain = option.prompt.plain  # type: ignore[union-attr]
+    assert cell_len(plain) == width
 
 
 def test_standard_mode_banner_unchanged_after_phase_2() -> None:

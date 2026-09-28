@@ -18,7 +18,6 @@ from ._display_helpers import (
     panel_widget_id_for_key,
     panel_widget_is_retiring,
 )
-from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._refresh_trace import (
     ALL_AGENT_REFRESH_FALLBACK_REASONS,
     AgentRefreshDisplayCost,
@@ -27,11 +26,14 @@ from ._refresh_trace import (
 )
 
 if TYPE_CHECKING:
+    from rich.text import Text
+
     from ...agent_completion import WaitDependencyStatusCounts
     from ...models import Agent
     from ...models.agent import AgentType
-    from ...models.agent_panels import AgentPanelGroup
+    from ...models.agent_panels import AgentPanelGroup, PanelKey
     from ...widgets import AgentList
+    from ..navigation.jump_hints import PanelJumpTarget
 
 
 def _status_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
@@ -97,6 +99,34 @@ class PanelPatchMixin:
     _current_group_key: tuple[str, ...] | None
     _panel_group: AgentPanelGroup
     _agents_first_load_done: bool
+
+    def _agent_panel_title(
+        self,
+        key: PanelKey,
+        panel_agents: list[Agent],
+        *,
+        merge_tribe_panels: bool,
+        panel_jump_hints: dict[PanelJumpTarget, str] | None = None,
+        isolation_restore_marked: bool = False,
+        fold_restore_marked_count: int = 0,
+    ) -> Text:
+        """Build a panel title using the active transient hints.
+
+        Supplied by :class:`PanelCollectionMixin`, always present on the
+        real app; declared here only so mypy sees the attribute on this
+        mixin too.
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    def _set_agent_panel_title(widget: AgentList, title: Text) -> None:
+        """Update a panel widget's border title.
+
+        Supplied by :class:`PanelCollectionMixin`, always present on the
+        real app; declared here only so mypy sees the attribute on this
+        mixin too.
+        """
+        raise NotImplementedError
 
     def _record_display_patch_trace(
         self,
@@ -470,28 +500,14 @@ class PanelPatchMixin:
             return False
 
         slot = panel_index.slice_for(agent_panel_key)
-        unread: set[tuple[AgentType, str, str | None]] = getattr(
-            self, "_unread_completed_agent_ids", set()
-        )
-        title_builder = getattr(self, "_agent_panel_title", None)
-        title_setter = getattr(self, "_set_agent_panel_title", None)
-        if callable(title_builder) and callable(title_setter):
-            title_setter(
-                widget,
-                title_builder(
-                    agent_panel_key,
-                    slot.agents,
-                    merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
-                ),
-            )
-        else:
-            counts = agent_panel_counts(slot.agents, unread)
-            widget.border_title = agent_panel_border_title(
+        self._set_agent_panel_title(
+            widget,
+            self._agent_panel_title(
                 agent_panel_key,
-                counts.lane_count,
+                slot.agents,
                 merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
-                counts=counts,
-            )
+            ),
+        )
         if refresh_info:
             self._update_agents_info_panel()  # type: ignore[attr-defined]
         self._record_display_patch_trace(display_cost="row_patch", count=1)

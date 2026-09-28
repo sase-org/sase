@@ -12,6 +12,7 @@ from sase.ace.tui.models.agent_groups import GroupingMode, GroupRow
 from sase.ace.tui.widgets._agent_list_render_agent_prefix import (
     append_agent_row_prefix,
 )
+from sase.ace.tui.widgets._agent_list_render_banner import format_banner_option
 from sase.ace.tui.widgets._agent_list_render_rail import (
     NODE_RAIL_WIDTH,
     RAIL_BUCKET_GLYPHS,
@@ -317,6 +318,43 @@ def test_banner_cells_bucket_lead_parity() -> None:
         assert mid.plain[0] == glyph, bucket
 
 
+def _style_at(text: Text, index: int) -> str:
+    for span in text.spans:
+        if span.start <= index < span.end:
+            return span.style
+    return ""
+
+
+def test_stopped_banner_rule_is_not_a_solid_amber_bar() -> None:
+    """Only the ``?`` lead cell keeps a background; the rule, fold mark,
+    and count read as foreground-only amber (``#FFAF00``)."""
+    # A RUNNING member keeps the folded roll-up glyph blank so the ``?``
+    # lead is the banner's only background-carrying cell.
+    agents = [_agent(status="RUNNING")]
+
+    expanded = rail_banner_cells(
+        _group(level=0, key=("Stopped",)), agents, mode=GroupingMode.BY_STATUS
+    )
+    assert expanded.plain[0] == "?"
+    assert " on " in _style_at(expanded, 0)
+    for i in range(1, expanded.cell_len):
+        style = _style_at(expanded, i)
+        assert " on " not in style, (i, style)
+        assert "#FFAF00" in style, (i, style)
+
+    folded_group = GroupRow(
+        level=0, group_key=("Stopped",), agent_indices=(0,), is_collapsed=True
+    )
+    folded = rail_banner_cells(folded_group, agents, mode=GroupingMode.BY_STATUS)
+    assert folded.plain[0] == "▸"
+    assert folded.plain[1] == "?"
+    bg_cells = [i for i in range(folded.cell_len) if " on " in _style_at(folded, i)]
+    assert bg_cells == [1]
+    for i in (0, 2, 3, 4):
+        style = _style_at(folded, i)
+        assert "#FFAF00" in style, (i, style)
+
+
 def test_rail_urgency_precedence() -> None:
     stopped = _agent(status="QUESTION")
     failed = _agent(status="FAILED")
@@ -440,8 +478,48 @@ def test_row_kind_glyph_parity_with_expanded_prefix() -> None:
     assert rail_cells.cell_len == RAIL_CONTENT_CELLS
 
 
+def test_hidden_retry_workflow_row_keeps_pre_epic_badge_order() -> None:
+    """The top-level type badge (``≡``) renders after the hidden icon and
+    retry badge, not before them — a 55e4bf73b regression."""
+    workflow = _agent(
+        agent_type=AgentType.WORKFLOW,
+        appears_as_agent=True,
+        is_anonymous=True,
+        hidden=True,
+        retry_attempt=1,
+    )
+    prefix = append_agent_row_prefix(
+        workflow, is_selected=False, is_expanded=True
+    ).plain
+    assert prefix == "  ↳ ◌ ↻1 ≡ demo"
+
+    machine_workflow = _agent(
+        agent_type=AgentType.WORKFLOW,
+        appears_as_agent=True,
+        is_anonymous=True,
+        hidden=True,
+        retry_attempt=1,
+        fleet_origin_alias="mac",
+    )
+    machine_prefix = append_agent_row_prefix(
+        machine_workflow,
+        is_selected=False,
+        is_expanded=True,
+        show_machine_chip=True,
+    ).plain
+    assert machine_prefix == "  ↳ ◌ ↻1 mac ≡ demo"
+
+
 @pytest.mark.parametrize("bucket", list(RAIL_BUCKET_GLYPHS))
 def test_banner_glyph_matches_rail_glyph(bucket: str) -> None:
-    """Each bucket banner glyph equals the rail glyph for that bucket."""
-    glyph, _style = RAIL_BUCKET_GLYPHS[bucket]
-    assert Text(glyph).cell_len == 1
+    """Each expanded BY_STATUS L0 banner's leading glyph and style equal
+    the rail glyph and style for that bucket."""
+    glyph, style = RAIL_BUCKET_GLYPHS[bucket]
+    group = GroupRow(level=0, group_key=(bucket,), agent_indices=())
+    option = format_banner_option(
+        group, [], width=40, sequence=0, mode=GroupingMode.BY_STATUS
+    )
+    text = option.prompt
+    assert text.plain[0] == glyph  # type: ignore[union-attr]
+    lead_spans = [s for s in text.spans if s.start <= 0 < s.end]  # type: ignore[union-attr]
+    assert any(s.style == style for s in lead_spans), lead_spans

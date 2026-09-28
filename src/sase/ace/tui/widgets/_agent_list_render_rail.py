@@ -355,6 +355,27 @@ def _banner_rule_char(level: int) -> str:
     return _RAIL_HEAVY_RULE if level == 0 else _RAIL_THIN_RULE
 
 
+def _rule_style_from_lead(lead_style: str) -> str:
+    """Foreground-only rule/fold-mark/count style derived from a lead style.
+
+    A lead style may paint its glyph as a reverse chip (explicit
+    foreground + background, e.g. the ``Stopped`` ``?`` chip) so it reads
+    as a chip against the row. Only the lead cell should carry that
+    background — the rule, fold mark, and count must not, or the whole
+    banner reads as a solid block. When the lead style sets a background,
+    that background color becomes the new (background-free) foreground;
+    otherwise the lead style already has no background and is returned
+    unchanged.
+    """
+    tokens = lead_style.split()
+    if "on" in tokens:
+        on_idx = tokens.index("on")
+        attrs = tokens[: on_idx - 1]
+        bg = tokens[on_idx + 1]
+        return " ".join([*attrs, bg])
+    return lead_style
+
+
 def _rail_urgency(
     agents: Collection[Agent],
     unread: Collection[Any],
@@ -426,14 +447,15 @@ def rail_banner_cells(
         is_patch_banner=is_patch_banner,
     )
     rule = _banner_rule_char(group.level)
+    rule_style = _rule_style_from_lead(lead_style)
     text = Text()
     if not group.is_collapsed:
         if hint_text:
             text.append(hint_text, style=RAIL_HINT_STYLE)
-            text.append(rule * (RAIL_CONTENT_CELLS - len(hint_text)), style=lead_style)
+            text.append(rule * (RAIL_CONTENT_CELLS - len(hint_text)), style=rule_style)
         else:
             text.append(lead, style=lead_style)
-            text.append(rule * (RAIL_CONTENT_CELLS - 1), style=lead_style)
+            text.append(rule * (RAIL_CONTENT_CELLS - 1), style=rule_style)
         return text
     members = _top_level_members(group, agents)
     count_text = f"{min(len(members), RAIL_COUNT_CAP)}"
@@ -442,13 +464,13 @@ def rail_banner_cells(
         text.append(hint_text, style=RAIL_HINT_STYLE)
         head = len(hint_text)
     else:
-        text.append(RAIL_FOLD_GLYPH, style=lead_style)
+        text.append(RAIL_FOLD_GLYPH, style=rule_style)
         text.append(lead, style=lead_style)
         head = 2
     # The count ends at cell 4; the roll-up owns cell 5.
     count_start = RAIL_CONTENT_CELLS - 1 - len(count_text)
-    text.append(rule * max(0, count_start - head), style=lead_style)
-    text.append(count_text, style=lead_style)
+    text.append(rule * max(0, count_start - head), style=rule_style)
+    text.append(count_text, style=rule_style)
     text.append_text(urgency)
     return text
 

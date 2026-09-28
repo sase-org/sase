@@ -5108,15 +5108,24 @@ works unchanged; runtime ticks pause and catch up on expand. The footer shows
 `Ctrl+S expand nodes` while railed, and the info row's `nodes i/N · Ctrl+S` chip is
 clickable. The `?` help modal's Node Rail box lists the full glyph legend.
 
+Each rail cell packs more than its lead glyph. The trailing pip cell shows the marked
+`▪` pip when marked, the unread `•` pip when unread and unmarked, and blank otherwise —
+marked always wins over unread. Clan and agent-session container rows also carry a
+member count (capped at `99`, tinted by container kind). Tree guides (`│` continuing,
+`└` terminal) prefix child rows and clamp at depth 2, so a row's cells never depend on
+how deeply it is nested. A folded banner instead reads a `▸` fold mark, the lead glyph,
+the rule, the hidden-row count, and a 1-cell urgency roll-up for the group's most urgent
+member: `?` needs-you beats red `✗` failed beats gold `•` unread, else blank.
+
 `Z` zooms the focused deck panel in place: it snapshots the deck-area state (layout,
-panels, focus, ratio, collapse), then shows only the focused panel with the node column
-hidden entirely — no rail, no spine. The zoomed panel gets a heavy border in its own
-deck accent, a reverse-gold `ZOOM` chip leading its title, and a restore hint
-(`◧ 1 of 2 · Z restore` from a split, `Z restore` from a single deck) leading its
-subtitle. The info row shows the same clickable `ZOOM` chip, then `Z restore`, then
-`node i/N` (`j` / `k` still moves the selection); the footer shows `Z restore` while
-zoomed. The panel keeps its widget, card, and scroll position, and search, `E`, cards,
-and decks all work normally while zoomed.
+panels, focus, ratio), then shows only the focused panel with the node column hidden
+entirely — no rail. The zoomed panel gets a heavy border in its own deck accent, a
+reverse-gold `ZOOM` chip leading its title, and a restore hint (`◧ 1 of 2 · Z restore`
+from a split, `Z restore` from a single deck) leading its subtitle. The info row shows
+the same clickable `ZOOM` chip, then `Z restore`, then `node i/N` (`j` / `k` still moves
+the selection); the footer shows `Z restore` while zoomed. The panel keeps its widget,
+card, and scroll position, and search, `E`, cards, and decks all work normally while
+zoomed.
 
 A second `Z` restores the snapshot exactly, as does `Ctrl+S` while zoomed ("in zoom, any
 sidebar key gives your layout back"). Using a layout key (`\`, `|`) while zoomed ends
@@ -5589,7 +5598,7 @@ moves focus to the other panel (split layouts only) and every deck, card, scroll
 search, and fold key acts on the focused panel. `}` / `{` grow / shrink the focused
 panel (split layouts only). `Ctrl+B` has no Agents behavior.
 
-The layout, split ratio, focus, node-panel collapse, and each panel's deck, preferred
+The layout, split ratio, focus, node-rail preference, and each panel's deck, preferred
 card, and deck views persist across restarts in `~/.sase/ace_agents_deck_state.json`.
 See the [key tables](#navigation) for the full deck keymap and
 [configuration](configuration.md#aceagent_decks) for the spread setting.
