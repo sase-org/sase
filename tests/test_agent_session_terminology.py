@@ -70,6 +70,7 @@ _FAMILY_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/ace/tui/widgets/_directive_completion_agents.py"),
     Path("src/sase/axe/run_agent_wait_slots.py"),
     Path("src/sase/dispatch/launch.py"),
+    Path("src/sase/dispatch/launch_submit.py"),
     Path("src/sase/gate_turn/store.py"),
     Path("src/sase/integrations/_agent_list_entry_builder.py"),
     Path("src/sase/monitor/store.py"),

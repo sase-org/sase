@@ -283,7 +283,7 @@ def test_launch_query_remote_dispatch_forwards_tags_verbatim(
     monkeypatch: pytest.MonkeyPatch, tag_catalog: ProjectTagCatalog
 ) -> None:
     """Remote dispatch sees the raw ``+tag`` prompt; no local validation."""
-    from sase.dispatch.launch import _RemoteDispatchLaunchResult
+    from sase.dispatch.launch_submit import _RemoteDispatchLaunchResult
     from sase.main.query_handler._launch import launch_query
 
     monkeypatch.delenv("SASE_AGENT", raising=False)

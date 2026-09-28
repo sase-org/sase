@@ -23,10 +23,8 @@ from sase.core.agent_launch_wire import (
     LaunchUnitWire,
     agent_launch_wire_to_json_dict,
 )
-from sase.dispatch.launch import (
-    RemoteDispatchLaunchError,
-    _RemoteDispatchLaunchResult,
-)
+from sase.dispatch.launch import RemoteDispatchLaunchError
+from sase.dispatch.launch_submit import _RemoteDispatchLaunchResult
 from sase.feature_flags import override_flags
 from tests._launch_admission_helpers import agent_result
 

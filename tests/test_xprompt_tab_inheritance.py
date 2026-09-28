@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 import sase.dispatch.launch as launch
+import sase.dispatch.launch_preview as launch_preview
 from sase.agent.launch_request import create_launch_approval_request
 from sase.axe.run_agent_directive_metadata import export_agent_tab_env
 from sase.axe.run_agent_exec import _export_exec_agent_tab
@@ -180,10 +181,10 @@ def _preview(
     version: int | None,
 ) -> Any:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(launch, "load_dispatch_config", _preview_config)
-    monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
+    monkeypatch.setattr(launch_preview, "load_dispatch_config", _preview_config)
+    monkeypatch.setattr(launch_preview, "require_rust_binding", _rust_binding)
     monkeypatch.setattr(
-        launch, "_read_cached_target_contract_version", lambda alias: version
+        launch_preview, "_read_cached_target_contract_version", lambda alias: version
     )
     return launch.preview_dispatch_launch(
         query,
@@ -226,13 +227,15 @@ def test_tab_preflight_skipped_without_tab(
     tmp_path: Path,
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(launch, "load_dispatch_config", _preview_config)
-    monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
+    monkeypatch.setattr(launch_preview, "load_dispatch_config", _preview_config)
+    monkeypatch.setattr(launch_preview, "require_rust_binding", _rust_binding)
 
     def _unexpected(alias: str) -> int | None:
         raise AssertionError("version lookup must not run without %tab")
 
-    monkeypatch.setattr(launch, "_read_cached_target_contract_version", _unexpected)
+    monkeypatch.setattr(
+        launch_preview, "_read_cached_target_contract_version", _unexpected
+    )
     preview = launch.preview_dispatch_launch(
         "%dispatch:apollo do remote work",
         payload={"project": "sase", "patch_ref": "patch-123", "follow": True},
@@ -243,14 +246,14 @@ def test_tab_preflight_skipped_without_tab(
 
 def test_contract_version_parsing() -> None:
     assert (
-        launch._contract_version_for_alias(
+        launch_preview._contract_version_for_alias(
             {"hosts": [{"alias": "apollo", "fleet_contract_schema_version": 7}]},
             "apollo",
         )
         == 7
     )
     assert (
-        launch._contract_version_for_alias(
+        launch_preview._contract_version_for_alias(
             {
                 "hosts": [
                     {
@@ -264,14 +267,14 @@ def test_contract_version_parsing() -> None:
         == 6
     )
     assert (
-        launch._contract_version_for_alias(
+        launch_preview._contract_version_for_alias(
             {"hosts": [{"alias": "mac", "fleet_contract_schema_version": 7}]},
             "apollo",
         )
         is None
     )
-    assert launch._contract_version_for_alias({"hosts": []}, "apollo") is None
-    assert launch._contract_version_for_alias({}, "apollo") is None
+    assert launch_preview._contract_version_for_alias({"hosts": []}, "apollo") is None
+    assert launch_preview._contract_version_for_alias({}, "apollo") is None
 
 
 def test_scan_tab_directive_absent() -> None:

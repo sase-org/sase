@@ -6,6 +6,9 @@ from typing import Any
 import pytest
 
 import sase.dispatch.launch as launch
+import sase.dispatch.launch_preview as launch_preview
+import sase.dispatch.launch_submit as launch_submit
+from sase.dispatch.federation import FederationWorkerResponseError
 from sase.dispatch.models import DispatchConfig, MachineRecord, ProviderSettings
 from tests.conftest import redirect_sase_home
 
@@ -52,8 +55,11 @@ def test_dispatch_launch_submits_portable_request_and_records_follow(
 ) -> None:
     machine = _machine()
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(machine))
-    monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
+    monkeypatch.setattr(
+        launch_preview, "load_dispatch_config", lambda: _config(machine)
+    )
+    monkeypatch.setattr(launch_submit, "load_dispatch_config", lambda: _config(machine))
+    monkeypatch.setattr(launch_preview, "require_rust_binding", _rust_binding)
 
     submitted: list[dict[str, Any]] = []
 
@@ -112,7 +118,7 @@ def test_dispatch_launch_submits_portable_request_and_records_follow(
                 ],
             }
 
-    monkeypatch.setattr(launch, "build_federation_facade", Facade)
+    monkeypatch.setattr(launch_submit, "build_federation_facade", Facade)
 
     result = launch.maybe_dispatch_launch(
         "%dispatch:apollo do remote work",
@@ -142,8 +148,11 @@ def test_dispatch_launch_does_not_inject_name_when_prompt_has_id(
 ) -> None:
     machine = _machine()
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(machine))
-    monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
+    monkeypatch.setattr(
+        launch_preview, "load_dispatch_config", lambda: _config(machine)
+    )
+    monkeypatch.setattr(launch_submit, "load_dispatch_config", lambda: _config(machine))
+    monkeypatch.setattr(launch_preview, "require_rust_binding", _rust_binding)
 
     submitted: list[dict[str, Any]] = []
 
@@ -197,7 +206,7 @@ def test_dispatch_launch_does_not_inject_name_when_prompt_has_id(
                 ],
             }
 
-    monkeypatch.setattr(launch, "build_federation_facade", Facade)
+    monkeypatch.setattr(launch_submit, "build_federation_facade", Facade)
     result = launch.maybe_dispatch_launch(
         "%dispatch:apollo %id:observer do remote work",
         payload={"project": "sase", "patch_ref": "patch-123", "follow": True},
@@ -213,8 +222,10 @@ def test_dispatch_preview_builds_request_without_federation_submission(
 ) -> None:
     machine = _machine()
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(machine))
-    monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
+    monkeypatch.setattr(
+        launch_preview, "load_dispatch_config", lambda: _config(machine)
+    )
+    monkeypatch.setattr(launch_preview, "require_rust_binding", _rust_binding)
 
     preview = launch.preview_dispatch_launch(
         "%dispatch:apollo do remote work",
@@ -235,7 +246,9 @@ def test_dispatch_preview_builds_request_without_federation_submission(
 def test_dispatch_launch_rejects_local_only_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(_machine()))
+    monkeypatch.setattr(
+        launch_preview, "load_dispatch_config", lambda: _config(_machine())
+    )
 
     with pytest.raises(
         launch.RemoteDispatchLaunchError,
@@ -253,8 +266,11 @@ def test_launch_lost_reply_reconciles_under_the_same_key(
 ) -> None:
     machine = _machine()
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(machine))
-    monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
+    monkeypatch.setattr(
+        launch_preview, "load_dispatch_config", lambda: _config(machine)
+    )
+    monkeypatch.setattr(launch_submit, "load_dispatch_config", lambda: _config(machine))
+    monkeypatch.setattr(launch_preview, "require_rust_binding", _rust_binding)
     keys: list[dict[str, Any]] = []
 
     class Facade:
@@ -268,7 +284,7 @@ def test_launch_lost_reply_reconciles_under_the_same_key(
             del timeout_seconds
             keys.append(request["key"])
             if len(keys) == 1:
-                raise launch.FederationWorkerResponseError({"message": "lost reply"})
+                raise FederationWorkerResponseError({"message": "lost reply"})
             return {
                 "schema_version": 1,
                 "operation": "launch",
@@ -313,7 +329,7 @@ def test_launch_lost_reply_reconciles_under_the_same_key(
                 ],
             }
 
-    monkeypatch.setattr(launch, "build_federation_facade", Facade)
+    monkeypatch.setattr(launch_submit, "build_federation_facade", Facade)
     payload = {"project": "sase", "patch_ref": "patch-123", "follow": True}
 
     with pytest.raises(launch.RemoteDispatchLaunchError, match="uncertain"):
@@ -343,8 +359,11 @@ def test_launch_failed_receipt_records_failure(
 ) -> None:
     machine = _machine()
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(machine))
-    monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
+    monkeypatch.setattr(
+        launch_preview, "load_dispatch_config", lambda: _config(machine)
+    )
+    monkeypatch.setattr(launch_submit, "load_dispatch_config", lambda: _config(machine))
+    monkeypatch.setattr(launch_preview, "require_rust_binding", _rust_binding)
 
     class Facade:
         def launch_sync(
@@ -387,7 +406,7 @@ def test_launch_failed_receipt_records_failure(
                 ],
             }
 
-    monkeypatch.setattr(launch, "build_federation_facade", Facade)
+    monkeypatch.setattr(launch_submit, "build_federation_facade", Facade)
 
     with pytest.raises(
         launch.RemoteDispatchLaunchError,
