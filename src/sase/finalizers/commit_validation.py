@@ -271,6 +271,7 @@ def reject_discarded_dirty_work(
     before: DirtyState,
     after: DirtyState,
     *,
+    fingerprint_before: tuple[tuple[str, str, tuple[str, ...]], ...],
     artifacts: Path | None,
     project_dir: str,
     instance_id: str,
@@ -279,9 +280,15 @@ def reject_discarded_dirty_work(
     invoke_result: InvokeResult,
     ledger_before: Sequence[Mapping[str, Any]],
 ) -> None:
+    """Fail when *before* repos went clean without an attributable commit.
+
+    *fingerprint_before* must be captured when *before* was scanned. A lazy
+    capture compares HEAD with itself and disables the shared-clone exemption.
+    """
     discarded = discarded_dirty_work_evidence(
         before,
         after,
+        fingerprint_before=fingerprint_before,
         artifacts_dir=str(artifacts) if artifacts is not None else None,
     )
     commit_results = _load_commit_results(artifacts)

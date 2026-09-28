@@ -30,6 +30,10 @@ from sase.core.finalizer_wire import (
     finalizer_context_from_dict,
 )
 from sase.llm_provider.commit_finalizer_git import dirty_path_fingerprints
+from sase.llm_provider.commit_finalizer_git_status import (
+    UNKNOWN_HEAD_SENTINEL,
+    git_head_commit_id,
+)
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.memory.locks import locked_file
 
@@ -59,6 +63,7 @@ class HostRepositoryRecord:
     name: str
     path: str
     path_count: int | None = None
+    head: str | None = None
 
 
 @contextmanager
@@ -101,16 +106,20 @@ def load_accepted_host_repositories(root: Path) -> tuple[HostRepositoryRecord, .
 def host_repository_records(
     dirty_state: DirtyState,
 ) -> tuple[HostRepositoryRecord, ...]:
-    return tuple(
-        HostRepositoryRecord(
-            obligation_id=repository_obligation_id(repo),
-            kind=repo.kind,
-            name=repo.name,
-            path=repo.path,
-            path_count=len(repo.changed_files),
+    records: list[HostRepositoryRecord] = []
+    for repo in dirty_state.repos:
+        head = git_head_commit_id(repo.path)
+        records.append(
+            HostRepositoryRecord(
+                obligation_id=repository_obligation_id(repo),
+                kind=repo.kind,
+                name=repo.name,
+                path=repo.path,
+                path_count=len(repo.changed_files),
+                head=None if head == UNKNOWN_HEAD_SENTINEL else head,
+            )
         )
-        for repo in dirty_state.repos
-    )
+    return tuple(records)
 
 
 def write_host_repository_file(
@@ -131,6 +140,7 @@ def write_host_repository_file(
                     "name": record.name,
                     "path": record.path,
                     "path_count": record.path_count,
+                    "head": record.head,
                 }
                 for record in records
             ],
@@ -168,6 +178,7 @@ def read_host_repository_file(path: Path) -> tuple[HostRepositoryRecord, ...]:
         name = item.get("name")
         repo_path = item.get("path")
         path_count = item.get("path_count")
+        head = item.get("head")
         if not (
             isinstance(obligation_id, str)
             and isinstance(kind, str)
@@ -177,6 +188,7 @@ def read_host_repository_file(path: Path) -> tuple[HostRepositoryRecord, ...]:
             and (
                 path_count is None or (isinstance(path_count, int) and path_count >= 0)
             )
+            and (head is None or isinstance(head, str))
         ):
             raise FinalizerDeclarationError(
                 "finalizer host repository snapshot has an invalid record",
@@ -189,6 +201,7 @@ def read_host_repository_file(path: Path) -> tuple[HostRepositoryRecord, ...]:
                 name=name,
                 path=repo_path,
                 path_count=path_count,
+                head=head,
             )
         )
     return tuple(records)

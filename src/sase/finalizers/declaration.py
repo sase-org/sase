@@ -462,6 +462,8 @@ def _assigned_bead_context(
 def _host_repository_record_set(
     records: tuple[HostRepositoryRecord, ...],
 ) -> frozenset[tuple[str, str, str, str]]:
+    # `head` is intentionally excluded: a foreign commit landing on a shared
+    # store between context and submit must not make the declaration stale.
     return frozenset(
         (record.obligation_id, record.kind, record.name, record.path)
         for record in records

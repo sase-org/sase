@@ -69,6 +69,8 @@ from sase.finalizers.reconciliation import (
 )
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
+from sase.llm_provider.commit_finalizer_git import progress_fingerprint
+from sase.llm_provider.commit_finalizer_git_status import git_head_commit_id
 from sase.llm_provider.commit_finalizer_prompting import failure_message
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
@@ -183,6 +185,13 @@ def execute_commit_finalizer(
         artifacts=artifacts,
         ledger_after_reconciliation=ledger_after_reconciliation,
     )
+    # Paired with `dirty_before_decisions`: later `state =
+    # prepare_commit_dirty_state(...)` re-assignments in the
+    # checkpoint-recovery and already-clean branches do not change
+    # `dirty_before_decisions`, so they must not change this fingerprint
+    # either. A lazy capture would compare HEAD with itself and disable the
+    # shared-clone exemption.
+    fingerprint_before_decisions = progress_fingerprint(dirty_before_decisions)
     current_repo_ids = {
         _repository_decision_id(repo) for repo in state.dirty_state.repos
     }
@@ -291,6 +300,9 @@ def execute_commit_finalizer(
                 repos=(),
                 details="",
             ),
+            fingerprint_before=_already_clean_fingerprint_before(
+                already_clean, host_records
+            ),
             artifacts=artifacts,
             project_dir=project_dir,
             instance_id=instance.instance_id,
@@ -381,6 +393,7 @@ def execute_commit_finalizer(
     _reject_discarded_dirty_work(
         dirty_before_decisions,
         state.dirty_state,
+        fingerprint_before=fingerprint_before_decisions,
         artifacts=artifacts,
         project_dir=project_dir,
         instance_id=instance.instance_id,
@@ -594,6 +607,30 @@ def _refresh_state_for_transient_extra_dirty(
         refreshed.dirty_state,
         pre_reconciliation_dirty_state(refreshed),
     )
+
+
+def _already_clean_fingerprint_before(
+    already_clean: Sequence[DirtyRepo],
+    host_records: Sequence[Any],
+) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    """Build declaration-time fingerprints for already-clean repos.
+
+    The HEAD is the one recorded when the declaration context was built.
+    Records written before that HEAD was stored fall back to the current
+    HEAD, which is exactly today's behaviour.
+    """
+    head_by_id: dict[str, Any] = {}
+    for record in host_records:
+        obligation_id = getattr(record, "obligation_id", None)
+        if isinstance(obligation_id, str):
+            head_by_id[obligation_id] = getattr(record, "head", None)
+    entries: list[tuple[str, str, tuple[str, ...]]] = []
+    for repo in already_clean:
+        head = head_by_id.get(_repository_decision_id(repo))
+        if not isinstance(head, str):
+            head = git_head_commit_id(repo.path)
+        entries.append((repo.path, head, tuple(sorted(repo.changed_files))))
+    return tuple(entries)
 
 
 def _context_for_accepted_assigned_bead(

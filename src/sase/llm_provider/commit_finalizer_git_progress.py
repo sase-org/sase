@@ -76,7 +76,11 @@ def discarded_dirty_work_evidence(
     fingerprint_before: tuple[tuple[str, str, tuple[str, ...]], ...] | None = None,
     artifacts_dir: str | None = None,
 ) -> tuple[_DiscardedDirtyWorkEvidence, ...]:
-    """Return repos that became clean without an attributable commit."""
+    """Return repos that became clean without an attributable commit.
+
+    Omitting *fingerprint_before* makes before and after HEADs identical,
+    so finalizer callers must always pass a snapshot taken at scan time.
+    """
 
     ledger = _load_run_owned_commit_ledger(artifacts_dir)
     before_heads = {
