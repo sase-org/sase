@@ -166,11 +166,11 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("write_text",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_directives.py:extract_directives_and_write_meta": Review(
+    "src/sase/axe/run_agent_directives_extract.py:extract_directives_and_write_meta": Review(
         mutation_calls=("unlink",),
         delegated=DelegatedCoverage(
             caller_context=(
-                "src/sase/axe/run_agent_directives.py:extract_directives_and_write_meta"
+                "src/sase/axe/run_agent_directives_extract.py:extract_directives_and_write_meta"
             ),
             helper_call="write_agent_meta",
             coverage_context="src/sase/axe/agent_meta.py:write_agent_meta_atomic",
