@@ -306,7 +306,11 @@ class DeckPanelNavigationMixin:
         self._render_mode[DeckId.MAIN] = new_mode
         self._mode_subject[DeckId.MAIN] = document.subject
         if self._deck is DeckId.MAIN:
-            self.set_deck(DeckId.MAIN)
+            if is_new_subject:
+                self.set_deck(DeckId.MAIN)
+            else:
+                self._update_empty_state()
+                self.refresh_chrome()
         else:
             self.refresh_chrome()
         # set_deck re-decides with same subject; guard against recursion by

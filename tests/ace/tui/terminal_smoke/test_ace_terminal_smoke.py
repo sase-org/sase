@@ -7,6 +7,7 @@ import signal
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -122,40 +123,38 @@ def test_sase_screenshot_cli_captures_png_with_tmux(tmp_path: Path) -> None:
     feature_name = "terminal_screenshot_cli_feature"
     _write_project(tmp_path, name=feature_name)
     output = tmp_path / "shot.png"
-    tmux_tmpdir = tmp_path / "tmux"
-    tmux_tmpdir.mkdir()
     env = _terminal_env(tmp_path)
     env.pop("TMUX", None)
-    env["TMUX_TMPDIR"] = str(tmux_tmpdir)
-
-    try:
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "sase",
-                "screenshot",
-                "-o",
-                str(output),
-                "--",
-                f'"{feature_name}"',
-            ],
-            cwd=str(_REPO_ROOT),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=40,
-            check=False,
-        )
-    finally:
-        subprocess.run(
-            ["tmux", "kill-server"],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
+    with tempfile.TemporaryDirectory(prefix="sase-tmux-", dir="/tmp") as tmux_tmpdir:
+        env["TMUX_TMPDIR"] = tmux_tmpdir
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "sase",
+                    "screenshot",
+                    "-o",
+                    str(output),
+                    "--",
+                    f'"{feature_name}"',
+                ],
+                cwd=str(_REPO_ROOT),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=40,
+                check=False,
+            )
+        finally:
+            subprocess.run(
+                ["tmux", "kill-server"],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
 
     assert result.returncode == 0, result.stderr
     assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")

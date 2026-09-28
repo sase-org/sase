@@ -68,6 +68,21 @@ class AgentHintsDisplayMixin(AgentHintRenderMixin):
             self, agent
         )
 
+    def _restore_cached_hint_renderable(self, renderable: object) -> None:
+        """Reuse the active cached document without re-digesting its contents."""
+        if renderable is getattr(self, "_last_prompt_panel_content", None):
+            identity_sink = getattr(self, "_identity_header_sink", None)
+            if callable(identity_sink):
+                identity_sink(getattr(self, "_identity_last_published", None))
+            member_sink = getattr(self, "_member_jump_map_sink", None)
+            if callable(member_sink):
+                member_sink(
+                    getattr(self, "_jump_map_last_published", None),
+                    getattr(self, "_member_roster_last_published", None),
+                )
+            return
+        self.update(renderable)  # type: ignore[attr-defined]
+
     def _prepare_cached_hint_renderable(
         self,
         renderable: RenderableType,
@@ -185,7 +200,7 @@ class AgentHintsDisplayMixin(AgentHintRenderMixin):
                         agent,
                         summary.opened_workspaces,
                     )
-                self.update(cached.renderable)  # type: ignore[attr-defined]
+                self._restore_cached_hint_renderable(cached.renderable)
                 if cached.result.header_enrichment_pending:
                     if agent.is_clan_container:
                         self._start_clan_section_enrichment_from_context(agent)  # type: ignore[attr-defined]

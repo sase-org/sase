@@ -44,6 +44,7 @@ class AgentPromptPanel(
     _detach_xprompt: bool = False
     _identity_last_published: IdentityHeader | None = None
     _identity_last_content: Any = ""
+    _last_prompt_panel_content: Any = None
     _member_jump_map_sink: MemberJumpMapSink | None = None
     _jump_map_last_published: Any = None
     _member_roster_last_published: Any = None
@@ -125,6 +126,7 @@ class AgentPromptPanel(
 
     def update(self, content: Any = "", *, layout: bool = True) -> None:
         """Update content while invalidating only the cached rendered anchors."""
+        self._last_prompt_panel_content = content
         sink = getattr(self, "_identity_header_sink", None)
         if sink is not None:
             self._identity_last_published = find_identity_header(content)

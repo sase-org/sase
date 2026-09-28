@@ -66,7 +66,7 @@ def catalog(h: Harness) -> list[dict[str, Any]]:
             t.get("last") is None and t.get("typical_duration_ms") is None
             for t in tools
         )
-        and "{failures,list,run,runs,show,stop,wait}" in helped.stdout
+        and "{failures,list,receipt,receipts,run,runs,show,stop,wait}" in helped.stdout
     )
 
     h.snapshots["catalog"] = {
@@ -193,7 +193,8 @@ def exact_execution(h: Harness) -> list[dict[str, Any]]:
         and replay is not None
         and replay.returncode == 0
         and replay.stdout == "out"
-        and replay.stderr == "err"
+        and replay.stderr.startswith("err")
+        and "sase: no total order between the retained stdout and stderr streams" in replay.stderr
         and modes_ok
     )
     h.note(run_id, "exact stdout/stderr/exit passthrough")

@@ -89,38 +89,90 @@ def _digest_parts(*parts: object) -> str:
     return digest.hexdigest()
 
 
-def _source_digest(agent: Agent) -> str:
-    """Digest every body source that can contribute hints for ``agent``."""
-    digest = blake2b(digest_size=16)
+def _source_digest_parts(agent: Agent) -> list[tuple[str, object]]:
+    """Collect source values once so a cache hit can avoid repr-ing large text."""
+    parts: list[tuple[str, object]] = []
     seen: set[int] = set()
-
-    def add(label: str, value: object) -> None:
-        encoded_label = label.encode("utf-8")
-        encoded_value = repr(value).encode("utf-8", errors="replace")
-        digest.update(len(encoded_label).to_bytes(4, "big"))
-        digest.update(encoded_label)
-        digest.update(len(encoded_value).to_bytes(8, "big"))
-        digest.update(encoded_value)
 
     def visit(candidate: Agent) -> None:
         candidate_id = id(candidate)
         if candidate_id in seen:
             return
         seen.add(candidate_id)
-        add("identity", candidate.identity)
-        add("finalizer_status", repr(candidate.finalizer_status))
-        add("error_traceback", candidate.error_traceback)
-        add("raw_xprompt", candidate.get_raw_xprompt_content())
-        add("prompt", get_prompt_content(candidate))
-        add("reply_chunks", candidate.get_timestamped_reply_chunks())
-        add("live_reply", candidate.get_live_reply_content())
-        add("response", candidate.get_response_content())
-        add("chat_response", candidate.get_chat_response_content())
+        parts.extend(
+            (
+                ("identity", candidate.identity),
+                ("finalizer_status", repr(candidate.finalizer_status)),
+                ("error_traceback", candidate.error_traceback),
+                ("raw_xprompt", candidate.get_raw_xprompt_content()),
+                ("prompt", get_prompt_content(candidate)),
+                ("reply_chunks", candidate.get_timestamped_reply_chunks()),
+                ("live_reply", candidate.get_live_reply_content()),
+                ("response", candidate.get_response_content()),
+                ("chat_response", candidate.get_chat_response_content()),
+            )
+        )
         for followup in candidate.followup_agents:
             visit(followup)
 
     visit(agent)
-    return digest.hexdigest()
+    return parts
+
+
+def _update_source_digest(digest: Any, label: str, value: object) -> None:
+    encoded_label = label.encode("utf-8")
+    encoded_value = repr(value).encode("utf-8", errors="replace")
+    digest.update(len(encoded_label).to_bytes(4, "big"))
+    digest.update(encoded_label)
+    digest.update(len(encoded_value).to_bytes(8, "big"))
+    digest.update(encoded_value)
+
+
+def _source_fingerprint(parts: list[tuple[str, object]]) -> tuple[object, ...]:
+    """Fingerprint immutable text by identity without walking its full contents."""
+    fingerprint: list[object] = []
+    for label, value in parts:
+        if label == "reply_chunks" and isinstance(value, list):
+            chunk_refs: list[tuple[int, int]] = []
+            for item in value:
+                if isinstance(item, tuple) and len(item) == 2:
+                    chunk_refs.append((id(item[0]), id(item[1])))
+                else:
+                    chunk_refs.append((id(item), 0))
+            fingerprint.append((label, tuple(chunk_refs)))
+        elif isinstance(value, str):
+            fingerprint.append((label, id(value)))
+        else:
+            fingerprint.append((label, value))
+    return tuple(fingerprint)
+
+
+def _source_digest_cached(widget: object, agent: Agent) -> str:
+    """Reuse a digest while artifact-cache strings remain the same objects."""
+    parts = _source_digest_parts(agent)
+    fingerprint = _source_fingerprint(parts)
+    cache = getattr(widget, "_agent_hint_source_digest_cache", None)
+    if not isinstance(cache, OrderedDict):
+        cache = OrderedDict()
+        cast(Any, widget)._agent_hint_source_digest_cache = cache
+    key = id(agent)
+    cached = cache.get(key)
+    if cached is not None and cached[0] is agent and cached[1] == fingerprint:
+        cache.move_to_end(key)
+        return cached[2]
+
+    digest = blake2b(digest_size=16)
+    for label, value in parts:
+        _update_source_digest(digest, label, value)
+    result = digest.hexdigest()
+    # Keep the source objects alive alongside their identity fingerprint so
+    # Python cannot recycle an id while the entry is still eligible to match.
+    references = tuple(value for _, value in parts)
+    cache[key] = (agent, fingerprint, result, references)
+    cache.move_to_end(key)
+    while len(cache) > _AGENT_HINT_RENDER_CACHE_MAX_ENTRIES:
+        cache.popitem(last=False)
+    return result
 
 
 def _fold_overrides_key(
@@ -216,7 +268,7 @@ def agent_hint_render_cache_key(
             agent_state_digest = _digest_parts(agent, member_states)
         else:
             agent_state_digest = _digest_parts(agent)
-        source_digest = _source_digest(agent)
+        source_digest = _source_digest_cached(widget, agent)
         summary_key = detail_header_summary_cache_key(widget, agent)
         raw_xprompt = agent.get_raw_xprompt_content()
     return AgentHintRenderCacheKey(

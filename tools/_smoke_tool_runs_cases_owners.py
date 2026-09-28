@@ -252,7 +252,7 @@ def live_monitor(h: Harness) -> dict[str, Any]:
         and record.get("exit_code") == 3
         and run.get("state") == "failed"
         and run.get("exit_code") == 3
-        and files == ["events.jsonl"]
+        and files == ["events.jsonl", "stage_output"]
         and not logs.get("stdout_path")
         and stages == ["alpha", "alpha", "beta"]
         and len(shown.get("samples") or ()) >= 2
