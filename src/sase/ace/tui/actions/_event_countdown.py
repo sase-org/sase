@@ -53,6 +53,14 @@ class EventCountdownMixin(EventHandlersBase):
                 self._update_agents_info_panel()  # type: ignore[attr-defined]
                 self._patch_agent_runtime_rows()  # type: ignore[attr-defined]
                 self._poll_starting_agent_transitions()  # type: ignore[attr-defined]
+                # ToolRun live drift probe (plan §3.5.1): stat-only, at most
+                # every 2 s, piggybacks on this tick. Adds no new timer.
+                probe = getattr(self, "_maybe_probe_tool_runs_drift", None)
+                if callable(probe):
+                    try:
+                        probe(source="countdown_tick")
+                    except Exception:
+                        pass
         else:  # axe
             self._update_axe_info_panel()  # type: ignore[attr-defined]
             # Stream live output for an active chop run without waiting for

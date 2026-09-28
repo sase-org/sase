@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.tool_runs.loader import ToolRunGlanceLoaderMixin
+
 from ._event_base import TabName
 from ._event_countdown import EventCountdownMixin
 from ._event_keyboard import EventKeyboardMixin
@@ -14,6 +16,7 @@ from ._event_widgets import EventWidgetHandlersMixin
 
 
 class EventHandlersMixin(
+    ToolRunGlanceLoaderMixin,
     EventWidgetHandlersMixin,
     EventKeyboardMixin,
     EventCountdownMixin,

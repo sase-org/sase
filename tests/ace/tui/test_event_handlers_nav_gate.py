@@ -61,6 +61,7 @@ class _FakeApp(EventHandlersMixin):
             notifications=_token("notifications"),
             patches=_token("patches"),
             procs=_token("procs"),
+            tool_runs=_token("tool_runs"),
         )
 
     async def _load_axe_status_async(self) -> None:

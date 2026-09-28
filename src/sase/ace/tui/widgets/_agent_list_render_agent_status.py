@@ -55,6 +55,14 @@ from ..models.finalizer_row_state import (
     finalizer_row_state,
     session_finalizer_row_state,
 )
+from sase.ace.tui.tool_runs.attribution import (
+    row_identity_from_agent,
+    select_live_runs,
+)
+from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+from sase.ace.tui.tool_runs.row_chip import row_chip_for_runs
+from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
+from sase.core.time import local_now
 
 
 def _glance_finalizer_state(agent: Agent) -> FinalizerRowState:
@@ -69,6 +77,41 @@ def _append_finalizer_chip(text: Text, agent: Agent) -> None:
     state = _glance_finalizer_state(agent)
     if state.chip_text:
         text.append(f" {state.chip_text}", style=state.chip_style or "dim")
+
+
+def _append_tool_run_chip(
+    text: Text, agent: Agent, *, now: datetime | None = None
+) -> None:
+    """Append the live-only ⚒ row chip after the ⊛ chip (plan §3.6).
+
+    Pure side-cache lookup: reads the app-level glance snapshot plus
+    ``now``. Never stats, opens SQLite, or reads a log. No-op while the
+    ``ace_tool_runs`` beta flag is off.
+    """
+
+    if not tool_runs_enabled():
+        return
+    if tool_runs_disabled_reason() is not None:
+        return
+    snapshot = get_snapshot()
+    if snapshot is None or not snapshot.runs:
+        return
+    row = row_identity_from_agent(agent)
+    selected = select_live_runs(snapshot.runs, row)
+    if not selected:
+        return
+    reference = now if now is not None else local_now()
+    try:
+        now_ts = reference.timestamp()
+    except Exception:
+        import time as _time
+
+        now_ts = _time.time()
+    chip = row_chip_for_runs(selected, now_ts, snapshot.silent_after_s)
+    if chip is None:
+        return
+    chip_text, chip_style = chip
+    text.append(f" {chip_text}", style=chip_style)
 
 
 def append_queued_status_extras(text: Text, agent: Agent) -> None:
@@ -250,6 +293,7 @@ def append_agent_row_status(
         text.append(" ✗", style=_GATE_FAILURE_GLYPH_STYLE)
     text.append(")", style="dim")
     _append_finalizer_chip(text, agent)
+    _append_tool_run_chip(text, agent, now=now)
     if agent.is_monitor and (
         agent.monitor_followup_error
         or agent.monitor_followup_outcome == _MONITOR_FOLLOWUP_DEGRADED_OUTCOME

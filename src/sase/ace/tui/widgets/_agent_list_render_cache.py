@@ -28,6 +28,14 @@ from ..models.agent_session_members import (
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
 from ..models.tribe_display import TRIBE_IDENTITY_FALLBACK_COLOR
+from sase.ace.tui.tool_runs.attribution import (
+    row_identity_from_agent,
+    select_live_runs,
+)
+from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+from sase.ace.tui.tool_runs.row_chip import tool_run_chip_token
+from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
+from sase.core.time import local_now
 from ._agent_list_helpers import ordered_row_providers
 from ._queue_weight_badge import queue_capacity_budget_display_enabled
 
@@ -72,6 +80,51 @@ def _finalizer_summary_token(agent: Agent) -> tuple[Any, ...] | None:
     from ..models.finalizer_row_state import finalizer_summary_token
 
     return finalizer_summary_token(agent)
+
+
+def _tool_run_chip_token(agent: Agent, now: datetime | None) -> tuple[Any, ...] | None:
+    """Pure side-cache lookup for the live-only ⚒ chip (plan §3.6).
+
+    Returns None while the flag is off, the snapshot is empty, or the row
+    has no live run. The minute bucket is part of the token so a tick
+    repaints only when the text can have changed. Containers invalidate
+    through the existing recursion into children in ``_runtime_signature``.
+    """
+
+    if not tool_runs_enabled():
+        return None
+    if tool_runs_disabled_reason() is not None:
+        return None
+    snapshot = get_snapshot()
+    if snapshot is None or not snapshot.runs:
+        # Flag state alone is a deliberate key edit: turning the flag on
+        # from empty still changes the key via the enabled marker below.
+        return None
+    row = row_identity_from_agent(agent)
+    selected = select_live_runs(snapshot.runs, row)
+    if not selected:
+        return None
+    if now is not None:
+        try:
+            now_ts = now.timestamp()
+        except Exception:
+            import time as _time
+
+            now_ts = _time.time()
+    else:
+        try:
+            now_ts = local_now().timestamp()
+        except Exception:
+            import time as _time
+
+            now_ts = _time.time()
+    return tool_run_chip_token(selected, now_ts, snapshot.silent_after_s)
+
+
+def _tool_runs_flag_enabled() -> bool:
+    """Return the beta-flag state for the render key (deliberate key edit)."""
+
+    return bool(tool_runs_enabled())
 
 
 def _quantize_now(now: datetime | None) -> tuple[int, int, int, int, int, int] | None:
@@ -184,6 +237,8 @@ def _runtime_signature(
         agent.using_fallback,
         agent.fallback_model,
         _finalizer_summary_token(agent),
+        _tool_run_chip_token(agent, now),
+        _tool_runs_flag_enabled(),
         _quantize_now(now) if time_sensitive else None,
     )
 
@@ -386,6 +441,8 @@ def agent_render_key(
         agent.proc_language,
         tier_styles,
         _runtime_signature(agent, now),
+        _tool_run_chip_token(agent, now),
+        _tool_runs_flag_enabled(),
         lanes,
     )
 

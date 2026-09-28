@@ -37,6 +37,13 @@ from ._agent_time_wait import (
     wait_remaining_seconds as wait_remaining_seconds,
     wait_until_target_and_reference as wait_until_target_and_reference,
 )
+from sase.ace.tui.tool_runs.attribution import (
+    row_identity_from_agent,
+    select_live_runs,
+)
+from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+from sase.ace.tui.tool_runs.row_chip import chip_uses_elapsed_fallback
+from sase.ace.tui.tool_runs.snapshot import get_snapshot, tool_runs_disabled_reason
 
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
@@ -183,6 +190,32 @@ def runtime_suffix_ticks(
     return agent.status == "WAITING" and agent.run_start_time is not None
 
 
+def _tool_run_chip_ticks(agent: "Agent") -> bool:
+    """Return True when the row's ⚒ chip text depends on time (plan §3.6)."""
+
+    if not tool_runs_enabled():
+        return False
+    if tool_runs_disabled_reason() is not None:
+        return False
+    snapshot = get_snapshot()
+    if snapshot is None or not snapshot.runs:
+        return False
+    row = row_identity_from_agent(agent)
+    selected = select_live_runs(snapshot.runs, row)
+    if not selected:
+        return False
+    try:
+        now_ts = local_now().timestamp()
+    except Exception:
+        import time as _time
+
+        now_ts = _time.time()
+    return bool(
+        chip_uses_elapsed_fallback(selected, now_ts, snapshot.silent_after_s)
+        or any(getattr(run, "state", "") in {"created", "running"} for run in selected)
+    )
+
+
 def row_runtime_or_wait_ticks(
     agent: "Agent",
     _seen: set[int] | None = None,
@@ -206,6 +239,8 @@ def row_runtime_or_wait_ticks(
     if runtime_suffix_ticks(agent, _include_monitor_turns=include_monitor_turns):
         return True
     if wait_countdown_ticks(agent):
+        return True
+    if _tool_run_chip_ticks(agent):
         return True
     for child in _runtime_child_rows(
         agent, include_monitor_turns=include_monitor_turns

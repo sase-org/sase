@@ -67,6 +67,7 @@ class SurfaceTokenSnapshot:
     notifications: SurfaceToken
     patches: SurfaceToken
     procs: SurfaceToken
+    tool_runs: SurfaceToken | None = None
 
     def token_for(self, surface: str) -> SurfaceToken:
         """Return the token for *surface*."""
@@ -94,6 +95,8 @@ class SurfaceTokenRoots:
     service_dir: Path | None = None
     service_state_path: Path | None = None
     service_status_path: Path | None = None
+    tool_run_store_path: Path | None = None
+    tool_run_wal_path: Path | None = None
 
 
 def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRoots:
@@ -111,6 +114,15 @@ def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRo
         service_status_path,
     )
 
+    try:
+        from sase.core.tool_run import tool_run_store_path
+
+        _tool_run_store = tool_run_store_path()
+        _tool_run_wal = _tool_run_store.parent / f"{_tool_run_store.name}-wal"
+    except Exception:
+        _tool_run_store = None
+        _tool_run_wal = None
+
     return SurfaceTokenRoots(
         projects_root=sase_projects_dir(),
         agent_index_path=default_agent_artifact_index_path(),
@@ -123,7 +135,36 @@ def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRo
         service_dir=service_dir(),
         service_state_path=service_state_path(),
         service_status_path=service_status_path(),
+        tool_run_store_path=_tool_run_store,
+        tool_run_wal_path=_tool_run_wal,
     )
+
+
+def probe_tool_runs_token(
+    store_path: Path | None = None,
+    wal_path: Path | None = None,
+) -> SurfaceToken:
+    """Stat-only token for the ToolRun ledger (never opens SQLite).
+
+    Stats ``runs.sqlite`` and ``runs.sqlite-wal``. Rides the existing 10 s
+    auto-refresh; a quiet tick opens no ToolRun file.
+    """
+
+    if store_path is None or wal_path is None:
+        try:
+            from sase.core.tool_run import tool_run_store_path
+
+            resolved_store = tool_run_store_path()
+            resolved_wal = resolved_store.parent / f"{resolved_store.name}-wal"
+        except Exception:
+            return SurfaceToken(surface="tool_runs", parts=(), indeterminate=True)
+        store_path = store_path if store_path is not None else resolved_store
+        wal_path = wal_path if wal_path is not None else resolved_wal
+    parts: list[_PathMeta] = []
+    ok = True
+    ok = _extend_stat(parts, store_path, ok=ok)
+    ok = _extend_stat(parts, wal_path, ok=ok)
+    return _token("tool_runs", parts, ok=ok)
 
 
 def probe_surface_tokens(
@@ -154,6 +195,10 @@ def probe_surface_tokens(
             beads_dir=resolved.beads_dir,
         ),
         procs=probe_procs_token(resolved.procs_path),
+        tool_runs=probe_tool_runs_token(
+            resolved.tool_run_store_path,
+            resolved.tool_run_wal_path,
+        ),
     )
 
 
@@ -276,11 +321,13 @@ def probe_procs_token(procs_path: Path) -> SurfaceToken:
 
 
 def surface_token_drifted(
-    current: SurfaceToken,
+    current: SurfaceToken | None,
     last: SurfaceToken | None,
 ) -> bool:
     """Return True when *current* cannot be treated as unchanged."""
-    if current.indeterminate or last is None:
+    if current is None or last is None:
+        return True
+    if current.indeterminate or last.indeterminate:
         return True
     return current != last
 
@@ -398,5 +445,6 @@ __all__ = [
     "live_surface_token_roots",
     "probe_procs_token",
     "probe_surface_tokens",
+    "probe_tool_runs_token",
     "surface_token_drifted",
 ]

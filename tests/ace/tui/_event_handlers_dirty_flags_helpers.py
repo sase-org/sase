@@ -34,6 +34,7 @@ def _surface_token_snapshot(
     notifications: int = 1,
     patches: int = 1,
     procs: int = 1,
+    tool_runs: int = 1,
     indeterminate: str | None = None,
 ) -> SurfaceTokenSnapshot:
     tokens = {
@@ -42,6 +43,7 @@ def _surface_token_snapshot(
         "notifications": _surface_token("notifications", notifications),
         "patches": _surface_token("patches", patches),
         "procs": _surface_token("procs", procs),
+        "tool_runs": _surface_token("tool_runs", tool_runs),
     }
     if indeterminate is not None:
         token = tokens[indeterminate]
@@ -56,17 +58,21 @@ def _surface_token_snapshot(
         notifications=tokens["notifications"],
         patches=tokens["patches"],
         procs=tokens["procs"],
+        tool_runs=tokens["tool_runs"],
     )
 
 
 def _completed_tokens(snapshot: SurfaceTokenSnapshot) -> dict[str, SurfaceToken]:
-    return {
+    tokens: dict[str, SurfaceToken] = {
         "agents": snapshot.agents,
         "axe": snapshot.axe,
         "notifications": snapshot.notifications,
         "patches": snapshot.patches,
         "procs": snapshot.procs,
     }
+    if snapshot.tool_runs is not None:
+        tokens["tool_runs"] = snapshot.tool_runs
+    return tokens
 
 
 def _make_agent(
