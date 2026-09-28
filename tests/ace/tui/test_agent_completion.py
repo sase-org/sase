@@ -22,6 +22,7 @@ from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
 )
 from sase.core.time import local_now
+from sase.feature_flags import override_flags
 
 
 def _agent(tmp_path: Path, **overrides: Any) -> Agent:
@@ -493,6 +494,31 @@ def test_build_agent_completion_candidates_omits_empty_clan(tmp_path: Path) -> N
     )
 
     assert build_agent_completion_candidates([empty]) == []
+
+
+def test_tab_completion_candidates_gated_behind_agent_tabs_flag(
+    tmp_path: Path,
+) -> None:
+    """Tab candidates appear only while the agent_tabs flag is on."""
+    agent = _agent(tmp_path, agent_name="coder", raw_suffix="260624_120020")
+    named = _agent(
+        tmp_path,
+        agent_name="tabbed",
+        raw_suffix="260624_120021",
+        agent_tab="research",
+    )
+
+    with override_flags(agent_tabs=False):
+        assert all(
+            candidate.kind != "tab"
+            for candidate in build_agent_completion_candidates([agent, named])
+        )
+
+    with override_flags(agent_tabs=True):
+        candidates = build_agent_completion_candidates([agent, named])
+        by_name = {candidate.name: candidate for candidate in candidates}
+        assert by_name["main"].kind == "tab"
+        assert by_name["research"].kind == "tab"
 
 
 def test_status_style_returns_rich_parseable_styles() -> None:

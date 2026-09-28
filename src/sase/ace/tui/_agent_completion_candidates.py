@@ -440,7 +440,15 @@ def _build_tribe_completion_candidates(
 def _build_tab_completion_candidates(
     all_agents: Sequence[Agent],
 ) -> list[AgentCompletionCandidate]:
-    """Build ``tab``-kind candidates from distinct stored tabs plus main."""
+    """Build ``tab``-kind candidates from distinct stored tabs plus main.
+
+    Gated behind the ``agent_tabs`` beta flag: with the flag off the TUI
+    offers no tab candidates, preserving pre-tabs completion behavior.
+    """
+    from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
+
+    if not agent_tabs_enabled():
+        return []
     members_by_tab: dict[str, list[Agent]] = {}
     for agent in all_agents:
         if agent.is_clan_container:

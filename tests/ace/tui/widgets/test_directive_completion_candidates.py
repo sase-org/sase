@@ -82,8 +82,11 @@ def test_removed_auto_approval_directives_are_absent_from_completion() -> None:
 
     assert approve_candidates == []
     assert plan_candidates == []
-    assert tale_candidates == []
     assert epic_candidates == []
+    # %ta legitimately matches %tab; assert the removed %tale is absent
+    # instead of asserting the prefix is empty.
+    assert all(candidate.insertion != "%tale" for candidate in tale_candidates)
+    assert any(candidate.insertion == "%tab" for candidate in tale_candidates)
 
 
 def test_deprecated_name_spellings_are_absent_from_completion() -> None:
@@ -141,7 +144,12 @@ def test_final_directive_name_completes_to_canonical_row() -> None:
 
 def test_removed_tribe_spellings_are_absent_from_completion() -> None:
     candidates, _ = build_directive_completion_candidates("%t")
-    assert candidates == []
+    # %t legitimately matches %tab; assert the removed spellings are absent
+    # instead of asserting the prefix is empty.
+    assert all(
+        candidate.insertion not in ("%tribe", "%tale") for candidate in candidates
+    )
+    assert any(candidate.insertion == "%tab" for candidate in candidates)
 
     tribe_candidates, _ = build_directive_completion_candidates("%tribe")
     assert tribe_candidates == []
