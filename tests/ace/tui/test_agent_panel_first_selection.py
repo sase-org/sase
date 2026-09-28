@@ -592,6 +592,51 @@ def test_focused_panel_widget_focus_skips_all_hint_bar_modes(
     assert app._widgets[panel_widget_id_for_key("alpha")].focus_calls == 0
 
 
+def _prompt_agents() -> list[Agent]:
+    return [
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="alpha-agent"),
+    ]
+
+
+def test_focus_sites_skip_mounted_prompt_input_bar() -> None:
+    app = _OptimizedPanelSwitchApp(_prompt_agents(), focused_key="alpha")
+    app.current_idx = 1
+    app._prompt_input_active = lambda: True  # type: ignore[attr-defined]
+
+    app._focus_focused_panel_widget()
+
+    assert app._widgets[panel_widget_id_for_key("alpha")].focus_calls == 0
+
+    app._refresh_focused_agent_panel_impl(old_focused_idx=None)
+
+    focused_widget = app._widgets[panel_widget_id_for_key("alpha")]
+    assert focused_widget.focus_calls == 0
+    assert focused_widget.highlighted == 0
+    assert focused_widget.update_highlight_calls == [(0, 42, None)]
+    assert "-focused-panel" in focused_widget._classes
+
+
+def test_focus_sites_still_focus_list_without_prompt() -> None:
+    app = _OptimizedPanelSwitchApp(_prompt_agents(), focused_key="alpha")
+    app.current_idx = 1
+    app._prompt_input_active = lambda: False  # type: ignore[attr-defined]
+
+    app._focus_focused_panel_widget()
+
+    assert app._widgets[panel_widget_id_for_key("alpha")].focus_calls == 1
+
+    control = _OptimizedPanelSwitchApp(_prompt_agents(), focused_key="alpha")
+    control.current_idx = 1
+    control._prompt_input_active = lambda: False  # type: ignore[attr-defined]
+
+    control._refresh_focused_agent_panel_impl(old_focused_idx=None)
+
+    focused_widget = control._widgets[panel_widget_id_for_key("alpha")]
+    assert focused_widget.focus_calls == 1
+    assert "-focused-panel" in focused_widget._classes
+
+
 def test_refresh_panel_highlights_clears_every_nonfocused_panel() -> None:
     agents = [
         _agent(tribe=None, project="home", cl="home", name="no_tribe"),

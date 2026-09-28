@@ -115,6 +115,9 @@ fallback view so it can still be selected and recovered.
 
 sase's TUI has three tabs, cycled with `Tab` and `Shift+Tab`:
 
+While a prompt input bar is open, `Tab`/`Shift+Tab` belong to the prompt (snippet
+expansion, tabstops, list indent) and never switch tabs.
+
 | Tab           | Description                                                                                                                                                                                                                 |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                  |

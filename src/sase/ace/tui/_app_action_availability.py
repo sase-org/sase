@@ -285,6 +285,11 @@ def check_app_action(
 
         if isinstance(app.focused, VimTextArea):
             return False
+        # Focus can transiently leave the prompt's VimTextArea (deferred
+        # refocus after a blur, mount-time deferred focus, frontmatter-panel
+        # browse mode), so the guard must not depend on focus alone.
+        if _prompt_input_owns_keys(app):
+            return False
     if action == "search_reverse":
         from textual.screen import ModalScreen
 

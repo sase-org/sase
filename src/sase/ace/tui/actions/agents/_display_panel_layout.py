@@ -111,6 +111,20 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         ):
             self._refresh_focused_agent_panel_impl(old_focused_idx=old_focused_idx)
 
+    def _agent_list_focus_suppressed(self) -> bool:
+        """Return whether Agents-tab repaints must not move Textual focus.
+
+        Background repaints must never steal keyboard focus from a mounted
+        prompt input bar, because ``tab`` / ``shift+tab`` are priority app
+        bindings guarded by focus. This mirrors the Services-tab policy in
+        ``_focus_axe_focused_panel``.
+        """
+        for name in ("_hint_input_bar_active", "_prompt_input_active"):
+            active = getattr(self, name, None)
+            if callable(active) and active():
+                return True
+        return False
+
     def _refresh_focused_agent_panel_impl(self, *, old_focused_idx: int | None) -> None:
         from textual.css.query import NoMatches
 
@@ -179,11 +193,10 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
                 widget.remove_class("-whole-panel-focus")
                 widget.clear_highlight()
 
-        hint_bar_active = getattr(self, "_hint_input_bar_active", None)
         if (
             focused_widget is not None
             and panel_focus is None
-            and not (callable(hint_bar_active) and hint_bar_active())
+            and not self._agent_list_focus_suppressed()
         ):
             try:
                 focused_widget.focus()
@@ -247,13 +260,18 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
             pass
 
     def _focus_focused_panel_widget(self) -> None:
-        """Set Textual focus on the focused-panel AgentList."""
+        """Set Textual focus on the focused-panel AgentList.
+
+        Background repaints must never steal keyboard focus from a mounted
+        prompt input bar, because ``tab`` / ``shift+tab`` are priority app
+        bindings guarded by focus. This mirrors the Services-tab policy in
+        ``_focus_axe_focused_panel``.
+        """
         from textual.css.query import NoMatches
 
         from ...widgets import AgentList
 
-        hint_bar_active = getattr(self, "_hint_input_bar_active", None)
-        if callable(hint_bar_active) and hint_bar_active():
+        if self._agent_list_focus_suppressed():
             return
 
         wid = panel_widget_id_for_key(self._panel_group.focused_key)
