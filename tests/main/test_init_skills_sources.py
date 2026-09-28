@@ -99,19 +99,19 @@ def _disable_prettier_for_skill_generation(
             ),
         ),
         (
-            "sase_pipe",
+            "sase_handoff",
             (
                 "sase pipe 'implement the approved plan'",
                 "--reason 'hand off to a coding pass' --model opus",
                 "only after it writes its handoff marker",
                 "keep polling that same session",
-                "Do not pipe for",
+                "Do not hand off for",
                 "use `/sase_monitor` instead",
                 "use `/sase_run` instead",
                 "-f, --fresh",
                 "-m, --model MODEL",
                 "-n, --name TOKEN",
-                "The piped prompt is re-parsed by the successor",
+                "The handoff prompt is re-parsed by the successor",
                 "max_agent_pipe_chain",
                 "After a successful handoff, do not keep working, poll, or wait",
             ),
@@ -341,6 +341,14 @@ def test_retired_artifact_file_skill_source_is_not_packaged() -> None:
 
     assert not (get_sase_package_skills_dir() / f"{skill_name}.md").exists()
     assert f"skill/{skill_name}" not in load_skills_from_package()
+
+
+def test_renamed_handoff_skill_source_replaces_pipe() -> None:
+    assert (get_sase_package_skills_dir() / "sase_handoff.md").is_file()
+    assert not (get_sase_package_skills_dir() / "sase_pipe.md").exists()
+    skills = load_skills_from_package()
+    assert "skill/sase_handoff" in skills
+    assert "skill/sase_pipe" not in skills
 
 
 def test_docs_xprompt_bundled_skills_table_matches_packaged_sources() -> None:

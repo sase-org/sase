@@ -392,10 +392,6 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
-        --epic-symbol 'sase-1bt(RowIdentity)' \
-        --epic-symbol 'sase-1bt(ToolRunGlanceSnapshot)' \
-        --epic-symbol 'sase-1bt(ToolRunLogTail)' \
-        --epic-symbol 'sase-1bt(ToolRunStateStyle)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

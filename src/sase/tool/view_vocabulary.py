@@ -34,7 +34,7 @@ ROW_CHIP_MAX_CELLS = 20
 
 
 @dataclass(frozen=True)
-class ToolRunStateStyle:
+class _ToolRunStateStyle:
     """Glyph, word, and color for one ToolRun state bucket."""
 
     glyph: str
@@ -44,24 +44,24 @@ class ToolRunStateStyle:
 
 #: §3.2 bucket styles keyed by the core verdict-bucket word, plus the
 #: TUI-derived ``silent`` state (a live run past the silence threshold).
-BUCKET_STYLES: dict[str, ToolRunStateStyle] = {
-    "running": ToolRunStateStyle(
+BUCKET_STYLES: dict[str, _ToolRunStateStyle] = {
+    "running": _ToolRunStateStyle(
         glyph=TOOL_RUN_GLYPH, word="running", color=f"bold {TOOL_RUN_ACCENT}"
     ),
-    "silent": ToolRunStateStyle(
+    "silent": _ToolRunStateStyle(
         glyph=f"{TOOL_RUN_GLYPH}{SILENT_GLYPH}",
         word="silent",
         color=f"bold {FAILURE_COLOR}",
     ),
-    "pass": ToolRunStateStyle(glyph="✓", word="pass", color=SUCCESS_COLOR),
-    "new_failures": ToolRunStateStyle(glyph="✗", word="NEW", color=FAILURE_COLOR),
-    "known_only": ToolRunStateStyle(
+    "pass": _ToolRunStateStyle(glyph="✓", word="pass", color=SUCCESS_COLOR),
+    "new_failures": _ToolRunStateStyle(glyph="✗", word="NEW", color=FAILURE_COLOR),
+    "known_only": _ToolRunStateStyle(
         glyph="≈", word="known only", color=KNOWN_ONLY_COLOR
     ),
-    "undetermined": ToolRunStateStyle(glyph="?", word="UNKNOWN", color=WARNING_COLOR),
-    "killed": ToolRunStateStyle(glyph="⊘", word="killed", color=REFUSED_COLOR),
-    "stopped": ToolRunStateStyle(glyph="⊘", word="stopped", color="dim"),
-    "lost": ToolRunStateStyle(glyph="⊘", word="lost", color=f"dim {FAILURE_COLOR}"),
+    "undetermined": _ToolRunStateStyle(glyph="?", word="UNKNOWN", color=WARNING_COLOR),
+    "killed": _ToolRunStateStyle(glyph="⊘", word="killed", color=REFUSED_COLOR),
+    "stopped": _ToolRunStateStyle(glyph="⊘", word="stopped", color="dim"),
+    "lost": _ToolRunStateStyle(glyph="⊘", word="lost", color=f"dim {FAILURE_COLOR}"),
 }
 
 #: Severity worst-first: used to pick one chip among several tools and for
@@ -78,7 +78,7 @@ SEVERITY_ORDER: tuple[str, ...] = (
 )
 
 
-def style_for_bucket(bucket: str | None) -> ToolRunStateStyle:
+def style_for_bucket(bucket: str | None) -> _ToolRunStateStyle:
     """Return the shared style for a §3.2 verdict *bucket*.
 
     Unknown buckets fall back to ``undetermined`` so a newer core never
@@ -314,7 +314,7 @@ __all__ = [
     "SILENT_GLYPH",
     "TOOL_RUN_ACCENT",
     "TOOL_RUN_GLYPH",
-    "ToolRunStateStyle",
+    "_ToolRunStateStyle",
     "format_age",
     "format_min_sec",
     "format_settled_ts",

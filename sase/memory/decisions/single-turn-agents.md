@@ -11,7 +11,7 @@ metadata:
 
 **Claim.** A SASE agent run is exactly one provider turn. Work that outlives the turn is
 continued by a mechanism that terminates the runner and starts a successor —
-`sase monitor`, `/sase_pipe`, `/sase_plan`, `/sase_questions` — never by the agent
+`sase monitor`, `/sase_handoff`, `/sase_plan`, `/sase_questions` — never by the agent
 waiting, sleeping, or scheduling its own wake-up.
 
 **Why.** Every hosted agent runtime ships background-execution and scheduling

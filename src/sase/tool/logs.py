@@ -305,7 +305,7 @@ def retained_log_rotated(path: Path | str) -> bool:
         return False
 
 
-#: Availability words for :class:`ToolRunLogTail`, matching the honest-absence
+#: Availability words for :class:`_ToolRunLogTail`, matching the honest-absence
 #: copy the Runs card renders.
 TOOL_RUN_LOG_AVAILABILITY: tuple[str, ...] = (
     "available",
@@ -320,7 +320,7 @@ TOOL_RUN_LOG_SOURCES: tuple[str, ...] = ("run", "owner", "none")
 
 
 @dataclass(frozen=True)
-class ToolRunLogTail:
+class _ToolRunLogTail:
     """A bounded tail of a run's output of record.
 
     ``availability`` is one of ``available``, ``truncated``, ``pruned``,
@@ -390,7 +390,7 @@ def _rotated_tail(
 
 def _owner_log_tail(
     kind: str, owner_id: str, metadata: Mapping[str, Any], lines: int, max_bytes: int
-) -> ToolRunLogTail:
+) -> _ToolRunLogTail:
     """Tail the owner's log of record, or report that it is missing."""
 
     recorded = metadata.get("owner_log_path")
@@ -398,14 +398,14 @@ def _owner_log_tail(
         path = Path(str(recorded))
         if path.is_file():
             kept, size, cut = _rotated_tail(path, lines, max_bytes)
-            return ToolRunLogTail(
+            return _ToolRunLogTail(
                 availability="truncated" if cut else "available",
                 source="owner",
                 lines=tuple(kept),
                 total_bytes=size,
                 truncated=cut,
             )
-        return ToolRunLogTail(availability="owner-missing", source="none")
+        return _ToolRunLogTail(availability="owner-missing", source="none")
     resolved: Path | None = None
     if kind == "proc" and owner_id:
         try:
@@ -428,9 +428,9 @@ def _owner_log_tail(
         if found is not None and found.is_file():
             resolved = found
     if resolved is None:
-        return ToolRunLogTail(availability="owner-missing", source="none")
+        return _ToolRunLogTail(availability="owner-missing", source="none")
     kept, size, cut = _rotated_tail(resolved, lines, max_bytes)
-    return ToolRunLogTail(
+    return _ToolRunLogTail(
         availability="truncated" if cut else "available",
         source="owner",
         lines=tuple(kept),
@@ -446,7 +446,7 @@ def tool_run_log_tail(
     owner_id: str | None,
     lines: int,
     max_bytes: int,
-) -> ToolRunLogTail:
+) -> _ToolRunLogTail:
     """Return the bounded tail of a run's output of record.
 
     The selection mirrors the ``sase tool show --log`` path: the run's own
@@ -467,8 +467,8 @@ def tool_run_log_tail(
         existing = [path for path in retained if path.is_file()]
         if not existing:
             if metadata.get("detail_pruned") or metadata.get("log_pruned"):
-                return ToolRunLogTail(availability="pruned", source="none")
-            return ToolRunLogTail(availability="not-recorded", source="none")
+                return _ToolRunLogTail(availability="pruned", source="none")
+            return _ToolRunLogTail(availability="not-recorded", source="none")
         merged: list[str] = []
         total = 0
         cut = False
@@ -485,7 +485,7 @@ def tool_run_log_tail(
         )
         if truncation_record:
             cut = True
-        return ToolRunLogTail(
+        return _ToolRunLogTail(
             availability="truncated" if cut else "available",
             source="run",
             lines=tuple(kept_lines),
@@ -497,8 +497,8 @@ def tool_run_log_tail(
     if kind and resolved_owner:
         return _owner_log_tail(kind, resolved_owner, metadata, lines, max_bytes)
     if metadata.get("detail_pruned") or metadata.get("log_pruned"):
-        return ToolRunLogTail(availability="pruned", source="none")
-    return ToolRunLogTail(availability="not-recorded", source="none")
+        return _ToolRunLogTail(availability="pruned", source="none")
+    return _ToolRunLogTail(availability="not-recorded", source="none")
 
 
 __all__ = [
@@ -508,7 +508,7 @@ __all__ = [
     "BoundedLogSink",
     "LogSinkError",
     "RunLogBudget",
-    "ToolRunLogTail",
+    "_ToolRunLogTail",
     "log_policy",
     "log_write_diagnostics",
     "prepare_run_paths",

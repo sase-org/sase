@@ -26,9 +26,9 @@ rejected alternative — keep blocking and make the wait more robust (a bounded 
 smarter timeout) — only shrinks the blocking window; it does not remove the structural
 cost of an agent process, claim, and runner slot sitting idle for a human-scale
 decision. Killing the creator and resuming through an ordinary family follow-up removes
-that cost entirely and reuses the same handoff machinery `sase monitor` and `/sase_pipe`
-already rely on, rather than inventing a fourth continuation mechanism. A successful
-turn still completes through [[decisions/host-owned-completion]].
+that cost entirely and reuses the same handoff machinery `sase monitor` and
+`/sase_handoff` already rely on, rather than inventing a fourth continuation mechanism.
+A successful turn still completes through [[decisions/host-owned-completion]].
 
 **Cost.** One extra family row (the gate shell) and one extra process start per decision
 — the same cost a monitor follow-up already pays today, not a new category of expense.

@@ -18,7 +18,7 @@ _LIVE_STATES = frozenset({"created", "running"})
 
 
 @dataclass(frozen=True)
-class RowIdentity:
+class _RowIdentity:
     """Minimal node-kind description for one Agents-tab row."""
 
     agent_name: str | None = None
@@ -33,8 +33,8 @@ class RowIdentity:
     is_clan: bool = False
 
 
-def row_identity_from_agent(agent: object) -> RowIdentity:
-    """Build a :class:`RowIdentity` from an Agents-tab row object.
+def row_identity_from_agent(agent: object) -> _RowIdentity:
+    """Build a :class:`_RowIdentity` from an Agents-tab row object.
 
     Duck-typed so render and cache paths never import the Agent model at
     module load; only the attributes attribution needs are read.
@@ -65,7 +65,7 @@ def row_identity_from_agent(agent: object) -> RowIdentity:
             container_name = ref()
     except Exception:
         container_name = None
-    return RowIdentity(
+    return _RowIdentity(
         agent_name=str(agent_name) if agent_name else None,
         monitor_id=str(monitor_id) if monitor_id else None,
         proc_id=str(proc_id) if proc_id else None,
@@ -116,7 +116,7 @@ def _fold_children(
 
 def select_live_runs(
     runs: object,
-    row: RowIdentity,
+    row: _RowIdentity,
 ) -> tuple[ToolRunGlance, ...]:
     """Return the live runs whose chip belongs on *row* (§3.3).
 
@@ -172,4 +172,4 @@ def select_live_runs(
     return ()
 
 
-__all__ = ["RowIdentity", "row_identity_from_agent", "select_live_runs"]
+__all__ = ["_RowIdentity", "row_identity_from_agent", "select_live_runs"]

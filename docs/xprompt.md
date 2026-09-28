@@ -1475,13 +1475,13 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_final`         | Submit the current turn's SASE finalizer declaration                                          |
 | `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |
 | `sase_git_commit`    | Commit through `sase stitch create` for git and GitHub workflows                              |
+| `sase_handoff`       | Hand this agent's turn to the next session member with `sase pipe`                            |
 | `sase_memory_read`   | Perform audited reference memory reads through `sase memory read`                             |
 | `sase_memory_write`  | Gate every SASE memory-file create, edit, or delete before making it                          |
 | `sase_monitor`       | Run a long command without blocking your turn                                                 |
 | `sase_new_task`      | Use before creating, filing, proposing, or otherwise recording any new SASE task bead         |
 | `sase_notify`        | Inspect SASE notifications and notification inbox entries                                     |
 | `sase_patches`       | Inspect and reason about Patches, stitches, hooks, comments, and mentors                      |
-| `sase_pipe`          | Hand this agent's turn to the next session member with `sase pipe`                            |
 | `sase_plan`          | Create and submit an implementation plan when provider-native plan mode is disabled           |
 | `sase_project`       | Inspect or manage project lifecycle state and aliases                                         |
 | `sase_questions`     | Ask the user structured questions when the provider-native question tool is disabled          |

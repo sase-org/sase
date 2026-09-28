@@ -9,7 +9,7 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import (
     probe_tool_runs_token,
     surface_token_drifted,
 )
-from sase.ace.tui.tool_runs.attribution import RowIdentity, select_live_runs
+from sase.ace.tui.tool_runs.attribution import _RowIdentity, select_live_runs
 from sase.ace.tui.tool_runs.row_chip import (
     _minute_bucket,
     _order_live_runs,
@@ -79,14 +79,14 @@ def teardown_function(_: object) -> None:
 def test_owner_first_monitor_row() -> None:
     owned = _glance("a", agent="0t9--code", owner_kind="monitor", owner_id="m1")
     unowned = _glance("b", agent="0t9--code")
-    row = RowIdentity(agent_name="0t9--code", monitor_id="m1", is_monitor_row=True)
+    row = _RowIdentity(agent_name="0t9--code", monitor_id="m1", is_monitor_row=True)
     assert select_live_runs([owned, unowned], row) == (owned,)
 
 
 def test_agent_turn_excludes_owned_runs() -> None:
     owned = _glance("a", agent="0t9--code", owner_kind="monitor", owner_id="m1")
     unowned = _glance("b", agent="0t9--code")
-    row = RowIdentity(agent_name="0t9--code")
+    row = _RowIdentity(agent_name="0t9--code")
     assert select_live_runs([owned, unowned], row) == (unowned,)
 
 
@@ -94,7 +94,7 @@ def test_session_container_unions_members_and_own_name() -> None:
     r1 = _glance("a", agent="member-1")
     r2 = _glance("b", agent="sess")
     r3 = _glance("c", agent="other")
-    row = RowIdentity(
+    row = _RowIdentity(
         agent_name="sess",
         is_session_container=True,
         session_member_names=("member-1", "member-2"),
@@ -105,14 +105,14 @@ def test_session_container_unions_members_and_own_name() -> None:
 
 def test_remote_and_clan_rows_never_match() -> None:
     run = _glance("a", agent="x")
-    assert select_live_runs([run], RowIdentity(agent_name="x", is_remote=True)) == ()
-    assert select_live_runs([run], RowIdentity(agent_name="x", is_clan=True)) == ()
+    assert select_live_runs([run], _RowIdentity(agent_name="x", is_remote=True)) == ()
+    assert select_live_runs([run], _RowIdentity(agent_name="x", is_clan=True)) == ()
 
 
 def test_parent_folds_child_without_plus_n() -> None:
     parent = _glance("p", agent="x", created_ts=1000)
     child = _glance("c", agent="x", created_ts=1010, parent_run_id="p")
-    row = RowIdentity(agent_name="x")
+    row = _RowIdentity(agent_name="x")
     selected = select_live_runs([parent, child], row)
     assert selected == (parent,)
     chip = row_chip_for_runs(selected, 1100.0, 60)
@@ -123,7 +123,7 @@ def test_parent_folds_child_without_plus_n() -> None:
 def test_second_live_run_appends_plus_n() -> None:
     r1 = _glance("a", agent="x", created_ts=1000)
     r2 = _glance("b", agent="x", created_ts=1010)
-    row = RowIdentity(agent_name="x")
+    row = _RowIdentity(agent_name="x")
     selected = select_live_runs([r1, r2], row)
     assert len(selected) == 2
     chip = row_chip_for_runs(selected, 1100.0, 60)

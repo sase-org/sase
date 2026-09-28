@@ -605,7 +605,7 @@ hidden compatibility aliases for `sase axe job ...` and `sase axe routine ...`; 
 
 A long command (`just check-full`, a CI wait, a deploy) should run under a monitor
 rather than blocking an agent turn — see the `/sase_monitor` skill. Handing this agent's
-own turn to a successor is a different, in-process hand-off — see the `/sase_pipe`
+own turn to a successor is a different, in-process hand-off — see the `/sase_handoff`
 skill.
 
 ## Prompt And Workflow Authoring

@@ -820,7 +820,7 @@ This waiting exception is specific to host-owned approved-epic launches; running
 
 ## Pipe vs. monitor
 
-`sase pipe '<prompt>'` (the `/sase_pipe` skill) looks similar — it also kills the
+`sase pipe '<prompt>'` (the `/sase_handoff` skill) looks similar — it also kills the
 calling agent and continues the run as a new session member — but it solves a different
 problem. A monitor runs and waits on an OS command; nothing about the command's content
 is an LLM turn. Pipe hands the agent's own unfinished _turn_ to a fresh successor: no
@@ -846,7 +846,7 @@ That only worked because `sase monitor start` already kills the caller and its
 supervisor already launches a session follow-up once the command settles — a monitor
 supervisor, a proc row, and a one-second sleep, purely to obtain a hand-off. Use
 `sase pipe` for a hand-off instead; the `sleep 1 --next '...'` pattern is no longer
-necessary. See the `/sase_pipe` skill for the command's flags and hazards.
+necessary. See the `/sase_handoff` skill for the command's flags and hazards.
 
 ## See also
 

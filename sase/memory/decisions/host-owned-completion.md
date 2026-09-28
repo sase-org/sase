@@ -28,7 +28,7 @@ does not activate it.
 **Cost.** Protocol and evidence complexity: the host must resolve a finalizer plan
 before the turn, publish immutable context, and verify postconditions independently,
 which is more machinery than "the agent ran `git commit`." The mechanical exemptions
-(`/sase_plan`, `/sase_monitor`, `/sase_pipe`, `/sase_questions`) exist because they
+(`/sase_plan`, `/sase_monitor`, `/sase_handoff`, `/sase_questions`) exist because they
 terminate the runner before the success path — they are not violations of the rule, per
 [[decisions/single-turn-agents]] and [[decisions/gates-never-block]].
 

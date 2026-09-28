@@ -226,7 +226,7 @@ def _absence_line(kind: str) -> Text:
 
 
 def _tail_availability_kind(tail: Any) -> str:
-    """Map a :class:`ToolRunLogTail` availability to an absence kind."""
+    """Map a :class:`_ToolRunLogTail` availability to an absence kind."""
 
     availability = str(getattr(tail, "availability", "not-recorded") or "")
     if availability in ("available", "truncated"):

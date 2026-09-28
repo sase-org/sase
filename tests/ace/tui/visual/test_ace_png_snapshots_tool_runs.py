@@ -28,7 +28,7 @@ from sase.core.tool_run_views import (
     ToolRunDetailTriageItem,
     ToolRunLogMetadata,
 )
-from sase.tool.logs import ToolRunLogTail
+from sase.tool.logs import _ToolRunLogTail
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
 )
@@ -521,7 +521,7 @@ def _failed_detail(brief: ToolRunBrief) -> LoadedToolRunDetail:
         logs=ToolRunLogMetadata(),
         brief=brief,
     )
-    tail = ToolRunLogTail(
+    tail = _ToolRunLogTail(
         availability="available",
         source="run",
         lines=tuple(f"check output line {index}" for index in range(1, 13)),
@@ -669,13 +669,13 @@ def _card_details() -> dict[str, LoadedToolRunDetail]:
         ("c1" + "0" * 30): LoadedToolRunDetail(
             run_id="c1" + "0" * 30,
             detail=live_detail,
-            tail=ToolRunLogTail(),
+            tail=_ToolRunLogTail(),
             live=True,
         ),
         pruned.run_id: LoadedToolRunDetail(
             run_id=pruned.run_id,
             detail=pruned_detail,
-            tail=ToolRunLogTail(
+            tail=_ToolRunLogTail(
                 availability="pruned",
                 source="none",
                 lines=(),

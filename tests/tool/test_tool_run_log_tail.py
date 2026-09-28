@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.tool.logs import ToolRunLogTail, record_truncation, tool_run_log_tail
+from sase.tool.logs import _ToolRunLogTail, record_truncation, tool_run_log_tail
 from sase.tool.query import _replay_logs
 
 
@@ -110,12 +110,12 @@ def test_pruned_when_retention_took_the_logs(tmp_path: Path) -> None:
         12,
         65536,
     )
-    assert tail == ToolRunLogTail(availability="pruned", source="none")
+    assert tail == _ToolRunLogTail(availability="pruned", source="none")
 
 
 def test_not_recorded_without_paths_or_owner() -> None:
     tail = tool_run_log_tail("run-1", {}, None, None, 12, 65536)
-    assert tail == ToolRunLogTail(availability="not-recorded", source="none")
+    assert tail == _ToolRunLogTail(availability="not-recorded", source="none")
 
 
 def test_missing_files_without_pruning_signal_are_not_recorded(

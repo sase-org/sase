@@ -1,6 +1,6 @@
 """App-level ToolRun glance snapshot service (plan §3.5.1).
 
-Holds one immutable :class:`ToolRunGlanceSnapshot` (runs by attribution key,
+Holds one immutable :class:`_ToolRunGlanceSnapshot` (runs by attribution key,
 ``silent_after_s``, store token, and a load generation). Loads run off the
 event loop through ``asyncio.to_thread(tool_run_live_glance)``; render paths
 read the in-memory snapshot plus ``now`` and never touch SQLite.
@@ -19,11 +19,11 @@ log = logging.getLogger(__name__)
 _TOOL_RUNS_DISABLED_REASON: str | None = None
 _TOOL_RUNS_DISABLED_LOGGED = False
 _snapshot_lock = threading.Lock()
-_current_snapshot: ToolRunGlanceSnapshot | None = None
+_current_snapshot: _ToolRunGlanceSnapshot | None = None
 
 
 @dataclass(frozen=True)
-class ToolRunGlanceSnapshot:
+class _ToolRunGlanceSnapshot:
     """One immutable glance load: every unsettled run on the machine."""
 
     runs: tuple[Any, ...] = ()
@@ -41,14 +41,14 @@ class ToolRunGlanceSnapshot:
         return bool(self.runs)
 
 
-def get_snapshot() -> ToolRunGlanceSnapshot | None:
+def get_snapshot() -> _ToolRunGlanceSnapshot | None:
     """Return the current app-level glance snapshot, if any."""
 
     with _snapshot_lock:
         return _current_snapshot
 
 
-def _set_snapshot(snapshot: ToolRunGlanceSnapshot | None) -> None:
+def _set_snapshot(snapshot: _ToolRunGlanceSnapshot | None) -> None:
     """Publish *snapshot* as the current app-level glance snapshot."""
 
     global _current_snapshot
@@ -65,10 +65,10 @@ def _build_snapshot(
     truncated: bool = False,
     store_exists: bool = True,
     fetched_at_mono: float | None = None,
-) -> ToolRunGlanceSnapshot:
+) -> _ToolRunGlanceSnapshot:
     """Build an immutable snapshot from one glance load."""
 
-    return ToolRunGlanceSnapshot(
+    return _ToolRunGlanceSnapshot(
         runs=tuple(runs),
         silent_after_s=int(silent_after_s or 60),
         store_token=store_token,
@@ -102,7 +102,7 @@ def load_glance_blocking(
     *,
     store_path: str | None = None,
     busy_timeout_ms: int = 250,
-) -> ToolRunGlanceSnapshot | None:
+) -> _ToolRunGlanceSnapshot | None:
     """Load one glance snapshot on a worker thread; never raise.
 
     A busy or locked store, a newer schema, or a thread error keeps the
@@ -148,16 +148,16 @@ def load_glance_blocking(
 
 
 def apply_loaded_snapshot(
-    loaded: ToolRunGlanceSnapshot | None,
+    loaded: _ToolRunGlanceSnapshot | None,
     *,
     store_token: Any | None = None,
-) -> ToolRunGlanceSnapshot | None:
+) -> _ToolRunGlanceSnapshot | None:
     """Publish *loaded* with its store token; None keeps the last snapshot."""
 
     if loaded is None:
         return get_snapshot()
     if store_token is not None:
-        loaded = ToolRunGlanceSnapshot(
+        loaded = _ToolRunGlanceSnapshot(
             runs=loaded.runs,
             silent_after_s=loaded.silent_after_s,
             store_token=store_token,
@@ -192,7 +192,7 @@ def should_probe_drift(now_mono: float, state: ToolRunsLoadState) -> bool:
 
 
 __all__ = [
-    "ToolRunGlanceSnapshot",
+    "_ToolRunGlanceSnapshot",
     "ToolRunsLoadState",
     "apply_loaded_snapshot",
     "get_snapshot",
