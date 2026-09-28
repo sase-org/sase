@@ -444,16 +444,13 @@ async def test_async_full_history_discarded_when_query_changes_after_disk_load(
     app._agents_refresh_pending_full_history = False
     app._agents_refresh_pending_full_history_reason = None
     app._agents_refresh_pending_revalidate_index = False
-    app._agents_refresh_pending_prefix_completion = False
     app._agents_refresh_pending_callbacks = []
     app._agents_refresh_scheduled = False
     app._agents_refresh_scheduled_source = "unknown"
     app._agents_refresh_scheduled_full_history = False
     app._agents_refresh_scheduled_full_history_reason = None
     app._agents_refresh_scheduled_revalidate_index = False
-    app._agents_refresh_scheduled_prefix_completion = False
     app._agents_refresh_active_source = "unknown"
-    app._agents_refresh_active_prefix_completion = False
     app._agents_artifact_delta_scheduled = None
     app._agents_artifact_delta_pending = None
     app._agents_history_reconcile_pending = False

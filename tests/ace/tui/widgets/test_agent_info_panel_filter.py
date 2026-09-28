@@ -72,15 +72,39 @@ def test_update_search_query_shows_partial_history_notice() -> None:
             "status:FAILED",
             rich=highlighted,
             match_count=(1, 5),
-            partial_history=True,
+            roster_loading=True,
         )
 
     plain = collect_text(panel)
 
     assert (
-        "filter: status:FAILED [1/5] (/)  filtered on recent history; "
+        "filter: status:FAILED [1/5] (/)  filtered on partial history; "
         "loading full history..."
     ) in plain
+
+
+def test_roster_loading_without_filter_shows_loading_hint() -> None:
+    """The header says the roster is loading even with no filter committed."""
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_search_query("", roster_loading=True)
+
+    plain = collect_text(panel)
+
+    assert "loading agents..." in plain
+    assert "filtered on partial history" not in plain
+
+
+def test_roster_loading_clears_with_roster() -> None:
+    """A complete roster drops the loading hint with and without a filter."""
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_search_query("", roster_loading=False)
+
+    plain = collect_text(panel)
+
+    assert "loading agents..." not in plain
+    assert "filtered on partial history" not in plain
 
 
 def test_search_query_click_span_covers_only_the_query_segment() -> None:

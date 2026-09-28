@@ -16,8 +16,8 @@ from typing import Any
 from ._loading_refresh_delta import AgentArtifactDeltaRefreshMixin
 from ._loading_refresh_polling import (
     AgentRefreshPollingMixin,
-    STARTUP_PREFIX_COMPLETION_INPUT_QUIET_THRESHOLD_S as STARTUP_PREFIX_COMPLETION_INPUT_QUIET_THRESHOLD_S,
-    STARTUP_PREFIX_COMPLETION_SOURCE as STARTUP_PREFIX_COMPLETION_SOURCE,
+    ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S as ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S,
+    ROSTER_COMPLETION_SOURCE as ROSTER_COMPLETION_SOURCE,
     TIER1_INDEX_REVALIDATE_INPUT_QUIET_THRESHOLD_S as TIER1_INDEX_REVALIDATE_INPUT_QUIET_THRESHOLD_S,
     TIER1_INDEX_REVALIDATE_MIN_INTERVAL_S as TIER1_INDEX_REVALIDATE_MIN_INTERVAL_S,
     TIER1_INDEX_REVALIDATE_SOURCE as TIER1_INDEX_REVALIDATE_SOURCE,
@@ -101,7 +101,6 @@ class AgentLoadingRefreshMixin(
         full_history: bool = False,
         full_history_reason: str | None = None,
         revalidate_index: bool = False,
-        complete_prefix: bool = False,
         on_complete: Callable[[], None] | None = None,
     ) -> None:
         """Schedule an async agent reload without blocking.
@@ -134,8 +133,6 @@ class AgentLoadingRefreshMixin(
                 )
             if revalidate_index:
                 self._agents_refresh_pending_revalidate_index = True
-            if complete_prefix:
-                self._agents_refresh_pending_prefix_completion = True
             return
         self._agents_refresh_scheduled = True
         self._agents_refresh_scheduled_source = source
@@ -144,7 +141,6 @@ class AgentLoadingRefreshMixin(
             full_history_reason if full_history else None
         )
         self._agents_refresh_scheduled_revalidate_index = revalidate_index
-        self._agents_refresh_scheduled_prefix_completion = complete_prefix
         data_cost = classify_agents_data_cost(full_history=full_history)
         fallback_reason = infer_broad_load_fallback_reason(
             source=source,
@@ -207,9 +203,6 @@ class AgentLoadingRefreshMixin(
         revalidate_index = getattr(
             self, "_agents_refresh_scheduled_revalidate_index", False
         )
-        complete_prefix = getattr(
-            self, "_agents_refresh_scheduled_prefix_completion", False
-        )
         source = _normalize_refresh_source(
             getattr(self, "_agents_refresh_scheduled_source", "unknown")
         )
@@ -218,7 +211,6 @@ class AgentLoadingRefreshMixin(
         self._agents_refresh_scheduled_full_history = False
         self._agents_refresh_scheduled_full_history_reason = None
         self._agents_refresh_scheduled_revalidate_index = False
-        self._agents_refresh_scheduled_prefix_completion = False
         if self._agents_loading:
             self._agents_refresh_pending = True
             self._agents_refresh_pending_source = source
@@ -229,12 +221,9 @@ class AgentLoadingRefreshMixin(
                 )
             if revalidate_index:
                 self._agents_refresh_pending_revalidate_index = True
-            if complete_prefix:
-                self._agents_refresh_pending_prefix_completion = True
             return
         self._agents_loading = True
         self._agents_refresh_active_source = source
-        self._agents_refresh_active_prefix_completion = complete_prefix
         callbacks = list(self._agents_refresh_pending_callbacks)
         self._agents_refresh_pending_callbacks.clear()
         applied = False
@@ -269,7 +258,6 @@ class AgentLoadingRefreshMixin(
         finally:
             self._agents_loading = False
             self._agents_refresh_active_source = "unknown"
-            self._agents_refresh_active_prefix_completion = False
             if applied:
                 for cb in callbacks:
                     try:

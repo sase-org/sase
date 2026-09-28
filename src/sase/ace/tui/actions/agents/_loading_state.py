@@ -158,15 +158,12 @@ class AgentLoadingStateMixin:
     _agents_refresh_pending_full_history: bool
     _agents_refresh_pending_full_history_reason: str | None
     _agents_refresh_pending_revalidate_index: bool
-    _agents_refresh_pending_prefix_completion: bool
     _agents_refresh_pending_callbacks: list[Callable[[], None]]
     _agents_refresh_scheduled: bool
     _agents_refresh_scheduled_source: str
     _agents_refresh_scheduled_full_history: bool
     _agents_refresh_scheduled_full_history_reason: str | None
     _agents_refresh_scheduled_revalidate_index: bool
-    _agents_refresh_scheduled_prefix_completion: bool
-    _agents_refresh_active_prefix_completion: bool
     _agents_refresh_active_source: str
     _agents_refresh_async_tasks: set[asyncio.Task[None]]
     _agents_artifact_delta_scheduled: Any | None
@@ -198,6 +195,11 @@ class AgentLoadingStateMixin:
     # at which the flag was first set, used by the idle-tick trigger.
     _agents_history_reconcile_pending: bool
     _agents_history_reconcile_armed_mono: float
+    # Input-quiet threshold armed with the pending Tier 2 reconcile. Repair
+    # arming on a complete roster uses the 30 s default; roster-completion
+    # arming while partial uses the 2 s short threshold. Re-arming may only
+    # lower it.
+    _agents_history_reconcile_quiet_s: float
     # Cached Tier 1 index reads are backed by an off-critical-path
     # revalidating query at a longer cadence than ordinary auto-refresh.
     _agents_index_revalidate_pending: bool
@@ -239,14 +241,13 @@ class AgentLoadingStateMixin:
     _agents_complete_history_query_key: AgentsHistoryQueryKey | None
     # Committed-query key of the last applied load (the cached roster's query).
     _agents_applied_query_key: AgentsHistoryQueryKey | None
+    # Committed-query key of the last applied roster-complete load. A
+    # viewport window is only used when this matches the current query key:
+    # the first load, a committed-query change, and recovery after a
+    # partial replacement all read the whole visible inbox as a baseline.
+    _agents_roster_complete_query_key: AgentsHistoryQueryKey | None
     # One revalidated load per run of ignored same-query bounded zeros.
     _agents_empty_ignored_revalidated: bool
-    # One-shot cached unwindowed Tier-1 read that completes the Agents
-    # window prefix after first paint. Distinct from
-    # ``_agents_seen_complete_history``, which is only set by a Tier-2 load.
-    _agents_prefix_completion_pending: bool
-    _agents_prefix_completion_done: bool
-    _agents_prefix_completion_armed_mono: float
     _agents_repro_capture: object | None
 
     def _capture_agents_apply_selection(

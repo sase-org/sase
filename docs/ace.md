@@ -1735,9 +1735,12 @@ path visible; when epic context is known, validation failure renders one quiet
 `phases unavailable` header state rather than partial phase data.
 
 sase's TUI separates fast visible-inbox loads from full-history scans. The visible inbox
-is the normal Agents-tab working set: active rows plus recent completed, non-hidden
-rows. Startup, manual This-tab refresh (`r` then `r` on Agents), and active agent search
-use that path through the persistent artifact index when it is available.
+is the normal Agents-tab working set: every active row plus every non-hidden completed
+row, subject only to a first-paint safety cap (about 6x the measured inbox). The first
+load for a committed query reads that whole inbox as a baseline; refreshes after a
+baseline stay windowed patches over it. Startup, manual This-tab refresh (`r` then `r`
+on Agents), and active agent search use that path through the persistent artifact index
+when it is available.
 
 If the index is missing or unhealthy, sase's TUI falls back to a bounded source-artifact
 scan for the first paint and shows a repair warning with the reason. That repair state
@@ -2855,8 +2858,14 @@ artifact index can answer every term exactly — `cl:`, `model:`, `provider:`, `
 combined with `AND` / `OR` — the loader selects matching agents from the whole archive.
 Any other term (for example `status:`, `name:`, `tribe:`, `tab:`, or free text) is first
 evaluated against the bounded recent-history window, and the header adds
-`filtered on recent history; loading full history...` until a quiet-window full-history
-reconcile finishes and older matches can appear.
+`filtered on partial history; loading full history...` until a quiet-window full-history
+reconcile finishes and older matches can appear. Whenever the applied roster is
+knowingly less than the visible inbox for the current query — a fallback scan, a
+truncated inbox, a query-incomplete read, or a committed-query change still loading —
+the header shows a loading indicator instead (`⟳ loading agents...` with no filter
+committed), which clears on the completing apply. Pushdown-miss queries are only partial
+when the read was viewport-bounded or truncated; a non-truncated baseline read saw the
+whole visible inbox.
 
 Transcript files are read only by the background content-index worker while a query is
 active and are cached by `(path, mtime_ns)` so auto-refresh stays cheap. Per-file reads

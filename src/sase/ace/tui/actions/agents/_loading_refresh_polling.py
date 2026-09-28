@@ -38,13 +38,14 @@ _QUESTION_STATUSES = frozenset({"QUESTION", "WAITING INPUT", "ANSWERED"})
 # Seconds of input quiet required before the deferred Tier 2
 # full-history reconcile is scheduled in the background. Picked to land
 # well outside any j/k burst while still completing before the user
-# would typically reach for historic data.
+# would typically reach for historic data. Roster-completion arming
+# while the roster is partial uses the short threshold instead.
 TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S = 30.0
+ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S = 2.0
+ROSTER_COMPLETION_SOURCE = "roster_completion_retry"
 TIER1_INDEX_REVALIDATE_INPUT_QUIET_THRESHOLD_S = 2.0
 TIER1_INDEX_REVALIDATE_MIN_INTERVAL_S = 300.0
 TIER1_INDEX_REVALIDATE_SOURCE = "tier1_index_revalidate"
-STARTUP_PREFIX_COMPLETION_INPUT_QUIET_THRESHOLD_S = 2.0
-STARTUP_PREFIX_COMPLETION_SOURCE = "startup_prefix_completion"
 INFLIGHT_POLL_SOURCE = "inflight_poll"
 
 
@@ -156,60 +157,26 @@ class AgentRefreshPollingMixin(AgentLoadingStateMixin):
         )
         return True
 
-    def _arm_startup_prefix_completion(
+    def _arm_agents_history_reconcile(
         self,
-        load_state: object | None,
         *,
-        source: str,
+        quiet_s: float,
         now_mono: float | None = None,
     ) -> None:
-        """Arm the one-shot cached unwindowed prefix completion after first paint."""
-        del source
-        if load_state is None:
-            return
-        if not getattr(load_state, "bounded_prefix", False):
-            self._agents_prefix_completion_done = True
-            self._agents_prefix_completion_pending = False
-            return
-        if getattr(self, "_agents_prefix_completion_done", False):
-            return
-        if getattr(self, "_agents_prefix_completion_pending", False):
-            return
-        if not getattr(load_state, "has_more", False):
-            return
+        """Arm the deferred Tier 2 reconcile with an input-quiet threshold.
+
+        Re-arming may only lower the threshold so a repair-only arming on a
+        complete roster keeps the 30 s default while roster-completion
+        arming while partial fires promptly after 2 s of input quiet.
+        """
         cur = time.monotonic() if now_mono is None else now_mono
-        self._agents_prefix_completion_pending = True
-        self._agents_prefix_completion_armed_mono = cur
-
-    def _maybe_trigger_startup_prefix_completion(
-        self, *, now_mono: float | None = None
-    ) -> bool:
-        """Schedule the one-shot unwindowed prefix completion once input is quiet."""
-        if not getattr(self, "_agents_prefix_completion_pending", False):
-            return False
-        if getattr(self, "_agents_prefix_completion_done", False):
-            self._agents_prefix_completion_pending = False
-            return False
-        if self._agents_loading or self._agents_refresh_scheduled:
-            return False
-        if getattr(self, "_agents_artifact_delta_scheduled", None) is not None:
-            return False
-
-        cur = time.monotonic() if now_mono is None else now_mono
-        last_input = getattr(self, "_last_input_mono", 0.0)
-        armed_at = getattr(self, "_agents_prefix_completion_armed_mono", 0.0)
-        reference = max(last_input, armed_at)
-        if reference <= 0.0:
-            return False
-        if cur - reference < STARTUP_PREFIX_COMPLETION_INPUT_QUIET_THRESHOLD_S:
-            return False
-
-        self._agents_prefix_completion_pending = False
-        self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
-            source=STARTUP_PREFIX_COMPLETION_SOURCE,
-            complete_prefix=True,
-        )
-        return True
+        if getattr(self, "_agents_history_reconcile_pending", False):
+            current = float(getattr(self, "_agents_history_reconcile_quiet_s", 30.0))
+            self._agents_history_reconcile_quiet_s = min(current, quiet_s)
+            return
+        self._agents_history_reconcile_pending = True
+        self._agents_history_reconcile_armed_mono = cur
+        self._agents_history_reconcile_quiet_s = quiet_s
 
     def _maybe_trigger_input_quiet_tier2_reconcile(
         self, *, now_mono: float | None = None
@@ -218,15 +185,18 @@ class AgentRefreshPollingMixin(AgentLoadingStateMixin):
 
         Returns True iff a refresh was scheduled. The reconcile is the
         single largest startup span (~2.7 s) and is deferred until input
-        has been quiet for ``TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S``; the
-        quiet window is measured from the later of the last recorded
-        input and the moment the pending flag was armed, so users
-        who never touch input still get the reconcile in the
-        background.
+        has been quiet for the threshold armed with the pending flag (the
+        30 s default for repair-only arming, the 2 s short threshold for
+        roster completion while partial); the quiet window is measured
+        from the later of the last recorded input and the moment the
+        pending flag was armed, so users who never touch input still get
+        the reconcile in the background.
         """
         if not getattr(self, "_agents_history_reconcile_pending", False):
             return False
         if self._agents_loading or self._agents_refresh_scheduled:
+            return False
+        if getattr(self, "_agents_artifact_delta_scheduled", None) is not None:
             return False
         cur = time.monotonic() if now_mono is None else now_mono
         last_input = getattr(self, "_last_input_mono", 0.0)
@@ -234,9 +204,28 @@ class AgentRefreshPollingMixin(AgentLoadingStateMixin):
         reference = max(last_input, armed_at)
         if reference <= 0.0:
             return False
-        if cur - reference < TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S:
+        quiet_s = float(
+            getattr(
+                self,
+                "_agents_history_reconcile_quiet_s",
+                TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S,
+            )
+        )
+        if cur - reference < quiet_s:
             return False
         self._agents_history_reconcile_pending = False
+        self._agents_history_reconcile_quiet_s = TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S
+        load_state = getattr(self, "_agent_load_state", None)
+        if (
+            getattr(load_state, "repair_reason", None)
+            == "artifact_index_lock_busy_bounded_fallback"
+        ):
+            # Transient lock contention: retry as a normal refresh, which
+            # reads the baseline while the roster is partial.
+            self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+                source=ROSTER_COMPLETION_SOURCE,
+            )
+            return True
         self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
             source="input_quiet_tier2_reconcile",
             full_history=True,

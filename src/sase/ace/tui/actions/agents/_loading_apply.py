@@ -17,9 +17,15 @@ from typing import TYPE_CHECKING, Any
 from ...models.agent import AgentType
 from ...util.trace import tui_trace
 from ._loading_apply_history import (
+    cache_query_matches_load,
     has_complete_history_for_load_query,
     history_query_key_for_load,
+    roster_complete_for_load,
     should_arm_full_history_reconcile,
+)
+from ._loading_refresh_polling import (
+    ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S,
+    TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S,
 )
 from ._loading_apply_incomplete import AgentLoadingApplyIncompleteMixin
 from ._loading_apply_snapshot import AgentLoadingApplySnapshotMixin
@@ -347,8 +353,42 @@ class AgentLoadingApplyMixin(
             # stay consistent.
             self._agents_complete_history_query_key = None
             self._agents_seen_complete_history = False
+        # Roster latch: a viewport window may only patch over a
+        # same-query baseline. Set it when the applied load covers the whole
+        # visible inbox; leave it for artifact deltas and bounded/partial
+        # loads merged over a same-query cached roster; clear it when a
+        # partial load replaced the roster instead (no same-query cache).
+        same_query_cache = bool(
+            cache_query_matches_load(self, load_state)
+            and getattr(self, "_agents_with_children", None)
+        )
+        is_artifact_delta = (
+            load_state is not None and load_state.artifact_source == "artifact_delta"
+        )
+        if not is_artifact_delta:
+            if roster_complete_for_load(load_state):
+                self._agents_roster_complete_query_key = history_query_key
+                # A newly complete roster retires a roster-completion arming;
+                # repair-only (default-threshold) arming survives.
+                if float(
+                    getattr(
+                        self,
+                        "_agents_history_reconcile_quiet_s",
+                        TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S,
+                    )
+                ) < float(TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S):
+                    self._agents_history_reconcile_pending = False
+                    self._agents_history_reconcile_quiet_s = (
+                        TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S
+                    )
+            elif not same_query_cache:
+                self._agents_roster_complete_query_key = None
         self._agents_applied_query_key = history_query_key
         self._agent_load_state = load_state
+        roster_partial = (
+            getattr(self, "_agents_roster_complete_query_key", None)
+            != history_query_key
+        )
         schema_rebuild_in_flight = bool(
             getattr(self, "_artifact_index_schema_rebuild_in_flight", False)
         )
@@ -358,16 +398,27 @@ class AgentLoadingApplyMixin(
         # states. A healthy Tier 1 load can be archive-incomplete while still
         # complete for the visible inbox, so ordinary startup/lifecycle
         # refreshes must not prime the next normal refresh into Tier 2.
-        if (
-            not schema_rebuild_in_flight
-            and should_arm_full_history_reconcile(
-                load_state,
-                history_complete_for_query=history_complete_for_query,
-            )
-            and not getattr(self, "_agents_history_reconcile_pending", False)
+        # While the roster is partial the reconcile arms with the short
+        # roster-completion threshold; repair-only arming on a complete
+        # roster keeps the 30 s default. The countdown trigger picks the
+        # completing load by cause: transient lock-busy retries as a normal
+        # (baseline) refresh, every other cause runs Tier 2.
+        if not schema_rebuild_in_flight and should_arm_full_history_reconcile(
+            load_state,
+            history_complete_for_query=history_complete_for_query,
         ):
-            self._agents_history_reconcile_pending = True
-            self._agents_history_reconcile_armed_mono = time.monotonic()
+            arm_reconcile = getattr(self, "_arm_agents_history_reconcile", None)
+            if callable(arm_reconcile):
+                arm_reconcile(
+                    quiet_s=(
+                        ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S
+                        if roster_partial
+                        else TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S
+                    )
+                )
+            elif not getattr(self, "_agents_history_reconcile_pending", False):
+                self._agents_history_reconcile_pending = True
+                self._agents_history_reconcile_armed_mono = time.monotonic()
 
         self._dismissed_agent_objects = trim_dismissed_agent_objects(
             prep.dismissed_agent_objects
@@ -534,26 +585,21 @@ class AgentLoadingApplyMixin(
                 schedule_agent_session_preview_warmup(source="apply")
             self._schedule_diff_badge_classification(source="apply")  # type: ignore[attr-defined]
 
-        arm_index_revalidate = getattr(
-            self,
-            "_arm_tier1_index_revalidate_reconcile",
-            None,
-        )
-        if callable(arm_index_revalidate):
-            arm_index_revalidate(
-                load_state,
-                source=getattr(self, "_agents_refresh_active_source", "unknown"),
+        # The 300 s-cadence revalidate is maintenance: never arm it while the
+        # roster is partial (at startup it held the index lock in front of
+        # the completion read). It arms from the apply that completes the
+        # roster instead.
+        if not roster_partial:
+            arm_index_revalidate = getattr(
+                self,
+                "_arm_tier1_index_revalidate_reconcile",
+                None,
             )
-        arm_prefix_completion = getattr(
-            self,
-            "_arm_startup_prefix_completion",
-            None,
-        )
-        if callable(arm_prefix_completion):
-            arm_prefix_completion(
-                load_state,
-                source=getattr(self, "_agents_refresh_active_source", "unknown"),
-            )
+            if callable(arm_index_revalidate):
+                arm_index_revalidate(
+                    load_state,
+                    source=getattr(self, "_agents_refresh_active_source", "unknown"),
+                )
 
         schedule_fleet_refresh = getattr(self, "_schedule_agents_fleet_refresh", None)
         if callable(schedule_fleet_refresh):

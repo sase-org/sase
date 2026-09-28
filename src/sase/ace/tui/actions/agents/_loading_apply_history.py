@@ -49,6 +49,26 @@ def cache_query_matches_load(
     return applied_key == history_query_key_for_load(app, load_state)
 
 
+def roster_complete_for_load(load_state: AgentLoadState | None) -> bool:
+    """Return whether an applied load covers the whole visible inbox.
+
+    Either Tier 2 complete history, or a non-bounded, non-truncated,
+    query-complete Tier 1 read. Artifact deltas never count: they patch a
+    few exact rows over the cached roster.
+    """
+
+    if load_state is None or load_state.complete_history:
+        return load_state is not None and bool(load_state.complete_history)
+    if load_state.artifact_source == "artifact_delta":
+        return False
+    return bool(
+        not load_state.bounded_prefix
+        and load_state.complete_visible_inbox
+        and not load_state.truncated
+        and not load_state.query_incomplete
+    )
+
+
 def should_arm_full_history_reconcile(
     load_state: AgentLoadState | None,
     *,
@@ -59,6 +79,8 @@ def should_arm_full_history_reconcile(
         return False
     if load_state.repair_recommended:
         return True
+    if load_state.truncated and load_state.used_artifact_index:
+        return not history_complete_for_query
     if load_state.query_incomplete:
         return not history_complete_for_query
     return not load_state.complete_visible_inbox and not load_state.used_artifact_index

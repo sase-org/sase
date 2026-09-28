@@ -19,16 +19,13 @@ class _FakeApp(AgentLoadingMixin):
         self._agents_refresh_pending_full_history = False
         self._agents_refresh_pending_full_history_reason = None
         self._agents_refresh_pending_revalidate_index = False
-        self._agents_refresh_pending_prefix_completion = False
         self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled = False
         self._agents_refresh_scheduled_source = "unknown"
         self._agents_refresh_scheduled_full_history = False
         self._agents_refresh_scheduled_full_history_reason = None
         self._agents_refresh_scheduled_revalidate_index = False
-        self._agents_refresh_scheduled_prefix_completion = False
         self._agents_refresh_active_source = "unknown"
-        self._agents_refresh_active_prefix_completion = False
         self._agents_artifact_delta_scheduled = None
         self._scheduled: list[Any] = []
         self._nav_gate = NavigationGate(window_s=0.25)

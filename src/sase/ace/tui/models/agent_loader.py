@@ -557,7 +557,15 @@ def load_tiered_agents(
     )
     agents = _normalize_loaded_agents(result.agents, result.workflow_agent_steps)
     state = replace(result.state, history_query_key=history_query_key)
-    if defer_pushdown_miss and not state.complete_history:
+    # A pushdown-miss query evaluated only against recent history is
+    # query-incomplete. A non-truncated baseline read saw the whole visible
+    # inbox, so it is not query-incomplete; only viewport-bounded reads and
+    # truncated baseline reads are.
+    if (
+        defer_pushdown_miss
+        and not state.complete_history
+        and (state.bounded_prefix or state.truncated)
+    ):
         state = replace(state, query_incomplete=True)
     if effective_limit is not None and result.state.bounded_prefix:
         if use_unified_query and raw_query:

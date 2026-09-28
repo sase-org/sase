@@ -75,13 +75,13 @@ def test_filter_and_partial_history_join_with_dot_and_keep_click_span() -> None:
             "status:FAILED",
             rich=highlighted,
             match_count=(1, 5),
-            partial_history=True,
+            roster_loading=True,
         )
 
     text = collect_rich_text(panel)
 
     assert (
-        " · filter: status:FAILED [1/5] (/)  filtered on recent history;" in text.plain
+        " · filter: status:FAILED [1/5] (/)  filtered on partial history;" in text.plain
     )
     assert panel._search_query_click_span is not None
     start, end = panel._search_query_click_span

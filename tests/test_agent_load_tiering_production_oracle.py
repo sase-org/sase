@@ -309,32 +309,66 @@ def test_production_full_history_oracle_repairs_hidden_toggle_without_rebuild(
     assert result.diff_for("production_full_history").ok
 
 
-def test_production_oracle_settles_full_history_beyond_tier1_cap(
+def test_production_baseline_includes_rows_past_old_tier1_cap(
     tmp_path: Path,
 ) -> None:
-    """Tier 1's cap is a legitimate, self-resolving gap, not a defect.
+    """Rows past the old 200 cap are now part of the Tier 1 baseline.
 
-    Distinguishes rows temporarily absent from the bounded tier (expected;
-    resolved by a full-history load) from rows that never arrive (the
-    post-build-artifact defect covered separately above). The fixture size
-    intentionally clears ``_TIER1_RECENT_COMPLETED_LIMIT`` by a small
-    margin so this stays in the fast test lane rather than archive scale.
+    The baseline read covers the whole visible inbox, so a fixture that
+    clears ``_TIER1_RECENT_COMPLETED_LIMIT`` by a small margin stays in the
+    fast test lane and still settles with zero diff and no truncation.
     """
-    tier1_cap = loader_artifacts._TIER1_RECENT_COMPLETED_LIMIT
+    old_cap = loader_artifacts._TIER1_RECENT_COMPLETED_LIMIT
     fixture = build_synthetic_agent_archive(
-        tmp_path / "fixture", artifact_count=tier1_cap + 120
+        tmp_path / "fixture", artifact_count=old_cap + 120
     )
     oracle = AgentLoadTieringOracle(fixture)
     result = oracle.evaluate("", requested_limit=None)
 
     bounded_diff = result.diff_for("production_bounded")
-    assert bounded_diff.missing, "Tier 1 should legitimately exclude rows past its cap"
+    assert bounded_diff.ok, "Tier 1 baseline must include rows past the old cap"
     bounded_state = result.production_bounded.load_state
     assert bounded_state is not None
     assert bounded_state.complete_history is False
+    assert bounded_state.bounded_prefix is False
+    assert bounded_state.truncated is False
+    assert bounded_state.complete_visible_inbox is True
 
     full_diff = result.diff_for("production_full_history")
-    assert full_diff.ok, "full history must settle rows Tier 1 legitimately excludes"
+    assert full_diff.ok
+    full_state = result.production_full_history.load_state
+    assert full_state is not None
+    assert full_state.complete_history is True
+
+
+def test_production_baseline_truncation_settles_via_full_history(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A safety-cap truncation is reported and settled by full history.
+
+    Monkeypatching the visible cap keeps the fixture in the fast test lane
+    while exercising the honest-truncation path: the baseline reports
+    ``truncated``, arms the Tier 2 reconcile, and full history settles it.
+    """
+    from sase.ace.tui.actions.agents._loading_apply_history import (
+        should_arm_full_history_reconcile,
+    )
+
+    monkeypatch.setattr(loader_artifacts, "_TIER1_VISIBLE_COMPLETED_LIMIT", 50)
+    fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=120)
+    oracle = AgentLoadTieringOracle(fixture)
+    result = oracle.evaluate("", requested_limit=None)
+
+    bounded_state = result.production_bounded.load_state
+    assert bounded_state is not None
+    assert bounded_state.bounded_prefix is False
+    assert bounded_state.truncated is True
+    assert bounded_state.complete_visible_inbox is False
+    assert should_arm_full_history_reconcile(bounded_state) is True
+
+    full_diff = result.diff_for("production_full_history")
+    assert full_diff.ok, "full history must settle rows the safety cap excludes"
     full_state = result.production_full_history.load_state
     assert full_state is not None
     assert full_state.complete_history is True

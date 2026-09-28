@@ -16,7 +16,7 @@ from sase.ace.tui.actions.agents._loading_compute import (
     prepare_loaded_agents_worker_boundary,
 )
 from sase.ace.tui.actions.agents._loading_refresh import (
-    STARTUP_PREFIX_COMPLETION_INPUT_QUIET_THRESHOLD_S,
+    ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S,
     TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S,
 )
 from sase.ace.tui.models.agent import Agent
@@ -469,29 +469,36 @@ def test_ten_unrelated_deltas_keep_live_clan_providers() -> None:
         assert row_prefix(container) == prefix
 
 
-def test_quiet_thresholds_fire_prefix_then_tier2_with_fake_monotonic_time() -> None:
+def test_quiet_thresholds_fire_roster_completion_then_tier2_with_fake_time() -> None:
     app = FakeRefreshApp()
-    app._agents_prefix_completion_pending = True
-    app._agents_prefix_completion_armed_mono = 10.0
-    app._agents_history_reconcile_pending = True
-    app._agents_history_reconcile_armed_mono = 10.0
+    app._last_input_mono = 10.0
+    app._arm_agents_history_reconcile(
+        quiet_s=ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S,
+        now_mono=10.0,
+    )
 
     assert (
-        app._maybe_trigger_startup_prefix_completion(
-            now_mono=10.0 + STARTUP_PREFIX_COMPLETION_INPUT_QUIET_THRESHOLD_S - 0.1
+        app._maybe_trigger_input_quiet_tier2_reconcile(
+            now_mono=10.0 + ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S - 0.1
         )
         is False
     )
     assert (
-        app._maybe_trigger_startup_prefix_completion(
-            now_mono=10.0 + STARTUP_PREFIX_COMPLETION_INPUT_QUIET_THRESHOLD_S + 0.1
+        app._maybe_trigger_input_quiet_tier2_reconcile(
+            now_mono=10.0 + ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S + 0.1
         )
         is True
     )
+
     app._agents_refresh_scheduled = False
+    app._last_input_mono = 10.0
+    app._arm_agents_history_reconcile(
+        quiet_s=TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S,
+        now_mono=10.0,
+    )
     assert (
         app._maybe_trigger_input_quiet_tier2_reconcile(
-            now_mono=10.0 + TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S - 0.1
+            now_mono=10.0 + ROSTER_COMPLETION_INPUT_QUIET_THRESHOLD_S + 0.1
         )
         is False
     )

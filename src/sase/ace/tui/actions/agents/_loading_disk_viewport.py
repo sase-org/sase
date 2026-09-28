@@ -18,12 +18,14 @@ _MAX_AGENTS_VISIBLE_ROWS = 80
 def agents_viewport_for_load(app: Any) -> AgentsViewport | None:
     """Capture the growing-prefix viewport for an Agents-tab provider read.
 
-    Returns ``None`` for the one-shot startup prefix-completion refresh so
-    the provider issues an unwindowed cached read.
+    Returns ``None`` (a baseline read of the whole visible inbox) whenever
+    no same-query roster-complete load has applied yet: the first load of a
+    session, a committed-query change, or recovery after a partial
+    replacement. Viewport windows only patch over a same-query baseline.
     """
 
-    if getattr(app, "_agents_refresh_scheduled_prefix_completion", False) or getattr(
-        app, "_agents_refresh_active_prefix_completion", False
+    if getattr(app, "_agents_roster_complete_query_key", None) != (
+        current_agents_history_query_key(app)
     ):
         return None
 
@@ -95,7 +97,6 @@ def reschedule_stale_agent_query_load(
     full_history: bool,
     full_history_reason: str | None,
     index_freshness: Literal["revalidate", "cached"],
-    complete_prefix: bool = False,
 ) -> None:
     """Schedule a replacement read for the current query after discarding stale data."""
     schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
@@ -108,7 +109,6 @@ def reschedule_stale_agent_query_load(
             full_history_reason or "stale_query_retry" if full_history else None
         ),
         revalidate_index=index_freshness == "revalidate",
-        complete_prefix=complete_prefix,
     )
 
 

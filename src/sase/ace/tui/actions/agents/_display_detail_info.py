@@ -224,8 +224,16 @@ class AgentInfoDisplayMixin:
                 runner_capacity.occupied_capacity,
             )
         display_query, query_rich, match_count = self._agents_info_panel_query_display()
-        load_state = getattr(self, "_agent_load_state", None)
-        query_partial_history = bool(getattr(load_state, "query_incomplete", False))
+        from ._loading_disk_viewport import current_agents_history_query_key
+
+        # Roster-loading flag: at least one agents load has applied and the
+        # roster-complete latch does not match the current committed query.
+        # It clears on the apply that sets the latch.
+        roster_loading = bool(
+            getattr(self, "_agents_applied_query_key", None) is not None
+            and getattr(self, "_agents_roster_complete_query_key", None)
+            != current_agents_history_query_key(self)
+        )
         from ...widgets.decks.layout import SidebarMode as _SidebarMode
 
         sidebar_mode_value: object = _SidebarMode.EXPANDED
@@ -260,7 +268,7 @@ class AgentInfoDisplayMixin:
                 ),
                 search_query_rich=query_rich,
                 search_query_match_count=match_count,
-                search_query_partial_history=query_partial_history,
+                roster_loading=roster_loading,
                 grouping_mode=grouping_mode,
                 runner_queue_count=runner_capacity.queued_count,
                 sidebar_mode=sidebar_mode_value,
@@ -295,7 +303,7 @@ class AgentInfoDisplayMixin:
             seeded=bool(getattr(self, "_agent_search_query_seeded", False)),
             rich=query_rich,
             match_count=match_count,
-            partial_history=query_partial_history,
+            roster_loading=roster_loading,
         )
         agent_info_panel.update_grouping_mode(grouping_mode)
         update_panel_layout = getattr(agent_info_panel, "update_panel_layout", None)

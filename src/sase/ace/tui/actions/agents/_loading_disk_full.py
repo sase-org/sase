@@ -170,9 +170,6 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
 
         source = normalize_refresh_source(source)
         capacity_generation = int(getattr(self, "_agents_capacity_generation", 0))
-        complete_prefix = bool(
-            getattr(self, "_agents_refresh_active_prefix_completion", False)
-        )
         merge_result = await asyncio.to_thread(
             self._external_dismissal_merge_result, set(self._dismissed_agents)
         )
@@ -216,7 +213,6 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
                 full_history=full_history,
                 full_history_reason=full_history_reason,
                 index_freshness=index_freshness,
-                complete_prefix=complete_prefix,
             )
             return False
         if load_result.load_state.bounded_prefix:
@@ -230,7 +226,6 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
                     full_history=full_history,
                     full_history_reason=full_history_reason,
                     index_freshness=index_freshness,
-                    complete_prefix=complete_prefix,
                 )
                 return False
         self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
@@ -332,7 +327,6 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
                 full_history=full_history,
                 full_history_reason=full_history_reason,
                 index_freshness=index_freshness,
-                complete_prefix=complete_prefix,
             )
             return False
         prep_elapsed = time.perf_counter() - prep_start

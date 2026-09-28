@@ -28,6 +28,10 @@ _TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
 )
 
 _TIER1_RECENT_COMPLETED_LIMIT = 200
+# First-paint safety valve for the visible inbox (about 6x the measured inbox
+# of 316 completed candidates), not a working-set definition. Baseline reads
+# use this cap; the 200-row cap above only bounds O(archive) source scans.
+_TIER1_VISIBLE_COMPLETED_LIMIT = 2000
 _TIER1_ACTIVE_LIMIT = 1000
 _TIER1_FALLBACK_SCAN_OPTIONS = replace(
     _TUI_SCAN_OPTIONS,
@@ -287,7 +291,19 @@ def query_artifact_index_for_loader(
         )
 
     active_limit = None if full_history else _TIER1_ACTIVE_LIMIT
-    recent_completed_limit = None if full_history else _TIER1_RECENT_COMPLETED_LIMIT
+    recent_completed_limit = None if full_history else _TIER1_VISIBLE_COMPLETED_LIMIT
+    # A baseline read (Tier 1 cached read with no viewport window) must still
+    # report truncation, so it is sent as a windowed query with the visible
+    # safety-valve cap. Windowed mode requires cached freshness, so
+    # revalidate reads stay unwindowed with the same cap.
+    is_baseline_read = (
+        not full_history and freshness == "cached" and requested_limit is None
+    )
+    window_limit = (
+        None
+        if full_history
+        else (_TIER1_VISIBLE_COMPLETED_LIMIT if is_baseline_read else requested_limit)
+    )
     # A Tier-2 load sets the app's complete-history latch. Completeness is a
     # Rust-owned claim: revalidate runs source-directory discovery (new and
     # deleted dirs) plus bounded marker repair. Marker revalidation does not
@@ -313,7 +329,7 @@ def query_artifact_index_for_loader(
         include_hidden=False,
         freshness=query_freshness,
         record_shape="list",
-        window_limit=None if full_history else requested_limit,
+        window_limit=window_limit,
         candidate_filter=candidate_filter,
         agents_list_projection=True,
     )
@@ -410,21 +426,39 @@ def query_artifact_index_for_loader(
             ),
         )
     stats = snapshot.stats
+    # A baseline read used a window internally only so Rust reports
+    # truncation; it is never a bounded prefix. Viewport windows keep
+    # describing themselves via requested_limit/returned_count/has_more,
+    # while a baseline read reports has_more=False so viewport expansion
+    # never fires off one.
+    is_viewport_read = (
+        not full_history and requested_limit is not None and index_window is not None
+    )
+    baseline_truncated = bool(
+        is_baseline_read and index_window is not None and index_window.has_more
+    )
     state = AgentLoadState(
         tier="tier2" if full_history else "tier1",
         complete_history=complete_history,
-        complete_visible_inbox=True,
+        complete_visible_inbox=not baseline_truncated,
         artifact_source="artifact_index",
         used_artifact_index=True,
+        truncated=baseline_truncated,
         record_count=len(snapshot.records),
-        bounded_prefix=not full_history and index_window is not None,
+        bounded_prefix=is_viewport_read,
         requested_limit=(
-            None if index_window is None else index_window.requested_limit
+            None
+            if index_window is None or is_baseline_read
+            else index_window.requested_limit
         ),
         returned_count=(
-            None if index_window is None else index_window.returned_record_count
+            None
+            if index_window is None or is_baseline_read
+            else index_window.returned_record_count
         ),
-        has_more=False if index_window is None else index_window.has_more,
+        has_more=False
+        if (index_window is None or is_baseline_read)
+        else index_window.has_more,
         marker_signatures_checked=stats.marker_signatures_checked,
         rows_repaired=stats.rows_repaired,
         rows_discovered=stats.rows_discovered,

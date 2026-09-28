@@ -52,7 +52,7 @@ class AgentInfoPanel(Static):
         self._search_query_seeded: bool = False
         self._search_query_rich: Text | None = None
         self._search_query_match_count: tuple[int, int] | None = None
-        self._search_query_partial_history: bool = False
+        self._roster_loading: bool = False
         self._search_query_click_span: tuple[int, int] | None = None
         self._sidebar_chip_click_span: tuple[int, int] | None = None
         self._countdown_text_span: tuple[int, int] | None = None
@@ -187,7 +187,7 @@ class AgentInfoPanel(Static):
         seeded: bool = False,
         rich: Text | None = None,
         match_count: tuple[int, int] | None = None,
-        partial_history: bool = False,
+        roster_loading: bool = False,
     ) -> None:
         """Update the search query filter display.
 
@@ -201,14 +201,15 @@ class AgentInfoPanel(Static):
                 becomes clickable (see :class:`FilterClicked`).
             match_count: Optional ``(matched, loaded)`` pair rendered beside
                 *rich*.
-            partial_history: When True, the filtered corpus is bounded to
-                recent history while a full-history reconcile is pending.
+            roster_loading: When True, the applied roster is knowingly less
+                than the visible inbox for the current query and a
+                completing load is pending.
         """
         self._search_query = query
         self._search_query_seeded = seeded
         self._search_query_rich = rich
         self._search_query_match_count = match_count
-        self._search_query_partial_history = partial_history
+        self._roster_loading = roster_loading
         self._update_display()
 
     def update_state(
@@ -232,7 +233,7 @@ class AgentInfoPanel(Static):
         search_query_seeded: bool = False,
         search_query_rich: Text | None = None,
         search_query_match_count: tuple[int, int] | None = None,
-        search_query_partial_history: bool = False,
+        roster_loading: bool = False,
         runner_queue_count: int = 0,
         sidebar_mode: SidebarMode | str = SidebarMode.EXPANDED,
         panel_layout: str = "",
@@ -267,7 +268,7 @@ class AgentInfoPanel(Static):
             search_query_seeded,
             search_query_rich.plain if search_query_rich is not None else None,
             search_query_match_count,
-            search_query_partial_history,
+            roster_loading,
             sidebar_mode.value,
             panel_layout,
         )
@@ -293,7 +294,7 @@ class AgentInfoPanel(Static):
                 else None
             ),
             self._search_query_match_count,
-            self._search_query_partial_history,
+            self._roster_loading,
             self._sidebar_mode.value,
             self._panel_layout_label,
         )
@@ -320,7 +321,7 @@ class AgentInfoPanel(Static):
             self._search_query_seeded,
             _,
             _,
-            self._search_query_partial_history,
+            self._roster_loading,
             _sidebar_mode_value,
             self._panel_layout_label,
         ) = new_stable
@@ -466,11 +467,14 @@ class AgentInfoPanel(Static):
             if self._search_query_seeded:
                 text.append(" seeded", style="dim")
             self._append_edit_query_hint(text)
-        if self._search_query and self._search_query_partial_history:
+        if self._roster_loading and self._search_query:
             text.append(
-                "  filtered on recent history; loading full history...",
+                "  filtered on partial history; loading full history...",
                 style="dim italic",
             )
+        elif self._roster_loading:
+            self._append_separator(text)
+            text.append("⟳ loading agents...", style="dim italic")
         if self._sidebar_mode is SidebarMode.HIDDEN:
             self._append_separator(text)
             chip_start = text.cell_len
