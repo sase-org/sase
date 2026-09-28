@@ -396,20 +396,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1bt(ToolRunGlanceSnapshot)' \
         --epic-symbol 'sase-1bt(ToolRunLogTail)' \
         --epic-symbol 'sase-1bt(ToolRunStateStyle)' \
-        --epic-symbol 'sase-1bt(context_row_for_agent)' \
-        --epic-symbol 'sase-1bt(context_tool_run_line)' \
-        --epic-symbol 'sase-1bt(extract_run_ids)' \
-        --epic-symbol 'sase-1bt(is_tool_run_command)' \
-        --epic-symbol 'sase-1bt(match_llm_call_to_run)' \
-        --epic-symbol 'sase-1bt(match_llm_calls_to_runs)' \
-        --epic-symbol 'sase-1bt(node_runs_for_agent)' \
-        --epic-symbol 'sase-1bt(pick_context_run)' \
-        --epic-symbol 'sase-1bt(run_id_from_jump_target)' \
-        --epic-symbol 'sase-1bt(run_jump_hint_label)' \
-        --epic-symbol 'sase-1bt(slow_suffixes_for_entries)' \
-        --epic-symbol 'sase-1bt(slow_tool_run_suffix_text)' \
-        --epic-symbol 'sase-1bt(tool_run_jump_target)' \
-        --epic-symbol 'sase-1bt(visible_tool_run_jump_targets)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
