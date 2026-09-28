@@ -14,9 +14,9 @@ boundaries and safety rules agents must remember.
 ## Model
 
 An artifact is any durable record with a canonical `<kind>:<argument>` identity: sidecar
-documents, beads, agents, Patches, stitches, and indexed files all count. The leading
-`@` belongs to prompt citations and prompt expansion, not to stored identities or
-ordinary CLI arguments.
+documents, beads, agents, Patches, stitches, goals, and indexed files all count. The
+leading `@` belongs to prompt citations and prompt expansion, not to stored identities
+or ordinary CLI arguments.
 
 Artifact references provide identity, resolution, prompt expansion, publication, and
 consumption tracking. `sase artifact list` is narrower: it inventories indexed files
