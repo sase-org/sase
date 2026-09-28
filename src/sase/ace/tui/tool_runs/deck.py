@@ -17,8 +17,10 @@ from rich.text import Text
 from sase.tool.view_vocabulary import (
     TOOL_RUN_ACCENT,
     TOOL_RUN_GLYPH,
+    format_age,
     format_min_sec,
     format_settled_ts,
+    is_silent,
     style_for_bucket,
     switcher_runs_text,
 )
@@ -159,14 +161,234 @@ def tools_switcher_segment(
     return Text(text, style="")
 
 
-def tool_run_outcome_line(brief: Any) -> Text:
+def _live_number(value: Any) -> int | None:
+    """Return *value* as an int, or None when it is missing or garbage."""
+
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _live_ts(value: Any) -> float | None:
+    """Return *value* as an epoch-seconds float, or None when unusable."""
+
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        stamp = float(value)
+    except (TypeError, ValueError):
+        return None
+    return stamp if stamp > 0 else None
+
+
+def _live_last_activity_ts(brief: Any) -> float | None:
+    """Return the last-activity epoch seconds for one run row, if any.
+
+    Glance rows carry ``last_activity_ts``; brief rows fall back to the
+    running/created stamp. Pure: a silent block renders from ``now``
+    alone (plan §4.8).
+    """
+
+    stamp = _live_ts(getattr(brief, "last_activity_ts", None))
+    if stamp is not None:
+        return stamp
+    stamp = _live_ts(getattr(brief, "running_ts", None))
+    if stamp is not None:
+        return stamp
+    return _live_ts(getattr(brief, "created_ts", None))
+
+
+def tool_run_is_silent(
+    brief: Any, now_s: float | None, silent_after_s: int = 60
+) -> bool:
+    """Return whether a live run row is silent at *now_s* (never raises)."""
+
+    if tool_run_display_bucket(brief) != "running" or now_s is None:
+        return False
+    try:
+        threshold = int(silent_after_s)
+    except (TypeError, ValueError):
+        threshold = 60
+    last_activity = _live_last_activity_ts(brief)
+    if last_activity is None:
+        return False
+    try:
+        return is_silent(last_activity, float(now_s), threshold)
+    except (TypeError, ValueError):
+        return False
+
+
+def _live_progress(
+    brief: Any, detail: Any | None
+) -> tuple[
+    str | None,
+    int | None,
+    int | None,
+    bool,
+]:
+    """Return ``(stage, done, expected, in_flight)`` for a live run.
+
+    Glance fields win (``current_stage``, ``stages_done``,
+    ``stages_expected``); otherwise the in-flight stage, the finished
+    count, and stages plus pending expected stages come from *detail*.
+    Missing facts stay None so the caller falls back to elapsed. Pure.
+    """
+
+    stage: str | None = None
+    glance_stage = getattr(brief, "current_stage", None)
+    if glance_stage is not None:
+        desc = getattr(glance_stage, "description", None)
+        if desc:
+            stage = str(desc)
+    done = _live_number(getattr(brief, "stages_done", None))
+    expected = _live_number(getattr(brief, "stages_expected", None))
+    in_flight = glance_stage is not None or str(getattr(brief, "state", "") or "") in (
+        "created",
+        "running",
+    )
+    stages = tuple(getattr(detail, "stages", ()) or ()) if detail is not None else ()
+    pending = (
+        tuple(getattr(detail, "expected_stages", ()) or ())
+        if detail is not None
+        else ()
+    )
+    if stages:
+        finished = sum(
+            1 for entry in stages if getattr(entry, "finished_ms", None) is not None
+        )
+        flight = next(
+            (
+                entry
+                for entry in stages
+                if getattr(entry, "started_ms", None) is not None
+                and getattr(entry, "finished_ms", None) is None
+            ),
+            None,
+        )
+        if done is None:
+            done = finished
+        if flight is not None:
+            if stage is None:
+                flight_desc = getattr(flight, "description", None)
+                if flight_desc:
+                    stage = str(flight_desc)
+            in_flight = True
+        elif done is not None and expected is not None and done >= expected:
+            in_flight = False
+        if expected is None and (stages or pending):
+            seen = {str(getattr(entry, "description", "") or "") for entry in stages}
+            missing = sum(
+                1
+                for entry in pending
+                if str(getattr(entry, "description", "") or "") not in seen
+            )
+            expected = len(stages) + missing
+    return (stage, done, expected, in_flight)
+
+
+def _live_outcome_line(
+    brief: Any,
+    detail: Any | None = None,
+    *,
+    now_s: float | None = None,
+    silent_after_s: int = 60,
+) -> Text | None:
+    """Return the live-block outcome line, or None when not live/clockless.
+
+    Live reads ``⚒ check ▶ running · test (scoped) 7/11 · 2m13s /
+    typ 4m13s`` and silent reads ``⚒⚠ check silent 2d · last activity
+    09-25 16:03 · test (scoped)`` (plan §3.8). Progress ``k/n`` shows
+    only when ``k <= n``; otherwise the chip falls back to elapsed
+    (§3.1). Pure: takes the in-memory row plus ``now``.
+    """
+
+    if tool_run_display_bucket(brief) != "running" or now_s is None:
+        return None
+    try:
+        moment = float(now_s)
+    except (TypeError, ValueError):
+        return None
+    label = str(getattr(brief, "label", "") or "run")
+    if str(getattr(brief, "state", "") or "") == "created" and not bool(
+        getattr(brief, "stop_requested", False)
+    ):
+        return Text(f"{TOOL_RUN_GLYPH} {label} starting", style="")
+    if bool(getattr(brief, "stop_requested", False)):
+        return Text(f"{TOOL_RUN_GLYPH} {label} stopping", style="")
+    if tool_run_is_silent(brief, moment, silent_after_s):
+        style = style_for_bucket("silent")
+        last_activity = _live_last_activity_ts(brief)
+        line = Text()
+        line.append(f"{TOOL_RUN_GLYPH}⚠ {label} ", style="")
+        try:
+            age = format_age(max(0.0, moment - float(last_activity or moment)))
+        except (TypeError, ValueError):
+            age = format_age(0.0)
+        line.append(f"silent {age}", style=style.color)
+        if last_activity is not None:
+            from sase.core.time import format_local
+
+            line.append(
+                f" · last activity {format_local(last_activity, '%m-%d %H:%M')}",
+                style="dim",
+            )
+        stage, _, _, _ = _live_progress(brief, detail)
+        if stage:
+            line.append(f" · {stage}", style="")
+        return line
+    stage, done, expected, in_flight = _live_progress(brief, detail)
+    position: int | None = None
+    if done is not None and expected is not None and expected > 0:
+        candidate = done + (1 if in_flight else 0)
+        if 1 <= candidate <= expected:
+            position = candidate
+    running_ts = _live_ts(getattr(brief, "running_ts", None))
+    created_ts = _live_ts(getattr(brief, "created_ts", None))
+    start = running_ts if running_ts is not None else created_ts
+    elapsed_s = max(0.0, moment - start) if start is not None else 0.0
+    typical_ms = _live_number(getattr(brief, "typical_ms", None))
+    line = Text()
+    line.append(f"{TOOL_RUN_GLYPH} {label} ", style="")
+    line.append("▶ running", style=style_for_bucket("running").color)
+    if stage:
+        line.append(f" · {stage}", style="")
+    if position is not None and expected is not None:
+        line.append(f" {position}/{expected}", style="")
+    elif expected is None:
+        line.append(f" · {format_age(elapsed_s)}", style="")
+    elapsed_part = format_min_sec(elapsed_s)
+    if typical_ms is not None:
+        line.append(
+            f" · {elapsed_part} / typ {format_min_sec(typical_ms / 1000)}",
+            style="dim",
+        )
+    else:
+        line.append(f" · {elapsed_part}", style="dim")
+    return line
+
+
+def tool_run_outcome_line(
+    brief: Any,
+    detail: Any | None = None,
+    *,
+    now_s: float | None = None,
+    silent_after_s: int = 60,
+) -> Text:
     """Return the outcome line for one run block (anatomy comes later).
 
     ``tools-deck-cards`` carries the outcome line only: glyph, label,
     bucket words and counts, duration against typical, and absolute
     settle time. The waterfall, triage items, child runs, log tail, and
-    honest absence arrive with ``runs-card-anatomy``.
+    honest absence arrive with ``runs-card-anatomy``. Live rows with a
+    clock render the in-place progress line (plan §4.8); settled rows
+    and clockless callers keep the exact settled text.
     """
+    live = _live_outcome_line(brief, detail, now_s=now_s, silent_after_s=silent_after_s)
+    if live is not None:
+        return live
     label = str(getattr(brief, "label", "") or "run")
     bucket = tool_run_display_bucket(brief)
     style = style_for_bucket(bucket)
@@ -296,11 +518,19 @@ def tool_run_block_meta(index: int, brief: Any) -> Any:
     )
 
 
-def tool_run_block_header_text(_index: int, brief: Any) -> Text:
+def tool_run_block_header_text(
+    _index: int,
+    brief: Any,
+    detail: Any | None = None,
+    *,
+    now_s: float | None = None,
+    silent_after_s: int = 60,
+) -> Text:
     """Return the block header line with the anchor meta stamped.
 
     Headers carry ``DECK_BLOCK_META_KEY`` like FINAL's run headers, so
-    the generalized block host can anchor rows back to run ids.
+    the generalized block host can anchor rows back to run ids. Live
+    headers carry the same in-place progress line as the block body.
     """
     from rich.style import Style
 
@@ -309,7 +539,9 @@ def tool_run_block_header_text(_index: int, brief: Any) -> Text:
     )
 
     run_id = str(getattr(brief, "run_id", "") or "")
-    line = tool_run_outcome_line(brief)
+    line = tool_run_outcome_line(
+        brief, detail, now_s=now_s, silent_after_s=silent_after_s
+    )
     header = Text(line.plain)
     header.stylize(line.style if isinstance(line.style, str) else "")
     for span in line.spans:
@@ -431,6 +663,7 @@ __all__ = [
     "tool_run_bucket_words",
     "tool_run_display_bucket",
     "tool_run_duration_part",
+    "tool_run_is_silent",
     "tool_run_outcome_line",
     "tool_runs_card_search_text",
     "tools_card_ids",

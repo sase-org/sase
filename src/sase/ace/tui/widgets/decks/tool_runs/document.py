@@ -51,6 +51,8 @@ def build_tool_runs_blocks(
     level: ToolRunsDetailLevel | int = DEFAULT_TOOL_RUNS_DETAIL_LEVEL,
     width: int = 100,
     now_ms: int | None = None,
+    now_s: float | None = None,
+    silent_after_s: int = 60,
     hint_numbers: Any | None = None,
 ) -> list[CardBlock]:
     """Return one :class:`CardBlock` per run, oldest first (full anatomy)."""
@@ -60,7 +62,6 @@ def build_tool_runs_blocks(
     for index, brief in enumerate(ordered):
         run_id = str(getattr(brief, "run_id", "") or f"run-{index}")
         meta = tool_run_block_meta(index, brief)
-        header = tool_run_block_header_text(index, brief)
         loaded = None
         if details is not None:
             try:
@@ -68,12 +69,17 @@ def build_tool_runs_blocks(
             except AttributeError:
                 loaded = None
         detail, tail = _loaded_for(loaded, run_id)
+        header = tool_run_block_header_text(
+            index, brief, detail, now_s=now_s, silent_after_s=silent_after_s
+        )
         body = render_tool_run_block(
             brief,
             detail,
             level=resolved_level,
             width=width,
             now_ms=now_ms,
+            now_s=now_s,
+            silent_after_s=silent_after_s,
             tail=tail,
             include_outcome=False,
             hint_numbers=hint_numbers,
@@ -93,6 +99,8 @@ def build_tool_runs_document(
     level: ToolRunsDetailLevel | int = DEFAULT_TOOL_RUNS_DETAIL_LEVEL,
     width: int = 100,
     now_ms: int | None = None,
+    now_s: float | None = None,
+    silent_after_s: int = 60,
     hint_numbers: Any | None = None,
 ) -> MainDeckDocument:
     """Build the ``⚒ Runs`` card document from node-summary runs.
@@ -134,6 +142,8 @@ def build_tool_runs_document(
             level=resolved_level,
             width=width,
             now_ms=now_ms,
+            now_s=now_s,
+            silent_after_s=silent_after_s,
             tail=tail,
             hint_numbers=hint_numbers,
         )
@@ -150,6 +160,8 @@ def build_tool_runs_document(
         level=resolved_level,
         width=width,
         now_ms=now_ms,
+        now_s=now_s,
+        silent_after_s=silent_after_s,
         hint_numbers=hint_numbers,
     )
     children: list[Any] = [*preamble, *blocks]

@@ -21,6 +21,7 @@ from .deck import (
     tool_run_bucket_words,
     tool_run_duration_part,
     tool_run_display_bucket,
+    tool_run_is_silent,
     tool_run_outcome_line,
 )
 from .waterfall import waterfall_rows
@@ -121,6 +122,16 @@ def _killed_note() -> Text:
 
     return Text(
         "  the caller killed the command; this is not a test failure",
+        style="dim",
+    )
+
+
+def _silent_note() -> Text:
+    """Return the dim silent-run hint line (plan §3.8, ``runs-card-live``)."""
+
+    return Text(
+        "  The TUI never settles runs. `sase tool runs` reconciles,"
+        " or stop it from the palette.",
         style="dim",
     )
 
@@ -264,6 +275,8 @@ def render_tool_run_block(
     level: ToolRunsDetailLevel = ToolRunsDetailLevel.STANDARD,
     width: int = 100,
     now_ms: int | None = None,
+    now_s: float | None = None,
+    silent_after_s: int = 60,
     tail: Any | None = None,
     tail_lines: int | None = None,
     include_outcome: bool = True,
@@ -277,17 +290,29 @@ def render_tool_run_block(
     or FULL disclosure (§3.8). ``include_outcome`` drops the outcome
     line when the caller already paints it as the block header.
     ``hint_numbers`` maps run ids to ``v`` hint numbers; a mapped
-    block's tail header shows its ``[N]`` marker. Never renders
-    ``private_argv``: only ``display_argv`` is read.
+    block's tail header shows its ``[N]`` marker. ``now_s`` drives the
+    live outcome line, the silent state, and the growing in-flight bar;
+    a live block repaints in place from the cached detail plus ``now``
+    with no I/O (plan §4.8). Never renders ``private_argv``: only
+    ``display_argv`` is read.
     """
 
     try:
         level = ToolRunsDetailLevel(level)
     except ValueError:
         level = ToolRunsDetailLevel.STANDARD
+    if now_ms is None and now_s is not None:
+        try:
+            now_ms = int(float(now_s) * 1000)
+        except (TypeError, ValueError):
+            now_ms = None
     text = Text()
     if include_outcome:
-        text.append_text(tool_run_outcome_line(brief))
+        text.append_text(
+            tool_run_outcome_line(
+                brief, detail, now_s=now_s, silent_after_s=silent_after_s
+            )
+        )
         if not text.plain.endswith("\n"):
             text.append("\n")
     bucket = tool_run_display_bucket(brief)
@@ -295,6 +320,9 @@ def render_tool_run_block(
     text.append("\n")
     if bucket == "killed":
         text.append_text(_killed_note())
+        text.append("\n")
+    if bucket == "running" and tool_run_is_silent(brief, now_s, silent_after_s):
+        text.append_text(_silent_note())
         text.append("\n")
     if detail is None or not bool(getattr(detail, "found", False)):
         if (

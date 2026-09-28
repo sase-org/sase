@@ -37,6 +37,15 @@ from sase.ace.tui.tool_runs.summaries import (
     resolve_tool_run_summary,
     selector_for_agent,
 )
+from .live import (
+    TOOL_RUNS_LIVE_TICK_SECONDS,
+    live_detail_drifted,
+    live_host_visible,
+    live_navigating,
+    live_typing,
+    tool_runs_rows_have_live,
+    want_live_tick,
+)
 
 from ..document_view import CardDocumentView
 from ..main_document import MainDeckDocument
@@ -259,6 +268,14 @@ class ToolRunsDeckView(CardDocumentView):
         self._has_displayed_content = False
         self._detail_level: ToolRunsDetailLevel = DEFAULT_TOOL_RUNS_DETAIL_LEVEL
         self._current_agent: Any | None = None
+        self._live_timer: Any | None = None
+        self._live_rows: tuple[Any, ...] = ()
+        self._live_details: dict[str, LoadedToolRunDetail] = {}
+        self._live_total_runs: int = 0
+        self._live_truncated: bool = False
+        self._live_subject: object | None = None
+        self._live_signature: str | None = None
+        self._painted_store_token: Any | None = None
 
     @property
     def detail_level(self) -> ToolRunsDetailLevel:
@@ -309,8 +326,14 @@ class ToolRunsDeckView(CardDocumentView):
         attempt_number: int | None = None,
         generation: int = 0,
         preferred_card: str | None = None,
+        force: bool = False,
     ) -> None:
-        """Show the ``⚒ Runs`` card for ``agent``, loading off-thread."""
+        """Show the ``⚒ Runs`` card for ``agent``, loading off-thread.
+
+        ``force`` skips the cached fast path and reloads on a worker;
+        the live tick uses it to re-fetch details only when the glance
+        store token drifted (plan §4.8).
+        """
         from sase.ace.tui.tool_runs.flag import tool_runs_enabled
 
         if not tool_runs_enabled():
@@ -333,7 +356,7 @@ class ToolRunsDeckView(CardDocumentView):
             self.show_empty()
             return
         try:
-            summary = cached_node_summary_for_selector(selector)
+            summary = None if force else cached_node_summary_for_selector(selector)
         except Exception:
             summary = None
         if summary is not None:
@@ -353,12 +376,13 @@ class ToolRunsDeckView(CardDocumentView):
             signature = tool_runs_cache_signature(
                 selector.key, total, live_ids, truncated
             )
-            if signature and signature == self._painted_signature:
+            if signature and signature == self._painted_signature and not force:
                 return
             try:
                 store_token = snapshot.store_token if snapshot else None
             except Exception:
                 store_token = None
+            now_s = time.time()
             self._paint_tool_runs_result(
                 ToolRunsDeckLoadResult(
                     subject_identity=identity,
@@ -373,15 +397,17 @@ class ToolRunsDeckView(CardDocumentView):
                         details=_cached_block_details(rows, store_token),
                         level=self._detail_level,
                         width=_tool_runs_render_width(self),
+                        now_s=now_s,
                         hint_numbers=_tool_runs_hint_numbers(self),
                     ),
                     runs=rows,
                     total_runs=total,
                     truncated=truncated,
                     live_count=len(live_ids),
-                    silent_count=0,
+                    silent_count=_count_silent_rows(rows, now_s),
                 ),
                 preferred_card,
+                store_token=store_token,
             )
             return
         if (
@@ -435,6 +461,11 @@ class ToolRunsDeckView(CardDocumentView):
         self._current_subject_identity = None
         self._painted_signature = None
         self._has_displayed_content = False
+        self._clear_live_state()
+        try:
+            self._stop_live_timer()
+        except Exception:
+            pass
         try:
             if self._current_worker is not None and self._current_worker.is_running:
                 self._current_worker.cancel()
@@ -497,12 +528,26 @@ class ToolRunsDeckView(CardDocumentView):
         self.update(Text("Loading tool runs…", style="dim italic"))
 
     def _paint_tool_runs_result(
-        self, result: ToolRunsDeckLoadResult, preferred_card: str | None
+        self,
+        result: ToolRunsDeckLoadResult,
+        preferred_card: str | None,
+        *,
+        store_token: Any | None = None,
     ) -> None:
         try:
             ids = tuple(result.document.card_ids)
         except Exception:
             ids = ()
+        # Reconcile block cursors on every paint: a follower lands on a
+        # new arrival (arrival dots stay empty), a parked reader holds
+        # position and the arrival shows as a dot, and a settle keeps
+        # the cursor on the same block id (plan §4.8).
+        try:
+            self._reconcile_block_cursors(
+                result.document, new_subject=False, enabled=True
+            )
+        except Exception:
+            pass
         if preferred_card is not None and preferred_card in ids:
             active_choice: str | None = preferred_card
         else:
@@ -535,6 +580,11 @@ class ToolRunsDeckView(CardDocumentView):
             self._has_displayed_content = bool(ids)
         except Exception:
             self._has_displayed_content = False
+        self._remember_live_state(result, store_token=store_token)
+        try:
+            self._sync_live_timer()
+        except Exception:
+            pass
 
     def _is_stale_result(self, result: Any) -> bool:
         if not isinstance(result, ToolRunsDeckLoadResult):
@@ -560,6 +610,188 @@ class ToolRunsDeckView(CardDocumentView):
             self.update(Text("Tool runs unavailable", style="dim italic"))
         elif event.state == WorkerState.CANCELLED:
             pass
+
+    def _remember_live_state(
+        self, result: ToolRunsDeckLoadResult, *, store_token: Any | None = None
+    ) -> None:
+        """Snapshot the painted rows for the 1 Hz pure repaint (no I/O)."""
+
+        try:
+            rows = tuple(result.runs or ())
+        except Exception:
+            rows = ()
+        try:
+            cached = _cached_block_details(rows, store_token)
+        except Exception:
+            cached = {}
+        self._live_rows = rows
+        self._live_details = dict(cached)
+        try:
+            self._live_total_runs = int(result.total_runs)
+        except (TypeError, ValueError):
+            self._live_total_runs = len(rows)
+        try:
+            self._live_truncated = bool(result.truncated)
+        except Exception:
+            self._live_truncated = False
+        self._live_subject = self._current_subject
+        self._live_signature = result.signature
+        self._painted_store_token = store_token
+
+    def _clear_live_state(self) -> None:
+        """Forget the painted rows so the tick stands down."""
+
+        self._live_rows = ()
+        self._live_details = {}
+        self._live_total_runs = 0
+        self._live_truncated = False
+        self._live_subject = None
+        self._live_signature = None
+        self._painted_store_token = None
+
+    def _sync_live_timer(self) -> None:
+        """Start the 1 Hz tick while a live run is painted, else stop it."""
+
+        try:
+            if tool_runs_rows_have_live(self._live_rows):
+                self._start_live_timer()
+            else:
+                self._stop_live_timer()
+        except Exception:
+            pass
+
+    def _start_live_timer(self) -> None:
+        """Start the 1 Hz live repaint (idempotent)."""
+
+        try:
+            if self._live_timer is not None:
+                return
+            self._live_timer = self.set_interval(
+                TOOL_RUNS_LIVE_TICK_SECONDS, self._on_live_timer
+            )
+        except Exception:
+            self._live_timer = None
+
+    def _stop_live_timer(self) -> None:
+        """Stop the 1 Hz live repaint."""
+
+        timer, self._live_timer = self._live_timer, None
+        try:
+            if timer is not None:
+                timer.stop()
+        except Exception:
+            pass
+
+    def on_unmount(self) -> None:
+        """Stop the live tick when the view tears down."""
+
+        try:
+            self._stop_live_timer()
+        except Exception:
+            pass
+
+    def _live_worker_running(self) -> bool:
+        """Return whether a deck reload worker is still running."""
+
+        try:
+            worker = self._current_worker
+            return bool(worker is not None and worker.is_running)
+        except Exception:
+            return False
+
+    def _on_live_timer(self) -> None:
+        """Thin 1 Hz pump callback: gate synchronously, repaint purely."""
+
+        try:
+            agent = self._current_agent
+            if agent is None or not tool_runs_rows_have_live(self._live_rows):
+                self._stop_live_timer()
+                return
+            if not want_live_tick(
+                visible=live_host_visible(self),
+                has_live=True,
+                navigating=live_navigating(self),
+                typing=live_typing(self),
+                in_flight=self._live_worker_running(),
+            ):
+                return
+            try:
+                from sase.ace.tui.tool_runs.snapshot import get_snapshot
+
+                snapshot = get_snapshot()
+                snapshot_token = snapshot.store_token if snapshot is not None else None
+            except Exception:
+                snapshot_token = None
+            if live_detail_drifted(snapshot_token, self._painted_store_token):
+                self._live_reload_on_drift()
+                return
+            self._live_pure_repaint()
+        except Exception:
+            log.debug("tool runs live tick failed", exc_info=True)
+
+    def _live_reload_on_drift(self) -> None:
+        """Reload the card on a worker after glance drift (I/O only here)."""
+
+        try:
+            agent = self._current_agent
+            if agent is None:
+                return
+            if self._live_worker_running():
+                return
+            self.update_display(
+                agent,
+                generation=self._current_generation,
+                preferred_card=self._current_preferred,
+                force=True,
+            )
+        except Exception:
+            log.debug("tool runs drift reload failed", exc_info=True)
+
+    def _live_pure_repaint(self) -> None:
+        """Repaint elapsed and bar growth from cached state (never I/O).
+
+        Rebuilds the document from the painted rows and their cached
+        details with a fresh clock. The per-second digest forces the
+        render past the render-key dedupe; block ids are stable, so a
+        parked cursor holds and a settle keeps its block in place.
+        """
+
+        try:
+            rows = tuple(self._live_rows or ())
+            if not rows:
+                return
+            now_s = time.time()
+            signature = self._live_signature or ""
+            try:
+                width = _tool_runs_render_width(self)
+            except Exception:
+                width = 100
+            try:
+                hints = _tool_runs_hint_numbers(self)
+            except Exception:
+                hints = None
+            document = build_tool_runs_document(
+                rows,
+                subject=self._live_subject,
+                digest=f"{signature}:{int(now_s)}",
+                total_runs=self._live_total_runs,
+                truncated=self._live_truncated,
+                details=dict(self._live_details),
+                level=self._detail_level,
+                width=width,
+                now_s=now_s,
+                hint_numbers=hints,
+            )
+            try:
+                self._reconcile_block_cursors(document, new_subject=False, enabled=True)
+            except Exception:
+                pass
+            try:
+                self.show_tool_runs_document(document, self._active_card)
+            except Exception:
+                pass
+        except Exception:
+            log.debug("tool runs pure repaint failed", exc_info=True)
 
 
 def _empty_tool_runs_result(
@@ -635,28 +867,7 @@ def load_tool_runs_deck(
     except Exception:
         selector_key = ""
     signature = tool_runs_cache_signature(selector_key, total, live_ids, truncated)
-    now = time.time()
-    silent = 0
-    try:
-        from sase.tool.view_vocabulary import is_silent
-
-        for row in rows:
-            if tool_run_display_bucket(row) != "running":
-                continue
-            last_activity = getattr(row, "last_activity_ts", None)
-            if last_activity is None:
-                last_activity = getattr(row, "created_ts", 0)
-            if isinstance(last_activity, bool) or not isinstance(
-                last_activity, (int, float)
-            ):
-                continue
-            try:
-                if is_silent(float(last_activity), now):
-                    silent += 1
-            except (TypeError, ValueError):
-                continue
-    except Exception:
-        silent = 0
+    now_s = time.time()
     try:
         store_token = snapshot.store_token if snapshot else None
     except Exception:
@@ -679,14 +890,34 @@ def load_tool_runs_deck(
             details=details,
             level=level,
             width=render_width,
+            now_s=now_s,
             hint_numbers=hint_numbers,
         ),
         runs=rows,
         total_runs=total,
         truncated=truncated,
         live_count=len(live_ids),
-        silent_count=silent,
+        silent_count=_count_silent_rows(rows, now_s),
     )
+
+
+def _count_silent_rows(rows: Any, now_s: float) -> int:
+    """Count silent live rows at *now_s* (never raises)."""
+
+    from sase.ace.tui.tool_runs.deck import tool_run_is_silent
+
+    silent = 0
+    try:
+        ordered = list(rows or ())
+    except TypeError:
+        return 0
+    for row in ordered:
+        try:
+            if tool_run_is_silent(row, now_s):
+                silent += 1
+        except Exception:
+            continue
+    return silent
 
 
 def _subject_key(agent: Any) -> object | None:
