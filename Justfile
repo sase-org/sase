@@ -377,6 +377,12 @@ _lint-patch-stitch-terminology: _setup
 # block-paged projection; sase-19x.6 consumed cycle_block_id,
 # derive_spread_block and land_cursor in its block-spread navigation.
 # sase-19x.9 owns the still-unconsumed seams its goldens/bench/flag-removal
+# sase-1c1.9 consumed the tool-run view-model seams (ToolRunBriefs,
+# ToolRunDetailStage, ToolRunDetailStageCounts, ToolRunDetailTriageItem,
+# ToolRunExpectedStage, ToolRunGlanceStage, ToolRunLiveGlance,
+# ToolRunLogMetadata, ToolRunNodeSummaries, ToolRunVerdictSummary) by
+# splitting them into sase.core.tool_run_views behind the sase.core.tool_run
+# re-export facade.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -387,19 +393,9 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
         --epic-symbol 'sase-1bt(RowIdentity)' \
-        --epic-symbol 'sase-1bt(ToolRunBriefs)' \
-        --epic-symbol 'sase-1bt(ToolRunDetailStage)' \
-        --epic-symbol 'sase-1bt(ToolRunDetailStageCounts)' \
-        --epic-symbol 'sase-1bt(ToolRunDetailTriageItem)' \
-        --epic-symbol 'sase-1bt(ToolRunExpectedStage)' \
         --epic-symbol 'sase-1bt(ToolRunGlanceSnapshot)' \
-        --epic-symbol 'sase-1bt(ToolRunGlanceStage)' \
-        --epic-symbol 'sase-1bt(ToolRunLiveGlance)' \
-        --epic-symbol 'sase-1bt(ToolRunLogMetadata)' \
         --epic-symbol 'sase-1bt(ToolRunLogTail)' \
-        --epic-symbol 'sase-1bt(ToolRunNodeSummaries)' \
         --epic-symbol 'sase-1bt(ToolRunStateStyle)' \
-        --epic-symbol 'sase-1bt(ToolRunVerdictSummary)' \
         --epic-symbol 'sase-1bt(context_row_for_agent)' \
         --epic-symbol 'sase-1bt(context_tool_run_line)' \
         --epic-symbol 'sase-1bt(extract_run_ids)' \

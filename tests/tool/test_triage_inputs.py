@@ -520,7 +520,7 @@ def test_gatherer_timeout_stores_diagnostic_and_keeps_exit_code(
         time.sleep(1.5)  # sase-test-wait: exceed 1.0s owner-candidate gatherer slice
         return [], []
 
-    monkeypatch.setattr("sase.tool.executor.gather_owner_candidates", _slow)
+    monkeypatch.setattr("sase.tool.executor_triage.gather_owner_candidates", _slow)
     assert _run() == 9
     run_id = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]["run_id"]
     shown = tool_run_triage_show({"run_id": run_id})
@@ -540,7 +540,7 @@ def test_settle_exception_stores_diagnostic_and_keeps_exit_code(
     def _boom(*_args: object, **_kwargs: object) -> dict[str, Any]:
         raise RuntimeError("forced settle failure")
 
-    monkeypatch.setattr("sase.tool.executor.tool_run_triage_settle", _boom)
+    monkeypatch.setattr("sase.tool.executor_triage.tool_run_triage_settle", _boom)
     assert _run() == 6
     run_id = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]["run_id"]
     shown = tool_run_triage_show({"run_id": run_id})
