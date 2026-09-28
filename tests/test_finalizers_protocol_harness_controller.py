@@ -280,7 +280,7 @@ def test_later_finalizer_dirt_reactivates_commit(
         return FinalizerInstanceResultWire(instance_id="mutate", status="success")
 
     monkeypatch.setattr(
-        "sase.finalizers.controller.execute_non_commit_finalizer",
+        "sase.finalizers.controller_cycle.execute_non_commit_finalizer",
         run_mutate,
     )
 
@@ -436,7 +436,7 @@ def test_controller_no_progress_fails_closed(
         )
 
     monkeypatch.setattr(
-        "sase.finalizers.controller.execute_commit_finalizer",
+        "sase.finalizers.controller_cycle.execute_commit_finalizer",
         fake_execute,
     )
 

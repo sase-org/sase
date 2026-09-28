@@ -579,7 +579,7 @@ def test_no_model_controller_refuses_missing_declaration(
     entry.provider_ref = "builtin@commit"
     entry.resolved_index = 0
     monkeypatch.setattr(
-        "sase.finalizers.controller.authenticate_resolved_finalizer_plan_full",
+        "sase.finalizers.controller_run.authenticate_resolved_finalizer_plan_full",
         lambda *_a, **_k: MagicMock(
             plan=MagicMock(entries=(entry,), plan_digest="p" * 64),
             drift=(),
@@ -597,10 +597,11 @@ def test_no_model_controller_refuses_missing_declaration(
         lambda **_k: False,
     )
     monkeypatch.setattr(
-        "sase.finalizers.controller._write_aggregate_result", lambda *_a, **_k: None
+        "sase.finalizers._controller_shared.write_aggregate_result",
+        lambda *_a, **_k: None,
     )
     monkeypatch.setattr(
-        "sase.finalizers.controller._project_drift_to_agent_meta",
+        "sase.finalizers.controller_run._project_drift_to_agent_meta",
         lambda *_a, **_k: None,
     )
 

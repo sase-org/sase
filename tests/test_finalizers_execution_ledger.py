@@ -30,7 +30,8 @@ from sase.finalizers.config import (
     FinalizerFieldProvenance,
 )
 from sase.finalizers.commit import BuiltinCommitExecution, BuiltinCommitFinalizerError
-from sase.finalizers.controller import _run_budgeted_commit, _write_aggregate_result
+from sase.finalizers.controller_cycle import _run_budgeted_commit
+from sase.finalizers.controller_results import write_aggregate_result
 from sase.finalizers.executor import (
     FinalizerExecutionContext,
     execute_non_commit_finalizer,
@@ -256,7 +257,7 @@ def test_retryable_plugin_execute_stops_at_budget_boundary(
 def test_controller_failure_is_not_published_as_aggregate_success(
     tmp_path: Path,
 ) -> None:
-    _write_aggregate_result(
+    write_aggregate_result(
         str(tmp_path),
         [
             FinalizerInstanceResultWire(instance_id="lint", status="skipped"),
@@ -349,7 +350,7 @@ def test_commit_no_progress_failure_after_retryable_attempt_is_terminal(
         )
 
     monkeypatch.setattr(
-        "sase.finalizers.controller.execute_commit_finalizer",
+        "sase.finalizers.controller_cycle.execute_commit_finalizer",
         fake_execute,
     )
 
@@ -432,7 +433,7 @@ def test_commit_consumed_retryable_failure_still_retries_within_budget(
         )
 
     monkeypatch.setattr(
-        "sase.finalizers.controller.execute_commit_finalizer",
+        "sase.finalizers.controller_cycle.execute_commit_finalizer",
         fake_execute,
     )
 

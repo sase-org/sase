@@ -221,7 +221,7 @@ def test_same_repo_second_conflict_after_repair_later_cycle_fails_fast(
     )
     monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     monkeypatch.setattr(
-        "sase.finalizers.controller.execute_non_commit_finalizer",
+        "sase.finalizers.controller_cycle.execute_non_commit_finalizer",
         run_mutate,
     )
     provider = MagicMock()
