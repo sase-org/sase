@@ -131,7 +131,7 @@ def _choice_text(
     status_style = "bold #87D75F"
     if not choice.enabled:
         status_style = "bold #D7AF5F"
-    elif choice.status not in {"here", "ok"}:
+    elif choice.status not in {"local", "ok"}:
         status_style = "#D7AF5F"
     text.append(choice.status, style=status_style)
     if current:

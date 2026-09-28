@@ -508,6 +508,22 @@ class AgentTabsSwitchMixin:
             styles = resolve_agent_tab_style_inputs(allow_disk=False)
         except Exception:
             styles = None
+        machine_mode = bool(styles.machine_mode) if styles is not None else False
+        try:
+            from ...models.agent_tab_descriptors import machine_off_tab_extras
+
+            for off_key, off_text in machine_off_tab_extras(
+                query_result,
+                key_for,
+                tuple(entries),
+                machine_mode=machine_mode,
+            ).items():
+                if off_key in extras and extras[off_key]:
+                    extras[off_key] = f"{extras[off_key]} · {off_text}"
+                else:
+                    extras[off_key] = off_text
+        except Exception:  # noqa: BLE001 - off-tab counts are best-effort.
+            pass
         jump_hints = dict(getattr(self, "_agent_tab_jump_hints", None) or {})
         return project_agent_tab_descriptors(
             tuple(entries),
@@ -524,7 +540,7 @@ class AgentTabsSwitchMixin:
             enabled_projects=tuple(styles.enabled_projects)
             if styles is not None
             else (),
-            machine_mode=bool(styles.machine_mode) if styles is not None else False,
+            machine_mode=machine_mode,
             jump_hints=jump_hints,
             extra_tooltips=extras,
         )

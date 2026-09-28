@@ -115,7 +115,7 @@ def test_agent_live_query_entry_projects_every_live_derived_field() -> None:
     assert fields["hidden"] == (True,)
     assert fields["attention"] == (True,)
     assert fields["retry"] == (True,)
-    assert fields["machine"] == ("here", "athena")
+    assert fields["machine"] == ("here", "local", "athena")
     assert fields["tribe"] == ("pinned",)
     assert fields["pinned"] == (True,)
     assert fields["unread"] == (True,)
@@ -175,8 +175,9 @@ def test_agent_live_query_entry_projects_imported_owner_machine() -> None:
 
     entry = agent_live_query_entry(agent, now=_NOW)
 
-    assert entry["fields"]["machine"] == ("here", "apollo")
+    assert entry["fields"]["machine"] == ("here", "local", "apollo")
     assert _match_ids("machine:apollo", (entry,)) == ("imported-run",)
+    assert _match_ids("machine:local", (entry,)) == ("imported-run",)
 
 
 def test_agent_live_query_entry_keeps_conflicting_source_and_owner_machines() -> None:
@@ -189,7 +190,7 @@ def test_agent_live_query_entry_keeps_conflicting_source_and_owner_machines() ->
 
     entry = agent_live_query_entry(agent, now=_NOW)
 
-    assert entry["fields"]["machine"] == ("here", "athena", "apollo")
+    assert entry["fields"]["machine"] == ("here", "local", "athena", "apollo")
     assert _match_ids("machine:apollo", (entry,)) == ("different-provenance",)
     assert _match_ids("machine:athena", (entry,)) == ("different-provenance",)
     assert _match_ids("not machine:apollo", (entry,)) == ()

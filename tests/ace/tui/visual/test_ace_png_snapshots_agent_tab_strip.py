@@ -1,8 +1,9 @@
-"""ACE PNG coverage for the Agents tab strip (sase-1bc.7).
+"""ACE PNG coverage for the Agents tab strip (sase-1bc.7, machine tabs sase-1bc.9).
 
 Hidden (pixel-identical to today), standard, attention, narrow overflow,
-all three empty causes, a 32-character name, and the tab picker — with
-the ``agent_tabs`` flag on.
+all three empty causes, a 32-character name, the tab picker, machine mode
+with named-vs-machine aliases, a stale host, and BY_MACHINE on a machine
+tab versus a named tab — with the ``agent_tabs`` flag on.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from sase.ace.tui import agent_tabs_settings as settings_mod
 from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
 from sase.ace.tui.models import agent_tab_descriptors as descriptors_mod
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_tab_descriptors import AgentTabStyleInputs
 from sase.core.agent_tab import AgentTabKey
 from sase.feature_flags import override_flags
@@ -333,6 +335,169 @@ async def test_agents_tab_strip_long_name_png_snapshot(
                 page,
                 "agents_tab_strip_long_name_120x40",
                 title="ACE agents tab strip with a 32-character name",
+            )
+
+
+async def test_agents_tab_strip_machine_mode_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[
+            _agent("one"),
+            _agent("two", tab="sase"),
+            _agent("remote", origin_alias="apollo", origin_id="install-apollo"),
+            _agent("remote-mac", origin_alias="mac", origin_id="install-mac"),
+        ],
+    )
+    _install_tab_view(
+        monkeypatch,
+        machine_mode=True,
+        machine_order=(("install-apollo", "apollo"), ("install-mac", "mac")),
+    )
+    with override_flags(agent_tabs=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _open_agents(page)
+            for token in ("⌨", "local", "apollo", "mac", "sase", "┊"):
+                await wait_for_svg_contains(page, token)
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_tab_strip_machine_mode_120x40",
+                title="ACE agents tab strip in machine mode",
+            )
+
+
+async def test_agents_tab_strip_named_vs_machine_alias_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[
+            _agent("one"),
+            _agent("named", tab="apollo"),
+            _agent(
+                "remote",
+                origin_alias="apollo",
+                origin_id="install-apollo",
+            ),
+        ],
+    )
+    _install_tab_view(
+        monkeypatch,
+        machine_mode=True,
+        machine_order=(("install-apollo", "apollo"),),
+    )
+    with override_flags(agent_tabs=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _open_agents(page)
+            for token in ("⌨", "apollo"):
+                await wait_for_svg_contains(page, token)
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_tab_strip_named_vs_machine_alias_120x40",
+                title="ACE agents named apollo tab beside the apollo machine tab",
+            )
+
+
+async def test_agents_tab_strip_stale_host_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    apollo_key = AgentTabKey.machine("install-apollo")
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[
+            _agent("one"),
+            _agent(
+                "remote",
+                origin_alias="apollo",
+                origin_id="install-apollo",
+            ),
+        ],
+    )
+    _install_tab_view(
+        monkeypatch,
+        machine_mode=True,
+        machine_order=(("install-apollo", "apollo"),),
+    )
+    with override_flags(agent_tabs=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _open_agents(page)
+            assert page.app._switch_agents_tab(apollo_key, reason="visual") is True
+            page.app._agents_fleet_projection = SimpleNamespace(
+                host_feed_issues=(),
+                diagnostics=({"alias": "apollo"},),
+            )
+            page.app._refresh_agent_tab_strip()
+            page.app._update_agents_header()
+            await wait_for_visual_idle(page)
+            await page.pause(0.5)
+            await wait_for_svg_contains(page, "apollo")
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_tab_strip_stale_host_120x40",
+                title="ACE agents tab strip with a stale machine host",
+            )
+
+
+async def test_agents_tab_strip_by_machine_on_machine_tab_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The default tab is the ⌨ local machine tab in machine mode: its lone
+    # `local` L0 banner is redundant with the strip, so only the Running
+    # status subgroup renders.
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[
+            _agent("one"),
+            _agent("two", tab="sase"),
+        ],
+    )
+    _install_tab_view(monkeypatch, machine_mode=True)
+    with override_flags(agent_tabs=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _open_agents(page)
+            await page.press("o", "m")
+            await wait_for_visual_idle(page)
+            assert page.app._grouping_mode is GroupingMode.BY_MACHINE
+            await page.pause(0.5)
+            await wait_for_svg_contains(page, "Running")
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_tab_strip_by_machine_on_machine_tab_120x40",
+                title="ACE agents BY_MACHINE on a machine tab",
+            )
+
+
+async def test_agents_tab_strip_by_machine_on_named_tab_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Named tabs keep the `local` machine banner and its status subgroups.
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[
+            _agent("one"),
+            _agent("two", tab="sase"),
+        ],
+    )
+    _install_tab_view(monkeypatch, machine_mode=True)
+    with override_flags(agent_tabs=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _open_agents(page)
+            assert page.app._switch_agents_tab(_SASE, reason="visual") is True
+            await page.press("o", "m")
+            await wait_for_visual_idle(page)
+            assert page.app._grouping_mode is GroupingMode.BY_MACHINE
+            await page.pause(0.5)
+            await wait_for_svg_contains(page, "local")
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_tab_strip_by_machine_on_named_tab_120x40",
+                title="ACE agents BY_MACHINE on a named tab",
             )
 
 

@@ -382,6 +382,14 @@ def _compute_finalize_plan(
             resolve_agent_tab_style_inputs(allow_disk=True)
         except Exception:
             pass
+        # Same lane for the old-contract alias set behind the "tab data
+        # unavailable" machine-tab note: cache-only reads, TTL-bounded.
+        try:
+            from ._agent_tabs_catalog import refresh_agent_tab_contract_versions
+
+            refresh_agent_tab_contract_versions(allow_disk=True)
+        except Exception:
+            pass
         index_roster = (
             unfiltered_agents if unfiltered_agents is not None else visible_agents
         )

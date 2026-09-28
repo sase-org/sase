@@ -79,15 +79,81 @@ def _agent_row_chrome_mode(agents: list[Agent]) -> bool:
     return any(getattr(agent, "fleet_origin_alias", None) for agent in agents)
 
 
+def _machine_tab_chrome_suppressed(app: Any) -> bool:
+    """Return True when per-machine chrome is redundant for the active tab.
+
+    On a machine tab (the machine-mode default tab or a ``machine(...)`` /
+    ``unresolved_machine`` tab) every visible row shares one machine, so the
+    per-row remote alias chip and the lone ``BY_MACHINE`` L0 banner repeat
+    the strip. Named tabs and the All-tabs level keep both. With the
+    ``agent_tabs`` flag off this is always False so rendering is unchanged.
+    """
+    try:
+        from ..agent_tabs_flag import agent_tabs_enabled
+
+        if not agent_tabs_enabled():
+            return False
+        active = getattr(app, "_active_agent_tab", None)
+        kind = getattr(active, "kind", None)
+        if kind in ("machine", "unresolved_machine"):
+            return True
+        if kind == "default":
+            from ..agent_tabs_settings import agent_tabs_view_config
+
+            return bool(agent_tabs_view_config().machine_mode)
+        return False
+    except Exception:  # noqa: BLE001 - chrome suppression is display-only.
+        return False
+
+
+def suppress_lone_machine_banner(
+    tree: list[TreeEntry],
+    *,
+    grouping_mode: GroupingMode,
+    app: Any,
+) -> list[TreeEntry]:
+    """Drop the lone ``BY_MACHINE`` L0 banner on a machine tab.
+
+    Returns *tree* unchanged unless the grouping is ``BY_MACHINE``, the
+    active tab makes machine chrome redundant, and the tree holds exactly
+    one L0 group: that banner names the tab the strip already names, while
+    the L1 status subgroups underneath stay. Callers apply this before
+    tier-style computation so banner sequencing stays aligned.
+    """
+    if grouping_mode is not GroupingMode.BY_MACHINE:
+        return tree
+    if not _machine_tab_chrome_suppressed(app):
+        return tree
+    l0_groups = sum(
+        1
+        for entry in tree
+        if entry.kind == "group" and entry.group is not None and entry.group.level == 0
+    )
+    if l0_groups != 1:
+        return tree
+    return [
+        entry
+        for entry in tree
+        if not (
+            entry.kind == "group" and entry.group is not None and entry.group.level == 0
+        )
+    ]
+
+
+def widget_app_or_none(widget: Any) -> Any:
+    """Return ``widget.app`` or None when the widget is not mounted."""
+    try:
+        return getattr(widget, "app", None)
+    except Exception:  # noqa: BLE001 - unmounted widgets have no app.
+        return None
+
+
 def agent_wait_status_maps_for_build(
     widget: Any,
     agents: list[Agent],
 ) -> AgentWaitStatusMaps:
     """Return wait state from the app's full loaded snapshot when available."""
-    try:
-        app = getattr(widget, "app", None)
-    except Exception:
-        app = None
+    app = widget_app_or_none(widget)
     return agent_wait_status_maps_for_app(app) or collect_agent_wait_status_maps(agents)
 
 
@@ -131,7 +197,8 @@ def build_row_inputs(
         tribe_colors=named_tribe_identity_colors(semantic_tribes),
         parents_with_visible_children=parents_with_visible_children,
         fully_expanded_parents=fully_expanded_parents,
-        show_machine_chip=_agent_row_chrome_mode(agents),
+        show_machine_chip=_agent_row_chrome_mode(agents)
+        and not _machine_tab_chrome_suppressed(widget_app_or_none(widget)),
         wait_status_maps=agent_wait_status_maps_for_build(widget, agents),
         now=now,
     )
@@ -393,4 +460,6 @@ __all__ = [
     "emit_tree_rows",
     "format_agent_row",
     "requested_panel_width",
+    "suppress_lone_machine_banner",
+    "widget_app_or_none",
 ]

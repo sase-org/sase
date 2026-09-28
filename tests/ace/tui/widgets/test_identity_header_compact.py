@@ -85,7 +85,7 @@ def test_agent_rows_show_auto_and_machine_chips() -> None:
     )
     first, second = _rows(build_agent_compact_lines(agent=agent))
     assert "⚡ EPIC" in first
-    assert "⇄ gpu-box" in first
+    assert "⌨ gpu-box" in first
     assert "feed stale" in second
 
 

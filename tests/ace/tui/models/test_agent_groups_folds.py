@@ -405,10 +405,10 @@ def test_compute_banner_summary_by_machine_l0_uses_authoritative_host_counts() -
     assert "failed" not in text
 
 
-def test_compute_banner_summary_by_machine_l0_keeps_recount_for_here_group() -> None:
-    """The local ``here`` machine banner keeps its ordinary recount."""
+def test_compute_banner_summary_by_machine_l0_keeps_recount_for_local_group() -> None:
+    """The local ``local`` machine banner keeps its ordinary recount."""
     agents = [_agent(cl_name="a", status="RUNNING"), _agent(cl_name="b", status="DONE")]
-    group = GroupRow(level=0, group_key=("here",), agent_indices=(0, 1))
+    group = GroupRow(level=0, group_key=("local",), agent_indices=(0, 1))
 
     summary = compute_banner_summary(group, agents, mode=GroupingMode.BY_MACHINE)
 

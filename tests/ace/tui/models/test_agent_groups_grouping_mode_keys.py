@@ -59,7 +59,7 @@ def test_grouping_keys_for_agents_by_machine_uses_machine_at_l0() -> None:
 
     keys = _grouping_keys_for_agents([local, remote], GroupingMode.BY_MACHINE, _NOW)
 
-    assert [k.project for k in keys] == ["here", "apollo"]
+    assert [k.project for k in keys] == ["local", "apollo"]
     assert all(k.patch == "" for k in keys)
     assert [k.name_root for k in keys] == ["local", "remote"]
 
@@ -73,13 +73,13 @@ def test_grouping_keys_for_agents_by_machine_uses_status_at_subgroup() -> None:
 
     keys = _grouping_keys_for_agents([running, done], GroupingMode.BY_MACHINE, _NOW)
 
-    assert [k.project for k in keys] == ["here", "here"]
+    assert [k.project for k in keys] == ["local", "local"]
     assert [k.subgroup for k in keys] == ["Running", "Done"]
     assert [k.name_root for k in keys] == ["coder", "coder"]
     assert enumerate_group_keys([running, done], GroupingMode.BY_MACHINE, _NOW) == [
-        ("here",),
-        ("here", "Running"),
-        ("here", "Done"),
+        ("local",),
+        ("local", "Running"),
+        ("local", "Done"),
     ]
 
 
@@ -133,7 +133,7 @@ def test_clan_descendants_inherit_outer_anchor_keys_in_every_mode() -> None:
         GroupingMode.STANDARD: ("root", "", ""),
         GroupingMode.BY_STATUS: ("Running", "", ""),
         GroupingMode.BY_DATE: ("Today", "", "08:00"),
-        GroupingMode.BY_MACHINE: ("here", "", "Running"),
+        GroupingMode.BY_MACHINE: ("local", "", "Running"),
     }
 
     for mode, (l0, patch, subgroup) in expectations.items():
@@ -151,8 +151,8 @@ def test_clan_descendants_inherit_outer_anchor_keys_in_every_mode() -> None:
         ("Today", "08:00"),
     ]
     assert enumerate_group_keys(agents, GroupingMode.BY_MACHINE, _NOW) == [
-        ("here",),
-        ("here", "Running"),
+        ("local",),
+        ("local", "Running"),
     ]
 
 

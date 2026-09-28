@@ -332,6 +332,7 @@ class MachinesPaneKeymaps:
     rename_machine: str = "R"
     remove_machine: str = "x"
     show_agents: str = "enter"
+    show_agents_filter: str = "f"
     copy_command: str = "y"
     reload: str = "U"
 

@@ -452,7 +452,7 @@ def test_banner_prefix_registers() -> None:
         group = _group(level=0, key=(bucket,), collapsed=False)
         cells = rail_banner_cells(group, agents, mode=GroupingMode.BY_STATUS)
         assert cells.plain[0] == glyph, bucket
-        machine = _group(level=1, key=("here", bucket), collapsed=False)
+        machine = _group(level=1, key=("local", bucket), collapsed=False)
         mid = rail_banner_cells(machine, agents, mode=GroupingMode.BY_MACHINE)
         assert "▎" in mid.plain and glyph in mid.plain, bucket
     by_date = rail_banner_cells(

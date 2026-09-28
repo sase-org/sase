@@ -51,7 +51,7 @@ def compute_banner_summary(
     remote-machine L0 banner in ``BY_MACHINE`` mode: that banner sources its
     counts from the host's own authoritative counts instead, so a bounded or
     partially-stale page of rows can never under/over-count a remote
-    machine's real running total. The local ("here") machine banner keeps
+    machine's real running total. The local ("local") machine banner keeps
     the recount path unchanged.
     """
     roots: list[Agent] = []
@@ -80,7 +80,7 @@ def compute_banner_summary(
 def _authoritative_machine_summary(roots: list[Agent]) -> _BannerSummary | None:
     """Authoritative running/unknown summary for a remote-machine L0 banner.
 
-    Returns ``None`` for the local ("here") group, or when no row in the
+    Returns ``None`` for the local ("local") group, or when no row in the
     group yet carries host counts, so the caller falls back to the ordinary
     recount.
     """

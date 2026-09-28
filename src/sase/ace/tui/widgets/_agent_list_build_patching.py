@@ -29,6 +29,8 @@ from ._agent_list_build_rows import (
     emit_tree_rows,
     format_agent_row,
     requested_panel_width,
+    suppress_lone_machine_banner,
+    widget_app_or_none,
 )
 from ._agent_list_rendering import (
     agent_option_id,
@@ -466,6 +468,9 @@ def try_insert_rows(
 
     tree = build_agent_tree(
         agents, fold_registry=fold_registry, mode=grouping_mode, now=now
+    )
+    tree = suppress_lone_machine_banner(
+        tree, grouping_mode=grouping_mode, app=widget_app_or_none(widget)
     )
     panel_uses_cs = grouping_mode is GroupingMode.STANDARD and any(
         a.cl_name for a in agents

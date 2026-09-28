@@ -3041,6 +3041,10 @@
                 },
                 "show_agents": {
                   "type": "string",
+                  "description": "Show the selected machine's agent tab"
+                },
+                "show_agents_filter": {
+                  "type": "string",
                   "description": "Show Agents filtered to the selected machine"
                 },
                 "copy_command": {

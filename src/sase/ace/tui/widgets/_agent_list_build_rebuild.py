@@ -21,6 +21,8 @@ from ._agent_list_build_rows import (
     emit_tree_rows,
     format_agent_row,
     requested_panel_width,
+    suppress_lone_machine_banner,
+    widget_app_or_none,
 )
 from ._agent_list_rendering import assemble_padded_option
 from ._agent_list_styling import _MIN_BANNER_WIDTH
@@ -94,6 +96,9 @@ def build_list(
     widget._grouping_mode = grouping_mode
     tree: list[TreeEntry] = build_agent_tree(
         agents, fold_registry=fold_registry, mode=grouping_mode, now=now
+    )
+    tree = suppress_lone_machine_banner(
+        tree, grouping_mode=grouping_mode, app=widget_app_or_none(widget)
     )
     panel_uses_cs = grouping_mode is GroupingMode.STANDARD and any(
         a.cl_name for a in agents

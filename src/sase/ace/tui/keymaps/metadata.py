@@ -290,6 +290,7 @@ _MACHINES_BINDING_META: tuple[tuple[str, str, str], ...] = (
     ("rename_machine", "rename_machine", "Rename"),
     ("remove_machine", "remove_machine", "Remove"),
     ("show_agents", "show_agents", "Show Agents"),
+    ("show_agents_filter", "show_agents_filter", "Filter Agents"),
     ("copy_command", "copy_machine_command", "Copy Command"),
     ("reload", "reload_machines", "Reload"),
 )

@@ -9,6 +9,7 @@ bulk helpers describe the active scope.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Mapping
 from typing import Any
 
@@ -146,14 +147,58 @@ def _format_host_issue(issue: Any) -> str:
     return f"{alias}: feed {label}{detail}"
 
 
+_CONTRACT_VERSIONS_CACHE: tuple[float, frozenset[str]] = (0.0, frozenset())
+_CONTRACT_VERSIONS_TTL_SECONDS = 300.0
+#: Fleet contract version that first carries agent tabs (mirrors the
+#: ``%tab`` + ``%dispatch`` preflight floor in ``sase.dispatch.launch``).
+TAB_FLEET_CONTRACT_VERSION = 7
+
+
+def refresh_agent_tab_contract_versions(*, allow_disk: bool = False) -> frozenset[str]:
+    """Return aliases whose cached fleet contract predates agent tabs (v7).
+
+    With ``allow_disk=True`` (the worker finalize plan) this re-reads the
+    federation cache-only hosts response at most once per TTL and caches
+    the old-contract alias set. With ``allow_disk=False`` (the UI thread)
+    it returns the cached set without touching disk or the network, so
+    strip rendering stays free of I/O.
+    """
+    global _CONTRACT_VERSIONS_CACHE
+    cached_at, cached = _CONTRACT_VERSIONS_CACHE
+    try:
+        now = time.monotonic()
+    except Exception:  # noqa: BLE001 - a broken clock reads as expired.
+        now = cached_at + _CONTRACT_VERSIONS_TTL_SECONDS + 1.0
+    if not allow_disk:
+        return cached
+    if now - cached_at < _CONTRACT_VERSIONS_TTL_SECONDS:
+        return cached
+    old: frozenset[str] = frozenset()
+    try:
+        from sase.dispatch.launch import cached_fleet_contract_versions
+
+        versions = cached_fleet_contract_versions()
+        old = frozenset(
+            alias
+            for alias, version in versions.items()
+            if isinstance(version, int) and version < TAB_FLEET_CONTRACT_VERSION
+        )
+    except Exception:  # noqa: BLE001 - version skew notes are best-effort.
+        old = cached
+        now = cached_at
+    _CONTRACT_VERSIONS_CACHE = (now, old)
+    return old
+
+
 def agent_tab_health_for_owner(
     owner: Any,
 ) -> tuple[dict[AgentTabKey, str], dict[AgentTabKey, str], str]:
     """Return ``(health_by_key, tooltip_extras, active_text)`` (no I/O).
 
     Machine-tab health reuses the fleet projection's host feed issues
-    (invalid/offline, red) and diagnostics (stale, amber). The active
-    machine tab's issue text doubles as the header's right-side health.
+    (invalid/offline, red) and diagnostics (stale, amber). Hosts on an
+    older fleet contract get a ``tab data unavailable`` note instead. The
+    active machine tab's text doubles as the header's right-side health.
     """
     health: dict[AgentTabKey, str] = {}
     extras: dict[AgentTabKey, str] = {}
@@ -163,8 +208,6 @@ def agent_tab_health_for_owner(
         issues = tuple(getattr(projection, "host_feed_issues", ()) or ())
         diagnostics = tuple(getattr(projection, "diagnostics", ()) or ())
     except Exception:
-        return health, extras, active_text
-    if not issues and not diagnostics:
         return health, extras, active_text
     try:
         from ...agent_tabs_settings import agent_tabs_view_config
@@ -196,6 +239,8 @@ def agent_tab_health_for_owner(
         entries = catalog_view_for_owner(owner)
     except Exception:
         return health, extras, active_text
+    # Cached UI-thread read (no I/O): the worker finalize plan refreshes it.
+    old_contract_aliases = refresh_agent_tab_contract_versions(allow_disk=False)
     for entry in entries:
         key = entry.key
         if not isinstance(key, AgentTabKey):
@@ -225,6 +270,12 @@ def agent_tab_health_for_owner(
                 candidate for candidate in candidates if candidate in diag_aliases
             )
             extras[key] = f"{stale_alias}: stale"
+            continue
+        # Hosts on an older fleet contract send no tab data: their rows
+        # always land on the machine tab. Feed issues and staleness win;
+        # otherwise name the skew so the header can route to an upgrade.
+        if key.kind == "machine" and bare and bare in old_contract_aliases:
+            extras[key] = f"{bare}: tab data unavailable (upgrade sase)"
     try:
         active = getattr(owner, "_active_agent_tab", None)
     except Exception:
@@ -235,10 +286,12 @@ def agent_tab_health_for_owner(
 
 
 __all__ = [
+    "TAB_FLEET_CONTRACT_VERSION",
     "active_tab_label_for_owner",
     "agent_tab_health_for_owner",
     "bulk_scope_label_for_owner",
     "catalog_view_for_owner",
     "marked_off_tab_count_for_owner",
+    "refresh_agent_tab_contract_versions",
     "strip_visible_for_owner",
 ]

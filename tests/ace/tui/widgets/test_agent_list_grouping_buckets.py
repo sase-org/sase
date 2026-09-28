@@ -409,7 +409,7 @@ def test_by_machine_l1_banner_width_exact(
     agents = [make_agent(status="RUNNING")] if has_chip else []
     group = GroupRow(
         level=1,
-        group_key=("here", label),
+        group_key=("local", label),
         agent_indices=tuple(range(len(agents))),
     )
     option = format_banner_option(

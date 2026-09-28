@@ -48,7 +48,7 @@ class GroupingMode(Enum):
       ``Running`` / ``Queued`` / ``Waiting`` / ``Done`` / ``Starting``)
       derived from each agent's ``status``.
     - ``BY_MACHINE``: L0 is the fleet machine alias, with local rows under
-      ``here``.  Each machine bucket is further sub-grouped by the same
+      ``local``.  Each machine bucket is further sub-grouped by the same
       priority-ordered status bucket used by ``BY_STATUS``, then by
       name-root / name-prefix within each (machine, status) pair.
 

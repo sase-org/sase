@@ -308,8 +308,8 @@ contacts every gateway implicitly. A remote therefore starts with state **not ch
 and health **unknown** until you press `s` for one bounded, authenticated hello.
 
 Use `/` to filter, `j` / `k` to move, `U` to reload inventory, and `Enter` to close
-Admin Center and open Agents filtered to `machine:<alias>` (`machine:here` for the local
-row, whose Alias column instead shows the configured machine name). `c` shows the
+Admin Center and open Agents filtered to `machine:<alias>` (`machine:local` for the
+local row, whose Alias column instead shows the configured machine name). `c` shows the
 persistent enrollment flow. For a selected remote, `r`, `R`, and `x` show repair,
 rename, and removal guidance, while `y` copies the displayed command; these guidance
 actions do not mutate machine state by themselves. See the
@@ -1302,19 +1302,20 @@ overlap app-level bindings.
 **`machines`** — focused Admin Center Machines-tab keybindings. These bindings are
 scoped to the Machines pane and do not become app-level sase's TUI shortcuts.
 
-| Field             | Default         | Action                                                      |
-| ----------------- | --------------- | ----------------------------------------------------------- |
-| `next_option`     | `j,down,ctrl+n` | Select the next machine row.                                |
-| `prev_option`     | `k,up,ctrl+p`   | Select the previous machine row.                            |
-| `focus_filter`    | `slash`         | Focus the machine filter input.                             |
-| `connect_machine` | `c`             | Show the persistent Connect flow.                           |
-| `check_status`    | `s`             | Run a bounded authenticated status check for the selection. |
-| `repair_machine`  | `r`             | Show repair guidance for the selected remote machine.       |
-| `rename_machine`  | `R`             | Show the rename command for the selected remote machine.    |
-| `remove_machine`  | `x`             | Show removal guidance for the selected remote machine.      |
-| `show_agents`     | `enter`         | Open Agents filtered to the selected machine.               |
-| `copy_command`    | `y`             | Copy the current Machines action command.                   |
-| `reload`          | `U`             | Reload the machine inventory.                               |
+| Field                | Default         | Action                                                                                 |
+| -------------------- | --------------- | -------------------------------------------------------------------------------------- |
+| `next_option`        | `j,down,ctrl+n` | Select the next machine row.                                                           |
+| `prev_option`        | `k,up,ctrl+p`   | Select the previous machine row.                                                       |
+| `focus_filter`       | `slash`         | Focus the machine filter input.                                                        |
+| `connect_machine`    | `c`             | Show the persistent Connect flow.                                                      |
+| `check_status`       | `s`             | Run a bounded authenticated status check for the selection.                            |
+| `repair_machine`     | `r`             | Show repair guidance for the selected remote machine.                                  |
+| `rename_machine`     | `R`             | Show the rename command for the selected remote machine.                               |
+| `remove_machine`     | `x`             | Show removal guidance for the selected remote machine.                                 |
+| `show_agents`        | `enter`         | Open the selected machine's agent tab (or filter Agents when the tab strip is hidden). |
+| `show_agents_filter` | `f`             | Open Agents filtered to the selected machine in all cases.                             |
+| `copy_command`       | `y`             | Copy the current Machines action command.                                              |
+| `reload`             | `U`             | Reload the machine inventory.                                                          |
 
 **`tool_runs`** — focused Admin Center [Tools-tab](ace.md#tools-tab) keybindings (Runs,
 Failures, and Catalog views). These bindings are scoped to the Tools pane and do not

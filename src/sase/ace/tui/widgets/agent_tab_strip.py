@@ -106,11 +106,14 @@ def agent_tab_label_style(descriptor: AgentTabDescriptor) -> str:
 
 
 def _agent_tab_tooltip(descriptor: AgentTabDescriptor) -> str:
-    """Return the hover tooltip for *descriptor*."""
-    if descriptor.description:
-        return descriptor.description
+    """Return the hover tooltip for *descriptor*.
+
+    The label, count, and attention tokens always lead; the configured
+    description and machine health/off-tab notes append, so a machine tab
+    names its off-tab agents without losing its counts.
+    """
     parts = [descriptor.label]
-    if descriptor.machine_alias:
+    if descriptor.machine_alias and descriptor.machine_alias != descriptor.label:
         parts.append(f"({descriptor.machine_alias})")
     parts.append(f"{descriptor.count} agents")
     if descriptor.stopped:
@@ -119,6 +122,8 @@ def _agent_tab_tooltip(descriptor: AgentTabDescriptor) -> str:
         parts.append(f"F{descriptor.failed}")
     if descriptor.unread:
         parts.append(f"U{descriptor.unread}")
+    if descriptor.description:
+        parts.append(descriptor.description)
     return " \u00b7 ".join(parts)
 
 

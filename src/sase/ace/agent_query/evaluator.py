@@ -139,16 +139,19 @@ def _match_tribe(prop: PropertyMatch, agent: Agent) -> bool:
 def _match_machine(prop: PropertyMatch, agent: Agent) -> bool:
     """Exact machine match over fleet origin and archive provenance.
 
-    ``machine:here`` matches local rows. Bare ``machine:`` matches any remote
-    row, mirroring bare ``tribe:`` as "any non-empty value". Valued
-    ``machine:VAL`` also matches ``source_machine`` so index-resident
-    imported rows keep negation parity with the live adapter.
+    ``machine:here`` and ``machine:local`` both match local rows. Bare
+    ``machine:`` matches any remote row, mirroring bare ``tribe:`` as "any
+    non-empty value". Valued ``machine:VAL`` also matches ``source_machine``
+    so index-resident imported rows keep negation parity with the live
+    adapter.
     """
     alias = (getattr(agent, "fleet_origin_alias", None) or "").strip()
     if not prop.value:
         return bool(alias)
     needle = prop.value.casefold()
     values = {(alias or "here").casefold()}
+    if not alias:
+        values.add("local")
     source_machine = (getattr(agent, "source_machine", None) or "").strip()
     if source_machine:
         values.add(source_machine.casefold())

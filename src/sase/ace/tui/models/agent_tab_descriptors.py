@@ -172,6 +172,78 @@ def _default_key() -> AgentTabKey:
     return DEFAULT_AGENT_TAB_KEY
 
 
+def machine_off_tab_extras(
+    query_rows: Collection[Any],
+    key_for: Any,
+    entries: tuple[Any, ...],
+    *,
+    machine_mode: bool = False,
+) -> dict[AgentTabKey, str]:
+    """Return per-machine-tab ``+N ... on other tabs`` tooltip fragments.
+
+    A machine tab names the agents its machine owns that resolve to other
+    tabs (named tabs win on every machine), e.g. ``+5 apollo agents on
+    other tabs: sase 4, blog 1``. Ownership is keyed by installation id so
+    alias renames keep attributing; origins with no known id attribute by
+    alias (their session-only tab key), and local rows belong to the
+    default tab in machine mode. Tabs with no off-tab agents get no entry.
+    Counts come from the committed tab-independent query result, so they
+    are query-aware like the strip counts.
+    """
+    from sase.ace.tui.models._agent_tree import agent_is_tree_child
+
+    label_by_key: dict[AgentTabKey, str] = {}
+    buckets: dict[AgentTabKey, tuple[str, str]] = {}
+    words: dict[AgentTabKey, str] = {}
+    for entry in entries:
+        key = entry.key
+        label_by_key[key] = entry.label or ""
+        if key.kind == "machine":
+            buckets[key] = ("id", key.value)
+            words[key] = (entry.label or "").removeprefix("⌨ ").strip() or key.value
+        elif key.kind == "unresolved_machine":
+            buckets[key] = ("alias", key.value)
+            words[key] = (entry.label or "").removeprefix("⌨ ").strip() or key.value
+        elif key.kind == "default" and machine_mode:
+            buckets[key] = ("local", "")
+            words[key] = "local"
+    if not buckets:
+        return {}
+    owned_off_tab: dict[AgentTabKey, dict[AgentTabKey, int]] = {}
+    for row in query_rows:
+        try:
+            tab = key_for(row)
+        except Exception:  # noqa: BLE001 - unknown rows stay uncounted.
+            continue
+        try:
+            if agent_is_tree_child(row):
+                continue
+        except Exception:  # noqa: BLE001 - count rather than drop on error.
+            pass
+        try:
+            iid = str(getattr(row, "fleet_origin_installation_id", "") or "").strip()
+            alias = str(getattr(row, "fleet_origin_alias", "") or "").strip()
+        except Exception:  # noqa: BLE001 - unattributable rows are skipped.
+            continue
+        owner = ("id", iid) if iid else (("alias", alias) if alias else ("local", ""))
+        for tab_key, bucket in buckets.items():
+            if bucket == owner and tab != tab_key:
+                owned_off_tab.setdefault(tab_key, {}).setdefault(tab, 0)
+                owned_off_tab[tab_key][tab] += 1
+    extras: dict[AgentTabKey, str] = {}
+    for tab_key, by_tab in owned_off_tab.items():
+        total = sum(by_tab.values())
+        breakdown = ", ".join(
+            f"{label_by_key.get(tab, tab.value or '?')} {count}"
+            for tab, count in sorted(
+                by_tab.items(),
+                key=lambda item: (-item[1], label_by_key.get(item[0], "")),
+            )
+        )
+        extras[tab_key] = f"+{total} {words[tab_key]} agents on other tabs: {breakdown}"
+    return extras
+
+
 def descriptor_signature(
     descriptors: tuple[AgentTabDescriptor, ...],
     active_key: AgentTabKey | None,
@@ -197,6 +269,7 @@ def descriptor_signature(
                 desc.health,
                 desc.has_arrival,
                 desc.jump_hint,
+                desc.description,
             )
             for desc in descriptors
         ),
@@ -208,6 +281,7 @@ def descriptor_signature(
 __all__ = [
     "AgentTabStyleInputs",
     "descriptor_signature",
+    "machine_off_tab_extras",
     "project_agent_tab_descriptors",
     "resolve_agent_tab_style_inputs",
 ]

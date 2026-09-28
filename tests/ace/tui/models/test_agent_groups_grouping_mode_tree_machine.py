@@ -14,7 +14,7 @@ from sase.ace.tui.models.agent_groups import (
 from ._agent_groups_helpers import _NOW, _agent, _group_keys, _kinds
 
 
-def test_build_agent_tree_by_machine_orders_here_first_then_aliases() -> None:
+def test_build_agent_tree_by_machine_orders_local_first_then_aliases() -> None:
     local = _agent(
         cl_name="local",
         agent_name="local.agent",
@@ -39,7 +39,7 @@ def test_build_agent_tree_by_machine_orders_here_first_then_aliases() -> None:
         now=_NOW,
     )
 
-    assert _group_keys(entries, level=0) == [("here",), ("apollo",), ("zeus",)]
+    assert _group_keys(entries, level=0) == [("local",), ("apollo",), ("zeus",)]
     assert [entry.agent_idx for entry in entries if entry.kind == "agent"] == [
         1,
         2,
@@ -86,19 +86,19 @@ def test_build_agent_tree_by_machine_status_subgroups_priority_order() -> None:
         cl_name="c", agent_name="c", status="FAILED", start_time=_NOW
     )
     apollo_failed.fleet_origin_alias = "apollo"
-    here_running = _agent(cl_name="d", agent_name="d", status="RUNNING")
-    here_stopped = _agent(cl_name="e", agent_name="e", status="QUESTION")
+    local_running = _agent(cl_name="d", agent_name="d", status="RUNNING")
+    local_stopped = _agent(cl_name="e", agent_name="e", status="QUESTION")
 
     entries = build_agent_tree(
-        [apollo_done, apollo_running, apollo_failed, here_running, here_stopped],
+        [apollo_done, apollo_running, apollo_failed, local_running, local_stopped],
         mode=GroupingMode.BY_MACHINE,
         now=_NOW,
     )
 
-    assert _group_keys(entries, level=0) == [("here",), ("apollo",)]
+    assert _group_keys(entries, level=0) == [("local",), ("apollo",)]
     assert _group_keys(entries, level=1) == [
-        ("here", "Stopped"),
-        ("here", "Running"),
+        ("local", "Stopped"),
+        ("local", "Running"),
         ("apollo", "Failed"),
         ("apollo", "Running"),
         ("apollo", "Done"),
@@ -128,11 +128,11 @@ def test_build_agent_tree_by_machine_agent_session_splits_across_status_buckets(
     # Two separate "coder" name-root banners — one per status bucket —
     # never a single group spanning both buckets.
     assert groups == [
-        (0, ("here",)),
-        (1, ("here", "Running")),
-        (2, ("here", "Running", "coder")),
-        (1, ("here", "Done")),
-        (2, ("here", "Done", "coder")),
+        (0, ("local",)),
+        (1, ("local", "Running")),
+        (2, ("local", "Running", "coder")),
+        (1, ("local", "Done")),
+        (2, ("local", "Done", "coder")),
     ]
 
 
@@ -165,7 +165,7 @@ def test_build_agent_tree_by_machine_keeps_standalone_lanes_above_subgroups() ->
         ("agent", 0),
         ("agent", 2),
     ]
-    assert _group_keys(entries, level=2) == [("here", "Running", "hk")]
+    assert _group_keys(entries, level=2) == [("local", "Running", "hk")]
 
 
 def test_build_agent_tree_by_machine_collapse_cascade_is_per_level() -> None:
@@ -176,7 +176,7 @@ def test_build_agent_tree_by_machine_collapse_cascade_is_per_level() -> None:
     # Collapsing the status subgroup hides the name-root banner and agents,
     # but the machine (L0) banner stays visible.
     registry = AgentGroupFoldRegistry()
-    registry.collapse(("here", "Running"))
+    registry.collapse(("local", "Running"))
     entries = build_agent_tree(
         [first, second], fold_registry=registry, mode=GroupingMode.BY_MACHINE, now=_NOW
     )
@@ -184,7 +184,7 @@ def test_build_agent_tree_by_machine_collapse_cascade_is_per_level() -> None:
 
     # Collapsing the machine hides everything beneath it.
     registry2 = AgentGroupFoldRegistry()
-    registry2.collapse(("here",))
+    registry2.collapse(("local",))
     entries2 = build_agent_tree(
         [first, second],
         fold_registry=registry2,

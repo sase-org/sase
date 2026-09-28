@@ -195,7 +195,7 @@ def test_by_machine_status_subgroup_banner_uses_middle_tier_style() -> None:
 
 
 def test_by_machine_agent_row_carries_machine_and_status_gutters() -> None:
-    """A standalone agent under here -> Running carries both ancestor tiers."""
+    """A standalone agent under local -> Running carries both ancestor tiers."""
     widget = AgentList()
     widget.update_list(
         [make_agent(status="RUNNING")],
@@ -215,14 +215,14 @@ def _agent_row_plains(widget: AgentList) -> dict[int, str]:
     }
 
 
-def test_mixed_list_local_rows_never_carry_here_chip() -> None:
+def test_mixed_list_local_rows_never_carry_machine_chip() -> None:
     widget = AgentList()
     local = make_agent(cl_name="local-fix", status="RUNNING")
     remote = make_agent(cl_name="remote-fix", status="RUNNING")
     remote.fleet_origin_alias = "apollo"
     widget.update_list([local, remote], current_idx=0)
     plains = _agent_row_plains(widget)
-    assert "here " not in plains[0]
+    assert "local " not in plains[0]
     assert "apollo " in plains[1]
 
 
@@ -242,7 +242,7 @@ def test_by_machine_mixed_list_keeps_remote_host_chip() -> None:
         for entry, option in zip(widget._row_entries, widget._options, strict=True)
         if entry == BR
     ]
-    assert "here " not in plains[0]
+    assert "local " not in plains[0]
     assert "apollo " in plains[1]
-    assert any("here" in plain for plain in banner_plains)
+    assert any("local" in plain for plain in banner_plains)
     assert any("apollo" in plain for plain in banner_plains)

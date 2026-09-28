@@ -192,6 +192,10 @@ def _machine_filter(value: str) -> CandidateFilterWire | None:
     # for an empty needle, and equals against "" matches nothing.
     if not value.strip():
         return None
+    # ``local`` is the display word for this machine; the index stores
+    # ``here``, so normalize before compiling.
+    if value.casefold() == "local":
+        return _equals(_PUSHABLE_MACHINE_FIELD, "here")
     return _equals(_PUSHABLE_MACHINE_FIELD, value)
 
 

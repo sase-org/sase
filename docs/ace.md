@@ -3719,24 +3719,26 @@ Alias is the controller's configured machine name even though its Agents query t
 quarantine state, and the status message from the most recent check while this Admin
 Center remains open.
 
-| Key       | Action                                                                      |
-| --------- | --------------------------------------------------------------------------- |
-| `j` / `k` | Move selection                                                              |
-| `/`       | Filter aliases, endpoints, providers, installation identity, and quarantine |
-| `s`       | Run one bounded authenticated hello for the selected remote                 |
-| `c`       | Show the persistent connect/enrollment flow                                 |
-| `r`       | Show repair guidance for the selected remote                                |
-| `R`       | Show the rename command for the selected remote                             |
-| `x`       | Show removal guidance for the selected remote                               |
-| `y`       | Copy the commands shown in the action card                                  |
-| `Enter`   | Close Admin Center and open Agents filtered to this machine                 |
-| `U`       | Reload local machine inventory without probing gateways                     |
+| Key       | Action                                                                                               |
+| --------- | ---------------------------------------------------------------------------------------------------- |
+| `j` / `k` | Move selection                                                                                       |
+| `/`       | Filter aliases, endpoints, providers, installation identity, and quarantine                          |
+| `s`       | Run one bounded authenticated hello for the selected remote                                          |
+| `c`       | Show the persistent connect/enrollment flow                                                          |
+| `r`       | Show repair guidance for the selected remote                                                         |
+| `R`       | Show the rename command for the selected remote                                                      |
+| `x`       | Show removal guidance for the selected remote                                                        |
+| `y`       | Copy the commands shown in the action card                                                           |
+| `Enter`   | Close Admin Center and open this machine's agent tab (or filter Agents when the tab strip is hidden) |
+| `f`       | Close Admin Center and open Agents filtered to this machine                                          |
+| `U`       | Reload local machine inventory without probing gateways                                              |
 
 Connect, repair, rename, and remove are guidance actions: they display canonical CLI
-commands and safety notes but do not mutate machine state themselves. `Enter` applies an
-Agents query of `machine:here` for the local controller or `machine:<alias>` for a
-remote. See the [Remote Dispatch Runbook](remote_dispatch.md) for the credentialed
-enrollment and recovery procedures.
+commands and safety notes but do not mutate machine state themselves. `Enter` selects
+the machine's agent tab when the tab strip is visible, and otherwise applies an Agents
+query of `machine:local` for the local controller or `machine:<alias>` for a remote (`f`
+always filters). See the [Remote Dispatch Runbook](remote_dispatch.md) for the
+credentialed enrollment and recovery procedures.
 
 ## Projects Tab
 

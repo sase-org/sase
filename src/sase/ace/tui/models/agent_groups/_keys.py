@@ -195,7 +195,7 @@ def _project_sort_key(mode: GroupingMode, project: str) -> tuple[int, str | int]
             return (0, project.lower())
         return (1, "")
     if mode is GroupingMode.BY_MACHINE:
-        if project == "here":
+        if project == "local":
             return (0, "")
         return (1, project.casefold())
     return (0, bucket_sort_index(mode, project))
@@ -233,7 +233,7 @@ def _subgroup_sort_key(
 
 
 def _machine_name(agent: Agent) -> str:
-    return getattr(agent, "fleet_origin_alias", None) or "here"
+    return getattr(agent, "fleet_origin_alias", None) or "local"
 
 
 def _l0_value_for(agent: Agent, mode: GroupingMode, now: datetime) -> str:

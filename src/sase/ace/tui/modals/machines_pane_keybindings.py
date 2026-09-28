@@ -30,7 +30,8 @@ def machines_help_bindings(
         (d(keymaps.repair_machine), "Show repair flow"),
         (d(keymaps.rename_machine), "Show rename command"),
         (d(keymaps.remove_machine), "Show removal command"),
-        (d(keymaps.show_agents), "Show Agents for selected machine"),
+        (d(keymaps.show_agents), "Show machine tab (or filter Agents)"),
+        (d(keymaps.show_agents_filter), "Filter Agents for selected machine"),
         (d(keymaps.copy_command), "Copy current action command"),
         (d(keymaps.reload), "Reload machine inventory"),
     ]

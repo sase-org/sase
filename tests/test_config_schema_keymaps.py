@@ -209,6 +209,7 @@ def test_config_schema_accepts_scoped_machines_keymaps() -> None:
                         "rename_machine": "R",
                         "remove_machine": "x",
                         "show_agents": "enter",
+                        "show_agents_filter": "f",
                         "copy_command": "y",
                         "reload": "U",
                     }

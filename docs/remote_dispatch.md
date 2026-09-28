@@ -201,11 +201,11 @@ controller strips only the dispatch selector, so other launch directives are pro
 on the target.
 
 In sase's TUI, `gD` from prompt NORMAL mode or `Ctrl+G D` from INSERT mode opens the
-**Launch Target** picker. It lists `here` plus every enrolled alias. Local enrollment
+**Launch Target** picker. It lists `local` plus every enrolled alias. Local enrollment
 data labels each non-quarantined remote `ok` and enables it; quarantined rows remain
 visible but disabled. This is an eligibility label, not a gateway-health result—the
 picker performs no network probe. Choosing a remote inserts or replaces the single
-dispatch selector; choosing `here` removes it. The prompt's Target/Source context line
+dispatch selector; choosing `local` removes it. The prompt's Target/Source context line
 appears once a remote is selected and makes the selected owner and portable source
 explicit before submission; it stays hidden for ordinary local launches.
 
@@ -225,13 +225,16 @@ the session. Open Admin Center with `#` and press `3` for the **Machines** tab: 
 the local controller and enrolled aliases without probing the network, and `s` runs a
 bounded authenticated hello only for the selected remote. Its connect, repair, rename,
 and remove actions show persistent CLI guidance rather than mutating immediately;
-`Enter` returns to Agents with a `machine:<alias>` filter.
+`Enter` selects the machine's agent tab when the tab strip is visible, and otherwise
+returns to Agents with a `machine:<alias>` (`machine:local` for the local controller)
+filter; `f` always filters.
 
 Once a machine is enrolled, the Agents tab shows local and remote rows in one list.
 Remote agent, session, and clan nodes carry a host-alias chip such as `apollo` or `mac`;
-local rows never carry a `here` chip. Group with `o` until the header says **by
-machine** to render the `here` machine banner first, then remote aliases, each split
-into status subgroups.
+local rows never carry a machine chip. Group with `o` until the header says **by
+machine** to render the `local` machine banner first, then remote aliases, each split
+into status subgroups. The Agents query spells it `machine:local` (`machine:here` still
+matches).
 
 - The list loads the bounded remote catalog across enrolled machines and keeps host
   failures visible as diagnostics rather than hiding healthy hosts.

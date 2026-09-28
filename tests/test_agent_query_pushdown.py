@@ -219,6 +219,17 @@ def test_compile_machine_pushdown_builds_exact_machine_filters() -> None:
     assert legacy_compound.candidate_filter is None
 
 
+def test_compile_machine_pushdown_normalizes_local_to_here() -> None:
+    here_equals = {"kind": "equals", "field": "machine", "value": "here"}
+    live = compile_agents_live_query_pushdown("machine:local")
+    legacy = compile_agent_query_pushdown("machine:local")
+
+    assert live.window_safe is True
+    assert live.candidate_filter == here_equals
+    assert legacy.window_safe is True
+    assert legacy.candidate_filter == here_equals
+
+
 def test_compile_machine_pushdown_leaves_bare_machine_unpushable() -> None:
     live = compile_agents_live_query_pushdown("machine:")
     legacy = compile_agent_query_pushdown("machine:")

@@ -31,7 +31,7 @@ def local_machine_label() -> str:
             return snapshot.selector
     except Exception:
         pass
-    return platform.node() or "here"
+    return platform.node() or "local"
 
 
 def column_header_text() -> Text:
@@ -51,7 +51,7 @@ def _record_label(
 ) -> Text:
     snapshot = statuses.get(row.alias)
     health, health_style = _health_label(row, snapshot)
-    state = "here" if row.kind == "here" else _state_label(row, snapshot)
+    state = "local" if row.kind == "here" else _state_label(row, snapshot)
     text = Text()
     text.append(f"{row.alias:<{_ALIAS_WIDTH}.{_ALIAS_WIDTH}}", style="bold")
     text.append(f"{state:<{_STATE_WIDTH}.{_STATE_WIDTH}}", style=_state_style(state))
@@ -227,6 +227,7 @@ def hints_text(keymaps: MachinesPaneKeymaps) -> str:
         f"{d(keymaps.next_option)}/{d(keymaps.prev_option)} move  "
         f"{d(keymaps.focus_filter)} filter  {d(keymaps.connect_machine)} connect  "
         f"{d(keymaps.check_status)} status  {d(keymaps.show_agents)} agents  "
+        f"{d(keymaps.show_agents_filter)} filter  "
         f"{d(keymaps.copy_command)} copy command"
     )
 
@@ -258,7 +259,7 @@ def _state_label(
 
 
 def _state_style(state: str) -> str:
-    if state in {"here", "ok"}:
+    if state in {"local", "ok"}:
         return "#00D7AF"
     if state in {"not checked", "skipped"}:
         return "#FFD700"

@@ -141,7 +141,7 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
             self.notify("No machine selected", severity="warning")
             return
         if row.kind == "here":
-            self.notify("Here is the local controller")
+            self.notify("This machine is the local controller")
             return
         if self._status_worker is not None and not self._status_worker.is_finished:
             self.notify("Machine status check already running", severity="warning")
@@ -202,7 +202,26 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         if row is None:
             self.notify("No machine selected", severity="warning")
             return
-        machine_name = "here" if row.kind == "here" else row.alias
+        if self._select_machine_tab(row):
+            try:
+                self.screen.dismiss("machines")
+            except Exception:
+                pass
+            return
+        self.action_show_agents_filter()
+
+    def action_show_agents_filter(self) -> None:
+        """Filter Agents to the selected machine in all cases.
+
+        This is the secondary Machines-pane key: it keeps the ``machine:``
+        filter behavior even when the agent tab strip is visible and Enter
+        would select the machine's tab instead.
+        """
+        row = self._selected_record()
+        if row is None:
+            self.notify("No machine selected", severity="warning")
+            return
+        machine_name = "local" if row.kind == "here" else row.alias
         from sase.ace.tui.models.agent_live_query_engine import (
             agents_live_property_query_term,
             agents_unified_query_enabled,
@@ -233,6 +252,71 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
             self.screen.dismiss("machines")
         except Exception:
             pass
+
+    def _machine_tab_key(self, row: MachineRow) -> Any | None:
+        """Return the agent-tab key for *row*, or None to keep filtering.
+
+        The local row is the default tab (``⌨ local`` in machine mode).
+        A remote row resolves through its pinned installation id, falling
+        back to the tab view's alias pinning after a rename. Origins with
+        no known installation id keep the ``machine:`` filter behavior:
+        their session-only tab key is never persisted against.
+        """
+        from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
+
+        if row.kind == "here":
+            return DEFAULT_AGENT_TAB_KEY
+        pinned = ""
+        try:
+            record = row.record
+            pinned = str(getattr(record, "pinned_installation_id", "") or "")
+        except Exception:  # noqa: BLE001 - fall back to alias pinning.
+            pinned = ""
+        if not pinned:
+            try:
+                from sase.ace.tui.agent_tabs_settings import agent_tabs_view_config
+
+                pinned = str(
+                    dict(agent_tabs_view_config().pinned_by_alias).get(row.alias, "")
+                )
+            except Exception:  # noqa: BLE001 - unknown origins keep filtering.
+                pinned = ""
+        if not pinned:
+            return None
+        return AgentTabKey.machine(pinned)
+
+    def _select_machine_tab(self, row: MachineRow) -> bool:
+        """Select *row*'s machine tab; False when filtering should run instead.
+
+        Selects only while the agent tab strip is visible. Otherwise (flag
+        off, one tab, or an unresolvable origin) this returns False and the
+        caller keeps the ``machine:`` filter behavior.
+        """
+        try:
+            from sase.ace.tui.actions.agents._agent_tabs import (
+                strip_visible_for_owner,
+            )
+            from sase.ace.tui.agent_tabs_flag import agent_tabs_enabled
+
+            if not agent_tabs_enabled():
+                return False
+            app: Any = self.app
+            if not strip_visible_for_owner(app):
+                return False
+            key = self._machine_tab_key(row)
+            if key is None:
+                return False
+            switch = getattr(app, "_switch_agents_tab", None)
+            if not callable(switch):
+                return False
+            app.current_tab = "agents"
+            switched = bool(switch(key, reason="machines_pane"))
+            label = row.alias if row.kind != "here" else "local"
+            if switched:
+                self.notify(f"Showing ⌨ {label} tab")
+            return True
+        except Exception:  # noqa: BLE001 - tab selection is best-effort.
+            return False
 
     def action_copy_machine_command(self) -> None:
         flow = self._flow

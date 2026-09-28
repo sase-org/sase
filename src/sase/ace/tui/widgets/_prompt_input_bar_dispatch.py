@@ -184,7 +184,7 @@ class PromptInputBarDispatchMixin(_MixinBase):
 
     def _dispatch_target_choices(self) -> tuple[DispatchTargetChoice, ...]:
         choices: list[DispatchTargetChoice] = [
-            DispatchTargetChoice(None, "here", "here", "local launch"),
+            DispatchTargetChoice(None, "local", "local", "local launch"),
         ]
         for alias, row in sorted(self._dispatch_target_rows.items()):
             status = str(row.get("status") or "unknown")
@@ -305,7 +305,7 @@ class PromptInputBarDispatchMixin(_MixinBase):
         if scan is None:
             return Text(), "ok", False
 
-        target = "here"
+        target = "local"
         target_status = "local"
         target_style = "bold #87D75F"
         if scan is not None:

@@ -340,6 +340,55 @@ def _read_cached_target_contract_version(alias: str) -> int | None:
     return _contract_version_for_alias(response, alias)
 
 
+def cached_fleet_contract_versions() -> dict[str, int]:
+    """Return alias→fleet-contract versions from the cache-only hosts response.
+
+    No-network source (same as the ``%tab`` + ``%dispatch`` preflight): a
+    federation cache-only hosts response. Any failure reads as empty rather
+    than blocking the caller. This may touch the federation cache on disk,
+    so worker paths gate it behind their allow-disk flag; UI threads read
+    the token-cached projection instead.
+    """
+    try:
+        from sase.dispatch.federation import build_federation_facade
+
+        facade = build_federation_facade()
+        if not facade.config.enabled:
+            return {}
+        response = facade.catalog_hosts_sync(
+            ({"schema_version": 1, "query": {"schema_version": 1, "limit": 1}},),
+            cache_only=True,
+            timeout_seconds=5.0,
+        )
+    except Exception:  # noqa: BLE001 - unknown versions read as empty.
+        return {}
+    if not isinstance(response, Mapping):
+        return {}
+    hosts = response.get("hosts")
+    if not isinstance(hosts, Sequence) or isinstance(hosts, (str, bytes)):
+        return {}
+    versions: dict[str, int] = {}
+    for host in hosts:
+        if not isinstance(host, Mapping):
+            continue
+        alias = host.get("alias")
+        if not isinstance(alias, str) or not alias:
+            continue
+        version = _coerce_contract_version(host.get("fleet_contract_schema_version"))
+        if version is None:
+            for nested_key in ("status", "hello", "host", "detail"):
+                nested = host.get(nested_key)
+                if isinstance(nested, Mapping):
+                    version = _coerce_contract_version(
+                        nested.get("fleet_contract_schema_version")
+                    )
+                    if version is not None:
+                        break
+        if version is not None:
+            versions.setdefault(alias, version)
+    return versions
+
+
 def _contract_version_for_alias(response: object, alias: str) -> int | None:
     """Extract one host's contract version from a cache-only hosts response."""
     if not isinstance(response, Mapping):

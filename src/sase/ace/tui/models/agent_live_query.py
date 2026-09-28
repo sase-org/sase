@@ -226,6 +226,7 @@ def _machine_values(agent: Agent) -> tuple[str, ...]:
     alias = _normalized_text(agent.fleet_origin_alias)
     return _distinct(
         alias or "here",
+        *(() if alias else ("local",)),
         *_machine_locator_values(agent.fleet_logical_locator),
         *_machine_locator_values(agent.fleet_exact_locator),
         agent.source_machine,

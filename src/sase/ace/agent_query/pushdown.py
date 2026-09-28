@@ -107,8 +107,12 @@ def _candidate_filter_for_property(prop: PropertyMatch) -> CandidateFilterWire |
 def _machine_filter(value: str) -> CandidateFilterWire | None:
     # Bare ``machine:`` means "any remote" in this dialect. Do not compile an
     # empty needle: contains matches everything and equals matches nothing.
+    # ``local`` is the display word for this machine; the shared index still
+    # stores ``here``, so normalize before compiling.
     if not value.strip():
         return None
+    if value.casefold() == "local":
+        return _equals("machine", "here")
     return _equals("machine", value)
 
 
