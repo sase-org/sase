@@ -70,8 +70,10 @@ def test_conflict_repair_handoff_missing_declaration_names_landed_sha(
         )
         return StitchCommandResult(returncode=0, stdout="resumed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="repaired without declaring")
 
@@ -139,8 +141,10 @@ def test_conflict_repair_continuation_conflict_does_not_launch_repair(
         )
         return StitchCommandResult(returncode=0, stdout="resumed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="repaired")
 
@@ -212,8 +216,10 @@ def test_same_repo_second_conflict_after_repair_later_cycle_fails_fast(
         attempt_fingerprints["value"] = {"src/app.py": ("M", "after-repair")}
         return FinalizerInstanceResultWire(instance_id="mutate", status="success")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     monkeypatch.setattr(
         "sase.finalizers.controller.execute_non_commit_finalizer",
         run_mutate,

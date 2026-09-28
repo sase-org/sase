@@ -268,8 +268,8 @@ def _stitch_with_side_effect(
         seen.append(f"resume:{repo_arg.name}")
         return StitchCommandResult(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", stitch)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     return seen
 
 

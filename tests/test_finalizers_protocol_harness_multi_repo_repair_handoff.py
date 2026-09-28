@@ -88,8 +88,10 @@ def test_conflict_repair_handoff_commits_linked_repo_introduced_during_repair(
         )
         return InvokeResult(content="repaired linked")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.side_effect = on_invoke
 
@@ -172,8 +174,10 @@ def test_conflict_repair_residue_and_linked_handoff_both_commit_once(
         )
         return InvokeResult(content="repaired")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.side_effect = on_invoke
 
@@ -257,8 +261,10 @@ def test_conflict_repair_handoff_uses_host_order_for_multiple_remaining(
         )
         return InvokeResult(content="repaired")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.side_effect = on_invoke
 
@@ -327,8 +333,10 @@ def test_conflict_repair_handoff_updates_queued_repo_message(
         submit_current_dirty(artifacts, message="fix(research): latest snapshot")
         return InvokeResult(content="repaired")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.side_effect = on_invoke
 

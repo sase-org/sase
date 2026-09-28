@@ -93,8 +93,12 @@ def test_reconciliation_auto_commit_updates_marker_and_skips_sidecar_stitch(
         )
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     persist_and_submit_commit(artifacts)
     result = run_finalizers(
@@ -154,8 +158,10 @@ def test_reconciliation_marker_for_other_checkout_does_not_prove_clean(
             artifact_links_auto_committed=True,
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
 
     persist_and_submit_commit(artifacts)
     with pytest.raises(
@@ -210,8 +216,10 @@ def test_unpublished_artifact_links_fail_after_proven_auto_commit(
             ),
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
 
     persist_and_submit_commit(artifacts)
     with pytest.raises(BuiltinCommitFinalizerError, match="NOT published"):

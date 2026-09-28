@@ -129,7 +129,9 @@ def test_transient_extra_sidecar_cleans_on_recheck_commits_only_main(
         )
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
 
     execution = _run_executor(artifacts, run_stitch)
 
@@ -161,7 +163,9 @@ def test_persistent_extra_sidecar_fails_with_name_and_paths(
             dirty_state=dirty_repos(repo, (main, persistent)),
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
     runner = MagicMock()
 
     with pytest.raises(BuiltinCommitFinalizerError, match="beads.*issues\\.jsonl"):
@@ -191,7 +195,9 @@ def test_unrelated_sidecar_edit_still_stops_finalization(
             dirty_state=dirty_repos(repo, (main, unrelated)),
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
     runner = MagicMock()
 
     with pytest.raises(BuiltinCommitFinalizerError, match="beads.*notes\\.md"):

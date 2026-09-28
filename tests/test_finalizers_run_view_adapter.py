@@ -242,7 +242,7 @@ def test_deferral_projects_deferred(
     prepare_live_env(monkeypatch, artifacts, repo)
     (repo / "secret.env").write_text("TOKEN=xyz\n", encoding="utf-8")
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
     use_config(
         monkeypatch,
         config_for(

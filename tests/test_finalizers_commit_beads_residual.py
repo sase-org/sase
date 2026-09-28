@@ -230,7 +230,9 @@ def test_late_machine_owned_bead_change_is_repaired_after_primary_commit(
         _append_late_machine_change(sdd_store, bead_id)
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     result = run_finalizers(
         provider=MagicMock(),
@@ -293,7 +295,9 @@ def test_late_unrelated_stream_rewrite_is_refused_without_discarding_events(
         _rewrite_stream(stream)
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
         run_finalizers(
@@ -377,13 +381,15 @@ def test_changes_arriving_during_extra_pass_still_fail_without_retrying_primary(
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
     monkeypatch.setattr(
-        "sase.finalizers.commit.auto_commit_separate_sdd_store_if_possible",
+        "sase.finalizers.commit_execution.auto_commit_separate_sdd_store_if_possible",
         fake_bead_sync,
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.prepare_commit_dirty_state", fake_prepare
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", fake_prepare
     )
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
         run_finalizers(
@@ -457,13 +463,15 @@ def test_bead_lock_failure_reports_typed_diagnostic(
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
     monkeypatch.setattr(
-        "sase.finalizers.commit.auto_commit_separate_sdd_store_if_possible",
+        "sase.finalizers.commit_execution.auto_commit_separate_sdd_store_if_possible",
         fake_bead_sync,
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.prepare_commit_dirty_state", fake_prepare
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", fake_prepare
     )
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
         run_finalizers(
@@ -523,7 +531,9 @@ def test_unpublishable_late_bead_commit_fails_with_recovery_path(
         _append_late_machine_change(sdd_store, bead_id)
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
         run_finalizers(
@@ -587,7 +597,9 @@ def test_agent_owned_residual_edit_is_not_hidden_by_bead_pass(
         )
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
         run_finalizers(

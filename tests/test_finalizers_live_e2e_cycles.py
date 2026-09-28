@@ -294,8 +294,8 @@ def test_live_first_repo_conflict_blocks_second_then_resumes(
             context,
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", stitch)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="repaired")
 
@@ -398,8 +398,8 @@ def test_live_unpushed_marker_resume_completes_push_after_clean_retry(
             "fix(final): live acceptance commit",
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", stitch)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
 
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
     submit_from_context(artifacts)
@@ -439,8 +439,8 @@ def test_live_unpushed_marker_resume_reports_push_error_not_discarded(
     def resume(_repo_arg: DirtyRepo, _context: object) -> StitchCommandResult:
         return StitchCommandResult(returncode=1, stderr=push_error)
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", stitch)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
 
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
     submit_from_context(artifacts)

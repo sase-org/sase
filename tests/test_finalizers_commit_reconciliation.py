@@ -62,7 +62,9 @@ def test_builtin_commit_executes_declared_stitch_without_reprompt(
         )
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
     provider = MagicMock()
 
     persist_and_submit_commit(artifacts)
@@ -100,7 +102,7 @@ def test_builtin_commit_refusal_is_rejected_before_running_stitch(
     prepare_agent_env(monkeypatch, artifacts, repo)
     patch_commit_state(monkeypatch, repo, dirty)
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
 
     with pytest.raises(FinalizerDeclarationError) as exc_info:
         persist_and_submit_commit(artifacts, action="refuse", reason="not mine")
@@ -122,7 +124,7 @@ def test_post_submit_cleanup_fails_without_proven_transition(
     prepare_agent_env(monkeypatch, artifacts, repo)
     patch_commit_state(monkeypatch, repo, dirty)
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
 
     persist_and_submit_commit(artifacts)
     dirty["value"] = False
@@ -168,7 +170,7 @@ def test_stale_commit_results_do_not_prove_clean_transition(
         encoding="utf-8",
     )
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
 
     persist_and_submit_commit(artifacts)
     dirty["value"] = False
@@ -215,7 +217,9 @@ def test_prior_attempt_marker_proves_already_clean_retry(
         )
         return StitchCommandResult(returncode=1, stderr="after-commit hook failed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", fail_after_commit)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", fail_after_commit
+    )
 
     persist_and_submit_commit(artifacts)
     result = run_finalizers(
@@ -277,8 +281,12 @@ def test_unpushed_marker_resumes_already_clean_retry(
         write_commit_results(artifacts, [pushed])
         return StitchCommandResult(returncode=0, stdout="pushed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", fail_after_commit)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume_push)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", fail_after_commit
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_resume", resume_push
+    )
 
     persist_and_submit_commit(artifacts)
     result = run_finalizers(
@@ -346,8 +354,12 @@ def test_unpushed_marker_resume_failure_keeps_push_diagnostic(
         calls.append("resume")
         return StitchCommandResult(returncode=1, stderr="git push failed again\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", fail_after_commit)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume_push)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", fail_after_commit
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_resume", resume_push
+    )
 
     persist_and_submit_commit(artifacts)
     with pytest.raises(BuiltinCommitFinalizerError, match="git push failed"):
@@ -421,8 +433,12 @@ def test_pending_checkpoint_resumes_before_clean_acceptance(
         )
         return StitchCommandResult(returncode=0, stdout="hook resumed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", unexpected_create)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume_pending)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", unexpected_create
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_resume", resume_pending
+    )
 
     persist_and_submit_commit(artifacts, message=message)
     result = run_finalizers(
@@ -509,8 +525,12 @@ def test_pending_checkpoint_resumes_when_only_host_footer_tags_differ(
         )
         return StitchCommandResult(returncode=0, stdout="bead close resumed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", unexpected_create)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume_pending)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", unexpected_create
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_resume", resume_pending
+    )
 
     persist_and_submit_commit(artifacts, message=message)
     result = run_finalizers(
@@ -560,7 +580,7 @@ def test_pending_checkpoint_refuses_foreign_run_before_resume(
         str(artifacts / "commit_state.json"),
     )
     resume = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
 
     persist_and_submit_commit(artifacts, message=message)
     with pytest.raises(BuiltinCommitFinalizerError, match="different run"):
@@ -610,7 +630,7 @@ def test_pending_checkpoint_refuses_foreign_agent_before_resume(
         str(artifacts / "commit_state.json"),
     )
     resume = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
 
     persist_and_submit_commit(artifacts, message=message)
     with pytest.raises(BuiltinCommitFinalizerError, match="different agent"):
@@ -662,7 +682,7 @@ def test_pending_checkpoint_refuses_same_subject_different_body(
         str(artifacts / "commit_state.json"),
     )
     resume = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
 
     persist_and_submit_commit(artifacts, message=accepted_message)
     with pytest.raises(BuiltinCommitFinalizerError, match="accepted work"):

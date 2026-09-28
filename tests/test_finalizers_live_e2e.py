@@ -132,7 +132,7 @@ def test_live_assigned_bead_keep_is_authored_and_threaded_to_stitch_runner(
             bead_action=bead_action,
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", stitch)
 
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
     publication = publish_final_context(artifacts_dir=str(artifacts))
@@ -198,7 +198,7 @@ def test_live_assigned_bead_close_is_accepted_and_threaded_to_stitch_runner(
             bead_action=bead_action,
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", stitch)
     monkeypatch.setattr(
         "sase.finalizers.declaration_manifest._assigned_bead_status",
         lambda _bead_id, _cwd: "in_progress",
@@ -359,7 +359,7 @@ def test_live_final_none_skips_commit_on_dirty_tree(
     prepare_live_env(monkeypatch, artifacts, repo)
     (repo / "agent.py").write_text("print('skip')\n", encoding="utf-8")
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
     _, directives = extract_prompt_directives("%final:none\nDo work")
 
     resolve_and_persist_finalizer_plan(directives, artifacts_dir=str(artifacts))
@@ -386,7 +386,7 @@ def test_live_refusal_is_rejected_before_controller_runs(
     prepare_live_env(monkeypatch, artifacts, repo)
     (repo / "agent.py").write_text("print('keep')\n", encoding="utf-8")
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
 
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
     with pytest.raises(FinalizerDeclarationError) as exc_info:
@@ -412,7 +412,7 @@ def test_live_refusal_rejected_even_with_defer_policy_configured(
     prepare_live_env(monkeypatch, artifacts, repo)
     (repo / "agent.py").write_text("print('keep')\n", encoding="utf-8")
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
     config = config_for(
         {"commit": replace(commit_instance(), refusal="defer")}, ("commit",)
     )
@@ -440,7 +440,7 @@ def test_live_upheld_deferral_completes_run_with_dirty_tree(
     prepare_live_env(monkeypatch, artifacts, repo)
     (repo / "secret.env").write_text("TOKEN=xyz\n", encoding="utf-8")
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
     config = config_for(
         {"commit": replace(commit_instance(), refusal="defer")}, ("commit",)
     )
@@ -481,7 +481,7 @@ def test_live_upheld_deferral_still_fails_under_refusal_fail_policy(
     prepare_live_env(monkeypatch, artifacts, repo)
     (repo / "secret.env").write_text("TOKEN=xyz\n", encoding="utf-8")
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
     config = config_for(
         {"commit": replace(commit_instance(), refusal="fail")}, ("commit",)
     )
@@ -555,7 +555,7 @@ def test_live_intentional_handoffs_skip_controller(
     prepare_live_env(monkeypatch, artifacts, repo)
     (repo / "agent.py").write_text("print('handoff')\n", encoding="utf-8")
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
     provider = MagicMock()
 

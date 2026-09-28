@@ -222,7 +222,7 @@ def test_real_controller_success_uses_zero_model_calls(
     _write_stages(artifacts, _check_full_stages())
     calls: list[str] = []
     monkeypatch.setattr(
-        "sase.finalizers.commit.run_stitch_create",
+        "sase.finalizers.commit_execution.run_stitch_create",
         successful_stitch(artifacts, dirty, calls),
     )
     recoveries: list[str] = []
@@ -413,7 +413,9 @@ def test_tree_drift_after_finalizers_uses_one_recovery(
         dirty["repos"] = (dirty_repo(extra, name="extra", kind="sibling"),)
         return result
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", drifting_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", drifting_stitch
+    )
     recoveries: list[str] = []
 
     result = settle_host_completion(
@@ -495,7 +497,9 @@ def test_two_repository_partial_crash_retains_receipts_and_does_not_complete(
             raise RuntimeError("crash after first repository")
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", crashing_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", crashing_stitch
+    )
     recoveries: list[str] = []
     meta = _meta(artifacts, intent_ref)
 
@@ -632,7 +636,7 @@ def test_real_declaration_submit_is_not_stubbed_on_success_path(
     _write_stages(artifacts, _check_full_stages())
     calls: list[str] = []
     monkeypatch.setattr(
-        "sase.finalizers.commit.run_stitch_create",
+        "sase.finalizers.commit_execution.run_stitch_create",
         successful_stitch(artifacts, dirty, calls),
     )
     submits: list[dict[str, Any]] = []

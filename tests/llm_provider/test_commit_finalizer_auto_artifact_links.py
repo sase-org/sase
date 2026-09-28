@@ -394,7 +394,9 @@ def test_executor_commits_declared_legacy_link_index_through_stitch(
         stitch_calls.append((repo_arg.name, repo_arg.changed_files))
         return _commit_remaining_stitch(repo_arg, message, excludes, context)
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     resolve_and_persist_finalizer_plan(
         PromptDirectives(),
@@ -470,7 +472,7 @@ def test_executor_rejects_artifact_link_auto_commit_without_new_marker(
         return state
 
     monkeypatch.setattr(
-        "sase.finalizers.commit.prepare_commit_dirty_state",
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state",
         prepare_without_ledger,
     )
     stitch_calls: list[tuple[str, tuple[str, ...]]] = []
@@ -484,7 +486,9 @@ def test_executor_rejects_artifact_link_auto_commit_without_new_marker(
         stitch_calls.append((repo_arg.name, repo_arg.changed_files))
         return _commit_without_marker_stitch(repo_arg, message, excludes)
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     resolve_and_persist_finalizer_plan(
         PromptDirectives(),
@@ -650,7 +654,9 @@ def test_executor_commits_mixed_report_and_legacy_link_index_together(
         stitch_calls.append((repo_arg.name, repo_arg.changed_files))
         return _commit_remaining_stitch(repo_arg, message, excludes, context)
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     resolve_and_persist_finalizer_plan(
         PromptDirectives(),

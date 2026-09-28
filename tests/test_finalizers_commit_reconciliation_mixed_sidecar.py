@@ -113,8 +113,12 @@ def test_reconciliation_mixed_sidecar_stitches_remaining_document(
         )
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
 
     persist_and_submit_commit(artifacts)
     result = run_finalizers(
@@ -187,8 +191,10 @@ def test_reconciliation_mixed_sidecar_rejects_edited_residual_document(
             fingerprints_before={str(plans): fingerprints_for_files(report, index)},
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
     spend_declaration_recovery(artifacts)
 
     persist_and_submit_commit(artifacts)
@@ -249,8 +255,10 @@ def test_reconciliation_mixed_sidecar_rejects_unexpected_residual_path(
             fingerprints_before={str(plans): fingerprints_for_files(report, index)},
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
     spend_declaration_recovery(artifacts)
 
     persist_and_submit_commit(artifacts)
@@ -310,8 +318,10 @@ def test_reconciliation_mixed_sidecar_rejects_transition_without_new_marker(
             fingerprints_before={str(plans): fingerprints_for_files(report, index)},
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
 
     persist_and_submit_commit(artifacts)
     with pytest.raises(
@@ -374,8 +384,10 @@ def test_reconciliation_mixed_sidecar_rejects_marker_for_other_checkout(
             fingerprints_before={str(plans): fingerprints_for_files(report, index)},
         )
 
-    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state", prepare
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
 
     persist_and_submit_commit(artifacts)
     with pytest.raises(

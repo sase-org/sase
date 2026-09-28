@@ -561,7 +561,9 @@ def test_timed_out_stitch_with_landed_commit_instance_result_is_success(
         )
         return StitchCommandResult(returncode=-9, timed_out=True)
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
     persist_and_submit_commit(artifacts)
     invoke_result = run_finalizers(
         provider=MagicMock(),

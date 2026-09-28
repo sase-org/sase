@@ -66,7 +66,7 @@ def patch_dirty(
         return dirty_state(dirty["repos"], project_dir=repo)
 
     monkeypatch.setattr(
-        "sase.finalizers.commit.resolve_finalizer_project_dir",
+        "sase.finalizers.commit_execution.resolve_finalizer_project_dir",
         lambda: str(repo),
     )
     monkeypatch.setattr(
@@ -84,7 +84,7 @@ def patch_dirty(
         ),
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.prepare_commit_dirty_state",
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state",
         lambda _project_dir, _artifacts: PreparedCommitDirtyState(
             dirty_state=collect(str(repo)),
         ),

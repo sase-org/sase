@@ -78,8 +78,10 @@ def test_successful_conflict_resume_continues_same_stitch(
         )
         return StitchCommandResult(returncode=0, stdout="resumed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(
         content="resolved",
@@ -150,8 +152,10 @@ def test_resumed_sidecar_row_is_matched_by_exact_cwd(
         )
         return StitchCommandResult(returncode=0, stdout="resumed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="resolved")
 
@@ -182,11 +186,11 @@ def test_stale_checkpoint_after_conflict_fails_closed(
     dirty = {"repos": (dirty_repo(repo),)}
     patch_dirty(monkeypatch, repo, dirty)
     monkeypatch.setattr(
-        "sase.finalizers.commit.run_stitch_create",
+        "sase.finalizers.commit_execution.run_stitch_create",
         lambda *_args: StitchCommandResult(returncode=EXIT_CODE_CONFLICT),
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.run_stitch_resume",
+        "sase.finalizers.commit_execution.run_stitch_resume",
         lambda *_args: StitchCommandResult(
             returncode=1,
             stderr="Could not find the expected commit at HEAD",
@@ -216,7 +220,7 @@ def test_post_submit_edit_is_rejected_before_mutation(
         lambda _path: dict(fingerprints["value"]),
     )
     runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_create", runner)
 
     submit_commit(artifacts)
     (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).write_text(
@@ -265,7 +269,7 @@ def test_later_finalizer_dirt_reactivates_commit(
     monkeypatch.setattr("sase.finalizers.plan.load_finalizer_config", lambda: config)
     calls: list[str] = []
     monkeypatch.setattr(
-        "sase.finalizers.commit.run_stitch_create",
+        "sase.finalizers.commit_execution.run_stitch_create",
         successful_stitch(artifacts, dirty, calls),
     )
 
@@ -341,7 +345,9 @@ def test_identical_stitch_failure_skips_retry_without_spending_budget(
         calls["n"] += 1
         return StitchCommandResult(returncode=1, stderr="hook failed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", fail_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", fail_stitch
+    )
     submit_commit(artifacts)
     with pytest.raises(BuiltinCommitFinalizerError, match="hook failed"):
         run_controller(artifacts)
@@ -392,7 +398,9 @@ def test_stitch_failure_with_changed_message_still_retries(
             submit_commit(artifacts, message="fix(final): retried message")
         return StitchCommandResult(returncode=1, stderr="hook failed\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", fail_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", fail_stitch
+    )
     submit_commit(artifacts)
     with pytest.raises(BuiltinCommitFinalizerError, match="hook failed"):
         run_controller(artifacts)

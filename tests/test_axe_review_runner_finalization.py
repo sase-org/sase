@@ -113,7 +113,7 @@ def _install_clean_finalizer(
         collect_dirty_state,
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.prepare_commit_dirty_state",
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state",
         lambda project_dir, _artifacts: PreparedCommitDirtyState(
             dirty_state=DirtyState(project_dir=project_dir, repos=(), details=""),
         ),

@@ -322,7 +322,9 @@ def test_sealed_config_snapshot_survives_a_refusal_flip(
     artifacts = tmp_path / "artifacts"
     prepare_live_env(monkeypatch, artifacts, repo)
     (repo / "secret.env").write_text("TOKEN=xyz\n", encoding="utf-8")
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", MagicMock())
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", MagicMock()
+    )
     fail_config = config_for(
         {"commit": dataclass_replace(commit_instance(), refusal="fail")},
         ("commit",),

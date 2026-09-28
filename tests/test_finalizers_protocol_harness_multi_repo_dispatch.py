@@ -71,9 +71,11 @@ def test_sequential_multi_repo_kinds_and_protected_excludes(
         existing.write_text(json.dumps(payload), encoding="utf-8")
         return StitchCommandResult(returncode=0, stdout="ok\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
     monkeypatch.setattr(
-        "sase.finalizers.commit._protected_baseline_paths",
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.resolve_protected_baseline_paths",
         lambda _artifacts, _path: ("legacy.txt",),
     )
 
@@ -104,7 +106,7 @@ def test_reversed_manifest_still_executes_in_host_context_order(
     patch_dirty(monkeypatch, repo, dirty)
     calls: list[str] = []
     monkeypatch.setattr(
-        "sase.finalizers.commit.run_stitch_create",
+        "sase.finalizers.commit_execution.run_stitch_create",
         successful_stitch(artifacts, dirty, calls),
     )
 
@@ -150,8 +152,10 @@ def test_reversed_manifest_first_host_repo_conflict_blocks_later(
         seen.append(f"resume:{repo_arg.name}")
         return StitchCommandResult(returncode=EXIT_CODE_CONFLICT, stderr="still\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="tried to repair")
 
@@ -198,8 +202,10 @@ def test_first_repo_conflict_blocks_later_dispatch(
         seen.append(f"resume:{repo_arg.name}")
         return StitchCommandResult(returncode=EXIT_CODE_CONFLICT, stderr="still\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="tried to repair")
 
@@ -255,8 +261,10 @@ def test_repaired_repo_conflict_does_not_starve_later_repo_conflict(
         )
         return StitchCommandResult(returncode=0, stdout=f"resumed {repo_arg.name}\n")
 
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", run_stitch
+    )
+    monkeypatch.setattr("sase.finalizers.commit_execution.run_stitch_resume", resume)
     provider = MagicMock()
     provider.invoke.side_effect = [
         InvokeResult(content="resolved main"),

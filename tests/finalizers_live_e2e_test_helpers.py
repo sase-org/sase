@@ -237,7 +237,9 @@ def real_git_stitch(
 
 
 def use_real_git_stitch(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", real_git_stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.commit_execution.run_stitch_create", real_git_stitch
+    )
 
     def resume(
         repo: DirtyRepo,
@@ -254,7 +256,7 @@ def use_real_git_stitch(monkeypatch: pytest.MonkeyPatch) -> None:
         )
 
     monkeypatch.setattr(
-        "sase.finalizers.commit.run_stitch_resume",
+        "sase.finalizers.commit_execution.run_stitch_resume",
         resume,
     )
 

@@ -93,7 +93,7 @@ def patch_commit_state(
     dirty: dict[str, bool],
 ) -> None:
     monkeypatch.setattr(
-        "sase.finalizers.commit.resolve_finalizer_project_dir",
+        "sase.finalizers.commit_execution.resolve_finalizer_project_dir",
         lambda: str(repo),
     )
     monkeypatch.setattr(
@@ -109,7 +109,7 @@ def patch_commit_state(
         lambda _path: ["src/app.py"] if dirty["value"] else [],
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.prepare_commit_dirty_state",
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state",
         lambda _project_dir, _artifacts: PreparedCommitDirtyState(
             dirty_state=dirty_state(repo, dirty=dirty["value"]),
         ),
@@ -122,7 +122,7 @@ def patch_multi_repo_state(
     dirty: dict[str, tuple[DirtyRepo, ...]],
 ) -> None:
     monkeypatch.setattr(
-        "sase.finalizers.commit.resolve_finalizer_project_dir",
+        "sase.finalizers.commit_execution.resolve_finalizer_project_dir",
         lambda: str(project_dir),
     )
     monkeypatch.setattr(
@@ -138,7 +138,7 @@ def patch_multi_repo_state(
         lambda path: changed_files_for(path, dirty["repos"]),
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.prepare_commit_dirty_state",
+        "sase.finalizers.commit_execution.prepare_commit_dirty_state",
         lambda _project_dir, _artifacts: PreparedCommitDirtyState(
             dirty_state=dirty_repos(project_dir, dirty["repos"]),
         ),
