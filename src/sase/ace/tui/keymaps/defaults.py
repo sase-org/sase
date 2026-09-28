@@ -96,3 +96,9 @@ def load_builtin_machines_defaults() -> dict[str, str]:
     """Return a mutable copy of bundled focused Machines-pane defaults."""
 
     return dict(_builtin_scope_defaults("machines"))
+
+
+def load_builtin_tool_runs_defaults() -> dict[str, str]:
+    """Return a mutable copy of bundled focused Tools-pane defaults."""
+
+    return dict(_builtin_scope_defaults("tool_runs"))

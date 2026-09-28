@@ -23,7 +23,7 @@ _Sections = Sections
 
 def admin_center_opener_help_label() -> str:
     """Return the opener help summary for the active Admin Center catalog."""
-    return "Admin Center: 1-7 jump, # back"
+    return "Admin Center: 1-8 jump, # back"
 
 
 PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (

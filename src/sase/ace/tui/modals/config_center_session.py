@@ -95,6 +95,19 @@ class ProcsSessionState:
 
 
 @dataclass
+class ToolRunsSessionState:
+    """Session-only cursor state for the Admin Center Tools pane."""
+
+    active_view: str = "runs"
+    run: SelectionBookmark = field(default_factory=SelectionBookmark)
+    failure: SelectionBookmark = field(default_factory=SelectionBookmark)
+    catalog: SelectionBookmark = field(default_factory=SelectionBookmark)
+    all_projects: bool = False
+    query: str = ""
+    pending_run_id: str | None = None
+
+
+@dataclass
 class UpdatesSessionState:
     """Session-only cursor state for the Updates pane."""
 
@@ -123,6 +136,7 @@ class AdminCenterSessionState:
     machines: SelectionBookmark = field(default_factory=SelectionBookmark)
     procs: ProcsSessionState = field(default_factory=ProcsSessionState)
     projects: ProjectsSessionState = field(default_factory=ProjectsSessionState)
+    tools: ToolRunsSessionState = field(default_factory=ToolRunsSessionState)
     updates: UpdatesSessionState = field(default_factory=UpdatesSessionState)
     xprompts: SelectionBookmark = field(default_factory=SelectionBookmark)
     config_hub: ConfigHubSessionState = field(default_factory=ConfigHubSessionState)
@@ -135,5 +149,6 @@ __all__ = [
     "ProjectsSessionState",
     "ProjectsSubTab",
     "SelectionBookmark",
+    "ToolRunsSessionState",
     "UpdatesSessionState",
 ]

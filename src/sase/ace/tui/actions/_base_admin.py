@@ -46,6 +46,10 @@ class BaseAdminActionsMixin(BaseActionsHost):
         """Open the SASE Admin Center on the Statistics tab."""
         self._open_config_center("statistics")
 
+    def action_open_tool_runs_panel(self) -> None:
+        """Open the SASE Admin Center on the Tools tab."""
+        self._open_config_center("tools")
+
     def action_open_provider_usage(self, provider: str | None = None) -> None:
         """Open the read-only Providers · Usage view."""
         from ..modals.models_panel_usage_modal import ProviderUsageModal
@@ -119,6 +123,7 @@ class BaseAdminActionsMixin(BaseActionsHost):
         config_entry: Any = None,
         on_dismissed: Any = None,
         proc_focus_target: str | None = None,
+        tool_run_focus_target: str | None = None,
     ) -> None:
         """Open the SASE Admin Center and refresh updates state on dismiss."""
         from ..modals.config_center_modal import (
@@ -126,6 +131,18 @@ class BaseAdminActionsMixin(BaseActionsHost):
             validated_center_tab,
         )
         from ..modals.config_center_session import AdminCenterSessionState
+
+        try:
+            screen = self.screen  # type: ignore[attr-defined]
+            if isinstance(screen, ConfigCenterModal) and initial_tab is not None:
+                tab = validated_center_tab(initial_tab)
+                if tab is not None:
+                    if tool_run_focus_target is not None:
+                        screen._tool_run_focus_target = tool_run_focus_target
+                    screen.switch_to_tab(tab)
+                    return
+        except Exception:
+            pass
 
         registry = getattr(self, "_keymap_registry", None)
         app_keymaps = getattr(registry, "app", None)
@@ -156,6 +173,7 @@ class BaseAdminActionsMixin(BaseActionsHost):
                 on_tab_activated=self._on_admin_center_tab_activated,  # type: ignore[attr-defined]
                 config_entry=config_entry,
                 proc_focus_target=proc_focus_target,
+                tool_run_focus_target=tool_run_focus_target,
             ),
             _callback,
         )

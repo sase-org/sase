@@ -262,6 +262,21 @@ _PROJECTS_INVENTORY_BINDING_META: tuple[tuple[str, str, str], ...] = (
     ("clear_project_filter", "clear_project_filter", "Clear Project"),
 )
 
+# Scoped bindings owned by the focused Admin Center Tools pane.
+_TOOL_RUNS_BINDING_META: tuple[tuple[str, str, str], ...] = (
+    ("next_option", "next_option", "Next"),
+    ("prev_option", "prev_option", "Previous"),
+    ("focus_filter", "focus_filter", "Filter"),
+    ("cycle_subtab", "cycle_subtab", "Next View"),
+    ("cycle_subtab_reverse", "cycle_subtab_reverse", "Previous View"),
+    ("toggle_scope", "toggle_scope", "All Projects"),
+    ("focus_detail", "focus_detail", "Detail"),
+    ("jump_to_agent", "jump_to_agent", "Open Agent"),
+    ("open_log", "open_log", "Open Log"),
+    ("copy_run_id", "copy_run_id", "Copy Run ID"),
+    ("reload", "reload_tool_runs", "Reload"),
+)
+
 # Scoped bindings owned by the focused Admin Center Machines pane.
 _MACHINES_BINDING_META: tuple[tuple[str, str, str], ...] = (
     ("next_option", "next_option", "Next"),

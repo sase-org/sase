@@ -14,6 +14,7 @@ from sase.ace.tui.keymaps.defaults import (
     load_builtin_projects_defaults,
     load_builtin_snippets_defaults,
     load_builtin_statistics_defaults,
+    load_builtin_tool_runs_defaults,
 )
 from sase.ace.tui.keymaps.app_keymaps import (
     CommandLineKeymaps,
@@ -24,6 +25,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     ProjectsPaneKeymaps,
     SnippetPanelKeymaps,
     StatisticsPaneKeymaps,
+    ToolRunsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import (
     canonicalize_key_binding,
@@ -250,4 +252,15 @@ def load_machines_keymaps(keymaps_cfg: dict[str, Any]) -> MachinesPaneKeymaps:
         scope="machines",
         dataclass_type=MachinesPaneKeymaps,
         defaults=load_builtin_machines_defaults(),
+    )
+
+
+def load_tool_runs_keymaps(keymaps_cfg: dict[str, Any]) -> ToolRunsPaneKeymaps:
+    """Load and validate the focused Admin Center Tools binding scope."""
+
+    return _load_scope_keymaps(
+        keymaps_cfg,
+        scope="tool_runs",
+        dataclass_type=ToolRunsPaneKeymaps,
+        defaults=load_builtin_tool_runs_defaults(),
     )

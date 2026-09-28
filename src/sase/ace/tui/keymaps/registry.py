@@ -13,6 +13,7 @@ from sase.ace.tui.keymaps.scopes import (
     load_projects_keymaps,
     load_snippets_keymaps,
     load_statistics_keymaps,
+    load_tool_runs_keymaps,
 )
 from sase.ace.tui.keymaps.app_keymaps import AppKeymaps
 from sase.ace.tui.keymaps.key_validation import (
@@ -525,6 +526,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
     memory_km = load_memory_keymaps(keymaps_cfg)
     snippets_km = load_snippets_keymaps(keymaps_cfg)
     projects_km = load_projects_keymaps(keymaps_cfg)
+    tool_runs_km = load_tool_runs_keymaps(keymaps_cfg)
 
     modes_cfg = keymaps_cfg.get("modes", {})
     if not isinstance(modes_cfg, dict):
@@ -638,6 +640,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         memory=memory_km,
         snippets=snippets_km,
         projects=projects_km,
+        tool_runs=tool_runs_km,
         modes=modes,
         legacy_card_block_brackets=frozenset(legacy_card_block_brackets),
     )

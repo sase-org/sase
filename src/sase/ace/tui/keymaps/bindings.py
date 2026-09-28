@@ -14,6 +14,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     ProjectsPaneKeymaps,
     SnippetPanelKeymaps,
     StatisticsPaneKeymaps,
+    ToolRunsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from sase.ace.tui.keymaps.metadata import (
@@ -28,6 +29,7 @@ from sase.ace.tui.keymaps.metadata import (
     _PROJECTS_INVENTORY_BINDING_META,
     _SNIPPET_BINDING_META,
     _STATISTICS_BINDING_META,
+    _TOOL_RUNS_BINDING_META,
 )
 
 
@@ -250,6 +252,31 @@ def build_machines_bindings(keymaps: MachinesPaneKeymaps) -> list[Binding]:
             show=False,
         )
         for field, action, description in _MACHINES_BINDING_META
+    ]
+
+
+def build_tool_runs_bindings(keymaps: ToolRunsPaneKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the Admin Center Tools pane."""
+
+    return [
+        Binding(
+            getattr(keymaps, field),
+            action,
+            description,
+            show=False,
+        )
+        for field, action, description in _TOOL_RUNS_BINDING_META
+    ]
+
+
+def tool_runs_help_bindings(
+    keymaps: ToolRunsPaneKeymaps,
+) -> list[tuple[str, str]]:
+    """Return effective Tools keys and descriptions for help surfaces."""
+
+    return [
+        (key_display_name(getattr(keymaps, field)), description)
+        for field, _action, description in _TOOL_RUNS_BINDING_META
     ]
 
 

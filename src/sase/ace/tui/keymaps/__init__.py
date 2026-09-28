@@ -18,9 +18,11 @@ from sase.ace.tui.keymaps.bindings import (
     build_projects_inventory_bindings,
     build_snippet_bindings,
     build_statistics_bindings,
+    build_tool_runs_bindings,
     memory_help_bindings,
     snippet_help_bindings,
     statistics_help_bindings,
+    tool_runs_help_bindings,
 )
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
@@ -32,6 +34,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     ProjectsPaneKeymaps,
     SnippetPanelKeymaps,
     StatisticsPaneKeymaps,
+    ToolRunsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.defaults import (
     load_builtin_app_defaults,
@@ -43,6 +46,7 @@ from sase.ace.tui.keymaps.defaults import (
     load_builtin_projects_defaults,
     load_builtin_snippets_defaults,
     load_builtin_statistics_defaults,
+    load_builtin_tool_runs_defaults,
 )
 from sase.ace.tui.keymaps.display import (
     footer_key_display,
@@ -87,6 +91,7 @@ __all__ = [
     "ProjectsPaneKeymaps",
     "SnippetPanelKeymaps",
     "StatisticsPaneKeymaps",
+    "ToolRunsPaneKeymaps",
     "_BINDING_META",
     "build_app_bindings",
     "build_command_line_bindings",
@@ -100,6 +105,7 @@ __all__ = [
     "build_projects_inventory_bindings",
     "build_snippet_bindings",
     "build_statistics_bindings",
+    "build_tool_runs_bindings",
     "canonicalize_key_binding",
     "canonicalize_single_key",
     "footer_key_display",
@@ -115,10 +121,12 @@ __all__ = [
     "load_builtin_projects_defaults",
     "load_builtin_snippets_defaults",
     "load_builtin_statistics_defaults",
+    "load_builtin_tool_runs_defaults",
     "load_keymap_registry",
     "memory_help_bindings",
     "snippet_help_bindings",
     "normalize_key_binding",
     "split_key_alternatives",
     "statistics_help_bindings",
+    "tool_runs_help_bindings",
 ]

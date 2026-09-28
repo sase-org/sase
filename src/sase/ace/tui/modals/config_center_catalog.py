@@ -21,6 +21,7 @@ CenterTab = Literal[
     "procs",
     "projects",
     "statistics",
+    "tools",
     "updates",
 ]
 PaneFactory = Callable[["ConfigCenterModal"], Widget]
@@ -131,6 +132,19 @@ def _updates_pane_factory(modal: ConfigCenterModal) -> Widget:
     )
 
 
+def _tools_pane_factory(modal: ConfigCenterModal) -> Widget:
+    from .tool_runs_pane import ToolRunsPane
+
+    registry = getattr(modal.app, "_keymap_registry", None)
+    keymaps = getattr(registry, "tool_runs", None)
+    return ToolRunsPane(
+        project=modal._project,
+        session_state=modal._session_state.tools,
+        keymaps=keymaps,
+        id="tools",
+    )
+
+
 _TAB_SPECS: tuple[CenterTabSpec, ...] = (
     CenterTabSpec(
         "config",
@@ -187,8 +201,17 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
         _statistics_pane_factory,
     ),
     CenterTabSpec(
-        "updates",
+        "tools",
         7,
+        "Tools",
+        "#87D7FF",
+        "Inspect tool runs, failure signatures, and the tool catalog.",
+        "ToolRunsPane",
+        _tools_pane_factory,
+    ),
+    CenterTabSpec(
+        "updates",
+        8,
         "Updates",
         "#AF87FF",
         "Update SASE, plugins, and supported agent CLIs from one place.",

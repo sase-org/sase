@@ -16,6 +16,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     ProjectsPaneKeymaps,
     SnippetPanelKeymaps,
     StatisticsPaneKeymaps,
+    ToolRunsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import (
     _CTRL_SPACE_KEY,
@@ -66,6 +67,7 @@ __all__ = [
     "ProjectsPaneKeymaps",
     "SnippetPanelKeymaps",
     "StatisticsPaneKeymaps",
+    "ToolRunsPaneKeymaps",
     "_BINDING_META",
     "_BUILTIN_MODE_CLASSES",
     "_CONFIG_HUB_BINDING_META",
@@ -114,6 +116,7 @@ class KeymapRegistry:
     memory: MemoryPanelKeymaps = field(default_factory=MemoryPanelKeymaps)
     snippets: SnippetPanelKeymaps = field(default_factory=SnippetPanelKeymaps)
     projects: ProjectsPaneKeymaps = field(default_factory=ProjectsPaneKeymaps)
+    tool_runs: ToolRunsPaneKeymaps = field(default_factory=ToolRunsPaneKeymaps)
     modes: dict[str, ModeKeymaps] = field(default_factory=dict)
     # Card-block actions explicitly bound to [ / ] (tab-state-keys legacy
     # bracket yield). Agent tab cycling unbinds its colliding ]/[ defaults

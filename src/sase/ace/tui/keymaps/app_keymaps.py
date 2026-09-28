@@ -337,6 +337,23 @@ class MachinesPaneKeymaps:
 
 
 @dataclass
+class ToolRunsPaneKeymaps:
+    """Focused actions for the Admin Center Tools tab."""
+
+    next_option: str = "j,down,ctrl+n"
+    prev_option: str = "k,up,ctrl+p"
+    focus_filter: str = "slash"
+    cycle_subtab: str = "right_square_bracket"
+    cycle_subtab_reverse: str = "left_square_bracket"
+    toggle_scope: str = "A"
+    focus_detail: str = "enter"
+    jump_to_agent: str = "a"
+    open_log: str = "v"
+    copy_run_id: str = "y"
+    reload: str = "R"
+
+
+@dataclass
 class CommandLineKeymaps:
     """Panel-scoped actions for the ``:`` Command Line panel."""
 

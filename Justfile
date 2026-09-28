@@ -400,7 +400,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1bt(ToolRunNodeSummaries)' \
         --epic-symbol 'sase-1bt(ToolRunStateStyle)' \
         --epic-symbol 'sase-1bt(ToolRunVerdictSummary)' \
-        --epic-symbol 'sase-1bt(tool_run_briefs)' \
         --epic-symbol 'sase-1bu(GoalWriteError)' \
         --epic-symbol 'sase-1bu(GoalWriteOutcome)' \
         --epic-symbol 'sase-1bu(apply_goal_action)' \

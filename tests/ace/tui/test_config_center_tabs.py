@@ -45,7 +45,7 @@ from tests.ace.tui._config_center_tabs_helpers import (
 
 def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
     assert tuple(spec.id for spec in _TAB_SPECS) == _TAB_ORDER
-    assert tuple(spec.number for spec in _TAB_SPECS) == tuple(range(1, 8))
+    assert tuple(spec.number for spec in _TAB_SPECS) == tuple(range(1, 9))
     assert tuple((spec.id, spec.label) for spec in _TAB_SPECS) == tuple(_TAB_LABELS)
     assert tuple(spec.id for spec in _TAB_SPECS) == tuple(_TAB_COLORS)
     assert tuple(spec.id for spec in _TAB_SPECS) == tuple(_TAB_DESCRIPTIONS)
@@ -60,6 +60,7 @@ def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
         "Follow procs, inspect live output, and manage running jobs.",
         "Manage projects and inspect their repositories and workspaces.",
         "Explore runners, projects, activity, and trends over time.",
+        "Inspect tool runs, failure signatures, and the tool catalog.",
         "Update SASE, plugins, and supported agent CLIs from one place.",
     ]
 
@@ -168,7 +169,7 @@ def test_resume_tab_validation_accepts_only_catalog_ids() -> None:
 def test_home_hint_explains_no_history_and_uses_catalog_resume_style() -> None:
     no_history = _home_hint_text(None, "number_sign", compact=False)
     assert no_history.plain.startswith(" #  resumes after your first section visit")
-    assert "1-7/click · Tab cycle" in no_history.plain
+    assert "1-8/click · Tab cycle" in no_history.plain
 
     resume_ready = _home_hint_text("procs", "f2", compact=False)
     assert resume_ready.plain.startswith(" f2  resume Procs")

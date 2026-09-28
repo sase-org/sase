@@ -121,11 +121,13 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         on_tab_activated: Callable[[CenterTab], None] | None = None,
         config_entry: ConfigHubEntry | None = None,
         proc_focus_target: str | None = None,
+        tool_run_focus_target: str | None = None,
     ) -> None:
         super().__init__()
         self._project = project
         self._log_error_target = log_error_target
         self._proc_focus_target = proc_focus_target
+        self._tool_run_focus_target = tool_run_focus_target
         self._session_state = session_state or AdminCenterSessionState()
         self._tab_specs = _TAB_SPECS
         self._tab_by_id = _TAB_BY_ID
@@ -311,6 +313,8 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
             self._initial_navigation_pending = False
         if switched and tab == "procs" and self._proc_focus_target is not None:
             self._deliver_proc_focus_target()
+        if switched and tab == "tools" and self._tool_run_focus_target is not None:
+            self._deliver_tool_run_focus_target()
 
     def _deliver_proc_focus_target(self) -> bool:
         """Select the pending focus proc in the Procs pane, if mounted."""
@@ -329,6 +333,42 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         if focused:
             self._proc_focus_target = None
         return focused
+
+    def _deliver_tool_run_focus_target(self) -> bool:
+        """Hold the pending run id on the Tools pane until its load lands."""
+
+        target = self._tool_run_focus_target
+        if target is None:
+            return False
+        pane = self._panes.get("tools")
+        focus = getattr(pane, "focus_tool_run", None)
+        if not callable(focus):
+            return False
+        try:
+            accepted = bool(focus(target))
+        except Exception:
+            log.debug("tool run focus target failed", exc_info=True)
+            return False
+        return accepted
+
+    def switch_to_tab(self, tab: CenterTab) -> None:
+        """Switch the open modal to *tab* instead of pushing a second modal."""
+
+        self._schedule_switch(tab)
+        if tab == "tools" and self._tool_run_focus_target is not None:
+            self.run_worker(
+                self._deliver_tool_run_after_switch(),
+                group="admin-center-navigation",
+            )
+
+    async def _deliver_tool_run_after_switch(self) -> None:
+        """Deliver a pending run id once the Tools pane is mounted."""
+
+        for _ in range(50):
+            if "tools" in self._panes:
+                break
+            await asyncio.sleep(0.05)
+        self._deliver_tool_run_focus_target()
 
     async def _remove_failed_pane(self, pane: Widget) -> None:
         """Best-effort cleanup after a failed mount so a retry can reuse the ID."""

@@ -3539,12 +3539,12 @@ current one, and pressing it again toggles back — exactly two sections remembe
 a two-slot alternate. A color-coded, clickable footer along the bottom of the working
 section names the jump target (or explains that none exists yet). The numbered strip
 remains clickable: `1` Config, `2` Logs, `3` Machines, `4` Procs, `5` Projects, `6`
-Statistics, and `7` Updates. `Tab` enters Config, and `Shift+Tab` enters Updates. Each
-working pane and its data are loaded only on first entry, then cached while the modal
-remains open. Command-palette actions such as **Open logs panel**, **Open procs panel**,
-and **Open statistics**, plus update shortcuts and indicators, enter their requested
-pane directly and make a successful entry the next resume target. Closing from home does
-not clear an older target.
+Statistics, `7` Tools, and `8` Updates. `Tab` enters Config, and `Shift+Tab` enters
+Updates. Each working pane and its data are loaded only on first entry, then cached
+while the modal remains open. Command-palette actions such as **Open logs panel**,
+**Open procs panel**, and **Open statistics**, plus update shortcuts and indicators,
+enter their requested pane directly and make a successful entry the next resume target.
+Closing from home does not clear an older target.
 
 Both the top-level resume target and the alternate are persisted machine-locally and
 survive across sase's TUI process restarts. Within one running sase's TUI process,
@@ -3889,6 +3889,20 @@ forward-only: runs launched before this feature shipped are not backfilled.
 This Statistics sub-tab is distinct from Config's **XPrompts** child described in
 [XPrompt Browser](#xprompt-browser): that child browses and edits xprompt definitions,
 while the Statistics sub-tab measures how launch prompts used them.
+
+## Tools Tab
+
+Open the SASE Admin Center with `#`, then press `7` or switch to **Tools**. Its three
+sub-views cover **Runs** (silent runs pinned first in red, then live, then settled
+newest first), **Failures** (failure-signature groups with run and agent witness
+counts), and **Catalog** (the current project's named tools with LAST and TYPICAL from
+the run ledger). The pane is filtered to the current project by default; press `A` to
+widen it to all projects. Use `[` / `]` to move between views, `/` to filter Runs with
+`tool:`, `state:`, `agent:`, and `verdict:` tokens, `enter` to focus detail, `a` to jump
+to the owning Agents row, `v` to open the retained log in the pager, `y` to copy the run
+id, and `R` to reload. The Runs detail reuses the Agents tab Runs block renderer. The
+pane never settles or reconciles runs; stopping a run and running a tool from the
+catalog arrive with the follow-up phase.
 
 <a id="models-panel"></a>
 
@@ -8406,7 +8420,7 @@ durable record reports that it cannot be killed from the Procs tab.
 
 ## Updates Tab
 
-Open the SASE Admin Center with `#`, then press `7`. The Updates tab is one
+Open the SASE Admin Center with `#`, then press `8`. The Updates tab is one
 master/detail inventory: every SASE core package, plugin, and registered agent CLI
 appears as a row, grouped into **SASE**, **Plugins · Built-in**, **Plugins ·
 Community**, and **Agent CLIs** sections. An always-visible header above the list shows
