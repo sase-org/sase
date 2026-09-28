@@ -22,6 +22,7 @@ class PushOutcome:
     skipped_locked: bool = False
     log_path: Path | None = None
     bead_relocations: tuple[Any, ...] = ()
+    push_attempts: int = 0
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,7 @@ def push_bead_work_launch(
                 error=None,
                 log_path=log_path,
                 bead_relocations=result.bead_relocations,
+                push_attempts=result.push_attempts,
             )
         if result.skipped_locked:
             if head_is_published(repo_root):
@@ -76,6 +78,7 @@ def push_bead_work_launch(
                     error=None,
                     log_path=log_path,
                     bead_relocations=result.bead_relocations,
+                    push_attempts=result.push_attempts,
                 )
             return PushOutcome(
                 pushed=False,
@@ -84,6 +87,7 @@ def push_bead_work_launch(
                 skipped_locked=True,
                 log_path=log_path,
                 bead_relocations=result.bead_relocations,
+                push_attempts=result.push_attempts,
             )
         return PushOutcome(
             pushed=False,
@@ -92,6 +96,7 @@ def push_bead_work_launch(
             or f"managed bead sync did not push and reported no error (see {log_path})",
             log_path=log_path,
             bead_relocations=result.bead_relocations,
+            push_attempts=result.push_attempts,
         )
     except Exception as exc:  # noqa: BLE001 - this API must never raise.
         return PushOutcome(

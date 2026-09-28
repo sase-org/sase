@@ -32,6 +32,7 @@ class _ManagedSyncOutcome:
     skipped_locked: bool = False
     error: str | None = None
     bead_relocations: tuple[Any, ...] = ()
+    push_attempts: int = 0
 
 
 def run_managed_sync_worker(
@@ -272,6 +273,7 @@ def _run_locked_sync(
                 pushed=True,
                 integrated=integrated,
                 bead_relocations=bead_relocations,
+                push_attempts=push_attempt,
             )
         if not _is_non_fast_forward_rejection(pushed):
             return _failure(
@@ -280,6 +282,7 @@ def _run_locked_sync(
                 pushed,
                 integrated=integrated,
                 bead_relocations=bead_relocations,
+                push_attempts=push_attempt,
             )
         if push_attempt == _MAX_PUSH_ATTEMPTS:
             return _failure(
@@ -288,6 +291,7 @@ def _run_locked_sync(
                 pushed,
                 integrated=integrated,
                 bead_relocations=bead_relocations,
+                push_attempts=push_attempt,
             )
         _log(
             log_path,
@@ -640,6 +644,7 @@ def _failure(
     *,
     integrated: bool = False,
     bead_relocations: tuple[Any, ...] = (),
+    push_attempts: int = 0,
 ) -> _ManagedSyncOutcome:
     from sase.sdd._repository_health import format_git_error
 
@@ -649,6 +654,7 @@ def _failure(
         "failed",
         error=error,
         integrated=integrated,
+        push_attempts=push_attempts,
         bead_relocations=[relocation.to_json_dict() for relocation in bead_relocations],
     )
     return _ManagedSyncOutcome(
@@ -656,6 +662,7 @@ def _failure(
         integrated=integrated,
         error=error,
         bead_relocations=bead_relocations,
+        push_attempts=push_attempts,
     )
 
 

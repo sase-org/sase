@@ -325,6 +325,7 @@ def _summary(
     failed: int = 0,
     backed_off: int = 0,
     deferred: int = 0,
+    goals_published: int = 0,
     reason: str | None = None,
 ) -> ChopResultBuilder:
     return runtime.emit_summary(
@@ -337,9 +338,60 @@ def _summary(
             "failed": failed,
             "backed_off": backed_off,
             "deferred": deferred,
+            "goals_published": goals_published,
         },
         reason=reason,
     )
+
+
+# One bounded publish per project; the caller skips this leg when the main
+# pass already exhausted the work budget (deferred > 0), so the leg shares
+# the chop's budget without adding clock reads that disturb backoff tests.
+_GOALS_PUSH_TIMEOUT_SECONDS = 10.0
+
+
+def _publish_pending_goals_outboxes(
+    runtime: BuiltinChopRuntime,
+    records: list[ProjectRecordWire],
+) -> int:
+    """Push one pending goals outbox per project within a fixed bound.
+
+    Projects are visited once; failures log and continue. Returns the
+    number of outboxes cleared by a successful publish.
+    """
+    published = 0
+    seen: set[str] = set()
+    for record in records:
+        project_key = record.project_name
+        if project_key in seen:
+            continue
+        seen.add(project_key)
+        try:
+            from sase.core.paths import sase_projects_dir
+
+            from sase.goals.outbox import goals_outbox_pending
+            from sase.goals.store import resolve_goal_ledger
+            from sase.goals.write import retry_pending_goals_publish
+
+            outbox_path = sase_projects_dir() / project_key / "goals-outbox.json"
+            if not goals_outbox_pending(outbox_path):
+                continue
+            ledger = resolve_goal_ledger(project_key)
+            result = retry_pending_goals_publish(
+                ledger, push_timeout_seconds=_GOALS_PUSH_TIMEOUT_SECONDS
+            )
+            if result.get("published"):
+                published += 1
+            elif result.get("error"):
+                runtime.log.warning(
+                    f"[sidecar_auto_sync] Goals push for {project_key} failed: "
+                    f"{result['error']}"
+                )
+        except Exception as exc:  # noqa: BLE001 - one project never stalls the chop.
+            runtime.log.warning(
+                f"[sidecar_auto_sync] Goals push leg for {project_key} failed: {exc}"
+            )
+    return published
 
 
 @builtin_chop("sidecar_auto_sync")
@@ -361,7 +413,13 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         )
 
     if not targets:
-        return _summary(runtime, targets=0, reason="no_auto_sync_roles")
+        goals_published = _publish_pending_goals_outboxes(runtime, records)
+        return _summary(
+            runtime,
+            targets=0,
+            goals_published=goals_published,
+            reason="no_auto_sync_roles",
+        )
 
     now = _utc_now()
     state_path = Path(runtime.context.state_dir) / _BACKOFF_STATE_FILENAME
@@ -416,6 +474,10 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                     _maintain_synced_sidecar(runtime, target, result)
         _persist_schedule_state(runtime, state_path, schedule_state)
 
+    goals_published = (
+        0 if deferred else _publish_pending_goals_outboxes(runtime, records)
+    )
+
     reason = None
     if refreshed == 0:
         if failed:
@@ -435,6 +497,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         failed=failed,
         backed_off=backed_off,
         deferred=deferred,
+        goals_published=goals_published,
         reason=reason,
     )
 

@@ -465,17 +465,32 @@ def _sweep_root(
 def _run_publication_worker(
     repo_root: Path, *, worker_lock_wait: float, deadline: float | None
 ) -> Any:
+    import logging as _logging
+
     from sase.bead.sync import push_bead_work_launch
 
     wait = max(0.0, worker_lock_wait)
     remaining = _deadline_remaining(deadline)
     if remaining is not None:
         wait = min(wait, remaining)
-    return push_bead_work_launch(
+    outcome = push_bead_work_launch(
         repo_root,
         worker_lock_wait=wait,
         deadline=deadline,
     )
+    # Hidden host clones converge goal markers no matter which publisher
+    # integrates them. This repair commits marker fixes under goals/ only,
+    # fails open, and never blocks bead publication.
+    try:
+        if (repo_root / "goals" / "STORE.json").is_file():
+            from sase.goals.reconcile import reconcile_goals_repo_path
+
+            reconcile_goals_repo_path(repo_root)
+    except Exception as exc:  # noqa: BLE001 - goals never block bead links.
+        _logging.getLogger(__name__).warning(
+            "goals reconcile after bead-link publish failed: %s", exc
+        )
+    return outcome
 
 
 def _add_detail(
