@@ -502,30 +502,30 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
         app._save_current_tab_position()  # type: ignore[attr-defined]
         app.current_tab = "agents"  # type: ignore[attr-defined]
 
-        ensure = getattr(app, "_ensure_agent_tab_for", None)
-        if callable(ensure):
-            ensure(target_identity)
-        else:
-            try:
-                from ..actions.agents._agent_tab_jump import (
-                    ensure_agent_tab_for_identity,
-                )
+        # Reveal through the fold-expanding, tab-restoring ladder rather than
+        # a plain scan, so a target hidden under a fold or on another agent
+        # tab is still reachable and a failed reveal restores the tab.
+        reveal = getattr(app, "_try_reveal_agent_row", None)
+        if callable(reveal) and reveal(target_identity) is None:
+            return
 
-                ensure_agent_tab_for_identity(app, target_identity)
-            except Exception:
-                pass
-
-        # Find and select the matching agent
-        for idx, a in enumerate(app._agents):  # type: ignore[attr-defined]
-            if a.identity == target_identity:
-                app.current_idx = idx  # type: ignore[attr-defined]
-                return
         # Fallback: match by raw_suffix (identity may differ after revive)
         if target_raw_suffix:
-            for idx, a in enumerate(app._agents):  # type: ignore[attr-defined]
-                if a.raw_suffix == target_raw_suffix:
-                    app.current_idx = idx  # type: ignore[attr-defined]
-                    return
+            complete = list(
+                getattr(app, "_agents_with_children", None)
+                or getattr(app, "_agents", None)
+                or ()
+            )
+            match = next(
+                (a for a in complete if a.raw_suffix == target_raw_suffix),
+                None,
+            )
+            if (
+                match is not None
+                and callable(reveal)
+                and reveal(match.identity) is None
+            ):
+                return
 
         app.notify("Agent not found on Agents tab", severity="warning")  # type: ignore[attr-defined]
 

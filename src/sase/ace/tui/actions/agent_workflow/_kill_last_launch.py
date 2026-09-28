@@ -278,13 +278,16 @@ class KillAndEditLastLaunchMixin:
         the navigation machinery) only means the row does not scroll into
         view before the kill/dismiss + prompt-bar flow runs; it is not fatal
         to the action itself, so failures are swallowed rather than raised.
+        A tab already switched before the error must still be restored, so
+        the previous tab is tracked outside the try body.
         """
-        try:
-            from ..agents._agent_tab_jump import (
-                ensure_agent_tab_for_identity,
-                restore_agent_tab,
-            )
+        from ..agents._agent_tab_jump import (
+            ensure_agent_tab_for_identity,
+            restore_agent_tab,
+        )
 
+        previous_tab = None
+        try:
             plan, _failure = prepare_agent_navigation_target(
                 self, target_identity, require_current=False
             )
@@ -308,6 +311,8 @@ class KillAndEditLastLaunchMixin:
                 refresh()
         except Exception:
             log.debug("Failed to reveal ,X last-launch target", exc_info=True)
+            if previous_tab is not None:
+                restore_agent_tab(self, previous_tab)
 
     def _kill_and_edit_last_launch_set(
         self,

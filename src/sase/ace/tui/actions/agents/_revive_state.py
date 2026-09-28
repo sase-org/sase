@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._panel_fold_intent import effective_panel_collapses
-
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -22,68 +20,39 @@ class AgentReviveStateMixin:
     _revived_agent_raw_suffixes: set[str]
 
     def _select_revived_agent(self, agent: Agent) -> bool:
-        """Select *agent* after a revive reload, including its tribe panel."""
-        ensure = getattr(self, "_ensure_agent_tab_for", None)
-        if callable(ensure):
-            try:
-                ensure(agent.identity)
-            except Exception:
-                pass
-        else:
-            try:
-                from ._agent_tab_jump import ensure_agent_tab_for_identity
+        """Reveal *agent* after a revive reload through the fold-expanding ladder.
 
-                ensure_agent_tab_for_identity(self, agent.identity)
-            except Exception:
-                pass
-        target_idx: int | None = None
-        for idx, candidate in enumerate(getattr(self, "_agents", [])):
-            if candidate.identity == agent.identity or (
-                agent.raw_suffix and candidate.raw_suffix == agent.raw_suffix
-            ):
-                target_idx = idx
-                break
-        if target_idx is None:
-            return False
-
-        if hasattr(self, "_current_group_key"):
-            self._current_group_key = None
-        self.current_idx = target_idx
-        if hasattr(self, "current_attempt_number"):
-            self.current_attempt_number = None
-
-        panel_group = getattr(self, "_panel_group", None)
-        panel_keys_per_agent = getattr(self, "_panel_keys_per_agent", None)
-        if panel_group is None or not callable(panel_keys_per_agent):
-            return True
-
-        try:
-            keys_per_agent = panel_keys_per_agent()
-        except Exception:
-            return True
-        if not (0 <= target_idx < len(keys_per_agent)):
-            return True
-
-        target_panel_key = keys_per_agent[target_idx]
-        panel_keys = getattr(panel_group, "panel_keys", [])
-        try:
-            panel_group.focused_idx = panel_keys.index(target_panel_key)
-            return True
-        except ValueError:
-            pass
-
-        try:
-            from ...models.agent_panels import AgentPanelGroup
-
-            self._panel_group = AgentPanelGroup.from_agents(  # type: ignore[attr-defined]
-                self._agents,
-                target_panel_key,
-                merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
-                collapsed_panel_keys=effective_panel_collapses(self),
+        Routed through ``_try_reveal_agent_row`` so a revived row hidden
+        under a fold or on another agent tab is still reachable, and a
+        failed reveal restores the previous tab instead of stranding it.
+        """
+        complete = list(
+            getattr(self, "_agents_with_children", None)
+            or getattr(self, "_agents", None)
+            or ()
+        )
+        target_identity = agent.identity
+        if not any(candidate.identity == target_identity for candidate in complete):
+            # A dismissed row's identity can differ from its revived,
+            # freshly-loaded counterpart; fall back to matching by suffix.
+            if not agent.raw_suffix:
+                return False
+            match = next(
+                (
+                    candidate
+                    for candidate in complete
+                    if candidate.raw_suffix == agent.raw_suffix
+                ),
+                None,
             )
-        except Exception:
-            pass
-        return True
+            if match is None:
+                return False
+            target_identity = match.identity
+
+        reveal = getattr(self, "_try_reveal_agent_row", None)
+        if not callable(reveal):
+            return False
+        return reveal(target_identity) is None
 
     def _remove_dismissed_aliases_for_suffixes(self, suffixes: set[str]) -> None:
         """Remove dismissed identities whose raw_suffix matches revived suffixes.

@@ -8,8 +8,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agents._revive import AgentRevivalMixin
+from sase.ace.tui.actions.navigation._member_jump import MemberJumpNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_panels import panel_key_per_agent
+from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
+from sase.ace.tui.tab_order import TabName
 
 
 def make_agent(**overrides: object) -> Agent:
@@ -28,11 +30,23 @@ def make_agent(**overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-class FakeReviveApp(AgentRevivalMixin):
-    """Minimal app with only the revive dependencies."""
+class FakeReviveApp(AgentRevivalMixin, MemberJumpNavigationMixin):
+    """Minimal app with only the revive dependencies.
+
+    Also mixes in ``MemberJumpNavigationMixin`` so ``_select_revived_agent``
+    (which routes through ``_try_reveal_agent_row``) has a real reveal path
+    to call, instead of the direct index/panel mutation it used to do
+    inline. ``_load_agents`` resyncs ``_panel_group`` from the reloaded
+    roster the same way the real app's finalize-and-refresh pipeline does
+    before its revive completion callback runs, so a revived row landing in
+    a not-yet-rendered tribe panel is still found.
+    """
 
     def __init__(self) -> None:
-        self.current_tab = "agents"
+        # ``AgentRevivalMixin`` and ``MemberJumpNavigationMixin`` declare
+        # this attribute with different (compatible at runtime) type-hint
+        # widths.
+        self.current_tab: TabName = "agents"  # pyright: ignore[reportIncompatibleVariableOverride]
         self.current_idx = 0
         self.current_attempt_number: int | None = None
         self._current_group_key: tuple[str, ...] | None = None
@@ -43,6 +57,7 @@ class FakeReviveApp(AgentRevivalMixin):
         self._revived_agent_raw_suffixes: set[str] = set()
         self._agents: list[Agent] = []
         self._agents_with_children: list[Agent] = []
+        self._panel_group: AgentPanelGroup = AgentPanelGroup()
         self.loaded_agents: list[Agent] | None = None
         self.notifications: list[tuple[str, str]] = []
         self.restored: list[tuple[tuple[AgentType, str, str | None], str | None]] = []
@@ -61,6 +76,11 @@ class FakeReviveApp(AgentRevivalMixin):
         self.last_load_full_history = full_history
         if self.loaded_agents is not None:
             self._agents = self.loaded_agents
+            self._panel_group = AgentPanelGroup.from_agents(
+                self._agents,
+                self._panel_group.focused_key,
+                merge_tribe_panels=self._agent_panels_grouped,
+            )
 
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         del prior_pos

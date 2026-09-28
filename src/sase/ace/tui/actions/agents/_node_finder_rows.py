@@ -460,7 +460,6 @@ def build_snapshot_rows(
                 row_depth = agent_tree_depth(agent)
             if (
                 jumpable
-                and reason_mask == 0
                 and identity not in rendered
                 and off_tab_labels
                 and identity in off_tab_labels

@@ -79,7 +79,10 @@ def test_revive_saved_group_restores_parent_child_and_marks_group() -> None:
     ]
     assert app.load_count == 1
     assert app.delta_refresh_count == 1
-    assert app.refresh_calls == [False]
+    # ``_select_revived_agent`` now routes through ``_try_reveal_agent_row``,
+    # which refreshes once itself because the reveal crossed panels (alpha
+    # -> beta), on top of the caller's own post-select refresh.
+    assert app.refresh_calls == [True, False]
     assert app.current_idx == 2
     assert app._agents[app.current_idx].raw_suffix == "parent_suffix"
     assert app._panel_group.focused_key == "beta"

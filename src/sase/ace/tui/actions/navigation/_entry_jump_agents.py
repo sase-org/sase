@@ -288,8 +288,14 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
             if not (0 <= agent_idx < len(self._agents)):
                 return False
             # The pop loop switches to the anchor's tab first; an anchor
-            # saved on another tab never validates against this scope.
-            if self._agents_jump_anchor_tab(anchor) != self._current_agents_tab_token():
+            # saved on another tab never validates against this scope. An
+            # anchor saved with no tab token (while the flag was off)
+            # belongs to whatever tab is current, not a scope mismatch.
+            anchor_tab = self._agents_jump_anchor_tab(anchor)
+            if (
+                anchor_tab is not None
+                and anchor_tab != self._current_agents_tab_token()
+            ):
                 return False
             panel_idx = self._agents_jump_panel_idx_for_key(panel_key)
             if panel_idx is None:
@@ -313,10 +319,17 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
         self,
         stack: list[AgentJumpAnchor] | None = None,
     ) -> AgentJumpAnchor | None:
-        """Pop and return the latest valid agents-tab jump anchor."""
+        """Pop and return the latest valid agents-tab jump anchor.
+
+        Restores the tab this call started on when every popped anchor is
+        stale — the loop below switches to each anchor's tab before it can
+        validate it, and a run of stale anchors would otherwise strand the
+        user on the last anchor's tab instead of where the back-jump began.
+        """
         target_stack = (
             stack if stack is not None else self._entry_jump_agents_anchor_stack
         )
+        starting_key = getattr(self, "_active_agent_tab", None)
         while target_stack:
             anchor = target_stack.pop()
             tab = self._agents_jump_anchor_tab(anchor)
@@ -328,6 +341,13 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
                     continue
             if self._agents_jump_anchor_is_valid(anchor):
                 return anchor
+        if (
+            starting_key is not None
+            and getattr(self, "_active_agent_tab", None) != starting_key
+        ):
+            from ..agents._agent_tab_jump import restore_agent_tab
+
+            restore_agent_tab(self, starting_key)
         return None
 
     def _focus_agents_jump_anchor_panel(self, panel_key: PanelKey) -> bool:

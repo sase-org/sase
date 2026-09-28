@@ -172,7 +172,10 @@ def test_do_revive_agent_selects_revived_agent_panel_after_reload() -> None:
     assert app._panel_group.focused_key == "beta"
     assert app._current_group_key is None
     assert app.current_attempt_number is None
-    assert app.refresh_calls == [False]
+    # ``_select_revived_agent`` now routes through ``_try_reveal_agent_row``,
+    # which refreshes once itself because the reveal crossed panels (alpha
+    # -> beta), on top of the caller's own post-select refresh.
+    assert app.refresh_calls == [True, False]
 
 
 def test_do_revive_agent_blocks_non_revivable_archive() -> None:
@@ -225,7 +228,9 @@ def test_do_revive_agent_clears_stale_banner_focus() -> None:
 
     assert app.current_idx == 0
     assert app._current_group_key is None
-    assert app.refresh_calls == [False]
+    # ``_try_reveal_agent_row`` refreshes once itself because it is clearing
+    # a stale collapsed-group selection, on top of the caller's own refresh.
+    assert app.refresh_calls == [True, False]
 
 
 def test_do_revive_agents_batch_removes_suffix_aliases() -> None:
@@ -469,4 +474,7 @@ def test_do_revive_agents_batch_selects_first_selected_parent() -> None:
     assert app._panel_group.focused_key == "beta"
     assert app._current_group_key is None
     assert app.current_attempt_number is None
-    assert app.refresh_calls == [False]
+    # ``_select_revived_agent`` now routes through ``_try_reveal_agent_row``,
+    # which refreshes once itself because the reveal crossed panels (alpha
+    # -> beta), on top of the caller's own post-select refresh.
+    assert app.refresh_calls == [True, False]

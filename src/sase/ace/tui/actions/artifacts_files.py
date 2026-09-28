@@ -482,28 +482,26 @@ class ArtifactsFilesActionsMixin:
         target_identity: object,
         target_raw_suffix: str | None,
     ) -> bool:
-        ensure = getattr(self, "_ensure_agent_tab_for", None)
-        if callable(ensure):
-            try:
-                ensure(target_identity)  # type: ignore[arg-type]
-            except Exception:
-                pass
-        else:
-            try:
-                from .agents._agent_tab_jump import ensure_agent_tab_for_identity
-
-                ensure_agent_tab_for_identity(self, target_identity)  # type: ignore[arg-type]
-            except Exception:
-                pass
-        for index, agent in enumerate(getattr(self, "_agents", ())):
-            if getattr(agent, "identity", None) == target_identity:
-                self.current_idx = index  # type: ignore[attr-defined]
-                return True
+        """Reveal the target row through the fold-expanding, tab-restoring ladder."""
+        reveal = getattr(self, "_try_reveal_agent_row", None)
+        if callable(reveal) and reveal(target_identity) is None:  # type: ignore[arg-type]
+            return True
         if target_raw_suffix:
-            for index, agent in enumerate(getattr(self, "_agents", ())):
-                if getattr(agent, "raw_suffix", None) == target_raw_suffix:
-                    self.current_idx = index  # type: ignore[attr-defined]
-                    return True
+            complete = list(
+                getattr(self, "_agents_with_children", None)
+                or getattr(self, "_agents", None)
+                or ()
+            )
+            match = next(
+                (
+                    agent
+                    for agent in complete
+                    if getattr(agent, "raw_suffix", None) == target_raw_suffix
+                ),
+                None,
+            )
+            if match is not None and callable(reveal):
+                return reveal(match.identity) is None
         return False
 
 

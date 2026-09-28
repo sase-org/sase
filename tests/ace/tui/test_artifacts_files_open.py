@@ -101,6 +101,13 @@ class _FakeApp(ArtifactsFilesActionsMixin):
     def _select_revived_agent(self, _agent: Any) -> bool:
         return False
 
+    def _try_reveal_agent_row(self, target_identity: Any) -> Any:
+        for idx, agent in enumerate(self._agents):
+            if getattr(agent, "identity", None) == target_identity:
+                self.current_idx = idx
+                return None
+        return "missing"
+
 
 def _pane(
     *entries: ArtifactFile,

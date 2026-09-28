@@ -240,62 +240,61 @@ class AgentUnreadNavigationMixin(
         predicate: Callable[[Agent], bool],
         after_select: Callable[[Agent, bool, bool], None] | None,
     ) -> bool:
-        """Switch to an off-tab candidate's tab, then select it by identity."""
-        from ._agent_tab_jump import (
-            ensure_agent_tab_for_identity,
-            restore_agent_tab,
-        )
+        """Reveal an off-tab candidate through the fold-expanding reveal.
 
+        Candidates come from the tab-independent query result and can sit
+        under a collapsed grouping banner on their own tab; a plain
+        post-switch scan then failed with a misleading "not found" toast
+        and left the saved anchor in place, so the next ``,j`` picked the
+        same stuck candidate again. Reveal through the shared ancestor/group
+        fold-expansion pipeline instead, and roll back both the anchor and
+        the tab on any failure.
+        """
+        from ..navigation._agent_reveal import (
+            prepare_agent_navigation_target,
+            reveal_agent_navigation_target,
+        )
+        from ._agent_tab_jump import ensure_agent_tab_for_identity, restore_agent_tab
+
+        plan, _failure = prepare_agent_navigation_target(
+            self, target.identity, require_current=False
+        )
+        if plan is None:
+            return False
+
+        back_stack = list(getattr(self, "_entry_jump_agents_anchor_stack", ()))
+        forward_stack = list(
+            getattr(self, "_entry_jump_agents_forward_anchor_stack", ())
+        )
         save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
         if callable(save_jump_anchor):
             save_jump_anchor()
         previous_tab = ensure_agent_tab_for_identity(self, target.identity)
-        target_idx = next(
-            (
-                idx
-                for idx, agent in enumerate(self._agents)
-                if agent.identity == target.identity
-            ),
-            None,
-        )
-        if target_idx is None:
+
+        def _fail() -> bool:
+            restore_history = getattr(self, "_restore_member_jump_history", None)
+            if callable(restore_history):
+                restore_history(back_stack, forward_stack)
             restore_agent_tab(self, previous_tab)
             return False
-        target_agent = self._agents[target_idx]
-        if not predicate(target_agent):
-            restore_agent_tab(self, previous_tab)
-            return False
-        visible = self._visible_agent_panel_indices(  # type: ignore[attr-defined]
-            include_collapsed_panels=True
-        )
-        if target_idx not in visible:
-            restore_agent_tab(self, previous_tab)
-            return False
+
+        outcome = reveal_agent_navigation_target(self, plan)
+        reveal = outcome.result
+        if reveal is None or not predicate(reveal.target_agent):
+            return _fail()
+
+        target_agent = reveal.target_agent
         panel_group = getattr(self, "_panel_group", None)
-        target_panel_idx = visible[target_idx]
-        target_panel_key = None
         if panel_group is not None:
-            if target_panel_idx is None or not (
-                0 <= target_panel_idx < len(panel_group.panel_keys)
-            ):
-                restore_agent_tab(self, previous_tab)
-                return False
-            target_panel_key = panel_group.panel_keys[target_panel_idx]
-        panel_expanded = False
-        if panel_group is not None and panel_is_collapsed(self, target_panel_key):
-            expand_panel = getattr(self, "_expand_agent_panel", None)
-            if callable(expand_panel):
-                panel_expanded = bool(expand_panel(target_panel_key))
-        if panel_group is not None and target_panel_idx != panel_group.focused_idx:
-            panel_group.focused_idx = target_panel_idx
+            panel_group.focused_idx = reveal.panel_idx
         self._expanded_panel_focus = False
         self._current_group_key = None
-        self.current_idx = target_idx
+        self.current_idx = reveal.target_idx
         if hasattr(self, "current_attempt_number"):
             self.current_attempt_number = None  # type: ignore[attr-defined]
         if after_select is not None:
-            after_select(target_agent, True, panel_expanded)
-        elif panel_expanded:
+            after_select(target_agent, True, reveal.structural_changed)
+        elif reveal.structural_changed:
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=True, defer_detail=True
             )

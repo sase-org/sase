@@ -413,8 +413,10 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             restore_agent_tab,
         )
 
-        previous_tab = ensure_agent_tab_for_identity(self, target_identity)
-
+        # Capture the source selection and stacks, and save the back-anchor
+        # with the source tab key, before switching tabs — otherwise the
+        # anchor records the destination tab's remembered row instead of
+        # where this jump started.
         old_idx = self.current_idx
         old_group_key = getattr(self, "_current_group_key", None)
         old_agent = (
@@ -429,6 +431,8 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         save_anchor = getattr(self, "_save_agents_jump_anchor", None)
         if callable(save_anchor):
             save_anchor()
+
+        previous_tab = ensure_agent_tab_for_identity(self, target_identity)
 
         outcome = reveal_agent_navigation_target(self, plan)
         reveal = outcome.result

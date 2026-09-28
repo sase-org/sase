@@ -142,32 +142,20 @@ class LinkTrailMixin:
             (agent for agent in complete if getattr(agent, "agent_name", None) == name),
             None,
         )
-        if match is not None:
-            ensure = getattr(self, "_ensure_agent_tab_for", None)
-            if callable(ensure):
-                try:
-                    ensure(match.identity)
-                except Exception:
-                    pass
-            else:
-                try:
-                    from .agents._agent_tab_jump import ensure_agent_tab_for_identity
-
-                    ensure_agent_tab_for_identity(self, match.identity)
-                except Exception:
-                    pass
-        agents = getattr(self, "_agents", ())
-        for idx, agent in enumerate(agents):
-            if getattr(agent, "agent_name", None) != name:
-                continue
-            if self.current_tab != "agents":
-                self._save_current_tab_position()  # type: ignore[attr-defined]
-                self.current_tab = "agents"
-            self.current_idx = idx
-            self._agents_last_idx = idx  # type: ignore[attr-defined]
-            self._agents_last_identity = agent.identity  # type: ignore[attr-defined]
-            return True
-        return False
+        if match is None:
+            return False
+        if self.current_tab != "agents":
+            self._save_current_tab_position()  # type: ignore[attr-defined]
+            self.current_tab = "agents"
+        # Reveal through the fold-expanding, tab-restoring ladder rather
+        # than a plain scan, so a target hidden under a fold or on another
+        # agent tab is still reachable and a failed reveal restores the tab.
+        reveal = getattr(self, "_try_reveal_agent_row", None)
+        if not callable(reveal) or reveal(match.identity) is not None:
+            return False
+        self._agents_last_idx = self.current_idx  # type: ignore[attr-defined]
+        self._agents_last_identity = match.identity  # type: ignore[attr-defined]
+        return True
 
     def _restore_axe_link_trail_hop(self, hop: LinkTrailHop) -> bool:
         if hop.axe_key is None:

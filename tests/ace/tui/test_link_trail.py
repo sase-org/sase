@@ -186,6 +186,13 @@ class _App(LinkFollowMixin, LinkTrailMixin):
             return self._agents[self.current_idx]
         return None
 
+    def _try_reveal_agent_row(self, target_identity: object) -> object | None:
+        for idx, agent in enumerate(self._agents):
+            if agent.identity == target_identity:
+                self.current_idx = idx
+                return None
+        return "missing"
+
     def notify(
         self,
         message: str,

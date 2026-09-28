@@ -209,15 +209,26 @@ def enter_agents_tab(app: object) -> None:
 
 
 def jump_to_loaded_agent(app: object, target: Any) -> bool:
-    """Reveal ``target`` through the Node Finder ladder."""
+    """Reveal ``target`` through the Node Finder ladder.
+
+    The ladder's own ``_try_reveal_agent_row`` switches tabs and restores
+    on failure, so it must not be pre-switched here. Only the identity-scan
+    fallback (used when the ladder is unavailable) needs to switch, and it
+    restores the previous tab when the scan comes up empty.
+    """
     jump = getattr(app, "_jump_to_node_identity", None)
     if callable(jump):
         return bool(jump(target.identity, name=target.display_name, subject="Agent"))
+
+    from ._agent_tab_jump import ensure_agent_tab_for_identity, restore_agent_tab
+
+    previous_tab = ensure_agent_tab_for_identity(app, target.identity)
     agents = getattr(app, "_agents", ()) or ()
     for idx, agent in enumerate(agents):
         if getattr(agent, "identity", None) == target.identity:
             app.current_idx = idx  # type: ignore[attr-defined]
             return True
+    restore_agent_tab(app, previous_tab)
     return False
 
 
@@ -248,13 +259,6 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
     if target is None:
         app.notify(f"Agent '{humanize_cl_name(cl_name)}' not found", severity="warning")  # type: ignore[attr-defined]
         return False
-    ensure = getattr(app, "_ensure_agent_tab_for", None)
-    if callable(ensure):
-        ensure(target.identity)
-    else:
-        from ._agent_tab_jump import ensure_agent_tab_for_identity
-
-        ensure_agent_tab_for_identity(app, target.identity)
     return jump_to_loaded_agent(app, target)
 
 
