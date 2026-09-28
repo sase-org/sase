@@ -165,21 +165,7 @@ class AgentDetailDeckMixin:
                     continue
                 seen.add(DeckId.TOOLS)
                 try:
-                    if (
-                        attempt_number is None
-                        and not agent.is_clan_container
-                        and not agent.is_named_proc
-                        and supports_slow_tool_sources(agent)
-                    ):
-                        panel.tools_view.update_display(agent)
-                    else:
-                        panel.tools_view.show_empty()
-                        panel.set_availability(
-                            {
-                                **panel._availability,
-                                DeckId.TOOLS: DeckAvailability(False, 0),
-                            }
-                        )
+                    self._refresh_tools_panel(panel, agent, attempt_number)
                 except Exception:
                     pass
             elif panel.deck is DeckId.FINAL:
@@ -213,6 +199,91 @@ class AgentDetailDeckMixin:
             return area.state.panels[index].preferred_card_for(DeckId.FINAL)
         except Exception:
             return None
+
+    def _tools_preferred_card(self, panel: Any) -> str | None:
+        """Return the panel's sticky Tools card from area state, if any."""
+        try:
+            area = self.deck_area
+            index = panel.panel_index
+            return area.state.panels[index].preferred_card_for(DeckId.TOOLS)
+        except Exception:
+            return None
+
+    def _refresh_tools_panel(
+        self, panel: Any, agent: Agent, attempt_number: int | None
+    ) -> None:
+        """Refresh both Tools card hosts for ``agent``.
+
+        The LLM Calls host keeps today's eligibility. The ``⚒ Runs``
+        host additionally opens for monitor turns and named procs that
+        own runs. Everything stays flag-gated: flag off, the Runs host
+        is never touched and Tools is exactly today's deck.
+        """
+        from ..llm_calls import supports_slow_tool_sources
+
+        try:
+            from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+
+            runs_enabled = bool(tool_runs_enabled())
+        except Exception:
+            runs_enabled = False
+        if (
+            attempt_number is None
+            and not agent.is_clan_container
+            and not agent.is_named_proc
+            and supports_slow_tool_sources(agent)
+        ):
+            try:
+                panel.tools_view.update_display(agent)
+            except Exception:
+                pass
+        else:
+            try:
+                panel.tools_view.show_empty()
+            except Exception:
+                pass
+            if not runs_enabled:
+                try:
+                    panel.set_availability(
+                        {
+                            **panel._availability,
+                            DeckId.TOOLS: DeckAvailability(False, 0),
+                        }
+                    )
+                except Exception:
+                    pass
+        if not runs_enabled:
+            return
+        try:
+            preferred = self._tools_preferred_card(panel)
+        except Exception:
+            preferred = None
+        if attempt_number is None and not agent.is_clan_container:
+            try:
+                panel.tool_runs_view.update_display(
+                    agent,
+                    attempt_number=attempt_number,
+                    generation=self._agent_detail_generation,
+                    preferred_card=preferred,
+                )
+            except Exception:
+                pass
+        else:
+            try:
+                panel.tool_runs_view.show_empty()
+            except Exception:
+                pass
+        try:
+            if preferred == "llm-calls":
+                panel._store_document_active(DeckId.TOOLS, "llm-calls")
+            else:
+                panel._store_document_active(DeckId.TOOLS, None)
+        except Exception:
+            pass
+        try:
+            panel._sync_tools_hosts()
+        except Exception:
+            pass
 
     def _deck_refresh_availability(self) -> None:
         agent = self._current_agent
@@ -303,6 +374,10 @@ class AgentDetailDeckMixin:
                 except Exception:
                     pass
                 try:
+                    panel.tool_runs_view.show_empty()
+                except Exception:
+                    pass
+                try:
                     panel.final_view.show_empty()
                 except Exception:
                     pass
@@ -343,6 +418,10 @@ class AgentDetailDeckMixin:
                     pass
                 try:
                     panel.tools_view.show_empty()
+                except Exception:
+                    pass
+                try:
+                    panel.tool_runs_view.show_empty()
                 except Exception:
                     pass
                 try:
@@ -514,7 +593,14 @@ class AgentDetailDeckMixin:
                 index = panel.panel_index
             except Exception:
                 return shown
-            self.set_deck_preferred_card(index, shown)
+            try:
+                deck = panel.deck
+            except Exception:
+                deck = None
+            if deck is DeckId.TOOLS:
+                self._remember_deck_preferred_card(index, shown, DeckId.TOOLS)
+            else:
+                self.set_deck_preferred_card(index, shown)
         return shown
 
     def _remember_deck_preferred_card(

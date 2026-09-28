@@ -2,9 +2,9 @@
 
 A card-document deck renders its cards through a
 :class:`~sase.ace.tui.widgets.decks.document_view.CardDocumentView` with
-spread/paged modes, scroll anchors and card blocks. Main and FINAL are the
-card-document decks. Membership is explicit (never "not Tools") per the
-shared deck-view rules.
+spread/paged modes, scroll anchors and card blocks. Main, FINAL, and
+Tools (its ``⚒ Runs`` card) are the card-document decks. Membership is
+explicit (never "not Files") per the shared deck-view rules.
 """
 
 from __future__ import annotations
@@ -19,12 +19,31 @@ if TYPE_CHECKING:
 
 
 #: Card-document decks in cycle order.
-CARD_DOCUMENT_DECKS: tuple[DeckId, ...] = (DeckId.MAIN, DeckId.FINAL)
+CARD_DOCUMENT_DECKS: tuple[DeckId, ...] = (DeckId.MAIN, DeckId.FINAL, DeckId.TOOLS)
 
 
 def is_card_document_deck(deck: DeckId) -> bool:
     """Return whether ``deck`` is a card-document deck."""
     return deck in CARD_DOCUMENT_DECKS
+
+
+def resolve_document_deck(deck: DeckId) -> DeckId:
+    """Return the card-document deck backing ``deck`` (exhaustive).
+
+    Every :class:`DeckId` has an explicit arm: Main, FINAL, and Tools
+    resolve to themselves, while Files (which pages file lists, not
+    card documents) shares Main's host, as the legacy wrappers did.
+    There is no ``else`` fall-through.
+    """
+    match deck:
+        case DeckId.MAIN:
+            return DeckId.MAIN
+        case DeckId.FINAL:
+            return DeckId.FINAL
+        case DeckId.TOOLS:
+            return DeckId.TOOLS
+        case DeckId.FILES:
+            return DeckId.MAIN
 
 
 def spread_block_card(document: Any, preferred: str | None = None) -> Any | None:
@@ -61,20 +80,49 @@ class DeckPanelCardDocumentsMixin:
         self._document_active_cards = {}
 
     def document_view(self, deck: DeckId) -> CardDocumentView:
-        """Return the card-document view for ``deck`` (raises ``KeyError``)."""
-        if deck is DeckId.MAIN:
-            return self.main_view  # type: ignore[attr-defined]
-        if deck is DeckId.FINAL:
-            return self.final_view  # type: ignore[attr-defined]
-        raise KeyError(f"no card-document view for deck: {deck!r}")
+        """Return the card-document view for ``deck`` (raises ``KeyError``).
+
+        The Tools arm returns the Runs view only while the Runs card
+        is active; while ``llm-calls`` is active there is no
+        card-document view, so it raises like an unknown deck.
+        """
+        match deck:
+            case DeckId.MAIN:
+                return self.main_view  # type: ignore[attr-defined]
+            case DeckId.FINAL:
+                return self.final_view  # type: ignore[attr-defined]
+            case DeckId.TOOLS:
+                try:
+                    active = self.active_tools_card()  # type: ignore[attr-defined]
+                except Exception:
+                    active = None
+                if active == "runs":
+                    return self.tool_runs_view  # type: ignore[attr-defined]
+                raise KeyError(f"no card-document view for deck: {deck!r}")
+            case DeckId.FILES:
+                raise KeyError(f"no card-document view for deck: {deck!r}")
 
     def document_for(self, deck: DeckId) -> CardDocument:
-        """Return the stored card document for ``deck`` (raises ``KeyError``)."""
-        if deck is DeckId.MAIN:
-            return self._main_document  # type: ignore[attr-defined]
-        if deck is DeckId.FINAL:
-            return self._final_document  # type: ignore[attr-defined]
-        raise KeyError(f"no card document for deck: {deck!r}")
+        """Return the stored card document for ``deck`` (raises ``KeyError``).
+
+        The Tools arm returns the Runs document only while the Runs
+        card is active, mirroring :meth:`document_view`.
+        """
+        match deck:
+            case DeckId.MAIN:
+                return self._main_document  # type: ignore[attr-defined]
+            case DeckId.FINAL:
+                return self._final_document  # type: ignore[attr-defined]
+            case DeckId.TOOLS:
+                try:
+                    active = self.active_tools_card()  # type: ignore[attr-defined]
+                except Exception:
+                    active = None
+                if active == "runs":
+                    return self._tool_runs_document  # type: ignore[attr-defined]
+                raise KeyError(f"no card document for deck: {deck!r}")
+            case DeckId.FILES:
+                raise KeyError(f"no card document for deck: {deck!r}")
 
     def card_document_host(
         self, deck: DeckId
@@ -184,5 +232,6 @@ __all__ = [
     "CARD_DOCUMENT_DECKS",
     "DeckPanelCardDocumentsMixin",
     "is_card_document_deck",
+    "resolve_document_deck",
     "spread_block_card",
 ]

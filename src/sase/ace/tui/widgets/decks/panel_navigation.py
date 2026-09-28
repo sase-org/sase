@@ -21,6 +21,7 @@ class DeckPanelNavigationMixin:
     _main_active_card: str | None
     _final_document: MainDeckDocument
     _final_switcher: Any | None
+    _tools_switcher: Any | None
     _render_mode: dict[DeckId, RenderMode]
     _mode_subject: dict[DeckId, object]
 
@@ -120,7 +121,48 @@ class DeckPanelNavigationMixin:
                 pass
             self.refresh_chrome()
             return shown
+        if self._deck is DeckId.TOOLS:
+            return self._cycle_tools_card(direction)
         return None
+
+    def _cycle_tools_card(self, direction: int) -> str | None:
+        """Cycle the Tools cards (``runs`` | ``llm-calls``); Ctrl+J/K."""
+        try:
+            tabs = self._tools_tabs()  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        ids = [tab.card_id for tab in tabs]
+        if not ids:
+            return None
+        try:
+            active = self.active_tools_card()  # type: ignore[attr-defined]
+        except Exception:
+            active = None
+        next_id = cycle_card_id(ids, active, direction)
+        if next_id is None:
+            return None
+        return self._show_tools_card(next_id)
+
+    def _show_tools_card(self, card_id: str) -> str | None:
+        """Show one Tools card host; return the shown card id."""
+        try:
+            self._store_document_active(DeckId.TOOLS, card_id)
+        except Exception:
+            pass
+        try:
+            self._sync_tools_hosts()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        self.refresh_chrome()
+        try:
+            self._sync_block_navigable()
+        except Exception:
+            pass
+        try:
+            self._sync_block_rail()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return card_id
 
     def show_main_document(
         self, document: MainDeckDocument, preferred_card: str | None
@@ -283,6 +325,152 @@ class DeckPanelNavigationMixin:
         except Exception:
             pass
         return self._main_active_card
+
+    def handle_tool_runs_deck_loaded(self, message: Any) -> None:
+        """Store a freshly loaded Runs document and refresh chrome.
+
+        Records the document for tabs, the ``tools ⚒N M`` subtitle
+        segment and the empty state, merges Runs availability with the
+        LLM Calls card's, and shows exactly one Tools host — all
+        without disturbing the active card.
+        """
+        try:
+            document = message.document
+        except Exception:
+            return
+        self._tool_runs_document = document
+        try:
+            active = message.active_card
+        except Exception:
+            active = None
+        try:
+            self._store_document_active(DeckId.TOOLS, active)
+        except Exception:
+            pass
+        try:
+            from sase.ace.tui.tool_runs.deck import tools_switcher_segment
+
+            if document.cards:
+                try:
+                    avail = self._availability.get(DeckId.TOOLS)  # type: ignore[attr-defined]
+                    n_calls = getattr(avail, "calls_count", None)
+                except Exception:
+                    n_calls = None
+                self._tools_switcher = tools_switcher_segment(
+                    getattr(message, "n_runs", 0),
+                    n_calls,
+                    live=bool(getattr(message, "live", False)),
+                    silent=bool(getattr(message, "silent", False)),
+                )
+            else:
+                self._tools_switcher = None
+        except Exception:
+            pass
+        try:
+            self._merge_tool_runs_availability()
+        except Exception:
+            pass
+        try:
+            self._sync_tools_hosts()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        if self._deck is DeckId.TOOLS:
+            try:
+                self.set_deck(DeckId.TOOLS)
+            except Exception:
+                try:
+                    self.refresh_chrome()
+                except Exception:
+                    pass
+        else:
+            try:
+                self.refresh_chrome()
+            except Exception:
+                pass
+        try:
+            message.stop()
+        except Exception:
+            pass
+
+    def _merge_tool_runs_availability(self) -> None:
+        """Merge the Runs card's availability with the LLM Calls card's."""
+        from .availability import DeckAvailability
+
+        try:
+            current = self._availability.get(DeckId.TOOLS)  # type: ignore[attr-defined]
+        except Exception:
+            current = None
+        try:
+            has_runs = bool(self._tool_runs_document.cards)
+        except Exception:
+            has_runs = False
+        try:
+            runs_count = len(self._tool_runs_document.cards[0].blocks)  # type: ignore[attr-defined]
+        except Exception:
+            runs_count = 0
+        calls_has: bool | None = None
+        calls_count: int | None = None
+        if current is not None:
+            calls_count = getattr(current, "calls_count", None)
+            if calls_count is None:
+                calls_count = getattr(current, "count", None)
+            calls_has = getattr(current, "has_content", None)
+        has_content: bool | None
+        if has_runs:
+            has_content = True
+        elif calls_has is None:
+            has_content = None
+        else:
+            has_content = bool(calls_has)
+        try:
+            self._availability[DeckId.TOOLS] = DeckAvailability(  # type: ignore[attr-defined]
+                has_content,
+                calls_count,
+                runs_count=runs_count if has_runs else 0,
+                calls_count=calls_count,
+            )
+        except Exception:
+            pass
+        try:
+            self._update_empty_state()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def show_tool_runs_document(
+        self,
+        document: MainDeckDocument,
+        preferred_card: str | None,
+    ) -> str | None:
+        """Push ``document`` to the Runs view; return the active card."""
+        self._tool_runs_document = document
+        try:
+            block_mode = self.document_block_mode_for_card(
+                DeckId.TOOLS, document, preferred_card
+            )
+        except Exception:
+            block_mode = None
+        try:
+            active = self.tool_runs_view.show_tool_runs_document(  # type: ignore[attr-defined]
+                document, preferred_card, block_mode=block_mode
+            )
+        except TypeError:
+            try:
+                active = self.tool_runs_view.show_tool_runs_document(  # type: ignore[attr-defined]
+                    document, preferred_card
+                )
+            except Exception:
+                active = None
+        except Exception:
+            active = None
+        try:
+            self._store_document_active(DeckId.TOOLS, active)
+        except Exception:
+            pass
+        try:
+            self._sync_tools_hosts()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return active
 
     def handle_final_deck_loaded(self, message: Any) -> None:
         """Store a freshly loaded FINAL document and refresh chrome.

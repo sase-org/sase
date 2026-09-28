@@ -7,6 +7,7 @@ from sase.ace.tui.tool_runs.header_chip import (
 )
 from sase.ace.tui.tool_runs.summaries import (
     ToolRunSelector,
+    cached_node_summary_for_selector,
     node_live_runs,
     resolve_tool_run_summary,
     selector_for_agent,
@@ -14,6 +15,7 @@ from sase.ace.tui.tool_runs.summaries import (
 
 __all__ = [
     "ToolRunSelector",
+    "cached_node_summary_for_selector",
     "header_chip_for_node",
     "node_live_runs",
     "resolve_tool_run_summary",

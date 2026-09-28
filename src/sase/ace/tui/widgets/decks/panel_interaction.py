@@ -128,8 +128,15 @@ class DeckPanelInteractionMixin:
 
     @property
     def tools_view(self) -> AgentLLMCallsPanel:
-        """Return the Tools deck view."""
+        """Return the Tools LLM Calls card view."""
         return self.query_one(AgentLLMCallsPanel)
+
+    @property
+    def tool_runs_view(self) -> Any:
+        """Return the Tools ``⚒ Runs`` card view."""
+        from .tool_runs.view import ToolRunsDeckView
+
+        return self.query_one(ToolRunsDeckView)
 
     @property
     def final_view(self) -> Any:

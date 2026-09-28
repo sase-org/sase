@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from .block_rail import BlockRail, BlockRailEntry
-from .card_documents import spread_block_card
+from .card_documents import resolve_document_deck, spread_block_card
 from .document_blocks import DeckPanelDocumentBlocksMixin
 from .model import DeckId, RenderMode
 
@@ -78,24 +78,33 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         """Step the active card one block; False when a no-op."""
         if self._deck is DeckId.FINAL:
             return bool(self.cycle_document_block(DeckId.FINAL, direction))
+        if self._deck is DeckId.TOOLS:
+            return bool(self.cycle_document_block(DeckId.TOOLS, direction))
         return self.cycle_document_block(DeckId.MAIN, direction)
 
     def select_block(self, block_id: str | None) -> bool:
         """Select ``block_id`` on the active card; False when a no-op."""
         if self._deck is DeckId.FINAL:
             return bool(self.select_document_block(DeckId.FINAL, block_id))
+        if self._deck is DeckId.TOOLS:
+            return bool(self.select_document_block(DeckId.TOOLS, block_id))
         return self.select_document_block(DeckId.MAIN, block_id)
 
     @property
     def card_blocks_navigable(self) -> bool:
         """Return the cached card-block navigation predicate (O(1)).
 
-        FINAL has no cached predicate; its small documents compute live
-        from the current deck instead.
+        FINAL and Tools have no cached predicate; their small documents
+        compute live from the current deck instead.
         """
         if self._deck is DeckId.FINAL:
             try:
                 return bool(self.compute_document_block_navigable(DeckId.FINAL))
+            except Exception:
+                return False
+        if self._deck is DeckId.TOOLS:
+            try:
+                return bool(self.compute_document_block_navigable(DeckId.TOOLS))
             except Exception:
                 return False
         return self.document_blocks_navigable(DeckId.MAIN)
@@ -104,30 +113,40 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         """Return the view's active block id for ``card_id``."""
         if self._deck is DeckId.FINAL:
             return self.active_document_block_id(DeckId.FINAL, card_id)
+        if self._deck is DeckId.TOOLS:
+            return self.active_document_block_id(DeckId.TOOLS, card_id)
         return self.active_document_block_id(DeckId.MAIN, card_id)
 
     def arrived_block_ids(self, card_id: str) -> tuple[str, ...]:
         """Return the view's unseen block ids for ``card_id``."""
         if self._deck is DeckId.FINAL:
             return self.arrived_document_block_ids(DeckId.FINAL, card_id)
+        if self._deck is DeckId.TOOLS:
+            return self.arrived_document_block_ids(DeckId.TOOLS, card_id)
         return self.arrived_document_block_ids(DeckId.MAIN, card_id)
 
     def block_mode_for_active_card(self) -> RenderMode | None:
         """Return the view's decided block mode for the active card."""
         if self._deck is DeckId.FINAL:
             return self.document_block_mode_for_active_card(DeckId.FINAL)
+        if self._deck is DeckId.TOOLS:
+            return self.document_block_mode_for_active_card(DeckId.TOOLS)
         return self.document_block_mode_for_active_card(DeckId.MAIN)
 
     def _needs_block_refresh(self) -> bool:
         """Return whether a stable paged deck should re-decide block mode."""
         if self._deck is DeckId.FINAL:
             return self.needs_document_block_refresh(DeckId.FINAL)
+        if self._deck is DeckId.TOOLS:
+            return self.needs_document_block_refresh(DeckId.TOOLS)
         return self.needs_document_block_refresh(DeckId.MAIN)
 
     def _compute_block_navigable(self) -> bool:
         """Recompute whether card-block navigation is available."""
         if self._deck is DeckId.FINAL:
             return self.compute_document_block_navigable(DeckId.FINAL)
+        if self._deck is DeckId.TOOLS:
+            return self.compute_document_block_navigable(DeckId.TOOLS)
         return self.compute_document_block_navigable(DeckId.MAIN)
 
     def _block_rail_widget(self) -> BlockRail | None:
@@ -152,10 +171,7 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         full paint of the current subject, and neither the search overlay
         nor the empty state is shown.
         """
-        from .card_documents import is_card_document_deck
-
-        deck = self._deck if is_card_document_deck(self._deck) else DeckId.MAIN
-        return self.document_block_rail_card(deck)
+        return self.document_block_rail_card(resolve_document_deck(self._deck))
 
     def _block_rail_cue(
         self, entries: list[BlockRailEntry], active_id: str | None
@@ -165,24 +181,17 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         Deck-aware wrapper over
         :meth:`~sase.ace.tui.widgets.decks.document_rail.DeckPanelDocumentRailMixin.document_block_rail_cue`.
         """
-        from .card_documents import is_card_document_deck
-
-        deck = self._deck if is_card_document_deck(self._deck) else DeckId.MAIN
-        return self.document_block_rail_cue(deck, entries, active_id)
+        return self.document_block_rail_cue(
+            resolve_document_deck(self._deck), entries, active_id
+        )
 
     def _sync_block_rail(self) -> None:
         """Show, refresh or hide the one-row block rail (never raises)."""
-        from .card_documents import is_card_document_deck
-
-        deck = self._deck if is_card_document_deck(self._deck) else DeckId.MAIN
-        self.sync_document_block_rail(deck)
+        self.sync_document_block_rail(resolve_document_deck(self._deck))
 
     def _sync_block_navigable(self) -> None:
         """Refresh the cached predicate; poke the footer when it flips."""
-        from .card_documents import is_card_document_deck
-
-        deck = self._deck if is_card_document_deck(self._deck) else DeckId.MAIN
-        self.sync_document_block_navigable(deck)
+        self.sync_document_block_navigable(resolve_document_deck(self._deck))
 
 
 __all__ = ["DeckPanelBlocksMixin"]

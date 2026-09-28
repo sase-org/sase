@@ -28,10 +28,10 @@ from sase.ace.tui.widgets.decks.view_policy import forced_block_mode, forced_dec
 
 
 def test_card_document_decks_is_main_and_final() -> None:
-    assert CARD_DOCUMENT_DECKS == (DeckId.MAIN, DeckId.FINAL)
+    assert CARD_DOCUMENT_DECKS == (DeckId.MAIN, DeckId.FINAL, DeckId.TOOLS)
     assert is_card_document_deck(DeckId.MAIN)
+    assert is_card_document_deck(DeckId.TOOLS)
     assert not is_card_document_deck(DeckId.FILES)
-    assert not is_card_document_deck(DeckId.TOOLS)
 
 
 def test_document_aliases_match_main() -> None:

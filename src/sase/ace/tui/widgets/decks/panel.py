@@ -27,6 +27,7 @@ from .empty_state import deck_empty_state
 from .files_spread import FilesSpreadView
 from .final.view import FinalDeckLoaded, FinalDeckView
 from .main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
+from .tool_runs.view import ToolRunsDeckLoaded, ToolRunsDeckView
 from .main_view import MainDeckView
 from .model import DeckId
 from .spec import DECK_SPECS, coerce_known_deck
@@ -79,6 +80,8 @@ class DeckPanel(  # type: ignore[misc]
         self._main_active_card: str | None = None
         self._final_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
         self._final_switcher: Any | None = None
+        self._tool_runs_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
+        self._tools_switcher: Any | None = None
         self._file_count = 0
         self._file_index = 0
         self._file_source_label: str | None = None
@@ -127,6 +130,7 @@ class DeckPanel(  # type: ignore[misc]
         with VerticalScroll(
             id=f"agent-deck-panel-{i}-tools-scroll", classes="deck-scroll -tools"
         ):
+            yield ToolRunsDeckView(classes="hidden")
             yield AgentLLMCallsPanel()
         with VerticalScroll(
             id=f"agent-deck-panel-{i}-final-scroll", classes="deck-scroll -final"
@@ -227,6 +231,11 @@ class DeckPanel(  # type: ignore[misc]
         self._update_empty_state()
         self.refresh_chrome()
         self._sync_files_views()
+        if deck is DeckId.TOOLS:
+            try:
+                self._sync_tools_hosts()
+            except Exception:
+                pass
         # Switching to Main or Files re-decides with the current geometry.
         if deck is DeckId.MAIN:
             try:
@@ -247,6 +256,77 @@ class DeckPanel(  # type: ignore[misc]
         except Exception:
             pass
 
+    def active_tools_card(self) -> str | None:
+        """Return the active Tools card id (``runs`` | ``llm-calls``).
+
+        Flag off, this is always ``llm-calls``: Tools is exactly
+        today's deck.
+        """
+        from sase.ace.tui.tool_runs.deck import (
+            TOOLS_LLM_CALLS_CARD_ID,
+            tools_card_ids,
+            tools_default_card,
+        )
+        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+
+        try:
+            enabled = bool(tool_runs_enabled())
+        except Exception:
+            enabled = False
+        if not enabled:
+            return TOOLS_LLM_CALLS_CARD_ID
+        try:
+            has_runs = bool(self._tool_runs_document.cards)
+        except Exception:
+            has_runs = False
+        try:
+            has_calls = bool(self.tools_view._has_displayed_content)  # type: ignore[attr-defined]
+        except Exception:
+            has_calls = False
+        ids = tools_card_ids(has_runs, has_calls)
+        try:
+            stored = self._stored_document_active(DeckId.TOOLS)  # type: ignore[attr-defined]
+        except Exception:
+            stored = None
+        if stored is not None and stored in ids:
+            return stored
+        try:
+            view_active = self.tool_runs_view.active_card_id  # type: ignore[attr-defined]
+            if view_active in ids:
+                return view_active
+        except Exception:
+            pass
+        return tools_default_card(ids, None)
+
+    def _sync_tools_hosts(self) -> None:
+        """Show exactly one Tools host for the active card (never raises)."""
+        try:
+            active = self.active_tools_card()
+        except Exception:
+            active = "llm-calls"
+        show_runs = active == "runs"
+        try:
+            runs_view = self.tool_runs_view  # type: ignore[attr-defined]
+        except Exception:
+            runs_view = None
+        try:
+            calls_view = self.tools_view  # type: ignore[attr-defined]
+        except Exception:
+            calls_view = None
+        try:
+            if runs_view is not None:
+                if show_runs:
+                    runs_view.remove_class("hidden")
+                else:
+                    runs_view.add_class("hidden")
+            if calls_view is not None:
+                if show_runs:
+                    calls_view.add_class("hidden")
+                else:
+                    calls_view.remove_class("hidden")
+        except Exception:
+            pass
+
     def _deck_is_empty(self, deck: DeckId) -> bool:
         deck = coerce_known_deck(deck, context="DeckPanel._deck_is_empty")
         if deck is DeckId.MAIN:
@@ -261,9 +341,14 @@ class DeckPanel(  # type: ignore[misc]
                 return True
         if deck is DeckId.TOOLS:
             try:
-                return not bool(self.tools_view._has_displayed_content)
+                runs = bool(self._tool_runs_document.cards)
             except Exception:
-                return True
+                runs = False
+            try:
+                calls = bool(self.tools_view._has_displayed_content)
+            except Exception:
+                calls = False
+            return not (runs or calls)
         if deck is DeckId.FINAL:
             try:
                 return not bool(self._final_document.cards)
@@ -284,12 +369,32 @@ class DeckPanel(  # type: ignore[misc]
                         self._deck,
                         subject_kind="agent",
                         hint=self._deck_switch_hint(),
+                        remote_machine=self._empty_state_remote_machine(),
                     )
                 )
             except Exception:
                 pass
         else:
             empty.remove_class("-shown")
+
+    def _empty_state_remote_machine(self) -> str | None:
+        """Return the fleet machine for the Tools remote line, if any."""
+        if self._deck is not DeckId.TOOLS:
+            return None
+        for view_attr in ("tool_runs_view", "tools_view"):
+            try:
+                agent = getattr(getattr(self, view_attr), "_current_agent", None)
+            except Exception:
+                agent = None
+            if agent is None:
+                continue
+            try:
+                machine = getattr(agent, "fleet_origin_alias", None)
+            except Exception:
+                machine = None
+            if machine:
+                return str(machine)
+        return None
 
     def _sync_files_views(self) -> None:
         try:
@@ -329,6 +434,10 @@ class DeckPanel(  # type: ignore[misc]
     @on(FinalDeckLoaded)
     def _on_final_deck_loaded(self, message: FinalDeckLoaded) -> None:
         self.handle_final_deck_loaded(message)
+
+    @on(ToolRunsDeckLoaded)
+    def _on_tool_runs_deck_loaded(self, message: ToolRunsDeckLoaded) -> None:
+        self.handle_tool_runs_deck_loaded(message)
 
 
 __all__ = ["DeckPanel", "DeckPanelFocusRequested"]

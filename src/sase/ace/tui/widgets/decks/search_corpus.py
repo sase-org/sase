@@ -47,9 +47,18 @@ def deck_search_corpus(panel: Any) -> str:
             return ""
     if deck is DeckId.TOOLS:
         try:
-            return panel.tools_view.get_llm_calls_text() or ""
+            runs_text = panel.tool_runs_view.get_tool_runs_text()
         except Exception:
-            return ""
+            runs_text = None
+        try:
+            calls_text = panel.tools_view.get_llm_calls_text() or ""
+        except Exception:
+            calls_text = ""
+        if not runs_text:
+            return calls_text
+        if not calls_text:
+            return runs_text
+        return f"{runs_text}\n{calls_text}"
     if deck is DeckId.FINAL:
         try:
             return panel.final_view.get_final_text() or ""

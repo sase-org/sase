@@ -395,9 +395,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1bt(ToolRunNodeSummaries)' \
         --epic-symbol 'sase-1bt(ToolRunStateStyle)' \
         --epic-symbol 'sase-1bt(ToolRunVerdictSummary)' \
-        --epic-symbol 'sase-1bt(format_min_sec)' \
-        --epic-symbol 'sase-1bt(format_settled_ts)' \
-        --epic-symbol 'sase-1bt(switcher_runs_text)' \
         --epic-symbol 'sase-1bt(tool_run_briefs)' \
         --epic-symbol 'sase-1bt(tool_run_log_tail)' \
         --epic-symbol 'sase-1bu(GoalWriteError)' \

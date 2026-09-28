@@ -117,6 +117,14 @@ def _deck_count_label(deck: DeckId, availability: object | None) -> str:
 
     if not isinstance(availability, DeckAvailability):
         return ""
+    if deck is DeckId.TOOLS and (
+        availability.runs_count is not None or availability.calls_count is not None
+    ):
+        from sase.ace.tui.tool_runs.deck import tools_picker_label
+
+        if availability.has_content is False:
+            return "empty"
+        return tools_picker_label(availability.runs_count, availability.calls_count)
     if availability.has_content is False:
         return "empty"
     if availability.count is None:

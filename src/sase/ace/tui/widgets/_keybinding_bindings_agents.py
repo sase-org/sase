@@ -62,6 +62,8 @@ class AgentBindingsMixin:
         tmux_choice_count: int = 0,
         llm_calls_visible: bool = False,
         llm_calls_detail_level: int = 0,
+        tools_detail_is_runs: bool = False,
+        tools_detail_level: int = 0,
         deck_split: bool = False,
         deck_card_count: int = 0,
         card_blocks_navigable: bool = False,
@@ -115,16 +117,24 @@ class AgentBindingsMixin:
             bindings.append((self._kd("quit"), "close artifact pane"))
 
         llm_calls_can_compact = False
+        collapse_all_label_runs = False
         if llm_calls_visible:
-            level = ToolDetailLevel(
-                max(
-                    ToolDetailLevel.COMPACT,
-                    min(ToolDetailLevel.FULL, int(llm_calls_detail_level)),
+            if tools_detail_is_runs:
+                runs_level = max(0, min(2, int(tools_detail_level)))
+                llm_calls_can_compact = runs_level > 0
+                collapse_all_label_runs = llm_calls_can_compact
+                if runs_level < 2:
+                    bindings.append((self._kd("expand_or_layout"), "more detail"))
+            else:
+                level = ToolDetailLevel(
+                    max(
+                        ToolDetailLevel.COMPACT,
+                        min(ToolDetailLevel.FULL, int(llm_calls_detail_level)),
+                    )
                 )
-            )
-            llm_calls_can_compact = level > ToolDetailLevel.COMPACT
-            if level < ToolDetailLevel.FULL:
-                bindings.append((self._kd("expand_or_layout"), "more detail"))
+                llm_calls_can_compact = level > ToolDetailLevel.COMPACT
+                if level < ToolDetailLevel.FULL:
+                    bindings.append((self._kd("expand_or_layout"), "more detail"))
 
         if panel_focused:
             bindings.append(
@@ -183,7 +193,9 @@ class AgentBindingsMixin:
 
         collapse_all_label: str | None = None
         if llm_calls_can_compact:
-            collapse_all_label = "compact LLM Calls"
+            collapse_all_label = (
+                "compact Runs" if collapse_all_label_runs else "compact LLM Calls"
+            )
         elif panel_focused:
             if not llm_calls_visible and panel_hint_collapse_available:
                 collapse_all_label = "collapse fold"

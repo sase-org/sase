@@ -345,7 +345,10 @@ class AgentFooterDisplayMixin:
                         except Exception:
                             deck_card_count = 0
                     elif focused.deck is _DeckId.TOOLS:
-                        deck_card_count = 1
+                        try:
+                            deck_card_count = len(focused._tools_tabs())  # type: ignore[attr-defined]
+                        except Exception:
+                            deck_card_count = 1
                     elif focused.deck is _DeckId.FINAL:
                         try:
                             deck_card_count = len(
@@ -429,6 +432,16 @@ class AgentFooterDisplayMixin:
                 ),
                 llm_calls_visible=llm_calls_visible,
                 llm_calls_detail_level=int(agent_detail.llm_calls_detail_level),
+                tools_detail_is_runs=bool(
+                    getattr(agent_detail, "active_tools_detail_is_runs", False)
+                ),
+                tools_detail_level=int(
+                    getattr(
+                        agent_detail,
+                        "active_tools_detail_level",
+                        int(agent_detail.llm_calls_detail_level),
+                    )
+                ),
                 deck_split=deck_split,
                 deck_card_count=deck_card_count,
                 card_blocks_navigable=card_blocks_navigable,

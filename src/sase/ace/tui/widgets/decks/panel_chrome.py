@@ -135,6 +135,42 @@ class DeckPanelChromeMixin:
             return ()
         return tuple(CardTab(card.card_id, card.title) for card in cards)
 
+    def _tools_tabs(self) -> tuple[CardTab, ...]:
+        """Return the Tools tabs (``⚒ Runs`` first, then ``LLM Calls``).
+
+        Flag off, this is always today's single ``LLM Calls`` tab. A
+        node without runs keeps the single tab; a monitor or named proc
+        without LLM calls shows only ``⚒ Runs``.
+        """
+        from sase.ace.tui.tool_runs.deck import tools_tabs
+        from sase.ace.tui.tool_runs.flag import tool_runs_enabled
+
+        try:
+            enabled = bool(tool_runs_enabled())
+        except Exception:
+            enabled = False
+        if not enabled:
+            return (CardTab("llm-calls", "LLM Calls"),)
+        try:
+            has_runs = bool(self._tool_runs_document.cards)  # type: ignore[attr-defined]
+        except Exception:
+            has_runs = False
+        try:
+            has_calls = bool(self.tools_view._has_displayed_content)  # type: ignore[attr-defined]
+        except Exception:
+            has_calls = False
+        if not has_runs and not has_calls:
+            try:
+                avail = self._availability.get(DeckId.TOOLS)  # type: ignore[attr-defined]
+                if getattr(avail, "has_content", False):
+                    has_runs = int(getattr(avail, "runs_count", 0) or 0) > 0
+                    has_calls = int(getattr(avail, "calls_count", 0) or 0) > 0
+                    if not has_runs and not has_calls:
+                        has_calls = True
+            except Exception:
+                pass
+        return tuple(tools_tabs(has_runs, has_calls))
+
     def _active_tab_index(self) -> int | None:
         from .spec import coerce_known_deck
 
@@ -157,7 +193,22 @@ class DeckPanelChromeMixin:
             except Exception:
                 return None
         if deck is DeckId.TOOLS:
-            return 0
+            try:
+                tabs = self._tools_tabs()
+            except Exception:
+                return 0
+            if not tabs:
+                return None
+            try:
+                active = self.active_tools_card()  # type: ignore[attr-defined]
+            except Exception:
+                active = None
+            if active is None:
+                return 0
+            try:
+                return [tab.card_id for tab in tabs].index(active)
+            except ValueError:
+                return 0
         if deck is DeckId.FINAL:
             try:
                 ids = [card.card_id for card in self._final_document.cards]  # type: ignore[attr-defined]
@@ -413,7 +464,7 @@ class DeckPanelChromeMixin:
         elif deck is DeckId.FILES:
             tabs = self._files_tabs()
         elif deck is DeckId.TOOLS:
-            tabs = (CardTab("llm-calls", "LLM Calls"),)
+            tabs = self._tools_tabs()
         elif deck is DeckId.FINAL:
             tabs = self._final_tabs()
         else:
@@ -457,6 +508,13 @@ class DeckPanelChromeMixin:
             switcher = getattr(self, "_final_switcher", None)
             if switcher is not None:
                 status_segments = {DeckId.FINAL: switcher}
+            tools_switcher = getattr(self, "_tools_switcher", None)
+            if tools_switcher is not None:
+                if status_segments is None:
+                    status_segments = {}
+                else:
+                    status_segments = dict(status_segments)
+                status_segments[DeckId.TOOLS] = tools_switcher
             self.border_subtitle = deck_subtitle(  # type: ignore[attr-defined]
                 deck,
                 self._availability,  # type: ignore[attr-defined]

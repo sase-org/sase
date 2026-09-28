@@ -50,6 +50,22 @@ class AgentDetailDeckTargetsMixin:
             return None
         return None
 
+    def focused_tool_runs_view(self) -> Any | None:
+        """Return the Runs view only when Tools shows the Runs card."""
+        try:
+            from .decks.model import DeckId
+
+            focused = self.deck_area.focused_panel()  # type: ignore[attr-defined]
+            if focused.deck is DeckId.TOOLS:
+                try:
+                    if focused.active_tools_card() == "runs":
+                        return focused.tool_runs_view
+                except Exception:
+                    return None
+        except Exception:
+            return None
+        return None
+
     def focused_final_view(self) -> Any | None:
         """Return the FINAL view only when the focused deck is FINAL."""
         try:

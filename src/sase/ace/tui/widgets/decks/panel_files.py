@@ -601,13 +601,76 @@ class DeckPanelFilesMixin:
         self, message: LLMCallsVisibilityChanged
     ) -> None:
         self._tools_has_content = bool(message.has_llm_calls)
-        self._availability[DeckId.TOOLS] = DeckAvailability(
-            bool(message.has_llm_calls), None
-        )
+        try:
+            from ...tool_runs.flag import tool_runs_enabled
+
+            enabled = bool(tool_runs_enabled())
+        except Exception:
+            enabled = False
+        if not enabled:
+            self._availability[DeckId.TOOLS] = DeckAvailability(
+                bool(message.has_llm_calls), None
+            )
+        else:
+            self._availability[DeckId.TOOLS] = self._merged_tools_calls_availability(
+                bool(message.has_llm_calls)
+            )
+            try:
+                self._sync_tools_hosts()  # type: ignore[attr-defined]
+            except Exception:
+                pass
         self.refresh_chrome()
         self._update_empty_state()
         self._notify_duplicate_ready(DeckId.TOOLS)
         message.stop()
+
+    def _merged_tools_calls_availability(self, has_calls: bool) -> DeckAvailability:
+        """Return Tools availability with the LLM Calls card merged.
+
+        The Runs card's part is preserved, never overwritten: the deck
+        has content when either card does.
+        """
+        try:
+            current = self._availability.get(DeckId.TOOLS)
+        except Exception:
+            current = None
+        runs_count = 0
+        has_runs = False
+        if current is not None:
+            try:
+                runs_count = int(getattr(current, "runs_count", 0) or 0)
+            except (TypeError, ValueError):
+                runs_count = 0
+            has_runs = runs_count > 0
+        if not has_runs:
+            try:
+                has_runs = bool(self._tool_runs_document.cards)  # type: ignore[attr-defined]
+            except Exception:
+                has_runs = False
+            if has_runs:
+                try:
+                    runs_count = len(self._tool_runs_document.cards[0].blocks)  # type: ignore[attr-defined]
+                except Exception:
+                    runs_count = 0
+        try:
+            calls_count: int | None = None
+            if has_calls:
+                try:
+                    entries = getattr(self.tools_view, "_entries", None)  # type: ignore[attr-defined]
+                    calls_count = len(entries) if entries is not None else None
+                except Exception:
+                    calls_count = None
+                if calls_count is None and current is not None:
+                    calls_count = getattr(current, "calls_count", None)
+        except Exception:
+            calls_count = None
+        has_content: bool | None = True if (has_calls or has_runs) else False
+        return DeckAvailability(
+            has_content,
+            calls_count,
+            runs_count=runs_count if has_runs else 0,
+            calls_count=calls_count,
+        )
 
 
 __all__ = ["DeckPanelFilesMixin"]

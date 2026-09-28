@@ -166,6 +166,60 @@ class AgentDetailStateMixin:
             else llm_calls_panel.set_detail_level(level)
         )
 
+    @property
+    def active_tools_detail_level(self) -> int:
+        """Return the active Tools card's detail level as an int.
+
+        The Runs card owns its level (COMPACT/STANDARD/FULL, default
+        STANDARD); the LLM Calls card owns its own. h/l on one card
+        never moves the other.
+        """
+        try:
+            runs_view = self.focused_tool_runs_view()  # type: ignore[attr-defined]
+        except Exception:
+            runs_view = None
+        if runs_view is not None:
+            try:
+                return int(runs_view.detail_level)
+            except Exception:
+                pass
+        try:
+            return int(self.llm_calls_detail_level)
+        except Exception:
+            return 0
+
+    @property
+    def active_tools_detail_is_runs(self) -> bool:
+        """Return whether the active Tools card is the Runs card."""
+        try:
+            return self.focused_tool_runs_view() is not None  # type: ignore[attr-defined]
+        except Exception:
+            return False
+
+    def expand_tool_runs_detail(self) -> bool:
+        """Expand the visible Runs card by one detail level."""
+        try:
+            runs_view = self.focused_tool_runs_view()  # type: ignore[attr-defined]
+        except Exception:
+            runs_view = None
+        return False if runs_view is None else bool(runs_view.expand_detail())
+
+    def collapse_tool_runs_detail(self) -> bool:
+        """Collapse the visible Runs card by one detail level."""
+        try:
+            runs_view = self.focused_tool_runs_view()  # type: ignore[attr-defined]
+        except Exception:
+            runs_view = None
+        return False if runs_view is None else bool(runs_view.collapse_detail())
+
+    def set_tool_runs_detail_level(self, level: int) -> bool:
+        """Set the visible Runs card detail level."""
+        try:
+            runs_view = self.focused_tool_runs_view()  # type: ignore[attr-defined]
+        except Exception:
+            runs_view = None
+        return False if runs_view is None else bool(runs_view.set_detail_level(level))
+
     def _llm_calls_panel_or_none(self) -> AgentLLMCallsPanel | None:
         try:
             focused_view = self.focused_tools_view()  # type: ignore[attr-defined]

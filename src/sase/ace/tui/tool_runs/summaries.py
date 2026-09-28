@@ -151,6 +151,27 @@ def _cached_node_summary(
         return entry
 
 
+def cached_node_summary_for_selector(
+    selector: ToolRunSelector,
+) -> ToolRunNodeSummary | None:
+    """Return the newest LRU entry for *selector* across store tokens.
+
+    A pure memory read: no stat, no SQLite open. Used by no-I/O
+    availability probes that cannot afford even the stat-only token.
+    """
+
+    with _summary_lock:
+        best_key: tuple[str, str] | None = None
+        best: ToolRunNodeSummary | None = None
+        for full_key, entry in _summary_lru.items():
+            if full_key[0] != selector.key:
+                continue
+            best_key, best = full_key, entry
+        if best_key is not None:
+            _summary_lru.move_to_end(best_key)
+        return best
+
+
 def _store_node_summary(
     selector: ToolRunSelector,
     store_token: Any | None,
@@ -323,6 +344,7 @@ __all__ = [
     "NODE_SUMMARY_LRU_CAPACITY",
     "NODE_SUMMARY_PER_NODE_LIMIT",
     "ToolRunSelector",
+    "cached_node_summary_for_selector",
     "node_live_runs",
     "resolve_tool_run_summary",
     "selector_for_agent",

@@ -50,10 +50,14 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
     def _route_llm_calls_detail_level(
         self, action: Literal["collapse", "expand", "min", "max"]
     ) -> bool:
-        """Route fold keys to the Agents-tab LLM Calls panel when it is active.
+        """Route fold keys to the active Agents-tab Tools card.
 
-        Returns True when the key was handled by the LLM Calls panel, even if the
-        panel was already at the requested level.
+        h/l/H/L route by active card: the ``⚒ Runs`` card owns its
+        level (COMPACT/STANDARD/FULL) and the LLM Calls card owns its
+        own, so one card's keys never move the other.
+
+        Returns True when the key was handled by a Tools card, even if
+        that card was already at the requested level.
         """
         if self.current_tab != "agents":
             return False
@@ -71,8 +75,26 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 return False
         except Exception:
             return False
+        try:
+            runs_active = bool(agent_detail.active_tools_detail_is_runs)  # type: ignore[attr-defined]
+        except Exception:
+            runs_active = False
+        if runs_active:
+            from ...tool_runs.deck import ToolRunsDetailLevel
 
-        if action == "expand":
+            if action == "expand":
+                changed = agent_detail.expand_tool_runs_detail()
+            elif action == "collapse":
+                changed = agent_detail.collapse_tool_runs_detail()
+            elif action == "max":
+                changed = agent_detail.set_tool_runs_detail_level(
+                    ToolRunsDetailLevel.FULL
+                )
+            else:
+                changed = agent_detail.set_tool_runs_detail_level(
+                    ToolRunsDetailLevel.COMPACT
+                )
+        elif action == "expand":
             changed = agent_detail.expand_tools_detail()
         elif action == "collapse":
             changed = agent_detail.collapse_tools_detail()

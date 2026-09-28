@@ -21,6 +21,8 @@ class DeckAvailability:
 
     has_content: bool | None
     count: int | None
+    runs_count: int | None = None
+    calls_count: int | None = None
 
 
 DeckAvailabilitySet = Mapping["DeckId", DeckAvailability]
@@ -49,21 +51,71 @@ def probe_files_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
 
 
 def probe_tools_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailability:
-    """Probe Tools availability without I/O."""
+    """Probe Tools availability without I/O.
+
+    The deck has content when it has LLM calls **or** tool runs. The
+    Runs part reads the node-summary LRU plus the glance snapshot, with
+    no I/O, and opens for monitor turns and named procs that own runs.
+    Pinned attempts, clans, tribes, and remote rows stay without Runs.
+    """
     from ...llm_calls import supports_slow_tool_sources
 
     if attempt_number is not None:
         return DeckAvailability(False, 0)
-    if agent.is_clan_container or agent.is_named_proc:
+    if agent.is_clan_container:
         return DeckAvailability(False, 0)
-    if not supports_slow_tool_sources(agent):
-        return DeckAvailability(False, 0)
-    count = cached_tool_call_count(agent)
-    if count is None:
+    calls_has: bool | None
+    calls_count: int | None
+    if agent.is_named_proc or not supports_slow_tool_sources(agent):
+        calls_has, calls_count = False, 0
+    else:
+        count = cached_tool_call_count(agent)
+        if count is None:
+            calls_has, calls_count = None, None
+        elif count == 0:
+            calls_has, calls_count = False, 0
+        else:
+            calls_has, calls_count = True, count
+    try:
+        from ...tool_runs.flag import tool_runs_enabled
+    except Exception:
+        return _calls_only_availability(calls_has, calls_count)
+    try:
+        enabled = bool(tool_runs_enabled())
+    except Exception:
+        enabled = False
+    if not enabled:
+        return _calls_only_availability(calls_has, calls_count)
+    from ...tool_runs.deck import probe_tool_runs_card
+
+    try:
+        runs_has, runs_count = probe_tool_runs_card(
+            agent, attempt_number=attempt_number
+        )
+    except Exception:
+        runs_has, runs_count = None, 0
+    if runs_has is None and calls_has is None:
+        return DeckAvailability(None, None, None, calls_count)
+    has_content: bool | None = bool(calls_has) or bool(runs_has)
+    if runs_has is None and not calls_has:
+        has_content = None
+    return DeckAvailability(
+        has_content,
+        calls_count,
+        runs_count=runs_count if runs_has else 0,
+        calls_count=calls_count,
+    )
+
+
+def _calls_only_availability(
+    calls_has: bool | None, calls_count: int | None
+) -> DeckAvailability:
+    """Return the pre-``tools-deck-cards`` Tools availability (flag off)."""
+    if calls_has is None:
         return DeckAvailability(None, None)
-    if count == 0:
+    if not calls_has:
         return DeckAvailability(False, 0)
-    return DeckAvailability(True, count)
+    return DeckAvailability(True, calls_count)
 
 
 def probe_final_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailability:
