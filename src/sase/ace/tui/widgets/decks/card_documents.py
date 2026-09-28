@@ -191,12 +191,17 @@ class DeckPanelCardDocumentsMixin:
             if deck is DeckId.MAIN:
                 self.watch(scroll, "scroll_y", self._on_main_scroll_y, init=False)  # type: ignore[attr-defined]
             else:
-                handler = lambda _o, _n, _d=deck: self._on_document_scroll_y(_d, _o, _n)  # noqa: E731
+                # Textual dispatches watchers by signature arity, counting
+                # defaulted parameters, so the callback must take exactly
+                # (old, new) and must not use `_x=value` default binding.
+                def handler(old: float, new: float) -> None:
+                    self._on_document_scroll_y(deck, old, new)
+
                 self.watch(scroll, "scroll_y", handler, init=False)  # type: ignore[attr-defined]
         except Exception:
             pass
 
-    def _on_document_scroll_y(self, deck: DeckId, _old: int, _new: int) -> None:
+    def _on_document_scroll_y(self, deck: DeckId, _old: float, _new: float) -> None:
         """Handle scroll updates for any card-document deck."""
         if self._deck is not deck:
             return
@@ -223,7 +228,7 @@ class DeckPanelCardDocumentsMixin:
                 except Exception:
                     pass
         try:
-            self._sync_document_spread_block_cursor(deck)  # type: ignore[attr-defined]
+            self.sync_document_spread_block_cursor(deck)  # type: ignore[attr-defined]
         except Exception:
             pass
 

@@ -53,7 +53,7 @@ class DeckPanelInteractionMixin:
         except Exception:
             pass
 
-    def _on_main_scroll_y(self, _old: int, _new: int) -> None:
+    def _on_main_scroll_y(self, _old: float, _new: float) -> None:
         if self._deck is not DeckId.MAIN:
             return
         spread = False
@@ -87,7 +87,7 @@ class DeckPanelInteractionMixin:
         except Exception:
             pass
 
-    def _on_files_scroll_y(self, _old: int, _new: int) -> None:
+    def _on_files_scroll_y(self, _old: float, _new: float) -> None:
         if not self.is_spread(DeckId.FILES) or self._deck is not DeckId.FILES:
             return
         try:
