@@ -75,7 +75,7 @@ _CASES = (
         ("right_square_bracket", "right_square_bracket"),
     ),
     _ResumeCase("procs", "4"),
-    _ResumeCase("updates", "7"),
+    _ResumeCase("updates", "8"),
     _ResumeCase("xprompts", "1", move_key="ctrl+n"),
 )
 

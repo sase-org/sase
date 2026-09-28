@@ -270,7 +270,7 @@ async def test_blocked_write_keeps_navigation_responsive_and_persists_latest(
         try:
             await page.press("4")
             await page.wait_for(lambda _state: modal._active_tab == "procs")
-            await page.press("7")
+            await page.press("8")
             await page.wait_for(lambda _state: modal._active_tab == "updates")
             assert page.app._last_admin_center_tab == "updates"
             assert writes == []

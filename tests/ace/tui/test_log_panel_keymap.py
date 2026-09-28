@@ -97,6 +97,7 @@ def test_admin_center_tabs_are_alphabetical_by_label() -> None:
         "procs",
         "projects",
         "statistics",
+        "tools",
         "updates",
     )
 

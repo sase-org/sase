@@ -483,7 +483,7 @@ async def test_updates_pane_offline_reload_does_not_retain_freshness(
         assert pane._reusable_fresh_editable_roots() == frozenset()
 
 
-async def test_config_center_cycles_seven_tabs(
+async def test_config_center_cycles_all_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -500,6 +500,7 @@ async def test_config_center_cycles_seven_tabs(
             "procs",
             "projects",
             "statistics",
+            "tools",
             "updates",
             "config",
         ):
