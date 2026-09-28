@@ -1,9 +1,9 @@
-"""Tab-scoped bulk confirmation wording tests (sase-1bc.6.1.5).
+"""Tab-scoped bulk confirmation wording tests (sase-1bc.6.1.5 / sase-1bc.6.1.6.3).
 
-Covers the scope-honesty phase: the bulk scope label helper in both flag
-states, the cleanup panel modal wording, the D/K confirm modal wording,
-the marked off-tab line, the tribe/custom selector headers, and the `,u`
-clear-marks toast.
+Covers the bulk scope label helper in both flag states, the cleanup panel
+modal wording, the D/K confirm modal wording, the marked off-tab line
+(including a clan container counted once and remote rows in N and M), the
+tribe/custom selector headers, and the `,u` clear-marks toast.
 """
 
 from __future__ import annotations
@@ -51,6 +51,9 @@ def _row(
     tab: str | None = None,
     status: str = "RUNNING",
     pid: int | None = 4242,
+    agent_clan: str | None = None,
+    is_clan_container: bool = False,
+    fleet_origin_alias: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -61,6 +64,9 @@ def _row(
         raw_suffix=suffix,
         pid=pid,
         agent_tab=tab,
+        agent_clan=agent_clan,
+        is_clan_container=is_clan_container,
+        fleet_origin_alias=fleet_origin_alias,
     )
 
 
@@ -83,6 +89,7 @@ class _ScopeOwner(AgentMarkedKillMixin, AgentMarkNavigationMixin, AgentTabsMixin
         self._agent_tab_known_labels: dict[Any, str] = {}
         self.pushed: list[Any] = []
         self.notices: list[str] = []
+        self.remote_stops: list[list[Any]] = []
         self._ensure_agent_tabs_state()
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
@@ -102,6 +109,10 @@ class _ScopeOwner(AgentMarkedKillMixin, AgentMarkNavigationMixin, AgentTabsMixin
         """Stand in for the durable bulk-kill machinery (never confirmed here)."""
         del args, kwargs
         return True
+
+    def _confirm_remote_stop(self, agents: Any) -> None:
+        """Capture remote-stop confirms so mixed marked sets still show the modal."""
+        self.remote_stops.append(list(agents))
 
 
 def _two_tab_owner() -> _ScopeOwner:
@@ -245,6 +256,51 @@ def test_marked_bulk_modal_no_line_when_all_on_active_tab() -> None:
     assert "other tabs" not in owner.pushed[0].agent_description
 
 
+def test_marked_bulk_modal_off_tab_clan_container_counts_once() -> None:
+    local = _row("a")
+    container = _row(
+        "clan", tab="sase", agent_clan="research", is_clan_container=True, pid=None
+    )
+    members = [
+        _row("c1", tab="sase", agent_clan="research"),
+        _row("c2", tab="sase", agent_clan="research"),
+        _row("c3", tab="sase", agent_clan="research"),
+    ]
+    owner = _ScopeOwner([local, container, *members])
+    owner._marked_agents = {container.identity}
+    owner._marked_agent_order = [container.identity]
+    with override_flags(agent_tabs=False):
+        owner._bulk_kill_marked_agents()
+    assert len(owner.pushed) == 1
+    assert "other tabs" not in owner.pushed[0].agent_description
+    owner.pushed.clear()
+    with override_flags(agent_tabs=True):
+        owner._bulk_kill_marked_agents()
+    assert len(owner.pushed) == 1
+    assert "1 of 1 marked agents are on other tabs" in (
+        owner.pushed[0].agent_description
+    )
+
+
+def test_marked_bulk_modal_off_tab_remote_counts_in_n_and_m() -> None:
+    local = _row("a")
+    remote = _row("b", tab="sase", fleet_origin_alias="apollo")
+    owner = _ScopeOwner([local, remote])
+    with override_flags(agent_tabs=False):
+        owner._bulk_kill_marked_agents()
+    assert len(owner.pushed) == 1
+    assert "other tabs" not in owner.pushed[0].agent_description
+    owner.pushed.clear()
+    owner.remote_stops.clear()
+    with override_flags(agent_tabs=True):
+        owner._bulk_kill_marked_agents()
+    assert len(owner.pushed) == 1
+    assert "1 of 2 marked agents are on other tabs" in (
+        owner.pushed[0].agent_description
+    )
+    assert len(owner.remote_stops) == 1
+
+
 # Tribe/custom selector headers.
 
 
@@ -256,9 +312,15 @@ def test_tribe_custom_headers_default_wording_unchanged() -> None:
 
 
 def test_tribe_custom_headers_scope_wording_flag_on() -> None:
+    from sase.ace.tui.models.agent_tab_index import ALL_AGENT_TABS
+
     owner = _two_tab_owner()
     with override_flags(agent_tabs=True):
         assert _tribe_cleanup_header(owner, ("deploy",)) == "Tribe: @deploy on main"
+        assert _custom_cleanup_header(owner) == "Custom selection on main"
+        owner._active_agent_tab = _SASE
+        assert _custom_cleanup_header(owner) == "Custom selection on sase"
+        owner._active_agent_tab = ALL_AGENT_TABS  # type: ignore[assignment]
         assert _custom_cleanup_header(owner) == "Custom selection across all tabs"
 
 

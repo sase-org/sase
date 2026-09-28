@@ -4923,7 +4923,7 @@ flags deprecated. The currently registered flags are:
 | `admin_center_flags`           | sunset  | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                      |
 | `agent_decks`                  | retired | —       | The Agents tab always shows agent data decks and cards now; the beta flag is removed. See [Agent data decks and cards](ace.md#agent-data-decks-and-cards). |
 | `agent_sudo_requests`          | beta    | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                        |
-| `agent_tabs`                   | beta    | `false` | The Agents tab shows one agent tab at a time with a tab strip, `]`/`[` tab cycling, and cross-tab navigation.                                              |
+| `agent_tabs`                   | beta    | `false` | The Agents tab shows one agent tab at a time with a tab strip, `[/]` tab cycling, and cross-tab navigation.                                                |
 | `agents_unified_query`         | sunset  | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                 |
 | `axe_routine_job_contract`     | sunset  | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                      |
 | `bgcmd_legacy_slots`           | sunset  | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                             |

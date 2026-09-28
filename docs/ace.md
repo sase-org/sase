@@ -1293,6 +1293,25 @@ invalid feed reads `feed invalid`, is named in the Agents header, and adds a **F
 error** line to the detail panel, so cached data never looks silently healthy. A remote
 row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 
+### Agent Tabs (beta)
+
+Behind the `agent_tabs` beta flag (`feature_flags.agent_tabs: true`), the Agents tab
+shows one agent tab at a time instead of the whole roster. Tabs come from each root's
+recorded tab. Local roots land on `main`. Remote roots land on a per-machine tab only in
+machine mode (`ace.agent_tabs.machine_tabs`: `on`, or `auto` when dispatch machines are
+configured); otherwise they land on `main` or their named tab, the same as local roots.
+A minimal strip beside the fleet status names the tabs. `]` / `[` cycle tabs, every
+cross-tab jump switches tabs first and then reveals its target, and selection, folds,
+and sticky panels are remembered per tab; the active tab persists across restarts.
+
+Bulk confirmations name their scope while the strip is visible: panel-wide actions and
+the custom selector read `on <tab>` (for example `on sase`), `across all tabs` only at
+the all-tabs scope, and a marked cleanup that spans tabs adds an
+`N of M marked agents are on other tabs` line. Marks themselves stay global. Tab
+styling, ordering, and machine-mode behavior live under `ace.agent_tabs` (see
+`docs/configuration.md`). With the flag off, the Agents tab is exactly today's single
+roster: no strip, no tab keys, and unchanged wording.
+
 ### Navigation
 
 | Key                       | Action                                                                                                                                                               |
@@ -1362,22 +1381,6 @@ ancestor chain, switches tribe panels when needed, and participates in the norma
 `Ctrl+O` jump-back history. A digit on a dismissed neighbor revives that agent instead
 of jumping. If the roster or the neighbor relationship changed since the panel was
 drawn, the jump is cancelled with a warning rather than landing somewhere stale.
-
-#### Agent Tabs (beta)
-
-Behind the `agent_tabs` beta flag (`feature_flags.agent_tabs: true`), the Agents tab
-shows one agent tab at a time instead of the whole roster. Tabs come from each root's
-recorded tab (local roots land on `main`; remote roots land on a per-machine tab), and a
-minimal strip beside the fleet status names the tabs. `]` / `[` cycle tabs, every
-cross-tab jump switches tabs first and then reveals its target, and selection, folds,
-and sticky panels are remembered per tab; the active tab persists across restarts.
-
-Bulk confirmations name their scope while the strip is visible: panel-wide actions read
-`on <tab>` (for example `on sase`), the custom selector reads `across all tabs`, and a
-marked cleanup that spans tabs adds an `N of M marked agents are on other tabs` line.
-Marks themselves stay global. Tab styling, ordering, and machine-mode behavior live
-under `ace.agent_tabs` (see `docs/configuration.md`). With the flag off, the Agents tab
-is exactly today's single roster: no strip, no tab keys, and unchanged wording.
 
 ### Agent Actions
 

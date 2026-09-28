@@ -28,17 +28,18 @@ def _tribe_cleanup_header(
 
 
 def _custom_cleanup_header(owner: object) -> str:
-    """Return the custom cleanup confirmation header with scope wording.
+    """Return the custom cleanup confirmation header with tab scope wording.
 
-    The custom selector resolves against the whole roster, so it reads
-    ``across all tabs`` whenever a bulk scope label exists (flag on with the
-    strip visible). Otherwise today's header is byte-identical.
+    Custom cleanup candidates come from the focused panel on the active
+    tab, so the header names that tab (``Custom selection on sase``) when
+    a bulk scope label exists. ``across all tabs`` is used only at the
+    all-tabs scope. None keeps today's header byte-identical.
     """
     from ._agent_tabs import bulk_scope_label_for_owner
 
-    if bulk_scope_label_for_owner(owner) is None:
-        return "Custom selection"
-    return "Custom selection across all tabs"
+    label = "Custom selection"
+    scope = bulk_scope_label_for_owner(owner)
+    return f"{label} {scope}" if scope else label
 
 
 class AgentCleanupSelectionMixin:

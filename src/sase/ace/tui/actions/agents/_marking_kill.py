@@ -271,10 +271,19 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         none of the four buckets are named in the modal instead of being
         silently kept.  *marked_total*, given only on the marked-set paths,
         appends an "N of M marked agents are on other tabs" line when any
-        marked agent sits off the active tab.
+        marked agent sits off the active tab. N and M are counted over the
+        marks as placed (a clan container once, remote rows included),
+        before clan expansion or remote filtering.
         """
         from ._clan_cleanup import clan_members_for_container
         from ._core import DISMISSABLE_STATUSES
+
+        off_tab_marked = 0
+        if marked_total is not None:
+            from ._agent_tabs import marked_off_tab_count_for_owner
+
+            off_tab_marked = marked_off_tab_count_for_owner(self, agents)
+            marked_total = len(agents)
 
         # A clan row is a synthetic selection target, never a persistence or
         # process target. Expand it to its real loaded rows and deduplicate in
@@ -315,12 +324,6 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             )
             self._confirm_remote_stop(remote_agents)  # type: ignore[attr-defined]
             agents = local_agents
-
-        off_tab_marked = 0
-        if marked_total is not None:
-            from ._agent_tabs import marked_off_tab_count_for_owner
-
-            off_tab_marked = marked_off_tab_count_for_owner(self, agents)
 
         from ._named_proc_dismiss import (
             partition_named_procs,
