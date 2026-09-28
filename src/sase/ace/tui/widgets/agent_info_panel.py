@@ -22,6 +22,9 @@ class AgentInfoPanel(Static):
     class FilterClicked(Message):
         """The rendered filter-query segment was clicked; open the editor."""
 
+    class SidebarChipClicked(Message):
+        """The rendered ``nodes`` chip was clicked; expand the node rail."""
+
     _TOTAL_COUNT_STYLE = "bold #FFFFFF"
     _NAMED_PROC_BADGE_STYLE = "bold #5FD7FF"
 
@@ -50,6 +53,7 @@ class AgentInfoPanel(Static):
         self._search_query_match_count: tuple[int, int] | None = None
         self._search_query_partial_history: bool = False
         self._search_query_click_span: tuple[int, int] | None = None
+        self._sidebar_chip_click_span: tuple[int, int] | None = None
         self._countdown_text_span: tuple[int, int] | None = None
         self._countdown_render_template: tuple[Text, Text] | None = None
         self._loading: bool = False
@@ -428,6 +432,7 @@ class AgentInfoPanel(Static):
         self._append_status_strip(text)
         self._append_named_proc_badge(text)
         self._search_query_click_span = None
+        self._sidebar_chip_click_span = None
         if self._search_query_rich is not None:
             self._append_separator(text)
             text.append("filter: ", style="dim italic")
@@ -466,6 +471,7 @@ class AgentInfoPanel(Static):
             )
         elif self._sidebar_mode is SidebarMode.RAIL:
             self._append_separator(text)
+            chip_start = text.cell_len
             text.append("nodes ", style="dim")
             text.append(
                 f"{self._position}/{self._total}", style=self._TOTAL_COUNT_STYLE
@@ -474,6 +480,7 @@ class AgentInfoPanel(Static):
             if not is_unbound_key(collapse_key):
                 text.append(_ELEMENT_SEPARATOR, style="dim")
                 text.append(key_display_name(collapse_key), style="dim")
+            self._sidebar_chip_click_span = (chip_start, text.cell_len)
         grouping_label = self._grouping_mode or "by project"
         self._append_separator(text)
         text.append("group: ", style="dim")
@@ -524,7 +531,14 @@ class AgentInfoPanel(Static):
         self._render_panel_text(layout=False)
 
     def on_click(self, event: Click) -> None:
-        """Open the filter editor when the rendered query segment is clicked."""
+        """Open the filter editor or expand the rail from a clicked segment."""
+        chip_span = self._sidebar_chip_click_span
+        if chip_span is not None:
+            start, end = chip_span
+            if start <= event.x < end:
+                event.stop()
+                self.post_message(self.SidebarChipClicked())
+                return
         span = self._search_query_click_span
         if span is None:
             return

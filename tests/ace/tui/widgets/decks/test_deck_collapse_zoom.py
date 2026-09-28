@@ -14,10 +14,6 @@ from sase.ace.tui.widgets.decks.model import (
     DeckLayout,
     DeckPanelState,
 )
-from sase.ace.tui.widgets.decks.node_spine import (
-    NodeSpine,
-    _spine_geometry,
-)
 from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
 
 _ROOT = Path(__file__).resolve().parents[5]
@@ -167,20 +163,13 @@ def test_expanded_split_zoom_split_key_keeps_preference() -> None:
     assert ended.nodes_collapsed is False
 
 
-def test_node_spine_expand_requested_handler_name() -> None:
-    assert NodeSpine.ExpandRequested.handler_name == "on_node_spine_expand_requested"
+def test_sidebar_chip_message_handler_name() -> None:
+    from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 
-
-def test_spine_geometry_edges() -> None:
-    assert _spine_geometry(0, 0, 5) == (0, 0)
-    assert _spine_geometry(10, 0, 0) == (0, 0)
-    start, size = _spine_geometry(10, 0, 5)
-    assert (start, size) == (0, 2)
-    end_start, end_size = _spine_geometry(10, 4, 5)
-    assert end_start + end_size <= 10
-    assert end_start > start
-    single_start, single_size = _spine_geometry(7, 0, 1)
-    assert (single_start, single_size) == (0, 7)
+    assert (
+        AgentInfoPanel.SidebarChipClicked.handler_name
+        == "on_agent_info_panel_sidebar_chip_clicked"
+    )
 
 
 def _check(action: str, tab: str) -> bool | None:
@@ -381,18 +370,23 @@ async def test_split_key_ends_zoom_from_expanded_brings_list_back(
         assert detail.deck_area.state.nodes_collapsed is False
 
 
-async def test_spine_tracks_selection() -> None:
-    from textual.app import App as _App
-    from textual.app import ComposeResult as _ComposeResult
+async def test_sidebar_chip_click_span_covers_rail_nodes_segment() -> None:
+    from unittest.mock import patch
 
-    class _SpineApp(_App[None]):
-        def compose(self) -> _ComposeResult:
-            yield NodeSpine(id="agent-node-spine")
+    from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
+    from sase.ace.tui.widgets.decks.layout import SidebarMode
+    from tests.ace.tui.widgets._agent_info_panel_helpers import (
+        collect_text,
+        stable_state_kwargs,
+    )
 
-    app = _SpineApp()
-    async with app.run_test(size=(10, 12)):
-        spine = app.query_one("#agent-node-spine", NodeSpine)
-        spine.update_position(3, 47)
-        assert spine.position == (3, 47)
-        spine.update_position(0, 0)
-        assert spine.position == (0, 0)
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_state(
+            **stable_state_kwargs(position=3, total=9, sidebar_mode=SidebarMode.RAIL)
+        )  # type: ignore[arg-type]
+    span = panel._sidebar_chip_click_span
+    assert span is not None
+    start, end = span
+    assert end > start
+    assert "nodes 3/9" in collect_text(panel)[start:end]

@@ -300,12 +300,20 @@ class PanelPatchMixin:
         return True
 
     def _patch_agent_runtime_rows(self) -> int:
-        """Patch visible Agents-tab rows with active runtime suffixes."""
+        """Patch visible Agents-tab rows with active runtime suffixes.
+
+        Skipped while the node rail is showing: rail rows carry no
+        runtimes, and expanding runs one catch-up call so the first
+        expanded frame is current.
+        """
         from textual.css.query import NoMatches
 
         from ...widgets import AgentList
+        from ...widgets.decks.layout import SidebarMode
 
         if self.current_tab != "agents":
+            return 0
+        if getattr(self, "_agents_sidebar_mode", None) is SidebarMode.RAIL:
             return 0
         if not getattr(self, "_agents_first_load_done", False):
             return 0

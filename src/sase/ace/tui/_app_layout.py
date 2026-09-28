@@ -140,9 +140,6 @@ class AppLayoutMixin:
                     )
                     yield Static("", id="agents-fleet-status")
                 with Horizontal(id="agents-content"):
-                    from .widgets.decks.node_spine import NodeSpine
-
-                    yield NodeSpine(id="agent-node-spine", classes="hidden")
                     with Vertical(id="agent-list-container"):
                         yield AgentList(id="agent-list-panel")
                     with Vertical(id="agent-detail-container"):

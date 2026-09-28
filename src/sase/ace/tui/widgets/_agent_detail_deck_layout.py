@@ -310,7 +310,7 @@ class AgentDetailDeckLayoutMixin:
         self._notify_deck_state_changed()
 
     def _sync_sidebar_chrome(self) -> None:
-        """Sync sidebar mode classes, spine visibility and focus safety."""
+        """Sync sidebar mode classes, rail projection and focus safety."""
         from ..util.trace import tui_trace
 
         try:
@@ -323,6 +323,10 @@ class AgentDetailDeckLayoutMixin:
                 app = self.app  # type: ignore[attr-defined]
             except Exception:
                 return
+            try:
+                old_mode = getattr(app, "_agents_sidebar_mode", None)
+            except Exception:
+                old_mode = None
             try:
                 app._agents_sidebar_mode = mode
             except Exception:
@@ -344,22 +348,17 @@ class AgentDetailDeckLayoutMixin:
                         content.remove_class("-nodes-hidden")
                 except Exception:
                     pass
-            try:
-                from .decks.node_spine import NodeSpine
-
-                spine = app.query_one("#agent-node-spine", NodeSpine)
-            except Exception:
-                spine = None
-            if spine is not None:
+            self._sync_rail_projection(app, mode)
+            if mode is SidebarMode.HIDDEN:
+                self._move_focus_off_hidden_list()
+            if old_mode is SidebarMode.RAIL and mode is SidebarMode.EXPANDED:
+                self._settle_expanded_list_width(app)
                 try:
-                    if mode is SidebarMode.RAIL:
-                        spine.remove_class("hidden")
-                    else:
-                        spine.add_class("hidden")
+                    catch_up = getattr(app, "_patch_agent_runtime_rows", None)
+                    if callable(catch_up):
+                        catch_up()
                 except Exception:
                     pass
-            if mode is not SidebarMode.EXPANDED:
-                self._move_focus_off_hidden_list()
             try:
                 info = getattr(app, "_update_agents_info_panel", None)
                 if callable(info):
@@ -370,6 +369,72 @@ class AgentDetailDeckLayoutMixin:
                         footer()
             except Exception:
                 pass
+
+    def _sync_rail_projection(self, app: Any, mode: SidebarMode) -> None:
+        """Project every live panel list into rail form while in RAIL mode.
+
+        The container is clamped to ``NODE_RAIL_WIDTH`` through its inline
+        min/max width; the negotiated expanded width underneath (``styles.width``,
+        still tracked by the width writers) snaps back the moment the clamp
+        clears. Panel titles are repainted for the new density.
+        """
+        from ..actions.agents._display_helpers import agent_list_widgets_in
+        from ._agent_list_render_rail import NODE_RAIL_WIDTH
+
+        in_rail = mode is SidebarMode.RAIL
+        try:
+            container = app.query_one("#agent-list-container")
+        except Exception:
+            container = None
+        widgets: list[Any] = []
+        if container is not None:
+            try:
+                widgets = agent_list_widgets_in(container)
+            except Exception:
+                widgets = []
+        for widget in widgets:
+            try:
+                set_rail = getattr(widget, "set_rail", None)
+                if callable(set_rail):
+                    set_rail(in_rail)
+            except Exception:
+                continue
+        if container is not None:
+            try:
+                styles = container.styles
+                if in_rail:
+                    styles.min_width = NODE_RAIL_WIDTH
+                    styles.max_width = NODE_RAIL_WIDTH
+                else:
+                    styles.min_width = None
+                    styles.max_width = None
+            except Exception:
+                pass
+        try:
+            refresh_titles = getattr(app, "_refresh_agent_panel_titles", None)
+            if callable(refresh_titles):
+                refresh_titles()
+        except Exception:
+            pass
+
+    def _settle_expanded_list_width(self, app: Any) -> None:
+        """Re-settle the list column after the expanded titles are back."""
+        try:
+            container = app.query_one("#agent-list-container")
+        except Exception:
+            return
+        try:
+            from ..actions.agents._display_helpers import agent_list_widgets_in
+
+            widgets = agent_list_widgets_in(container)
+        except Exception:
+            return
+        try:
+            settle = getattr(app, "_settle_agent_list_container_width", None)
+            if callable(settle):
+                settle(container, widgets)
+        except Exception:
+            pass
 
     def _move_focus_off_hidden_list(self) -> None:
         """Move Textual focus off the hidden node list when it holds it."""

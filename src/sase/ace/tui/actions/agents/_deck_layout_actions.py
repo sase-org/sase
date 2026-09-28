@@ -121,15 +121,15 @@ class AgentDeckLayoutActionsMixin:
             return
         self._refresh_deck_footer()
 
-    def on_node_spine_expand_requested(self, _message: object) -> None:
-        """Expand the node panel when the collapsed spine is clicked."""
+    def on_agent_info_panel_sidebar_chip_clicked(self, _message: object) -> None:
+        """Expand the node rail when the info-row nodes chip is clicked."""
         if self.current_tab != "agents":
             return
         try:
             detail = self._deck_layout_detail()
             if detail is None:
                 return
-            if not detail.is_nodes_collapsed:  # type: ignore[attr-defined]
+            if not detail.is_node_rail:  # type: ignore[attr-defined]
                 return
             detail.toggle_node_panel()  # type: ignore[attr-defined]
         except Exception:

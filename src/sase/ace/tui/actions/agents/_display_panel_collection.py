@@ -516,6 +516,23 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         )
 
         tribe_display = tribe_display_for(key)
+        from ...widgets.decks.layout import SidebarMode
+
+        if getattr(self, "_agents_sidebar_mode", None) is SidebarMode.RAIL:
+            from ...widgets._agent_list_render_rail import rail_panel_title
+
+            return rail_panel_title(
+                key=key,
+                hint=(
+                    panel_jump_hints.get(("panel", key)) if panel_jump_hints else None
+                ),
+                selected=panel_selected,
+                collapsed=panel_collapsed,
+                merged=merge_tribe_panels,
+                icon=tribe_display.icon,
+                color=tribe_identity_color(key),
+                counts=counts,
+            )
         return agent_panel_border_title(
             key,
             counts.lane_count,

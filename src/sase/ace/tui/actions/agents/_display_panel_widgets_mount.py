@@ -154,6 +154,13 @@ class PanelWidgetMountMixin(PanelRefreshStateMixin):
             container.mount(widget)  # type: ignore[attr-defined]
             existing[wid] = widget
             inserted += 1
+            from ...widgets.decks.layout import SidebarMode
+
+            if getattr(self, "_agents_sidebar_mode", None) is SidebarMode.RAIL:
+                try:
+                    widget.set_rail(True)
+                except Exception:
+                    pass
 
         for widget in list(agent_list_widgets_in(container, include_retiring=True)):
             if widget.id in keep_ids:
