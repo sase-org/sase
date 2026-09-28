@@ -128,12 +128,32 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
             )
         except Exception as exc:
             self._apply_prompt_stash_counts(*previous_counts)
+            restored = self._restore_failed_stash_entry(entry)
             self.notify(  # type: ignore[attr-defined]
-                self._prompt_stash_error_message("Failed to stash prompt", exc),
+                self._prompt_stash_error_message(
+                    "Failed to stash prompt — draft is back in the bar"
+                    if restored
+                    else "Failed to stash prompt",
+                    exc,
+                ),
                 severity="error",
             )
             return
         self._reconcile_prompt_stash_snapshot_counts(snapshot)
+
+    def _restore_failed_stash_entry(self, entry: PromptStashEntryWire) -> bool:
+        """Put a failed stash append back into the prompt bar.
+
+        Appends to a mounted prompt-mode bar, or mounts the home bar with
+        the text, reusing the restore-loading helpers. Returns whether the
+        draft made it back so the error toast can say so.
+        """
+        try:
+            self._load_restored_entries([entry])  # type: ignore[attr-defined]
+        except Exception:
+            log.exception("Failed to restore draft to the prompt bar")
+            return False
+        return True
 
     def _persist_stashed_panes(
         self,

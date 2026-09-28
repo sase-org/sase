@@ -491,3 +491,103 @@ async def _wait_prompt_stash_tasks(harness: object) -> None:
     tasks = list(getattr(harness, "_prompt_stash_async_tasks", set()))
     if tasks:
         await asyncio.gather(*tasks)
+
+
+# --- restore-capture hardening (epic sase-1ca phase 4) ----------------------
+
+
+class _CaptureFakeBar:
+    """Stand-in for a mounted prompt bar in ``prompt`` mode."""
+
+    def __init__(self, mode: str = "prompt") -> None:
+        self._mode = mode
+        self.restored: list[object] | None = None
+
+    def restore_stashed_entries(self, panes: list[object]) -> None:
+        self.restored = panes
+
+
+class _BarStashHarness(_StashHarness):
+    """Stash capture harness with an observable mounted-bar stand-in."""
+
+    def __init__(
+        self,
+        bar: _CaptureFakeBar | None = None,
+        project: str | None = "proj",
+    ) -> None:
+        super().__init__(project=project)
+        self._bar = bar
+        self.home_mounts: list[str] = []
+
+    def _mounted_prompt_bar(self):  # type: ignore[override]
+        return self._bar
+
+    def _show_prompt_input_bar_for_home(
+        self,
+        initial_text: str = "",
+        **kwargs: object,
+    ) -> None:
+        del kwargs
+        self.home_mounts.append(initial_text)
+
+
+async def test_failed_append_puts_draft_back_in_mounted_bar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed stash append restores the draft to the mounted prompt bar."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    bar = _CaptureFakeBar(mode="prompt")
+    harness = _BarStashHarness(bar=bar)
+
+    def _boom(_entry: object) -> object:
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(harness, "_append_prompt_stash_entry", _boom)
+
+    harness.on_prompt_input_bar_stashed(
+        PromptInputBar.Stashed(
+            [StashedPromptPane(text="draft!")], source="current", dismiss_bar=False
+        )
+    )
+    await _wait_prompt_stash_tasks(harness)
+
+    assert bar.restored is not None
+    assert [pane.text for pane in bar.restored] == ["draft!"]
+    assert harness.home_mounts == []
+    assert harness.applied_counts == [1, 0]  # optimistic count was rolled back
+    assert len(harness.notifications) == 2
+    message, severity = harness.notifications[-1]
+    assert severity == "error"
+    assert "back in the bar" in message
+    assert not path.exists()  # nothing written
+
+
+async def test_failed_append_mounts_home_bar_when_none_mounted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Without a mounted bar, a failed append mounts the home bar with the text."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    harness = _BarStashHarness(bar=None)
+
+    def _boom(_entry: object) -> object:
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(harness, "_append_prompt_stash_entry", _boom)
+
+    harness.on_prompt_input_bar_stashed(
+        PromptInputBar.Stashed(
+            [StashedPromptPane(text="draft!")], source="current", dismiss_bar=True
+        )
+    )
+    await _wait_prompt_stash_tasks(harness)
+
+    assert harness.home_mounts == ["draft!"]
+    assert harness.applied_counts == [1, 0]
+    message, severity = harness.notifications[-1]
+    assert severity == "error"
+    assert "back in the bar" in message
+    assert not path.exists()  # nothing written

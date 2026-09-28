@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from pathlib import Path
 
 import pytest
@@ -540,3 +542,134 @@ async def test_delete_requested_ignores_other_events() -> None:
     await _wait_prompt_stash_tasks(harness)
     assert harness.notifications == []
     assert harness.applied_counts == []
+
+
+# --- restore-capture hardening (epic sase-1ca phase 4) ----------------------
+
+
+async def test_confirm_pop_loads_from_pop_outcome_without_snapshot_read(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Pop-only restores load from the pop outcome, never a snapshot read."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    def _boom() -> object:
+        raise AssertionError("pop path must not read the snapshot")
+
+    monkeypatch.setattr(harness, "_read_prompt_stash_entries_strict", _boom)
+
+    await harness._apply_stash_restore(StashRestoreResult(pop_ids=["a"]))
+
+    assert _restore_pairs(bar) == [("alpha", "")]
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert read_prompt_stash_snapshot(path).entries == []
+    assert harness.notifications == [("Restored prompt", None)]
+    assert harness.applied_counts == [0]
+
+
+async def test_confirm_keep_read_failure_does_not_pop(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failing keep-ids snapshot read toasts and leaves the stash intact."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    def _failing_read() -> object:
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(harness, "_read_prompt_stash_entries_strict", _failing_read)
+
+    await harness._apply_stash_restore(
+        StashRestoreResult(pop_ids=["a"], keep_ids=["b"])
+    )
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["a", "b"]
+    assert bar.restored is None
+    assert harness.home_mounts == []
+    assert harness.notifications == [("Failed to restore prompt: disk gone", "error")]
+    assert harness.applied_counts == []
+
+
+async def test_confirm_load_failure_rolls_row_back_into_stash(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A bar-load failure after a pop appends the row back with its id."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "model: c")])
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    def _boom(_entries: object) -> None:
+        raise RuntimeError("bar exploded")
+
+    monkeypatch.setattr(harness, "_load_restored_entries", _boom)
+
+    await harness._apply_stash_restore(StashRestoreResult(pop_ids=["a"]))
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    rolled_back = read_prompt_stash_snapshot(path).entries
+    assert [e.id for e in rolled_back] == ["a"]
+    assert rolled_back[0].text == "alpha"
+    assert bar.restored is None
+    assert len(harness.notifications) == 1
+    message, severity = harness.notifications[0]
+    assert severity == "error"
+    assert "put back in the stash" in message
+    assert harness.applied_counts == [1]  # badge reflects the rolled-back row
+
+
+async def test_spawned_task_exception_is_logged_and_toasted(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unhandled stash-task failure is logged and toasted."""
+    harness = _RestoreHarness()
+
+    async def _boom() -> None:
+        raise RuntimeError("kablam")
+
+    with caplog.at_level(logging.ERROR, logger="sase"):
+        harness._spawn_prompt_stash_task(_boom())
+        await asyncio.sleep(0.1)  # let the task fail and the callback run
+
+    assert ("Prompt stash task failed: kablam", "error") in harness.notifications
+    assert any(
+        "Prompt stash background task failed" in record.message
+        for record in caplog.records
+    )
+
+
+async def test_spawned_task_cancelled_stays_silent() -> None:
+    """Cancelled stash tasks surface neither a log nor a toast."""
+    harness = _RestoreHarness()
+
+    async def _hang() -> None:
+        await asyncio.sleep(30)
+
+    harness._spawn_prompt_stash_task(_hang())
+    pending = list(getattr(harness, "_prompt_stash_async_tasks", set()))
+    assert len(pending) == 1
+    pending[0].cancel()
+    await asyncio.sleep(0.05)
+
+    assert harness.notifications == []

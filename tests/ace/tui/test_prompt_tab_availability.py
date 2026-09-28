@@ -50,3 +50,20 @@ def test_next_and_prev_tab_available_without_prompt() -> None:
 
     assert _check(app, "next_tab") is True
     assert _check(app, "prev_tab") is True
+
+
+def test_restore_quit_unavailable_while_prompt_owns_keys() -> None:
+    """`@`/`q`/`Q` never fire a global action while a prompt owns keys."""
+    app = _FakeTabApp(current_tab="agents", _prompt_active=True)
+
+    assert _check(app, "restore_prompt_stash") is False
+    assert _check(app, "quit") is False
+    assert _check(app, "stop_axe_and_quit") is False
+
+
+def test_restore_quit_available_without_prompt() -> None:
+    app = _FakeTabApp(current_tab="agents", _prompt_active=False)
+
+    assert _check(app, "restore_prompt_stash") is True
+    assert _check(app, "quit") is True
+    assert _check(app, "stop_axe_and_quit") is True

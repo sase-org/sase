@@ -290,6 +290,16 @@ def check_app_action(
         # browse mode), so the guard must not depend on focus alone.
         if _prompt_input_owns_keys(app):
             return False
+    if action in ("restore_prompt_stash", "quit", "stop_axe_and_quit"):
+        # A typed ``@`` (for example in ``%m:@xlarge``) must never fire the
+        # global stash restore while a prompt owns keys; stash access from an
+        # open prompt remains available through the prompt-local ``Ctrl+G p``
+        # and Ctrl+S-on-empty-pane paths. Likewise a stray ``q``/``Q``
+        # during transient focus loss must not exit with a draft open. The
+        # guard mirrors next_tab/prev_tab above and must not depend on focus
+        # alone.
+        if _prompt_input_owns_keys(app):
+            return False
     if action == "search_reverse":
         from textual.screen import ModalScreen
 

@@ -51,6 +51,18 @@ class PromptBarStashStoreMixin:
             return []
         return list(snapshot.entries)
 
+    def _read_prompt_stash_entries_strict(self) -> list[PromptStashEntryWire]:
+        """Return the stashed entries on disk, propagating read failures.
+
+        Restore paths use this fail-closed variant so a read failure never
+        pops: the caller toasts the actual error and leaves the stash
+        untouched. Badge-count readers keep the lenient behavior above.
+        """
+        from sase.core.paths import prompt_stash_path
+        from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+        return list(read_prompt_stash_snapshot(prompt_stash_path()).entries)
+
     def _read_prompt_stash_presentation_snapshot(
         self,
     ) -> _PromptStashPresentationSnapshot:
@@ -144,8 +156,14 @@ class PromptBarStashStoreMixin:
         await self._refresh_prompt_stash_badge_async()
 
     def _spawn_prompt_stash_task(self, coro: object) -> None:
-        """Run *coro* on the running loop, holding a reference until it finishes."""
+        """Run *coro* on the running loop, holding a reference until it finishes.
+
+        A done-callback surfaces unhandled failures: cancelled tasks stay
+        silent, while any other exception is logged through the ``sase``
+        logger (so it reaches ``tui.log``) and toasted.
+        """
         import asyncio
+        import logging
         from collections.abc import Coroutine
         from typing import cast
 
@@ -160,7 +178,32 @@ class PromptBarStashStoreMixin:
             tasks = set()
             self._prompt_stash_async_tasks = tasks
         tasks.add(task)
-        task.add_done_callback(tasks.discard)
+
+        def _surface_prompt_stash_failure(done: asyncio.Task[None]) -> None:
+            tasks.discard(done)
+            if done.cancelled():
+                return
+            try:
+                exc = done.exception()
+            except asyncio.CancelledError:
+                return
+            if exc is None:
+                return
+            logging.getLogger("sase").exception(
+                "Prompt stash background task failed: %s", exc
+            )
+            try:
+                self.notify(  # type: ignore[attr-defined]
+                    self._prompt_stash_error_message(
+                        "Prompt stash task failed",
+                        exc if isinstance(exc, Exception) else Exception(exc),
+                    ),
+                    severity="error",
+                )
+            except Exception:
+                pass
+
+        task.add_done_callback(_surface_prompt_stash_failure)
 
     def _read_prompt_stash_count(self) -> int:
         """Return the number of stashed prompts on disk (thread-safe read).

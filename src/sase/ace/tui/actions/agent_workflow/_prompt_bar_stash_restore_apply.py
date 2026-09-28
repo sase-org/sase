@@ -121,9 +121,15 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
     async def _apply_stash_restore(self, result: StashRestoreResult) -> None:
         """Apply per-entry pop/keep/delete decisions from the unified panel.
 
-        Snapshot reads and stash pops run off the event loop. The app loads
-        ``pop`` + ``keep`` ids oldest-first, removes ``pop`` + ``delete`` ids in
-        one store call, and refreshes the badge only when the store changed.
+        Snapshot reads and stash pops run off the event loop. ``pop`` rows
+        load from the pop outcome (what the store actually removed), not from
+        a separately read snapshot; only ``keep`` ids still need a snapshot
+        read, and that read is fail-closed so a read failure never pops. The
+        app loads ``pop`` + ``keep`` ids oldest-first, removes ``pop`` +
+        ``delete`` ids in one store call, and refreshes the badge only when
+        the store changed. A load failure after a pop appends the removed
+        rows back with their original ids and toasts that the draft was put
+        back.
         """
         import asyncio
 
@@ -137,10 +143,12 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
         if not restore_ids and not remove_ids:
             return
 
-        restore_entries: list[PromptStashEntryWire] = []
-        if restore_ids:
+        keep_entries: list[PromptStashEntryWire] = []
+        if result.keep_ids:
             try:
-                snapshot = await asyncio.to_thread(self._read_prompt_stash_entries)
+                snapshot = await asyncio.to_thread(
+                    self._read_prompt_stash_entries_strict  # type: ignore[attr-defined]
+                )
             except Exception as exc:
                 self.notify(  # type: ignore[attr-defined]
                     self._prompt_stash_error_message(
@@ -151,13 +159,11 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
                 )
                 return
             by_id = {entry.id: entry for entry in snapshot}
-            restore_entries = [
-                by_id[entry_id] for entry_id in restore_ids if entry_id in by_id
+            keep_entries = [
+                by_id[entry_id] for entry_id in result.keep_ids if entry_id in by_id
             ]
-            # Original drafting order (oldest first); bundle rows expand later
-            # in their stored segment order.
-            restore_entries.sort(key=lambda entry: (entry.created_at, entry.pane_index))
 
+        removed: list[PromptStashEntryWire] = []
         removed_ids: set[str] = set()
         snapshot_after_remove: PromptStashSnapshotWire | None = None
         if remove_ids:
@@ -174,18 +180,63 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
                     severity="error",
                 )
                 return
-            removed_ids = {entry.id for entry in outcome.removed}
+            removed = list(outcome.removed)
+            removed_ids = {entry.id for entry in removed}
             snapshot_after_remove = outcome.snapshot
+
+        pop_ids = set(result.pop_ids)
+        restore_entries = [entry for entry in removed if entry.id in pop_ids]
+        restore_entries.extend(keep_entries)
+        # Original drafting order (oldest first); bundle rows expand later
+        # in their stored segment order.
+        restore_entries.sort(key=lambda entry: (entry.created_at, entry.pane_index))
 
         restored_count = 0
         if restore_entries:
-            restored_count = len(self._entries_to_restore_panes(restore_entries))
-            self._load_restored_entries(restore_entries)
+            try:
+                restored_count = len(self._entries_to_restore_panes(restore_entries))
+                self._load_restored_entries(restore_entries)
+            except Exception as exc:
+                await self._rollback_stash_restore(removed, pop_ids)
+                self.notify(  # type: ignore[attr-defined]
+                    self._prompt_stash_error_message(
+                        "Failed to restore prompt — draft put back in the stash",
+                        exc,
+                    ),
+                    severity="error",
+                )
+                return
 
         deleted = sum(1 for entry_id in result.delete_ids if entry_id in removed_ids)
         self._notify_restore_outcome(restored_count, deleted)
         if removed_ids and snapshot_after_remove is not None:
             self._apply_prompt_stash_snapshot_counts(snapshot_after_remove)
+
+    async def _rollback_stash_restore(
+        self,
+        removed: list[PromptStashEntryWire],
+        pop_ids: set[str],
+    ) -> None:
+        """Append popped restore rows back after a failed bar load."""
+        import asyncio
+
+        from sase.core.paths import prompt_stash_path
+        from sase.core.prompt_stash_facade import append_prompt_stash
+
+        to_restore = [entry for entry in removed if entry.id in pop_ids]
+        if not to_restore:
+            return
+        snapshot = None
+        for entry in to_restore:
+            try:
+                snapshot = await asyncio.to_thread(
+                    append_prompt_stash, prompt_stash_path(), entry
+                )
+            except Exception:  # pragma: no cover - defensive (store/IO error)
+                continue
+        if snapshot is None:  # pragma: no cover - defensive (rollback failed)
+            return
+        self._apply_prompt_stash_counts(*self._prompt_stash_snapshot_counts(snapshot))
 
     def _load_restored_entries(self, entries: list[PromptStashEntryWire]) -> None:
         """Load restored stash drafts into the prompt bar.
