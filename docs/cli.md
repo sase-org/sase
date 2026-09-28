@@ -560,7 +560,8 @@ chips (`↑ unpublished`, `refreshing…`, `⚠ N unreadable`). `-s/--status` fi
 list; `done`, `dropped`, `settled`, and `all` scan history newest-first with `-n`
 defaulting to 20. `-j/--json` emits the wire structs the gateway consumes. `new`,
 `edit`, `drop`, `reopen`, `merge`, and `doctor --repair` are human verbs and refuse
-inside agent runs; `list`, `show`, and `doctor` work everywhere.
+inside agent runs; `list`, `show`, and `doctor` work everywhere. See [Goals](goals.md)
+for the full tour.
 
 ## Automation
 

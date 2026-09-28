@@ -33,6 +33,7 @@ nav:
       - Architecture: architecture.md
       - Patches: change_spec.md
       - Beads: beads.md
+      - Goals: goals.md
       - Workflows: workflow_spec.md
       - Agent Sessions: agent_sessions.md
       - Agent Hood Synchronization: agents_sidecar.md

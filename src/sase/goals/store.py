@@ -94,6 +94,12 @@ def resolve_goal_ledger(
     clone, and a push remote on that clone. Anything else resolves
     local-only with a human-readable ``reason``.
     """
+    from sase.goals.config import goals_config, validate_goals_config
+
+    for problem in validate_goals_config(goals_config()):
+        logger.warning(
+            "goal ledger for %s ignores bad config: %s", project_key, problem
+        )
     host_role = goals_host_role()
     if goals_visibility() != "shared":
         return _refresh_projection(
@@ -188,10 +194,16 @@ def resolve_goal_ledger(
 
 def _refresh_projection(ledger: GoalLedger) -> GoalLedger:
     """Stamp the projection header so the fast path finds the ledger."""
-    from sase.core.goal_ledger_facade import goal_projection_refresh
+    from sase.core.goal_ledger_facade import (
+        goal_projection_refresh,
+        goal_projection_status,
+    )
     from sase.goals.config import goals_fetch_ttl_seconds
 
     try:
+        status = goal_projection_status(ledger.root, ledger.projection_path)
+        if str(status.get("status")) == "Fresh":
+            return ledger
         goal_projection_refresh(
             ledger.root,
             ledger.projection_path,

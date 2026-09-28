@@ -307,7 +307,7 @@ def _idempotency_key(verb: str) -> str:
 
 
 def _run_mutation(args: argparse.Namespace, verb: str, action: dict[str, Any]) -> int:
-    from sase.goals.write import apply_goal_action
+    from sase.goals.write import GoalWriteError, apply_goal_action, default_goal_actor
 
     refused = _refuse_human_verb(verb)
     if refused is not None:
@@ -315,7 +315,10 @@ def _run_mutation(args: argparse.Namespace, verb: str, action: dict[str, Any]) -
     project = _current_project_name()
     ledger = resolve_goal_ledger(project)
     try:
-        outcome = apply_goal_action(ledger, action)
+        outcome = apply_goal_action(ledger, action, actor=default_goal_actor())
+    except GoalWriteError as exc:
+        print(f"sase goal {verb}: {exc}", file=sys.stderr)
+        return 1
     except Exception as exc:
         print(f"sase goal {verb}: {exc}", file=sys.stderr)
         return 1

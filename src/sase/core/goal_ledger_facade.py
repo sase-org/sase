@@ -6,10 +6,9 @@ keeps counting them as required. The ledger layout, marker-superset
 ordering, and reduction rules all live in sase-core
 (``crates/sase_core/src/goal/``); this module only translates call shapes.
 
-Symbols consumed only by later phases of epic ``sase-1bu`` (list, show,
-history, doctor, projection status, mint) are whitelisted with
-``--epic-symbol 'sase-1bu(<name>)'`` in the Justfile until those phases
-land; ``acceptance`` removes every entry this epic adds.
+Symbols here wrap one binding each. Wrappers with no non-test caller are
+deleted instead of kept (see the unused-symbol hierarchy); tests and tools
+that need a binding directly use ``require_rust_binding`` with a literal.
 """
 
 from __future__ import annotations
@@ -129,18 +128,6 @@ def goal_mint_id() -> str:
     """Mint one random 5-character Crockford base32 goal id."""
     binding = _require_goal_binding("goal_mint_id")
     return str(binding())
-
-
-def goal_ledger_store_schema_version() -> int:
-    """Return the ledger STORE layout schema version the core speaks."""
-    binding = _require_goal_binding("goal_ledger_store_schema_version")
-    return int(binding())
-
-
-def goal_ledger_probe_list(root: str | Path) -> dict[str, Any]:
-    """Count file opens per path class during a hot read; tests only."""
-    binding = _require_goal_binding("goal_ledger_probe_list")
-    return dict(binding(str(root)))
 
 
 def goal_card_view(root: str | Path, goal_id: str, now: str) -> dict[str, Any]:

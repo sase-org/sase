@@ -410,13 +410,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1bt(slow_tool_run_suffix_text)' \
         --epic-symbol 'sase-1bt(tool_run_jump_target)' \
         --epic-symbol 'sase-1bt(visible_tool_run_jump_targets)' \
-        --epic-symbol 'sase-1bu(GoalWriteError)' \
-        --epic-symbol 'sase-1bu(default_goal_actor)' \
-        --epic-symbol 'sase-1bu(goal_ledger_probe_list)' \
-        --epic-symbol 'sase-1bu(goal_ledger_store_schema_version)' \
-        --epic-symbol 'sase-1bu(goal_projection_status)' \
-        --epic-symbol 'sase-1bu(goals_config)' \
-        --epic-symbol 'sase-1bu(validate_goals_config)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
@@ -1283,6 +1276,10 @@ rust-check: rust-fmt-check rust-clippy rust-test
 # rows have been removed.
 bench-core *args: _setup
     {{ venv_bin }}/python tests/perf/bench_core_parse.py {{ args }}
+
+# Benchmark the goal ledger hot path (epic sase-1bu acceptance).
+bench-goals *args: _setup
+    {{ venv_bin }}/python tools/goal_ledger_bench {{ args }}
 
 # Run the Python query parse/evaluate benchmark. Times parse-only and
 # parse+evaluate at 100/1k/10k specs through the optimized facade path

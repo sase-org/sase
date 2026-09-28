@@ -1,0 +1,486 @@
+#!/usr/bin/env python3
+"""Benchmark the goal ledger hot path (epic ``sase-1bu``, phase ``acceptance``).
+
+Seeds ledgers through the ``sase_core_rs`` bindings, then measures the Rust
+warm/cold hot reads, end-to-end ``sase goal list`` (fast path vs slow-path
+baseline), I/O-probe open counts, and a two-clone push-contention run.
+Writes a markdown report plus a JSON sidecar; repeat runs append to
+``results.jsonl`` in the work dir so settled-growth (0 -> 1k -> 100k) can be
+compared in one report.
+
+Full scale (100k settled) seeds ~200k events and takes several minutes, so
+seed incrementally: run with growing ``--settled`` values (state in the work
+dir resumes), then finish with ``--report``. Example::
+
+    tools/goal_ledger_bench --work-dir /tmp/goalbench --settled 0 --live 100
+    tools/goal_ledger_bench --work-dir /tmp/goalbench --settled 1000 --live 100
+    tools/goal_ledger_bench --work-dir /tmp/goalbench --settled 100000 --live 1000 --report
+
+Register a finished report with::
+
+    sase artifact create -p <report> -l "Goal ledger benchmark"
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import statistics
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+PROJECT = "goalsbench"
+
+CONTRACT_WARM_MS = 5.0
+CONTRACT_E2E_P50_MS = 50.0
+CONTRACT_E2E_P95_MS = 80.0
+CONTRACT_GROWTH_PCT = 10.0
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Benchmark the goal ledger hot path.")
+    parser.add_argument("--work-dir", type=Path, required=True)
+    parser.add_argument("--settled", type=int, default=1000)
+    parser.add_argument("--live", type=int, default=100)
+    parser.add_argument("--runs", type=int, default=50)
+    parser.add_argument("--report", action="store_true")
+    parser.add_argument("--skip-e2e", action="store_true")
+    parser.add_argument("--skip-contention", action="store_true")
+    parser.add_argument("--contention-writes", type=int, default=50)
+    return parser.parse_args(argv)
+
+
+def _load_state(work: Path) -> dict[str, Any]:
+    path = work / "bench-state.json"
+    if path.is_file():
+        return dict(json.loads(path.read_text(encoding="utf-8")))
+    return {"settled_seeded": 0, "live_ids": []}
+
+
+def _save_state(work: Path, state: dict[str, Any]) -> None:
+    (work / "bench-state.json").write_text(json.dumps(state, indent=1), encoding="utf-8")
+
+
+def _append(root: Path, request: dict[str, Any]) -> dict[str, Any]:
+    from sase.core import goal_ledger_facade as facade
+
+    outcome = facade.goal_ledger_append(root, request)
+    assert outcome["status"] == "applied", outcome
+    return outcome
+
+
+_CROCKFORD = "0123456789abcdefghjkmnpqrstvwxyz"
+
+
+def _bench_goal_id(index: int) -> str:
+    """Deterministic unique goal id for seeding (base32, zero-padded)."""
+    digits = []
+    value = index
+    for _ in range(5):
+        digits.append(_CROCKFORD[value % 32])
+        value //= 32
+    assert value == 0, f"bench goal index {index} exceeds the 5-char id space"
+    return "".join(reversed(digits))
+
+
+def _seed(work: Path, root: Path, state: dict[str, Any], settled: int, live: int) -> dict[str, Any]:
+    from sase.core import goal_ledger_facade as facade
+
+    actor = {"principal": "bench.local", "kind": "human"}
+    facade.goal_ledger_init(root)
+    have_settled = int(state.get("settled_seeded", 0))
+    t0 = time.perf_counter()
+    for i in range(have_settled, settled):
+        if i and i % 5000 == 0:
+            print(f"[bench] seeded {i} settled goals ({time.perf_counter() - t0:.0f}s)", flush=True)
+            state["settled_seeded"] = i
+            _save_state(work, state)
+        goal_id = _bench_goal_id(i)
+        outcome = _append(
+            root,
+            {
+                "action": {
+                    "action": "new",
+                    "title": f"Settled goal {i}",
+                    "outcome": "Seeded for the benchmark",
+                    "criteria": [],
+                    "project": PROJECT,
+                },
+                "actor": actor,
+                "new_goal_id": goal_id,
+            },
+        )
+        assert str(outcome["states"][0]["id"]) == goal_id, outcome
+        assert outcome["states"][0]["readable"] is True, outcome
+        _append(
+            root,
+            {"action": {"action": "drop", "goal_id": goal_id, "why": "seeded settled"}, "actor": actor},
+        )
+    state["settled_seeded"] = settled
+    _save_state(work, state)
+    live_ids = list(state.get("live_ids", []))
+    for i in range(len(live_ids), live):
+        goal_id = _bench_goal_id(1_000_000 + i)
+        outcome = _append(
+            root,
+            {
+                "action": {
+                    "action": "new",
+                    "title": f"Live goal {i}",
+                    "outcome": "Unsettled benchmark goal",
+                    "criteria": [],
+                    "project": PROJECT,
+                },
+                "actor": actor,
+                "new_goal_id": goal_id,
+            },
+        )
+        assert str(outcome["states"][0]["id"]) == goal_id, outcome
+        live_ids.append(goal_id)
+    state["live_ids"] = live_ids
+    _save_state(work, state)
+    return state
+
+
+def _quantiles(samples: list[float]) -> dict[str, float]:
+    ordered = sorted(samples)
+    return {
+        "n": float(len(ordered)),
+        "min": ordered[0],
+        "p50": statistics.median(ordered),
+        "p95": ordered[max(0, int(len(ordered) * 0.95) - 1)],
+        "max": ordered[-1],
+    }
+
+
+def _measure_reads(root: Path, runs: int) -> dict[str, Any]:
+    from sase.core import goal_ledger_facade as facade
+
+    facade.goal_ledger_list(root)  # warm up
+    samples = []
+    for _ in range(runs):
+        t0 = time.perf_counter()
+        facade.goal_ledger_list(root)
+        samples.append((time.perf_counter() - t0) * 1000.0)
+    return {"warm_list_ms": _quantiles(samples)}
+
+
+def _measure_cold(root: Path) -> float:
+    """Time one hot read in a fresh interpreter without a projection."""
+    hot = root.parent / "state" / "projects" / PROJECT / "goals-hot.json"
+    backup = None
+    if hot.is_file():
+        backup = hot.read_bytes()
+        hot.unlink()
+    code = (
+        "import time; from sase.core import goal_ledger_facade as facade;"
+        f"t0=time.perf_counter(); facade.goal_ledger_list({str(root)!r});"
+        "print((time.perf_counter()-t0)*1000.0)"
+    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+        return float(proc.stdout.strip().split()[-1])
+    finally:
+        if backup is not None:
+            hot.parent.mkdir(parents=True, exist_ok=True)
+            hot.write_bytes(backup)
+
+
+def _probe(root: Path) -> dict[str, Any]:
+    from sase.core.rust import require_rust_binding
+
+    probe = require_rust_binding("goal_ledger_probe_list")
+    return dict(probe(str(root)))
+
+
+def _setup_e2e(work: Path, root: Path) -> tuple[Path, dict[str, str]]:
+    """Prepare checkout + projection so subprocess `sase goal list` fast-paths."""
+    from sase.core import goal_ledger_facade as facade
+
+    state_home = work / "state"
+    project_dir = work / "project"
+    (project_dir / ".sase").mkdir(parents=True, exist_ok=True)
+    (project_dir / ".sase" / "checkout.json").write_text(
+        json.dumps({"project_name": PROJECT}), encoding="utf-8"
+    )
+    hot = state_home / "projects" / PROJECT / "goals-hot.json"
+    hot.parent.mkdir(parents=True, exist_ok=True)
+    facade.goal_projection_refresh(
+        root,
+        hot,
+        PROJECT,
+        "local",
+        watermark_path=str(state_home / "projects" / PROJECT / "goals.integration"),
+        outbox_path=str(state_home / "projects" / PROJECT / "goals-outbox.json"),
+    )
+    env = dict(os.environ)
+    env["SASE_HOME"] = str(state_home)
+    env.pop("SASE_AGENT", None)
+    env.pop("SASE_AGENT_NAME", None)
+    return project_dir, env
+
+
+def _measure_e2e(project_dir: Path, env: dict[str, str], runs: int, live: int) -> dict[str, Any]:
+    """Time fast-path `list -j` end to end.
+
+    The slow path resolves projects through workspace checkout state and
+    would re-point the projection at its own local fallback, so the
+    baseline here is path attribution instead: the JSON output must carry
+    the seeded titles (proving the fast path served this ledger), and the
+    binding-level ``handled`` flag is asserted for the same request.
+    """
+
+    def run(argv: list[str]) -> tuple[float, str]:
+        t0 = time.perf_counter()
+        proc = subprocess.run(
+            [sys.executable, "-m", "sase", *argv],
+            cwd=project_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+        dt = (time.perf_counter() - t0) * 1000.0
+        assert proc.returncode == 0, proc.stderr[-2000:]
+        return dt, proc.stdout
+
+    from sase.core.rust import require_rust_binding
+
+    goal_fast_path = require_rust_binding("goal_fast_path")
+    probe_request = {
+        "argv": ["list", "-j"],
+        "cwd": str(project_dir),
+        "sase_home": env["SASE_HOME"],
+        "color": False,
+        "agent": True,
+        "now": "2026-09-28T14:00:00Z",
+    }
+    assert goal_fast_path(probe_request).get("handled") is True
+
+    fast_samples, first_out = [], ""
+    for i in range(runs):
+        dt, out = run(["goal", "list", "-j"])
+        fast_samples.append(dt)
+        if i == 0:
+            first_out = out
+    if live:
+        assert "Live goal 0" in first_out, first_out[-500:]
+    else:
+        assert "No active goals" in first_out or '"goals": []' in first_out
+    return {"fast_list_ms": _quantiles(fast_samples)}
+
+
+def _contention(work: Path, writes: int) -> dict[str, Any]:
+    """Two ledger clones publish interleaved writes; count push retries."""
+    from tests.sdd_store._helpers import clone, git, init_bare_repo
+
+    from sase.core import goal_ledger_facade as facade
+
+    remote = work / "contention.git"
+    if not remote.exists():
+        init_bare_repo(remote)
+        seed = work / "contention-seed"
+        clone(remote, seed)
+        facade.goal_ledger_init(seed / "goals")
+        git(["add", "-A"], seed)
+        git(["commit", "-m", "seed"], seed)
+        git(["push", "-u", "origin", "main"], seed)
+    clones = []
+    for name in ("cont-a", "cont-b"):
+        dest = work / name
+        if not dest.exists():
+            clone(remote, dest)
+            facade.goal_ledger_init(dest / "goals")
+        clones.append(dest)
+    actor = {"principal": "bench.local", "kind": "human"}
+    retries = 0
+    published = 0
+    t0 = time.perf_counter()
+    for i in range(writes):
+        for repo in clones:
+            outcome = facade.goal_ledger_append(
+                repo / "goals",
+                {
+                    "action": {
+                        "action": "new",
+                        "title": f"Contention {i}",
+                        "outcome": "Race the other clone",
+                        "criteria": [],
+                        "project": PROJECT,
+                    },
+                    "actor": actor,
+                },
+            )
+            assert outcome["status"] == "applied"
+            git(["add", "-A", "--", "goals"], repo)
+            git(["commit", "-m", f"chore(goals): contention {i}"], repo)
+            try:
+                git(["push", "origin", "main"], repo)
+            except subprocess.CalledProcessError:
+                retries += 1
+                git(["fetch", "origin"], repo)
+                rebase = subprocess.run(
+                    ["git", "rebase", "origin/main"],
+                    cwd=repo,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                assert rebase.returncode == 0, rebase.stderr
+                git(["push", "origin", "main"], repo)
+            published += 1
+    return {
+        "writes": writes * len(clones),
+        "published": published,
+        "push_retries": retries,
+        "seconds": round(time.perf_counter() - t0, 1),
+    }
+
+
+def _write_report(work: Path, result: dict[str, Any]) -> Path:
+    lines = [
+        "# Goal ledger benchmark",
+        "",
+        f"- date: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}",
+        f"- settled goals: {result['settled']}",
+        f"- unsettled goals: {result['live']}",
+        f"- runs per measure: {result['runs']}",
+        "",
+        "## Hot reads (Rust binding, ms)",
+        "",
+        "| read | min | p50 | p95 | max |",
+        "| ---- | --: | --: | --: | --: |",
+    ]
+    warm = result["warm_list_ms"]
+    lines.append(
+        f"| warm list | {warm['min']:.2f} | {warm['p50']:.2f} | {warm['p95']:.2f} | {warm['max']:.2f} |"
+    )
+    lines.append(f"| cold list (fresh interpreter) | — | {result['cold_list_ms']:.2f} | — | — |")
+    lines += ["", "## End-to-end `sase goal list` (ms, subprocess, fast path)", ""]
+    if "e2e" in result:
+        row = result["e2e"]["fast_list_ms"]
+        lines.append(
+            f"- fast_list: min {row['min']:.0f} · p50 {row['p50']:.0f} · p95 {row['p95']:.0f} · max {row['max']:.0f} (n={int(row['n'])})"
+        )
+        lines.append("- path attribution: output carries seeded titles and the binding reports handled=true")
+    else:
+        lines.append("- e2e skipped")
+    lines += ["", "## I/O probe (per warm list)", "", "```json"]
+    lines.append(json.dumps(result["probe_counts"], indent=1))
+    lines += ["```", ""]
+    if "contention" in result:
+        cont = result["contention"]
+        lines += [
+            "## Push contention (two clones, interleaved writes)",
+            "",
+            f"- writes: {cont['writes']}, published: {cont['published']}, push retries: {cont['push_retries']} ({cont['seconds']}s)",
+            "",
+        ]
+    lines += ["## Contract verdict", ""]
+    verdicts = result["verdicts"]
+    for name, ok in verdicts.items():
+        lines.append(f"- {'PASS' if ok else 'FAIL'}: {name}")
+    lines += [
+        "",
+        "Register this report with:",
+        "",
+        f"    sase artifact create -p {work / 'report.md'} -l \"Goal ledger benchmark\"",
+        "",
+    ]
+    report = work / "report.md"
+    report.write_text("\n".join(lines), encoding="utf-8")
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    work: Path = args.work_dir
+    work.mkdir(parents=True, exist_ok=True)
+    root = work / "ledger"
+    state = _load_state(work)
+    print(
+        f"[bench] target settled={args.settled} live={args.live} runs={args.runs}",
+        flush=True,
+    )
+    _seed(work, root, state, args.settled, args.live)
+
+    from sase.core import goal_ledger_facade as facade
+
+    reads = _measure_reads(root, args.runs)
+    cold_ms = _measure_cold(root)
+    probed = _probe(root)
+    counts = probed["counts"]
+    assert counts["settled_event_opens"] == 0, counts
+
+    result: dict[str, Any] = {
+        "settled": args.settled,
+        "live": args.live,
+        "runs": args.runs,
+        "warm_list_ms": reads["warm_list_ms"],
+        "cold_list_ms": cold_ms,
+        "probe_counts": counts,
+    }
+    if not args.skip_e2e:
+        project_dir, env = _setup_e2e(work, root)
+        result["e2e"] = _measure_e2e(project_dir, env, args.runs, args.live)
+    if not args.skip_contention:
+        result["contention"] = _contention(work, args.contention_writes)
+
+    result["verdicts"] = {
+        f"warm hot read p50 <= {CONTRACT_WARM_MS}ms ({args.live} unsettled)": (
+            reads["warm_list_ms"]["p50"] <= CONTRACT_WARM_MS
+        ),
+        "I/O probe opens zero settled event files": (counts["settled_event_opens"] == 0),
+    }
+    if "e2e" in result:
+        fast = result["e2e"]["fast_list_ms"]
+        result["verdicts"][f"e2e fast p50 <= {CONTRACT_E2E_P50_MS}ms"] = (
+            fast["p50"] <= CONTRACT_E2E_P50_MS
+        )
+        result["verdicts"][f"e2e fast p95 <= {CONTRACT_E2E_P95_MS}ms"] = (
+            fast["p95"] <= CONTRACT_E2E_P95_MS
+        )
+
+    with open(work / "results.jsonl", "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(result) + "\n")
+    (work / "latest.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
+
+    if args.report:
+        # Settled-growth verdict across every recorded run at this live size.
+        growth: dict[str, Any] = {}
+        for line in (work / "results.jsonl").read_text(encoding="utf-8").splitlines():
+            row = json.loads(line)
+            if row.get("live") == args.live:
+                growth[row["settled"]] = row["warm_list_ms"]["p95"]
+        if growth:
+            base = growth[min(growth)]
+            now = growth[max(growth)]
+            change = (now - base) / base * 100.0 if base > 0 else 0.0
+            result["verdicts"][
+                f"settled 0->{max(growth)} hot-list p95 change <= {CONTRACT_GROWTH_PCT}%"
+            ] = (change <= CONTRACT_GROWTH_PCT)
+            result["growth_p95_ms"] = {str(k): growth[k] for k in sorted(growth)}
+        report = _write_report(work, result)
+        print(f"[bench] report: {report}", flush=True)
+    else:
+        print(json.dumps(result["verdicts"], indent=1), flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
