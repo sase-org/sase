@@ -619,6 +619,27 @@ a stored `default` tribe joins the same panel, and clearing any user-managed tri
 returns the agent there. Because the panel never resolves to a real entity,
 `%wait:@default` and `#fork:@default` are rejected at launch.
 
+### Moving agents between tabs
+
+Press `N` in sase's TUI to open the Tribe & Tab modal: the second input moves the
+focused agent (or every marked agent) to a named tab with tab completion, leaving the
+tribe untouched when its input is empty. Typing `main` (or pressing `Ctrl+T`) moves back
+to the default tab. The move is optimistic with rollback, shows a
+`Moved 2 agents to blog` toast, and remote rows are skipped with the reason "tab moves
+run on the owning machine". The same move is available from the CLI, which rewrites the
+whole presentation root (session, clan generation, or workflow) and its stored `%tab`
+directive:
+
+```bash
+sase agent tab set -n <agent> -t <tab>
+sase agent tab unset -n <agent>
+sase agent tab list [-n <agent>] [-j/--json]
+```
+
+A move writes `agent_tab` with `agent_tab_source: moved` to the root's metadata. `set`
+exits with status `2` for an unknown agent or an invalid tab name (reserved
+`local`/`all` are rejected with guidance, and `main` is redirected to `unset`).
+
 ### The built-in job tribe
 
 Agents launched by [AXE jobs](axe.md) belong to the built-in `@job` tribe, whose panel

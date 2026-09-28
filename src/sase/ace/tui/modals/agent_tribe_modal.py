@@ -21,8 +21,23 @@ from sase.ace.tui.models.tribe_display import tribe_identity_style
 class AgentTribeModalResult:
     """Outcome of the modal: set the tribe to a value or unset it."""
 
-    action: Literal["set", "unset"]
-    tribe: str | None  # None when action == "unset"
+    action: Literal["keep", "set", "unset"]
+    tribe: str | None  # canonical name when action == "set"; ignored on "keep"
+    tab_action: Literal["keep", "set", "unset"] = "keep"
+    tab: str | None = None  # canonical name when tab_action == "set"
+
+
+class _TabInput(SingleLineVimTextArea):
+    """Tab-name vim editor with tab completion."""
+
+    BINDINGS = [
+        ("tab", "complete", "Complete"),
+    ]
+
+    def action_complete(self) -> None:
+        modal = self.screen
+        assert isinstance(modal, AgentTribeModal)
+        modal._complete_tab()
 
 
 class _TribeInput(SingleLineVimTextArea):
@@ -49,6 +64,7 @@ class AgentTribeModal(ModalScreen[AgentTribeModalResult | None]):
     BINDINGS = [
         Binding("escape", "cancel", "Cancel"),
         Binding("ctrl+d", "unset_tribe", "Clear tribe", priority=True),
+        Binding("ctrl+t", "unset_tab", "Clear tab", priority=True),
     ]
 
     def __init__(
@@ -58,6 +74,9 @@ class AgentTribeModal(ModalScreen[AgentTribeModalResult | None]):
         current_tribe: str | None,
         known_tribes: tuple[str, ...],
         default_tribe: str | None = None,
+        tab_enabled: bool = False,
+        current_tab: str | None = None,
+        known_tabs: tuple[str, ...] = (),
     ) -> None:
         """Initialize the modal.
 
@@ -70,16 +89,25 @@ class AgentTribeModal(ModalScreen[AgentTribeModalResult | None]):
                 used for tab completion suggestions.
             default_tribe: Seed value for the input box when the agent has
                 no current tribe. Does not affect the ``Current:`` label.
+            tab_enabled: Show the second tab input (Tribe & Tab mode).
+            current_tab: Tab currently on the focused agent (or ``None``
+                for the default tab / bulk operations).
+            known_tabs: Distinct named tabs on the roster — used for tab
+                completion suggestions.
         """
         super().__init__()
         self._target_label = target_label
         self._current_tribe = current_tribe
         self._known_tribes = tuple(sorted(set(known_tribes)))
         self._default_tribe = default_tribe
+        self._tab_enabled = tab_enabled
+        self._current_tab = current_tab
+        self._known_tabs = tuple(sorted(set(known_tabs)))
 
     def compose(self) -> ComposeResult:
         with Container():
-            yield Label(f"Tribe: {self._target_label}", id="modal-title")
+            title = "Tribe & Tab" if self._tab_enabled else "Tribe"
+            yield Label(f"{title}: {self._target_label}", id="modal-title")
             current_text = Text("Current: ")
             if self._current_tribe:
                 current_text.append(
@@ -105,6 +133,23 @@ class AgentTribeModal(ModalScreen[AgentTribeModalResult | None]):
                 placeholder="tribe-name",
                 id="agent-tribe-input",
             )
+            if self._tab_enabled:
+                current_tab_text = Text("Tab: ")
+                if self._current_tab:
+                    current_tab_text.append(self._current_tab, style="bold")
+                else:
+                    current_tab_text.append("(main)")
+                yield Label(current_tab_text, id="agent-tab-current")
+                yield Label(
+                    "Empty keeps the tab · [bold]main[/] or [bold]Ctrl+T[/] clears · "
+                    "[bold]Tab[/] completes.",
+                    id="agent-tab-hint",
+                )
+                yield _TabInput(
+                    value="",
+                    placeholder="tab-name",
+                    id="agent-tab-input",
+                )
 
     def on_mount(self) -> None:
         tribe_input = self.query_one("#agent-tribe-input", _TribeInput)
@@ -140,28 +185,121 @@ class AgentTribeModal(ModalScreen[AgentTribeModalResult | None]):
         tribe_input.value = next_match
         tribe_input.cursor_position = len(next_match)
 
+    def _complete_tab(self) -> None:
+        """Tab-complete the tab input against ``known_tabs``."""
+        tab_input = self.query_one("#agent-tab-input", _TabInput)
+        prefix = tab_input.value
+        matches = [t for t in self._known_tabs if t.startswith(prefix)]
+        if not matches:
+            return
+        common = matches[0]
+        for m in matches[1:]:
+            i = 0
+            while i < len(common) and i < len(m) and common[i] == m[i]:
+                i += 1
+            common = common[:i]
+        if common and common != prefix:
+            tab_input.value = common
+            tab_input.cursor_position = len(common)
+            return
+        try:
+            idx = matches.index(prefix)
+            next_match = matches[(idx + 1) % len(matches)]
+        except ValueError:
+            next_match = matches[0]
+        tab_input.value = next_match
+        tab_input.cursor_position = len(next_match)
+
+    def _read_tab_result(self) -> tuple[Literal["keep", "set", "unset"], str | None]:
+        """Read the tab input as a ``(tab_action, tab)`` pair.
+
+        An empty input keeps the tab; ``main`` (or Ctrl+T) clears it back
+        to the default tab; anything else is canonicalized like ``%tab``.
+        Raises ``ValueError`` with the user-facing message on invalid input.
+        """
+        if not self._tab_enabled:
+            return ("keep", None)
+        tab_input = self.query_one("#agent-tab-input", _TabInput)
+        raw = tab_input.value.strip()
+        if not raw:
+            return ("keep", None)
+        from sase.core.agent_tab import canonicalize_agent_tab
+
+        try:
+            stored = canonicalize_agent_tab(raw)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(str(exc)) from None
+        if stored is None:
+            return ("unset", None)
+        return ("set", stored)
+
     def on_single_line_vim_text_area_submitted(
         self, _event: SingleLineVimTextArea.Submitted
     ) -> None:
-        """Enter on the input sets the typed tribe."""
+        """Enter on either input submits the modal."""
         self._submit_set()
 
     def action_unset_tribe(self) -> None:
         """Ctrl+D clears the agent's tribe."""
-        self.dismiss(AgentTribeModalResult(action="unset", tribe=None))
-
-    def _submit_set(self) -> None:
-        tribe_input = self.query_one("#agent-tribe-input", _TribeInput)
-        raw = tribe_input.value.strip()
-        if not raw:
-            self.dismiss(AgentTribeModalResult(action="unset", tribe=None))
-            return
         try:
-            tribe = validate_tribe_name(raw)
+            tab_action, tab = self._read_tab_result()
+        except ValueError as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self.dismiss(
+            AgentTribeModalResult(
+                action="unset", tribe=None, tab_action=tab_action, tab=tab
+            )
+        )
+
+    def action_unset_tab(self) -> None:
+        """Ctrl+T clears the agent's tab back to the default tab."""
+        try:
+            tribe_action, tribe = self._read_tribe_result()
         except InvalidTribeError as exc:
             self.notify(str(exc), severity="error")
             return
-        self.dismiss(AgentTribeModalResult(action="set", tribe=tribe))
+        self.dismiss(
+            AgentTribeModalResult(
+                action=tribe_action, tribe=tribe, tab_action="unset", tab=None
+            )
+        )
+
+    def _read_tribe_result(
+        self,
+    ) -> tuple[Literal["keep", "set", "unset"], str | None]:
+        """Read the tribe input, raising ``InvalidTribeError`` when invalid.
+
+        In Tribe & Tab mode an empty input keeps the tribe (explicit
+        Ctrl+D still clears it); tribe-only mode keeps the legacy
+        empty-means-unset behavior.
+        """
+        tribe_input = self.query_one("#agent-tribe-input", _TribeInput)
+        raw = tribe_input.value.strip()
+        if not raw:
+            return ("keep", None) if self._tab_enabled else ("unset", None)
+        return ("set", validate_tribe_name(raw))
+
+    def _submit_set(self) -> None:
+        try:
+            tribe_action, tribe = self._read_tribe_result()
+        except InvalidTribeError as exc:
+            self.notify(str(exc), severity="error")
+            return
+        try:
+            tab_action, tab = self._read_tab_result()
+        except ValueError as exc:
+            self.notify(str(exc), severity="error")
+            return
+        if tribe_action == "keep" and tab_action == "keep":
+            # Nothing typed: cancel instead of writing a no-op change.
+            self.dismiss(None)
+            return
+        self.dismiss(
+            AgentTribeModalResult(
+                action=tribe_action, tribe=tribe, tab_action=tab_action, tab=tab
+            )
+        )
 
     def action_cancel(self) -> None:
         self.dismiss(None)

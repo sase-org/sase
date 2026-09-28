@@ -24,6 +24,7 @@ from sase.main.parser_agent_storage import (
 from sase.main.parser_agent_sync import (
     register_agent_sync_parser,
 )
+from sase.main.parser_agent_tab import register_agent_tab_parser
 from sase.main.parser_agent_tribe import register_agent_tribe_parser
 
 _AGENT_SUBCOMMAND_ORDER = (
@@ -43,6 +44,7 @@ _AGENT_SUBCOMMAND_ORDER = (
     "search",
     "show",
     "sync",
+    "tab",
     "tribe",
     "wait",
 )
@@ -73,6 +75,7 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
     register_agent_kill_parser(agents_sub)
     register_agent_show_parser(agents_sub)
     register_agent_sync_parser(agents_sub)
+    register_agent_tab_parser(agents_sub)
     register_agent_tribe_parser(agents_sub)
     register_agent_archive_parser(agents_sub)
     register_agent_artifacts_parser(agents_sub)

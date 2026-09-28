@@ -40,6 +40,12 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_tribe(args)
         sys.exit(0)
 
+    if sub == "tab":
+        from sase.agents.cli_tab import handle_agents_tab
+
+        handle_agents_tab(args)
+        sys.exit(0)
+
     if sub == "archive":
         from sase.agents.cli_archive import handle_agents_archive
 
@@ -116,6 +122,6 @@ def handle_agent_command(args: argparse.Namespace) -> None:
     print(
         "Usage: sase agent "
         "{archive,artifacts,drain,hold,index,kill,list,names,persist-cleanup,"
-        "persist-directive,prompts,restart,revert,search,show,sync,tribe,wait}"
+        "persist-directive,prompts,restart,revert,search,show,sync,tab,tribe,wait}"
     )
     sys.exit(1)

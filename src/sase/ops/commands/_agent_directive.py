@@ -558,13 +558,50 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
         from sase.xprompt.directive_edit import set_prompt_tribe
 
         tribe = spec.get("tribe")
-        return lambda prompt: set_prompt_tribe(prompt, tribe)
+
+        def _set_tribe(prompt: str) -> str:
+            return set_prompt_tribe(prompt, tribe)
+
+        return _with_optional_tab_mutator(_set_tribe, spec)
     if kind == "set_clan_tribe":
         from sase.xprompt.directive_edit import set_prompt_clan_tribe
 
         tribe = spec.get("tribe")
-        return lambda prompt: set_prompt_clan_tribe(prompt, tribe)
+
+        def _set_clan_tribe(prompt: str) -> str:
+            return set_prompt_clan_tribe(prompt, tribe)
+
+        return _with_optional_tab_mutator(_set_clan_tribe, spec)
+    if kind == "set_tab":
+        from sase.xprompt.directive_edit import set_agent_tab_directive
+
+        tab = spec.get("tab")
+        if tab is not None and not isinstance(tab, str):
+            raise ValueError("prompt tab must be a string or null")
+        return lambda prompt: set_agent_tab_directive(prompt, tab)
     return None
+
+
+def _with_optional_tab_mutator(base: Any, spec: object) -> Any:
+    """Compose an optional ``tab`` prompt edit onto a tribe mutator.
+
+    The ``tab`` key is meaningful only when present: a string sets (or
+    replaces) the leading ``%tab`` directive, ``None`` strips it, and an
+    absent key leaves tab directives untouched so tribe-only callers keep
+    their current behavior.
+    """
+    if not isinstance(spec, dict) or "tab" not in spec:
+        return base
+    from sase.xprompt.directive_edit import set_agent_tab_directive
+
+    tab = spec.get("tab")
+    if tab is not None and not isinstance(tab, str):
+        raise ValueError("prompt tab must be a string or null")
+
+    def _mutate(prompt: str) -> str:
+        return set_agent_tab_directive(base(prompt), tab)
+
+    return _mutate
 
 
 __all__ = ["persist_directive_from_payload", "run_persist_directive"]

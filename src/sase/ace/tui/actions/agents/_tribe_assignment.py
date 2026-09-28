@@ -49,9 +49,24 @@ class AgentTribeAssignmentMixin:
             return
 
         from sase.ace.agent_tribes import load_agent_tribes
+        from ...agent_tabs_flag import agent_tabs_enabled
 
         store = load_agent_tribes()
         known_tribes = sorted(set(store.values()))
+        tab_enabled = agent_tabs_enabled()
+        known_tabs = (
+            tuple(
+                sorted(
+                    {
+                        agent.agent_tab
+                        for agent in self._agents_with_children
+                        if agent.agent_tab
+                    }
+                )
+            )
+            if tab_enabled
+            else ()
+        )
 
         # Bulk path: if marks exist, the modal targets every marked agent.
         if self._marked_agents:
@@ -71,6 +86,8 @@ class AgentTribeAssignmentMixin:
                 current_tribe=None,
                 known_tribes=tuple(known_tribes),
                 affected=marked,
+                tab_enabled=tab_enabled,
+                known_tabs=known_tabs,
             )
             return
 
@@ -87,6 +104,9 @@ class AgentTribeAssignmentMixin:
             known_tribes=tuple(known_tribes),
             affected=[agent],
             default_tribe=DEFAULT_PINNED_TRIBE,
+            tab_enabled=tab_enabled,
+            current_tab=agent.agent_tab,
+            known_tabs=known_tabs,
         )
 
     def _open_agent_tribe_modal(
@@ -97,6 +117,9 @@ class AgentTribeAssignmentMixin:
         known_tribes: tuple[str, ...],
         affected: list[Agent],
         default_tribe: str | None = None,
+        tab_enabled: bool = False,
+        current_tab: str | None = None,
+        known_tabs: tuple[str, ...] = (),
     ) -> None:
         from ...modals import AgentTribeModal
 
@@ -111,6 +134,9 @@ class AgentTribeAssignmentMixin:
                 current_tribe=current_tribe,
                 known_tribes=known_tribes,
                 default_tribe=default_tribe,
+                tab_enabled=tab_enabled,
+                current_tab=current_tab,
+                known_tabs=known_tabs,
             ),
             on_dismiss,
         )
@@ -120,32 +146,53 @@ class AgentTribeAssignmentMixin:
         result: AgentTribeModalResult,
         affected: list[Agent],
     ) -> None:
-        """Persist the requested tribe change for every agent in *affected*."""
+        """Persist the requested tribe/tab change for every agent in *affected*."""
+        from ._remote_lifecycle import is_remote_fleet_agent
+
         snapshot_agents = getattr(self, "_snapshot_agents_for_local_display", None)
         previous_agents = (
             snapshot_agents() if callable(snapshot_agents) else list(self._agents)
         )
+        tribe_keep = result.action == "keep"
+        move_tab = result.tab_action != "keep"
+        tab_after: str | None = result.tab if result.tab_action == "set" else None
+        # Tab moves run on the owning machine: remote fleet rows are
+        # viewer-only here, so they keep their tab while local rows move.
+        remote_affected = [a for a in affected if is_remote_fleet_agent(a)]
+        tab_targets = [a for a in affected if not is_remote_fleet_agent(a)]
+        tab_target_ids = {a.identity for a in tab_targets}
+        if move_tab and remote_affected and tribe_keep and not tab_targets:
+            self.notify(  # type: ignore[attr-defined]
+                "Tab moves run on the owning machine",
+                severity="warning",
+            )
+            return
         changed = 0
+        tab_changed = 0
         affected_identities = {agent.identity for agent in affected}
         prior_tribes = {agent.identity: agent.tribe for agent in affected}
         prior_clan_tribes = {agent.identity: agent.clan_tribe for agent in affected}
+        prior_tabs = {agent.identity: agent.agent_tab for agent in tab_targets}
         updates: list[dict[str, object]] = []
         clan_afters: dict[tuple[str, str], str | None] = {}
         emitted_clan_records: set[tuple[str, str]] = set()
         for agent in affected:
             clan_bound = bool(agent.agent_clan)
-            visible_before = agent.clan_tribe if clan_bound else agent.tribe
-            if result.action == "set":
-                assert result.tribe is not None
-                after: str | None = result.tribe
-            else:
-                after = None
+            after: str | None = None
+            if not tribe_keep:
+                visible_before = agent.clan_tribe if clan_bound else agent.tribe
+                if result.action == "set":
+                    assert result.tribe is not None
+                    after = result.tribe
+                if after != visible_before:
+                    changed += 1
 
-            if after != visible_before:
-                changed += 1
+            move_this = move_tab and agent.identity in tab_target_ids
+            if move_this and tab_after != (agent.agent_tab or None):
+                tab_changed += 1
 
             artifacts_dir = agent.get_artifacts_dir()
-            if clan_bound:
+            if clan_bound and not tribe_keep:
                 clan = agent.agent_clan or ""
                 clan_generation = agent.agent_clan_generation or ""
                 if not clan_generation:
@@ -166,7 +213,7 @@ class AgentTribeAssignmentMixin:
                     raw_prompt is not None and prompt_declares_clan(raw_prompt)
                 )
             prompt_kind = None
-            if artifacts_dir:
+            if artifacts_dir and not tribe_keep:
                 if clan_prompt_declares:
                     prompt_kind = "set_clan_tribe"
                 elif not clan_bound:
@@ -175,28 +222,41 @@ class AgentTribeAssignmentMixin:
                 "artifacts_dir": artifacts_dir,
             }
             if prompt_kind is not None:
-                update["prompt"] = {"kind": prompt_kind, "tribe": after}
-            if artifacts_dir:
-                update["meta_set"] = (
-                    {"clan_tribe": after}
-                    if clan_bound and after
-                    else {"tribe": after}
-                    if after
-                    else {}
-                )
-                update["meta_remove"] = (
-                    ["clan_tribe"]
-                    if clan_bound and after is None
-                    else ["tribe", "tag"]
-                    if after is None
-                    else []
-                )
-            if not clan_bound:
+                prompt_spec: dict[str, object] = {
+                    "kind": prompt_kind,
+                    "tribe": after,
+                }
+                if move_this:
+                    prompt_spec["tab"] = tab_after
+                update["prompt"] = prompt_spec
+            elif move_this and artifacts_dir:
+                update["prompt"] = {"kind": "set_tab", "tab": tab_after}
+            if artifacts_dir and (not tribe_keep or move_this):
+                meta_set: dict[str, object] = {}
+                meta_remove: list[str] = []
+                if not tribe_keep:
+                    if clan_bound and after:
+                        meta_set["clan_tribe"] = after
+                    elif after:
+                        meta_set["tribe"] = after
+                    elif clan_bound:
+                        meta_remove.append("clan_tribe")
+                    else:
+                        meta_remove.extend(["tribe", "tag"])
+                if move_this:
+                    if tab_after is not None:
+                        meta_set["agent_tab"] = tab_after
+                        meta_set["agent_tab_source"] = "moved"
+                    else:
+                        meta_remove.extend(["agent_tab", "agent_tab_source"])
+                update["meta_set"] = meta_set
+                update["meta_remove"] = meta_remove
+            if not clan_bound and not tribe_keep:
                 update["tribe"] = {
                     "identity": list(agent.identity),
                     "tribe": after,
                 }
-            if clan_bound:
+            if clan_bound and not tribe_keep:
                 clan = agent.agent_clan or ""
                 clan_generation = agent.agent_clan_generation or ""
                 key = (clan, clan_generation)
@@ -216,12 +276,19 @@ class AgentTribeAssignmentMixin:
                     }
             updates.append(update)
 
-        if changed == 0:
-            verb = "set" if result.action == "set" else "unset"
-            self.notify(  # type: ignore[attr-defined]
-                f"No tribe {verb} (already in target state)",
-                severity="information",
-            )
+        if changed == 0 and tab_changed == 0:
+            if not tribe_keep:
+                verb = "set" if result.action == "set" else "unset"
+                self.notify(  # type: ignore[attr-defined]
+                    f"No tribe {verb} (already in target state)",
+                    severity="information",
+                )
+            else:
+                where = tab_after if tab_after is not None else "the default tab"
+                self.notify(  # type: ignore[attr-defined]
+                    f"Already on {where}",
+                    severity="information",
+                )
             return
 
         generation = object()
@@ -261,6 +328,13 @@ class AgentTribeAssignmentMixin:
                             continue
                         candidate.tribe = prior_tribes[candidate.identity]
                         candidate.clan_tribe = prior_clan_tribes[candidate.identity]
+                    if candidate.identity in prior_tabs:
+                        if (
+                            getattr(candidate, "_directive_generation", None)
+                            is not generation
+                        ):
+                            continue
+                        candidate.agent_tab = prior_tabs[candidate.identity]
 
         def _on_complete(
             completion: TrackedProcCompletion[object],
@@ -268,8 +342,13 @@ class AgentTribeAssignmentMixin:
             if completion.collision or completion.success:
                 return
             _rollback_visible_tribes()
+            failed = (
+                "Agent tab persist failed"
+                if tribe_keep
+                else "Agent tribe persist failed"
+            )
             self.notify(  # type: ignore[attr-defined]
-                f"Agent tribe persist failed: {completion.message}",
+                f"{failed}: {completion.message}",
                 severity="error",
             )
             refresh = getattr(self, "_schedule_agents_async_refresh", None)
@@ -284,12 +363,15 @@ class AgentTribeAssignmentMixin:
             ),
             "agent-tribes",
         )
+        display_name = (
+            f"Move {tab_changed} to tab" if tribe_keep else f"Persist tribes: {changed}"
+        )
         submitted = submit_agent_directive(
             self,
             artifacts_dir=first_dir,
             payload={"updates": updates},
             cl_name="agent-tribes",
-            display_name=f"Persist tribes: {changed}",
+            display_name=display_name,
             on_complete=_on_complete,
             tribe_store=True,
             duplicate_message="A tribe persistence proc is already running",
@@ -297,16 +379,19 @@ class AgentTribeAssignmentMixin:
         if not submitted:
             return
 
+        tribe_after = result.tribe if result.action == "set" else None
         for candidates in (self._agents, self._agents_with_children):
             for candidate in candidates:
                 if candidate.identity in affected_identities:
-                    after = result.tribe if result.action == "set" else None
-                    if candidate.agent_clan:
-                        candidate.clan_tribe = after
-                        if candidate.is_clan_container:
-                            candidate.tribe = after
-                    else:
-                        candidate.tribe = after
+                    if not tribe_keep:
+                        if candidate.agent_clan:
+                            candidate.clan_tribe = tribe_after
+                            if candidate.is_clan_container:
+                                candidate.tribe = tribe_after
+                        else:
+                            candidate.tribe = tribe_after
+                    if candidate.identity in tab_target_ids:
+                        candidate.agent_tab = tab_after
                 elif candidate.identity in optimistic_clan_identities:
                     key = (
                         candidate.agent_clan or "",
@@ -317,9 +402,29 @@ class AgentTribeAssignmentMixin:
                     if candidate.is_clan_container:
                         candidate.tribe = after
 
+        if move_tab and remote_affected and tab_targets:
+            self.notify(  # type: ignore[attr-defined]
+                "Tab moves run on the owning machine "
+                f"(skipped {len(remote_affected)} remote "
+                f"{'row' if len(remote_affected) == 1 else 'rows'})",
+                severity="warning",
+            )
+        if tab_changed:
+            tab_suffix = "agent" if tab_changed == 1 else "agents"
+            tab_where = tab_after if tab_after is not None else "main"
+            self.notify(  # type: ignore[attr-defined]
+                f"Moved {tab_changed} {tab_suffix} to {tab_where}",
+            )
+            try:
+                from ._tab_scope import refresh_agent_tab_index
+
+                refresh_agent_tab_index(self)
+            except Exception:  # noqa: BLE001 - the next refresh rebuilds anyway.
+                pass
+
         clan_names = sorted({clan for clan, _gen in clan_afters})
         all_clan_bound = clan_afters and all(a.agent_clan for a in affected)
-        if all_clan_bound and len(clan_names) == 1:
+        if not tribe_keep and all_clan_bound and len(clan_names) == 1:
             if result.action == "set":
                 assert result.tribe is not None
                 self.notify(  # type: ignore[attr-defined]
@@ -329,17 +434,19 @@ class AgentTribeAssignmentMixin:
                 self.notify(  # type: ignore[attr-defined]
                     f"Cleared tribe for clan {clan_names[0]}",
                 )
-            return
-        suffix = "agent" if changed == 1 else "agents"
-        if result.action == "set":
-            assert result.tribe is not None
-            self.notify(  # type: ignore[attr-defined]
-                f"Set @{result.tribe} on {changed} {suffix}",
-            )
-        else:
-            self.notify(  # type: ignore[attr-defined]
-                f"Cleared tribe on {changed} {suffix}",
-            )
+            if not tab_changed:
+                return
+        elif not tribe_keep:
+            suffix = "agent" if changed == 1 else "agents"
+            if result.action == "set":
+                assert result.tribe is not None
+                self.notify(  # type: ignore[attr-defined]
+                    f"Set @{result.tribe} on {changed} {suffix}",
+                )
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Cleared tribe on {changed} {suffix}",
+                )
         self._marked_agents -= affected_identities
         order = getattr(self, "_marked_agent_order", None)
         if order:
