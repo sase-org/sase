@@ -189,8 +189,8 @@ class PromptBarStashStoreMixin:
                 return
             if exc is None:
                 return
-            logging.getLogger("sase").exception(
-                "Prompt stash background task failed: %s", exc
+            logging.getLogger("sase").error(
+                "Prompt stash background task failed", exc_info=exc
             )
             try:
                 self.notify(  # type: ignore[attr-defined]

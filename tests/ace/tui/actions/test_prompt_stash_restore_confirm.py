@@ -663,6 +663,44 @@ async def test_confirm_load_failure_rolls_row_back_into_stash(
     assert harness.applied_counts == [1]  # badge reflects the rolled-back row
 
 
+async def test_confirm_load_and_rollback_failure_toasts_archive_recovery(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed rollback still leaves the popped row recoverable in the archive."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "model: c")])
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    def _boom_load(_entries: object) -> None:
+        raise RuntimeError("bar exploded")
+
+    def _boom_append(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("rollback exploded")
+
+    monkeypatch.setattr(harness, "_load_restored_entries", _boom_load)
+    monkeypatch.setattr(
+        "sase.core.prompt_stash_facade.append_prompt_stash", _boom_append
+    )
+
+    await harness._apply_stash_restore(StashRestoreResult(pop_ids=["a"]))
+
+    assert len(harness.notifications) == 1
+    message, severity = harness.notifications[0]
+    assert severity == "error"
+    assert "sase prompt stash-archive" in message
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_archive
+
+    archive = read_prompt_stash_archive(path)
+    assert any(
+        record.entry.id == "a" and record.reason == "popped"
+        for record in archive.records
+    )
+
+
 async def test_spawned_task_exception_is_logged_and_toasted(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -677,9 +715,17 @@ async def test_spawned_task_exception_is_logged_and_toasted(
         await asyncio.sleep(0.1)  # sase-test-wait: let failure callback run
 
     assert ("Prompt stash task failed: kablam", "error") in harness.notifications
-    assert any(
-        "Prompt stash background task failed" in record.message
+    failures = [
+        record
         for record in caplog.records
+        if "Prompt stash background task failed" in record.message
+    ]
+    assert failures, "expected the stash-task failure to be logged"
+    assert any(
+        isinstance(record.exc_info, tuple)
+        and isinstance(record.exc_info[1], RuntimeError)
+        and "kablam" in str(record.exc_info[1])
+        for record in failures
     )
 
 

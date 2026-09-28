@@ -197,14 +197,26 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
                 restored_count = len(self._entries_to_restore_panes(restore_entries))
                 self._load_restored_entries(restore_entries)
             except Exception as exc:
-                await self._rollback_stash_restore(removed, pop_ids)
-                self.notify(  # type: ignore[attr-defined]
-                    self._prompt_stash_error_message(
-                        "Failed to restore prompt — draft put back in the stash",
-                        exc,
-                    ),
-                    severity="error",
-                )
+                from ...modals._stash_trash_commit import STASH_ARCHIVE_RECOVERY_HINT
+
+                rolled_back = await self._rollback_stash_restore(removed, pop_ids)
+                if rolled_back:
+                    self.notify(  # type: ignore[attr-defined]
+                        self._prompt_stash_error_message(
+                            "Failed to restore prompt — draft put back in the stash",
+                            exc,
+                        ),
+                        severity="error",
+                    )
+                else:
+                    self.notify(  # type: ignore[attr-defined]
+                        self._prompt_stash_error_message(
+                            "Failed to restore prompt — draft not put back "
+                            f"in the stash. {STASH_ARCHIVE_RECOVERY_HINT}",
+                            exc,
+                        ),
+                        severity="error",
+                    )
                 return
 
         deleted = sum(1 for entry_id in result.delete_ids if entry_id in removed_ids)
@@ -216,8 +228,11 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
         self,
         removed: list[PromptStashEntryWire],
         pop_ids: set[str],
-    ) -> None:
-        """Append popped restore rows back after a failed bar load."""
+    ) -> bool:
+        """Append popped restore rows back after a failed bar load.
+
+        Returns whether every popped row was re-appended.
+        """
         import asyncio
 
         from sase.core.paths import prompt_stash_path
@@ -225,18 +240,21 @@ class PromptBarStashRestoreApplyMixin(PromptBarStashStoreMixin):
 
         to_restore = [entry for entry in removed if entry.id in pop_ids]
         if not to_restore:
-            return
+            return True
         snapshot = None
+        failed = False
         for entry in to_restore:
             try:
                 snapshot = await asyncio.to_thread(
                     append_prompt_stash, prompt_stash_path(), entry
                 )
-            except Exception:  # pragma: no cover - defensive (store/IO error)
+            except Exception:
+                failed = True
                 continue
-        if snapshot is None:  # pragma: no cover - defensive (rollback failed)
-            return
+        if snapshot is None:
+            return False
         self._apply_prompt_stash_counts(*self._prompt_stash_snapshot_counts(snapshot))
+        return not failed
 
     def _load_restored_entries(self, entries: list[PromptStashEntryWire]) -> None:
         """Load restored stash drafts into the prompt bar.

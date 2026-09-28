@@ -8,8 +8,11 @@ from pathlib import Path
 
 import pytest
 
+pytest_plugins = ["pytester"]
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _TESTS_ROOT = _REPO_ROOT / "tests"
+_THIS_FILE = str(Path(__file__).resolve())
 
 
 def _undo_on_injected_monkeypatch(tree: ast.AST) -> list[str]:
@@ -67,8 +70,20 @@ def test_no_undo_on_shared_monkeypatch_fixture() -> None:
     )
 
 
+@pytest.fixture(scope="module")
+def _module_home_baseline() -> tuple[str | None, str | None]:
+    """Capture the HOME/SASE_HOME fallback a module-scoped fixture sees.
+
+    A module-scoped fixture runs after the session fixtures and before the
+    function-level isolation, so it sees exactly what an undo of the
+    function-level patches reverts to.
+    """
+    return (os.environ.get("HOME"), os.environ.get("SASE_HOME"))
+
+
 def test_session_sandbox_seals_home_after_function_patches_lost(
     monkeypatch: pytest.MonkeyPatch,
+    _module_home_baseline: tuple[str | None, str | None],
 ) -> None:
     """Losing function-level patches still lands inside the pytest sandbox."""
     from sase.core import paths as _paths
@@ -78,16 +93,25 @@ def test_session_sandbox_seals_home_after_function_patches_lost(
     account_home = _account_home().resolve()
     real_state_root = (account_home / ".sase").resolve()
 
-    current = _paths.sase_home().expanduser().resolve(strict=False)
-    assert current == sandbox or sandbox in current.parents, (
-        f"sase_home() {current} escapes sandbox {sandbox}"
-    )
+    baseline_home, baseline_sase_home = _module_home_baseline
+    for label, baseline in (("HOME", baseline_home), ("SASE_HOME", baseline_sase_home)):
+        assert baseline is not None, f"module baseline {label} is unexpectedly None"
+        resolved = Path(baseline).expanduser().resolve(strict=False)
+        assert resolved == sandbox or sandbox in resolved.parents, (
+            f"module baseline {label}={baseline} escapes sandbox {sandbox}"
+        )
 
     # Simulate losing the per-test env keys inside a scoped context: fall
-    # back to the session sandbox, never the account home.
+    # back to the module baseline, never the account home.
     with monkeypatch.context() as scoped:
-        scoped.delenv("SASE_HOME", raising=False)
-        scoped.setenv("HOME", str(sandbox))
+        if baseline_home is None:
+            scoped.delenv("HOME", raising=False)
+        else:
+            scoped.setenv("HOME", baseline_home)
+        if baseline_sase_home is None:
+            scoped.delenv("SASE_HOME", raising=False)
+        else:
+            scoped.setenv("SASE_HOME", baseline_sase_home)
         fallback = _paths.sase_home().expanduser().resolve(strict=False)
         assert fallback == sandbox or sandbox in fallback.parents, (
             f"post-undo sase_home() {fallback} escapes sandbox {sandbox}"
@@ -97,3 +121,21 @@ def test_session_sandbox_seals_home_after_function_patches_lost(
             real_state_root not in fallback.parents
             or sandbox in real_state_root.parents
         )
+
+
+def test_session_sandbox_seal_is_not_first_test(
+    pytester: pytest.Pytester,
+) -> None:
+    """Guarantee the seal test never runs as a worker's first test."""
+    result = pytester.runpytest_subprocess(
+        "-p",
+        "no:randomly",
+        "-c",
+        str(_REPO_ROOT / "pyproject.toml"),
+        "--rootdir",
+        str(_REPO_ROOT),
+        f"{_THIS_FILE}::test_no_undo_on_shared_monkeypatch_fixture",
+        f"{_THIS_FILE}::test_session_sandbox_seals_home_after_function_patches_lost",
+        timeout=60,
+    )
+    result.assert_outcomes(passed=2)

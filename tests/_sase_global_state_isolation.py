@@ -15,9 +15,11 @@ _ENV_KEYS_TO_IGNORE = frozenset(
         "GIT_CONFIG_COUNT",
         "GIT_CONFIG_GLOBAL",
         "GIT_CONFIG_SYSTEM",
+        "HOME",
         "PYTEST_CURRENT_TEST",
         "SASE_AXE_DISABLE_SYSTEMD_SCOPE",
         "SASE_DETACH_SCOPE_DISABLE",
+        "SASE_HOME",
         "SASE_PYTEST_SANDBOX_DIR",
     }
 )

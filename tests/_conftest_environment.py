@@ -116,6 +116,11 @@ def _sandbox_session_home(
     ``AcePageGroup`` fixtures mount under the sandbox instead of the real
     ``~/.sase/logs``. Any stray function-level ``undo()`` falls back to this
     sandbox, never the account home. Undone at session end.
+
+    These names must stay in ``_ENV_KEYS_TO_IGNORE``. The per-test env
+    snapshot runs before session fixtures on the first test; restoring that
+    snapshot would otherwise drop the sandbox and leak the account home
+    into later tests.
     """
     scoped = pytest.MonkeyPatch()
     worker_home = tmp_path_factory.mktemp("session-home")

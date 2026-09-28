@@ -323,6 +323,7 @@ def test_preview_counts_evictions_and_pins() -> None:
     assert "Move 2 drafts to Trash?" in text
     assert "pinned" in text
     assert "permanently deleted" in text
+    assert "sase prompt stash-archive" in text
 
 
 def test_preview_batch_larger_than_limit_counts_all_overflow() -> None:
@@ -353,10 +354,11 @@ def test_preview_drops_stale_ids() -> None:
 
 def test_outcome_text_names_actual_evictions() -> None:
     assert trash_outcome_text(3, []) == "Moved 3 drafts to Trash"
-    assert (
-        trash_outcome_text(2, ["x", "y"])
-        == "Moved 2 drafts to Trash (permanently deleted 2 oldest drafts: x, y)"
+    evicted = trash_outcome_text(2, ["x", "y"])
+    assert evicted.startswith(
+        "Moved 2 drafts to Trash (permanently deleted 2 oldest drafts: x, y)"
     )
+    assert "sase prompt stash-archive" in evicted
 
 
 def test_stash_empty_text_pointer() -> None:

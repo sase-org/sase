@@ -154,11 +154,12 @@ def test_purge_confirm_text_names_count_and_rows() -> None:
         make_record("b", text="second"),
     ]
     text = purge_confirm_text(["a", "b"], records)
-    assert "Permanently delete 2 drafts" in text
-    assert "cannot be undone" in text
+    assert "Permanently delete 2 drafts from Trash?" in text
+    assert "cannot be undone" not in text
     assert "first draft here" in text
+    assert "sase prompt stash-archive" in text
     single = purge_confirm_text(["a"], records)
-    assert "Permanently delete 1 draft?" in single
+    assert "Permanently delete 1 draft from Trash?" in single
 
 
 def test_purge_confirm_text_truncates_long_lists() -> None:

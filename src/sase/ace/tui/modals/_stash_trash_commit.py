@@ -78,7 +78,8 @@ def trash_commit_confirm_text(preview: TrashCommitPreview) -> str:
         noun_lost = "draft" if lost == 1 else "drafts"
         lines.append(
             f"Trash holds {preview.trash_count} of {preview.trash_limit}: "
-            f"{lost} oldest {noun_lost} will be permanently deleted."
+            f"{lost} oldest {noun_lost} will be permanently deleted. "
+            f"{STASH_ARCHIVE_RECOVERY_HINT}"
         )
     return "\n".join(lines)
 
@@ -91,6 +92,7 @@ def trash_outcome_text(moved: int, evicted: list[str]) -> str:
         lost = len(evicted)
         noun_lost = "draft" if lost == 1 else "drafts"
         message += (
-            f" (permanently deleted {lost} oldest {noun_lost}: {', '.join(evicted)})"
+            f" (permanently deleted {lost} oldest {noun_lost}: {', '.join(evicted)}). "
+            f"{STASH_ARCHIVE_RECOVERY_HINT}"
         )
     return message

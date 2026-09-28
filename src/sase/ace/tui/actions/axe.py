@@ -387,6 +387,10 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
 
     async def _stop_axe_and_quit(self) -> None:
         """Stop the Scheduler, then quit."""
+        stash_quit_draft = getattr(self, "_stash_quit_draft_or_cancel", None)
+        if callable(stash_quit_draft):
+            if stash_quit_draft() is False:
+                return
         stop_watchdog = getattr(self, "_stop_tui_stall_watchdog", None)
         if callable(stop_watchdog):
             stop_watchdog()

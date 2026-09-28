@@ -164,7 +164,7 @@ def purge_confirm_text(
     count = len(marked_ids)
     noun = "draft" if count == 1 else "drafts"
     lines = [
-        f"Permanently delete {count} {noun}? This cannot be undone.",
+        f"Permanently delete {count} {noun} from Trash?",
     ]
     by_id = {record.entry.id: record for record in records}
     for entry_id in marked_ids[:5]:

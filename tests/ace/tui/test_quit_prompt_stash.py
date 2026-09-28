@@ -9,6 +9,7 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow._prompt_bar_stash import PromptBarStashMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from sase.ace.tui.actions.axe import AxeMixin
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.quit_impact import collect_tui_exit_impact
 from sase.ace.tui.widgets.prompt_input_bar import StashedPromptPane
@@ -204,3 +205,67 @@ def test_quit_impact_without_draft_reports_no_draft() -> None:
 
     assert impact.has_prompt_draft is False
     assert "Your unsent prompt draft will be stashed" not in impact.summary_lines()
+
+
+class _StopAxeQuitStashApp(AxeMixin, LifecycleMixin, PromptBarStashMixin):
+    """Drive `_stop_axe_and_quit` with quit-draft stash tracking."""
+
+    def __init__(self, bar: _FakeBar | None) -> None:
+        self._bar = bar
+        self._prompt_context = _prompt_context()
+        self.notices: list[tuple[str, str]] = []
+        self.did_quit = False
+        self.watchdog_stops = 0
+        self.controlled_exit_calls = 0
+
+    def _mounted_prompt_bar(self) -> Any:
+        return self._bar
+
+    def notify(self, message: object, *, severity: str = "information") -> None:
+        self.notices.append((str(message), severity))
+
+    def _do_quit(self) -> None:
+        self.did_quit = True
+
+    def _stop_tui_stall_watchdog(self) -> None:
+        self.watchdog_stops += 1
+
+    async def _begin_controlled_exit(self) -> None:
+        self.controlled_exit_calls += 1
+
+
+@pytest.mark.asyncio
+async def test_stop_axe_and_quit_stash_failure_keeps_scheduler_running(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failing quit-draft stash cancels `_stop_axe_and_quit` before teardown."""
+    _skip_without_prompt_stash_bindings()
+    stash_path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, stash_path)
+    app = _StopAxeQuitStashApp(_FakeBar([StashedPromptPane("alpha")]))
+
+    def _boom(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise RuntimeError("write failed")
+
+    monkeypatch.setattr("sase.core.prompt_stash_facade.append_prompt_stash", _boom)
+
+    import sase.service.actions as service_actions
+
+    stop_calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_stop(name: str, **kwargs: Any) -> None:
+        stop_calls.append((name, kwargs))
+
+    monkeypatch.setattr(service_actions, "stop_service_proc", fake_stop)
+
+    await app._stop_axe_and_quit()
+
+    assert stop_calls == []
+    assert app.watchdog_stops == 0
+    assert app.controlled_exit_calls == 0
+    assert app.did_quit is False
+    assert any(
+        severity == "error" and "Failed to stash prompt draft" in message
+        for message, severity in app.notices
+    )
