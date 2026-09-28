@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.core.paths import sase_home
+from sase.core.state_write_guard import assert_test_state_write_isolated
 from sase.core.time import generate_timestamp
 
 _PROMPT_HISTORY_FILE: Path | None = None
@@ -243,6 +244,7 @@ def _prompt_to_json(entry: PromptEntry) -> dict[str, object]:
 
 def save_shard(path: Path, prompts: list[PromptEntry]) -> bool:
     """Atomically save one prompt-history shard."""
+    assert_test_state_write_isolated(path, category="prompt history")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         data = {"prompts": [_prompt_to_json(p) for p in prompts]}
@@ -358,6 +360,7 @@ def _prompt_history_lock_file() -> Path:
 def locked_prompt_history() -> Iterator[None]:
     """Hold an exclusive lock for prompt-history read/modify/write cycles."""
     lock_file = _prompt_history_lock_file()
+    assert_test_state_write_isolated(lock_file, category="prompt history")
     lock_file.parent.mkdir(parents=True, exist_ok=True)
     with open(lock_file, "a+", encoding="utf-8") as f:
         fcntl.flock(f.fileno(), fcntl.LOCK_EX)
@@ -376,6 +379,7 @@ def save_prompt_history(prompts: list[PromptEntry]) -> bool:
     Returns:
         True if saved successfully, False otherwise.
     """
+    assert_test_state_write_isolated(prompt_history_dir(), category="prompt history")
     try:
         ensure_migrated()
         history_dir = prompt_history_dir()

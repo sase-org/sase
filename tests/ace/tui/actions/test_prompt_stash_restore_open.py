@@ -452,16 +452,18 @@ async def test_failed_read_clears_flags_next_opens(
     def _failing_read():  # type: ignore[no-untyped-def]
         raise OSError("disk gone")
 
-    monkeypatch.setattr(harness, "_read_prompt_stash_overlay_snapshot", _failing_read)
-    await harness.action_restore_prompt_stash()
-    await _wait_prompt_stash_tasks(harness)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(harness, "_read_prompt_stash_overlay_snapshot", _failing_read)
+        await harness.action_restore_prompt_stash()
+        await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
     assert getattr(harness, "_prompts_stash_open_in_flight", False) is False
     assert getattr(harness, "_prompts_stash_pop_newest_pending", False) is False
 
-    # Next `@` opens normally (overlay pushed).
-    monkeypatch.undo()
+    # Next `@` opens normally (overlay pushed). The tmp store redirect stays
+    # active: no undo() on the shared fixture, so the read cannot fall back
+    # to the account's real prompt stash.
     await harness.action_restore_prompt_stash()
     await _wait_prompt_stash_tasks(harness)
     assert len(harness.pushed) == 1

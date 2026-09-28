@@ -20,6 +20,7 @@ from sase.core.prompt_stash_wire import (
     prompt_stash_wire_to_json_dict,
 )
 from sase.core.rust import require_rust_binding
+from sase.core.state_write_guard import assert_test_state_write_isolated
 
 
 class PromptStashLockTimeoutError(TimeoutError):
@@ -38,8 +39,14 @@ def _call_binding(name: str, *args: Any) -> Any:
         raise
 
 
+def _guard_prompt_stash_path(path: Path | str) -> None:
+    """Raise when a pytest process targets the account's real prompt stash."""
+    assert_test_state_write_isolated(path, category="prompt stash")
+
+
 def read_prompt_stash_snapshot(path: Path | str) -> PromptStashSnapshotWire:
     """Read prompt-stash rows through ``sase_core_rs`` and rehydrate wires."""
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding("read_prompt_stash_snapshot", str(path))
     return prompt_stash_snapshot_from_dict(payload)
 
@@ -49,6 +56,7 @@ def append_prompt_stash(
     entry: PromptStashEntryWire | dict[str, Any],
 ) -> PromptStashSnapshotWire:
     """Append one stash entry through Rust and return the updated snapshot."""
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding(
         "append_prompt_stash", str(path), prompt_stash_wire_to_json_dict(entry)
     )
@@ -60,6 +68,7 @@ def pop_prompt_stash(
     ids: Sequence[str],
 ) -> PromptStashPopOutcomeWire:
     """Remove entries with the given ids and return removed rows + snapshot."""
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding(
         "pop_prompt_stash", str(path), [str(i) for i in ids]
     )
@@ -72,6 +81,7 @@ def set_prompt_stash_pinned(
     pinned: bool,
 ) -> PromptStashSnapshotWire:
     """Set the persisted pin flag for the given entry ids."""
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding(
         "set_prompt_stash_pinned",
         str(path),
@@ -86,6 +96,7 @@ def rewrite_prompt_stash(
     entries: Sequence[PromptStashEntryWire | dict[str, Any]],
 ) -> PromptStashSnapshotWire:
     """Rewrite stash rows by id through Rust and return the updated snapshot."""
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding(
         "rewrite_prompt_stash",
         str(path),
@@ -115,6 +126,7 @@ def read_prompt_stash_lifecycle(
     Requires a core wheel with the trash lifecycle bindings; a stale wheel
     raises :class:`AttributeError` naming the missing binding.
     """
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding("read_prompt_stash_lifecycle", str(path))
     return prompt_stash_lifecycle_snapshot_from_dict(payload)
 
@@ -130,6 +142,7 @@ def trash_prompt_stash(
     ``trashed_at`` is the UTC deletion time shared by the whole batch;
     ``trash_limit`` is enforced in the same Rust transaction.
     """
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding(
         "trash_prompt_stash",
         str(path),
@@ -145,6 +158,7 @@ def restore_prompt_stash(
     ids: Sequence[str],
 ) -> PromptStashLifecycleOutcomeWire:
     """Move trashed rows back to Stash and return the lifecycle outcome."""
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding(
         "restore_prompt_stash", str(path), [str(i) for i in ids]
     )
@@ -156,6 +170,7 @@ def purge_prompt_stash(
     ids: Sequence[str],
 ) -> PromptStashLifecycleOutcomeWire:
     """Permanently delete trashed rows and return the lifecycle outcome."""
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding(
         "purge_prompt_stash", str(path), [str(i) for i in ids]
     )
@@ -171,6 +186,7 @@ def reconcile_prompt_stash_trash(
     The reconciliation path for a lowered configured limit: over-limit trash
     rows are permanently deleted and reported in ``evicted``, oldest first.
     """
+    _guard_prompt_stash_path(path)
     payload: dict[str, Any] = _call_binding(
         "reconcile_prompt_stash_trash",
         str(path),

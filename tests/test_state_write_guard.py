@@ -12,11 +12,13 @@ import pytest
 from sase.axe.config import AxeConfig
 from sase.axe.orchestrator import Orchestrator
 from sase.axe.state import append_bounded_log
+from sase.core import prompt_stash_facade
 from sase.core.state_write_guard import (
     assert_bead_store_write_sandboxed,
     pytest_path_is_sandboxed,
     require_pytest_sandbox_root,
 )
+from sase.history import prompt_store
 from sase.telemetry import flush_metrics, metrics as telemetry_metrics
 from sase.telemetry._config import _TelemetryConfig
 from sase.telemetry._registry import _reset_for_tests, init_telemetry
@@ -248,4 +250,127 @@ def test_crash_loop_refusal_precedes_error_and_notification_stores(
 
     append_error.assert_not_called()
     notify_workflow_complete.assert_not_called()
+    assert not (account_home / ".sase").exists()
+
+
+def _prompt_stash_calls(real_path: Path) -> list[tuple[str, tuple, dict]]:
+    """Return one call per public facade function aimed at *real_path*."""
+    return [
+        ("read_prompt_stash_snapshot", (real_path,), {}),
+        ("append_prompt_stash", (real_path, {"id": "x"}), {}),
+        ("pop_prompt_stash", (real_path, []), {}),
+        ("set_prompt_stash_pinned", (real_path, [], True), {}),
+        ("rewrite_prompt_stash", (real_path, []), {}),
+        ("read_prompt_stash_lifecycle", (real_path,), {}),
+        ("trash_prompt_stash", (real_path, [], 0, "260101_000000"), {}),
+        ("restore_prompt_stash", (real_path, []), {}),
+        ("purge_prompt_stash", (real_path, []), {}),
+        ("reconcile_prompt_stash_trash", (real_path, 0), {}),
+    ]
+
+
+def test_pytest_prompt_stash_facade_refuses_real_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    account_home = tmp_path / "account"
+    real_path = account_home / ".sase" / "prompt_stash.jsonl"
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "prompt stash isolation")
+
+    with (
+        patch(
+            "sase.core.state_write_guard._account_home",
+            return_value=account_home,
+        ),
+        patch.object(
+            prompt_stash_facade,
+            "_call_binding",
+            side_effect=AssertionError("binding must not be reached"),
+        ) as call_binding,
+    ):
+        for name, args, kwargs in _prompt_stash_calls(real_path):
+            with pytest.raises(RuntimeError, match="prompt stash"):
+                getattr(prompt_stash_facade, name)(*args, **kwargs)
+
+    call_binding.assert_not_called()
+    assert not (account_home / ".sase").exists()
+
+
+def test_pytest_prompt_stash_facade_allows_sandbox(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    account_home = tmp_path / "account"
+    sandbox_path = tmp_path / "sandbox" / "prompt_stash.jsonl"
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "prompt stash isolation")
+
+    with (
+        patch(
+            "sase.core.state_write_guard._account_home",
+            return_value=account_home,
+        ),
+        patch.object(
+            prompt_stash_facade,
+            "_call_binding",
+            return_value={"schema_version": 1},
+        ) as call_binding,
+    ):
+        snapshot = prompt_stash_facade.read_prompt_stash_snapshot(sandbox_path)
+        assert snapshot.entries == []
+        prompt_stash_facade.append_prompt_stash(sandbox_path, {"id": "x"})
+
+    assert call_binding.call_count == 2
+
+
+def test_pytest_prompt_history_writes_refuse_real_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    account_home = tmp_path / "account"
+    real_file = account_home / ".sase" / "prompt_history.json"
+    real_shard = account_home / ".sase" / "prompt_history" / "260101.json"
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "prompt history isolation")
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", real_file)
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_DIR", None)
+    monkeypatch.setattr(prompt_store, "_LEGACY_PROMPT_HISTORY_FILE", None)
+
+    with patch(
+        "sase.core.state_write_guard._account_home",
+        return_value=account_home,
+    ):
+        with pytest.raises(RuntimeError, match="prompt history"):
+            prompt_store.save_shard(real_shard, [])
+        with pytest.raises(RuntimeError, match="prompt history"):
+            prompt_store.save_prompt_history([])
+        with pytest.raises(RuntimeError, match="prompt history"):
+            with prompt_store.locked_prompt_history():
+                pass
+
+    assert not (account_home / ".sase").exists()
+
+
+def test_pytest_prompt_history_writes_allow_sandbox(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    account_home = tmp_path / "account"
+    sandbox_file = tmp_path / "sandbox" / ".sase" / "prompt_history.json"
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "prompt history isolation")
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_FILE", sandbox_file)
+    monkeypatch.setattr(prompt_store, "_PROMPT_HISTORY_DIR", None)
+    monkeypatch.setattr(prompt_store, "_LEGACY_PROMPT_HISTORY_FILE", None)
+
+    with patch(
+        "sase.core.state_write_guard._account_home",
+        return_value=account_home,
+    ):
+        shard = prompt_store.shard_path(
+            prompt_store.shard_key_for_timestamp("260101_120000")
+        )
+        assert prompt_store.save_shard(shard, []) is True
+        assert shard.exists()
+        assert prompt_store.save_prompt_history([]) is True
+        with prompt_store.locked_prompt_history():
+            pass
+
     assert not (account_home / ".sase").exists()
