@@ -10,7 +10,7 @@ from typing import Any
 from sase.ace.tui._proc_observer_models import (
     ObservedProc,
     ProcProjection,
-    gear_eligible_count,
+    proc_gear_lanes,
 )
 from sase.ace.tui._service_health import derive_service_health
 from sase.ace.tui.actions.event_refresh._surface_tokens import (
@@ -319,7 +319,8 @@ def test_gear_excludes_monitor_and_sessionless_service_rows() -> None:
     projection = ProcProjection(
         rows=rows, active_count=3, active_monitor_count=1, session_id="s"
     )
-    assert gear_eligible_count(projection) == 1
+    lanes = proc_gear_lanes(projection)
+    assert lanes.procs + lanes.updates == 1
     assert len(projection.active_rows()) == 3  # inventory unchanged
 
 
@@ -332,7 +333,8 @@ def test_gear_excludes_service_rows_that_lost_the_service_block() -> None:
         _row("oneshot", origin="service-proc", service=None, session_id=None),
     )
     projection = ProcProjection(rows=rows, active_count=3, session_id="s")
-    assert gear_eligible_count(projection) == 1
+    lanes = proc_gear_lanes(projection)
+    assert lanes.procs + lanes.updates == 1
     assert len(projection.active_rows()) == 3  # inventory unchanged
 
 

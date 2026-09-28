@@ -3574,9 +3574,9 @@ Plugins, and Agent CLIs alike.
 
 ### Quit / Restart Menu
 
-Pressing `Q` opens the **quit / restart menu**. When procs are still running, the menu
-warns inline with the count that leaving will stop (`N procs will be stopped`; service
-procs, oneshots, and monitor turns are not counted), and it offers three actions:
+Pressing `Q` opens the **quit / restart menu**. When this TUI instance has in-process
+work, the menu warns inline (`N TUI tasks will be interrupted`) and it offers three
+actions:
 
 - `1` / `s` — quit sase's TUI and stop the `scheduler` service proc (best effort: the
   TUI still quits if the stop fails); the service host and its other service procs keep
@@ -3586,9 +3586,20 @@ procs, oneshots, and monitor turns are not counted), and it offers three actions
 
 Press `esc` (or `q`) to cancel and return to the TUI.
 
-A plain `q` quits sase's TUI directly. When procs are still running, `q` first shows a
-confirmation dialog listing the active procs and asks whether to kill them and quit;
-declining returns to the TUI.
+Durable procs, `!` background commands, monitor turns, and service procs survive
+quitting and restarting; the menu says nothing about them because they keep running.
+
+A plain `q` quits sase's TUI directly when nothing would be interrupted. Otherwise `q`
+shows a y/n confirmation (default No) listing the in-process TUI work that would be
+lost; confirming quits, declining (or `esc`/`q`) stays in the TUI.
+
+Options `1` and `3` also check for in-flight scheduler launch batches (a chop run that
+has proposed launches but has not launched them all yet). When quitting would drop the
+remaining launches — or when in-process TUI work would be lost — a y/n confirmation
+(default No) lists exactly what would be lost. Option `2` confirms only for in-process
+TUI work. Declining returns to the TUI without exiting or stopping anything; when
+nothing would be lost, `q` and all three `Q` options behave exactly as before with no
+extra prompt.
 
 ## Command Palette
 

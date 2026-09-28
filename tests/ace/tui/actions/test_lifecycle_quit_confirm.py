@@ -8,17 +8,40 @@ import pytest
 
 from sase.ace.tui.util import shutdown
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
+from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
+from sase.ace.tui.modals.confirm_dialog import ConfirmKind
 from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
 
 
+class _FakeWorker:
+    def __init__(self, *, finished: bool = False) -> None:
+        self._finished = finished
+
+    @property
+    def is_finished(self) -> bool:
+        return self._finished
+
+
 class _QuitApp(LifecycleMixin):
-    def __init__(self, tasks: tuple[ObservedProc, ...] = ()) -> None:
+    def __init__(
+        self,
+        tasks: tuple[ObservedProc, ...] = (),
+        *,
+        session_rows: tuple[ObservedProc, ...] = (),
+        durable_workers: dict[str, Any] | None = None,
+    ) -> None:
         self._proc_projection = ProcProjection(
             rows=tasks,
             active_count=sum(1 for task in tasks if task.status == "running"),
         )
+        self._session_rows = tuple(session_rows)
+        self._durable_submit_workers = dict(durable_workers or {})
         self.pushed: list[tuple[Any, Any]] = []
         self.did_quit = False
+        self._quit_confirm_open = False
+
+    def _session_overlay_rows(self) -> tuple[ObservedProc, ...]:
+        return self._session_rows
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         self.pushed.append((modal, callback))
@@ -50,14 +73,6 @@ class _FlushQuitApp(_QuitApp):
         self.scheduled.append(asyncio.create_task(callback()))
 
 
-def _monitor_task(proc_id: str, proc_type: str) -> ObservedProc:
-    from sase.ace.tui._proc_observer_models import MONITOR_PROC_ORIGIN
-
-    row = _task(proc_id, proc_type)
-    row.origin = MONITOR_PROC_ORIGIN
-    return row
-
-
 def _task(
     proc_id: str,
     proc_type: str,
@@ -77,44 +92,9 @@ def _task(
     )
 
 
-def test_running_task_count_includes_session_overlay() -> None:
-    class _OverlayQuitApp(LifecycleMixin):
-        def __init__(self) -> None:
-            self._proc_projection = ProcProjection()
-
-        def _effective_proc_projection(self) -> ProcProjection:
-            return ProcProjection(
-                rows=(_task("session-1", "sync"),),
-                active_count=1,
-                session_id="session-mine",
-            )
-
-    assert _OverlayQuitApp()._count_running_tasks() == 1
-
-
-def test_running_task_count_excludes_monitor_turns() -> None:
-    class _MonitorOverlayQuitApp(LifecycleMixin):
-        def __init__(self) -> None:
-            self._proc_projection = ProcProjection()
-
-        def _effective_proc_projection(self) -> ProcProjection:
-            return ProcProjection(
-                rows=(
-                    _task("session-1", "sync"),
-                    _monitor_task("monitor-1", "detached"),
-                ),
-                active_count=2,
-                active_monitor_count=1,
-                session_id="session-mine",
-            )
-
-    # A detached monitor supervisor survives ACE exit, so it must not count
-    # toward "N procs will be stopped" in the quit-options modal.
-    assert _MonitorOverlayQuitApp()._count_running_tasks() == 1
-
-
 @pytest.mark.asyncio
-async def test_action_quit_with_running_tasks_quits_without_modal() -> None:
+async def test_action_quit_without_impact_quits_without_modal() -> None:
+    # Durable proc rows alone must not prompt: they outlive the TUI.
     running = _task("run-1", "sync", display_name="Sync visual-auth")
     completed = _task("done-1", "mail", status="success")
     app = _QuitApp((running, completed))
@@ -133,6 +113,71 @@ async def test_action_quit_without_running_tasks_quits_without_modal() -> None:
 
     assert app.did_quit is True
     assert app.pushed == []
+
+
+@pytest.mark.asyncio
+async def test_action_quit_with_session_worker_confirms() -> None:
+    worker = _task("session-1", "sync", display_name="Sync visual-auth")
+    app = _QuitApp((), session_rows=(worker,))
+
+    await app.action_quit()
+
+    assert app.did_quit is False
+    assert len(app.pushed) == 1
+    modal, callback = app.pushed[0]
+    assert isinstance(modal, ConfirmActionModal)
+    assert modal._kind is ConfirmKind.DANGER
+    assert modal._confirm_label == "Quit"
+    assert modal._cancel_label == "Stay"
+
+    callback(True)
+    assert app.did_quit is True
+
+
+@pytest.mark.asyncio
+async def test_action_quit_decline_stays() -> None:
+    worker = _task("session-1", "sync", display_name="Sync visual-auth")
+    app = _QuitApp((), session_rows=(worker,))
+
+    await app.action_quit()
+
+    assert len(app.pushed) == 1
+    _, callback = app.pushed[0]
+    callback(False)
+
+    assert app.did_quit is False
+
+
+@pytest.mark.asyncio
+async def test_action_quit_with_durable_submit_confirms() -> None:
+    app = _QuitApp((), durable_workers={"pending-1": _FakeWorker(finished=False)})
+
+    await app.action_quit()
+
+    assert app.did_quit is False
+    assert len(app.pushed) == 1
+    assert isinstance(app.pushed[0][0], ConfirmActionModal)
+
+
+@pytest.mark.asyncio
+async def test_action_quit_finished_submit_does_not_prompt() -> None:
+    app = _QuitApp((), durable_workers={"pending-1": _FakeWorker(finished=True)})
+
+    await app.action_quit()
+
+    assert app.did_quit is True
+    assert app.pushed == []
+
+
+@pytest.mark.asyncio
+async def test_action_quit_guards_reentry() -> None:
+    worker = _task("session-1", "sync", display_name="Sync visual-auth")
+    app = _QuitApp((), session_rows=(worker,))
+
+    await app.action_quit()
+    await app.action_quit()
+
+    assert len(app.pushed) == 1
 
 
 @pytest.mark.asyncio

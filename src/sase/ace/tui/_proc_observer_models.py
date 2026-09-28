@@ -254,21 +254,6 @@ def proc_gear_lanes(
     return ProcGearLanes(procs=procs, monitors=monitors, update_rows=tuple(update_rows))
 
 
-def gear_eligible_count(
-    projection: ProcProjection, *, all_sessions: bool = False
-) -> int:
-    """Count active rows that belong in the session proc gear.
-
-    This still includes update-lane rows; the top bar splits them out with
-    :func:`proc_gear_lanes`.
-    """
-    return sum(
-        1
-        for row in projection.active_rows(all_sessions=all_sessions)
-        if is_gear_eligible_row(row)
-    )
-
-
 def monitor_row_agent_name(row: ObservedProc) -> str | None:
     """Return a monitor row's member agent name, or ``None``.
 

@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from ...patch import Patch
     from ..keymaps import KeymapRegistry
     from ..modals import QuitOption
+    from ..quit_impact import TuiExitImpact
     from .axe_display._loaders import AxeItemKey
     from .axe_display._data import AxeStatusDegradation
 
@@ -32,6 +33,16 @@ AxeViewType = Literal["axe"] | int
 AxeWorkerOperation = Literal["start", "stop", "restart", "enable", "disable"]
 
 _POST_AXE_WORKER_STATUS_REPOLL_DELAYS = (0.25, 0.75, 1.5, 3.0)
+
+
+def _load_inflight_launches() -> list[Any]:
+    """Load scheduler in-flight launches; import at call time for tests."""
+    import sase.axe.state as axe_state
+
+    try:
+        return list(axe_state.find_inflight_chop_launches())
+    except Exception:
+        return []
 
 
 class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
@@ -239,20 +250,139 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
     def action_stop_axe_and_quit(self) -> None:
         """Open the quit / restart options panel."""
         from ..modals import QuitOptionsModal
+        from ..quit_impact import TuiExitImpact, collect_tui_exit_impact
+
+        if getattr(self, "_quit_options_open", False):
+            return
+        if getattr(self, "_quit_confirm_open", False):
+            return
+        self._quit_options_open = True  # type: ignore[attr-defined]
+        impact: TuiExitImpact = collect_tui_exit_impact(self)
 
         def _on_choice(choice: QuitOption | None) -> None:
+            self._quit_options_open = False  # type: ignore[attr-defined]
             if choice is None:
                 return
-            if choice == "quit_stop_axe":
-                self.run_worker(self._stop_axe_and_quit())  # type: ignore[attr-defined]
+            if getattr(self, "_quit_confirm_open", False):
                 return
-            self._restart_tui(restart_axe=choice == "restart_tui_and_axe")
+            if choice == "restart_tui":
+                self._confirm_restart_tui_if_needed()
+                return
+            self._confirm_scheduler_quit_if_needed(choice)
 
         self.push_screen(  # type: ignore[attr-defined]
             QuitOptionsModal(
-                running_task_count=self._count_running_tasks(),  # type: ignore[attr-defined]
+                tui_task_count=impact.task_count,
             ),
             callback=_on_choice,
+        )
+
+    def _confirm_restart_tui_if_needed(self) -> None:
+        """Confirm a plain TUI restart when in-process work would be lost."""
+        from ..modals.confirm_action_modal import ConfirmActionModal
+        from ..modals.confirm_dialog import ConfirmKind
+        from ..quit_impact import TuiExitImpact, collect_tui_exit_impact
+
+        impact: TuiExitImpact = collect_tui_exit_impact(self)
+        if impact.is_empty:
+            self._restart_tui(restart_axe=False)
+            return
+        if getattr(self, "_quit_confirm_open", False):
+            return
+        self._quit_confirm_open = True  # type: ignore[attr-defined]
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            self._quit_confirm_open = False  # type: ignore[attr-defined]
+            if confirmed is True:
+                self._restart_tui(restart_axe=False)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmActionModal(
+                "Restart sase's TUI?",
+                "\n".join(impact.summary_lines()),
+                kind=ConfirmKind.DANGER,
+                confirm_label="Restart",
+                cancel_label="Stay",
+            ),
+            _on_confirm,
+        )
+
+    def _confirm_scheduler_quit_if_needed(self, choice: Any) -> None:
+        """Confirm quit/stop or restart+host when work would be interrupted."""
+        import asyncio as _asyncio
+
+        from ..quit_impact import TuiExitImpact, collect_tui_exit_impact
+        from ..util.pump_tasks import spawn_pump_free_task
+
+        impact: TuiExitImpact = collect_tui_exit_impact(self)
+
+        async def _gather() -> None:
+            try:
+                launches = await _asyncio.to_thread(_load_inflight_launches)
+            except Exception:
+                launches = []
+            self._finish_scheduler_quit_choice(choice, impact, launches)
+
+        task = spawn_pump_free_task(
+            self,
+            _gather(),
+            name="quit-confirm-gather",
+            registry_attr="_quit_confirm_tasks",
+        )
+        if task is None:
+            try:
+                launches = _load_inflight_launches()
+            except Exception:
+                launches = []
+            self._finish_scheduler_quit_choice(choice, impact, launches)
+
+    def _finish_scheduler_quit_choice(
+        self,
+        choice: Any,
+        impact: TuiExitImpact,
+        launches: list[Any],
+    ) -> None:
+        """Show the quit confirmation when needed, else run the exit path."""
+        from ..modals.confirm_action_modal import ConfirmActionModal
+        from ..modals.confirm_dialog import ConfirmKind
+
+        if impact.is_empty and not launches:
+            if choice == "quit_stop_axe":
+                self.run_worker(self._stop_axe_and_quit())  # type: ignore[attr-defined]
+            else:
+                self._restart_tui(restart_axe=True)
+            return
+        if getattr(self, "_quit_confirm_open", False):
+            return
+        self._quit_confirm_open = True  # type: ignore[attr-defined]
+        lines = list(impact.summary_lines())
+        lines.extend(launch.summary_line() for launch in launches)
+        message = "\n".join(lines)
+        if choice == "quit_stop_axe":
+            title = "Quit sase's TUI and stop the scheduler?"
+            confirm_label = "Quit"
+        else:
+            title = "Restart sase's TUI and service host?"
+            confirm_label = "Restart"
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            self._quit_confirm_open = False  # type: ignore[attr-defined]
+            if confirmed is not True:
+                return
+            if choice == "quit_stop_axe":
+                self.run_worker(self._stop_axe_and_quit())  # type: ignore[attr-defined]
+            else:
+                self._restart_tui(restart_axe=True)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmActionModal(
+                title,
+                message,
+                kind=ConfirmKind.DANGER,
+                confirm_label=confirm_label,
+                cancel_label="Stay",
+            ),
+            _on_confirm,
         )
 
     async def _stop_axe_and_quit(self) -> None:

@@ -37,9 +37,9 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
         Binding("q", "cancel", "Cancel", show=False),
     ]
 
-    def __init__(self, *, running_task_count: int = 0) -> None:
+    def __init__(self, *, tui_task_count: int = 0) -> None:
         super().__init__()
-        self._running_task_count = max(0, running_task_count)
+        self._tui_task_count = max(0, tui_task_count)
 
     def compose(self) -> ComposeResult:
         with Container(
@@ -91,7 +91,7 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                         "duration-choice-tone-accent"
                     ),
                 )
-                if self._running_task_count > 0:
+                if self._tui_task_count > 0:
                     yield Static(
                         self._warning_text(),
                         classes=(
@@ -126,8 +126,8 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
         )
 
     def _warning_text(self) -> str:
-        noun = "proc" if self._running_task_count == 1 else "procs"
-        return f"  {self._running_task_count} {noun} will be stopped."
+        noun = "TUI task" if self._tui_task_count == 1 else "TUI tasks"
+        return f"  {self._tui_task_count} {noun} will be interrupted."
 
     def action_choose_quit_stop_axe(self) -> None:
         """Quit and stop the scheduler."""

@@ -147,6 +147,10 @@ from sase.axe._state_chops import (  # noqa: E402
     update_chop_run_pid,
     write_chop_run,
 )
+from sase.axe._state_inflight import (  # noqa: E402
+    InflightChopLaunch,
+    find_inflight_chop_launches,
+)
 from sase.axe._state_lumberjack import (  # noqa: E402
     CHOP_SKIP_INHIBITED,
     CHOP_SKIP_REASONS,
@@ -209,6 +213,7 @@ __all__ = [
     "CycleResult",
     "DEFAULT_LUMBERJACK_LOG_MAX_BYTES",
     "DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS",
+    "InflightChopLaunch",
     "LumberjackMetrics",
     "LumberjackStatus",
     "MAX_CHOP_RUN_HISTORY",
@@ -230,6 +235,7 @@ __all__ = [
     "ensure_lumberjack_dirs",
     "ensure_shared_dir",
     "finish_chop_run",
+    "find_inflight_chop_launches",
     "format_lumberjack_chop_load",
     "format_no_op_ratio",
     "generate_chop_run_id",

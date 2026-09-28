@@ -15,16 +15,16 @@ class _TestApp(App[None]):
 
 
 def test_warning_text_singular_and_plural() -> None:
-    single = QuitOptionsModal(running_task_count=1)
-    plural = QuitOptionsModal(running_task_count=2)
+    single = QuitOptionsModal(tui_task_count=1)
+    plural = QuitOptionsModal(tui_task_count=2)
 
-    assert single._warning_text() == "  1 proc will be stopped."
-    assert plural._warning_text() == "  2 procs will be stopped."
+    assert single._warning_text() == "  1 TUI task will be interrupted."
+    assert plural._warning_text() == "  2 TUI tasks will be interrupted."
 
 
 async def test_modal_keys_return_choices(monkeypatch) -> None:
     async with _TestApp().run_test() as pilot:
-        modal = QuitOptionsModal(running_task_count=2)
+        modal = QuitOptionsModal(tui_task_count=2)
         dismissed: list[QuitOption | None] = []
         monkeypatch.setattr(modal, "dismiss", dismissed.append)
         pilot.app.push_screen(modal)

@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from sase.ace.tui._proc_observer_models import (
     UPDATE_PROC_TYPES,
-    gear_eligible_count,
+    is_gear_eligible_row,
     is_update_row,
     proc_gear_lane,
     proc_gear_lanes,
@@ -150,7 +150,8 @@ def test_lane_totals_preserved() -> None:
         )
     )
     lanes = proc_gear_lanes(projection)
-    assert lanes.procs + lanes.updates == gear_eligible_count(projection)
+    eligible = sum(1 for row in projection.active_rows() if is_gear_eligible_row(row))
+    assert lanes.procs + lanes.updates == eligible == 2
 
 
 def _sample_scope(key: str) -> str:

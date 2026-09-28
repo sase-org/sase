@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.ace.tui._proc_observer_models import gear_eligible_count
+from sase.ace.tui._proc_observer_models import proc_gear_lanes
 from sase.ace.tui.proc_gear_chips import (
     MONITOR_GEAR_HUE,
     PROC_GEAR_HUE,
@@ -177,7 +177,8 @@ async def test_header_blue_chip_matches_top_bar_gear_count(
         _, pane = await open_procs_pane(pilot)
         await pilot.pause()
 
-        gear_count = gear_eligible_count(pilot.app._effective_proc_projection())
+        lanes = proc_gear_lanes(pilot.app._effective_proc_projection())
+        gear_count = lanes.procs + lanes.updates
         assert gear_count == 1
         title = pane._title_text()
         # The blue chip is the top-bar gear count; the bracketed inventory

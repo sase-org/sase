@@ -11,6 +11,7 @@ from ..util.shutdown import request_shutdown
 if TYPE_CHECKING:
     from ...patch import Patch
     from ..modals.notification_modal_tags import NotificationTagTab
+    from ..quit_impact import TuiExitImpact
     from textual.timer import Timer
 
 # Type alias for tab names (used in type hints)
@@ -209,14 +210,6 @@ class LifecycleMixin:
                 self.current_idx = idx
                 return
 
-    def _count_running_tasks(self) -> int:
-        """Return the count of running procs, excluding detached monitor turns."""
-        from .._proc_observer_models import gear_eligible_count
-        from ..proc_observer import proc_projection_for
-
-        projection = proc_projection_for(self)
-        return gear_eligible_count(projection)
-
     def action_dismiss_toasts(self) -> None:
         """Dismiss all currently-visible toast notifications.
 
@@ -232,7 +225,33 @@ class LifecycleMixin:
         toggle_artifact = getattr(self, "_toggle_tracked_artifact_file_tmux_pane", None)
         if callable(toggle_artifact) and toggle_artifact():
             return
-        await self._begin_controlled_exit()
+        if getattr(self, "_quit_confirm_open", False):
+            return
+        from ..modals.confirm_action_modal import ConfirmActionModal
+        from ..modals.confirm_dialog import ConfirmKind
+        from ..quit_impact import TuiExitImpact, collect_tui_exit_impact
+
+        impact: TuiExitImpact = collect_tui_exit_impact(self)
+        if impact.is_empty:
+            await self._begin_controlled_exit()
+            return
+        self._quit_confirm_open = True  # type: ignore[attr-defined]
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            self._quit_confirm_open = False  # type: ignore[attr-defined]
+            if confirmed is True:
+                self._request_controlled_exit()  # type: ignore[attr-defined]
+
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmActionModal(
+                "Quit sase's TUI?",
+                "\n".join(impact.summary_lines()),
+                kind=ConfirmKind.DANGER,
+                confirm_label="Quit",
+                cancel_label="Stay",
+            ),
+            _on_confirm,
+        )
 
     async def _flush_then_do_quit(self) -> None:
         """Drain best-effort async persistence, then run synchronous cleanup."""

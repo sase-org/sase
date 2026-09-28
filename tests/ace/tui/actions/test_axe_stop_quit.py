@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
 from typing import Any
 
 import pytest
@@ -7,6 +9,32 @@ import pytest
 from sase.ace.tui import AceExitAction
 from sase.ace.tui.actions.axe import AxeMixin
 from sase.ace.tui.modals import QuitOptionsModal
+from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
+from sase.ace.tui.proc_observer import ObservedProc
+
+
+class _FakeWorker:
+    def __init__(self, *, finished: bool = False) -> None:
+        self._finished = finished
+
+    @property
+    def is_finished(self) -> bool:
+        return self._finished
+
+
+def _session_task(
+    proc_id: str = "session-1", display_name: str = "Sync visual-auth"
+) -> ObservedProc:
+    return ObservedProc(
+        proc_id=proc_id,
+        proc_type="sync",
+        cl_name="sync-cl",
+        project_file="/tmp/project.sase",
+        status="running",
+        message="sync in progress",
+        started_at=datetime(2026, 6, 23, 12, 0, 0),
+        display_name=display_name,
+    )
 
 
 class _StopQuitApp(AxeMixin):
@@ -15,12 +43,12 @@ class _StopQuitApp(AxeMixin):
         *,
         axe_running: bool = False,
         kill_tasks_raises: bool = False,
-        running_task_count: int = 0,
         order: list[str] | None = None,
+        session_rows: tuple[ObservedProc, ...] = (),
+        durable_workers: dict[str, Any] | None = None,
     ) -> None:
         self.axe_running = axe_running
         self._kill_procs_raises = kill_tasks_raises
-        self._running_task_count = running_task_count
         self.order = order if order is not None else []
         self.did_quit = False
         self.exit_action = AceExitAction.QUIT
@@ -29,6 +57,13 @@ class _StopQuitApp(AxeMixin):
         self.submitted_workers: list[Any] = []
         self.pushed: list[tuple[Any, Any]] = []
         self.notifications: list[tuple[str, str | None]] = []
+        self._session_rows = tuple(session_rows)
+        self._durable_submit_workers = dict(durable_workers or {})
+        self._quit_options_open = False
+        self._quit_confirm_open = False
+
+    def _session_overlay_rows(self) -> tuple[ObservedProc, ...]:
+        return self._session_rows
 
     def run_worker(self, work: Any) -> Any:
         self.submitted_workers.append(work)
@@ -39,9 +74,6 @@ class _StopQuitApp(AxeMixin):
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
-
-    def _count_running_tasks(self) -> int:
-        return self._running_task_count
 
     def _stop_tui_stall_watchdog(self) -> None:
         self.stall_watchdog_stops += 1
@@ -89,6 +121,45 @@ def _patch_scheduler_stop(
     return calls
 
 
+def _patch_no_inflight(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sase.axe.state as axe_state
+
+    monkeypatch.setattr(axe_state, "find_inflight_chop_launches", lambda: [])
+
+
+def _fake_launch() -> Any:
+    from sase.axe.state import InflightChopLaunch
+
+    return InflightChopLaunch(
+        lumberjack_name="run_every",
+        chop_name="toobig_split[sase]",
+        run_id="20260928T093200_850344",
+        started_at="2026-09-28T09:32:00-04:00",
+        proposed_count=61,
+        launched_count=2,
+        clan="toobig-@",
+    )
+
+
+def _patch_inflight(monkeypatch: pytest.MonkeyPatch, launches: list[Any]) -> None:
+    import sase.axe.state as axe_state
+
+    monkeypatch.setattr(
+        axe_state, "find_inflight_chop_launches", lambda: list(launches)
+    )
+
+
+async def _drain_quit_tasks(app: _StopQuitApp) -> None:
+    tasks = list(getattr(app, "_quit_confirm_tasks", ()))
+    for task in tasks:
+        try:
+            await task
+        except Exception:
+            pass
+    # Yield once so call_from_thread-free continuations settle.
+    await asyncio.sleep(0)
+
+
 def _push_quit_panel(app: _StopQuitApp) -> Any:
     app.action_stop_axe_and_quit()
     assert len(app.pushed) == 1
@@ -97,14 +168,22 @@ def _push_quit_panel(app: _StopQuitApp) -> Any:
     return callback
 
 
-def test_stop_axe_and_quit_action_pushes_quit_options_modal() -> None:
-    app = _StopQuitApp(running_task_count=2)
+def test_stop_axe_and_quit_action_pushes_quit_options_modal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_no_inflight(monkeypatch)
+    app = _StopQuitApp(
+        session_rows=(
+            _session_task(),
+            _session_task("session-2"),
+        )
+    )
 
     callback = _push_quit_panel(app)
 
     modal, _ = app.pushed[0]
     assert isinstance(modal, QuitOptionsModal)
-    assert modal._running_task_count == 2
+    assert modal._tui_task_count == 2
 
     callback(None)
     assert app.submitted_workers == []
@@ -112,7 +191,10 @@ def test_stop_axe_and_quit_action_pushes_quit_options_modal() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stop_axe_and_quit_action_routes_quit_stop_axe() -> None:
+async def test_no_impact_quit_stop_axe_behaves_as_today(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_no_inflight(monkeypatch)
     app = _StopQuitApp()
     calls: list[str] = []
 
@@ -123,10 +205,13 @@ async def test_stop_axe_and_quit_action_routes_quit_stop_axe() -> None:
     callback = _push_quit_panel(app)
 
     callback("quit_stop_axe")
+    await _drain_quit_tasks(app)
 
     assert len(app.submitted_workers) == 1
     await app.submitted_workers[0]
     assert calls == ["stop"]
+    # No confirmation modal when nothing would be lost.
+    assert len(app.pushed) == 1
 
 
 @pytest.mark.parametrize(
@@ -136,10 +221,12 @@ async def test_stop_axe_and_quit_action_routes_quit_stop_axe() -> None:
         ("restart_tui_and_axe", True),
     ],
 )
-def test_stop_axe_and_quit_action_routes_restart_options(
+def test_no_impact_restart_options_behave_as_today(
+    monkeypatch: pytest.MonkeyPatch,
     choice: str,
     expected_restart_axe: bool,
 ) -> None:
+    _patch_no_inflight(monkeypatch)
     app = _StopQuitApp()
     restart_calls: list[bool] = []
 
@@ -151,8 +238,128 @@ def test_stop_axe_and_quit_action_routes_restart_options(
 
     callback(choice)
 
+    # restart_tui is sync; restart_tui_and_axe with no impact falls back to
+    # sync when there is no running loop.
     assert app.submitted_workers == []
     assert restart_calls == [expected_restart_axe]
+    assert len(app.pushed) == 1
+
+
+@pytest.mark.asyncio
+async def test_tui_impact_confirms_all_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_no_inflight(monkeypatch)
+    for choice in ("quit_stop_axe", "restart_tui", "restart_tui_and_axe"):
+        app = _StopQuitApp(session_rows=(_session_task(),))
+        restart_calls: list[bool] = []
+
+        def fake_restart_tui(
+            *, restart_axe: bool, _calls: list[bool] = restart_calls
+        ) -> None:
+            _calls.append(restart_axe)
+
+        app._restart_tui = fake_restart_tui  # type: ignore[method-assign]
+        callback = _push_quit_panel(app)
+        callback(choice)
+        await _drain_quit_tasks(app)
+
+        assert len(app.pushed) == 2
+        assert isinstance(app.pushed[1][0], ConfirmActionModal)
+        assert app.submitted_workers == []
+        assert restart_calls == []
+        assert app.did_quit is False
+
+
+@pytest.mark.asyncio
+async def test_scheduler_impact_confirms_only_stop_and_restart_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    launch = _fake_launch()
+    _patch_inflight(monkeypatch, [launch])
+
+    # quit_stop_axe and restart_tui_and_axe confirm.
+    for choice in ("quit_stop_axe", "restart_tui_and_axe"):
+        app = _StopQuitApp()
+        callback = _push_quit_panel(app)
+        callback(choice)
+        await _drain_quit_tasks(app)
+
+        assert len(app.pushed) == 2
+        modal = app.pushed[1][0]
+        assert isinstance(modal, ConfirmActionModal)
+        assert "2/61" in modal._message
+        assert app.submitted_workers == []
+        assert app.did_quit is False
+
+    # restart_tui ignores scheduler launches.
+    _patch_inflight(monkeypatch, [launch])
+    app = _StopQuitApp()
+    restart_calls: list[bool] = []
+
+    def fake_restart_tui(*, restart_axe: bool) -> None:
+        restart_calls.append(restart_axe)
+
+    app._restart_tui = fake_restart_tui  # type: ignore[method-assign]
+    callback = _push_quit_panel(app)
+    callback("restart_tui")
+    await _drain_quit_tasks(app)
+
+    assert len(app.pushed) == 1
+    assert restart_calls == [False]
+
+
+@pytest.mark.asyncio
+async def test_declining_never_stops_or_restarts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stop_calls = _patch_scheduler_stop(monkeypatch)
+    _patch_inflight(monkeypatch, [_fake_launch()])
+    app = _StopQuitApp(session_rows=(_session_task(),))
+    restart_calls: list[bool] = []
+
+    def fake_restart_tui(*, restart_axe: bool) -> None:
+        restart_calls.append(restart_axe)
+
+    app._restart_tui = fake_restart_tui  # type: ignore[method-assign]
+    callback = _push_quit_panel(app)
+
+    callback("quit_stop_axe")
+    await _drain_quit_tasks(app)
+    assert len(app.pushed) == 2
+    _, confirm_cb = app.pushed[1]
+    confirm_cb(False)
+
+    assert stop_calls == []
+    assert restart_calls == []
+    assert app.submitted_workers == []
+    assert app.did_quit is False
+    assert app.kill_task_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_confirming_runs_existing_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_scheduler_stop(monkeypatch)
+    _patch_no_inflight(monkeypatch)
+    app = _StopQuitApp(session_rows=(_session_task(),))
+    calls: list[str] = []
+
+    async def fake_stop_axe_and_quit() -> None:
+        calls.append("stop")
+
+    app._stop_axe_and_quit = fake_stop_axe_and_quit  # type: ignore[method-assign]
+    callback = _push_quit_panel(app)
+    callback("quit_stop_axe")
+    await _drain_quit_tasks(app)
+
+    _, confirm_cb = app.pushed[1]
+    confirm_cb(True)
+
+    assert len(app.submitted_workers) == 1
+    await app.submitted_workers[0]
+    assert calls == ["stop"]
 
 
 @pytest.mark.asyncio
