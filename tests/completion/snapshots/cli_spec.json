@@ -15990,7 +15990,7 @@
                 "metavar": "ID",
                 "nargs": null,
                 "required": true,
-                "value_hint": null
+                "value_hint": "text"
               }
             ],
             "run_policy": [],
@@ -16036,7 +16036,7 @@
                   "--criterion"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               },
               {
                 "choices": null,
@@ -16052,7 +16052,7 @@
                   "--outcome"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               },
               {
                 "choices": null,
@@ -16084,7 +16084,7 @@
                   "--remove-criterion"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               }
             ],
             "path": [
@@ -16100,7 +16100,7 @@
                 "metavar": "ID",
                 "nargs": null,
                 "required": true,
-                "value_hint": null
+                "value_hint": "text"
               }
             ],
             "run_policy": [],
@@ -16261,7 +16261,7 @@
                   "--into"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               },
               {
                 "choices": null,
@@ -16293,7 +16293,7 @@
                 "metavar": "ID",
                 "nargs": null,
                 "required": true,
-                "value_hint": null
+                "value_hint": "text"
               }
             ],
             "run_policy": [],
@@ -16339,7 +16339,7 @@
                   "--outcome"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               },
               {
                 "choices": null,
@@ -16371,7 +16371,7 @@
                   "--criterion"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               }
             ],
             "path": [
@@ -16438,7 +16438,7 @@
                 "metavar": "ID",
                 "nargs": null,
                 "required": true,
-                "value_hint": null
+                "value_hint": "text"
               }
             ],
             "run_policy": [],
@@ -16500,7 +16500,7 @@
                 "metavar": "ID",
                 "nargs": null,
                 "required": true,
-                "value_hint": null
+                "value_hint": "text"
               }
             ],
             "run_policy": [],
@@ -30794,7 +30794,7 @@
               "--outcome"
             ],
             "takes_value": true,
-            "value_hint": null
+            "value_hint": "text"
           },
           {
             "choices": null,
@@ -35618,7 +35618,7 @@
                 "metavar": "TOOL",
                 "nargs": null,
                 "required": true,
-                "value_hint": null
+                "value_hint": "text"
               }
             ],
             "run_policy": [],
@@ -35664,7 +35664,7 @@
                   "--days"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "int"
               },
               {
                 "choices": null,

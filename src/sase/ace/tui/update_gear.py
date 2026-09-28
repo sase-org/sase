@@ -9,8 +9,11 @@ never shifts.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
+from time import time as unix_time
 from typing import TYPE_CHECKING, Literal
+
+from sase.core.time import format_local, parse_local
 
 if TYPE_CHECKING:
     from sase.ace._update_attempts_model import UpdateFailure
@@ -77,16 +80,18 @@ def restart_pending_tooltip(
 
 def format_failure_when(epoch: float, *, now: float | None = None) -> str:
     """Return ``today at 14:32`` style copy for a failure timestamp."""
-    moment = datetime.fromtimestamp(epoch)
-    reference = datetime.fromtimestamp(now) if now is not None else datetime.now()
-    clock = moment.strftime("%H:%M")
+    moment = parse_local(epoch)
+    reference = parse_local(now if now is not None else unix_time())
+    if moment is None or reference is None:
+        return format_local(epoch, "%b %d at %H:%M")
+    clock = format_local(epoch, "%H:%M")
     day = moment.date()
     today = reference.date()
     if day == today:
         return f"today at {clock}"
     if day == today - timedelta(days=1):
         return f"yesterday at {clock}"
-    return moment.strftime("%b %d") + f" at {clock}"
+    return format_local(epoch, "%b %d") + f" at {clock}"
 
 
 def failure_tooltip(failure: UpdateFailure) -> str:
@@ -108,7 +113,7 @@ def failure_tooltip(failure: UpdateFailure) -> str:
 
 def _format_hms(epoch: float) -> str:
     """Format *epoch* as local-time ``HH:MM:SS``."""
-    return datetime.fromtimestamp(epoch).strftime("%H:%M:%S")
+    return format_local(epoch, "%H:%M:%S")
 
 
 __all__ = [

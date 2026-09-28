@@ -9,8 +9,9 @@ Admin Center Tools pane reuses :func:`render_tool_run_block` directly
 from __future__ import annotations
 
 import shlex
-from datetime import datetime
 from typing import Any
+
+from sase.core.time import format_local
 
 from rich.text import Text
 
@@ -161,11 +162,11 @@ def _triage_item_lines(
     witness = f"{witness_runs} runs · {witness_agents} agents"
     if first_seen:
         try:
-            witness += datetime.fromtimestamp(float(first_seen)).strftime(
-                " · since %m-%d"
-            )
+            since = format_local(float(first_seen), " · since %m-%d", default="")
         except (TypeError, ValueError, OSError, OverflowError):
-            pass
+            since = ""
+        if since:
+            witness += since
     lines = [head, Text(f"      {witness}", style="dim")]
     if level == ToolRunsDetailLevel.FULL:
         for path in tuple(getattr(item, "locator_paths", ()) or ()):

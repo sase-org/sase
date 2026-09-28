@@ -551,13 +551,15 @@ def test_set_last_failure_noops_on_equal_value() -> None:
 
 def test_format_failure_when_day_buckets() -> None:
     from datetime import datetime
+    from zoneinfo import ZoneInfo
 
     from sase.ace.tui.update_gear import format_failure_when
 
-    noon = datetime(2026, 9, 27, 12, 0, 0).timestamp()
-    morning = datetime(2026, 9, 27, 9, 10, 0).timestamp()
-    yesterday = datetime(2026, 9, 26, 9, 10, 0).timestamp()
-    older = datetime(2026, 9, 20, 14, 32, 0).timestamp()
+    tz = ZoneInfo("America/New_York")
+    noon = datetime(2026, 9, 27, 12, 0, 0, tzinfo=tz).timestamp()
+    morning = datetime(2026, 9, 27, 9, 10, 0, tzinfo=tz).timestamp()
+    yesterday = datetime(2026, 9, 26, 9, 10, 0, tzinfo=tz).timestamp()
+    older = datetime(2026, 9, 20, 14, 32, 0, tzinfo=tz).timestamp()
 
     assert format_failure_when(morning, now=noon) == "today at 09:10"
     assert format_failure_when(yesterday, now=noon) == "yesterday at 09:10"

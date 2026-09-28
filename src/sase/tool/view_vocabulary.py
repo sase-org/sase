@@ -8,8 +8,8 @@ finalizer palette where one exists.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 
+from sase.core.time import format_local
 from sase.finalizers.view_vocabulary import (
     FAILURE_COLOR,
     REFUSED_COLOR,
@@ -128,7 +128,7 @@ def format_min_sec(total_seconds: float) -> str:
 def format_settled_ts(settled_ts: float) -> str:
     """Format a settle timestamp as an absolute local ``HH:MM``."""
 
-    return datetime.fromtimestamp(settled_ts).strftime("%H:%M")
+    return format_local(settled_ts, "%H:%M")
 
 
 def _truncate_label(label: str, max_cells: int) -> str:

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING, Literal
+
+from sase.core.time import format_local, parse_local
 
 from sase.ace.tui.stale_running_code import RunningCodeRoot, RunningCodeState
 from sase.updates import UpdateSourceStatus, UpdateStatus
@@ -139,11 +140,13 @@ def _failure_row(failure: UpdateFailure, *, now: float) -> UpdateOptionRow:
 
 
 def _failure_chip_text(failure: UpdateFailure, *, now: float) -> str:
-    moment = datetime.fromtimestamp(failure.finished_at)
-    reference = datetime.fromtimestamp(now)
+    moment = parse_local(failure.finished_at)
+    reference = parse_local(now)
+    if moment is None or reference is None:
+        return f"✗ failed {format_local(failure.finished_at, '%b %d')}"
     if moment.date() == reference.date():
-        return f"✗ failed {moment.strftime('%H:%M')}"
-    return f"✗ failed {moment.strftime('%b %d')}"
+        return f"✗ failed {format_local(failure.finished_at, '%H:%M')}"
+    return f"✗ failed {format_local(failure.finished_at, '%b %d')}"
 
 
 def _truncate_detail(text: str) -> str:

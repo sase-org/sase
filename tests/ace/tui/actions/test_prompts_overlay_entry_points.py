@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.config import get_ace_prompt_stash_trash_limit
 from sase.ace.tui.actions.agent_workflow._entry_prompt_history import (
     EntryPromptHistoryMixin,
 )
@@ -114,7 +115,7 @@ async def test_open_action_opens_overlay_on_stash_with_trash_count(
     assert modal._active_tab is PromptsTab.STASH
     assert [e.id for e in modal._stash_pane._entries] == ["b"]
     assert [r.entry.id for r in modal._trash_records] == ["a"]
-    assert modal._trash_limit == 20
+    assert modal._trash_limit == get_ace_prompt_stash_trash_limit()
 
 
 async def test_live_bar_history_opens_overlay_on_history_with_seed(

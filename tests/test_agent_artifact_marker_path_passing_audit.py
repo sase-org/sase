@@ -264,6 +264,21 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "rescan; no marker is written here."
         ),
     ),
+    "src/sase/finalizers/cli.py:_target_for_dir": PathPassingReview(
+        exemption=(
+            "Read-only final-status target assembly: done.json is inspected "
+            "only to set turn_terminal via an existence check, and "
+            "agent_meta.json is read in _artifacts_dir_kind only to classify "
+            "monitor vs agent; no marker is written."
+        ),
+    ),
+    "src/sase/axe/run_agent_directive_metadata.py:session_root_tab": PathPassingReview(
+        exemption=(
+            "Read-only session-tab inheritance: agent_meta.json is opened "
+            "only to recover the session root's stored agent_tab before the "
+            "child copies that value into its own in-memory meta."
+        ),
+    ),
 }
 
 

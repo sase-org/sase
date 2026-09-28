@@ -1,11 +1,41 @@
 """Tests for per-agent repeat context (n/N) read from SASE_REPEAT_* env vars."""
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.axe.run_agent_exec import AgentExecContext
 from sase.xprompt.workflow_runner import _WORKFLOW_INHERITED_VCS_TAG_ARG
+
+
+def _mock_exec_ctx(tmp_path: Path, **overrides: Any) -> MagicMock:
+    """Return a spec mock whose required fields match production AgentExecContext."""
+    ctx = MagicMock(spec=AgentExecContext)
+    ctx.cl_name = "test"
+    ctx.workspace_num = 1
+    ctx.workspace_dir = str(tmp_path)
+    ctx.local_xprompts = {}
+    ctx.artifacts_dir = str(tmp_path)
+    ctx.is_home_mode = False
+    ctx.project_name = "test"
+    ctx.agent_name = None
+    ctx.agent_model = None
+    ctx.agent_llm_provider = None
+    ctx.agent_vcs_provider = None
+    ctx.agent_hidden = False
+    ctx.timestamp = "2025-01-01"
+    ctx.artifacts_timestamp = "20250101"
+    ctx.project_file = "/tmp/test.sase"
+    ctx.output_path = str(tmp_path / "output")
+    ctx.wait_chats = []
+    ctx.wait_context = None
+    ctx.vcs_tag = None
+    ctx.agent_meta = {}
+    for name, value in overrides.items():
+        setattr(ctx, name, value)
+    return ctx
 
 
 class TestRepeatIterationEnv:
@@ -21,7 +51,7 @@ class TestRepeatIterationEnv:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """run_execution_loop reads n and N from SASE_REPEAT_* env vars."""
-        from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
+        from sase.axe.run_agent_exec import run_execution_loop
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
@@ -29,24 +59,7 @@ class TestRepeatIterationEnv:
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 
-        ctx = MagicMock(spec=AgentExecContext)
-        ctx.cl_name = "test"
-        ctx.workspace_num = 1
-        ctx.workspace_dir = str(tmp_path)
-        ctx.local_xprompts = {}
-        ctx.artifacts_dir = str(tmp_path)
-        ctx.is_home_mode = False
-        ctx.project_name = "test"
-        ctx.agent_name = None
-        ctx.agent_model = None
-        ctx.agent_llm_provider = None
-        ctx.agent_vcs_provider = None
-        ctx.agent_hidden = False
-        ctx.timestamp = "2025-01-01"
-        ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.sase"
-        ctx.output_path = str(tmp_path / "output")
-        ctx.wait_chats = []
+        ctx = _mock_exec_ctx(tmp_path)
 
         monkeypatch.setenv("SASE_REPEAT_ITERATION", "3")
         monkeypatch.setenv("SASE_REPEAT_TOTAL", "5")
@@ -67,7 +80,7 @@ class TestRepeatIterationEnv:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """run_execution_loop does not set n/N when env vars are unset."""
-        from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
+        from sase.axe.run_agent_exec import run_execution_loop
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
@@ -75,24 +88,7 @@ class TestRepeatIterationEnv:
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 
-        ctx = MagicMock(spec=AgentExecContext)
-        ctx.cl_name = "test"
-        ctx.workspace_num = 1
-        ctx.workspace_dir = str(tmp_path)
-        ctx.local_xprompts = {}
-        ctx.artifacts_dir = str(tmp_path)
-        ctx.is_home_mode = False
-        ctx.project_name = "test"
-        ctx.agent_name = None
-        ctx.agent_model = None
-        ctx.agent_llm_provider = None
-        ctx.agent_vcs_provider = None
-        ctx.agent_hidden = False
-        ctx.timestamp = "2025-01-01"
-        ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.sase"
-        ctx.output_path = str(tmp_path / "output")
-        ctx.wait_chats = []
+        ctx = _mock_exec_ctx(tmp_path)
 
         monkeypatch.delenv("SASE_REPEAT_ITERATION", raising=False)
         monkeypatch.delenv("SASE_REPEAT_TOTAL", raising=False)
@@ -116,7 +112,7 @@ class TestWaitChatsInjection:
         tmp_path: Path,
     ) -> None:
         """run_execution_loop injects wait_chats into named_args when ctx has paths."""
-        from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
+        from sase.axe.run_agent_exec import run_execution_loop
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
@@ -124,24 +120,10 @@ class TestWaitChatsInjection:
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 
-        ctx = MagicMock(spec=AgentExecContext)
-        ctx.cl_name = "test"
-        ctx.workspace_num = 1
-        ctx.workspace_dir = str(tmp_path)
-        ctx.local_xprompts = {}
-        ctx.artifacts_dir = str(tmp_path)
-        ctx.is_home_mode = False
-        ctx.project_name = "test"
-        ctx.agent_name = None
-        ctx.agent_model = None
-        ctx.agent_llm_provider = None
-        ctx.agent_vcs_provider = None
-        ctx.agent_hidden = False
-        ctx.timestamp = "2025-01-01"
-        ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.sase"
-        ctx.output_path = str(tmp_path / "output")
-        ctx.wait_chats = ["~/.sase/chats/a.md", "~/.sase/chats/b.md"]
+        ctx = _mock_exec_ctx(
+            tmp_path,
+            wait_chats=["~/.sase/chats/a.md", "~/.sase/chats/b.md"],
+        )
 
         run_execution_loop(ctx, "test prompt")
 
@@ -160,7 +142,7 @@ class TestWaitChatsInjection:
         tmp_path: Path,
     ) -> None:
         """run_execution_loop does not inject wait_chats when ctx.wait_chats is empty."""
-        from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
+        from sase.axe.run_agent_exec import run_execution_loop
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
@@ -168,24 +150,7 @@ class TestWaitChatsInjection:
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 
-        ctx = MagicMock(spec=AgentExecContext)
-        ctx.cl_name = "test"
-        ctx.workspace_num = 1
-        ctx.workspace_dir = str(tmp_path)
-        ctx.local_xprompts = {}
-        ctx.artifacts_dir = str(tmp_path)
-        ctx.is_home_mode = False
-        ctx.project_name = "test"
-        ctx.agent_name = None
-        ctx.agent_model = None
-        ctx.agent_llm_provider = None
-        ctx.agent_vcs_provider = None
-        ctx.agent_hidden = False
-        ctx.timestamp = "2025-01-01"
-        ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.sase"
-        ctx.output_path = str(tmp_path / "output")
-        ctx.wait_chats = []
+        ctx = _mock_exec_ctx(tmp_path)
 
         run_execution_loop(ctx, "test prompt")
 
@@ -201,7 +166,7 @@ class TestWaitChatsInjection:
         tmp_path: Path,
     ) -> None:
         """run_execution_loop exposes wait through runtime context, not named_args."""
-        from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
+        from sase.axe.run_agent_exec import run_execution_loop
         from sase.xprompt._jinja import get_global_template_vars
 
         mock_wf = MagicMock()
@@ -218,25 +183,7 @@ class TestWaitChatsInjection:
 
         mock_execute.side_effect = execute
 
-        ctx = MagicMock(spec=AgentExecContext)
-        ctx.cl_name = "test"
-        ctx.workspace_num = 1
-        ctx.workspace_dir = str(tmp_path)
-        ctx.local_xprompts = {}
-        ctx.artifacts_dir = str(tmp_path)
-        ctx.is_home_mode = False
-        ctx.project_name = "test"
-        ctx.agent_name = None
-        ctx.agent_model = None
-        ctx.agent_llm_provider = None
-        ctx.agent_vcs_provider = None
-        ctx.agent_hidden = False
-        ctx.timestamp = "2025-01-01"
-        ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.sase"
-        ctx.output_path = str(tmp_path / "output")
-        ctx.wait_chats = ["~/.sase/chats/a.md"]
-        ctx.wait_context = None
+        ctx = _mock_exec_ctx(tmp_path, wait_chats=["~/.sase/chats/a.md"])
 
         run_execution_loop(ctx, "test prompt")
 
@@ -255,7 +202,7 @@ class TestInheritedVcsInjection:
         tmp_path: Path,
     ) -> None:
         """run_execution_loop passes top-level VCS tags as workflow metadata."""
-        from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
+        from sase.axe.run_agent_exec import run_execution_loop
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
@@ -263,25 +210,7 @@ class TestInheritedVcsInjection:
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 
-        ctx = MagicMock(spec=AgentExecContext)
-        ctx.cl_name = "test"
-        ctx.workspace_num = 1
-        ctx.workspace_dir = str(tmp_path)
-        ctx.local_xprompts = {}
-        ctx.artifacts_dir = str(tmp_path)
-        ctx.is_home_mode = False
-        ctx.project_name = "test"
-        ctx.agent_name = None
-        ctx.agent_model = None
-        ctx.agent_llm_provider = None
-        ctx.agent_vcs_provider = None
-        ctx.agent_hidden = False
-        ctx.timestamp = "2025-01-01"
-        ctx.artifacts_timestamp = "20250101"
-        ctx.project_file = "/tmp/test.sase"
-        ctx.output_path = str(tmp_path / "output")
-        ctx.wait_chats = []
-        ctx.vcs_tag = "#gh:sase "
+        ctx = _mock_exec_ctx(tmp_path, vcs_tag="#gh:sase ")
 
         run_execution_loop(ctx, "test prompt")
 

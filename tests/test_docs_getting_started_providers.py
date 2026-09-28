@@ -15,10 +15,10 @@ def test_getting_started_muse_grok_wording_separates_provider_selection() -> Non
 
     assert "never auto-detects `muse` or `grok` from PATH" in text
     assert (
-        "Grok Build can still be reached automatically through the shipped `@small`, "
-        "`@medium`, and `@large` pools, and through `@xlarge` when Claude and Codex "
-        "are unavailable"
+        "Both can still be reached automatically through whichever shipped size "
+        "aliases currently target them"
     ) in text
+    assert "llm_provider.model_aliases.builtin.<size>" in text
     assert "last `@xlarge` fallback" not in text
     assert "explicit-only and never auto-detected" not in text
 

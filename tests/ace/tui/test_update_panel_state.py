@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from sase.ace._update_attempts_model import UpdateFailure
 from sase.ace.tui.update_panel_state import (
     _PROVIDER_DETAIL_LIMIT,
@@ -18,6 +16,7 @@ from sase.ace.tui.widgets.update_accents import (
     UPDATE_GLYPH,
     UPDATES_ACCENT,
 )
+from sase.core.time import format_local
 from sase.updates import (
     OutdatedComponent,
     ProviderUpdateCandidate,
@@ -530,7 +529,7 @@ def test_failure_row_is_first_with_today_chip() -> None:
     assert row.details == ("update everything: boom",)
     assert row.accent == UPDATE_FAILED_ACCENT
     assert row.chip.kind == "update_failed"
-    expected_clock = datetime.fromtimestamp(_NOW).strftime("%H:%M")
+    expected_clock = format_local(_NOW, "%H:%M")
     assert row.chip.text == f"✗ failed {expected_clock}"
     assert state.failure_attempt_id == "abc123"
 
@@ -545,7 +544,7 @@ def test_interrupted_failure_row_and_older_chip() -> None:
     row = state.rows[0]
     assert row.scope == "failure"
     assert row.title == "Last update interrupted"
-    expected_day = datetime.fromtimestamp(finished_at).strftime("%b %d")
+    expected_day = format_local(finished_at, "%b %d")
     assert row.chip.text == f"✗ failed {expected_day}"
 
 
