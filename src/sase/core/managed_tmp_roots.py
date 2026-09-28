@@ -94,13 +94,19 @@ def effective_managed_tmp_roots(
     effective_root: Path | str,
     sase_home: Path | str,
 ) -> list[Path]:
-    """Return the roots one reaper pass covers, de-duplicated by resolved path.
+    """Return the roots one reaper pass covers, de-duplicated and folded.
 
     The union of the *effective_root* this process resolves, every
     registered root that still exists, and ``$SASE_HOME/tmp`` when it
     exists. Each pass also (fail-open) registers the effective root and an
     existing ``$SASE_HOME/tmp`` so writers that predate the registry are
     picked up.
+
+    Candidates are first de-duplicated by resolved path, then a candidate
+    whose resolved path sits strictly inside another candidate's resolved
+    path is dropped: the outer root's reaper already owns that nested tree
+    at launch-key granularity, so covering both double-reaps and
+    double-counts it. The outermost root is kept, in original order.
     """
     home = Path(sase_home)
     effective = Path(effective_root)
@@ -113,6 +119,7 @@ def effective_managed_tmp_roots(
         if candidate.is_dir():
             try_register_managed_tmp_root(candidate, sase_home=home)
     deduped: list[Path] = []
+    resolved_paths: list[Path] = []
     seen: set[Path] = set()
     for candidate in candidates:
         try:
@@ -123,7 +130,16 @@ def effective_managed_tmp_roots(
             continue
         seen.add(resolved)
         deduped.append(candidate)
-    return deduped
+        resolved_paths.append(resolved)
+    folded: list[Path] = []
+    for candidate, resolved in zip(deduped, resolved_paths, strict=True):
+        nested_in_another = any(
+            resolved != other and resolved.is_relative_to(other)
+            for other in resolved_paths
+        )
+        if not nested_in_another:
+            folded.append(candidate)
+    return folded
 
 
 def _require_roots_wire_schema() -> None:

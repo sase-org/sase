@@ -522,19 +522,21 @@ Each `get_sase_managed_tmpdir()` call registers its resolved root (`$SASE_TMPDIR
 `~/.sase/tmp`) in a Rust-owned registry at `$SASE_HOME/managed_tmp/roots.json`
 (`sase-core`'s `managed_tmp_roots` module), and this job reaps the effective root plus
 every registered root that still exists instead of only the root its own environment
-resolves. The actual age/pressure decision runs in `sase_core_rs` (`sase-core`'s
-`managed_tmp` crate); this Python job resolves the configured horizons and thresholds
-and calls that binding once per root. Horizons are per subdirectory: command scratch
-(`editors/`, `wrappers/`, `viewers/`, `commit-messages/`, `agent-tmp/`, …) goes after 12
-hours by default, handoff files (`handoff/`, `gh-diffs/`, `muse-prompts/` — a provider
-re-reads the latter mid-run) after 3 days, build targets (`cargo-targets/`,
-`build-targets/`) after 1 day, and artifacts sase's TUI and screenshot tooling reads
-back (`launch-prompts/`, `screenshots/`, `workflow-artifacts/`) after 14 days. Launched
-agents default `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to
-per-launch directories under those managed buckets, so shell scratch and Cargo targets
-no longer fall back to host-global `/tmp`. Launched agents also get line-tables-only
-debug info for the dev and test Cargo profiles, which keeps per-launch targets small.
-They get `CARGO_INCREMENTAL=0` by default, or `CARGO_INCREMENTAL=1` when
+resolves. A root nested inside another covered root is folded into it, so a per-launch
+root registered under an already-registered ancestor is not reaped or counted twice. The
+actual age/pressure decision runs in `sase_core_rs` (`sase-core`'s `managed_tmp` crate);
+this Python job resolves the configured horizons and thresholds and calls that binding
+once per root. Horizons are per subdirectory: command scratch (`editors/`, `wrappers/`,
+`viewers/`, `commit-messages/`, `agent-tmp/`, …) goes after 12 hours by default, handoff
+files (`handoff/`, `gh-diffs/`, `muse-prompts/` — a provider re-reads the latter
+mid-run) after 3 days, build targets (`cargo-targets/`, `build-targets/`) after 1 day,
+and artifacts sase's TUI and screenshot tooling reads back (`launch-prompts/`,
+`screenshots/`, `workflow-artifacts/`) after 14 days. Launched agents default
+`TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to per-launch
+directories under those managed buckets, so shell scratch and Cargo targets no longer
+fall back to host-global `/tmp`. Launched agents also get line-tables-only debug info
+for the dev and test Cargo profiles, which keeps per-launch targets small. They get
+`CARGO_INCREMENTAL=0` by default, or `CARGO_INCREMENTAL=1` when
 [`managed_tmp.agent_cargo_incremental`](configuration.md#managed_tmp) is enabled (athena
 only, where the splitting rustc wrapper runs metadata-only units incrementally direct
 and strips incremental from codegen units before sccache). A runner also removes its own
@@ -551,7 +553,9 @@ entries whose newest descendant write predates `managed_tmp.dead_launch.grace_se
 process are removed largest-first within the removal budget. Held and
 incomplete-observation entries are preserved and counted (`dead_launch_preserved_live`,
 `dead_launch_preserved_incomplete`), and hosts without readable procfs report
-`dead_launch_observer: unobservable` and leave the age horizons as the fallback.
+`dead_launch_observer: unobservable` and leave the age horizons as the fallback. A
+zombie or dead process has already released its address space and cwd, so it is never
+counted as a holder or as an incomplete observation.
 
 Each run removes at most 2,000 entries by default so a long-neglected root converges
 over several passes instead of stalling one. The reaper also runs a pressure pass when

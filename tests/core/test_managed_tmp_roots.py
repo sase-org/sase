@@ -142,6 +142,64 @@ def test_missing_roots_are_pruned_on_next_write(
     assert [entry["path"] for entry in snapshot["roots"]] == [str(kept.resolve())]
 
 
+def test_nested_registered_root_is_folded_into_outer_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A per-launch root registered inside an already-covered root is folded."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    outer = tmp_path / "outer"
+    nested = outer / "agent-tmp" / "launch-key" / "tmpXXXX" / "managed"
+    outer.mkdir()
+    nested.mkdir(parents=True)
+    _register_managed_tmp_root(outer, sase_home=home, now=NOW)
+    _register_managed_tmp_root(nested, sase_home=home, now=NOW)
+
+    roots = effective_managed_tmp_roots(effective_root=outer, sase_home=home)
+
+    assert [root.resolve() for root in roots] == [outer.resolve()]
+
+
+def test_sibling_roots_are_both_kept(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    first = tmp_path / "root-a"
+    second = tmp_path / "root-b"
+    first.mkdir()
+    second.mkdir()
+    _register_managed_tmp_root(first, sase_home=home, now=NOW)
+    _register_managed_tmp_root(second, sase_home=home, now=NOW)
+
+    roots = effective_managed_tmp_roots(effective_root=first, sase_home=home)
+
+    assert {root.resolve() for root in roots} == {first.resolve(), second.resolve()}
+
+
+def test_sibling_with_shared_string_prefix_is_not_folded(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`/a/tmp2` is a sibling of `/a/tmp`, not a nested root, despite the prefix."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    base = tmp_path / "a"
+    base.mkdir()
+    tmp_dir = base / "tmp"
+    tmp2_dir = base / "tmp2"
+    tmp_dir.mkdir()
+    tmp2_dir.mkdir()
+    _register_managed_tmp_root(tmp_dir, sase_home=home, now=NOW)
+    _register_managed_tmp_root(tmp2_dir, sase_home=home, now=NOW)
+
+    roots = effective_managed_tmp_roots(effective_root=tmp_dir, sase_home=home)
+
+    assert {root.resolve() for root in roots} == {
+        tmp_dir.resolve(),
+        tmp2_dir.resolve(),
+    }
+
+
 def test_sandbox_root_is_never_registered(tmp_path: Path) -> None:
     """Under pytest the sandbox root stays out of the real registry."""
     created = Path(get_sase_managed_tmpdir("editors"))
