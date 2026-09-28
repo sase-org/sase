@@ -453,7 +453,7 @@ def _run_ratchet_step(
     *,
     check_rc: int,
     apply_rc: int,
-    branch_exists_rc: int,
+    existing_pr: str = "",
 ) -> tuple[int, str, str, str]:
     if shutil.which("bash") is None:
         pytest.skip("bash is not available")
@@ -492,7 +492,7 @@ def _run_ratchet_step(
         bin_dir / "gh",
         "#!/bin/sh\n"
         'echo "$*" >> "$GH_LOG"\n'
-        'if [ "$1" = "api" ]; then exit "$BRANCH_EXISTS_RC"; fi\n'
+        'if [ "$1" = "pr" ] && [ "$2" = "list" ]; then printf "%s" "$EXISTING_PR"; fi\n'
         "exit 0\n",
     )
 
@@ -500,7 +500,7 @@ def _run_ratchet_step(
     env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
     env["CHECK_RC"] = str(check_rc)
     env["APPLY_RC"] = str(apply_rc)
-    env["BRANCH_EXISTS_RC"] = str(branch_exists_rc)
+    env["EXISTING_PR"] = existing_pr
     env["NEW_SHA"] = _RATCHET_NEW_SHA
     env["PYTHON_LOG"] = str(python_log)
     env["GIT_LOG"] = str(git_log)
@@ -523,68 +523,83 @@ def _run_ratchet_step(
     )
 
 
+_RATCHET_BRANCH = "core-pin-ratchet"
+
+
 def test_core_pin_ratchet_step_pending_bump_pushes_and_opens_pr(
     tmp_path: Path,
 ) -> None:
+    """No PR is open on the fixed branch yet: force-push then create one."""
     code, _python_argv, git_argv, gh_argv = _run_ratchet_step(
-        tmp_path, check_rc=2, apply_rc=2, branch_exists_rc=1
+        tmp_path, check_rc=2, apply_rc=2, existing_pr=""
     )
-    branch = f"core-pin-ratchet-{_RATCHET_NEW_SHA[:12]}"
 
     assert code == 0
-    assert f"push origin {branch}" in git_argv
+    assert f"checkout -B {_RATCHET_BRANCH}" in git_argv
+    assert f"push --force origin {_RATCHET_BRANCH}" in git_argv
+    assert "pr list" in gh_argv
     assert "pr create" in gh_argv
-    assert branch in gh_argv
+    assert "pr edit" not in gh_argv
+    assert _RATCHET_BRANCH in gh_argv
+
+
+def test_core_pin_ratchet_step_pending_bump_updates_existing_pr(
+    tmp_path: Path,
+) -> None:
+    """A PR is already open on the fixed branch: force-push and edit it in place.
+
+    This is what keeps at most one ratchet PR open at a time instead of
+    piling up a new PR every time the schedule fires while the prior one is
+    still open.
+    """
+    code, _python_argv, git_argv, gh_argv = _run_ratchet_step(
+        tmp_path, check_rc=2, apply_rc=2, existing_pr="42"
+    )
+
+    assert code == 0
+    assert f"push --force origin {_RATCHET_BRANCH}" in git_argv
+    assert "pr edit 42" in gh_argv
+    assert "pr create" not in gh_argv
 
 
 def test_core_pin_ratchet_step_up_to_date_makes_no_push_or_pr(
     tmp_path: Path,
 ) -> None:
     code, python_argv, git_argv, gh_argv = _run_ratchet_step(
-        tmp_path, check_rc=0, apply_rc=2, branch_exists_rc=1
+        tmp_path, check_rc=0, apply_rc=2
     )
 
     assert code == 0
     assert "--check" in python_argv
     assert git_argv == ""
-    assert "pr create" not in gh_argv
+    assert gh_argv == ""
 
 
 def test_core_pin_ratchet_step_check_failure_aborts_before_apply(
     tmp_path: Path,
 ) -> None:
     code, python_argv, git_argv, gh_argv = _run_ratchet_step(
-        tmp_path, check_rc=3, apply_rc=2, branch_exists_rc=1
+        tmp_path, check_rc=3, apply_rc=2
     )
 
     assert code == 3
     assert "--check" in python_argv
     assert "push" not in git_argv
     assert "pr create" not in gh_argv
+    assert "pr edit" not in gh_argv
 
 
 def test_core_pin_ratchet_step_apply_failure_aborts_before_push(
     tmp_path: Path,
 ) -> None:
     code, _python_argv, git_argv, gh_argv = _run_ratchet_step(
-        tmp_path, check_rc=2, apply_rc=3, branch_exists_rc=1
+        tmp_path, check_rc=2, apply_rc=3
     )
 
     assert code == 3
     assert "push" not in git_argv
     assert "pr create" not in gh_argv
-
-
-def test_core_pin_ratchet_step_existing_branch_skips_push(
-    tmp_path: Path,
-) -> None:
-    code, _python_argv, git_argv, gh_argv = _run_ratchet_step(
-        tmp_path, check_rc=2, apply_rc=2, branch_exists_rc=0
-    )
-
-    assert code == 0
-    assert "push" not in git_argv
-    assert "pr create" not in gh_argv
+    assert "pr edit" not in gh_argv
 
 
 # --------------------------------------------------------------------------

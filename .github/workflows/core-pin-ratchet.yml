@@ -47,21 +47,27 @@ jobs:
             exit "$apply_status"
           fi
           new_sha="$(tr -d '[:space:]' < sase-core-revision.txt)"
-          branch="core-pin-ratchet-${new_sha:0:12}"
-
-          if gh api "repos/${{ github.repository }}/branches/${branch}" > /dev/null 2>&1; then
-            echo "branch ${branch} already exists; a bump is already proposed."
-            exit 0
-          fi
+          # Fixed branch name: at most one ratchet PR is ever open at a time.
+          # A later run reuses and force-pushes this same branch instead of
+          # opening a second PR next to a still-open one.
+          branch="core-pin-ratchet"
+          title="chore(core-pin): bump pinned sase-core revision to ${new_sha:0:12}"
+          body="Automated ratchet: \`sase-core-revision.txt\` now tracks sase-core's newest remote HEAD (\`${new_sha}\`). Master Gate and CI on this PR prove the pinned revision still builds and passes the fast suite before merge."
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
+          git checkout -B "$branch"
           git add sase-core-revision.txt
-          git commit -m "chore(core-pin): bump pinned sase-core revision to ${new_sha:0:12}"
-          git push origin "$branch"
-          gh pr create \
-            --title "chore(core-pin): bump pinned sase-core revision to ${new_sha:0:12}" \
-            --body "Automated ratchet: \`sase-core-revision.txt\` now tracks sase-core's newest remote HEAD (\`${new_sha}\`). Master Gate and CI on this PR prove the pinned revision still builds and passes the fast suite before merge." \
-            --base master \
-            --head "$branch"
+          git commit -m "$title"
+          git push --force origin "$branch"
+
+          existing_pr="$(gh pr list --repo "${{ github.repository }}" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing_pr" ]; then
+            gh pr edit "$existing_pr" --title "$title" --body "$body"
+          else
+            gh pr create \
+              --title "$title" \
+              --body "$body" \
+              --base master \
+              --head "$branch"
+          fi
