@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import logging
 import os
 from pathlib import Path
 
 from sase.linked_repos import HIDDEN_SIDECAR_ROLES
 
 from .. import commit_finalizer_git as finalizer_git
-from ..commit_finalizer_git import git_changed_files, is_prompt_archive_path
+from ..commit_finalizer_git import (
+    git_changed_files,
+    has_only_prompt_qa_diff,
+    is_prompt_archive_path,
+)
+from ..commit_finalizer_git_status import git_status_records
 from ..commit_finalizer_types import DirtyRepo, SiblingTarget
 from ._workspace_num import workspace_num_for_project_file, workspace_num_from_env
+
+_logger = logging.getLogger(__name__)
 
 
 def known_sdd_sidecar_paths(project_dir: str) -> dict[str, str]:
@@ -184,7 +192,21 @@ def dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
 
 
 def dirty_agents_prompt_archive_repo(project_dir: str) -> list[DirtyRepo]:
-    """Return a dirty agents sidecar only for canonical prompt-file edits."""
+    """Return a dirty agents sidecar only for proven Q&A prompt edits.
+
+    The agents prompt archive is machine-wide, host-owned state: a run's own
+    question-gate Q&A snapshot (written by ``followup.py`` into the canonical
+    prompt file) is the only edit a run intentionally leaves there for the
+    finalizer's Q&A auto-commit to pick up. Everything else in this checkout —
+    untracked prompt files, ``prompts/<YYYYMM>/README.md`` index edits,
+    non-Q&A modifications, anything under ``artifacts/`` or
+    ``files/objects/`` — is agents-sync publication scratch: written only
+    under the agents-sync lock, always regenerable from the local artifact
+    pool, and durably queued in the publication outbox before any attempt.
+    Claiming it as this run's dirty work would misattribute a concurrent
+    agent's publication (see the ``prompt_archive_finalizer_contention``
+    tale).
+    """
 
     try:
         from sase.agents_sync.commit_publication import resolve_publication_project_key
@@ -197,16 +219,37 @@ def dirty_agents_prompt_archive_repo(project_dir: str) -> list[DirtyRepo]:
         agents_root = selection.targets[0].sidecar_path.expanduser()
         if not (agents_root / ".git").exists():
             return []
-        changed_files = git_changed_files(str(agents_root))
-        if not changed_files or not all(
-            is_prompt_archive_path(path) for path in changed_files
-        ):
+        repo_dir = str(agents_root)
+        status_records = git_status_records(repo_dir)
+        if not status_records:
+            return []
+
+        qa_paths: list[str] = []
+        foreign_paths: list[str] = []
+        for record in status_records:
+            if (
+                record.xy == " M"
+                and is_prompt_archive_path(record.path)
+                and has_only_prompt_qa_diff(repo_dir, record.path)
+            ):
+                qa_paths.append(record.path)
+            else:
+                foreign_paths.append(record.path)
+
+        if foreign_paths:
+            _logger.debug(
+                "agents-sync publication scratch left for the publisher: "
+                "repo=%s paths=%s",
+                repo_dir,
+                foreign_paths,
+            )
+        if not qa_paths:
             return []
         return [
             DirtyRepo(
                 name="agents prompt archive",
-                path=finalizer_git.normalize_path(str(agents_root)),
-                changed_files=tuple(changed_files),
+                path=finalizer_git.normalize_path(repo_dir),
+                changed_files=tuple(qa_paths),
                 kind="sdd",
             )
         ]

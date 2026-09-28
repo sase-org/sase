@@ -255,7 +255,17 @@ def _publish_prompt_archive(
             )
         finally:
             # A failed attempt is regenerated from the immutable local pool.
-            _clean_prompt_archive_worktree(target.sidecar_path, git_runner)
+            cleanup_error = _clean_prompt_archive_worktree(
+                target.sidecar_path, git_runner
+            )
+            if cleanup_error is not None:
+                log.warning(
+                    "Could not clean prompt archive worktree in %s after "
+                    "publication attempt; scratch may remain until the next "
+                    "publication: %s",
+                    target.sidecar_path,
+                    cleanup_error,
+                )
     if prompt_outcome is None:
         return PromptArchivePublicationOutcome(
             queued=True,

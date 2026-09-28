@@ -16,6 +16,7 @@ from sase.llm_provider.commit_finalizer_git_progress import (
 )
 from sase.llm_provider.commit_finalizer_state import collect_dirty_state
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
+from sase.sdd.files import set_prompt_qa
 from sase.sdd.store import AGENTS_SIDECAR_ROLE, SDD_STORAGE_SIDECAR_REPOS, SddStore
 
 from ._commit_finalizer_sibling_helpers import (
@@ -24,6 +25,21 @@ from ._commit_finalizer_sibling_helpers import (
     set_agent_env,
     set_clean_main,
 )
+
+_BASE_PROMPT = """---
+plan: 202608/test_prompt.md
+---
+
+Original prompt.
+"""
+_QA = """%xprompts_enabled:false
+### Questions and Answers
+
+#### Q1: Choice
+
+- [x] **A**
+
+%xprompts_enabled:true"""
 
 
 def _run_git(repo: Path, *args: str) -> str:
@@ -124,10 +140,45 @@ def test_hidden_agents_sidecar_is_excluded_from_sdd_dirty_collection(
     )
 
 
-def test_agents_prompt_archive_dirty_state_has_single_agents_entry(
+def test_agents_prompt_archive_foreign_scratch_produces_no_dirty_entry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Untracked scratch plus a README index edit are not this run's work.
+
+    Regression for the incident where a concurrent planner's half-written
+    ``publish_prompt_archive`` attempt (untracked prompt + README row, orphaned
+    after an ``index.lock`` collision) got attributed to an unrelated agent's
+    commit finalizer and failed it.
+    """
+    main = tmp_path / "sase_10"
+    plans = tmp_path / "plans"
+    agents = tmp_path / "agents"
+    for repo in (main, plans, agents):
+        init_git_repo(repo)
+    readme = agents / "prompts" / "202608" / "README.md"
+    readme.parent.mkdir(parents=True)
+    readme.write_text("| plan | agent |\n", encoding="utf-8")
+    commit_all(agents, "seed prompt archive readme")
+    readme.write_text("| plan | agent |\n| other | other-agent |\n", encoding="utf-8")
+    untracked_prompt = agents / "prompts" / "202608" / "test_prompt.md"
+    untracked_prompt.write_text("# Test prompt\n", encoding="utf-8")
+    set_agent_env(monkeypatch, main)
+    set_clean_main(monkeypatch)
+    _use_sdd_store(monkeypatch, _sidecar_store(plans=plans, agents=agents))
+    _resolve_agents_prompt_archive_to(monkeypatch, agents)
+
+    dirty_state = collect_dirty_state(str(main), artifact_root=tmp_path / "artifacts")
+
+    agents_path = finalizer_git.normalize_path(str(agents))
+    assert [repo for repo in dirty_state.repos if repo.path == agents_path] == []
+
+
+def test_agents_prompt_archive_qa_edit_with_foreign_scratch_has_single_qa_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run's own Q&A edit is claimed even while foreign scratch coexists."""
     main = tmp_path / "sase_10"
     plans = tmp_path / "plans"
     agents = tmp_path / "agents"
@@ -135,7 +186,12 @@ def test_agents_prompt_archive_dirty_state_has_single_agents_entry(
         init_git_repo(repo)
     prompt = agents / "prompts" / "202608" / "test_prompt.md"
     prompt.parent.mkdir(parents=True)
-    prompt.write_text("# Test prompt\n", encoding="utf-8")
+    prompt.write_text(_BASE_PROMPT, encoding="utf-8")
+    commit_all(agents, "seed prompt archive")
+    set_prompt_qa(prompt, _QA)
+    # Foreign agents-sync publication scratch left by a concurrent agent.
+    untracked_prompt = agents / "prompts" / "202608" / "other_prompt.md"
+    untracked_prompt.write_text("# Other prompt\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     _use_sdd_store(monkeypatch, _sidecar_store(plans=plans, agents=agents))

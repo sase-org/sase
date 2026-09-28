@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 from typing import Protocol
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.sdd._git import network_git_timeout, run_sdd_git, run_sdd_network_git
 
 
@@ -45,19 +46,40 @@ def run_git(
     network: bool = False,
     op: str = "agents_sync.git",
 ) -> subprocess.CompletedProcess[str]:
-    """Run one bounded git command with network prompt hardening."""
+    """Run one bounded git command with network prompt hardening.
 
-    git_fn = run_sdd_network_git if network else run_sdd_git
-    result = git_fn(
-        args,
-        cwd=cwd,
-        op=op,
-        timeout=network_git_timeout() if network else None,
-        check=False,
-        capture_output=True,
-        text=True,
-        env=_noninteractive_git_env(),
-    )
+    Local (non-network) commands retry around a contended ``index.lock``: git
+    performs no work when it cannot create the lock, so re-running add,
+    commit, reset, checkout, clean, ls-files, or ``rebase --abort`` is safe.
+    Network commands (pull --rebase, push) are left unwrapped; rebase
+    failures already go through ``abort_agents_rebase``.
+    """
+
+    if network:
+        result = run_sdd_network_git(
+            args,
+            cwd=cwd,
+            op=op,
+            timeout=network_git_timeout(),
+            check=False,
+            capture_output=True,
+            text=True,
+            env=_noninteractive_git_env(),
+        )
+    else:
+        result, _outcome = run_with_git_lock_retry(
+            lambda: run_sdd_git(
+                args,
+                cwd=cwd,
+                op=op,
+                timeout=None,
+                check=False,
+                capture_output=True,
+                text=True,
+                env=_noninteractive_git_env(),
+            ),
+            cwd=cwd,
+        )
     return subprocess.CompletedProcess(
         result.args,
         result.returncode,

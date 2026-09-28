@@ -3,6 +3,12 @@
 Every read-only query here runs ``subprocess.run`` directly. Mutating
 operations (add, commit, reset) funnel through :func:`run_git`, which retries
 around a contended ``index.lock``.
+
+Read-only status queries (:func:`git_changed_files`, :func:`git_status_records`)
+must pass ``--no-optional-locks``. Without it, ``git status`` still takes
+git's optional index lock so it can write back refreshed stat data, which
+contends with writers for shared checkouts (the machine-wide agents prompt
+archive, primary SDD sidecars) that many agents scan concurrently.
 """
 
 from __future__ import annotations
@@ -64,6 +70,7 @@ def git_changed_files(repo_dir: str) -> list[str]:
         result = subprocess.run(
             [
                 "git",
+                "--no-optional-locks",
                 "-C",
                 repo_dir,
                 "status",
@@ -105,6 +112,7 @@ def git_status_records(repo_dir: str) -> list[GitStatusRecord]:
         result = subprocess.run(
             [
                 "git",
+                "--no-optional-locks",
                 "-C",
                 repo_dir,
                 "status",

@@ -190,41 +190,63 @@ def auto_commit_sdd_bead_reprojection_candidate(
 def sdd_prompt_qa_auto_commit_candidates(
     dirty_state: DirtyState,
 ) -> tuple[_SddPromptQaAutoCommitCandidate, ...]:
-    """Return external SDD repos proven to contain only Q&A snapshot edits."""
+    """Return external SDD repos proven to contain only Q&A snapshot edits.
+
+    Only ``repo.changed_files`` must be proven Q&A-only; other status records
+    in the same checkout (agents-sync publication scratch, for example) do not
+    disqualify the candidate. The eventual commit is pathspec-limited to
+    ``repo.changed_files``, so foreign files are never swept in.
+    """
     candidates: list[_SddPromptQaAutoCommitCandidate] = []
     for repo in dirty_state.repos:
-        if repo.kind != "sdd":
+        if repo.kind != "sdd" or not repo.changed_files:
             continue
 
         repo_dir = normalize_path(repo.path)
         status_records = git_status_records(repo_dir)
         if not status_records:
             continue
-        if {record.path for record in status_records} != set(repo.changed_files):
-            continue
-        if any(record.xy != " M" for record in status_records):
-            continue
-        if any(not is_prompt_archive_path(record.path) for record in status_records):
-            continue
-        if any(
-            not _has_only_sdd_prompt_qa_diff(repo_dir, record.path)
-            for record in status_records
+        records_by_path = {record.path: record for record in status_records}
+
+        if not all(
+            _is_proven_prompt_qa_record(records_by_path.get(path), repo_dir, path)
+            for path in repo.changed_files
         ):
             continue
 
         candidates.append(
             _SddPromptQaAutoCommitCandidate(
                 repo_dir=repo_dir,
-                paths=tuple(record.path for record in status_records),
+                paths=repo.changed_files,
             )
         )
     return tuple(candidates)
 
 
+def _is_proven_prompt_qa_record(
+    record: GitStatusRecord | None,
+    repo_dir: str,
+    path: str,
+) -> bool:
+    return (
+        record is not None
+        and record.xy == " M"
+        and is_prompt_archive_path(path)
+        and has_only_prompt_qa_diff(repo_dir, path)
+    )
+
+
 def auto_commit_sdd_prompt_qa_candidate(
     candidate: _SddPromptQaAutoCommitCandidate,
 ) -> bool:
-    """Commit one proven Q&A-only agents-sidecar prompt change set."""
+    """Commit one proven Q&A-only agents-sidecar prompt change set.
+
+    Re-proves each path under the agents-sync lock before staging: the first
+    proof ran outside the lock, so a concurrent publication may have committed
+    or rewritten a path since. Paths no longer dirty are dropped (already
+    committed by someone else); a path that is still dirty but fails the proof
+    aborts the whole commit rather than partially committing.
+    """
 
     from sase.workflows.commit.runtime_tags import apply_auto_commit_tags_with_runtime
 
@@ -241,18 +263,33 @@ def auto_commit_sdd_prompt_qa_candidate(
     ) as acquired:
         if not acquired:
             return False
+
+        records_by_path = {
+            record.path: record for record in git_status_records(candidate.repo_dir)
+        }
+        paths: list[str] = []
         for path in candidate.paths:
+            record = records_by_path.get(path)
+            if record is None:
+                continue
+            if not _is_proven_prompt_qa_record(record, candidate.repo_dir, path):
+                return False
+            paths.append(path)
+        if not paths:
+            return False
+
+        for path in paths:
             added = run_git(candidate.repo_dir, ["add", "--", path])
             if added is None or added.returncode != 0:
                 return False
-        stem = Path(candidate.paths[0]).stem
+        stem = Path(paths[0]).stem
         message = apply_auto_commit_tags_with_runtime(
             f"Add Q&A to {stem} prompt",
             "sdd",
         )
         committed = run_git(
             candidate.repo_dir,
-            ["commit", "--no-verify", "-m", message, "--", *candidate.paths],
+            ["commit", "--no-verify", "-m", message, "--", *paths],
             timeout=10,
         )
         return committed is not None and committed.returncode == 0
@@ -437,7 +474,13 @@ def _has_exact_done_status_transition(repo_dir: str, path: str) -> bool:
     )
 
 
-def _has_only_sdd_prompt_qa_diff(repo_dir: str, path: str) -> bool:
+def has_only_prompt_qa_diff(repo_dir: str, path: str) -> bool:
+    """Return whether *path*'s worktree-vs-HEAD diff is a Q&A block only.
+
+    Shared by the SDD prompt Q&A auto-commit prover and the agents
+    prompt-archive ownership rule in ``commit_finalizer_state/_dirty_repos``,
+    which claims only paths this proves Q&A-only.
+    """
     head_text = git_show_head_file(repo_dir, path)
     if head_text is None:
         return False

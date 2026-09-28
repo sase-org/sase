@@ -15,6 +15,7 @@ from .commit_finalizer_git_autocommit import (
     auto_commit_done_sdd_plan_status,
     auto_commit_sdd_bead_reprojection_candidate,
     auto_commit_sdd_prompt_qa_candidate,
+    has_only_prompt_qa_diff,
     sdd_bead_reprojection_auto_commit_candidates,
     sdd_prompt_qa_auto_commit_candidates,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "discarded_dirty_work_message",
     "filter_sase_reserved_paths",
     "git_changed_files",
+    "has_only_prompt_qa_diff",
     "is_prompt_archive_path",
     "normalize_path",
     "progress_fingerprint",

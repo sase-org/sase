@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 import sase_core_rs
 
+from sase.agents_sync.git import run_git
 from sase.agents_sync.models import ProjectTarget, SyncOutcome, TargetSelection
 from sase.agents_sync.prompt_archive import publish as archive_publish
 from sase.agents_sync.prompt_archive.naming import resolve_prompt_name
@@ -642,3 +644,58 @@ def test_publish_prompt_archive_publishes_incident_shape_orphans(
         "chore(agents): archive prompt for alice.athena.worker",
         "chore(agents): publish pending prompt-archive objects",
     ]
+
+
+def test_publish_prompt_archive_logs_warning_when_final_cleanup_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A cleanup failure after a failed stage is warned, not silently dropped.
+
+    Regression for the incident where the ``finally`` cleanup's return value
+    was discarded, so a failed publication attempt's half-written scratch
+    (orphaned by a concurrent ``index.lock`` collision) left no trace.
+    """
+    target, _remote, artifacts_dir = _publish_environment(
+        tmp_path, monkeypatch, "Archive this prompt.\n"
+    )
+    reset_calls = {"count": 0}
+
+    def lock_failure(cwd: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            ["git", "-C", str(cwd), *args],
+            128,
+            "",
+            f"error: unable to create '{cwd}/.git/index.lock': File exists.",
+        )
+
+    def flaky_runner(
+        cwd: Path, args: list[str], *, network: bool = False, op: str = ""
+    ) -> subprocess.CompletedProcess[str]:
+        if op == "agents_sync.prompt_archive_stage":
+            return lock_failure(cwd, args)
+        if op == "agents_sync.prompt_archive_reset":
+            reset_calls["count"] += 1
+            if reset_calls["count"] > 1:
+                return lock_failure(cwd, args)
+        return run_git(cwd, args, network=network, op=op)
+
+    caplog.set_level("WARNING")
+
+    outcome = publish_prompt_archive(
+        "worker",
+        "a" * 40,
+        project="Project",
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=artifacts_dir,
+        git_runner=flaky_runner,
+    )
+
+    assert outcome.queued is True
+    assert outcome.error is not None
+    assert "could not stage prompt archive" in outcome.error
+    assert any(
+        "Could not clean prompt archive worktree" in record.getMessage()
+        for record in caplog.records
+    )

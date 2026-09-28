@@ -516,3 +516,67 @@ def test_network_git_retries_transient_classifier_failure(
     assert result.stdout == "ok"
     assert calls == [["fetch", "origin"], ["fetch", "origin"]]
     assert sleeps == [0.25]
+
+
+def test_run_git_retries_transient_local_index_lock_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0")
+    calls: list[list[str]] = []
+
+    def fake_run_sdd_git(
+        args: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(
+                ["git", *args],
+                128,
+                stdout="",
+                stderr=(
+                    f"error: unable to create '{tmp_path}/.git/index.lock': "
+                    "File exists."
+                ),
+            )
+        return subprocess.CompletedProcess(["git", *args], 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr("sase.agents_sync.git.run_sdd_git", fake_run_sdd_git)
+
+    result = run_git(tmp_path, ["status"])
+
+    assert result.returncode == 0
+    assert result.stdout == "ok"
+    assert calls == [["status"], ["status"]]
+
+
+def test_run_git_does_not_retry_network_index_lock_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0")
+    calls: list[list[str]] = []
+
+    def fake_run_sdd_network_git(
+        args: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(
+            ["git", *args],
+            128,
+            stdout="",
+            stderr=(
+                f"error: unable to create '{tmp_path}/.git/index.lock': File exists."
+            ),
+        )
+
+    monkeypatch.setattr(
+        "sase.agents_sync.git.run_sdd_network_git", fake_run_sdd_network_git
+    )
+
+    result = run_git(tmp_path, ["push"], network=True)
+
+    assert result.returncode == 128
+    assert calls == [["push"]]
