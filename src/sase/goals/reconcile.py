@@ -115,12 +115,7 @@ def reconcile_goals_after_integration(
             return outcome
         from sase.core.goal_ledger_facade import goal_ledger_doctor
 
-        request: dict[str, Any] = {
-            "repair": True,
-            "projection_path": str(ledger.projection_path),
-            "project": ledger.project,
-            "mode": ledger.mode,
-        }
+        request: dict[str, Any] = _doctor_request_for_ledger(ledger)
         if scoped:
             request["ids"] = list(ids)
         report = goal_ledger_doctor(ledger.root, request)
@@ -138,9 +133,11 @@ def reconcile_goals_after_integration(
         if status.returncode != 0 or not status.stdout.strip():
             return outcome
         message = _tagged_message(RECONCILE_COMMIT_MESSAGE)
-        committed = _commit_goal_paths(repo, message)
+        committed, commit_diagnostic = _commit_under_store_lock(repo, message)
         outcome["fixed"] = committed
         outcome["commit"] = message if committed else None
+        if commit_diagnostic is not None:
+            outcome["diagnostic"] = commit_diagnostic
         return outcome
     except Exception as exc:  # noqa: BLE001 - reconciliation fails open.
         logger.warning(
@@ -186,14 +183,60 @@ def reconcile_goals_repo_path(repo: Path) -> dict[str, Any]:
         if status.returncode != 0 or not status.stdout.strip():
             return outcome
         message = _tagged_message(RECONCILE_COMMIT_MESSAGE)
-        committed = _commit_goal_paths(repo, message)
+        committed, commit_diagnostic = _commit_under_store_lock(repo, message)
         outcome["fixed"] = committed
         outcome["commit"] = message if committed else None
+        if commit_diagnostic is not None:
+            outcome["diagnostic"] = commit_diagnostic
         return outcome
     except Exception as exc:  # noqa: BLE001 - reconciliation fails open.
         logger.warning("goals repo reconcile for %s failed: %s", repo, exc)
         outcome["diagnostic"] = str(exc) or type(exc).__name__
         return outcome
+
+
+def _doctor_request_for_ledger(ledger: GoalLedger) -> dict[str, Any]:
+    """Build the repair request carrying the ledger's projection context.
+
+    The projection path, project, mode, watermark, outbox, and fetch TTL
+    ride along so a repair preserves the existing projection header.
+    """
+    from sase.goals.config import goals_fetch_ttl_seconds
+
+    return {
+        "repair": True,
+        "projection_path": str(ledger.projection_path),
+        "project": ledger.project,
+        "mode": ledger.mode,
+        "watermark_path": str(ledger.watermark_path),
+        "outbox_path": str(ledger.outbox_path),
+        "fetch_ttl_seconds": goals_fetch_ttl_seconds(),
+    }
+
+
+def _commit_under_store_lock(repo: Path, message: str) -> tuple[bool, str | None]:
+    """Commit a reconcile fix under the store write lock; fail open.
+
+    Returns ``(committed, diagnostic)``. A busy lock skips the commit with
+    a diagnostic instead of racing the in-flight write, and any error is
+    reported the same way so bead publication can continue.
+    """
+    from sase.sdd._git_contention import store_git_write_lock
+
+    try:
+        with store_git_write_lock(
+            repo, op="goals.reconcile_commit", timeout=0.0
+        ) as acquired:
+            if not acquired:
+                return False, (
+                    "store write lock was busy; reconcile fix left uncommitted"
+                )
+            from sase.workspace_provider.ownership import authorize_store_mutation
+
+            authorize_store_mutation(repo, mutation_origin="machine")
+            return _commit_goal_paths(repo, message), None
+    except Exception as exc:  # noqa: BLE001 - reconciliation fails open.
+        return False, str(exc) or type(exc).__name__
 
 
 def _tagged_message(message: str) -> str:

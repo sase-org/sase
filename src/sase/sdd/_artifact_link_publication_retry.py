@@ -480,12 +480,20 @@ def _run_publication_worker(
     )
     # Hidden host clones converge goal markers no matter which publisher
     # integrates them. This repair commits marker fixes under goals/ only,
-    # fails open, and never blocks bead publication.
+    # fails open, and never blocks bead publication. A fix committed here
+    # lands after the push above, so one bounded re-push carries it to the
+    # remote instead of leaving it unpublished.
     try:
         if (repo_root / "goals" / "STORE.json").is_file():
             from sase.goals.reconcile import reconcile_goals_repo_path
 
-            reconcile_goals_repo_path(repo_root)
+            reconcile = reconcile_goals_repo_path(repo_root)
+            if reconcile.get("commit") is not None:
+                push_bead_work_launch(
+                    repo_root,
+                    worker_lock_wait=0.0,
+                    deadline=deadline,
+                )
     except Exception as exc:  # noqa: BLE001 - goals never block bead links.
         _logging.getLogger(__name__).warning(
             "goals reconcile after bead-link publish failed: %s", exc

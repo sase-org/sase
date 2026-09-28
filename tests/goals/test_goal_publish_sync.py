@@ -349,6 +349,122 @@ class TestReconcile:
         ids = _collect_touched_goal_ids(ledger.hidden_clone)
         assert ids is not None
 
+    def test_held_lock_skips_commit_without_exception(
+        self, shared_project: Path
+    ) -> None:
+        from sase.sdd._git_contention import _canonical_store_write_lock_path
+        from tests.sdd_store._helpers import init_git_identity
+
+        ledger = resolve_goal_ledger(_PROJECT_KEY)
+        assert ledger.hidden_clone is not None
+        init_git_identity(ledger.hidden_clone)
+        created = apply_goal_action(
+            ledger, _new_action(), _actor(), push_timeout_seconds=120.0
+        )
+        assert created.status == "applied"
+        goal_id = created.goal_id
+        assert goal_id
+        dropped = apply_goal_action(
+            ledger,
+            {"action": "drop", "goal_id": goal_id, "why": "tried it"},
+            _actor(),
+            push_timeout_seconds=120.0,
+        )
+        assert dropped.status == "applied"
+        # Commit the stale marker, so the reconcile repair changes the
+        # worktree against HEAD and would commit a fix if the lock were free.
+        marker = ledger.root / "live" / goal_id
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("", encoding="utf-8")
+        git(["add", "-A", "--", "goals"], ledger.hidden_clone)
+        git(["commit", "-m", "chore(goals): stale marker"], ledger.hidden_clone)
+        head_before = git(["rev-parse", "HEAD"], ledger.hidden_clone).stdout.strip()
+        lock_path = _canonical_store_write_lock_path(ledger.hidden_clone)
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "a+", encoding="utf-8") as holder:  # noqa: PTH123
+            fcntl.flock(holder.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = reconcile_goals_after_integration(ledger, touched_ids=[goal_id])
+        assert result["fixed"] is False
+        assert result["commit"] is None
+        assert "busy" in (result["diagnostic"] or "")
+        head_after = git(["rev-parse", "HEAD"], ledger.hidden_clone).stdout.strip()
+        assert head_after == head_before
+
+    def test_bead_link_reconcile_commit_is_repushed(
+        self, shared_project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import time
+
+        import sase.bead.sync as bead_sync
+        from sase.sdd._artifact_link_publication_retry import (
+            _run_publication_worker,
+        )
+        from tests.sdd_store._helpers import init_git_identity
+
+        ledger = resolve_goal_ledger(_PROJECT_KEY)
+        assert ledger.hidden_clone is not None
+        repo = ledger.hidden_clone
+        init_git_identity(repo)
+        created = apply_goal_action(
+            ledger, _new_action(), _actor(), push_timeout_seconds=120.0
+        )
+        assert created.status == "applied"
+        goal_id = created.goal_id
+        assert goal_id
+        # Commit a dropped live marker: the bead-link reconcile repairs it
+        # into a new commit, and that repair commit must be pushed, not local.
+        marker = ledger.root / "live" / goal_id
+        assert marker.is_file()
+        marker.unlink()
+        git(["add", "-A", "--", "goals"], repo)
+        git(["commit", "-m", "chore(goals): drop marker"], repo)
+        assert not marker.is_file()
+        pushes: list[None] = []
+        monkeypatch.setattr(
+            bead_sync,
+            "push_bead_work_launch",
+            lambda *args, **kwargs: pushes.append(None),
+        )
+        _run_publication_worker(
+            repo, worker_lock_wait=0.0, deadline=time.monotonic() + 60.0
+        )
+        assert marker.is_file()
+        assert len(pushes) == 2
+        subjects = git(["log", "--pretty=format:%s", "-1"], repo).stdout
+        assert "reconcile live markers" in subjects
+
+
+class TestSharedPhantomGoals:
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["goal", "edit", "zzzzz", "-t", "x"],
+            ["goal", "drop", "zzzzz", "-w", "x"],
+        ],
+    )
+    def test_unknown_id_refuses_without_live_marker(
+        self,
+        shared_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        argv: list[str],
+    ) -> None:
+        import sase.goals.cli as goal_cli
+        from sase.main.goal_handler import handle_goal_group
+        from sase.main.parser import create_parser
+
+        monkeypatch.setattr(goal_cli, "_current_project_name", lambda: _PROJECT_KEY)
+        monkeypatch.delenv("SASE_AGENT", raising=False)
+        monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+        ledger = resolve_goal_ledger(_PROJECT_KEY)
+        assert ledger.mode == "shared"
+        with pytest.raises(SystemExit) as excinfo:
+            handle_goal_group(create_parser().parse_args(argv))
+        assert excinfo.value.code != 0
+        assert "goal_not_found" in capsys.readouterr().err
+        assert not (ledger.root / "live" / "zzzzz").exists()
+        assert not (ledger.root / "items" / "zzzzz").exists()
+
 
 class TestGoalRebaseNeverConflicts:
     def test_concurrent_goal_writes_rebase_cleanly(self, tmp_path: Path) -> None:

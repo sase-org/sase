@@ -6,6 +6,7 @@ import argparse
 
 _GOAL_SUBCOMMANDS = "{doctor,drop,edit,list,merge,new,reopen,show}"
 _GOAL_STATUSES = "{unsettled,active,review,done,dropped,settled,all}"
+_GOAL_STATUS_CHOICES = tuple(sorted(_GOAL_STATUSES.strip("{}").split(",")))
 
 
 def register_goal_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -79,7 +80,8 @@ def register_goal_parser(subparsers: argparse._SubParsersAction) -> None:
         "--remove-criterion",
         action="append",
         default=None,
-        help="Remove a criterion by id (repeatable)",
+        type=int,
+        help="Remove a criterion by number as shown by `sase goal show` (repeatable)",
     )
 
     goal_list = goal_sub.add_parser(
@@ -108,6 +110,7 @@ def register_goal_parser(subparsers: argparse._SubParsersAction) -> None:
         "-s",
         "--status",
         default="unsettled",
+        choices=list(_GOAL_STATUS_CHOICES),
         help=(
             "Status filter (default: unsettled). done, dropped, settled, "
             "and all scan history, newest first"

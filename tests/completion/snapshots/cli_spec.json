@@ -3334,6 +3334,230 @@
           {
             "aliases": [],
             "default_child": "list",
+            "description_digest": "68fc11e30b531163",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "tab",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "agent",
+              "tab"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "8024fa58af13f22b",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "name",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-n",
+                      "--name"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "text"
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "tab",
+                  "list"
+                ],
+                "positionals": [],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "400c2c1e020e1ec5",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "set",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "name",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": true,
+                    "strings": [
+                      "-n",
+                      "--name"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "text"
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "tab",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": true,
+                    "strings": [
+                      "-t",
+                      "--tab"
+                    ],
+                    "takes_value": true,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "tab",
+                  "set"
+                ],
+                "positionals": [],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": true
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "f008cc4603bf995c",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "unset",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "name",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": true,
+                    "strings": [
+                      "-n",
+                      "--name"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "text"
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "tab",
+                  "unset"
+                ],
+                "positionals": [],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              }
+            ],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": "list",
             "description_digest": "3341b784fb6e9339",
             "hidden": false,
             "mutex_groups": [],
@@ -16001,7 +16225,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "437f4ee8bf277f8e",
+            "description_digest": "d4e533744722352d",
             "hidden": false,
             "mutex_groups": [],
             "name": "edit",
@@ -16197,7 +16421,15 @@
                 "value_hint": "int"
               },
               {
-                "choices": null,
+                "choices": [
+                  "active",
+                  "all",
+                  "done",
+                  "dropped",
+                  "review",
+                  "settled",
+                  "unsettled"
+                ],
                 "default": "unsettled",
                 "dest": "status",
                 "hidden": false,

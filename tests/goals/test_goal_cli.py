@@ -427,3 +427,148 @@ def test_goal_write_verbs_carry_writes_chip() -> None:
         assert writes_for(("goal", verb)) is True
     assert writes_for(("goal", "list")) is False
     assert writes_for(("goal", "show")) is False
+
+
+def _goal_id_with_criteria(
+    capsys: pytest.CaptureFixture[str],
+    criteria: list[str],
+) -> str:
+    from sase.main.goal_handler import handle_goal_group
+
+    argv = ["goal", "new", "-t", "Numbered", "-o", "Criteria map by number"]
+    for text in criteria:
+        argv.extend(["-c", text])
+    with pytest.raises(SystemExit) as excinfo:
+        handle_goal_group(_args(argv))
+    assert excinfo.value.code == 0
+    capsys.readouterr()
+    ledger = goal_store.resolve_goal_ledger(_PROJECT)
+    return str(facade.goal_ledger_list(ledger.root)["goals"][0]["id"])
+
+
+class TestRemoveCriterionNumbering:
+    def test_remove_first_criterion_by_number(
+        self, local_cli: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from sase.main.goal_handler import handle_goal_group
+
+        goal_id = _goal_id_with_criteria(capsys, ["First", "Second"])
+        with pytest.raises(SystemExit) as excinfo:
+            handle_goal_group(_args(["goal", "edit", goal_id, "-x", "1"]))
+        assert excinfo.value.code == 0
+        capsys.readouterr()
+        ledger = goal_store.resolve_goal_ledger(_PROJECT)
+        state = facade.goal_ledger_show(ledger.root, goal_id)
+        assert [c["text"] for c in state["criteria"]] == ["Second"]
+
+    def test_out_of_range_number_exits_2_without_writing(
+        self, local_cli: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from sase.main.goal_handler import handle_goal_group
+
+        goal_id = _goal_id_with_criteria(capsys, ["First", "Second"])
+        ledger = goal_store.resolve_goal_ledger(_PROJECT)
+        events = ledger.root / "items" / goal_id / "events"
+        before = sorted(path.name for path in events.iterdir())
+        with pytest.raises(SystemExit) as excinfo:
+            handle_goal_group(_args(["goal", "edit", goal_id, "-x", "9"]))
+        assert excinfo.value.code == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "\n" not in captured.err.strip()
+        assert sorted(path.name for path in events.iterdir()) == before
+
+
+class TestStatusChoices:
+    def test_bogus_status_exits_2(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            _args(["goal", "list", "-s", "bogus"])
+        assert excinfo.value.code == 2
+        assert "invalid choice" in capsys.readouterr().err
+
+
+class TestCrossProjectIds:
+    def test_cross_project_drop_settles_named_ledger(
+        self,
+        local_cli: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from sase.main.goal_handler import handle_goal_group
+
+        _new_goal(capsys)
+        ledger = goal_store.resolve_goal_ledger(_PROJECT)
+        goal_id = str(facade.goal_ledger_list(ledger.root)["goals"][0]["id"])
+        monkeypatch.setattr(goal_cli, "_current_project_name", lambda: "acme_elsewhere")
+        with pytest.raises(SystemExit) as excinfo:
+            handle_goal_group(
+                _args(["goal", "drop", f"goal:{_PROJECT}@{goal_id}", "-w", "done"])
+            )
+        assert excinfo.value.code == 0
+        capsys.readouterr()
+        state = facade.goal_ledger_show(ledger.root, goal_id)
+        assert state["status"] == "dropped"
+        elsewhere = goal_store.resolve_goal_ledger("acme_elsewhere")
+        assert facade.goal_ledger_list(elsewhere.root)["goals"] == []
+
+    def test_merge_across_projects_refuses(
+        self,
+        local_cli: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from sase.main.goal_handler import handle_goal_group
+
+        with pytest.raises(SystemExit) as excinfo:
+            handle_goal_group(
+                _args(["goal", "merge", "goal:projA@abcde", "-i", "goal:projB@fghij"])
+            )
+        assert excinfo.value.code == 2
+        assert "different projects" in capsys.readouterr().err
+
+    def test_doctor_repair_keeps_header_and_fast_path_lists(
+        self, local_cli: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from sase.main.goal_handler import handle_goal_group
+
+        _new_goal(capsys)
+        with pytest.raises(SystemExit) as excinfo:
+            handle_goal_group(_args(["goal", "doctor", "--repair"]))
+        assert excinfo.value.code == 0
+        capsys.readouterr()
+        ledger = goal_store.resolve_goal_ledger(_PROJECT)
+        assert ledger.projection_path.is_file()
+        assert "Try goals" in _list_text(["goal", "list"], capsys)
+
+    def test_doctor_repair_refusal_names_doctor_flag(
+        self,
+        local_cli: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from sase.main.goal_handler import handle_goal_group
+
+        monkeypatch.setenv("SASE_AGENT", "1")
+        with pytest.raises(SystemExit) as excinfo:
+            handle_goal_group(_args(["goal", "doctor", "--repair"]))
+        assert excinfo.value.code == 2
+        assert "sase goal doctor --repair is a human verb" in capsys.readouterr().err
+
+
+class TestPhantomGoals:
+    @pytest.mark.parametrize("argv", [["edit", "-t"], ["drop", "-w"]])
+    def test_unknown_id_refuses_without_live_marker(
+        self,
+        local_cli: Path,
+        capsys: pytest.CaptureFixture[str],
+        argv: list[str],
+    ) -> None:
+        from sase.main.goal_handler import handle_goal_group
+
+        verb, flag = argv
+        with pytest.raises(SystemExit) as excinfo:
+            handle_goal_group(_args(["goal", verb, "zzzzz", flag, "x"]))
+        assert excinfo.value.code != 0
+        assert "goal_not_found" in capsys.readouterr().err
+        ledger = goal_store.resolve_goal_ledger(_PROJECT)
+        assert not (ledger.root / "live" / "zzzzz").exists()
+        assert not (ledger.root / "items" / "zzzzz").exists()

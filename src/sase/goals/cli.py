@@ -306,13 +306,19 @@ def _idempotency_key(verb: str) -> str:
     return f"cli:{verb}:{uuid.uuid4().hex[:12]}"
 
 
-def _run_mutation(args: argparse.Namespace, verb: str, action: dict[str, Any]) -> int:
+def _run_mutation(
+    args: argparse.Namespace,
+    verb: str,
+    action: dict[str, Any],
+    *,
+    project: str | None = None,
+) -> int:
     from sase.goals.write import GoalWriteError, apply_goal_action, default_goal_actor
 
     refused = _refuse_human_verb(verb)
     if refused is not None:
         return refused
-    project = _current_project_name()
+    project = project or _current_project_name()
     ledger = resolve_goal_ledger(project)
     try:
         outcome = apply_goal_action(ledger, action, actor=default_goal_actor())
@@ -391,9 +397,33 @@ def handle_goal_new(args: argparse.Namespace) -> int:
     return _run_mutation(args, "new", action)
 
 
+def _criterion_ids_for_numbers(
+    ledger: GoalLedger, goal_id: str, numbers: list[int]
+) -> list[str]:
+    """Map 1-based ``show`` criterion numbers to stored criterion ids.
+
+    Raises :class:`ValueError` naming the first out-of-range number.
+    """
+    from sase.core.goal_ledger_facade import goal_ledger_show
+
+    state = goal_ledger_show(ledger.root, goal_id)
+    criteria = list(state.get("criteria", []))
+    ids: list[str] = []
+    for number in numbers:
+        if number < 1 or number > len(criteria):
+            raise ValueError(
+                f"criterion {number} is out of range "
+                f"(the goal has {len(criteria)} criteria)"
+            )
+        criterion = criteria[number - 1]
+        ids.append(str(criterion.get("id", "")))
+    return ids
+
+
 def handle_goal_edit(args: argparse.Namespace) -> int:
     """Run ``sase goal edit``; return the process exit code."""
-    _, goal_id = _normalize_goal_id_token(str(args.goal_id))
+    id_project, goal_id = _normalize_goal_id_token(str(args.goal_id))
+    project = id_project or _current_project_name()
     if (
         args.title is None
         and args.outcome is None
@@ -414,13 +444,24 @@ def handle_goal_edit(args: argparse.Namespace) -> int:
     if args.criterion:
         action["criteria_added"] = [{"text": text} for text in args.criterion]
     if args.remove_criterion:
-        action["criteria_removed"] = list(args.remove_criterion)
-    return _run_mutation(args, "edit", action)
+        numbers = list(dict.fromkeys(int(n) for n in args.remove_criterion))
+        ledger = resolve_goal_ledger(project)
+        try:
+            action["criteria_removed"] = _criterion_ids_for_numbers(
+                ledger, goal_id, numbers
+            )
+        except ValueError as exc:
+            print(f"sase goal edit: {exc}", file=sys.stderr)
+            return 2
+        except Exception as exc:
+            print(f"sase goal edit: {exc}", file=sys.stderr)
+            return 1
+    return _run_mutation(args, "edit", action, project=project)
 
 
 def handle_goal_drop(args: argparse.Namespace) -> int:
     """Run ``sase goal drop``; return the process exit code."""
-    _, goal_id = _normalize_goal_id_token(str(args.goal_id))
+    id_project, goal_id = _normalize_goal_id_token(str(args.goal_id))
     return _run_mutation(
         args,
         "drop",
@@ -430,12 +471,13 @@ def handle_goal_drop(args: argparse.Namespace) -> int:
             "why": args.why,
             "idempotency_key": _idempotency_key("drop"),
         },
+        project=id_project or _current_project_name(),
     )
 
 
 def handle_goal_reopen(args: argparse.Namespace) -> int:
     """Run ``sase goal reopen``; return the process exit code."""
-    _, goal_id = _normalize_goal_id_token(str(args.goal_id))
+    id_project, goal_id = _normalize_goal_id_token(str(args.goal_id))
     return _run_mutation(
         args,
         "reopen",
@@ -445,13 +487,22 @@ def handle_goal_reopen(args: argparse.Namespace) -> int:
             "message": args.message,
             "idempotency_key": _idempotency_key("reopen"),
         },
+        project=id_project or _current_project_name(),
     )
 
 
 def handle_goal_merge(args: argparse.Namespace) -> int:
     """Run ``sase goal merge``; return the process exit code."""
-    _, source_id = _normalize_goal_id_token(str(args.goal_id))
-    _, target_id = _normalize_goal_id_token(str(args.into))
+    source_project, source_id = _normalize_goal_id_token(str(args.goal_id))
+    target_project, target_id = _normalize_goal_id_token(str(args.into))
+    current = _current_project_name()
+    if (source_project or current) != (target_project or current):
+        print(
+            "sase goal merge: source and target name different projects; "
+            "merge within one project",
+            file=sys.stderr,
+        )
+        return 2
     action: dict[str, Any] = {
         "action": "merge",
         "source_id": source_id,
@@ -460,7 +511,29 @@ def handle_goal_merge(args: argparse.Namespace) -> int:
     }
     if getattr(args, "why", None):
         action["why"] = args.why
-    return _run_mutation(args, "merge", action)
+    return _run_mutation(
+        args, "merge", action, project=source_project or target_project or current
+    )
+
+
+def _doctor_request(ledger: GoalLedger, repair: bool) -> dict[str, Any]:
+    """Build the doctor wire request so a repair keeps the header.
+
+    The projection path, project, mode, watermark, outbox, and fetch TTL
+    come from the resolved ledger and goals config, so the projection
+    check runs and a repair preserves the existing header values.
+    """
+    from sase.goals.config import goals_fetch_ttl_seconds
+
+    return {
+        "repair": repair,
+        "projection_path": str(ledger.projection_path),
+        "project": ledger.project,
+        "mode": ledger.mode,
+        "watermark_path": str(ledger.watermark_path),
+        "outbox_path": str(ledger.outbox_path),
+        "fetch_ttl_seconds": goals_fetch_ttl_seconds(),
+    }
 
 
 def handle_goal_doctor(args: argparse.Namespace) -> int:
@@ -468,14 +541,16 @@ def handle_goal_doctor(args: argparse.Namespace) -> int:
     from sase.core.goal_ledger_facade import goal_ledger_doctor
 
     repair = bool(getattr(args, "repair", False))
-    if repair:
-        refused = _refuse_human_verb("repair")
-        if refused is not None:
-            return refused
+    if repair and _in_agent_run():
+        print(
+            HUMAN_VERB_REFUSAL.format(verb="doctor --repair"),
+            file=sys.stderr,
+        )
+        return 2
     project = _current_project_name()
     ledger = resolve_goal_ledger(project)
     try:
-        report = goal_ledger_doctor(ledger.root, {"repair": repair})
+        report = goal_ledger_doctor(ledger.root, _doctor_request(ledger, repair))
     except Exception as exc:
         print(f"sase goal doctor: {exc}", file=sys.stderr)
         return 1

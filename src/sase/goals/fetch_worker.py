@@ -153,8 +153,7 @@ def _push_after_reconcile(repo: Path, deadline: float | None) -> None:
 def maybe_spawn_goals_fetch(project_key: str) -> bool:
     """Spawn a detached fetch worker when the watermark is stale.
 
-    Returns True when a worker was spawned. Consumed by ``sase goal list``;
-    whitelisted for epic sase-1bu until that phase lands.
+    Returns True when a worker was spawned. Consumed by ``sase goal list``.
     """
     try:
         from sase.goals.config import goals_fetch_ttl_seconds

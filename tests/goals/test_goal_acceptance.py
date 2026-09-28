@@ -549,23 +549,24 @@ class TestOfflinePublish:
         ledger = resolve_goal_ledger(_PROJECT)
         assert ledger.hidden_clone is not None
         init_git_identity(ledger.hidden_clone)
-        monkeypatch.setattr(
-            goal_write,
-            "_publish_hidden_clone",
-            lambda ledger, timeout: (False, "timeout", 1),
-        )
-        outcome = apply_goal_action(
-            ledger,
-            {
-                "action": "new",
-                "title": "Offline goal",
-                "outcome": "Durable without a network",
-                "criteria": [],
-                "project": _PROJECT,
-            },
-            _human(),
-            push_timeout_seconds=5.0,
-        )
+        with monkeypatch.context() as stubbed:
+            stubbed.setattr(
+                goal_write,
+                "_publish_hidden_clone",
+                lambda ledger, timeout: (False, "timeout", 1),
+            )
+            outcome = apply_goal_action(
+                ledger,
+                {
+                    "action": "new",
+                    "title": "Offline goal",
+                    "outcome": "Durable without a network",
+                    "criteria": [],
+                    "project": _PROJECT,
+                },
+                _human(),
+                push_timeout_seconds=5.0,
+            )
         assert outcome.status == "applied"
         assert outcome.published is False
         assert outcome.outbox_pending is True
@@ -577,7 +578,11 @@ class TestOfflinePublish:
         assert goal_sync_status(ledger)["unpublished"] is True
 
         # The remote returns: the retry leg publishes and clears the debt.
-        monkeypatch.undo()
+        # Only the publish stub is restored here; SASE_HOME must still
+        # point into tmp_path so the retry never touches the real home.
+        from sase.core.paths import sase_home
+
+        assert sase_home() == shared_project.parent / "state", sase_home()
         try:
             retried = retry_pending_goals_publish(ledger, push_timeout_seconds=30.0)
         except Exception as exc:  # noqa: BLE001 - local git should publish.
