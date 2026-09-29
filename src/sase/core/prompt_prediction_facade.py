@@ -24,12 +24,15 @@ from sase.core.prompt_prediction_wire import (
     PromptPredictionCorpusOptions,
     PromptPredictionCorpusStats,
     PromptPredictionModelConfig,
+    PromptPredictionReplayOptions,
+    PromptPredictionReplayReport,
     PromptPredictionRequest,
     PromptPredictionRow,
     PromptPrefixRankRequest,
     PromptPredictionResult,
     PromptPrefixRankResult,
     prompt_prediction_corpus_stats_from_dict,
+    prompt_prediction_replay_report_from_dict,
     prompt_prediction_result_from_dict,
     prompt_prefix_rank_result_from_dict,
 )
@@ -122,8 +125,34 @@ class PromptPredictionModel:
         )
 
 
+def evaluate_prompt_prediction_replay(
+    rows: Sequence[PromptPredictionRow],
+    options: PromptPredictionReplayOptions,
+) -> PromptPredictionReplayReport:
+    """Run a prequential replay over *rows* with *options*.
+
+    Warms on the oldest share of typed rows, scores every word-boundary
+    position of each later row, then sweeps preset and grid thresholds
+    without replaying. The report holds aggregates only, never prompt
+    text. Call only from a worker thread: replay parses every row and
+    releases the GIL while the Rust core scores positions.
+    """
+    from sase.core.rust import require_rust_binding
+
+    evaluate = require_rust_binding("evaluate_prompt_prediction_replay")
+    return prompt_prediction_replay_report_from_dict(
+        dict(
+            evaluate(
+                json.dumps([row.to_dict() for row in rows]),
+                json.dumps(options.to_dict()),
+            )
+        )
+    )
+
+
 __all__ = [
     "PROMPT_PREDICTION_SCHEMA_VERSION",
     "PromptPredictionCorpus",
     "PromptPredictionModel",
+    "evaluate_prompt_prediction_replay",
 ]

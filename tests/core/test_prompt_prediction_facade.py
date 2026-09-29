@@ -8,14 +8,17 @@ from sase.core.prompt_prediction_facade import (
     PROMPT_PREDICTION_SCHEMA_VERSION,
     PromptPredictionCorpus,
     PromptPredictionModel,
+    evaluate_prompt_prediction_replay,
 )
 from sase.core.prompt_prediction_wire import (
     PROMPT_PREDICTION_WIRE_SCHEMA_VERSION,
     PromptPredictionCorpusOptions,
     PromptPredictionModelConfig,
+    PromptPredictionReplayOptions,
     PromptPredictionRequest,
     PromptPredictionRow,
     PromptPrefixRankRequest,
+    prompt_prediction_replay_report_from_dict,
     prompt_prediction_result_from_dict,
     prompt_prefix_rank_result_from_dict,
 )
@@ -141,3 +144,67 @@ def test_rank_result_from_dict_rejects_schema_drift() -> None:
         prompt_prefix_rank_result_from_dict(
             {"schema_version": 999, "context_words": []}
         )
+
+
+def _replay_rows() -> list[PromptPredictionRow]:
+    return [
+        PromptPredictionRow(
+            text=f"can you help me implement it {ending}",
+            epoch_seconds=100 + index,
+            project="sase",
+            origin="typed",
+        )
+        for index, ending in enumerate(
+            ["now", "today", "fast", "soon", "well", "please"]
+        )
+    ]
+
+
+def test_replay_report_aggregates_only() -> None:
+    report = evaluate_prompt_prediction_replay(
+        _replay_rows(),
+        PromptPredictionReplayOptions(now_epoch=1000),
+    )
+    assert report.schema_version == 1
+    assert report.rows_total == 6
+    assert report.rows_typed == 6
+    assert report.rows_warmed == 2
+    assert report.rows_scored == 4
+    assert report.positions_total > 0
+    assert [cohort.cohort for cohort in report.cohorts] == [
+        "novel",
+        "mid",
+        "near-duplicate",
+    ]
+    assert len(report.sweep) == 10 * 8 * 5
+    assert report.corpus_bytes > 0
+    assert report.latency_us_p95 >= report.latency_us_p50
+
+
+def test_replay_report_from_dict_rejects_schema_drift() -> None:
+    with pytest.raises(ValueError):
+        prompt_prediction_replay_report_from_dict({"schema_version": 999})
+
+
+def test_replay_sweep_points_carry_novel_tallies() -> None:
+    report = evaluate_prompt_prediction_replay(
+        _replay_rows(),
+        PromptPredictionReplayOptions(now_epoch=1000),
+    )
+    assert report.sweep
+    for point in report.sweep:
+        assert 0.0 <= point.novel_coverage <= 1.0
+        assert (point.novel_precision is None) == (point.novel_coverage == 0.0)
+
+
+def test_replay_report_precision_none_when_nothing_gated() -> None:
+    report = prompt_prediction_replay_report_from_dict(
+        {
+            "schema_version": 1,
+            "cautious": {"coverage": 0.0, "precision": None},
+            "cohorts": [],
+            "sweep": [],
+        }
+    )
+    assert report.cautious.precision is None
+    assert report.cohorts == []

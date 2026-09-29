@@ -136,6 +136,7 @@ REQUIRED_BINDINGS = (
     "PromptPredictionCorpus",
     "PromptPredictionModel",
     "prompt_prediction_wire_schema_version",
+    "evaluate_prompt_prediction_replay",
     "plan_validate",
     "plan_frontmatter_schema",
     "plan_reference_parse",
@@ -1689,6 +1690,25 @@ def _validate_prompt_prediction_contract(module: ModuleType) -> bool:
     )
     if not isinstance(ranked, dict) or first_key != "implement":
         _error(f"prompt prediction rank probe returned {ranked!r}")
+        valid = False
+    try:
+        replay = module.evaluate_prompt_prediction_replay(
+            json.dumps(rows), json.dumps({"schema_version": 1, "now_epoch": 200})
+        )
+    except Exception as exc:
+        _error(f"prompt prediction replay probe failed: {exc}")
+        return False
+    if (
+        not isinstance(replay, dict)
+        or replay.get("schema_version") != 1
+        or replay.get("rows_total") != 3
+        or replay.get("rows_typed") != 3
+        or not replay.get("positions_total")
+        or len(replay.get("cohorts", [])) != 3
+        or not replay.get("sweep")
+        or "corpus_bytes" not in replay
+    ):
+        _error(f"prompt prediction replay probe returned {replay!r}")
         valid = False
     return valid
 

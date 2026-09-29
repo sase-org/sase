@@ -260,6 +260,37 @@ sase side (`src/sase/core/prompt_prediction_facade.py` plus the
 `PROMPT_PREDICTION_WIRE_SCHEMA_VERSION` mirror (Rust
 `PROMPT_PREDICTION_WIRE_SCHEMA_VERSION`) fails fast on drift.
 
+#### Prequential replay calibration
+
+`tools/prompt_prediction_replay` scores the Rust prequential replay evaluator
+(`evaluate_prompt_prediction_replay`) over typed prompt history and prints
+aggregate-only tables (never prompt text). Method: typed rows are deduped, sorted oldest
+first, warmed on the oldest 40%, then every word-boundary position of each later row is
+scored before that row joins the corpus; per-position evidence is recorded once and the
+threshold grid (`min_p` 0.40-0.85, `min_margin` 0.05-0.40, `min_support` 1-5) sweeps
+over those records without replaying. Rows land in novel/mid/near-duplicate cohorts by
+5-gram overlap with prior text (<30% / in between / >=70%). Each sweep point also
+carries the novel-cohort coverage and precision so presets can be calibrated against
+novel prompts without replaying.
+
+2026-09 replay over 11,500 rows (4,275 typed; 1,710 warmed, 2,556 scored, 188,134
+positions; ungated top-1 50.8%, top-3 59.7%):
+
+| preset   | coverage | precision | novel precision | mid precision | near-dup precision |
+| -------- | -------: | --------: | --------------: | ------------: | -----------------: |
+| cautious |    35.9% |     89.4% |           65.7% |         86.0% |              99.0% |
+| balanced |    35.9% |     89.4% |           65.7% |         86.0% |              99.0% |
+| eager    |    58.9% |     75.2% |           43.1% |         70.4% |              97.0% |
+
+Cost at the scored corpus: predict latency p50 ~1.4ms / p95 ~3.2ms, ~54MB across ~3,800
+rows and ~225k contexts. Calibration outcome: the novel
+
+> =65% target binds hard (precision climbs steeply only near cautious strictness), so
+> balanced moved to `min_p=0.75, min_support=4` (margin stays 0.20; the margin dimension
+> is flat there), landing on the max-coverage grid point meeting overall >=75% and
+> novel >=65%. Novel headroom is thin (~0.7pp), so re-run the tool before loosening
+> these presets; cautious (>=85%) and eager (>=60%) already met their targets unchanged.
+
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace
 with a PyO3 crate at `crates/sase_core_py/`.
 

@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+"""Prequential replay over typed prompt history for next-word prediction.
+
+This is a measurement tool, not a gate: it warms the Rust replay evaluator
+on the oldest share of typed history rows, scores every word-boundary
+position of each later row, then prints aggregate-only accuracy, coverage,
+precision, keystroke-savings, run-length, latency, and memory tables by
+cohort. No prompt text is printed. Use the tables to calibrate the
+confidence presets in ``sase_core::prompt_prediction``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from sase.core.prompt_prediction_facade import (  # noqa: E402
+    evaluate_prompt_prediction_replay,
+)
+from sase.core.prompt_prediction_wire import (  # noqa: E402
+    PromptPredictionReplayCohort,
+    PromptPredictionReplayGateMetrics,
+    PromptPredictionReplayOptions,
+    PromptPredictionReplayReport,
+)
+from sase.history.prompt_prediction_rows import (  # noqa: E402
+    build_prompt_prediction_project_resolver,
+    build_prompt_prediction_rows,
+)
+from sase.history.prompt_word_deletions import (  # noqa: E402
+    load_deleted_prompt_words,
+)
+
+_PRESETS = ("cautious", "balanced", "eager")
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--confidence",
+        choices=_PRESETS,
+        default="balanced",
+        help="preset driving the gated table (default: balanced)",
+    )
+    parser.add_argument(
+        "--sweep",
+        action="store_true",
+        help="also print the threshold-grid sweep table",
+    )
+    parser.add_argument(
+        "--sources",
+        default="history",
+        help="comma-separated replay sources from history[,archive] "
+        "(default: history; archive lands in the archive-source phase)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print the full aggregate-only report as JSON instead of tables",
+    )
+    return parser.parse_args(argv)
+
+
+def _check_sources(sources: str) -> None:
+    names = [name.strip().lower() for name in sources.split(",") if name.strip()]
+    if not names or any(name not in ("history", "archive") for name in names):
+        print(
+            f"error: --sources must draw from history[,archive], got {sources!r}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    if "archive" in names:
+        print(
+            "error: the archive source lands in the archive-source phase; "
+            "replay history only for now",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+
+
+def _preset_metrics(
+    report: PromptPredictionReplayReport, preset: str
+) -> PromptPredictionReplayGateMetrics:
+    return {
+        "cautious": report.cautious,
+        "balanced": report.balanced,
+        "eager": report.eager,
+    }[preset]
+
+
+def _cohort_preset(
+    report_cohort: PromptPredictionReplayCohort, preset: str
+) -> PromptPredictionReplayGateMetrics:
+    return {
+        "cautious": report_cohort.cautious,
+        "balanced": report_cohort.balanced,
+        "eager": report_cohort.eager,
+    }[preset]
+
+
+def _format_precision(precision: float | None) -> str:
+    return "n/a" if precision is None else f"{precision:.1%}"
+
+
+def _print_tables(
+    report: PromptPredictionReplayReport, preset: str, sweep: bool
+) -> None:
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    console.print(
+        f"[bold]prompt prediction replay[/bold] "
+        f"rows={report.rows_total} typed={report.rows_typed} "
+        f"warmed={report.rows_warmed} scored={report.rows_scored} "
+        f"positions={report.positions_total}"
+    )
+
+    accuracy = Table(title="accuracy by cohort (ungated top-1 / top-3)")
+    accuracy.add_column("cohort")
+    accuracy.add_column("positions", justify="right")
+    accuracy.add_column("top-1", justify="right")
+    accuracy.add_column("top-3", justify="right")
+    for cohort in report.cohorts:
+        accuracy.add_row(
+            cohort.cohort,
+            f"{cohort.positions}",
+            f"{cohort.top1:.1%}",
+            f"{cohort.top3:.1%}",
+        )
+    accuracy.add_row(
+        "all",
+        f"{report.positions_total}",
+        f"{report.overall_top1:.1%}",
+        f"{report.overall_top3:.1%}",
+        end_section=True,
+    )
+    console.print(accuracy)
+
+    overall = _preset_metrics(report, preset)
+    gated = Table(title=f"gated metrics by cohort ({preset})")
+    gated.add_column("cohort")
+    gated.add_column("coverage", justify="right")
+    gated.add_column("precision", justify="right")
+    gated.add_column("savings", justify="right")
+    gated.add_column("run mean", justify="right")
+    gated.add_column("run p95", justify="right")
+    gated.add_column("run max", justify="right")
+    for cohort in report.cohorts:
+        metrics = _cohort_preset(cohort, preset)
+        gated.add_row(
+            cohort.cohort,
+            f"{metrics.coverage:.1%}",
+            _format_precision(metrics.precision),
+            f"{metrics.savings:.1%}",
+            f"{metrics.run_mean:.1f}",
+            f"{metrics.run_p95:.0f}",
+            f"{metrics.run_max}",
+        )
+    gated.add_row(
+        "all",
+        f"{overall.coverage:.1%}",
+        _format_precision(overall.precision),
+        f"{overall.savings:.1%}",
+        f"{overall.run_mean:.1f}",
+        f"{overall.run_p95:.0f}",
+        f"{overall.run_max}",
+        end_section=True,
+    )
+    console.print(gated)
+
+    cost = Table(title="latency and memory")
+    cost.add_column("metric")
+    cost.add_column("value", justify="right")
+    cost.add_row("predict p50", f"{report.latency_us_p50} us")
+    cost.add_row("predict p95", f"{report.latency_us_p95} us")
+    cost.add_row("corpus bytes", f"{report.corpus_bytes / 1_048_576:.2f} MB")
+    cost.add_row("corpus rows", f"{report.corpus_rows_used}")
+    cost.add_row("corpus contexts", f"{report.corpus_contexts}")
+    console.print(cost)
+
+    if sweep:
+        ranked = sorted(
+            (
+                point
+                for point in report.sweep
+                if point.precision is not None
+            ),
+            key=lambda point: (point.precision or 0.0, point.coverage),
+        )
+        table = Table(
+            title="threshold sweep (top 20 by precision, then coverage)"
+        )
+        table.add_column("min_p", justify="right")
+        table.add_column("min_margin", justify="right")
+        table.add_column("min_support", justify="right")
+        table.add_column("coverage", justify="right")
+        table.add_column("precision", justify="right")
+        table.add_column("novel cov", justify="right")
+        table.add_column("novel prec", justify="right")
+        for point in ranked[-20:]:
+            table.add_row(
+                f"{point.min_p:.2f}",
+                f"{point.min_margin:.2f}",
+                f"{point.min_support}",
+                f"{point.coverage:.1%}",
+                _format_precision(point.precision),
+                f"{point.novel_coverage:.1%}",
+                _format_precision(point.novel_precision),
+            )
+        console.print(table)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    _check_sources(args.sources)
+    resolver = build_prompt_prediction_project_resolver()
+    rows = build_prompt_prediction_rows(resolve_project=resolver.resolve)
+    options = PromptPredictionReplayOptions(
+        now_epoch=int(time.time()),
+        excluded_words=sorted(load_deleted_prompt_words()),
+    )
+    report = evaluate_prompt_prediction_replay(rows, options)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "schema_version": report.schema_version,
+                    "rows_total": report.rows_total,
+                    "rows_typed": report.rows_typed,
+                    "rows_warmed": report.rows_warmed,
+                    "rows_scored": report.rows_scored,
+                    "positions_total": report.positions_total,
+                    "overall_top1": report.overall_top1,
+                    "overall_top3": report.overall_top3,
+                    "cautious": vars(report.cautious),
+                    "balanced": vars(report.balanced),
+                    "eager": vars(report.eager),
+                    "cohorts": [
+                        {
+                            "cohort": cohort.cohort,
+                            "positions": cohort.positions,
+                            "top1": cohort.top1,
+                            "top3": cohort.top3,
+                            "cautious": vars(cohort.cautious),
+                            "balanced": vars(cohort.balanced),
+                            "eager": vars(cohort.eager),
+                        }
+                        for cohort in report.cohorts
+                    ],
+                    "sweep": [vars(point) for point in report.sweep],
+                    "latency_us_p50": report.latency_us_p50,
+                    "latency_us_p95": report.latency_us_p95,
+                    "corpus_bytes": report.corpus_bytes,
+                    "corpus_rows_used": report.corpus_rows_used,
+                    "corpus_contexts": report.corpus_contexts,
+                },
+                indent=2,
+            )
+        )
+        return 0
+    _print_tables(report, args.confidence, args.sweep)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

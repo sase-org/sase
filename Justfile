@@ -394,6 +394,13 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1cj(prompt_prediction_candidate_from_dict)' \
         --epic-symbol 'sase-1cj(prompt_prediction_source_shares_from_dict)' \
         --epic-symbol 'sase-1cj(prompt_prefix_rank_match_from_dict)' \
+        --epic-symbol 'sase-1cj(PromptPredictionReplayCohort)' \
+        --epic-symbol 'sase-1cj(PromptPredictionReplayGateMetrics)' \
+        --epic-symbol 'sase-1cj(PromptPredictionReplaySweepPoint)' \
+        --epic-symbol 'sase-1cj(evaluate_prompt_prediction_replay)' \
+        --epic-symbol 'sase-1cj(prompt_prediction_replay_cohort_from_dict)' \
+        --epic-symbol 'sase-1cj(prompt_prediction_replay_gate_metrics_from_dict)' \
+        --epic-symbol 'sase-1cj(prompt_prediction_replay_sweep_point_from_dict)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

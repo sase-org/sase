@@ -159,6 +159,7 @@ def test_validate_sase_core_rs_requires_prompt_prediction_bindings() -> None:
         "PromptPredictionCorpus",
         "PromptPredictionModel",
         "prompt_prediction_wire_schema_version",
+        "evaluate_prompt_prediction_replay",
     }
 
     assert bindings <= set(validator.REQUIRED_BINDINGS)
@@ -220,10 +221,37 @@ def _prompt_prediction_module(**overrides: object) -> SimpleNamespace:
                 ],
             }
 
+    def _replay(_rows: str, _options: str) -> dict[str, object]:
+        return {
+            "schema_version": 1,
+            "rows_total": 3,
+            "rows_typed": 3,
+            "rows_warmed": 1,
+            "rows_scored": 2,
+            "positions_total": 12,
+            "overall_top1": 0.5,
+            "overall_top3": 0.75,
+            "cautious": {"coverage": 0.1, "precision": 1.0},
+            "balanced": {"coverage": 0.3, "precision": 0.8},
+            "eager": {"coverage": 0.5, "precision": 0.6},
+            "cohorts": [
+                {"cohort": "novel", "positions": 4},
+                {"cohort": "mid", "positions": 4},
+                {"cohort": "near-duplicate", "positions": 4},
+            ],
+            "sweep": [{"min_p": 0.6, "min_margin": 0.2, "min_support": 3}],
+            "latency_us_p50": 20,
+            "latency_us_p95": 60,
+            "corpus_bytes": 512,
+            "corpus_rows_used": 3,
+            "corpus_contexts": 10,
+        }
+
     namespace = {
         "prompt_prediction_wire_schema_version": lambda: 1,
         "PromptPredictionCorpus": lambda _rows, _options: _Corpus(),
         "PromptPredictionModel": lambda _sources, _config: _Model(),
+        "evaluate_prompt_prediction_replay": _replay,
     }
     namespace.update(overrides)
     return SimpleNamespace(**namespace)
