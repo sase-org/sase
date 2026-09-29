@@ -268,7 +268,42 @@ def render_bead_note_lines(
         lines.append(
             f"  {palette.accent(bead_note_label(note, ordinal, relative=True), NOTE_CLI_STYLE)}"
         )
-        lines.extend(_prose_lines(note.text, style=style, wrap=wrap, indent="     "))
+        if note.attachments:
+            from sase.bead.attachment_presentation import (
+                attachment_availability,
+                attachment_descriptor,
+                attachment_view_path,
+                prose_with_chips,
+            )
+
+            prose = prose_with_chips(
+                note.text, [attachment.name for attachment in note.attachments]
+            )
+            lines.extend(_prose_lines(prose, style=style, wrap=wrap, indent="     "))
+            lines.append("     ATTACHMENTS")
+            for attachment in note.attachments:
+                lines.append(
+                    "       "
+                    + attachment_descriptor(
+                        name=attachment.name,
+                        mime_type=attachment.mime_type,
+                        image=attachment.image,
+                        size_bytes=attachment.size_bytes,
+                        sha256=attachment.sha256,
+                    )
+                )
+                if attachment_availability(attachment.sha256) == "cached":
+                    view = attachment_view_path(attachment.sha256, attachment.name)
+                    if view is not None:
+                        lines.append(f"         {view}")
+                    else:
+                        lines.append("         \u2715 unavailable offline")
+                else:
+                    lines.append("         \u2715 unavailable offline")
+        else:
+            lines.extend(
+                _prose_lines(note.text, style=style, wrap=wrap, indent="     ")
+            )
     return lines
 
 

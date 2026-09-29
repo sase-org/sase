@@ -45,7 +45,10 @@ def bead_note_label(note: BeadNote, ordinal: int, *, relative: bool) -> str:
         if note.edited_by and note.edited_by != note.author:
             edited = f"{edited} by {note.edited_by}"
         parts.append(edited)
-    return " · ".join(parts)
+    label = " · ".join(parts)
+    if note.attachments:
+        label += f" · \U0001f4ce {len(note.attachments)}"
+    return label
 
 
 def bead_note_search_text(notes: Iterable[BeadNote]) -> str:

@@ -153,6 +153,65 @@ def register_bead_attach_parser(
     )
 
 
+def register_bead_attachment_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead attachment``."""
+    parser = subparsers.add_parser(
+        "attachment",
+        help="List attachment snapshots or print a local view path",
+        description=(
+            "List content-addressed attachment snapshots on a bead, or print "
+            "the absolute local view path for one attachment. "
+            "Invoking 'sase bead attachment' without a subcommand delegates "
+            "to 'sase bead attachment list'. Neither command fetches and "
+            "neither checks the bead_note_attachments beta flag."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead attachment list sase-ab\n"
+            "  sase bead attachment list sase-ab --json\n"
+            "  sase bead attachment path sase-ab shot.png"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    attachment_subparsers = parser.add_subparsers(dest="attachment_action")
+    list_parser = attachment_subparsers.add_parser(
+        "list",
+        help="List attachment snapshots",
+        description=(
+            "List attachment snapshots on one bead, or on every bead when no "
+            "ID is given. Text output shows one descriptor per attachment "
+            "plus the cached view path or an unavailable marker."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    list_parser.add_argument(
+        "id",
+        nargs="?",
+        help="Full or shorthand issue ID",
+    )
+    list_parser.add_argument(
+        "-j",
+        "--json",
+        dest="json",
+        action="store_true",
+        help="Emit machine-readable attachment data",
+    )
+    path_parser = attachment_subparsers.add_parser(
+        "path",
+        help="Print the absolute local view path for one attachment",
+        description=(
+            "Materialize the extension-preserving local view and print its "
+            "absolute path. Fails with a clear unavailable error when no "
+            "local object exists; it never fetches."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    path_parser.add_argument("id", help="Full or shorthand issue ID")
+    path_parser.add_argument("name", help="Attachment name")
+
+
 def register_bead_close_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:

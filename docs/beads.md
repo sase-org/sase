@@ -27,6 +27,7 @@ DAG.
   - [Discovered Follow-Up Capture and Triage](#discovered-follow-up-capture-and-triage)
   - [External Issue Mirroring](#external-issue-mirroring)
   - [Artifact References](#artifact-references)
+  - [Attachments (beta)](#attachments-beta)
   - [Creation Reason](#creation-reason)
   - [Creation Time Presentation](#creation-time-presentation)
 - [Storage](#storage)
@@ -850,6 +851,68 @@ sase artifact link add bead:<task-id> related bead:<other-bead-id> "<why>"
 
 Use `sase bead dep add` only when the relationship blocks work scheduling.
 
+### Attachments (beta)
+
+With the `bead_note_attachments` beta flag on, inline `@<path>` references in bead note
+text attach content-addressed file snapshots, and `sase bead attach` is available. With
+the flag off, note text keeps today's behavior (only a whole-argument `@<path>` reads
+text from a file) and `sase bead attach` refuses with an enable hint. Rendering is never
+flag-gated: a note written with the flag on renders on a machine where the flag is off.
+
+> **`@` in bead notes.** Inside note text, `@<path>` attaches a snapshot of that file.
+> The bead keeps the exact bytes on every machine, even after the file is gone. Accepted
+> forms: `@./shot.png`, `@~/logs/crash.log`, `@/tmp/trace.json`, `@docs/plan.md`,
+> `@"name with spaces.png"`, or a bare `@name.ext` for a known file type. Write `@@`
+> where you need a literal `@` that would otherwise start a reference. `me@host`,
+> `@large`, and `@research:…` citations never need escaping. A note argument that is
+> _only_ `@<file>` still reads the note's text from that file, and any `@<path>` inside
+> that text then attaches. To attach files without prose, use `sase bead attach`.
+
+Resolution uses the invocation cwd, including text loaded from a whole-argument `@file`,
+with `~` expanded. `Path.resolve()` follows symlinks, then the resolved regular file is
+ingested. Sensitive paths use the core policy plus `bead.attachments.sensitive_patterns`
+unless `-S/--allow-sensitive`. Directories get the existing `tar czf` hint. FIFOs,
+devices, and sockets are refused. Every problem is collected and nothing is written.
+
+| Rule          | Behavior                                                                                                                                                                                                                     |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Boundary      | `@` is significant only at the start of the text or after whitespace, `"`, `'`, `(`, `[`, `{`, `,`, `=`, plus `<`.                                                                                                           |
+| Escape        | Boundary `@@` becomes a literal `@`. The next character is _not_ a boundary.                                                                                                                                                 |
+| Reuse         | `@attachment:<name>` references an attachment already on this bead, or one attached earlier in the same text by its assigned name. An unknown name is an error.                                                              |
+| Citation      | `@<kind>:<arg>` for a registered or known document kind stays literal text, as today.                                                                                                                                        |
+| Quoted path   | `@"…"` uses the existing quoted-candidate rules (`\"`, `\\`, never crosses a newline).                                                                                                                                       |
+| Path-shaped   | `@/…`, `@~/…`, `@./…`, `@../…`. Also a token containing `/` whose segments match `[A-Za-z0-9._+~-]+`. Also a bare `stem.ext` where `ext` is in the curated core extension table. Trailing `. , ; : ! ? ) ] } >` are trimmed. |
+| Anything else | Literal (`@large`, `@dataclass`, `@pytest.mark.asyncio`, bare `@`).                                                                                                                                                          |
+
+This epic ships these commands; there is no shared store yet:
+
+```bash
+sase bead note <id> <text> [-S/--allow-sensitive]
+sase bead close <id> -n <text> [-S/--allow-sensitive]
+sase bead update <id> -n <text> [-S/--allow-sensitive]
+sase bead +1 <id> -n <text> [-S/--allow-sensitive]
+sase bead attach <id> <file|->... [-a/--author NAME] [-n/--note TEXT] [-N/--name NAME] [-S/--allow-sensitive]
+sase bead attachment list [<id>] [-j/--json]
+sase bead attachment path <id> <name>
+```
+
+Storage is local-only. Every successful echo says the bytes are local. Availability is
+only `cached` (object present in the local CAS, view materialized) or `unavailable` (no
+local object, prose still renders). Bytes never enter the bead store, and this work does
+not upload, fetch, or draw images.
+
+Text viewing rules: prose replaces each `@attachment:<name>` token with `[name]`
+(filenames stripped of control and bidi characters). The note label gains `📎 N` when
+that note has attachments. Under the prose, an `ATTACHMENTS` block lists
+`name · mime · dims · size · sha256:<12 hex>` and, when cached, the absolute view path;
+unavailable objects render `✕ unavailable offline` and no path. `show` and `read` both
+use this plain form. Compact list/search rows gain a `📎N` suffix only when the total
+attachment count is non-zero. Public JSON (`issue_to_wire_dict`) adds `availability`
+and, when cached, `local_path` onto each attachment object; the store codec never
+carries those keys. JSON contains no bytes and no escape codes. `sase bead history` full
+output joins `@attachment:` tokens to the bead's current manifests, printing
+`name (not on the current bead)` for a token that is gone.
+
 ### Creation Reason
 
 Every new bead stores a filing reason: why the bead exists. The title names the work,
@@ -1197,6 +1260,51 @@ proc it writes its typed result to the proc's result sidecar.
 | `-Q, --request-path` | Versioned operation request sidecar; defaults to `$SASE_PROC_REQUEST_PATH` when set |
 | `-R, --result-path`  | Typed result sidecar; defaults to `$SASE_PROC_RESULT_PATH` when set                 |
 
+### `sase bead attach <id> <file|->...`
+
+Attach snapshots of files to a bead as a new attributed note. The bead keeps the exact
+bytes on every machine, even after the file is gone. Requires the
+`bead_note_attachments` beta flag. Use `-` to read one attachment from stdin (with
+`-N/--name`).
+
+```bash
+sase bead attach sase-ab ./shot.png
+sase bead attach sase-ab -n "Crash trace" ./trace.json
+sase bead attach sase-ab -N trace.json - < /tmp/trace.json
+sase bead attach sase-ab ./a.png ./b.png
+```
+
+The stored note is the prose (when present), a blank line, and the `@attachment:<name>`
+tokens.
+
+| Flag                    | Description                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `-a, --author`          | Author recorded on the entry (default: current agent, else store owner)                      |
+| `-n, --note TEXT`       | Optional prose stored above the attachment tokens; `@<path>` references inside it attach too |
+| `-N, --name NAME`       | Attachment name; valid only with one file, and required when the file is `-` (stdin)         |
+| `-S, --allow-sensitive` | Attach files from sensitive paths                                                            |
+
+### `sase bead attachment list [<id>]` / `sase bead attachment path <id> <name>`
+
+List content-addressed attachment snapshots, or print the absolute local view path for
+one attachment. With no child subcommand, `sase bead attachment` delegates to
+`sase bead attachment list`. Neither command fetches and neither checks the
+`bead_note_attachments` beta flag.
+
+```bash
+sase bead attachment list sase-ab
+sase bead attachment list sase-ab --json
+sase bead attachment path sase-ab shot.png
+```
+
+`list` text output shows one descriptor per attachment plus the cached view path or an
+unavailable marker. `path` materializes the extension-preserving local view and prints
+its absolute path, or fails with a clear unavailable error when no local object exists.
+
+| Subcommand | Flag         | Description                           |
+| ---------- | ------------ | ------------------------------------- |
+| `list`     | `-j, --json` | Emit machine-readable attachment data |
+
 ### `sase bead blocked`
 
 Show all issues that have at least one active (non-closed) blocker. Rows use the same
@@ -1287,14 +1395,15 @@ When a close changes the store, SASE commits it and then publishes it according 
 failure instead of a false success. Use `--no-push` to keep the commit local while
 batching bead mutations, then publish the batch with a later `sase bead sync`.
 
-| Flag               | Description                                                                                                      |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `-f, --force`      | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`                                   |
-| `-P, --no-push`    | Commit the close locally but skip the post-commit push                                                           |
-| `-n, --note`       | Append this attributed note to each listed issue before closing it. A value of `@<path>` is read from that file. |
-| `-p, --phases`     | Close numbered phases of one epic; accepts comma-separated numbers and ranges                                    |
-| `-r, --reason`     | Optional close reason text; required with `--force`. A value of `@<path>` is read from that file.                |
-| `-R, --resolution` | `canceled`, `done`, or `superseded`; real closes default to `done`; repeat closes compare only when supplied     |
+| Flag                    | Description                                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `-f, --force`           | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`                                   |
+| `-P, --no-push`         | Commit the close locally but skip the post-commit push                                                           |
+| `-n, --note`            | Append this attributed note to each listed issue before closing it. A value of `@<path>` is read from that file. |
+| `-S, --allow-sensitive` | Attach files from sensitive paths (with the `bead_note_attachments` beta flag on)                                |
+| `-p, --phases`          | Close numbered phases of one epic; accepts comma-separated numbers and ranges                                    |
+| `-r, --reason`          | Optional close reason text; required with `--force`. A value of `@<path>` is read from that file.                |
+| `-R, --resolution`      | `canceled`, `done`, or `superseded`; real closes default to `done`; repeat closes compare only when supplied     |
 
 ### `sase bead create`
 
@@ -1669,11 +1778,12 @@ For the flattened text projection every legacy consumer expects (search indexes,
 pages, `--field notes`), see `notes_text` under
 [`sase bead show`](#sase-bead-show-id-id2).
 
-| Flag           | Description                                                                            |
-| -------------- | -------------------------------------------------------------------------------------- |
-| `-a, --author` | Author recorded on a new entry; defaults to current agent, then store owner            |
-| `-e, --edit`   | Rewrite note `#N` (mutually exclusive with `--remove`); `N` is the ordinal from `show` |
-| `-x, --remove` | Retract note `#N` (mutually exclusive with `--edit`); `sase bead history` keeps it     |
+| Flag                    | Description                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| `-a, --author`          | Author recorded on a new entry; defaults to current agent, then store owner            |
+| `-S, --allow-sensitive` | Attach files from sensitive paths (with the `bead_note_attachments` beta flag on)      |
+| `-e, --edit`            | Rewrite note `#N` (mutually exclusive with `--remove`); `N` is the ordinal from `show` |
+| `-x, --remove`          | Retract note `#N` (mutually exclusive with `--edit`); `sase bead history` keeps it     |
 
 ### `sase bead onboard`
 
@@ -2159,6 +2269,7 @@ unaffected — same syntax, output line, and commit message as before.
 | `-t, --title`              | Change title                                                                                                                                                 |
 | `-d, --description`        | Change description                                                                                                                                           |
 | `-n, --note`               | Append this attributed note to each listed issue. A value of `@<path>` is read from that file.                                                               |
+| `-S, --allow-sensitive`    | Attach files from sensitive paths (with the `bead_note_attachments` beta flag on)                                                                            |
 | `-D, --design`             | Change plan path                                                                                                                                             |
 | `-a, --assignee`           | Change assignee                                                                                                                                              |
 | `-x, --external-ref`       | Set the external issue identity (mutually exclusive with `-X`); see [`sase bead create`](#sase-bead-create) for accepted forms. Must be unique across beads. |

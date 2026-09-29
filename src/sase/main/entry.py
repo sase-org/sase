@@ -104,6 +104,7 @@ def main() -> NoReturn:
         from sase.bead.cli import (
             handle_bead_plus_one,
             handle_bead_attach,
+            handle_bead_attachment,
             handle_bead_blocked,
             handle_bead_close,
             handle_bead_create,
@@ -145,6 +146,7 @@ def main() -> NoReturn:
             "+1": handle_bead_plus_one,
             "apply-status": _handle_bead_apply_status,
             "attach": handle_bead_attach,
+            "attachment": handle_bead_attachment,
             "blocked": handle_bead_blocked,
             "close": handle_bead_close,
             "create": handle_bead_create,
@@ -178,7 +180,7 @@ def main() -> NoReturn:
         if handler is None:
             print(
                 "Usage: sase bead"
-                " {+1,apply-status,attach,blocked,close,create,dep,doctor,epic-symbols,history,init,list,note,onboard,open,pages,read,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,touched,update,work}"
+                " {+1,apply-status,attach,attachment,blocked,close,create,dep,doctor,epic-symbols,history,init,list,note,onboard,open,pages,read,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,touched,update,work}"
             )
             sys.exit(1)
         try:

@@ -102,6 +102,8 @@ def _flag_compact_cells(issue: Issue, *, use_color: bool) -> str:
 def render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
     # Measured (not assumed) so the column stays aligned even though the three
     # type glyphs may not always share a Unicode width class.
+    from sase.bead.attachment_presentation import compact_attachment_suffix
+
     type_width = max(
         cell_len(bead_type_presentation(value).glyph) for value in BEAD_TYPE_VALUES
     )
@@ -120,7 +122,8 @@ def render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
             f"{compact_size_column(issue, use_color=use_color, width=size_width)}"
             f"{issue_id} · {issue.title}"
             f"{_flag_compact_cells(issue, use_color=use_color)}"
-            f"{row_badges(issue, use_color=use_color)}{parent}"
+            f"{row_badges(issue, use_color=use_color)}"
+            f"{compact_attachment_suffix(issue.notes)}{parent}"
             f"{created_cell(issue, use_color=use_color)}"
         )
     return "\n".join(lines) + "\n"
@@ -177,6 +180,8 @@ def render_search_compact(
     if not matches:
         return f'No beads match "{query}".\n'
 
+    from sase.bead.attachment_presentation import compact_attachment_suffix
+
     type_width = max(
         cell_len(bead_type_presentation(value).glyph) for value in BEAD_TYPE_VALUES
     )
@@ -196,6 +201,7 @@ def render_search_compact(
             f"{issue.id} · "
             f"{issue.title}{_flag_compact_cells(issue, use_color=use_color)}"
             f"{row_badges(issue, use_color=use_color)}"
+            f"{compact_attachment_suffix(issue.notes)}"
             f"{created_cell(issue, use_color=use_color)}"
         )
         snippet = _compact_snippet(match, query, regex)

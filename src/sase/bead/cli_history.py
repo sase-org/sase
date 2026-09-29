@@ -47,6 +47,11 @@ def handle_bead_history(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
+        try:
+            current_issue = view.show(issue_id)
+            current_roster = _current_roster(current_issue)
+        except (KeyError, ValueError):
+            current_roster = {}
 
     entries = _filtered_entries(
         history.get("entries", []),
@@ -63,7 +68,7 @@ def handle_bead_history(args: argparse.Namespace) -> None:
         case "compact":
             print(_render_compact(entries), end="")
         case "full":
-            print(_render_full(entries), end="")
+            print(_render_full(entries, current_roster=current_roster), end="")
         case "json":
             print(json.dumps(envelope, indent=2) + "\n", end="")
         case _:
@@ -300,9 +305,23 @@ def _render_compact(entries: list[dict[str, Any]]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _render_full(entries: list[dict[str, Any]]) -> str:
+def _current_roster(issue: object) -> dict[str, Any]:
+    """Map attachment name to its latest record on the current bead."""
+    roster: dict[str, Any] = {}
+    for note in getattr(issue, "notes", ()):
+        for attachment in getattr(note, "attachments", ()):
+            roster[attachment.name] = attachment
+    return roster
+
+
+def _render_full(
+    entries: list[dict[str, Any]],
+    *,
+    current_roster: dict[str, Any] | None = None,
+) -> str:
     if not entries:
         return "No history entries found.\n"
+    roster = current_roster or {}
     sections = []
     for entry in entries:
         lines = [
@@ -316,8 +335,92 @@ def _render_full(entries: list[dict[str, Any]]) -> str:
             lines.append(f"  {change['field']}:")
             lines.extend(_render_change_side("from", change.get("from")))
             lines.extend(_render_change_side("to", change.get("to")))
+            lines.extend(_attachment_descriptor_lines(change, roster))
         sections.append("\n".join(lines))
     return f"\n{'-' * 60}\n".join(sections) + "\n"
+
+
+def _attachment_descriptor_lines(
+    change: dict[str, Any],
+    roster: dict[str, Any],
+) -> list[str]:
+    """Describe ``@attachment:`` tokens on a notes change via the current roster."""
+    if change.get("field") not in {"notes", "notes_text"}:
+        return []
+    wired = change.get("attachments")
+    if isinstance(wired, list) and any(isinstance(item, dict) for item in wired):
+        return _wired_attachment_lines(wired)
+    from sase.bead.attachment_presentation import (
+        attachment_descriptor,
+        extract_attachment_tokens,
+        strip_display_name,
+    )
+
+    tokens: list[str] = []
+    for side in (change.get("from"), change.get("to")):
+        if isinstance(side, str):
+            for name in extract_attachment_tokens(side):
+                if name not in tokens:
+                    tokens.append(name)
+    if not tokens:
+        return []
+    lines: list[str] = []
+    for name in tokens:
+        attachment = roster.get(name)
+        if attachment is None:
+            lines.append(
+                f"    attachment: {strip_display_name(name)} (not on the current bead)"
+            )
+            continue
+        lines.append(
+            "    attachment: "
+            + attachment_descriptor(
+                name=attachment.name,
+                mime_type=attachment.mime_type,
+                image=getattr(attachment, "image", None),
+                size_bytes=attachment.size_bytes,
+                sha256=attachment.sha256,
+            )
+        )
+    return lines
+
+
+def _wired_attachment_lines(wired: list[object]) -> list[str]:
+    """Render attachment dicts already carried by a history payload."""
+    from sase.bead.attachment_presentation import (
+        attachment_descriptor,
+        strip_display_name,
+    )
+
+    lines: list[str] = []
+    for item in wired:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        mime = item.get("mime_type")
+        size = item.get("size_bytes")
+        sha = item.get("sha256")
+        if (
+            not isinstance(mime, str)
+            or isinstance(size, bool)
+            or not isinstance(size, int)
+            or not isinstance(sha, str)
+        ):
+            lines.append(f"    attachment: {strip_display_name(name)}")
+            continue
+        lines.append(
+            "    attachment: "
+            + attachment_descriptor(
+                name=name,
+                mime_type=mime,
+                image=item.get("image"),
+                size_bytes=size,
+                sha256=sha,
+            )
+        )
+    return lines
 
 
 def _render_change_side(label: str, value: object) -> list[str]:

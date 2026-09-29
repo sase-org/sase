@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.bead import cli_basic, cli_common, cli_work
 from sase.bead.cli_attach import handle_bead_attach
+from sase.bead.cli_attachment import handle_bead_attachment
 from sase.bead.cli_basic import (
     handle_bead_blocked,
     handle_bead_close,
@@ -74,6 +75,7 @@ __all__ = [
     "_rollback_work_launch",
     "_status_icon",
     "handle_bead_attach",
+    "handle_bead_attachment",
     "handle_bead_blocked",
     "handle_bead_close",
     "handle_bead_create",

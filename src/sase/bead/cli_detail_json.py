@@ -98,6 +98,41 @@ def _artifact_link_to_wire_dict(view: BeadLinkView) -> dict[str, object]:
     }
 
 
+def _enrich_note_dicts_with_availability(issue: Issue) -> list[dict[str, object]]:
+    """Return ``notes_to_dicts`` plus ``availability``/``local_path`` per attachment.
+
+    Only ``issue_to_wire_dict`` carries these keys; the store codec
+    (``notes_to_dicts``) stays byte-identical. Beads without attachments do no
+    attachment work and never import the store.
+    """
+    note_dicts = notes_to_dicts(issue.notes)
+    if not any(note.attachments for note in issue.notes):
+        return note_dicts  # type: ignore[return-value]
+    from sase.bead.attachment_presentation import (
+        attachment_availability,
+        attachment_view_path,
+    )
+
+    for note, note_dict in zip(issue.notes, note_dicts, strict=True):
+        wire_list = note_dict.get("attachments")
+        if not isinstance(wire_list, list):
+            continue
+        for wire in wire_list:
+            if not isinstance(wire, dict):
+                continue
+            sha = wire.get("sha256")
+            name = wire.get("name")
+            if not isinstance(sha, str) or not isinstance(name, str):
+                continue
+            availability = attachment_availability(sha)
+            wire["availability"] = availability
+            if availability == "cached":
+                view = attachment_view_path(sha, name)
+                if view is not None:
+                    wire["local_path"] = view
+    return note_dicts  # type: ignore[return-value]
+
+
 def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
     """Return the shared flat issue schema used by read-command JSON."""
     payload: dict[str, object] = {
@@ -121,7 +156,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "flag": _flag_to_wire_dict(issue),
         "description": issue.description,
         **({"creation_reason": issue.creation_reason} if issue.creation_reason else {}),
-        "notes": notes_to_dicts(issue.notes),
+        "notes": _enrich_note_dicts_with_availability(issue),
         "notes_text": issue.notes_text,
         "design": issue.design,
         **({"refs": list(issue.refs)} if issue.refs else {}),
