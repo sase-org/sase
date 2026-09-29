@@ -20,7 +20,7 @@ from sase.ace.tui.actions.agents._agent_tabs import (
     strip_visible_for_owner,
 )
 from sase.ace.tui.actions.agents._agent_tabs_catalog import catalog_view_for_owner
-from sase.ace.tui.actions.agents._agent_tabs_switch import (
+from sase.ace.tui.actions.agents._agent_tabs_switch_strip import (
     _key_for_strip_id,
     _strip_id_for_key,
 )
