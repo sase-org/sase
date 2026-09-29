@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -518,6 +519,9 @@ def _json_safe_entry(entry: Mapping[str, Any]) -> dict[str, object]:
     }
 
 
+_DRIVE_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:")
+
+
 def normalize_revision_pin(raw: Any) -> str | None:
     """Normalize a ``repos.linked[].revision_pin`` value.
 
@@ -533,7 +537,11 @@ def normalize_revision_pin(raw: Any) -> str | None:
     text = raw.strip().replace("\\", "/")
     if not text:
         raise ValueError("revision_pin must be a nonempty string")
-    if text.startswith("/") or text.startswith("~"):
+    if (
+        text.startswith("/")
+        or text.startswith("~")
+        or _DRIVE_ABSOLUTE_RE.match(text) is not None
+    ):
         raise ValueError(f"revision_pin must be relative to the checkout: {raw!r}")
     parts = [part for part in text.split("/") if part not in ("", ".")]
     if not parts:
@@ -560,6 +568,43 @@ def revision_pin_for_entry(entry: Mapping[str, Any]) -> str | None:
     if isinstance(raw, str) and not raw.strip():
         raise ValueError("revision_pin must be a nonempty string")
     return normalize_revision_pin(raw)
+
+
+def revision_pin_escapes_primary(
+    primary_dir: str | Path,
+    normalized_pin: str,
+) -> bool:
+    """Return whether a normalized pin resolves outside *primary_dir*.
+
+    The lexical normalizer already rejects absolute and ``..`` escapes, but
+    a relative pin can still leave the checkout through a symlinked parent
+    component or a symlinked pin file itself. This resolves the pin's
+    parent (and the pin file when it exists) with :func:`os.path.realpath`
+    and reports an escape when either resolves outside the resolved
+    primary. Missing parents resolve lexically, so legitimate relative
+    pins keep working. Any unexpected error fails closed as an escape.
+    """
+
+    try:
+        primary_real = os.path.realpath(str(primary_dir))
+        pin_abs = os.path.join(str(primary_dir), normalized_pin)
+        parent_abs = os.path.dirname(pin_abs)
+        parent_real = os.path.realpath(parent_abs)
+        if parent_real != primary_real and not parent_real.startswith(
+            primary_real + os.sep
+        ):
+            return True
+        if os.path.lexists(pin_abs):
+            pin_real = os.path.realpath(pin_abs)
+            if pin_real != primary_real and not pin_real.startswith(
+                primary_real + os.sep
+            ):
+                return True
+            # A symlinked pin file inside the checkout that still resolves
+            # inside is allowed; only an outside target escapes.
+        return False
+    except Exception:  # noqa: BLE001 - fail closed, never fail the caller
+        return True
 
 
 def _optional_entry_text(entry: Mapping[str, Any], key: str) -> str:

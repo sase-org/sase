@@ -707,3 +707,128 @@ def test_doctor_accepts_valid_pin_file(
     check = repos_checks.check_config_repos()
 
     assert check.status == "OK"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["C:/pin.txt", "C:\\pin.txt", "D:pin.txt", "c:/sub/pin.txt"],
+)
+def test_normalize_revision_pin_rejects_windows_drive_paths(raw: str) -> None:
+    with pytest.raises(ValueError):
+        normalize_revision_pin(raw)
+
+
+def test_pin_write_skips_symlinked_parent_outside_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_ok(monkeypatch)
+    primary = tmp_path / "sase"
+    primary.mkdir()
+    external = tmp_path / "external"
+    external.mkdir()
+    sentinel = external / "victim.txt"
+    sentinel.write_text("untouched\n", encoding="utf-8")
+    (primary / "link").symlink_to(external, target_is_directory=True)
+
+    evidence, diagnostic = maybe_write_revision_pin(
+        project_dir=str(primary),
+        sibling_name="sase-core",
+        sibling_dir=str(tmp_path / "core"),
+        pin_rel="link/sase-core-revision.txt",
+        commit_sha="a" * 40,
+        main_is_commit=True,
+    )
+
+    assert "pin-escapes-checkout" in evidence
+    assert diagnostic is not None and "pin-escapes-checkout" in diagnostic
+    assert sentinel.read_text(encoding="utf-8") == "untouched\n"
+    assert not (external / "sase-core-revision.txt").exists()
+    assert not (primary / "link" / "sase-core-revision.txt").exists()
+
+
+def test_pin_write_skips_symlinked_pin_file_outside_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_ok(monkeypatch)
+    primary = tmp_path / "sase"
+    primary.mkdir()
+    external = tmp_path / "external"
+    external.mkdir()
+    target = external / "real-pin.txt"
+    target.write_text("b" * 40 + "\n", encoding="utf-8")
+    (primary / "sase-core-revision.txt").symlink_to(target)
+
+    evidence, diagnostic = maybe_write_revision_pin(
+        project_dir=str(primary),
+        sibling_name="sase-core",
+        sibling_dir=str(tmp_path / "core"),
+        pin_rel="sase-core-revision.txt",
+        commit_sha="a" * 40,
+        main_is_commit=True,
+    )
+
+    assert "pin-escapes-checkout" in evidence
+    assert diagnostic is not None
+    assert target.read_text(encoding="utf-8") == "b" * 40 + "\n"
+    assert (primary / "sase-core-revision.txt").is_symlink()
+
+
+def test_pin_write_skips_absolute_pin_rel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_ok(monkeypatch)
+    primary = tmp_path / "sase"
+    primary.mkdir()
+    sibling_dir = tmp_path / "core"
+    sibling_dir.mkdir()
+    outside = tmp_path / "evil-pin.txt"
+    assert not outside.exists()
+
+    evidence, diagnostic = maybe_write_revision_pin(
+        project_dir=str(primary),
+        sibling_name="sase-core",
+        sibling_dir=str(sibling_dir),
+        pin_rel=str(outside),
+        commit_sha="a" * 40,
+        main_is_commit=True,
+    )
+
+    assert "pin-escapes-checkout" in evidence
+    assert diagnostic is not None
+    assert not outside.exists()
+
+
+def test_doctor_flags_symlinked_pin_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary = tmp_path / "sase"
+    primary.mkdir()
+    external = tmp_path / "external"
+    external.mkdir()
+    (external / "sase-core-revision.txt").write_text("a" * 40 + "\n", encoding="utf-8")
+    (primary / "link").symlink_to(external, target_is_directory=True)
+    monkeypatch.chdir(primary)
+    monkeypatch.setattr(
+        "sase.config.core.load_merged_config",
+        lambda: {
+            "repos": {
+                "linked": [
+                    {
+                        "name": "sase-core",
+                        "path": "../sase-core",
+                        "description": "core",
+                        "revision_pin": "link/sase-core-revision.txt",
+                    }
+                ]
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_repos._artifact_provider_registry_problems",
+        lambda: [],
+    )
+
+    check = repos_checks.check_config_repos()
+
+    assert check.status == "WARN"
+    assert any("symlink" in row["message"] for row in check.data["problems"])

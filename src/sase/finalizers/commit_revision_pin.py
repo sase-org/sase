@@ -274,6 +274,38 @@ def _pin_is_ancestor(
     return probe.returncode == 0
 
 
+def _pin_escape_reason(project_dir: str, pin_rel: str) -> str | None:
+    """Return the skip reason when *pin_rel* leaves *project_dir*.
+
+    Lexical escapes (absolute paths, ``..``) are rejected by the config
+    normalizer; physical escapes through a symlinked parent component or
+    a symlinked pin file are detected with realpath. Returns ``None``
+    when the pin stays inside the primary checkout.
+    """
+
+    try:
+        from sase._linked_repo_config import (
+            normalize_revision_pin,
+            revision_pin_escapes_primary,
+        )
+    except Exception:  # noqa: BLE001 - fail closed when helpers unavailable
+        return "pin-escapes-checkout"
+    try:
+        normalized = normalize_revision_pin(pin_rel)
+    except ValueError:
+        return "pin-escapes-checkout"
+    except Exception:  # noqa: BLE001 - fail closed
+        return "pin-escapes-checkout"
+    if normalized is None:
+        return "pin-escapes-checkout"
+    try:
+        if revision_pin_escapes_primary(project_dir, normalized):
+            return "pin-escapes-checkout"
+    except Exception:  # noqa: BLE001 - fail closed
+        return "pin-escapes-checkout"
+    return None
+
+
 def maybe_write_revision_pin(
     *,
     project_dir: str,
@@ -291,7 +323,6 @@ def maybe_write_revision_pin(
     ``revision_pin`` evidence.
     """
 
-    pin_path = Path(project_dir) / pin_rel
     sha = commit_sha.strip()
     if not main_is_commit:
         reason = "main-deferred-or-not-dirty"
@@ -303,6 +334,21 @@ def maybe_write_revision_pin(
         return f"{sibling_name}:{pin_rel}:skipped:{reason}", (
             f"revision_pin for {sibling_name} skipped: {reason}"
         )
+    escape_reason = _pin_escape_reason(project_dir, pin_rel)
+    if escape_reason is not None:
+        reason = escape_reason
+        return f"{sibling_name}:{pin_rel}:skipped:{reason}", (
+            f"revision_pin for {sibling_name} skipped: {reason}"
+        )
+    from sase._linked_repo_config import normalize_revision_pin as _normalize_pin
+
+    try:
+        _normalized = _normalize_pin(pin_rel)
+    except ValueError:
+        _normalized = None
+    pin_path = (
+        Path(project_dir) / _normalized if _normalized is not None else Path(pin_rel)
+    )
     current = _read_pin_value(pin_path)
     if current == sha:
         reason = "already-equal"

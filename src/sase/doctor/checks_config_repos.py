@@ -114,10 +114,11 @@ _PIN_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 def _linked_revision_pin_problems(config: Mapping[str, Any]) -> list[dict[str, str]]:
     """Validate ``repos.linked[].revision_pin`` declarations.
 
-    Flags pin paths that are absolute or escape the checkout, and pin files
-    that are missing or do not hold a 40-character hex SHA. The pin file is
-    resolved relative to the current working directory, which is the primary
-    checkout root for a normal ``sase doctor`` run.
+    Flags pin paths that are absolute or escape the checkout lexically or
+    through a symlinked path component, and pin files that are missing or
+    do not hold a 40-character hex SHA. The pin file is resolved relative
+    to the current working directory, which is the primary checkout root
+    for a normal ``sase doctor`` run.
     """
 
     from pathlib import Path as _Path
@@ -125,6 +126,7 @@ def _linked_revision_pin_problems(config: Mapping[str, Any]) -> list[dict[str, s
     from sase._linked_repo_config import (
         merged_linked_entries_from_config,
         normalize_revision_pin,
+        revision_pin_escapes_primary,
     )
 
     problems: list[dict[str, str]] = []
@@ -159,6 +161,21 @@ def _linked_revision_pin_problems(config: Mapping[str, Any]) -> list[dict[str, s
             )
             continue
         assert normalized is not None
+        try:
+            escapes = revision_pin_escapes_primary(str(primary), normalized)
+        except Exception:  # noqa: BLE001 - fail closed as an escape
+            escapes = True
+        if escapes:
+            problems.append(
+                {
+                    "key": key,
+                    "message": (
+                        f"{key} for linked repo {label!r} points outside the "
+                        f"checkout via symlink: {normalized!r}"
+                    ),
+                }
+            )
+            continue
         pin_path = primary / normalized
         try:
             text = pin_path.read_text(encoding="utf-8").strip()
