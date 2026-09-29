@@ -26,6 +26,7 @@ from sase.sdd._store_types import (
 
 REPOS_CONFIG_KEY = "repos"
 REPOS_LINKED_CONFIG_KEY = "linked"
+REVISION_PIN_CONFIG_KEY = "revision_pin"
 REPOS_SIDECAR_CONFIG_KEY = "sidecar"
 LINKED_REPOS_CONFIG_KEY = "linked_repos"
 SIBLING_REPOS_CONFIG_KEY = "sibling_repos"
@@ -108,7 +109,7 @@ def _merge_resolution_config(
     return result
 
 
-def _merged_entries_from_config(
+def merged_linked_entries_from_config(
     config: Mapping[str, Any],
 ) -> tuple[list[Mapping[str, Any]], list[str]]:
     """Merge ``repos.linked`` with its deprecated top-level aliases.
@@ -283,7 +284,7 @@ def merged_repo_entries_from_config(
 ) -> tuple[list[Mapping[str, Any]], list[str]]:
     """Return canonical linked entries followed by configured sidecars."""
 
-    linked, warnings = _merged_entries_from_config(config)
+    linked, warnings = merged_linked_entries_from_config(config)
     sidecars = merged_sidecar_entries_from_config(
         config,
         primary_workspace_dir=primary_workspace_dir,
@@ -482,6 +483,7 @@ def _entries_equivalent(left: Mapping[str, Any], right: Mapping[str, Any]) -> bo
 def _json_safe_entry(entry: Mapping[str, Any]) -> dict[str, object]:
     name = entry.get("name")
     path = entry.get("path")
+    revision_pin = entry.get(REVISION_PIN_CONFIG_KEY)
     return {
         "name": name if isinstance(name, str) else "",
         "path": path if isinstance(path, str) else "",
@@ -491,7 +493,52 @@ def _json_safe_entry(entry: Mapping[str, Any]) -> dict[str, object]:
             else ""
         ),
         "auto_clone": entry.get("auto_clone") is True,
+        "revision_pin": revision_pin if isinstance(revision_pin, str) else "",
     }
+
+
+def normalize_revision_pin(raw: Any) -> str | None:
+    """Normalize a ``repos.linked[].revision_pin`` value.
+
+    Returns the normalized relative POSIX-style path, or ``None`` when no
+    pin is declared. Raises :class:`ValueError` for absolute paths and for
+    paths that escape the primary checkout.
+    """
+
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise ValueError("revision_pin must be a string")
+    text = raw.strip().replace("\\", "/")
+    if not text:
+        raise ValueError("revision_pin must be a nonempty string")
+    if text.startswith("/") or text.startswith("~"):
+        raise ValueError(f"revision_pin must be relative to the checkout: {raw!r}")
+    parts = [part for part in text.split("/") if part not in ("", ".")]
+    if not parts:
+        raise ValueError("revision_pin must be a nonempty string")
+    stack: list[str] = []
+    for part in parts:
+        if part == "..":
+            if not stack:
+                raise ValueError(f"revision_pin must stay inside the checkout: {raw!r}")
+            stack.pop()
+        else:
+            stack.append(part)
+    if not stack:
+        raise ValueError("revision_pin must be a nonempty string")
+    return "/".join(stack)
+
+
+def revision_pin_for_entry(entry: Mapping[str, Any]) -> str | None:
+    """Return the normalized ``revision_pin`` for one linked entry, if any."""
+
+    raw = entry.get(REVISION_PIN_CONFIG_KEY)
+    if raw is None:
+        return None
+    if isinstance(raw, str) and not raw.strip():
+        raise ValueError("revision_pin must be a nonempty string")
+    return normalize_revision_pin(raw)
 
 
 def _optional_entry_text(entry: Mapping[str, Any], key: str) -> str:

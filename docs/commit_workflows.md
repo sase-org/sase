@@ -809,6 +809,19 @@ settlement and recovery behavior.
    `protected_paths_exhausted` diagnostic, which names the protected paths and the
    baseline record (`repo_id`, `scope`, `captured_at`) that protects them.
 
+   When the accepted declaration commits the primary checkout and a linked repo whose
+   `repos.linked[].revision_pin` names a pin file, the dispatcher commits that pinned
+   sibling first. After the sibling stitch lands, the host writes its pushed SHA into
+   the primary's pin file (only when the primary decision is `commit`, the SHA is
+   reachable from the sibling's remote default branch, the current pin is an ancestor of
+   the SHA, and the file does not already hold it) and records `revision_pin` evidence;
+   a skipped pin records the skip reason as a diagnostic and never fails the run. The
+   primary stitch then commits the pin change together with the agent's work under the
+   agent's message, applying `bead_action` only on the primary stitch. The pin path is
+   host-authored for protection and resume checks, and rewriting it is idempotent. A
+   concurrent pin change on origin during the primary sync uses the existing
+   conflict-repair flow.
+
    The host binds every stitch it runs — new stitches, checkpoint resumes, and the
    post-repair follow-up — to the bead captured in the accepted context. It sets
    `SASE_BEAD_ID` to that bead (or removes it when the context had none) and passes the

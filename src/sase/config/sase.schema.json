@@ -69,6 +69,11 @@
           "type": "string",
           "description": "Human-readable purpose used when generating agent memory for this linked repository.",
           "minLength": 1
+        },
+        "revision_pin": {
+          "type": "string",
+          "description": "Optional pin file relative to the primary checkout root that holds this linked repo's pushed SHA. When set, the commit finalizer commits this sibling first and writes its SHA into the pin file before the primary commit.",
+          "minLength": 1
         }
       }
     },

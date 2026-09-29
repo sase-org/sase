@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import re
 from typing import Any
 
 from sase._linked_repo_config import (
@@ -53,7 +54,7 @@ def check_config_repos() -> DiagnosticCheck:
     sidecar under ``custom``. The removed list form is no longer parsed, so
     this check is the actionable migration report for stale configs, for roles
     filed in the wrong bucket, and for entries the schema cannot reject on its
-    own.
+    own. It also validates ``repos.linked[].revision_pin`` declarations.
     """
     from sase.config.core import load_merged_config
 
@@ -76,6 +77,7 @@ def check_config_repos() -> DiagnosticCheck:
                 ),
             }
         )
+    problems.extend(_linked_revision_pin_problems(config))
     problems.extend(_artifact_provider_registry_problems())
 
     status: CheckStatus = "WARN" if problems else "OK"
@@ -104,6 +106,84 @@ def check_config_repos() -> DiagnosticCheck:
         next_steps=next_steps,
         data={"problems": problems},
     )
+
+
+_PIN_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def _linked_revision_pin_problems(config: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Validate ``repos.linked[].revision_pin`` declarations.
+
+    Flags pin paths that are absolute or escape the checkout, and pin files
+    that are missing or do not hold a 40-character hex SHA. The pin file is
+    resolved relative to the current working directory, which is the primary
+    checkout root for a normal ``sase doctor`` run.
+    """
+
+    from pathlib import Path as _Path
+
+    from sase._linked_repo_config import (
+        merged_linked_entries_from_config,
+        normalize_revision_pin,
+    )
+
+    problems: list[dict[str, str]] = []
+    try:
+        entries, _warnings = merged_linked_entries_from_config(config)
+    except Exception:  # noqa: BLE001 - malformed repos config is schema's job
+        return problems
+    primary = _Path.cwd()
+    for index, entry in enumerate(entries):
+        raw = entry.get("revision_pin")
+        if raw is None:
+            continue
+        name = entry.get("name")
+        label = name.strip() if isinstance(name, str) and name.strip() else f"#{index}"
+        key = f"repos.linked[{index}].revision_pin"
+        if not isinstance(raw, str) or not raw.strip():
+            problems.append(
+                {
+                    "key": key,
+                    "message": (
+                        f"{key} for linked repo {label!r} must be a nonempty "
+                        "string relative to the checkout root"
+                    ),
+                }
+            )
+            continue
+        try:
+            normalized = normalize_revision_pin(raw)
+        except ValueError as exc:
+            problems.append(
+                {"key": key, "message": f"{key} for linked repo {label!r}: {exc}"}
+            )
+            continue
+        assert normalized is not None
+        pin_path = primary / normalized
+        try:
+            text = pin_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            problems.append(
+                {
+                    "key": key,
+                    "message": (
+                        f"{key} for linked repo {label!r} points at missing "
+                        f"pin file {normalized!r}"
+                    ),
+                }
+            )
+            continue
+        if not _PIN_SHA_RE.match(text):
+            problems.append(
+                {
+                    "key": key,
+                    "message": (
+                        f"{key} for linked repo {label!r}: pin file "
+                        f"{normalized!r} does not hold a 40-character hex SHA"
+                    ),
+                }
+            )
+    return problems
 
 
 def _legacy_list_problems(entries: list[Any]) -> list[dict[str, str]]:

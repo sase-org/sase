@@ -17,6 +17,7 @@ repos:
       path: ../sase-core
       description: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
       auto_clone: true
+      revision_pin: sase-core-revision.txt
     - name: sase-github
       path: ../sase-github
       description: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.

@@ -376,6 +376,15 @@ def _collect_project_repos(
         ):
             auto_clone = False
 
+        revision_pin: str | None = None
+        if not is_sidecar:
+            try:
+                from sase._linked_repo_config import revision_pin_for_entry
+
+                revision_pin = revision_pin_for_entry(entry)
+            except ValueError:
+                revision_pin = None
+
         records.append(
             RepoRecord(
                 name=linked_name,
@@ -386,6 +395,7 @@ def _collect_project_repos(
                 exists=Path(path).is_dir(),
                 auto_clone=auto_clone,
                 auto_sync=is_sidecar and entry.get("auto_sync") is True,
+                revision_pin=revision_pin,
                 description=_optional_text(entry.get("description")),
                 source=(
                     "auto-injected sidecar"

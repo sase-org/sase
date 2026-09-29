@@ -46,6 +46,12 @@ from sase.finalizers.commit_dispatch_support import (
     protected_paths_for_decision,
     record_executed_repo as _record_executed_repo,
 )
+from sase.finalizers.commit_revision_pin import (
+    maybe_write_revision_pin as _maybe_write_revision_pin,
+    order_pinned_siblings_first as _order_pinned_siblings_first,
+    revision_pins_for_project as _revision_pins_for_project,
+    without_pin_protected as _without_pin_protected,
+)
 from sase.finalizers.commit_repair import (
     load_commit_results,
     marker_evidence,
@@ -118,6 +124,18 @@ def dispatch_commit_decisions(
     needs_commit = any(
         repository_decision_id(repo) not in accepted_deferrals for repo in ordered_repos
     )
+    try:
+        revision_pins = _revision_pins_for_project(project_dir)
+    except Exception:  # noqa: BLE001 - pin config must never fail dispatch
+        revision_pins = {}
+    # Enforce pinned-sibling-first order even when the caller passed context
+    # order directly (tests) or a repair handoff reordered the tail.
+    pending_seed = _order_pinned_siblings_first(
+        list(ordered_repos),
+        dict(decisions),
+        pins=revision_pins,
+        accepted_deferrals=dict(accepted_deferrals),
+    )
     attempt_id: int | None = initial_attempt_id
     attempts: list[FinalizerAttemptWire] = list(initial_attempts)
     evidence: list[FinalizerOutcomeEvidenceWire] = list(initial_evidence)
@@ -126,7 +144,7 @@ def dispatch_commit_decisions(
     current_result = invoke_result
     active_decisions: dict[str, Mapping[str, Any]] = dict(decisions)
     active_deferrals: dict[str, FinalizerDeferralWire] = dict(accepted_deferrals)
-    pending = list(ordered_repos)
+    pending = pending_seed
     original_ids = {repository_decision_id(repo) for repo in ordered_repos}
     executed_ids: set[str] = set()
     executed_facts: list[ExecutedCommitObligationFactWire] = []
@@ -179,6 +197,9 @@ def dispatch_commit_decisions(
             artifacts=artifacts,
             protected_path_resolver=protected_path_resolver,
         )
+        if repo.kind == "main" and revision_pins:
+            for pin_rel in revision_pins.values():
+                protected = _without_pin_protected(protected, pin_rel)
         if action != "commit":
             message_text = (
                 f"commit declaration for {repo.name} has invalid accepted action "
@@ -252,6 +273,10 @@ def dispatch_commit_decisions(
 
         message = str(decision.get("message", "")).strip()
         bead_action = _decision_bead_action(decision)
+        if repo.kind != "main" and repo.name in revision_pins:
+            # Pinned siblings land first; only the main stitch applies
+            # bead_action so the assigned bead closes after the pin follows.
+            bead_action = None
         assigned_bead_id = _context_assigned_bead_id(context)
         attempt_fields = stitch_attempt_input_fields(
             repo,
@@ -464,6 +489,39 @@ def dispatch_commit_decisions(
             repo_markers[-1],
             workspace_dir=project_dir,
         )
+        sibling_pin_rel = revision_pins.get(repo.name)
+        if sibling_pin_rel is not None and repo.kind != "main":
+            commit_sha = repo_markers[-1].get("commit_sha")
+            main_is_commit = any(
+                pending_repo.kind == "main"
+                and str(
+                    active_decisions.get(repository_decision_id(pending_repo), {}).get(
+                        "action", ""
+                    )
+                )
+                == "commit"
+                and repository_decision_id(pending_repo) not in active_deferrals
+                for pending_repo in pending
+            )
+            pin_evidence, pin_diagnostic = _maybe_write_revision_pin(
+                project_dir=project_dir,
+                sibling_name=repo.name,
+                sibling_dir=repo.path,
+                pin_rel=sibling_pin_rel,
+                commit_sha=(commit_sha if isinstance(commit_sha, str) else ""),
+                main_is_commit=main_is_commit,
+            )
+            evidence.append(
+                FinalizerOutcomeEvidenceWire(kind="revision_pin", value=pin_evidence)
+            )
+            if pin_diagnostic is not None:
+                diagnostics.append(
+                    FinalizerDiagnosticWire(
+                        code="revision_pin_skipped",
+                        message=pin_diagnostic,
+                        severity="warning",
+                    )
+                )
 
         remaining = unexpected_path_resolver(repo.path, protected)
         if remaining and repaired_conflict:

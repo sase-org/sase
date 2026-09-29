@@ -36,6 +36,7 @@ from sase._linked_repo_config import (
     read_project_local_config,
     resolution_config,
     resolve_config_path,
+    revision_pin_for_entry,
 )
 from sase._linked_repo_env import (
     LINKED_REPO_ENV_PREFIX,
@@ -244,6 +245,13 @@ def _resolve_linked_repos(
 
         env_name = _unique_env_name(_sanitize_env_name(name), used_env_names)
         used_env_names.add(env_name)
+        try:
+            revision_pin = None if is_sidecar else revision_pin_for_entry(entry)
+        except ValueError as exc:
+            resolution_warnings.append(
+                f"Skipping revision_pin for linked repo {name!r}: {exc}"
+            )
+            revision_pin = None
         resolved.append(
             _ResolvedLinkedRepo(
                 name=name,
@@ -255,6 +263,7 @@ def _resolve_linked_repos(
                 kind="sidecar" if is_sidecar else "linked",
                 slug=sidecar_slug or None,
                 remote_url=remote_url or None,
+                revision_pin=revision_pin,
             )
         )
 

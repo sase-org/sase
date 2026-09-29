@@ -167,6 +167,20 @@ def apply_repair_remaining_handoff(
         for repo in handoff.repos
         if repository_decision_id(repo) not in executed_ids
     ]
+    try:
+        from sase.finalizers.commit_revision_pin import (
+            order_pinned_siblings_first,
+            revision_pins_for_project,
+        )
+
+        rest = order_pinned_siblings_first(
+            rest,
+            dict(handoff.decisions),
+            pins=revision_pins_for_project(project_dir),
+            accepted_deferrals=dict(handoff.accepted_deferrals),
+        )
+    except Exception:  # noqa: BLE001 - pin order must never fail repair
+        pass
     if sweep_used:
         pending_ids = {repository_decision_id(repo) for repo in pending[index:]}
         extra = [

@@ -41,6 +41,7 @@ class RepoRecord:
     sdd_storage: str | None = None
     clones: tuple[RepoCloneRecord, ...] = ()
     auto_sync: bool = False
+    revision_pin: str | None = None
 
     def clone_for_workspace(self, workspace_num: int) -> RepoCloneRecord | None:
         """Return this repo's clone record for *workspace_num*, if registered."""
@@ -74,6 +75,7 @@ class RepoRecord:
             "remote_url": self.remote_url,
             "sdd_storage": self.sdd_storage,
             "clones": [clone.to_json_dict() for clone in self.clones],
+            "revision_pin": self.revision_pin,
         }
 
 

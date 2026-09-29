@@ -34,6 +34,7 @@ class ResolvedLinkedRepo:
     kind: Literal["linked", "sidecar"] = "linked"
     slug: str | None = None
     remote_url: str | None = None
+    revision_pin: str | None = None
 
     @property
     def is_materialized(self) -> bool:
@@ -52,6 +53,7 @@ class ResolvedLinkedRepo:
             "kind": self.kind,
             "slug": self.slug,
             "remote_url": self.remote_url,
+            "revision_pin": self.revision_pin,
         }
 
 

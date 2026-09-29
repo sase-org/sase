@@ -22,6 +22,7 @@ from sase.finalizers.commit_declaration import (
     repository_decision_id,
 )
 from sase.finalizers.commit_dispatch import dispatch_commit_decisions
+from sase.finalizers.commit_revision_pin import order_with_project_pins
 from sase.finalizers.commit_dispatch_types import (
     DeferredRepoOutcome,
     merge_deferrals,
@@ -207,12 +208,17 @@ def execute_commit_finalizer(
             ledger=ledger,
             fingerprints=pre_reconciliation_fingerprints(state, repo),
         )
-    ordered = dirty_repos_in_context_order(
-        state.dirty_state,
+    ordered = order_with_project_pins(
+        dirty_repos_in_context_order(
+            state.dirty_state,
+            decisions,
+            accepted_context,
+            attempt=peek_attempt(ledger),
+            ledger=ledger,
+        ),
         decisions,
-        accepted_context,
-        attempt=peek_attempt(ledger),
-        ledger=ledger,
+        project_dir=project_dir,
+        accepted_deferrals=accepted_deferrals,
     )
     attempts: list[FinalizerAttemptWire] = []
     evidence: list[FinalizerOutcomeEvidenceWire] = []
@@ -264,12 +270,17 @@ def execute_commit_finalizer(
         current_by_id = {
             repository_decision_id(repo): repo for repo in state.dirty_state.repos
         }
-        ordered = dirty_repos_in_context_order(
-            state.dirty_state,
+        ordered = order_with_project_pins(
+            dirty_repos_in_context_order(
+                state.dirty_state,
+                decisions,
+                accepted_context,
+                attempt=peek_attempt(ledger),
+                ledger=ledger,
+            ),
             decisions,
-            accepted_context,
-            attempt=peek_attempt(ledger),
-            ledger=ledger,
+            project_dir=project_dir,
+            accepted_deferrals=accepted_deferrals,
         )
     reject_unproven_reconciliation_transition(
         dirty_before_reconciliation,
@@ -332,12 +343,17 @@ def execute_commit_finalizer(
             attempt_id = resume_attempts[0].attempt
             state = prepare_commit_dirty_state(project_dir, artifacts)
         state = prepare_commit_dirty_state(project_dir, artifacts)
-        ordered = dirty_repos_in_context_order(
-            state.dirty_state,
+        ordered = order_with_project_pins(
+            dirty_repos_in_context_order(
+                state.dirty_state,
+                decisions,
+                accepted_context,
+                attempt=peek_attempt(ledger),
+                ledger=ledger,
+            ),
             decisions,
-            accepted_context,
-            attempt=peek_attempt(ledger),
-            ledger=ledger,
+            project_dir=project_dir,
+            accepted_deferrals=accepted_deferrals,
         )
 
     if not accepted_repos and state.dirty_state.is_clean:
