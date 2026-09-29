@@ -1,0 +1,308 @@
+"""Rebuild source discovery for the durable agent-name registry.
+
+Split from ``tests.test_agent_name_registry_rebuild``; the original module
+re-exports these tests so its import path keeps working.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import time
+from unittest.mock import patch
+
+import pytest
+
+from sase.agent.names import (
+    get_reserved_agent_names,
+    load_name_registry,
+    lookup_registered_name,
+    rebuild_name_registry,
+    reset_name_registry_caches_for_tests,
+)
+from sase.agent.names import (
+    _registry,
+    _registry_scan,
+    _registry_store,
+)
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
+
+from tests._agent_names_fixtures import (
+    make_agent as _make_agent,
+    make_sharded_agent as _make_sharded_agent,
+)
+
+__all__ = [
+    "test_registry_rebuild_collects_bundle_only_agent",
+    "test_registry_rebuild_collects_dismissed_artifact",
+    "test_registry_rebuild_collects_done_agent",
+    "test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir",
+    "test_registry_rebuild_resolves_one_identity_snapshot_for_all_sources",
+    "test_registry_rebuild_stays_under_sase_home",
+    "test_registry_signature_detects_dismissed_bundle_changes",
+    "test_registry_signature_ignores_live_artifact_output",
+    "test_registry_source_scan_caches_unchanged_artifact_walks",
+    "test_registry_source_scan_caches_unchanged_shards",
+]
+
+
+def _write_bundle(base: Path, filename: str, data: dict[str, object]) -> Path:
+    path = base / ".sase" / "dismissed_bundles" / "202605" / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
+    tmp_path: Path,
+) -> None:
+    first = _make_sharded_agent(tmp_path, "proj", "20260613120000", "sharded")
+    with patch.object(Path, "home", return_value=tmp_path):
+        paths = _registry_store._registry_source_signature_paths()
+        assert first in paths
+
+        data = rebuild_name_registry()
+        assert data["entries"]["sharded"]["project_name"] == "proj"
+        assert data["entries"]["sharded"]["workflow_dir"] == "ace-run"
+        assert data["entries"]["sharded"]["raw_suffix"] == "20260613120000"
+
+        before = _registry_store._source_signature()
+        time.sleep(0.01)  # sase-test-wait: separates source mtimes
+        _make_sharded_agent(tmp_path, "proj", "20260613120100", "sharded-later")
+        after = _registry_store._source_signature()
+        assert after != before
+
+
+def test_registry_signature_ignores_live_artifact_output(tmp_path: Path) -> None:
+    artifact = _make_sharded_agent(
+        tmp_path,
+        "proj",
+        "20260613120000",
+        "sharded",
+    )
+    with patch.object(Path, "home", return_value=tmp_path):
+        before = _registry_store._source_signature()
+        (artifact / "reply.md").write_text("still running\n", encoding="utf-8")
+        (artifact / "tool-output.json").write_text("{}\n", encoding="utf-8")
+        after = _registry_store._source_signature()
+
+    assert after == before
+
+
+def test_registry_signature_detects_dismissed_bundle_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    _registry_scan._directory_entries_for_signature.cache_clear()
+    bundle = _write_bundle(
+        tmp_path,
+        "20260508120000.json",
+        {"agent_name": "foo", "raw_suffix": "20260508120000"},
+    )
+    before = _registry_store._source_signature()
+
+    bundle.write_text(
+        json.dumps(
+            {
+                "agent_name": "rewritten-name",
+                "raw_suffix": "20260508120000",
+            }
+        ),
+        encoding="utf-8",
+    )
+    rewritten = _registry_store._source_signature()
+
+    time.sleep(0.01)  # sase-test-wait: separates bundle mtimes
+    added_bundle = _write_bundle(
+        tmp_path,
+        "20260508120100.json",
+        {"agent_name": "bar", "raw_suffix": "20260508120100"},
+    )
+    added = _registry_store._source_signature()
+
+    time.sleep(0.01)  # sase-test-wait: separates unlink mtime
+    added_bundle.unlink()
+    removed = _registry_store._source_signature()
+
+    assert rewritten != before
+    assert added != rewritten
+    assert removed != added
+
+
+def test_registry_source_scan_caches_unchanged_shards(tmp_path: Path) -> None:
+    for index in range(100):
+        _write_bundle(
+            tmp_path,
+            f"20260508{index:06d}.json",
+            {"agent_name": f"name-{index}", "raw_suffix": f"20260508{index:06d}"},
+        )
+    cache = _registry_scan._directory_entries_for_signature
+    cache.cache_clear()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        first = _registry_scan.source_signature_paths()
+        first_info = cache.cache_info()
+        second = _registry_scan.source_signature_paths()
+        second_info = cache.cache_info()
+
+        time.sleep(0.01)  # sase-test-wait: invalidates cached shard mtime
+        added = _write_bundle(
+            tmp_path,
+            "20260508999999.json",
+            {"agent_name": "later", "raw_suffix": "20260508999999"},
+        )
+        third = _registry_scan.source_signature_paths()
+        third_info = cache.cache_info()
+
+    assert second == first
+    assert added in third
+    assert second_info.misses == first_info.misses
+    assert second_info.hits > first_info.hits
+    assert third_info.misses == second_info.misses + 1
+
+
+def test_registry_source_scan_caches_unchanged_artifact_walks(
+    tmp_path: Path,
+) -> None:
+    for index in range(100):
+        _make_sharded_agent(
+            tmp_path,
+            "proj",
+            f"20260613{index:06d}",
+            f"name-{index}",
+        )
+    _registry_scan._directory_entries_for_signature.cache_clear()
+    _registry_scan._artifact_dirs_for_signature.cache_clear()
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch.object(
+            _registry_scan,
+            "iter_agent_artifact_dirs",
+            wraps=_registry_scan.iter_agent_artifact_dirs,
+        ) as artifact_scan,
+    ):
+        first = _registry_scan.source_signature_paths()
+        second = _registry_scan.source_signature_paths()
+        time.sleep(0.01)  # sase-test-wait: invalidates artifact scan mtime
+        added = _make_sharded_agent(
+            tmp_path,
+            "proj",
+            "20260613199999",
+            "later",
+        )
+        third = _registry_scan.source_signature_paths()
+
+    assert second == first
+    assert added in third
+    assert artifact_scan.call_count == 2
+
+
+def test_registry_rebuild_resolves_one_identity_snapshot_for_all_sources(
+    tmp_path: Path,
+) -> None:
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
+    _make_agent(tmp_path, "proj", "run1", "athena.1.plan")
+    _make_agent(tmp_path, "proj", "run2", "2.plan")
+    _write_bundle(
+        tmp_path,
+        "20260508120000.json",
+        {
+            "agent_name": "zeus.worker",
+            "raw_suffix": "20260508120000",
+        },
+    )
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch.object(
+            AgentIdentitySnapshot,
+            "current",
+            return_value=identity,
+        ) as current_identity,
+    ):
+        data = rebuild_name_registry()
+
+    assert current_identity.call_count == 1
+    assert {
+        "athena.1",
+        "athena.1.plan",
+        "2",
+        "2.plan",
+        "zeus.worker",
+        "zeus",
+    } <= set(data["entries"])
+    assert "1" not in data["entries"]
+    assert "athena.2" not in data["entries"]
+    assert "athena.zeus.worker" not in data["entries"]
+    assert data["entries"]["athena.1"]["reservation_kind"] == "auto_prefix"
+    assert data["entries"]["2"]["reservation_kind"] == "auto_prefix"
+    assert data["entries"]["zeus.worker"]["source"] == "dismissed_bundle"
+
+
+def test_registry_rebuild_stays_under_sase_home(monkeypatch, tmp_path: Path) -> None:
+    real_home = tmp_path / "real-home"
+    isolated_home = tmp_path / "isolated-home"
+    real_sase_home = real_home / ".sase"
+    isolated_sase_home = isolated_home / ".sase"
+    _make_agent(real_home, "proj", "run-real", "real-name")
+    _make_agent(isolated_home, "proj", "run-isolated", "isolated-name")
+
+    monkeypatch.setenv("HOME", str(real_home))
+    monkeypatch.setenv("SASE_HOME", str(isolated_sase_home))
+    reset_name_registry_caches_for_tests()
+
+    assert _registry._registry_path() == isolated_sase_home / (
+        "agent_name_registry.json"
+    )
+    for path in _registry_store._registry_source_signature_paths():
+        assert path == isolated_sase_home or isolated_sase_home in path.parents
+        assert path != real_sase_home and real_sase_home not in path.parents
+
+    data = rebuild_name_registry()
+    loaded = load_name_registry()
+
+    assert "isolated-name" in data["entries"]
+    assert "real-name" not in data["entries"]
+    assert "isolated-name" in loaded["entries"]
+
+
+def test_registry_rebuild_collects_done_agent(tmp_path: Path) -> None:
+    _make_agent(tmp_path, "proj", "run1", "foo", done=True)
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        assert lookup_registered_name("foo")["state"] == "done"
+
+
+def test_registry_rebuild_collects_dismissed_artifact(tmp_path: Path) -> None:
+    _make_agent(tmp_path, "proj", "run1", "foo", done=True)
+    dismissed_file = tmp_path / ".sase" / "dismissed_agents.json"
+    dismissed_file.parent.mkdir(parents=True, exist_ok=True)
+    dismissed_file.write_text('[["run", "proj", "run1"]]', encoding="utf-8")
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        assert lookup_registered_name("foo")["state"] == "dismissed"
+
+
+def test_registry_rebuild_collects_bundle_only_agent(tmp_path: Path) -> None:
+    _write_bundle(
+        tmp_path,
+        "20260508120000.json",
+        {
+            "agent_name": "foo",
+            "workflow_name": "foo.workflow",
+            "raw_suffix": "20260508120000",
+        },
+    )
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        reserved = get_reserved_agent_names()
+        assert {"foo", "foo.workflow"} <= reserved
+        assert lookup_registered_name("foo")["source"] == "dismissed_bundle"
