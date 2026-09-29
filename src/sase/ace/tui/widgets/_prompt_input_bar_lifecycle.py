@@ -98,6 +98,7 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         text_area._warm_model_completion_catalog()
         text_area._warm_prompt_path_inventory()
         text_area._warm_history_word_completion_cache()
+        text_area._warm_prompt_prediction_cache()
         text_area._warm_common_placeholder_cache()
         text_area._on_prompt_completion_context_changed()
         self._warm_dispatch_target_catalog()

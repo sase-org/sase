@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from ._launch_hold_guard import LaunchHoldGuardMixin
@@ -12,6 +13,8 @@ from ._types import (
     current_prompt_session,
     prompt_session_is_live,
 )
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sase.agent.prompt_placeholder_inputs import PromptInputPlan
@@ -197,6 +200,7 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
             owner_session_id=owner_session_id,
         )
         if launch is not None:
+            self._note_submitted_prompt_for_prediction(prompt)
             self._preflight_dispatch_pending_launch(launch.launch_id)
 
     def _apply_launch_view_tab(self, prompt: str) -> str:
@@ -249,6 +253,20 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
         except Exception:  # noqa: BLE001 - launch_query still validates.
             return True
         return True
+
+    def _note_submitted_prompt_for_prediction(self, prompt: str) -> None:
+        """Feed an accepted launch prompt to the session prediction source.
+
+        Decoupled through ``getattr`` so lightweight harnesses without the
+        prediction cache keep launching. Never raises.
+        """
+        note = getattr(self, "note_submitted_prompt_texts", None)
+        if not callable(note):
+            return
+        try:
+            note([prompt])
+        except Exception:
+            log.debug("Failed to note submitted prompt for prediction", exc_info=True)
 
     def _release_prompt_context_if_no_bar_mounted(self) -> None:
         """Clear bar-less prompt state without destroying a mounted draft.

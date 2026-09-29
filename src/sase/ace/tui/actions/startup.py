@@ -21,6 +21,7 @@ from ._startup_loads import StartupLoadsMixin
 from ._startup_misspellings import StartupMisspellingsMixin
 from ._startup_mount import StartupMountMixin
 from ._startup_prompt_catalog import StartupPromptCatalogMixin
+from ._startup_prompt_prediction import StartupPromptPredictionMixin
 from ._startup_telemetry import StartupTelemetryMixin
 from ._startup_watchers import StartupWatchersMixin
 from ._state_init import StateInitMixin
@@ -49,6 +50,14 @@ if TYPE_CHECKING:
     )
     from sase.history.prompt_misspellings import MisspellingsSourceToken
     from sase.history.prompt_word_index import PromptWordIndex
+    from sase.core.prompt_prediction_facade import (
+        PromptPredictionCorpus,
+        PromptPredictionModel,
+    )
+    from sase.history.prompt_prediction_rows import (
+        PromptPredictionProjectResolver,
+        PromptPredictionSourceToken,
+    )
     from ._startup_history_words import HistoryPromptCacheSourceToken
 
 TabName = Literal["artifacts", "agents", "services"]
@@ -57,6 +66,7 @@ TabName = Literal["artifacts", "agents", "services"]
 class StartupMixin(
     StateInitMixin,
     StartupHistoryWordsMixin,
+    StartupPromptPredictionMixin,
     StartupCommonPlaceholdersMixin,
     StartupFeatureFlagCleanupMixin,
     StartupMisspellingsMixin,
@@ -206,6 +216,19 @@ class StartupMixin(
     _history_prompt_words_source_token: HistoryPromptCacheSourceToken | None
     _history_prompt_words_rebuild_in_flight: bool
     _history_prompt_words_rebuild_pending: bool
+    _prompt_prediction_history_corpus: PromptPredictionCorpus | None
+    _prompt_prediction_session_corpus: PromptPredictionCorpus | None
+    _prompt_prediction_model: PromptPredictionModel | None
+    _prompt_prediction_source_token: PromptPredictionSourceToken | None
+    _prompt_prediction_history_texts: frozenset[str]
+    _prompt_prediction_project_resolver: PromptPredictionProjectResolver | None
+    _prompt_prediction_session_texts: list[tuple[str, float]]
+    _prompt_prediction_session_dirty: bool
+    _prompt_prediction_rebuild_in_flight: bool
+    _prompt_prediction_rebuild_pending: bool
+    _prompt_prediction_disabled: bool
+    _prompt_prediction_unavailable: bool
+    _prompt_prediction_error_logged: bool
     _common_placeholder_index_cache: CommonPlaceholderIndex | None
     _common_placeholders_cache: list[str] | None
     _common_placeholders_source_token: CommonPlaceholderSourceToken | None

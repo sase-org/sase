@@ -5,7 +5,9 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from sase.ace.tui.widgets._file_completion_workers import FileCompletionWorkerMixin
+from sase.ace.tui.widgets._file_completion_prediction import (
+    FileCompletionPredictionMixin,
+)
 from sase.ace.tui.widgets.prompt_word_completion import WordCompletionResult
 from sase.history.prompt_word_index import PromptWordIndex
 
@@ -13,7 +15,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 
 
-class FileCompletionHistoryMixin(FileCompletionWorkerMixin):
+class FileCompletionHistoryMixin(FileCompletionPredictionMixin):
     """Mixin providing warm history-word cache access and result building."""
 
     if TYPE_CHECKING:
