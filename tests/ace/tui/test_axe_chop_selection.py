@@ -99,11 +99,11 @@ def test_clear_output_on_chop_row_warns_and_leaves_history_intact() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.axe.clear_lumberjack_output_log",
+            "sase.ace.tui.actions.axe_quit.clear_lumberjack_output_log",
             lambda name: called.append(name),
         ),
         patch(
-            "sase.ace.tui.actions.axe.clear_slot_output",
+            "sase.ace.tui.actions.axe_quit.clear_slot_output",
             lambda slot: called.append(f"slot:{slot}"),
         ),
     ):

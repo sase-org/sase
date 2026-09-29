@@ -8,11 +8,8 @@ from typing import Any, cast
 
 from textual.worker import Worker, WorkerState
 
-from sase.ace.tui.actions.axe import (
-    AxeMixin,
-    AxeWorkerOperation,
-    _POST_AXE_WORKER_STATUS_REPOLL_DELAYS,
-)
+from sase.ace.tui.actions.axe import AxeMixin, AxeWorkerOperation
+from sase.ace.tui.actions.axe_service import _POST_AXE_WORKER_STATUS_REPOLL_DELAYS
 
 
 class _Harness(AxeMixin):
