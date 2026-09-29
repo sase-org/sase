@@ -118,5 +118,18 @@ class AgentDetailJumpMixin(Static):
         except Exception:
             pass
 
+    def try_scroll_expanded_jump_panel(self, direction: int) -> bool:
+        """Scroll an overflowing expanded jump panel; report whether it claimed the key."""
+        panel = self._jump_panel_or_none()
+        if panel is None:
+            return False
+        try:
+            scroller = getattr(panel, "scroll_jump_panel_half_page", None)
+            if callable(scroller):
+                return bool(scroller(1 if direction >= 0 else -1))
+        except Exception:
+            return False
+        return False
+
 
 __all__ = ["AgentDetailJumpMixin"]

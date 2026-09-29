@@ -453,12 +453,14 @@ class _SearchScrollHost:
     def key_event(self, key: str) -> Any:
         return self._Key(key, None)
 
-    def _try_scroll_expanded_header_for_key(self, key: str) -> bool:
+    def _try_scroll_expanded_sticky_panel_for_key(self, key: str) -> bool:
         from sase.ace.tui.actions.agents._metadata_search import (
             AgentMetadataSearchMixin,
         )
 
-        return AgentMetadataSearchMixin._try_scroll_expanded_header_for_key(self, key)
+        return AgentMetadataSearchMixin._try_scroll_expanded_sticky_panel_for_key(
+            self, key
+        )
 
     def _scroll_agent_metadata_search(self, key: str) -> bool:
         from sase.ace.tui.actions.agents._metadata_search import (

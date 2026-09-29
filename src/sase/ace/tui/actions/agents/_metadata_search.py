@@ -88,8 +88,8 @@ class AgentMetadataSearchMixin:
         if self._agent_metadata_search.is_active:
             self._agent_metadata_search.toggle_direction()
 
-    def _try_scroll_expanded_header_for_key(self, key: str) -> bool:
-        """Scroll an overflowing expanded header for configured Ctrl+D/U keys."""
+    def _try_scroll_expanded_sticky_panel_for_key(self, key: str) -> bool:
+        """Scroll an overflowing expanded sticky panel for configured Ctrl+D/U keys."""
         try:
             app_keys = self._keymap_registry.app  # type: ignore[attr-defined]
             down_keys = set(split_key_alternatives(app_keys.scroll_detail_down))
@@ -104,7 +104,7 @@ class AgentMetadataSearchMixin:
         except Exception:
             return False
         try:
-            claim = getattr(detail, "try_scroll_expanded_header", None)
+            claim = getattr(detail, "try_scroll_expanded_sticky_panel", None)
             if callable(claim):
                 return bool(claim(direction))
         except Exception:
@@ -116,7 +116,7 @@ class AgentMetadataSearchMixin:
         search = self._agent_metadata_search
         if not search.is_active:
             return False
-        if self._try_scroll_expanded_header_for_key(event.key):
+        if self._try_scroll_expanded_sticky_panel_for_key(event.key):
             return True
 
         reverse_keys = split_key_alternatives(

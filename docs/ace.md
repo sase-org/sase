@@ -1367,7 +1367,7 @@ field (exact match, or `main` for the default tab).
 | `oo`                      | Step the Agents panel layout ladder forward, then close the grouping picker (see [Grouping Modes](#grouping-modes))                                                  |
 | `g`                       | Scroll to top (focused deck panel)                                                                                                                                   |
 | `G`                       | Scroll to bottom (focused deck panel)                                                                                                                                |
-| `Ctrl+D` / `Ctrl+U`       | Scroll focused deck panel down / up (half page)                                                                                                                      |
+| `Ctrl+D` / `Ctrl+U`       | Scroll the expanded jump panel when its content overflows, else the expanded header panel when its content overflows, else the focused deck panel (half page)        |
 | `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools → FINAL, wraps)                                                                                      |
 | `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools, `n` FINAL; `M`/`F`/`T`/`N` show it in the other panel (opening one below if needed); `pp`/`Esc` close |
 | `\` / `                   | `                                                                                                                                                                    | Split deck panels top-bottom / left-right; press again to close the second panel, or press the other key to rotate |

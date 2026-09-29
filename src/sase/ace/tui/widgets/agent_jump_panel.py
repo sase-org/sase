@@ -15,6 +15,10 @@ from ._agent_jump_legend import (
     jump_legend_border_accent,
     jump_legend_title,
 )
+from ._sticky_panel_scroll import (
+    scroll_sticky_panel_half_page,
+    sticky_panel_can_scroll,
+)
 from .prompt_panel._member_roster import MemberJumpMap
 
 
@@ -170,6 +174,33 @@ class AgentJumpPanel(VerticalScroll):
         self._last_digest = None
         self.show_jump_map(self._jump_map, roster=self._member_roster)
         return self._expanded
+
+    def is_jump_panel_scrollable(self) -> bool:
+        """Return whether Ctrl+D/U should scroll this jump panel instead of the header or a deck."""
+        try:
+            if not bool(self.has_targets):
+                return False
+        except Exception:
+            return False
+        try:
+            if not bool(self._expanded):
+                return False
+            if self._pending_prefix is not None:
+                return False
+        except Exception:
+            return False
+        return sticky_panel_can_scroll(self)
+
+    def scroll_jump_panel_half_page(self, direction: int) -> bool:
+        """Scroll half the visible jump-panel height and claim the key.
+
+        Returns True whenever the jump panel is eligible, even at its top
+        or bottom boundary, so the header and focused deck stay still on a
+        second keystroke. Returns False when the jump panel cannot scroll.
+        """
+        if not self.is_jump_panel_scrollable():
+            return False
+        return scroll_sticky_panel_half_page(self, direction)
 
 
 __all__ = ["AgentJumpPanel"]

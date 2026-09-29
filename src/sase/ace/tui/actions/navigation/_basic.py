@@ -274,13 +274,13 @@ class BasicNavigationMixin(NavigationMixinBase):
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         return agent_detail.effective_detail_scroll_id()
 
-    def _try_scroll_agents_header(self, direction: int) -> bool:
-        """Scroll an overflowing expanded Agents header; True when claimed."""
+    def _try_scroll_agents_sticky_panel(self, direction: int) -> bool:
+        """Scroll an overflowing expanded Agents jump panel or header; True when claimed."""
         try:
             from ...widgets import AgentDetail
 
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            claim = getattr(agent_detail, "try_scroll_expanded_header", None)
+            claim = getattr(agent_detail, "try_scroll_expanded_sticky_panel", None)
             if callable(claim):
                 return bool(claim(direction))
         except Exception:
@@ -295,7 +295,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         if self.current_tab == "artifacts":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
-            if self._try_scroll_agents_header(1):
+            if self._try_scroll_agents_sticky_panel(1):
                 return
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
@@ -315,7 +315,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         if self.current_tab == "artifacts":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
-            if self._try_scroll_agents_header(-1):
+            if self._try_scroll_agents_sticky_panel(-1):
                 return
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]

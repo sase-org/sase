@@ -237,6 +237,15 @@ class AgentDetail(
             return False
         return False
 
+    def try_scroll_expanded_sticky_panel(self, direction: int) -> bool:
+        """Scroll an overflowing expanded sticky panel; the jump panel (footer) wins over the header."""
+        try:
+            if bool(self.try_scroll_expanded_jump_panel(direction)):
+                return True
+        except Exception:
+            pass
+        return bool(self.try_scroll_expanded_header(direction))
+
     def on_agent_metadata_identity_changed(
         self, message: AgentMetadataIdentityChanged
     ) -> None:
