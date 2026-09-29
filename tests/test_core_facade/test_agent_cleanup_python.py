@@ -26,67 +26,67 @@ from sase.core.agent_cleanup_wire import (
 )
 
 from tests.test_core_facade._agent_cleanup_helpers import (
-    _agent,
-    _id,
-    _request,
-    _SCENARIOS,
-    _scenario_clan_scope,
-    _scenario_clan_scope_active_parallel_agent_session,
-    _scenario_collapsed_group,
-    _scenario_custom_child_running,
-    _scenario_done_live_runner_dismiss,
-    _scenario_duplicate_child_inputs,
-    _scenario_explicit_child_done,
-    _scenario_failed_live_runner_dismiss_completed,
-    _scenario_failed_live_runner_kill,
-    _scenario_explicit_child_running,
-    _scenario_focused_panel_dismiss,
-    _scenario_focused_panel_kill_dismiss,
-    _scenario_marked_set,
-    _scenario_pidless_dismiss_fallback,
-    _scenario_parallel_agent_session_root,
-    _scenario_clan_sequential_agent_session_dismiss,
-    _scenario_direct_live_monitor,
-    _scenario_explicit_clan_sequential_agent_session_dismiss,
-    _scenario_owner_cascades_live_monitor,
-    _scenario_tribe_scope,
-    _scenario_workflow_parent_with_children,
+    make_agent,
+    make_identity,
+    make_request,
+    SCENARIOS,
+    scenario_clan_scope,
+    scenario_clan_scope_active_parallel_agent_session,
+    scenario_collapsed_group,
+    scenario_custom_child_running,
+    scenario_done_live_runner_dismiss,
+    scenario_duplicate_child_inputs,
+    scenario_explicit_child_done,
+    scenario_failed_live_runner_dismiss_completed,
+    scenario_failed_live_runner_kill,
+    scenario_explicit_child_running,
+    scenario_focused_panel_dismiss,
+    scenario_focused_panel_kill_dismiss,
+    scenario_marked_set,
+    scenario_pidless_dismiss_fallback,
+    scenario_parallel_agent_session_root,
+    scenario_clan_sequential_agent_session_dismiss,
+    scenario_direct_live_monitor,
+    scenario_explicit_clan_sequential_agent_session_dismiss,
+    scenario_owner_cascades_live_monitor,
+    scenario_tribe_scope,
+    scenario_workflow_parent_with_children,
 )
 
 # Byte-identical to the Rust planner's skip reason.
 _PARALLEL_STILL_ACTIVE_DETAIL = "parallel session still active"
 
 
-@pytest.mark.parametrize("scenario", _SCENARIOS)
+@pytest.mark.parametrize("scenario", SCENARIOS)
 def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None:
     agents, request = scenario()
     plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
 
-    if scenario is _scenario_focused_panel_dismiss:
+    if scenario is scenario_focused_panel_dismiss:
         assert [item.identity.cl_name for item in plan.dismiss_items] == ["done"]
         assert plan.kill_items == ()
-    elif scenario is _scenario_focused_panel_kill_dismiss:
+    elif scenario is scenario_focused_panel_kill_dismiss:
         assert [item.identity.cl_name for item in plan.kill_items] == ["running"]
         assert [item.identity.cl_name for item in plan.dismiss_items] == ["done"]
         assert plan.counts.failed == 1
-    elif scenario is _scenario_marked_set:
+    elif scenario is scenario_marked_set:
         assert [item.identity.cl_name for item in plan.kill_items] == ["running"]
         assert [item.identity.cl_name for item in plan.dismiss_items] == ["done"]
-    elif scenario is _scenario_collapsed_group:
+    elif scenario is scenario_collapsed_group:
         assert [item.identity.cl_name for item in plan.kill_items] == ["group-running"]
         assert [item.identity.cl_name for item in plan.dismiss_items] == ["group-done"]
-    elif scenario is _scenario_tribe_scope:
+    elif scenario is scenario_tribe_scope:
         assert [item.identity.cl_name for item in plan.kill_items] == ["alpha"]
         assert [item.reason for item in plan.skipped_items].count(
             "workflow_child_cascade_only"
         ) == 1
-    elif scenario is _scenario_clan_scope:
+    elif scenario is scenario_clan_scope:
         assert [item.identity.cl_name for item in plan.kill_items] == ["release"]
         assert [item.identity.cl_name for item in plan.dismiss_items] == ["verified"]
         assert [item.cl_name for item in plan.cascaded_workflow_children] == [
             "release-step"
         ]
-    elif scenario is _scenario_clan_scope_active_parallel_agent_session:
+    elif scenario is scenario_clan_scope_active_parallel_agent_session:
         assert plan.kill_items == ()
         assert plan.dismiss_items == ()
         assert any(
@@ -94,42 +94,42 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
             and item.detail == _PARALLEL_STILL_ACTIVE_DETAIL
             for item in plan.skipped_items
         )
-    elif scenario is _scenario_workflow_parent_with_children:
+    elif scenario is scenario_workflow_parent_with_children:
         assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
             ("workflow", KILL_KIND_WORKFLOW)
         ]
         assert [item.cl_name for item in plan.cascaded_workflow_children] == ["child"]
-    elif scenario is _scenario_pidless_dismiss_fallback:
+    elif scenario is scenario_pidless_dismiss_fallback:
         assert [item.identity.cl_name for item in plan.dismiss_items] == ["pidless"]
         assert plan.kill_items == ()
-    elif scenario is _scenario_duplicate_child_inputs:
+    elif scenario is scenario_duplicate_child_inputs:
         assert [item.cl_name for item in plan.cascaded_workflow_children] == ["child"]
         assert [item.reason for item in plan.skipped_items].count(
             "workflow_child_cascade_only"
         ) == 2
-    elif scenario is _scenario_explicit_child_running:
+    elif scenario is scenario_explicit_child_running:
         assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
             ("child", KILL_KIND_RUNNING)
         ]
         assert plan.dismiss_items == ()
         assert plan.cascaded_workflow_children == ()
-    elif scenario is _scenario_explicit_child_done:
+    elif scenario is scenario_explicit_child_done:
         assert plan.kill_items == ()
         assert [item.identity.cl_name for item in plan.dismiss_items] == ["child"]
         assert plan.cascaded_workflow_children == ()
-    elif scenario is _scenario_custom_child_running:
+    elif scenario is scenario_custom_child_running:
         assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
             ("child", KILL_KIND_RUNNING)
         ]
         assert plan.dismiss_items == ()
-    elif scenario is _scenario_parallel_agent_session_root:
+    elif scenario is scenario_parallel_agent_session_root:
         assert [item.identity.cl_name for item in plan.kill_items] == [
             "sase-6g",
             "sase-6g.1",
         ]
     elif scenario in {
-        _scenario_clan_sequential_agent_session_dismiss,
-        _scenario_explicit_clan_sequential_agent_session_dismiss,
+        scenario_clan_sequential_agent_session_dismiss,
+        scenario_explicit_clan_sequential_agent_session_dismiss,
     }:
         assert plan.kill_items == ()
         assert [item.identity.cl_name for item in plan.dismiss_items] == [
@@ -137,13 +137,13 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
             "sase-ps.plan--1",
             "sase-ps.plan--mon",
         ]
-    elif scenario is _scenario_failed_live_runner_kill:
+    elif scenario is scenario_failed_live_runner_kill:
         assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
             ("retry", KILL_KIND_RUNNING)
         ]
         assert plan.kill_items[0].pid == 77
         assert plan.dismiss_items == ()
-    elif scenario is _scenario_failed_live_runner_dismiss_completed:
+    elif scenario is scenario_failed_live_runner_dismiss_completed:
         assert plan.kill_items == ()
         assert plan.dismiss_items == ()
         assert any(
@@ -152,13 +152,13 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
             and item.detail == "runner_live"
             for item in plan.skipped_items
         )
-    elif scenario is _scenario_done_live_runner_dismiss:
+    elif scenario is scenario_done_live_runner_dismiss:
         assert plan.kill_items == ()
         assert [item.identity.cl_name for item in plan.dismiss_items] == [
             "done-live",
             "failed-still",
         ]
-    elif scenario is _scenario_direct_live_monitor:
+    elif scenario is scenario_direct_live_monitor:
         assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
             ("owner--mon", KILL_KIND_MONITOR)
         ]
@@ -168,7 +168,7 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
         assert [
             intent.monitor_id for intent in plan.side_effects.monitor_stop_requests
         ] == ["monid123456"]
-    elif scenario is _scenario_owner_cascades_live_monitor:
+    elif scenario is scenario_owner_cascades_live_monitor:
         assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
             ("sase-ru.6--mon-1", KILL_KIND_MONITOR)
         ]
@@ -187,7 +187,7 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
 
 
 def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> None:
-    parent = _agent(
+    parent = make_agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="workflow",
         status="DONE",
@@ -197,7 +197,7 @@ def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> 
         agent_name="root",
         artifacts_dir="/tmp/parent",
     )
-    child = _agent(
+    child = make_agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="child",
         status="DONE",
@@ -209,10 +209,10 @@ def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> 
         agent_name="root.plan",
         artifacts_dir="/tmp/child",
     )
-    request = _request(
+    request = make_request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_DISMISS_COMPLETED,
-        identities=(_id(parent),),
+        identities=(make_identity(parent),),
     )
 
     plan = _plan_agent_cleanup_python(
@@ -244,18 +244,18 @@ def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> 
 
 
 def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:
-    running = _agent(cl_name="running", status="RUNNING", pid=101, workspace_num=9)
-    done = _agent(
+    running = make_agent(cl_name="running", status="RUNNING", pid=101, workspace_num=9)
+    done = make_agent(
         cl_name="done",
         status="DONE",
         pid=None,
         agent_name="done-name",
         raw_suffix="20260428110000",
     )
-    request = _request(
+    request = make_request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
-        identities=(_id(running), _id(done)),
+        identities=(make_identity(running), make_identity(done)),
         include_pidless_as_dismissable=False,
     )
 
@@ -277,7 +277,7 @@ def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:
 
 
 def test_python_cleanup_planner_direct_child_side_effects_exclude_siblings() -> None:
-    agents, request = _scenario_explicit_child_running()
+    agents, request = scenario_explicit_child_running()
 
     plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
 
@@ -295,28 +295,28 @@ def test_python_cleanup_planner_direct_child_side_effects_exclude_siblings() -> 
 
 
 def _broad_scope_kill_requests() -> tuple[Any, ...]:
-    focused_request = _request(
+    focusedmake_request = make_request(
         scope=CLEANUP_SCOPE_FOCUSED_PANEL,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
         focused_panel_tribe="ops",
     )
-    tribe_request = _request(
+    tribemake_request = make_request(
         scope=CLEANUP_SCOPE_TRIBE,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
         tribe="ops",
     )
     return (
-        _request(
+        make_request(
             scope=CLEANUP_SCOPE_ALL_PANELS,
             mode=CLEANUP_MODE_KILL_AND_DISMISS,
         ),
-        focused_request,
-        tribe_request,
+        focusedmake_request,
+        tribemake_request,
     )
 
 
 def test_python_cleanup_planner_broad_scopes_act_on_agent_session_member_rows() -> None:
-    child = _agent(
+    child = make_agent(
         cl_name="child",
         raw_suffix="child-ts",
         pid=1002,
@@ -340,7 +340,7 @@ def test_python_cleanup_planner_broad_scopes_act_on_agent_session_member_rows() 
 def test_python_cleanup_planner_broad_scopes_keep_workflow_step_children_cascade_only() -> (
     None
 ):
-    child = _agent(
+    child = make_agent(
         cl_name="child",
         raw_suffix="child-ts",
         pid=1002,
@@ -378,7 +378,7 @@ def _assert_clan_sequential_agent_session_dismissed(plan: Any) -> None:
 def test_python_cleanup_planner_clan_scope_dismisses_sequential_agent_session_and_monitor() -> (
     None
 ):
-    agents, request = _scenario_clan_sequential_agent_session_dismiss()
+    agents, request = scenario_clan_sequential_agent_session_dismiss()
     plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
     _assert_clan_sequential_agent_session_dismissed(plan)
 
@@ -386,26 +386,26 @@ def test_python_cleanup_planner_clan_scope_dismisses_sequential_agent_session_an
 def test_python_cleanup_planner_explicit_identities_dismiss_sequential_agent_session() -> (
     None
 ):
-    agents, request = _scenario_explicit_clan_sequential_agent_session_dismiss()
+    agents, request = scenario_explicit_clan_sequential_agent_session_dismiss()
     plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
     _assert_clan_sequential_agent_session_dismissed(plan)
 
 
 def test_python_cleanup_planner_clan_scope_without_generation_selects_all() -> None:
-    current = _agent(
+    current = make_agent(
         cl_name="current",
         pid=101,
         agent_clan="research",
         agent_clan_generation="current-gen",
     )
-    stale = _agent(
+    stale = make_agent(
         cl_name="stale",
         pid=102,
         raw_suffix="stale-ts",
         agent_clan="research",
         agent_clan_generation="stale-gen",
     )
-    request = _request(
+    request = make_request(
         scope=CLEANUP_SCOPE_CLAN,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
         clan_name="research",
@@ -422,7 +422,7 @@ def test_python_cleanup_planner_clan_scope_without_generation_selects_all() -> N
 
 
 def test_python_cleanup_planner_direct_workflow_child_keeps_parent_workspace() -> None:
-    parent = _agent(
+    parent = make_agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="workflow",
         status="RUNNING",
@@ -431,7 +431,7 @@ def test_python_cleanup_planner_direct_workflow_child_keeps_parent_workspace() -
         workflow="release",
         workspace_num=1,
     )
-    child = _agent(
+    child = make_agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="child",
         status="RUNNING",
@@ -442,10 +442,10 @@ def test_python_cleanup_planner_direct_workflow_child_keeps_parent_workspace() -
         parent_timestamp="parent-ts",
         workspace_num=2,
     )
-    request = _request(
+    request = make_request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
-        identities=(_id(child),),
+        identities=(make_identity(child),),
     )
 
     plan = _plan_agent_cleanup_python(
@@ -462,11 +462,11 @@ def test_python_cleanup_planner_direct_workflow_child_keeps_parent_workspace() -
 
 
 def test_python_cleanup_planner_treats_stopped_as_dismissable() -> None:
-    stopped = _agent(cl_name="stopped", status="STOPPED", pid=None)
-    request = _request(
+    stopped = make_agent(cl_name="stopped", status="STOPPED", pid=None)
+    request = make_request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
-        identities=(_id(stopped),),
+        identities=(make_identity(stopped),),
     )
 
     plan = _plan_agent_cleanup_python(agents_to_cleanup_targets([stopped]), request)
@@ -476,36 +476,36 @@ def test_python_cleanup_planner_treats_stopped_as_dismissable() -> None:
 
 
 def test_python_cleanup_planner_cascades_parallel_root_kill_only_to_members() -> None:
-    root = _agent(
+    root = make_agent(
         cl_name="sase-6g",
         raw_suffix="root-ts",
         pid=100,
         agent_session_parallel=True,
     )
-    member_one = _agent(
+    member_one = make_agent(
         cl_name="sase-6g.1",
         raw_suffix="member-one-ts",
         parent_timestamp="root-ts",
         pid=101,
         agent_session_parallel=True,
     )
-    member_two = _agent(
+    member_two = make_agent(
         cl_name="sase-6g.2",
         raw_suffix="member-two-ts",
         parent_timestamp="root-ts",
         pid=102,
         agent_session_parallel=True,
     )
-    serial_child = _agent(
+    serial_child = make_agent(
         cl_name="sase-6g--code",
         raw_suffix="serial-ts",
         parent_timestamp="root-ts",
         pid=103,
     )
-    request = _request(
+    request = make_request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
-        identities=(_id(root),),
+        identities=(make_identity(root),),
     )
 
     plan = _plan_agent_cleanup_python(
@@ -526,30 +526,30 @@ def test_python_cleanup_planner_cascades_parallel_root_kill_only_to_members() ->
 
 
 def test_python_cleanup_planner_parallel_member_kill_does_not_cascade() -> None:
-    root = _agent(
+    root = make_agent(
         cl_name="sase-6g",
         raw_suffix="root-ts",
         pid=100,
         agent_session_parallel=True,
     )
-    selected = _agent(
+    selected = make_agent(
         cl_name="sase-6g.1",
         raw_suffix="member-one-ts",
         parent_timestamp="root-ts",
         pid=101,
         agent_session_parallel=True,
     )
-    sibling = _agent(
+    sibling = make_agent(
         cl_name="sase-6g.2",
         raw_suffix="member-two-ts",
         parent_timestamp="root-ts",
         pid=102,
         agent_session_parallel=True,
     )
-    request = _request(
+    request = make_request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
-        identities=(_id(selected),),
+        identities=(make_identity(selected),),
     )
 
     plan = _plan_agent_cleanup_python(
@@ -561,14 +561,14 @@ def test_python_cleanup_planner_parallel_member_kill_does_not_cascade() -> None:
 
 
 def test_python_cleanup_planner_gates_parallel_root_dismissal_until_done() -> None:
-    root = _agent(
+    root = make_agent(
         cl_name="root",
         raw_suffix="root-ts",
         status="DONE",
         pid=None,
         agent_session_parallel=True,
     )
-    member = _agent(
+    member = make_agent(
         cl_name="member",
         raw_suffix="member-ts",
         parent_timestamp="root-ts",
@@ -576,10 +576,10 @@ def test_python_cleanup_planner_gates_parallel_root_dismissal_until_done() -> No
         pid=101,
         agent_session_parallel=True,
     )
-    request = _request(
+    request = make_request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_DISMISS_COMPLETED,
-        identities=(_id(root),),
+        identities=(make_identity(root),),
     )
 
     active_plan = _plan_agent_cleanup_python(

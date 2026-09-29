@@ -13,11 +13,11 @@ from sase.core.agent_cleanup_wire import (
     agent_cleanup_wire_to_json_dict,
 )
 
-from tests.test_core_facade._agent_cleanup_helpers import _agent, _STOP
+from tests.test_core_facade._agent_cleanup_helpers import make_agent, STOP_TIME
 
 
 def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
-    agent = _agent(
+    agent = make_agent(
         cl_name="convert",
         status="FAILED",
         pid=None,
@@ -27,7 +27,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
         agent_session_parallel=True,
         agent_clan="research",
         agent_clan_generation="20260430090000",
-        stop_time=_STOP,
+        stop_time=STOP_TIME,
     )
 
     target = agent_to_cleanup_target(agent)
@@ -53,7 +53,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
 
 
 def test_agent_to_cleanup_target_marks_live_monitors() -> None:
-    agent = _agent(
+    agent = make_agent(
         cl_name="owner--mon",
         status="MONITORING",
         agent_session_role="monitor",
@@ -70,10 +70,10 @@ def test_agent_to_cleanup_target_marks_live_monitors() -> None:
 
 def test_workflow_step_child_excludes_agent_session_members_and_monitors() -> None:
     agent_session_member = agent_to_cleanup_target(
-        _agent(cl_name="agent_session", parent_timestamp="root-ts")
+        make_agent(cl_name="agent_session", parent_timestamp="root-ts")
     )
     workflow_step = agent_to_cleanup_target(
-        _agent(
+        make_agent(
             cl_name="step",
             parent_timestamp="root-ts",
             parent_workflow="build",
@@ -87,7 +87,7 @@ def test_workflow_step_child_excludes_agent_session_members_and_monitors() -> No
 
 
 def test_cleanup_wire_serializes_only_canonical_tribe_fields() -> None:
-    target = agent_to_cleanup_target(_agent(tribe="triage"))
+    target = agent_to_cleanup_target(make_agent(tribe="triage"))
     request = AgentCleanupRequestWire(
         schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
         scope=CLEANUP_SCOPE_TRIBE,
