@@ -355,6 +355,16 @@ def _add_bead_view_arguments(
         help="Color output: auto, always, or never (default: auto)",
     )
     parser.add_argument(
+        "-d",
+        "--download",
+        action="store_true",
+        help=(
+            "Download every attachment on the shown beads from the shared "
+            "store, lifting the bead.attachments.auto_fetch_max_bytes cap "
+            "for this invocation"
+        ),
+    )
+    parser.add_argument(
         "-f",
         "--format",
         choices=["compact", "json", "full"],

@@ -1924,6 +1924,10 @@ bead:
     # When true, attachment bytes upload before the bead event is written;
     # any upload failure aborts with nothing written and nothing queued.
     require_upload: false
+    # Largest attachment fetched automatically by read/show, in bytes (25 MiB).
+    # Missing or malformed values fail open to this default. -d/--download
+    # lifts the cap for one invocation; attachment path always fetches.
+    auto_fetch_max_bytes: 26214400
   show:
     # Image previews for `sase bead show`: auto, cells, kitty, or never.
     # `read`, JSON, and piped `show` never draw.

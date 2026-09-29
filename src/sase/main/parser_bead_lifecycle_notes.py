@@ -170,8 +170,10 @@ def register_bead_attachment_parser(
             "in the terminal viewer, print the absolute local view path "
             "for one attachment, or push queued uploads to the shared store. "
             "Invoking 'sase bead attachment' without a subcommand delegates "
-            "to 'sase bead attachment list'. List, open, and path never "
-            "fetch; push drains the upload outbox and never authors notes."
+            "to 'sase bead attachment list'. List and open never fetch; "
+            "path always fetches from the shared store when needed, even "
+            "above the auto-fetch cap. Push drains the upload outbox and "
+            "never authors notes."
         ),
         epilog=(
             "Examples:\n"
@@ -230,8 +232,9 @@ def register_bead_attachment_parser(
         help="Print the absolute local view path for one attachment",
         description=(
             "Materialize the extension-preserving local view and print its "
-            "absolute path. Fails with a clear unavailable error when no "
-            "local object exists; it never fetches."
+            "absolute path. Fetches the object from the shared store when "
+            "needed, even above the auto-fetch cap. Fails with a clear "
+            "unavailable error when the object cannot be fetched."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

@@ -4797,6 +4797,12 @@
               "type": "boolean",
               "description": "When true, attachment bytes upload before the bead event is written; any upload failure aborts with nothing written and nothing queued.",
               "default": false
+            },
+            "auto_fetch_max_bytes": {
+              "type": "integer",
+              "description": "Largest single attachment fetched automatically by read/show, in bytes (25 MiB). Missing or malformed values fail open to the default; -d/--download lifts the cap for one invocation and attachment path always fetches.",
+              "default": 26214400,
+              "minimum": 1
             }
           }
         },

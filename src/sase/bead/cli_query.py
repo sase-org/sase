@@ -321,6 +321,22 @@ def handle_bead_read(args: argparse.Namespace) -> None:
 
 
 def _run_bead_view(args: argparse.Namespace, *, audited_reason: str | None) -> None:
+    from sase.bead.attachments.fetch import FetchMode, fetch_context
+
+    fetch_mode: FetchMode
+    if bool(getattr(args, "download", False)):
+        fetch_mode = "force"
+    elif getattr(args, "format", "full") in ("full", "json"):
+        fetch_mode = "auto"
+    else:
+        fetch_mode = "never"
+    with fetch_context(mode=fetch_mode):
+        _run_bead_view_inner(args, audited_reason=audited_reason)
+
+
+def _run_bead_view_inner(
+    args: argparse.Namespace, *, audited_reason: str | None
+) -> None:
     include_links = not bool(getattr(args, "no_links", False))
     ids = _show_ids(args)
     style = resolve_detail_style(

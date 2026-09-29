@@ -119,6 +119,23 @@ def get_attachment_require_upload() -> bool:
     return value
 
 
+DEFAULT_ATTACHMENT_AUTO_FETCH_MAX_BYTES = 26214400
+
+
+def get_attachment_auto_fetch_max_bytes() -> int:
+    """Return the configured auto-fetch ceiling, failing open to the default.
+
+    Missing or malformed values fail open to 25 MiB. Booleans are rejected
+    explicitly because ``bool`` is a subclass of ``int``.
+    """
+    value = _attachment_config().get(
+        "auto_fetch_max_bytes", DEFAULT_ATTACHMENT_AUTO_FETCH_MAX_BYTES
+    )
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return DEFAULT_ATTACHMENT_AUTO_FETCH_MAX_BYTES
+    return value
+
+
 def get_show_images_default() -> str:
     """Return the configured ``bead.show.images`` mode, or ``auto``.
 

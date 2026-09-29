@@ -272,9 +272,8 @@ def render_bead_note_lines(
         )
         if note.attachments:
             from sase.bead.attachment_presentation import (
-                attachment_availability,
                 attachment_descriptor,
-                attachment_view_path,
+                attachment_status_lines,
                 prose_with_chips,
             )
 
@@ -294,14 +293,14 @@ def render_bead_note_lines(
                         sha256=attachment.sha256,
                     )
                 )
-                if attachment_availability(attachment.sha256) == "cached":
-                    view = attachment_view_path(attachment.sha256, attachment.name)
-                    if view is not None:
-                        lines.append(f"         {view}")
-                    else:
-                        lines.append("         \u2715 unavailable offline")
-                else:
-                    lines.append("         \u2715 unavailable offline")
+                for status_line in attachment_status_lines(
+                    bead_id=issue.id,
+                    name=attachment.name,
+                    sha256=attachment.sha256,
+                    size_bytes=attachment.size_bytes,
+                    origin=getattr(attachment, "origin", None),
+                ):
+                    lines.append(f"         {status_line}")
             lines.extend(
                 _note_preview_lines(
                     note.attachments,
@@ -353,9 +352,8 @@ def render_plus_one_evidence_lines(
         attachments = getattr(evidence, "attachments", ())
         if attachments:
             from sase.bead.attachment_presentation import (
-                attachment_availability,
                 attachment_descriptor,
-                attachment_view_path,
+                attachment_status_lines,
                 prose_with_chips,
             )
 
@@ -375,14 +373,14 @@ def render_plus_one_evidence_lines(
                         sha256=attachment.sha256,
                     )
                 )
-                if attachment_availability(attachment.sha256) == "cached":
-                    view = attachment_view_path(attachment.sha256, attachment.name)
-                    if view is not None:
-                        lines.append(f"         {view}")
-                    else:
-                        lines.append("         \u2715 unavailable offline")
-                else:
-                    lines.append("         \u2715 unavailable offline")
+                for status_line in attachment_status_lines(
+                    bead_id=issue.id,
+                    name=attachment.name,
+                    sha256=attachment.sha256,
+                    size_bytes=attachment.size_bytes,
+                    origin=getattr(attachment, "origin", None),
+                ):
+                    lines.append(f"         {status_line}")
             lines.extend(
                 _note_preview_lines(
                     attachments,

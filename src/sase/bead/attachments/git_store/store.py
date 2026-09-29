@@ -69,6 +69,25 @@ def _object_relpath(sha256: str) -> str:
     return relpath
 
 
+def _tombstone_relpath(sha256: str) -> str:
+    """Return the canonical remote tombstone path for *sha256*.
+
+    Tombstones live at ``files/tombstones/sha256/<xx>/<sha>.json`` next to
+    the content-addressed object layout from
+    ``sase_core_rs.artifact_object_relpath``.
+    """
+
+    validate_sha256(sha256)
+    object_relpath = _object_relpath(sha256)
+    prefix = "files/objects/sha256/"
+    if not object_relpath.startswith(prefix) or not object_relpath.endswith(sha256):
+        raise BlobStoreError(
+            f"git store tombstone for {sha256[:16]}… has no canonical path: "
+            f"{object_relpath!r}"
+        )
+    return f"files/tombstones/sha256/{sha256[:2]}/{sha256}.json"
+
+
 @contextlib.contextmanager
 def _writer_lock(repo: Path) -> Iterator[None]:
     """Hold an exclusive lock inside the bare git dir for a whole update."""
@@ -296,6 +315,29 @@ class GitAttachmentStore:
         else:
             tip = self._cached_tip(branch)
         return tip is not None and self._entry(tip, relpath) is not None
+
+    def has_tombstone(self, sha256: str) -> bool:
+        """Return whether a purge tombstone for *sha256* is in this store.
+
+        Tombstones live at ``files/tombstones/sha256/<xx>/<sha>.json`` next
+        to the ``files/objects/…`` layout. This reads the already-fetched
+        tip and never fetches: call :meth:`has` first on paths that need a
+        fresh tip. Never raises for git failures; purge stays a later phase.
+        """
+
+        validate_sha256(sha256)
+        try:
+            relpath = _tombstone_relpath(sha256)
+            branch = self._branch()
+            tip = self._cached_tip(branch) or self._fetch_head_tip()
+        except Exception:
+            return False
+        if tip is None:
+            return False
+        try:
+            return self._entry(tip, relpath) is not None
+        except Exception:
+            return False
 
     def put(
         self,

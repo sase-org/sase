@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from sase.bead.attachment_presentation import (
     attachment_availability,
     attachment_descriptor,
+    attachment_status_lines,
     attachment_view_path,
     strip_display_name,
 )
@@ -20,6 +21,18 @@ from sase.bead.model import BeadNoteAttachment, Issue, Status
 def handle_bead_attachment(args: argparse.Namespace) -> None:
     """Dispatch one ``sase bead attachment`` action."""
     action = getattr(args, "attachment_action", None)
+    if action in (None, "list", "open"):
+        # List and open never fetch; they report the state the command sees.
+        from sase.bead.attachments.fetch import fetch_context
+
+        with fetch_context(mode="never"):
+            _dispatch_bead_attachment(args, action)
+    else:
+        _dispatch_bead_attachment(args, action)
+
+
+def _dispatch_bead_attachment(args: argparse.Namespace, action: str | None) -> None:
+    """Run one ``sase bead attachment`` action inside its fetch context."""
     if action is None:
         _handle_bead_attachment_list(args)
     elif action == "path":
@@ -108,14 +121,14 @@ def _print_roster_lines(issue: Issue) -> None:
             sha256=attachment.sha256,
         )
         print(f"  {descriptor}")
-        if attachment_availability(attachment.sha256) == "cached":
-            view = attachment_view_path(attachment.sha256, attachment.name)
-            if view is not None:
-                print(f"    {view}")
-            else:
-                print("    \u2715 unavailable offline")
-        else:
-            print("    \u2715 unavailable offline")
+        for status_line in attachment_status_lines(
+            bead_id=issue.id,
+            name=attachment.name,
+            sha256=attachment.sha256,
+            size_bytes=attachment.size_bytes,
+            origin=getattr(attachment, "origin", None),
+        ):
+            print(f"    {status_line}")
 
 
 def _wire_with_availability(attachment: BeadNoteAttachment) -> dict[str, object]:
@@ -132,7 +145,12 @@ def _wire_with_availability(attachment: BeadNoteAttachment) -> dict[str, object]
         }
     if attachment.origin is not None:
         wire["origin"] = attachment.origin
-    availability = attachment_availability(attachment.sha256)
+    availability = attachment_availability(
+        attachment.sha256,
+        size_bytes=attachment.size_bytes,
+        origin=getattr(attachment, "origin", None),
+        name=attachment.name,
+    )
     wire["availability"] = availability
     if availability == "cached":
         view = attachment_view_path(attachment.sha256, attachment.name)
@@ -171,7 +189,13 @@ def _list_json(issues: Sequence[Issue]) -> str:
 
 
 def _handle_bead_attachment_path(args: argparse.Namespace) -> None:
-    """Print the absolute local view path for one attachment."""
+    """Print the absolute local view path for one attachment.
+
+    Explicit path always fetches: the object downloads from the shared store
+    even when it is above the auto-fetch cap.
+    """
+    from sase.bead.attachments.fetch import attachment_badge, fetch_context
+
     issue_id = args.id
     name = args.name
     bead_context = resolve_bead_operation_context([issue_id])
@@ -190,16 +214,29 @@ def _handle_bead_attachment_path(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
-    if attachment_availability(attachment.sha256) != "cached":
-        print(
-            f"Error: attachment {strip_display_name(name)} is "
-            "\u2715 unavailable offline "
-            "on this machine "
-            f"(no local object for sha256:{attachment.sha256[:12]}).",
-            file=sys.stderr,
+    with fetch_context(mode="force"):
+        state = attachment_availability(
+            attachment.sha256,
+            size_bytes=attachment.size_bytes,
+            origin=getattr(attachment, "origin", None),
+            name=attachment.name,
         )
-        sys.exit(1)
-    view_path = attachment_view_path(attachment.sha256, attachment.name)
+        if state != "cached":
+            badge = attachment_badge(
+                state,
+                size_bytes=attachment.size_bytes,
+                bead_id=resolved_id,
+                name=attachment.name,
+                origin=getattr(attachment, "origin", None),
+            )
+            detail = f" ({badge})" if badge else ""
+            print(
+                f"Error: attachment {strip_display_name(name)} is not available"
+                f"{detail} (no local object for sha256:{attachment.sha256[:12]}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        view_path = attachment_view_path(attachment.sha256, attachment.name)
     if view_path is None:
         print(
             f"Error: attachment {strip_display_name(name)} is "

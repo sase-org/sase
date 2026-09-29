@@ -1,0 +1,375 @@
+"""Lazy fetch, availability states, and badges for bead attachments.
+
+``read``, ``show``, and ``attachment path`` resolve each attachment in this
+order: local tombstone, local CAS hit, then the ``attachments-private`` git
+store. ``attachment_should_auto_fetch`` (core policy) decides whether the
+read fetches under the ``auto_fetch_max_bytes`` cap; ``-d/--download`` lifts
+the cap for one invocation and ``attachment path`` always fetches.
+``attachment list`` never fetches and reports the state it can see.
+
+A fetch or preview failure never fails ``show`` or ``read``: the state falls
+back to ``unavailable`` (or ``corrupt`` on a digest mismatch) and the command
+still exits 0.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import logging
+from collections.abc import Iterator
+from contextvars import ContextVar
+from dataclasses import dataclass, field
+from typing import Any, Literal
+
+log = logging.getLogger(__name__)
+
+FetchMode = Literal["auto", "never", "force"]
+"""``auto`` fetches under the cap, ``never`` only observes, ``force`` always."""
+
+AVAILABILITY_STATES = (
+    "cached",
+    "remote",
+    "not_downloaded",
+    "pending_upload",
+    "local_only",
+    "unavailable",
+    "purged",
+    "corrupt",
+)
+"""Every availability state. ``remote`` is transient: fetching callers never
+leave it user-visible."""
+
+
+def format_attachment_size(size_bytes: int | None) -> str:
+    """Format a byte count the way the write echo does."""
+    if size_bytes is None or size_bytes < 0:
+        return "unknown size"
+    if size_bytes < 1024:
+        return f"{size_bytes} bytes"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:g} KiB"
+    return f"{size_bytes / (1024 * 1024):g} MiB"
+
+
+@dataclass
+class FetchContext:
+    """One command's shared fetch inputs: store, outbox, cap, and mode."""
+
+    mode: FetchMode = "never"
+    project_key: str | None = None
+    store: Any | None = None
+    outbox: dict[str, Any] = field(default_factory=dict)
+    cap_bytes: int = 26214400
+    failed: set[str] = field(default_factory=set)
+    corrupt: set[str] = field(default_factory=set)
+
+
+_current: ContextVar[FetchContext | None] = ContextVar(
+    "attachment_fetch_context", default=None
+)
+
+
+def current_fetch_context() -> FetchContext | None:
+    """Return the ambient fetch context, or None outside one."""
+    return _current.get()
+
+
+def get_auto_fetch_cap() -> int:
+    """Return the configured auto-fetch ceiling, failing open to 25 MiB."""
+    try:
+        from sase.bead.config import get_attachment_auto_fetch_max_bytes
+
+        return get_attachment_auto_fetch_max_bytes()
+    except Exception:
+        return 26214400
+
+
+def should_auto_fetch(size_bytes: int, cap_bytes: int) -> bool:
+    """Return the core auto-fetch policy, failing open to True."""
+    try:
+        from sase.core.rust import require_rust_binding
+
+        return bool(
+            require_rust_binding("attachment_should_auto_fetch")(size_bytes, cap_bytes)
+        )
+    except Exception:
+        return True
+
+
+def build_fetch_context(*, mode: FetchMode = "never") -> FetchContext:
+    """Discover the shared store and outbox once for one command.
+
+    Never raises: a missing store or unreadable outbox degrades to local
+    observation instead of failing the read.
+    """
+    cap = get_auto_fetch_cap()
+    project_key: str | None = None
+    store: Any | None = None
+    outbox: dict[str, Any] = {}
+    try:
+        from sase.bead.attachments.upload import (
+            discover_shared_store,
+            resolve_project_key,
+        )
+
+        project_key = resolve_project_key(None)
+    except Exception as exc:
+        log.debug("attachment fetch project resolution skipped: %s", exc)
+        project_key = None
+    if project_key:
+        try:
+            store = discover_shared_store(None)
+        except Exception as exc:
+            log.debug("attachment shared-store discovery skipped: %s", exc)
+            store = None
+        try:
+            from sase.bead.attachments.outbox import read_outbox
+
+            outbox = {entry.digest: entry for entry in read_outbox(project_key)}
+        except Exception as exc:
+            log.debug("attachment outbox read skipped: %s", exc)
+            outbox = {}
+    return FetchContext(
+        mode=mode, project_key=project_key, store=store, outbox=outbox, cap_bytes=cap
+    )
+
+
+@contextlib.contextmanager
+def fetch_context(*, mode: FetchMode = "never") -> Iterator[FetchContext]:
+    """Set the ambient fetch context for one command's render."""
+    context = build_fetch_context(mode=mode)
+    token = _current.set(context)
+    try:
+        yield context
+    finally:
+        _current.reset(token)
+
+
+def _local_store() -> Any | None:
+    try:
+        from sase.bead.attachments.store import LocalAttachmentStore
+
+        return LocalAttachmentStore()
+    except Exception:
+        return None
+
+
+def _has_local_tombstone(cas: Any, sha256: str) -> bool:
+    try:
+        tombstones = cas.tombstones_dir
+    except Exception:
+        return False
+    try:
+        return (tombstones / sha256).exists() or (
+            tombstones / f"{sha256}.json"
+        ).exists()
+    except Exception:
+        return False
+
+
+def _store_has(store: Any, sha256: str) -> bool:
+    try:
+        return bool(store.has(sha256))
+    except Exception:
+        return False
+
+
+def _store_has_tombstone(store: Any, sha256: str) -> bool:
+    probe = getattr(store, "has_tombstone", None)
+    if probe is None:
+        return False
+    try:
+        return bool(probe(sha256))
+    except Exception:
+        return False
+
+
+def ensure_fetched(
+    context: FetchContext,
+    sha256: str,
+    *,
+    size_bytes: int | None = None,
+    name: str | None = None,
+) -> bool:
+    """Fetch *sha256* into the local CAS through *context*'s store.
+
+    Returns True when the local object is present and digest-verified. A
+    digest mismatch records ``corrupt`` and installs nothing; any other
+    failure records ``failed``. Never raises.
+    """
+    del size_bytes, name  # Reserved for progress reporting (later phase).
+    cas = _local_store()
+    if cas is None:
+        return False
+    try:
+        if cas.has(sha256) and cas.verify(sha256):
+            return True
+    except Exception:
+        return False
+    store = context.store
+    if store is None or sha256 in context.failed or sha256 in context.corrupt:
+        return False
+    try:
+        store.get(sha256, cas.root)
+    except Exception as exc:
+        transient = bool(getattr(exc, "transient", True))
+        message = str(exc).lower()
+        if not transient or "mismatch" in message or "hash" in message:
+            context.corrupt.add(sha256)
+        else:
+            context.failed.add(sha256)
+        log.debug("attachment fetch of %s… failed: %s", sha256[:12], exc)
+        return False
+    try:
+        if cas.has(sha256) and cas.verify(sha256):
+            return True
+    except Exception:
+        pass
+    context.failed.add(sha256)
+    return False
+
+
+def attachment_state(
+    sha256: str,
+    *,
+    size_bytes: int | None = None,
+    origin: str | None = None,
+    name: str | None = None,
+    context: FetchContext | None = None,
+) -> str:
+    """Return the availability state for one attachment digest.
+
+    Never raises and never fails the caller: unexpected errors degrade to
+    ``unavailable`` (or ``cached`` when the local object verifies). With no
+    shared store the legacy two states hold: a verified local object is
+    ``cached``, anything else ``unavailable``. ``remote`` is never returned;
+    observation-only callers see ``not_downloaded`` for store-held objects.
+    """
+    del origin, name  # Badge inputs; state needs only digest, size, and context.
+    from sase.bead.attachments.store import validate_sha256
+
+    try:
+        validate_sha256(sha256)
+    except Exception:
+        return "unavailable"
+    context = context if context is not None else _current.get()
+    if context is None:
+        context = FetchContext()
+    cas = _local_store()
+    if cas is None:
+        return "unavailable"
+    try:
+        local_present = bool(cas.has(sha256))
+    except Exception:
+        return "unavailable"
+    try:
+        if _has_local_tombstone(cas, sha256):
+            return "purged"
+    except Exception:
+        pass
+    store = context.store
+    remote_has = _store_has(store, sha256) if store is not None else False
+    if store is not None and _store_has_tombstone(store, sha256):
+        return "purged"
+    if sha256 in context.corrupt:
+        return "corrupt"
+    try:
+        verified = local_present and bool(cas.verify(sha256))
+    except Exception:
+        verified = False
+    if local_present and not verified:
+        return "corrupt"
+    if local_present and (store is None or remote_has):
+        return "cached"
+    if sha256 in context.outbox:
+        return "pending_upload"
+    if local_present:
+        return "local_only"
+    if store is not None and remote_has:
+        if context.mode == "force" or (
+            context.mode == "auto"
+            and size_bytes is not None
+            and should_auto_fetch(size_bytes, context.cap_bytes)
+        ):
+            if ensure_fetched(context, sha256):
+                return "cached"
+            if sha256 in context.corrupt:
+                return "corrupt"
+            return "unavailable"
+        return "not_downloaded"
+    return "unavailable"
+
+
+def resolve_badge_origin(
+    sha256: str,
+    attachment_origin: str | None,
+    context: FetchContext | None = None,
+) -> str:
+    """Return the machine name for the pending/local-only badges."""
+    context = context if context is not None else _current.get()
+    if context is not None:
+        try:
+            entry = context.outbox.get(sha256)
+            entry_origin = getattr(entry, "origin", None)
+            if isinstance(entry_origin, str) and entry_origin.strip():
+                return entry_origin.strip()
+        except Exception:
+            pass
+    if isinstance(attachment_origin, str) and attachment_origin.strip():
+        return attachment_origin.strip()
+    try:
+        from sase.config import get_machine_name
+
+        machine = get_machine_name()
+        if isinstance(machine, str) and machine.strip():
+            return machine.strip()
+    except Exception:
+        pass
+    return "this machine"
+
+
+def attachment_badge(
+    state: str,
+    *,
+    size_bytes: int | None = None,
+    bead_id: str | None = None,
+    name: str | None = None,
+    origin: str | None = None,
+) -> str | None:
+    """Return the display badge for *state*, or None for ``cached``/``remote``."""
+    if state in ("cached", "remote"):
+        return None
+    if state == "not_downloaded":
+        size = format_attachment_size(size_bytes)
+        badge = f"⇣ not downloaded · {size}"
+        if bead_id and name:
+            badge += f" — sase bead attachment path {bead_id} {name}"
+        return badge
+    if state == "pending_upload":
+        return f"⇡ pending upload ({origin or 'unknown'})"
+    if state == "local_only":
+        return f"⚠ only on {origin or 'this machine'}"
+    if state == "unavailable":
+        return "✕ unavailable offline"
+    if state == "purged":
+        return "(purged)"
+    if state == "corrupt":
+        return "‼ digest mismatch"
+    return None
+
+
+__all__ = [
+    "AVAILABILITY_STATES",
+    "FetchContext",
+    "FetchMode",
+    "attachment_badge",
+    "attachment_state",
+    "build_fetch_context",
+    "current_fetch_context",
+    "ensure_fetched",
+    "fetch_context",
+    "format_attachment_size",
+    "get_auto_fetch_cap",
+    "resolve_badge_origin",
+    "should_auto_fetch",
+]

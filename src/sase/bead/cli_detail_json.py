@@ -124,7 +124,14 @@ def _enrich_note_dicts_with_availability(issue: Issue) -> list[dict[str, object]
             name = wire.get("name")
             if not isinstance(sha, str) or not isinstance(name, str):
                 continue
-            availability = attachment_availability(sha)
+            size = wire.get("size_bytes")
+            origin = wire.get("origin")
+            availability = attachment_availability(
+                sha,
+                size_bytes=size if isinstance(size, int) else None,
+                origin=origin if isinstance(origin, str) else None,
+                name=name,
+            )
             wire["availability"] = availability
             if availability == "cached":
                 view = attachment_view_path(sha, name)
@@ -158,7 +165,14 @@ def _evidence_attachment_dicts_with_availability(
         sha = wire.get("sha256")
         name = wire.get("name")
         if isinstance(sha, str) and isinstance(name, str):
-            availability = attachment_availability(sha)
+            size = wire.get("size_bytes")
+            origin = wire.get("origin")
+            availability = attachment_availability(
+                sha,
+                size_bytes=size if isinstance(size, int) else None,
+                origin=origin if isinstance(origin, str) else None,
+                name=name,
+            )
             entry["availability"] = availability
             if availability == "cached":
                 view = attachment_view_path(sha, name)

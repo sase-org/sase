@@ -54,13 +54,11 @@ def prose_with_chips(text: str, names: Any = None) -> str:
     return _ATTACHMENT_TOKEN_RE.sub(_repl, text)
 
 
-def _format_attachment_size(size_bytes: int) -> str:
+def _format_attachment_size(size_bytes: int | None) -> str:
     """Format a byte count the way the write echo does."""
-    if size_bytes < 1024:
-        return f"{size_bytes} bytes"
-    if size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:g} KiB"
-    return f"{size_bytes / (1024 * 1024):g} MiB"
+    from sase.bead.attachments.fetch import format_attachment_size
+
+    return format_attachment_size(size_bytes)
 
 
 def _format_attachment_dims(image: Any) -> str | None:
@@ -105,8 +103,33 @@ def attachment_descriptor(
     return " \u00b7 ".join(parts)
 
 
-def attachment_availability(sha256: str) -> str:
-    """Return ``cached`` when the local CAS holds the object, else ``unavailable``."""
+def attachment_availability(
+    sha256: str,
+    *,
+    size_bytes: int | None = None,
+    origin: str | None = None,
+    name: str | None = None,
+) -> str:
+    """Return the availability state for one attachment digest.
+
+    States are ``cached``, ``not_downloaded``, ``pending_upload``,
+    ``local_only``, ``unavailable``, ``purged``, and ``corrupt``. With no
+    shared ``attachments-private`` store the legacy two states hold: a
+    verified local object is ``cached``, anything else ``unavailable``.
+    ``remote`` is transient and never returned. Never raises.
+    """
+    try:
+        from sase.bead.attachments.fetch import attachment_state
+
+        if isinstance(size_bytes, bool):
+            size_bytes = None
+        if size_bytes is not None and (
+            not isinstance(size_bytes, int) or size_bytes < 0
+        ):
+            size_bytes = None
+        return attachment_state(sha256, size_bytes=size_bytes, origin=origin, name=name)
+    except Exception:
+        pass
     try:
         from sase.bead.attachments.store import LocalAttachmentStore
 
@@ -115,6 +138,51 @@ def attachment_availability(sha256: str) -> str:
     except Exception:
         pass
     return "unavailable"
+
+
+def attachment_status_lines(
+    *,
+    bead_id: str | None,
+    name: str,
+    sha256: str,
+    size_bytes: int | None = None,
+    origin: str | None = None,
+) -> list[str]:
+    """Return view-path plus badge lines for one attachment in text output.
+
+    ``cached`` renders the extension-preserving view path. ``pending_upload``
+    and ``local_only`` render the view path (the bytes are local) plus the
+    badge. Every other state renders only its badge.
+    """
+    from sase.bead.attachments.fetch import attachment_badge, resolve_badge_origin
+
+    state = attachment_availability(
+        sha256, size_bytes=size_bytes, origin=origin, name=name
+    )
+    lines: list[str] = []
+    if state == "cached":
+        view = attachment_view_path(sha256, name)
+        if view is not None:
+            lines.append(view)
+        else:
+            badge = attachment_badge("unavailable")
+            if badge is not None:
+                lines.append(badge)
+        return lines
+    if state in ("pending_upload", "local_only"):
+        view = attachment_view_path(sha256, name)
+        if view is not None:
+            lines.append(view)
+    badge = attachment_badge(
+        state,
+        size_bytes=size_bytes if isinstance(size_bytes, int) else None,
+        bead_id=bead_id,
+        name=name,
+        origin=resolve_badge_origin(sha256, origin),
+    )
+    if badge is not None:
+        lines.append(badge)
+    return lines
 
 
 def attachment_view_path(sha256: str, name: str) -> str | None:
@@ -163,6 +231,7 @@ def extract_attachment_tokens(text: str) -> list[str]:
 __all__ = [
     "attachment_availability",
     "attachment_descriptor",
+    "attachment_status_lines",
     "attachment_view_path",
     "compact_attachment_suffix",
     "extract_attachment_tokens",
