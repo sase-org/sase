@@ -126,8 +126,11 @@ class FileCompletionPredictionMixin(FileCompletionWorkerMixin):
         try:
             settings = getattr(self, "_prompt_completion_settings", None)
             if callable(settings):
-                mode = getattr(settings(), "next_word", "chain")
+                parsed = settings()
+                mode = getattr(parsed, "next_word", "chain")
                 if mode == "off":
+                    return None
+                if getattr(parsed, "word_ranking", "smart") != "smart":
                     return None
         except Exception:
             pass

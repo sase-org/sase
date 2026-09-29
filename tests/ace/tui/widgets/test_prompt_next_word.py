@@ -28,8 +28,11 @@ def _corpus_texts() -> list[str]:
         "Can you help me implement it now",
         "Can you help me implement it today",
         "Can you help me implement it soon",
-        "Can you help me implement the plan",
-        "Can you help me implement that feature",
+        "Can you help me implement it later",
+        "Can you help me implement it quickly",
+        "Can you help me implement it cleanly",
+        "Can you help me implement it safely",
+        "Can you help me implement it tomorrow",
     ]
 
 
@@ -187,6 +190,91 @@ async def test_backspace_and_cursor_move_clear_ghost() -> None:
         await pilot.pause()
         assert ta._next_word_ghost_visible() is True
         await pilot.press("left")
+        assert ta._next_word_ghost_visible() is False
+        assert ta.suggestion == ""
+
+
+async def test_stale_ghost_clears_textual_suggestion() -> None:
+    app = NextWordTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me")
+        ta.cursor_location = (0, len(ta.text))
+        ta._arm_next_word_chain()
+        await pilot.pause()
+        assert ta._next_word_ghost_visible() is True
+        # Backspace invalidates the anchor: the stale Textual suggestion
+        # must clear so no ghost is drawn or inserted.
+        await pilot.press("backspace")
+        assert ta._next_word_ghost_visible() is False
+        assert ta.suggestion == ""
+        # Re-arm, then Home: cursor leaves the anchor row end.
+        ta.load_text("Can you help me")
+        ta.cursor_location = (0, len(ta.text))
+        ta._arm_next_word_chain()
+        await pilot.pause()
+        assert ta._next_word_ghost_visible() is True
+        await pilot.press("home")
+        assert ta._next_word_ghost_visible() is False
+        assert ta.suggestion == ""
+
+
+async def test_left_then_right_is_plain_cursor_move() -> None:
+    app = NextWordTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me")
+        ta.cursor_location = (0, len(ta.text))
+        ta._arm_next_word_chain()
+        await pilot.pause()
+        assert ta._next_word_ghost_visible() is True
+        await pilot.press("left")
+        assert ta.suggestion == ""
+        before = ta.text
+        await pilot.press("right")
+        assert ta.text == before
+        assert ta.suggestion == ""
+        assert ta._next_word_ghost_visible() is False
+
+
+async def test_home_then_ctrl_f_inserts_nothing() -> None:
+    app = NextWordTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me")
+        ta.cursor_location = (0, len(ta.text))
+        ta._arm_next_word_chain()
+        await pilot.pause()
+        assert ta._next_word_ghost_visible() is True
+        await pilot.press("home")
+        assert ta.suggestion == ""
+        before = ta.text
+        await pilot.press("ctrl+f")
+        assert ta.text == before
+        assert ta.suggestion == ""
+        assert ta._next_word_ghost_visible() is False
+
+
+async def test_undo_and_redo_clear_stale_ghost() -> None:
+    app = NextWordTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me")
+        ta.cursor_location = (0, len(ta.text))
+        ta._arm_next_word_chain()
+        await pilot.pause()
+        assert ta._next_word_ghost_visible() is True
+        before = ta.text
+        await pilot.press("ctrl+t")
+        assert ta.text != before
+        ta.undo()
+        await pilot.pause()
+        assert ta.text == before
+        assert ta.suggestion == ""
+        assert ta._next_word_ghost_visible() is False
+        ta.redo()
+        await pilot.pause()
+        assert ta.suggestion == ""
         assert ta._next_word_ghost_visible() is False
 
 

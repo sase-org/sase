@@ -13,7 +13,7 @@ from sase.ace.tui.widgets._file_completion_prediction import (
 from sase.core.prompt_prediction_wire import (
     PromptPredictionCandidate,
     PromptPredictionResult,
-    PromptPredictionSourceShares,
+    _PromptPredictionSourceShares,
     PromptPrefixRankMatch,
     PromptPrefixRankResult,
 )
@@ -113,7 +113,7 @@ def _result(ghost: list[str], candidates: list[str]) -> PromptPredictionResult:
                 probability=0.8,
                 support=4,
                 order=2,
-                source_shares=PromptPredictionSourceShares(history=1.0),
+                source_shares=_PromptPredictionSourceShares(history=1.0),
                 continuation=[],
             )
             for word in candidates
@@ -258,5 +258,18 @@ def test_rank_prefix_short_circuits_when_session_disabled(
 ) -> None:
     app.model = _FakeModel(rank_result=_rank_result(["implement"]))
     app.disabled = True
+    assert widget._rank_prefix_context("help me ", "imp") is None
+    assert app.model.requests == []
+
+
+def test_rank_prefix_returns_none_when_word_ranking_recent(
+    app: _StubApp, widget: _StubWidget
+) -> None:
+    from types import SimpleNamespace
+
+    app.model = _FakeModel(rank_result=_rank_result(["implement"]))
+    widget._prompt_completion_settings = lambda: SimpleNamespace(  # type: ignore[attr-defined]
+        next_word="chain", word_ranking="recent"
+    )
     assert widget._rank_prefix_context("help me ", "imp") is None
     assert app.model.requests == []

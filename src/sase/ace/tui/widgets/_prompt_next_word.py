@@ -274,8 +274,7 @@ class PromptNextWordMixin(_MixinBase):
         if self._next_word_ghost_text() is None:
             self._next_word_ghost = None
             try:
-                if not self.suggestion:
-                    pass
+                self.suggestion = ""
             except Exception:
                 pass
             if getattr(self, "_next_word_chain", None) is None:

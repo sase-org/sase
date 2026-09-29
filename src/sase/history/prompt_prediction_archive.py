@@ -65,14 +65,14 @@ _COLLAPSE_BLANKS_RE: Final = re.compile(r"\n[ \t]*\n(?:[ \t]*\n)+")
 
 
 @dataclass(frozen=True, slots=True)
-class ArchivePredictionTarget:
+class _ArchivePredictionTarget:
     """One enabled project's agents-sidecar archive selected for extraction."""
 
     project_key: str
     sidecar_path: Path
 
 
-def _list_archive_prediction_targets() -> tuple[ArchivePredictionTarget, ...]:
+def _list_archive_prediction_targets() -> tuple[_ArchivePredictionTarget, ...]:
     """Return enabled projects whose agents-sidecar checkout exists.
 
     Never raises: sync/inventory failures yield an empty selection and a
@@ -88,7 +88,7 @@ def _list_archive_prediction_targets() -> tuple[ArchivePredictionTarget, ...]:
     except Exception:
         log.debug("Archive prediction target resolution failed", exc_info=True)
         return ()
-    targets: list[ArchivePredictionTarget] = []
+    targets: list[_ArchivePredictionTarget] = []
     for target in selection.targets:
         try:
             exists = target.sidecar_path.is_dir()
@@ -96,7 +96,7 @@ def _list_archive_prediction_targets() -> tuple[ArchivePredictionTarget, ...]:
             exists = False
         if exists:
             targets.append(
-                ArchivePredictionTarget(
+                _ArchivePredictionTarget(
                     project_key=target.project_key,
                     sidecar_path=target.sidecar_path,
                 )
@@ -153,7 +153,7 @@ def _history_paragraph_hashes(texts: list[str]) -> set[str]:
 
 
 def archive_prediction_source_token(
-    targets: tuple[ArchivePredictionTarget, ...] | None = None,
+    targets: tuple[_ArchivePredictionTarget, ...] | None = None,
 ) -> tuple[tuple[str, str, int, int], ...]:
     """Return a cheap staleness token for the archive row inputs.
 
@@ -188,7 +188,7 @@ def archive_prediction_source_token(
 def build_archive_prediction_rows(
     *,
     history_texts: list[str] | None = None,
-    targets: tuple[ArchivePredictionTarget, ...] | None = None,
+    targets: tuple[_ArchivePredictionTarget, ...] | None = None,
     inventory_fn: Callable[[Path], Iterable[Any]] | None = None,
 ) -> list[PromptPredictionRow]:
     """Build deduped prediction rows from the canonical prompt archives.
@@ -205,7 +205,7 @@ def build_archive_prediction_rows(
         else [row.text for row in _load_history_rows()]
     )
     resolved = _list_archive_prediction_targets() if targets is None else targets
-    candidates: list[tuple[str, int, str, ArchivePredictionTarget, Any]] = []
+    candidates: list[tuple[str, int, str, _ArchivePredictionTarget, Any]] = []
     for target in resolved:
         for document in _inventory_documents(target, inventory_fn):
             if document.parse_error is not None:
@@ -262,22 +262,54 @@ def _load_history_rows() -> list[PromptPredictionRow]:
 
 
 def _inventory_documents(
-    target: ArchivePredictionTarget,
+    target: _ArchivePredictionTarget,
     inventory_fn: Callable[[Path], Iterable[Any]] | None,
 ) -> list[Any]:
     if inventory_fn is not None:
         return list(inventory_fn(target.sidecar_path))
     from sase.core.prompt_archive_facade import prompt_archive_inventory
 
+    # Bound reads to the recent month directories so the filter in
+    # ``build_archive_prediction_rows`` does not first load every month's
+    # bodies. The facade accepts ``month=``; fall back to one unbounded
+    # read when it does not.
     try:
-        return list(prompt_archive_inventory(target.sidecar_path))
-    except Exception:
-        log.debug("Archive inventory failed for %s", target.project_key, exc_info=True)
-        return []
+        prompts_root = target.sidecar_path / "prompts"
+        month_dirs = sorted(
+            path
+            for path in prompts_root.iterdir()
+            if path.is_dir() and _MONTH_RE.match(path.name)
+        )
+    except OSError:
+        month_dirs = []
+    if not month_dirs:
+        try:
+            return list(prompt_archive_inventory(target.sidecar_path))
+        except Exception:
+            log.debug(
+                "Archive inventory failed for %s", target.project_key, exc_info=True
+            )
+            return []
+    documents: list[Any] = []
+    for month_dir in month_dirs[-ARCHIVE_RECENT_MONTHS:]:
+        try:
+            try:
+                batch = prompt_archive_inventory(
+                    target.sidecar_path, month=month_dir.name
+                )
+            except TypeError:
+                return list(prompt_archive_inventory(target.sidecar_path))
+        except Exception:
+            log.debug(
+                "Archive inventory failed for %s", target.project_key, exc_info=True
+            )
+            continue
+        documents.extend(batch)
+    return documents
 
 
 def _recent_months(
-    candidates: list[tuple[str, int, str, ArchivePredictionTarget, Any]],
+    candidates: list[tuple[str, int, str, _ArchivePredictionTarget, Any]],
 ) -> dict[str, set[str]]:
     months: dict[str, set[str]] = {}
     for month, _mtime, _relpath, target, _document in candidates:
@@ -340,7 +372,6 @@ __all__ = [
     "ARCHIVE_RECENT_MONTHS",
     "ARCHIVE_SOURCE_ROLE",
     "ARCHIVE_TOKEN_BUDGET",
-    "ArchivePredictionTarget",
     "ArchivePredictionToken",
     "archive_prediction_source_token",
     "build_archive_prediction_rows",

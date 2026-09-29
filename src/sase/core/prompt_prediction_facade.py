@@ -125,6 +125,7 @@ class PromptPredictionModel:
         )
 
 
+# symvision: tools/prompt_prediction_replay
 def evaluate_prompt_prediction_replay(
     rows: Sequence[PromptPredictionRow],
     options: PromptPredictionReplayOptions,

@@ -128,7 +128,7 @@ class PromptPredictionRequest:
 
 
 @dataclass(frozen=True)
-class PromptPredictionSourceShares:
+class _PromptPredictionSourceShares:
     """Per-source share of one candidate's combined mass at its best order."""
 
     history: float = 0.0
@@ -148,11 +148,11 @@ class PromptPredictionSourceShares:
         }
 
 
-def prompt_prediction_source_shares_from_dict(
+def _prompt_prediction_source_shares_from_dict(
     data: dict[str, Any],
-) -> PromptPredictionSourceShares:
+) -> _PromptPredictionSourceShares:
     """Build shares from a Rust wire dict (unversioned record)."""
-    return PromptPredictionSourceShares(
+    return _PromptPredictionSourceShares(
         history=float(data.get("history", 0.0)),
         project=float(data.get("project", 0.0)),
         session=float(data.get("session", 0.0)),
@@ -171,8 +171,8 @@ class PromptPredictionCandidate:
     probability: float
     support: int
     order: int
-    source_shares: PromptPredictionSourceShares = field(
-        default_factory=PromptPredictionSourceShares
+    source_shares: _PromptPredictionSourceShares = field(
+        default_factory=_PromptPredictionSourceShares
     )
     continuation: list[str] = field(default_factory=list)
 
@@ -190,7 +190,7 @@ class PromptPredictionCandidate:
         }
 
 
-def prompt_prediction_candidate_from_dict(
+def _prompt_prediction_candidate_from_dict(
     data: dict[str, Any],
 ) -> PromptPredictionCandidate:
     """Build a candidate from a Rust wire dict (unversioned record)."""
@@ -202,7 +202,7 @@ def prompt_prediction_candidate_from_dict(
         probability=float(data["probability"]),
         support=int(data["support"]),
         order=int(data["order"]),
-        source_shares=prompt_prediction_source_shares_from_dict(dict(shares)),
+        source_shares=_prompt_prediction_source_shares_from_dict(dict(shares)),
         continuation=[str(word) for word in data.get("continuation", [])],
     )
 
@@ -242,7 +242,7 @@ def prompt_prediction_result_from_dict(
         confident=bool(data.get("confident", False)),
         ghost=[str(word) for word in data.get("ghost", [])],
         candidates=[
-            prompt_prediction_candidate_from_dict(dict(row))
+            _prompt_prediction_candidate_from_dict(dict(row))
             for row in data.get("candidates", [])
         ],
     )
@@ -290,7 +290,7 @@ class PromptPrefixRankMatch:
         }
 
 
-def prompt_prefix_rank_match_from_dict(
+def _prompt_prefix_rank_match_from_dict(
     data: dict[str, Any],
 ) -> PromptPrefixRankMatch:
     """Build a match from a Rust wire dict (unversioned record)."""
@@ -329,7 +329,7 @@ def prompt_prefix_rank_result_from_dict(
         schema_version=int(data["schema_version"]),
         context_words=[str(word) for word in data.get("context_words", [])],
         matches=[
-            prompt_prefix_rank_match_from_dict(dict(row))
+            _prompt_prefix_rank_match_from_dict(dict(row))
             for row in data.get("matches", [])
         ],
     )
@@ -375,6 +375,7 @@ class PromptPredictionReplayOptions:
         }
 
 
+# symvision: tools/prompt_prediction_replay
 @dataclass(frozen=True)
 class PromptPredictionReplayGateMetrics:
     """Gated metrics for one threshold setting.
@@ -392,7 +393,7 @@ class PromptPredictionReplayGateMetrics:
     run_max: int = 0
 
 
-def prompt_prediction_replay_gate_metrics_from_dict(
+def _prompt_prediction_replay_gate_metrics_from_dict(
     data: dict[str, Any],
 ) -> PromptPredictionReplayGateMetrics:
     """Build gate metrics from a Rust wire dict (unversioned record)."""
@@ -407,6 +408,7 @@ def prompt_prediction_replay_gate_metrics_from_dict(
     )
 
 
+# symvision: tools/prompt_prediction_replay
 @dataclass(frozen=True)
 class PromptPredictionReplayCohort:
     """One cohort slice: ungated top-1/top-3 plus gated metrics per preset."""
@@ -426,7 +428,7 @@ class PromptPredictionReplayCohort:
     )
 
 
-def prompt_prediction_replay_cohort_from_dict(
+def _prompt_prediction_replay_cohort_from_dict(
     data: dict[str, Any],
 ) -> PromptPredictionReplayCohort:
     """Build a cohort slice from a Rust wire dict (unversioned record)."""
@@ -435,20 +437,20 @@ def prompt_prediction_replay_cohort_from_dict(
         positions=int(data.get("positions", 0)),
         top1=float(data.get("top1", 0.0)),
         top3=float(data.get("top3", 0.0)),
-        cautious=prompt_prediction_replay_gate_metrics_from_dict(
+        cautious=_prompt_prediction_replay_gate_metrics_from_dict(
             dict(data.get("cautious", {}))
         ),
-        balanced=prompt_prediction_replay_gate_metrics_from_dict(
+        balanced=_prompt_prediction_replay_gate_metrics_from_dict(
             dict(data.get("balanced", {}))
         ),
-        eager=prompt_prediction_replay_gate_metrics_from_dict(
+        eager=_prompt_prediction_replay_gate_metrics_from_dict(
             dict(data.get("eager", {}))
         ),
     )
 
 
 @dataclass(frozen=True)
-class PromptPredictionReplaySweepPoint:
+class _PromptPredictionReplaySweepPoint:
     """One threshold-grid point swept without replaying."""
 
     min_p: float
@@ -460,13 +462,13 @@ class PromptPredictionReplaySweepPoint:
     novel_precision: float | None = None
 
 
-def prompt_prediction_replay_sweep_point_from_dict(
+def _prompt_prediction_replay_sweep_point_from_dict(
     data: dict[str, Any],
-) -> PromptPredictionReplaySweepPoint:
+) -> _PromptPredictionReplaySweepPoint:
     """Build a sweep point from a Rust wire dict (unversioned record)."""
     precision = data.get("precision")
     novel_precision = data.get("novel_precision")
-    return PromptPredictionReplaySweepPoint(
+    return _PromptPredictionReplaySweepPoint(
         min_p=float(data["min_p"]),
         min_margin=float(data["min_margin"]),
         min_support=int(data["min_support"]),
@@ -499,7 +501,7 @@ class PromptPredictionReplayReport:
         default_factory=PromptPredictionReplayGateMetrics
     )
     cohorts: list[PromptPredictionReplayCohort] = field(default_factory=list)
-    sweep: list[PromptPredictionReplaySweepPoint] = field(default_factory=list)
+    sweep: list[_PromptPredictionReplaySweepPoint] = field(default_factory=list)
     latency_us_p50: int = 0
     latency_us_p95: int = 0
     corpus_bytes: int = 0
@@ -521,21 +523,21 @@ def prompt_prediction_replay_report_from_dict(
         positions_total=int(data.get("positions_total", 0)),
         overall_top1=float(data.get("overall_top1", 0.0)),
         overall_top3=float(data.get("overall_top3", 0.0)),
-        cautious=prompt_prediction_replay_gate_metrics_from_dict(
+        cautious=_prompt_prediction_replay_gate_metrics_from_dict(
             dict(data.get("cautious", {}))
         ),
-        balanced=prompt_prediction_replay_gate_metrics_from_dict(
+        balanced=_prompt_prediction_replay_gate_metrics_from_dict(
             dict(data.get("balanced", {}))
         ),
-        eager=prompt_prediction_replay_gate_metrics_from_dict(
+        eager=_prompt_prediction_replay_gate_metrics_from_dict(
             dict(data.get("eager", {}))
         ),
         cohorts=[
-            prompt_prediction_replay_cohort_from_dict(dict(row))
+            _prompt_prediction_replay_cohort_from_dict(dict(row))
             for row in data.get("cohorts", [])
         ],
         sweep=[
-            prompt_prediction_replay_sweep_point_from_dict(dict(row))
+            _prompt_prediction_replay_sweep_point_from_dict(dict(row))
             for row in data.get("sweep", [])
         ],
         latency_us_p50=int(data.get("latency_us_p50", 0)),
@@ -597,7 +599,6 @@ __all__ = [
     "PromptPredictionCorpusOptions",
     "PromptPredictionModelConfig",
     "PromptPredictionRequest",
-    "PromptPredictionSourceShares",
     "PromptPredictionCandidate",
     "PromptPredictionResult",
     "PromptPrefixRankRequest",
@@ -607,16 +608,9 @@ __all__ = [
     "PromptPredictionReplayOptions",
     "PromptPredictionReplayGateMetrics",
     "PromptPredictionReplayCohort",
-    "PromptPredictionReplaySweepPoint",
     "PromptPredictionReplayReport",
-    "prompt_prediction_source_shares_from_dict",
-    "prompt_prediction_candidate_from_dict",
     "prompt_prediction_result_from_dict",
-    "prompt_prefix_rank_match_from_dict",
     "prompt_prefix_rank_result_from_dict",
     "prompt_prediction_corpus_stats_from_dict",
-    "prompt_prediction_replay_gate_metrics_from_dict",
-    "prompt_prediction_replay_cohort_from_dict",
-    "prompt_prediction_replay_sweep_point_from_dict",
     "prompt_prediction_replay_report_from_dict",
 ]

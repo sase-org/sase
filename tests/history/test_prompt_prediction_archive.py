@@ -10,7 +10,7 @@ from sase.history.prompt_prediction_archive import (
     ARCHIVE_CORPUS_WEIGHT,
     ARCHIVE_SOURCE_ROLE,
     ARCHIVE_TOKEN_BUDGET,
-    ArchivePredictionTarget,
+    _ArchivePredictionTarget,
     archive_prediction_source_token,
     build_archive_prediction_rows,
     _clean_archive_body,
@@ -42,8 +42,8 @@ def _doc(
     )
 
 
-def _target(tmp_path: Path, project_key: str = "sase") -> ArchivePredictionTarget:
-    return ArchivePredictionTarget(project_key=project_key, sidecar_path=tmp_path)
+def _target(tmp_path: Path, project_key: str = "sase") -> _ArchivePredictionTarget:
+    return _ArchivePredictionTarget(project_key=project_key, sidecar_path=tmp_path)
 
 
 def _inventory(docs: list[SimpleNamespace]):  # type: ignore[no-untyped-def]

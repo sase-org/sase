@@ -34,7 +34,7 @@ from sase.core.prompt_prediction_wire import (
     PromptPredictionModelConfig,
     PromptPredictionResult,
     PromptPredictionRow,
-    PromptPredictionSourceShares,
+    _PromptPredictionSourceShares,
 )
 
 from ._completion_helpers import CompletionTestApp
@@ -54,7 +54,7 @@ def _candidate(
         probability=probability,
         support=3,
         order=order,
-        source_shares=PromptPredictionSourceShares(history=1.0),
+        source_shares=_PromptPredictionSourceShares(history=1.0),
         continuation=list(continuation or []),
     )
 

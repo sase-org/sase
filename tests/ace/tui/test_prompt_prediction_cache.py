@@ -486,3 +486,76 @@ def test_compile_archive_corpus_never_raises() -> None:
         side_effect=OSError("sidecar gone"),
     ):
         assert _compile_archive_corpus(None) is None
+
+
+def test_loader_builds_empty_archive_once_across_three_warms() -> None:
+    import time as _time
+
+    patches = _loader_patches()
+    with (
+        patches[0],
+        patches[1],
+        patches[2],
+        patches[3],
+        patch(
+            "sase.history.prompt_prediction_archive.archive_prediction_source_token",
+            return_value=_ARCHIVE_TOKEN,
+        ),
+        patch(
+            "sase.history.prompt_prediction_archive.build_archive_prediction_rows",
+            return_value=[],
+        ) as build_archive,
+    ):
+        first = _load_prompt_prediction_caches(
+            previous_token=None,
+            history_corpus=None,
+            session_corpus=None,
+            session_texts=(),
+            session_dirty=False,
+            known_history_texts=frozenset(),
+            known_resolver=None,
+            include_archive=True,
+            archive_corpus=None,
+            archive_token=None,
+            archive_built_at=0.0,
+        )
+    assert first is not None
+    assert first.archive_corpus is None
+    assert first.archive_token == _ARCHIVE_TOKEN
+    assert first.archive_built_at > 0
+    assert build_archive.call_count == 1
+    assert first.history_corpus is not None
+
+    # Two more warms with an unchanged token must not rebuild the empty
+    # archive: the build time throttles them.
+    for _ in range(2):
+        with (
+            patch(
+                "sase.history.prompt_prediction_rows.prompt_prediction_source_token",
+                return_value=_SOURCE_TOKEN,
+            ),
+            patch(
+                "sase.history.prompt_prediction_archive.archive_prediction_source_token",
+                return_value=_ARCHIVE_TOKEN,
+            ),
+            patch(
+                "sase.history.prompt_prediction_archive.build_archive_prediction_rows",
+            ) as rebuild,
+        ):
+            result = _load_prompt_prediction_caches(
+                previous_token=_SOURCE_TOKEN,
+                history_corpus=first.history_corpus,
+                session_corpus=None,
+                session_texts=(),
+                session_dirty=False,
+                known_history_texts=first.history_texts,
+                known_resolver=first.resolver,
+                include_archive=True,
+                archive_corpus=None,
+                archive_token=_ARCHIVE_TOKEN,
+                archive_built_at=first.archive_built_at,
+            )
+        assert result is None
+        rebuild.assert_not_called()
+    assert build_archive.call_count == 1
+    assert _time.time() - first.archive_built_at < 600

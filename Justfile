@@ -383,6 +383,10 @@ _lint-patch-stitch-terminology: _setup
 # ToolRunLogMetadata, ToolRunNodeSummaries, ToolRunVerdictSummary) by
 # splitting them into sase.core.tool_run_views behind the sase.core.tool_run
 # re-export facade.
+# sase-1cj.12.2 consumed the next-word prediction seams (ArchivePredictionTarget,
+# PromptPredictionSourceShares, the in-file-only wire helpers, and
+# PromptPredictionReplaySweepPoint) by privatizing them and covering the replay
+# tool imports with symvision pragmas.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -390,18 +394,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1cj(ArchivePredictionTarget)' \
-        --epic-symbol 'sase-1cj(PromptPredictionSourceShares)' \
-        --epic-symbol 'sase-1cj(prompt_prediction_candidate_from_dict)' \
-        --epic-symbol 'sase-1cj(prompt_prediction_source_shares_from_dict)' \
-        --epic-symbol 'sase-1cj(prompt_prefix_rank_match_from_dict)' \
-        --epic-symbol 'sase-1cj(PromptPredictionReplayCohort)' \
-        --epic-symbol 'sase-1cj(PromptPredictionReplayGateMetrics)' \
-        --epic-symbol 'sase-1cj(PromptPredictionReplaySweepPoint)' \
-        --epic-symbol 'sase-1cj(evaluate_prompt_prediction_replay)' \
-        --epic-symbol 'sase-1cj(prompt_prediction_replay_cohort_from_dict)' \
-        --epic-symbol 'sase-1cj(prompt_prediction_replay_gate_metrics_from_dict)' \
-        --epic-symbol 'sase-1cj(prompt_prediction_replay_sweep_point_from_dict)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

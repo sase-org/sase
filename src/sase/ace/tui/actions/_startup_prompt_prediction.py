@@ -119,12 +119,10 @@ class StartupPromptPredictionMixin:
         self._prompt_prediction_rebuild_pending = False
         session_dirty = self._prompt_prediction_session_dirty
         self._prompt_prediction_session_dirty = False
-        previous_token = (
-            self._prompt_prediction_source_token
-            if self._prompt_prediction_model is not None
-            or self._prompt_prediction_history_corpus is not None
-            else None
-        )
+        # An empty history still records its source token on swap, so a
+        # second warm with an unchanged token is a no-op instead of a
+        # full rebuild loop.
+        previous_token = self._prompt_prediction_source_token
         # The archive corpus first builds after first paint: the priming
         # swap below schedules a follow-up warm, so the startup pass keeps
         # first paint off the multi-thousand-document archive read.
@@ -263,7 +261,11 @@ class StartupPromptPredictionMixin:
                 self._prompt_prediction_rebuild_pending = False
             return
         except Exception:
-            log.exception("Prompt prediction rebuild failed")
+            if not self._prompt_prediction_error_logged:
+                self._prompt_prediction_error_logged = True
+                log.exception("Prompt prediction rebuild failed")
+            else:
+                log.debug("Prompt prediction rebuild failed", exc_info=True)
             self._prompt_prediction_rebuild_in_flight = False
         else:
             self._prompt_prediction_rebuild_in_flight = False
@@ -355,11 +357,12 @@ def _load_prompt_prediction_caches(
 ) -> _PromptPredictionLoadResult | None:
     """Read row inputs and compile corpora, rebuilding only what went stale.
 
-    A deletions-only change recompiles just the session corpus (when session
-    texts exist); history keeps its baked-in exclusions until the next
-    history rebuild, and the widget post-filter covers predictions in the
-    meantime. The archive corpus rebuilds only on token change and at most
-    every ten minutes; disabling the source drops it without a rebuild.
+    Any token change (shards or deletions) recompiles the history corpus
+    so baked-in exclusions track the deletions store; the session corpus
+    recompiles when dirty, when history rebuilds, or on a deletions-only
+    change while session texts exist. The archive corpus rebuilds only on
+    token change and at most every ten minutes; disabling the source drops
+    it without a rebuild.
     """
     import time as _time
 
@@ -417,7 +420,7 @@ def _load_prompt_prediction_caches(
     resolver = known_resolver
     history_texts = known_history_texts
     history_seed: list[str] | None = None
-    if history_stale:
+    if history_stale or deletions_stale:
         resolver = build_prompt_prediction_project_resolver()
         rows = build_prompt_prediction_rows(resolve_project=resolver.resolve)
         history_seed = [row.text for row in rows]
@@ -429,11 +432,7 @@ def _load_prompt_prediction_caches(
         )
         history_corpus = _compile_history_corpus(rows) if rows else None
 
-    rebuild_session = (
-        session_dirty
-        or history_stale
-        or (deletions_stale and session_corpus is not None and bool(pruned_session))
-    )
+    rebuild_session = session_dirty or history_stale or deletions_stale
     if rebuild_session:
         session_rows = _session_rows(pruned_session, resolver)
         session_corpus = _compile_session_corpus(session_rows) if session_rows else None
@@ -442,12 +441,12 @@ def _load_prompt_prediction_caches(
         rebuilt = _compile_archive_corpus(history_seed)
         if rebuilt is not None:
             archive_corpus = rebuilt
-            archive_built_at = now
         else:
             # No archive rows (or a failed compile): drop any stale corpus
-            # but still record the token, so later warms retry only when
-            # the month directories actually change.
+            # but still record the token and build time, so the token gate
+            # and 10-minute throttle apply to later warms.
             archive_corpus = None
+        archive_built_at = now
         archive_token = archive_token_now
     elif not include_archive:
         archive_corpus = None

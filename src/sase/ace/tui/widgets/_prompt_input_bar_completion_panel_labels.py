@@ -481,7 +481,7 @@ def history_word_completion_subtitle(
 ) -> Text | str:
     """Return the signal-color legend for a smart-ranked history-word menu.
 
-    Falls back to the plain ``[^L] accept  [^D] delete`` hint when the panel
+    Falls back to the plain ``[^T] accept  [^D] delete`` hint when the panel
     is too narrow for the legend or no visible row carries ranking metadata
     (``recent`` ranking, the loading placeholder, or an empty menu).
     """
