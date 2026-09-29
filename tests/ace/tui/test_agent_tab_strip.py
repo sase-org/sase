@@ -37,14 +37,16 @@ from sase.ace.tui.models.agent_tab_index import (
     build_agent_tab_index,
     _index_cache,
 )
+from sase.ace.tui.widgets._agent_tab_strip_overflow import (
+    overflow_needs_attention,
+    overflow_window,
+    tier_for_width,
+)
 from sase.ace.tui.widgets.agent_tab_strip import (
     OVERFLOW_NEXT_ID,
     OVERFLOW_PREV_ID,
     AgentTabDescriptor,
     AgentTabStrip,
-    _overflow_needs_attention as overflow_needs_attention,
-    _overflow_window as overflow_window,
-    _tier_for_width as tier_for_width,
     agent_tab_accent_for_name,
     agent_tab_empty_state,
 )
@@ -794,7 +796,7 @@ def test_machine_off_tab_extras_empty_without_machine_tabs() -> None:
 
 
 def test_machine_tooltip_appends_health_and_off_tab_notes() -> None:
-    from sase.ace.tui.widgets.agent_tab_strip import _agent_tab_tooltip
+    from sase.ace.tui.widgets._agent_tab_strip_strip import _agent_tab_tooltip
 
     desc = AgentTabDescriptor(
         key=_APOLLO,
@@ -813,7 +815,7 @@ def test_machine_tooltip_appends_health_and_off_tab_notes() -> None:
 
 
 def test_machine_tooltip_keeps_configured_description_on_named_tabs() -> None:
-    from sase.ace.tui.widgets.agent_tab_strip import _agent_tab_tooltip
+    from sase.ace.tui.widgets._agent_tab_strip_strip import _agent_tab_tooltip
 
     desc = AgentTabDescriptor(
         key=_SASE,
