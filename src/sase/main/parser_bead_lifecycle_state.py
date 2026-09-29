@@ -84,6 +84,16 @@ def register_bead_close_parser(
         ),
     )
     parser.add_argument(
+        "-L",
+        "--local-only",
+        dest="local_only",
+        action="store_true",
+        help=(
+            "Keep new attachments on this machine without uploading "
+            "(with the bead_note_attachments beta flag on)"
+        ),
+    )
+    parser.add_argument(
         "-p",
         "--phases",
         action="append",
@@ -384,6 +394,16 @@ def register_bead_update_parser(
         help=(
             "Attach files from sensitive paths (with the "
             "bead_note_attachments beta flag on)"
+        ),
+    )
+    parser.add_argument(
+        "-L",
+        "--local-only",
+        dest="local_only",
+        action="store_true",
+        help=(
+            "Keep new attachments on this machine without uploading "
+            "(with the bead_note_attachments beta flag on)"
         ),
     )
     parser.add_argument(

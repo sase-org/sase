@@ -47,6 +47,7 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
     verified_after_close = bool(getattr(args, "verified_after_close", False))
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     attachments_on = _note_attachments_enabled()
+    local_only = bool(getattr(args, "local_only", False)) and attachments_on
     try:
         if attachments_on:
             note = read_note_text_value(args.note, target="--note", bead_id=args.id)
@@ -58,6 +59,11 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
     bead_context = resolve_bead_operation_context([args.id], for_write=True)
     issue_id = bead_context.resolved_ids[0]
     echo_rows: list[str] = []
+    placement = "skip"
+    placement_store: Any | None = None
+    placement_key: str | None = None
+    placement_require = False
+    placement_wires: list[dict[str, Any]] = []
     with bead_store_mutation(
         auto_commit_bead_store,
         bead_context=bead_context,
@@ -76,6 +82,22 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
                 stored_note = authored.stored_text
                 note_attachments = authored.attachments or None
                 echo_rows = authored.echo_rows
+                if note_attachments:
+                    from sase.bead.attachments.upload import pre_write_upload
+
+                    (
+                        placement,
+                        placement_store,
+                        placement_key,
+                        placement_require,
+                    ) = pre_write_upload(
+                        note_attachments,
+                        echo_rows,
+                        local_only=local_only,
+                        bead_context=bead_context,
+                        attachments_on=attachments_on,
+                    )
+                    placement_wires = list(note_attachments)
             reporter = getattr(args, "author", None)
             if reporter is None:
                 reporter = resolve_mutation_author(mutation.project)
@@ -113,6 +135,19 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
                 issue.id,
                 _withheld_reopen_note(reporter, reopen_withheld_closed_at),
                 author=reporter,
+            )
+        if changed and placement == "git" and placement_wires:
+            from sase.bead.attachments.upload import post_write_queue
+
+            post_write_queue(
+                mutation,
+                placement_wires,
+                echo_rows,
+                placement=placement,
+                store=placement_store,
+                project_key=placement_key,
+                require_upload=placement_require,
+                attachments_on=attachments_on,
             )
         if changed:
             mutation.commit(require_mutation_commit_message("+1", [issue.id]))
@@ -157,6 +192,7 @@ def handle_bead_note(args: argparse.Namespace) -> None:
     remove_ordinal = getattr(args, "remove", None)
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     attachments_on = _note_attachments_enabled()
+    local_only = bool(getattr(args, "local_only", False)) and attachments_on
     text = args.text
 
     if edit_ordinal is not None and not text:
@@ -187,6 +223,11 @@ def handle_bead_note(args: argparse.Namespace) -> None:
     bead_context = resolve_bead_operation_context([args.id], for_write=True)
     issue_id = bead_context.resolved_ids[0]
     echo_rows: list[str] = []
+    placement = "skip"
+    placement_store: Any | None = None
+    placement_key: str | None = None
+    placement_require = False
+    placement_wires: list[dict[str, Any]] = []
     with bead_store_mutation(
         auto_commit_bead_store,
         bead_context=bead_context,
@@ -208,6 +249,22 @@ def handle_bead_note(args: argparse.Namespace) -> None:
                 stored_text = authored.stored_text
                 manifest = authored.attachments
                 echo_rows = authored.echo_rows
+                if manifest:
+                    from sase.bead.attachments.upload import pre_write_upload
+
+                    (
+                        placement,
+                        placement_store,
+                        placement_key,
+                        placement_require,
+                    ) = pre_write_upload(
+                        manifest,
+                        echo_rows,
+                        local_only=local_only,
+                        bead_context=bead_context,
+                        attachments_on=attachments_on,
+                    )
+                    placement_wires = list(manifest)
             if edit_ordinal is not None:
                 issue = mutation.project.edit_note(
                     issue_id,
@@ -236,6 +293,19 @@ def handle_bead_note(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
+        if placement == "git" and placement_wires:
+            from sase.bead.attachments.upload import post_write_queue
+
+            post_write_queue(
+                mutation,
+                placement_wires,
+                echo_rows,
+                placement=placement,
+                store=placement_store,
+                project_key=placement_key,
+                require_upload=placement_require,
+                attachments_on=attachments_on,
+            )
         mutation.commit(require_mutation_commit_message(operation, [issue.id]))
 
     print_attachment_echo_rows(echo_rows)

@@ -69,6 +69,56 @@ def get_attachment_sensitive_patterns() -> list[str]:
     ]
 
 
+DEFAULT_ATTACHMENT_GIT_MAX_BYTES = 52428800
+MAX_ATTACHMENT_GIT_MAX_BYTES = 99614720
+
+
+def _attachment_config() -> dict[str, object]:
+    """Return the merged ``bead.attachments`` config section, or ``{}``."""
+    try:
+        merged: object = load_merged_config()
+    except Exception:
+        return {}
+    if not isinstance(merged, dict):
+        return {}
+    bead_config = merged.get("bead", {})
+    if not isinstance(bead_config, dict):
+        return {}
+    attachments = bead_config.get("attachments", {})
+    if not isinstance(attachments, dict):
+        return {}
+    return attachments
+
+
+def get_attachment_git_max_bytes() -> int:
+    """Return the configured git-tier ceiling, failing open to the default.
+
+    Missing, malformed, or above 95 MiB fails open to 50 MiB, matching the
+    other bead accessors. Booleans are rejected explicitly because ``bool``
+    is a subclass of ``int``.
+    """
+    value = _attachment_config().get("git_max_bytes", DEFAULT_ATTACHMENT_GIT_MAX_BYTES)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 1
+        or value > MAX_ATTACHMENT_GIT_MAX_BYTES
+    ):
+        return DEFAULT_ATTACHMENT_GIT_MAX_BYTES
+    return value
+
+
+def get_attachment_require_upload() -> bool:
+    """Return whether attachment uploads must precede the bead event write.
+
+    Missing or malformed values fail open to False.
+    """
+    value = _attachment_config().get("require_upload", False)
+    if not isinstance(value, bool):
+        return False
+    return value
+
+
 def get_show_images_default() -> str:
     """Return the configured ``bead.show.images`` mode, or ``auto``.
 

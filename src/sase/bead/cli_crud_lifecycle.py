@@ -167,6 +167,7 @@ def _author_close_note(
 def handle_bead_close(args: argparse.Namespace) -> None:
     attachments_on = _note_attachments_enabled()
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
+    local_only = bool(getattr(args, "local_only", False)) and attachments_on
     try:
         note = getattr(args, "note", None)
         if note is not None:
@@ -184,6 +185,11 @@ def handle_bead_close(args: argparse.Namespace) -> None:
     bead_context = resolve_bead_operation_context(args.ids, for_write=True)
     routed_ids = list(bead_context.resolved_ids)
     echo_rows: list[str] = []
+    placement = "skip"
+    placement_store: Any | None = None
+    placement_key: str | None = None
+    placement_require = False
+    placement_wires: list[dict[str, Any]] = []
     with bead_store_mutation(
         auto_commit_bead_store,
         no_push=getattr(args, "no_push", False),
@@ -208,6 +214,22 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                 note = authored.stored_text
                 note_attachments = authored.attachments or None
                 echo_rows = authored.echo_rows
+                if note_attachments:
+                    from sase.bead.attachments.upload import pre_write_upload
+
+                    (
+                        placement,
+                        placement_store,
+                        placement_key,
+                        placement_require,
+                    ) = pre_write_upload(
+                        note_attachments,
+                        echo_rows,
+                        local_only=local_only,
+                        bead_context=bead_context,
+                        attachments_on=attachments_on,
+                    )
+                    placement_wires = list(note_attachments)
             closed = mutation.project.close(
                 resolved_ids,
                 reason=reason,
@@ -233,6 +255,19 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         already_closed_ids = mutation_outcome_ids(outcome, "already_closed_ids")
         noted_ids = mutation_outcome_ids(outcome, "noted_ids")
         cascade_closed_ids = mutation_outcome_ids(outcome, "cascade_closed_ids")
+        if placement == "git" and placement_wires:
+            from sase.bead.attachments.upload import post_write_queue
+
+            post_write_queue(
+                mutation,
+                placement_wires,
+                echo_rows,
+                placement=placement,
+                store=placement_store,
+                project_key=placement_key,
+                require_upload=placement_require,
+                attachments_on=attachments_on,
+            )
         commit_message = close_mutation_commit_message(
             closed_ids=closed_ids,
             cascade_closed_ids=cascade_closed_ids,

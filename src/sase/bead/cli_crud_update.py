@@ -142,6 +142,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         sys.exit(1)
     attachments_on = _note_attachments_enabled()
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
+    local_only = bool(getattr(args, "local_only", False)) and attachments_on
     try:
         description = (
             read_at_path_value(args.description, target="--description")
@@ -225,6 +226,11 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             sys.exit(1)
         outcomes: list[dict[str, object]] = []
         echo_rows: list[str] = []
+        placement = "skip"
+        placement_store: Any | None = None
+        placement_key: str | None = None
+        placement_require = False
+        placement_wires: list[dict[str, Any]] = []
         try:
             # Author attachments before any mutation: an attachment problem
             # must leave the bead store unchanged, including field updates.
@@ -236,6 +242,33 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                     note,
                     allow_sensitive=allow_sensitive,
                 )
+                union_wires: list[dict[str, Any]] = []
+                seen_digests: set[str] = set()
+                for _, result in authored_per_bead:
+                    for row in result.echo_rows:
+                        if row not in echo_rows:
+                            echo_rows.append(row)
+                    for wire in result.attachments:
+                        digest = str(wire.get("sha256") or wire.get("digest") or "")
+                        if digest and digest not in seen_digests:
+                            seen_digests.add(digest)
+                            union_wires.append(wire)
+                if union_wires:
+                    from sase.bead.attachments.upload import pre_write_upload
+
+                    (
+                        placement,
+                        placement_store,
+                        placement_key,
+                        placement_require,
+                    ) = pre_write_upload(
+                        union_wires,
+                        echo_rows,
+                        local_only=local_only,
+                        bead_context=bead_context,
+                        attachments_on=attachments_on,
+                    )
+                    placement_wires = list(union_wires)
             if fields:
                 issues = proj.update_many(issue_ids, **fields)
                 outcomes.append(proj.last_mutation_outcome)
@@ -257,10 +290,6 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                     resolved_ids = [proj.resolve_id(issue_id) for issue_id in issue_ids]
                     issues = [appended[resolved_id] for resolved_id in resolved_ids]
                     outcomes.append(combine_mutation_outcomes("update", note_outcomes))
-                    for _, result in authored_per_bead:
-                        for row in result.echo_rows:
-                            if row not in echo_rows:
-                                echo_rows.append(row)
                 else:
                     issues = proj.append_note_many(issue_ids, note, author=author)
                     outcomes.append(proj.last_mutation_outcome)
@@ -277,6 +306,19 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         reopened_ancestors = [
             proj.show(ancestor_id) for ancestor_id in reopened_ancestor_ids
         ]
+        if placement == "git" and placement_wires:
+            from sase.bead.attachments.upload import post_write_queue
+
+            post_write_queue(
+                mutation,
+                placement_wires,
+                echo_rows,
+                placement=placement,
+                store=placement_store,
+                project_key=placement_key,
+                require_upload=placement_require,
+                attachments_on=attachments_on,
+            )
         if changed_ids:
             mutation.commit(require_mutation_commit_message("update", changed_ids))
     print_attachment_echo_rows(echo_rows)

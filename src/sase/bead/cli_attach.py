@@ -26,6 +26,7 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
     name = getattr(args, "name", None)
     prose = getattr(args, "note", None)
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
+    local_only = bool(getattr(args, "local_only", False))
 
     if not note_attachments_enabled():
         print(
@@ -50,6 +51,11 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
 
     bead_context = resolve_bead_operation_context([args.id], for_write=True)
     issue_id = bead_context.resolved_ids[0]
+    placement = "skip"
+    placement_store: Any | None = None
+    placement_key: str | None = None
+    placement_require = False
+    placement_wires: list[dict[str, Any]] = []
     with bead_store_mutation(
         auto_commit_bead_store,
         bead_context=bead_context,
@@ -79,6 +85,22 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
                     authored.attachments,
                     authored.echo_rows,
                 )
+            if manifest:
+                from sase.bead.attachments.upload import pre_write_upload
+
+                (
+                    placement,
+                    placement_store,
+                    placement_key,
+                    placement_require,
+                ) = pre_write_upload(
+                    manifest,
+                    echo_rows,
+                    local_only=local_only,
+                    bead_context=bead_context,
+                    attachments_on=True,
+                )
+                placement_wires = list(manifest)
             issue = mutation.project.append_note(
                 issue_id,
                 stored_text,
@@ -88,6 +110,19 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
+        if placement == "git" and placement_wires:
+            from sase.bead.attachments.upload import post_write_queue
+
+            post_write_queue(
+                mutation,
+                placement_wires,
+                echo_rows,
+                placement=placement,
+                store=placement_store,
+                project_key=placement_key,
+                require_upload=placement_require,
+                attachments_on=True,
+            )
         mutation.commit(require_mutation_commit_message("attach", [issue.id]))
 
     print_attachment_echo_rows(echo_rows)

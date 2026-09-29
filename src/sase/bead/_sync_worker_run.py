@@ -131,6 +131,7 @@ def _run_locked_sync(
     log_sync_event(
         log_path, "started", repo_root=str(repo_root), beads_dir=str(beads_dir)
     )
+    _drain_attachment_outbox_best_effort(repo_root)
 
     from sase.bead._stream_integrity import (
         BeadStreamIntegrityError,
@@ -439,6 +440,52 @@ def _bounded_wait(wait_seconds: float, deadline: float | None) -> float:
     if deadline is None:
         return wait
     return min(wait, deadline_remaining(deadline))
+
+
+def _drain_attachment_outbox_best_effort(repo_root: Path) -> None:
+    """Drain the attachment-upload outbox before bead sync; never raises.
+
+    A drain failure is logged and never fails bead publication.
+    """
+    try:
+        from sase.bead.attachments.outbox import drain_outbox
+        from sase.bead.attachments.upload import (
+            clone_has_remote,
+            describe_label,
+            hidden_clone_path,
+        )
+        from sase.bead.project_name import infer_project_name_from_cwd
+
+        try:
+            project_key = infer_project_name_from_cwd(str(repo_root))
+        except Exception:
+            project_key = None
+        if not project_key:
+            return
+        clone = hidden_clone_path(project_key)
+        if clone is None or not clone.is_dir():
+            return
+        if not (clone / "HEAD").is_file() or not (clone / "objects").is_dir():
+            return
+        if not clone_has_remote(clone):
+            return
+        try:
+            from sase.bead.attachments.git_store import GitAttachmentStore
+
+            store = GitAttachmentStore(clone, describe_label(clone, project_key))
+        except Exception:
+            return
+        drain_outbox(
+            project_key,
+            store,
+            time_bound_seconds=5.0,
+        )
+    except Exception as exc:
+        import logging as _logging
+
+        _logging.getLogger(__name__).warning(
+            "attachment outbox drain before sync skipped: %s", exc
+        )
 
 
 def _failure(

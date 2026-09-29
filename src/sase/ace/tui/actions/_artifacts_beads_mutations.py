@@ -131,20 +131,25 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
 
         def _author_bead_note_text(
             typed: str,
+            *,
+            local_only: bool = False,
         ) -> tuple[str | None, list[dict[str, Any]] | None]:
             """Compose typed text via the authoring service when flagged on.
 
-            With the flag off the typed text is returned unchanged. With
-            the flag on, a service failure notifies and re-opens the modal
-            with the typed text, returning ``(None, None)``. Raw ``@path``
-            text is never appended. No path completion, paste handling, or
-            thumbnails.
+            With the flag off the typed text is returned unchanged (and
+            *local_only* does nothing). With the flag on, a service failure
+            notifies and re-opens the modal with the typed text, returning
+            ``(None, None)``. The TUI has no local-only toggle, so callers
+            pass the default ``False`` (upload when a shared store exists).
+            Raw ``@path`` text is never appended. No path completion, paste
+            handling, or thumbnails.
             """
             from sase.feature_flags.registry import FeatureFlag
             from sase.feature_flags.snapshot import current_flags
 
             if not current_flags().enabled(FeatureFlag.bead_note_attachments):
                 return typed, None
+            _ = local_only  # Threaded for CLI parity; the TUI passes False.
             from sase.bead.attachments.authoring import (
                 NoteAttachmentAuthoringError,
                 author_note_attachments,

@@ -86,6 +86,9 @@ class _BeadStoreMutation:
     project: BeadProject
     commit_message: str | None = None
     publication_outcome: Any | None = None
+    pending_attachment_uploads: list[dict[str, Any]] | None = None
+    pending_attachment_echo_rows: list[str] | None = None
+    pending_attachment_wires: list[dict[str, Any]] | None = None
 
     def commit(self, message: str) -> None:
         self.commit_message = message
@@ -311,6 +314,20 @@ def bead_store_mutation(
                         mutation.commit_message,
                         bead_context=routed_bead_context,
                     )
+    # Pending attachment uploads run after the bead event is written and
+    # outside the store lock, before bead publication. In-tree and other
+    # direct-write stores report no commit but still wrote the event, so the
+    # trigger is the commit message, not the auto-commit return.
+    if mutation.commit_message is not None:
+        try:
+            from sase.bead.attachments.upload import run_pending_uploads
+
+            run_pending_uploads(mutation)
+        except Exception:
+            _logger.warning(
+                "Failed to upload committed bead attachments",
+                exc_info=True,
+            )
     if committed and not no_push:
         push_kwargs: dict[str, Any] = {}
         if cwd is not None:

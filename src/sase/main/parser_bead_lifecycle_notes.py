@@ -69,6 +69,16 @@ def register_bead_plus_one_parser(
         ),
     )
     parser.add_argument(
+        "-L",
+        "--local-only",
+        dest="local_only",
+        action="store_true",
+        help=(
+            "Keep new attachments on this machine without uploading "
+            "(with the bead_note_attachments beta flag on)"
+        ),
+    )
+    parser.add_argument(
         "--verified-after-close",
         action="store_true",
         help=(
@@ -139,6 +149,13 @@ def register_bead_attach_parser(
         action="store_true",
         help="Attach files from sensitive paths",
     )
+    parser.add_argument(
+        "-L",
+        "--local-only",
+        dest="local_only",
+        action="store_true",
+        help="Keep new attachments on this machine without uploading",
+    )
 
 
 def register_bead_attachment_parser(
@@ -147,21 +164,23 @@ def register_bead_attachment_parser(
     """Register ``sase bead attachment``."""
     parser = subparsers.add_parser(
         "attachment",
-        help="List, open, or resolve attachment snapshots",
+        help="List, open, push, or resolve attachment snapshots",
         description=(
             "List content-addressed attachment snapshots on a bead, open one "
-            "in the terminal viewer, or print the absolute local view path "
-            "for one attachment. "
+            "in the terminal viewer, print the absolute local view path "
+            "for one attachment, or push queued uploads to the shared store. "
             "Invoking 'sase bead attachment' without a subcommand delegates "
-            "to 'sase bead attachment list'. No command fetches and "
-            "none checks the bead_note_attachments beta flag."
+            "to 'sase bead attachment list'. List, open, and path never "
+            "fetch; push drains the upload outbox and never authors notes."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead attachment list sase-ab\n"
             "  sase bead attachment list sase-ab --json\n"
             "  sase bead attachment open sase-ab shot.png\n"
-            "  sase bead attachment path sase-ab shot.png"
+            "  sase bead attachment path sase-ab shot.png\n"
+            "  sase bead attachment push\n"
+            "  sase bead attachment push sase-ab"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -218,6 +237,23 @@ def register_bead_attachment_parser(
     )
     path_parser.add_argument("id", help="Full or shorthand issue ID")
     path_parser.add_argument("name", help="Attachment name")
+    push_parser = attachment_subparsers.add_parser(
+        "push",
+        help="Push queued attachment uploads to the shared store",
+        description=(
+            "Drain the project attachment-upload outbox through the shared "
+            "git store, then promote local-only objects that the store now "
+            "accepts. With an ID, drain only digests referenced by that "
+            "bead; without one, drain the project outbox. Available with "
+            "the flag off; it never authors notes."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    push_parser.add_argument(
+        "id",
+        nargs="?",
+        help="Full or shorthand issue ID to scope the drain",
+    )
 
 
 def register_bead_note_parser(
@@ -260,6 +296,16 @@ def register_bead_note_parser(
         help=(
             "Attach files from sensitive paths (with the "
             "bead_note_attachments beta flag on)"
+        ),
+    )
+    parser.add_argument(
+        "-L",
+        "--local-only",
+        dest="local_only",
+        action="store_true",
+        help=(
+            "Keep new attachments on this machine without uploading "
+            "(with the bead_note_attachments beta flag on)"
         ),
     )
     edit_group = parser.add_mutually_exclusive_group()
