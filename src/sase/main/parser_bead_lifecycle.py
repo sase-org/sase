@@ -71,6 +71,16 @@ def register_bead_plus_one_parser(
         help="Artifact reference supporting the evidence (repeatable)",
     )
     parser.add_argument(
+        "-S",
+        "--allow-sensitive",
+        dest="allow_sensitive",
+        action="store_true",
+        help=(
+            "Attach files from sensitive paths (with the "
+            "bead_note_attachments beta flag on)"
+        ),
+    )
+    parser.add_argument(
         "--verified-after-close",
         action="store_true",
         help=(
@@ -78,6 +88,68 @@ def register_bead_plus_one_parser(
             "close, so the observation window is now instead of this "
             "runtime's start. Requires the bead to already be closed."
         ),
+    )
+
+
+def register_bead_attach_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead attach``."""
+    parser = subparsers.add_parser(
+        "attach",
+        help="Attach file snapshots to a bead note",
+        description=(
+            "Attach snapshots of files to a bead as a new attributed note. "
+            "The bead keeps the exact bytes on every machine, even after the "
+            "file is gone. Requires the bead_note_attachments beta flag. "
+            "Use - to read one attachment from stdin (with -N/--name)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead attach sase-ab ./shot.png\n"
+            '  sase bead attach sase-ab -n "Crash trace" ./trace.json\n'
+            "  sase bead attach sase-ab -N trace.json - < /tmp/trace.json\n"
+            "  sase bead attach sase-ab ./a.png ./b.png"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("id", help="Full or shorthand issue ID")
+    parser.add_argument(
+        "files",
+        nargs="+",
+        metavar="FILE",
+        help="Files to attach; use - to read one attachment from stdin",
+    )
+    parser.add_argument(
+        "-a",
+        "--author",
+        metavar="NAME",
+        help="Author recorded on the entry (default: current agent, else store owner)",
+    )
+    parser.add_argument(
+        "-n",
+        "--note",
+        metavar="TEXT",
+        help=(
+            "Optional prose stored above the attachment tokens; "
+            "@<path> references inside it attach too"
+        ),
+    )
+    parser.add_argument(
+        "-N",
+        "--name",
+        metavar="NAME",
+        help=(
+            "Attachment name; valid only with one file, "
+            "and required when the file is - (stdin)"
+        ),
+    )
+    parser.add_argument(
+        "-S",
+        "--allow-sensitive",
+        dest="allow_sensitive",
+        action="store_true",
+        help="Attach files from sensitive paths",
     )
 
 
@@ -134,6 +206,16 @@ def register_bead_close_parser(
         help=(
             "Append this attributed note to each issue before closing it; "
             f"{_AT_PATH_READS_IT}"
+        ),
+    )
+    parser.add_argument(
+        "-S",
+        "--allow-sensitive",
+        dest="allow_sensitive",
+        action="store_true",
+        help=(
+            "Attach files from sensitive paths (with the "
+            "bead_note_attachments beta flag on)"
         ),
     )
     parser.add_argument(
@@ -635,6 +717,16 @@ def register_bead_update_parser(
         "-n",
         "--note",
         help=(f"Append this attributed note to each issue; {_AT_PATH_READS_IT}"),
+    )
+    parser.add_argument(
+        "-S",
+        "--allow-sensitive",
+        dest="allow_sensitive",
+        action="store_true",
+        help=(
+            "Attach files from sensitive paths (with the "
+            "bead_note_attachments beta flag on)"
+        ),
     )
     parser.add_argument(
         "-b",

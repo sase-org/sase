@@ -6,6 +6,7 @@ import argparse
 
 from sase.main.parser_bead_common import nonnegative_int
 from sase.main.parser_bead_lifecycle import (
+    register_bead_attach_parser,
     register_bead_close_parser,
     register_bead_create_parser,
     register_bead_note_parser,
@@ -57,6 +58,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
 
     register_bead_plus_one_parser(bead_subparsers)
     add_bead_operation_parsers(bead_subparsers)
+    register_bead_attach_parser(bead_subparsers)
     register_bead_blocked_parser(bead_subparsers)
     register_bead_close_parser(bead_subparsers)
     register_bead_create_parser(bead_subparsers)

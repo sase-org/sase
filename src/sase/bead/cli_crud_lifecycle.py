@@ -4,14 +4,20 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from sase.bead.cli_common import (
     auto_commit_bead_store,
     bead_store_mutation,
     resolve_bead_operation_context,
 )
-from sase.bead.cli_crud_common import mutation_outcome_ids, resolve_mutation_author
+from sase.bead.cli_crud_common import (
+    mutation_outcome_ids,
+    note_attachments_enabled as _note_attachments_enabled,
+    print_attachment_echo_rows,
+    resolve_mutation_author,
+)
 from sase.bead.epic_symbols import (
     raise_if_leftover_epic_symbols,
     raise_if_surviving_flag_definition,
@@ -27,11 +33,14 @@ from sase.bead.phase_selector import (
     resolve_epic_phase_ids,
 )
 from sase.bead.project import BeadProject
-from sase.cli_file_values import CliFileValueError, read_at_path_value
+from sase.cli_file_values import (
+    CliFileValueError,
+    read_at_path_value,
+    read_note_text_value,
+)
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
+    from sase.bead.attachments.authoring import AuthoredNoteAttachments
     from sase.bead.operation_context import BeadOperationContext
 
 
@@ -121,11 +130,50 @@ def _refuse_leftover_epic_symbols(
     raise_if_surviving_flag_definition(issues, start=start)
 
 
+def _author_close_note(
+    mutation: Any,
+    resolved_ids: list[str],
+    text: str,
+    *,
+    allow_sensitive: bool,
+) -> AuthoredNoteAttachments:
+    """Run the attachment authoring service over a close note.
+
+    The note is appended to every explicitly closed issue in one batch, so
+    one roster — the union of every target's notes — feeds a single service
+    run. Exits non-zero when the text has attachment problems; nothing is
+    written then.
+    """
+    from sase.bead.attachments.authoring import (
+        NoteAttachmentAuthoringError,
+        author_note_attachments,
+    )
+
+    notes = []
+    for resolved_id in resolved_ids:
+        notes.extend(mutation.project.show(resolved_id).notes)
+    try:
+        return author_note_attachments(
+            text,
+            notes=notes,
+            cwd=Path.cwd(),
+            allow_sensitive=allow_sensitive,
+        )
+    except NoteAttachmentAuthoringError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def handle_bead_close(args: argparse.Namespace) -> None:
+    attachments_on = _note_attachments_enabled()
+    allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     try:
         note = getattr(args, "note", None)
         if note is not None:
-            note = read_at_path_value(note, target="--note")
+            if attachments_on:
+                note = read_note_text_value(note, target="--note", bead_id=args.ids[0])
+            else:
+                note = read_at_path_value(note, target="--note")
         reason = getattr(args, "reason", None)
         if reason is not None:
             reason = read_at_path_value(reason, target="--reason")
@@ -135,6 +183,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
     phases = getattr(args, "phases", None)
     bead_context = resolve_bead_operation_context(args.ids, for_write=True)
     routed_ids = list(bead_context.resolved_ids)
+    echo_rows: list[str] = []
     with bead_store_mutation(
         auto_commit_bead_store,
         no_push=getattr(args, "no_push", False),
@@ -148,6 +197,17 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                 start=_owner_symbol_start(bead_context),
             )
             author = resolve_mutation_author(mutation.project)
+            note_attachments: list[dict[str, Any]] | None = None
+            if note is not None and attachments_on:
+                authored = _author_close_note(
+                    mutation,
+                    resolved_ids,
+                    note,
+                    allow_sensitive=allow_sensitive,
+                )
+                note = authored.stored_text
+                note_attachments = authored.attachments or None
+                echo_rows = authored.echo_rows
             closed = mutation.project.close(
                 resolved_ids,
                 reason=reason,
@@ -155,6 +215,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                 force=getattr(args, "force", False),
                 note=note,
                 author=author,
+                note_attachments=note_attachments,
             )
         except KeyError as exc:
             message = str(exc.args[0]) if exc.args else ""
@@ -179,6 +240,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         )
         if commit_message is not None:
             mutation.commit(commit_message)
+    print_attachment_echo_rows(echo_rows)
     _settle_close_task_gates(
         closed,
         closed_ids,

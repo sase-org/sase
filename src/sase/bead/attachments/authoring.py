@@ -61,30 +61,28 @@ def author_note_attachments(
     cwd: Path | str | None = None,
     allow_sensitive: bool = False,
     previous_manifest: Sequence[str] = (),
+    preferred_names: Mapping[str, str] | None = None,
 ) -> AuthoredNoteAttachments:
-    """Scan *text*, ingest referenced files, and compose the stored note."""
+    """Scan *text*, ingest referenced files, and compose the stored note.
+
+    *preferred_names* maps a raw scanner path (as written in the note text)
+    to the attachment name it should take instead of its file basename.
+    """
     from sase.core.rust import require_rust_binding
 
-    scan_binding = require_rust_binding("scan_note_attachment_refs")
-    base_dir = Path(cwd) if cwd is not None else Path.cwd()
-    roster = _roster_wires(notes)
-    scan: dict[str, Any] = dict(scan_binding(text, list(roster)))
-    path_refs: list[dict[str, Any]] = list(scan.get("path_refs") or [])
-    reuse_refs: list[dict[str, Any]] = list(scan.get("reuse_refs") or [])
-    problems: list[str] = [
-        _caret_problem(text, dict(diag))
-        for diag in (scan.get("diagnostics") or [])
-        if isinstance(diag, dict)
-    ]
-    resolved = _resolve_path_refs(text, path_refs, base_dir, allow_sensitive, problems)
-    if problems:
-        raise NoteAttachmentAuthoringError(_problems_message(problems))
-    blobs = _ingest_unique_paths(text, path_refs, resolved)
-    assigned = _assign_names(resolved, blobs, roster)
+    roster = roster_wires(notes)
+    scan, path_refs, reuse_refs, resolved, blobs, base_dir = _scan_resolve_ingest(
+        text, list(roster), cwd, allow_sensitive
+    )
+    assigned, display_bases = _assign_names(
+        resolved, blobs, roster, path_refs, preferred_names
+    )
     assigned_names = [assigned[index] for index in range(len(path_refs))]
     compose_binding = require_rust_binding("compose_note_attachment_text")
     stored_text = str(compose_binding(text, scan, assigned_names))
-    manifest, echo_rows = _build_manifest(resolved, blobs, assigned, reuse_refs, roster)
+    manifest, echo_rows = _build_manifest(
+        resolved, blobs, assigned, reuse_refs, roster, display_bases
+    )
     new_names = [wire["name"] for wire in manifest]
     detached = tuple(name for name in previous_manifest if name not in new_names)
     for name in detached:
@@ -98,8 +96,121 @@ def author_note_attachments(
     )
 
 
-def _roster_wires(notes: Sequence[BeadNote]) -> dict[str, dict[str, Any]]:
-    """Map each roster name to its latest wire dict.
+def author_note_attachments_per_bead(
+    text: str,
+    notes_per_bead: Sequence[Sequence[BeadNote]],
+    *,
+    cwd: Path | str | None = None,
+    allow_sensitive: bool = False,
+    preferred_names: Mapping[str, str] | None = None,
+) -> list[AuthoredNoteAttachments]:
+    """Scan and ingest *text* once, then compose one result per bead roster.
+
+    Every unique path is resolved and ingested a single time, but names are
+    uniquified against each bead's own roster, so one filename can land on
+    different names on different beads. Reuse tokens join per bead too.
+    """
+    from sase.core.rust import require_rust_binding
+
+    rosters = [roster_wires(notes) for notes in notes_per_bead]
+    union_names = list(dict.fromkeys(name for roster in rosters for name in roster))
+    scan, path_refs, reuse_refs, resolved, blobs, base_dir = _scan_resolve_ingest(
+        text, union_names, cwd, allow_sensitive
+    )
+    compose_binding = require_rust_binding("compose_note_attachment_text")
+    results: list[AuthoredNoteAttachments] = []
+    for roster in rosters:
+        assigned, display_bases = _assign_names(
+            resolved, blobs, roster, path_refs, preferred_names
+        )
+        assigned_names = [assigned[index] for index in range(len(path_refs))]
+        stored_text = str(compose_binding(text, scan, assigned_names))
+        manifest, echo_rows = _build_manifest(
+            resolved, blobs, assigned, reuse_refs, roster, display_bases
+        )
+        echo_rows.extend(_bare_word_hints(scan, base_dir))
+        results.append(
+            AuthoredNoteAttachments(
+                stored_text=stored_text,
+                attachments=manifest,
+                echo_rows=echo_rows,
+            )
+        )
+    return results
+
+
+def stream_attachment_wire(
+    candidate_name: str,
+    *,
+    sha256: str,
+    size_bytes: int,
+    head: bytes,
+    object_path: object,
+    roster: Mapping[str, dict[str, Any]],
+) -> tuple[dict[str, Any], str]:
+    """Uniquify *candidate_name* against *roster* and build its wire + echo.
+
+    Stdin attachments have no path for the scanner, so the caller ingests the
+    stream itself and finishes the wire here. Returns the wire dict and the
+    stderr echo row.
+    """
+    from sase.config import get_machine_name
+    from sase.core.rust import require_rust_binding
+
+    sanitize_binding = require_rust_binding("sanitize_attachment_name")
+    unique_binding = require_rust_binding("unique_attachment_name")
+    sanitized = str(sanitize_binding(candidate_name))
+    existing = [
+        {"name": name, "sha256": wire["sha256"]} for name, wire in roster.items()
+    ]
+    name = str(unique_binding(sanitized, sha256, existing))
+    wire, echo_row = _finish_wire(
+        name=name,
+        sanitized=sanitized,
+        sha256=sha256,
+        size_bytes=size_bytes,
+        head=head,
+        object_path=object_path,
+        origin=get_machine_name() or None,
+    )
+    return wire, echo_row
+
+
+def _scan_resolve_ingest(
+    text: str,
+    roster_names: list[str],
+    cwd: Path | str | None,
+    allow_sensitive: bool,
+) -> tuple[
+    dict[str, Any],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    dict[int, Path],
+    dict[Path, Any],
+    Path,
+]:
+    """Scan *text*, resolve every path ref, and ingest each unique path once."""
+    from sase.core.rust import require_rust_binding
+
+    scan_binding = require_rust_binding("scan_note_attachment_refs")
+    base_dir = Path(cwd) if cwd is not None else Path.cwd()
+    scan: dict[str, Any] = dict(scan_binding(text, list(roster_names)))
+    path_refs: list[dict[str, Any]] = list(scan.get("path_refs") or [])
+    reuse_refs: list[dict[str, Any]] = list(scan.get("reuse_refs") or [])
+    problems: list[str] = [
+        _caret_problem(text, dict(diag))
+        for diag in (scan.get("diagnostics") or [])
+        if isinstance(diag, dict)
+    ]
+    resolved = _resolve_path_refs(text, path_refs, base_dir, allow_sensitive, problems)
+    if problems:
+        raise NoteAttachmentAuthoringError(_problems_message(problems))
+    blobs = _ingest_unique_paths(text, path_refs, resolved)
+    return scan, path_refs, reuse_refs, resolved, blobs, base_dir
+
+
+def roster_wires(notes: Sequence[BeadNote]) -> dict[str, dict[str, Any]]:
+    """Map each roster name to its latest wire dict (public for CLI verbs).
 
     The latest note wins per name, matching sase-core's
     ``bead_attachment_roster`` over the current notes.
@@ -233,8 +344,14 @@ def _assign_names(
     resolved: dict[int, Path],
     blobs: dict[Path, Any],
     roster: Mapping[str, dict[str, Any]],
-) -> dict[int, str]:
-    """Map each resolved path-ref index to its assigned attachment name."""
+    path_refs: list[dict[str, Any]],
+    preferred_names: Mapping[str, str] | None = None,
+) -> tuple[dict[int, str], dict[int, str]]:
+    """Map each resolved path-ref index to its name and echo display base.
+
+    Returns the assigned names plus, per index, the raw base the echo row
+    compares against (the preferred name when given, else the file basename).
+    """
     from sase.core.rust import require_rust_binding
 
     sanitize_binding = require_rust_binding("sanitize_attachment_name")
@@ -243,18 +360,22 @@ def _assign_names(
         {"name": name, "sha256": wire["sha256"]} for name, wire in roster.items()
     ]
     assigned: dict[int, str] = {}
-    seen_targets: dict[Path, str] = {}
+    display_bases: dict[int, str] = {}
+    seen_targets: dict[Path, tuple[str, str]] = {}
     for index in sorted(resolved):
         target = resolved[index]
         if target in seen_targets:
-            assigned[index] = seen_targets[target]
+            assigned[index], display_bases[index] = seen_targets[target]
             continue
-        candidate = str(sanitize_binding(target.name))
+        raw = str(path_refs[index].get("path") or "")
+        base = (preferred_names or {}).get(raw, target.name)
+        candidate = str(sanitize_binding(base))
         name = str(unique_binding(candidate, blobs[target].sha256, existing))
-        seen_targets[target] = name
+        seen_targets[target] = (name, base)
         assigned[index] = name
+        display_bases[index] = base
         existing.append({"name": name, "sha256": blobs[target].sha256})
-    return assigned
+    return assigned, display_bases
 
 
 def _build_manifest(
@@ -263,12 +384,12 @@ def _build_manifest(
     assigned: dict[int, str],
     reuse_refs: list[dict[str, Any]],
     roster: Mapping[str, dict[str, Any]],
+    display_bases: Mapping[int, str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Build the wire manifest and echo rows for new ingests and reuses."""
     from sase.config import get_machine_name
     from sase.core.rust import require_rust_binding
 
-    classify_binding = require_rust_binding("classify_attachment")
     sanitize_binding = require_rust_binding("sanitize_attachment_name")
     manifest: list[dict[str, Any]] = []
     echo_rows: list[str] = []
@@ -281,31 +402,20 @@ def _build_manifest(
         if target not in seen_targets:
             seen_targets.add(target)
             blob = blobs[target]
-            classified: dict[str, Any] = dict(classify_binding(name, bytes(blob.head)))
-            wire: dict[str, Any] = {
-                "name": name,
-                "sha256": blob.sha256,
-                "size_bytes": blob.size_bytes,
-                "mime_type": str(classified.get("mime_type") or ""),
-            }
-            dims = _probe_image_dims(name, blob.object_path)
-            if dims is not None:
-                wire["image"] = {"width": dims[0], "height": dims[1]}
-            if origin:
-                wire["origin"] = origin
+            base = (display_bases or {}).get(index, target.name)
+            sanitized = str(sanitize_binding(base))
+            wire, echo_row = _finish_wire(
+                name=name,
+                sanitized=sanitized,
+                sha256=blob.sha256,
+                size_bytes=blob.size_bytes,
+                head=bytes(blob.head),
+                object_path=blob.object_path,
+                origin=origin,
+            )
             manifest.append(wire)
             seen_names.add(name)
-            sanitized = str(sanitize_binding(target.name))
-            size = _format_size(blob.size_bytes)
-            descriptor = wire["mime_type"]
-            if dims is not None:
-                descriptor += f" · {dims[0]}×{dims[1]}"
-            if name == sanitized:
-                echo_rows.append(f"attached {name} · {descriptor} · {size} · local")
-            else:
-                echo_rows.append(
-                    f"{sanitized} stored as {name} · {descriptor} · {size} · local"
-                )
+            echo_rows.append(echo_row)
     for ref in reuse_refs:
         name = str(ref.get("name") or "")
         if name in seen_names or name not in roster:
@@ -313,6 +423,43 @@ def _build_manifest(
         seen_names.add(name)
         manifest.append(dict(roster[name]))
     return manifest, echo_rows
+
+
+def _finish_wire(
+    *,
+    name: str,
+    sanitized: str,
+    sha256: str,
+    size_bytes: int,
+    head: bytes,
+    object_path: object,
+    origin: str | None,
+) -> tuple[dict[str, Any], str]:
+    """Build one wire dict and its stderr echo row from an ingested blob."""
+    from sase.core.rust import require_rust_binding
+
+    classify_binding = require_rust_binding("classify_attachment")
+    classified: dict[str, Any] = dict(classify_binding(name, bytes(head)))
+    wire: dict[str, Any] = {
+        "name": name,
+        "sha256": sha256,
+        "size_bytes": size_bytes,
+        "mime_type": str(classified.get("mime_type") or ""),
+    }
+    dims = _probe_image_dims(name, object_path)
+    if dims is not None:
+        wire["image"] = {"width": dims[0], "height": dims[1]}
+    if origin:
+        wire["origin"] = origin
+    size = _format_size(size_bytes)
+    descriptor = wire["mime_type"]
+    if dims is not None:
+        descriptor += f" · {dims[0]}×{dims[1]}"
+    if name == sanitized:
+        echo_row = f"attached {name} · {descriptor} · {size} · local"
+    else:
+        echo_row = f"{sanitized} stored as {name} · {descriptor} · {size} · local"
+    return wire, echo_row
 
 
 def _probe_image_dims(name: str, object_path: object) -> tuple[int, int] | None:

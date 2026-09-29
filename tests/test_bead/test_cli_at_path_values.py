@@ -476,6 +476,7 @@ _FLAG_ACTIONS = (
 _EXPANDED_FREE_TEXT = frozenset(
     {
         ("+1", "note"),
+        ("attach", "note"),
         ("close", "note"),
         ("close", "reason"),
         ("create", "description"),
@@ -493,6 +494,7 @@ _DELIBERATELY_LITERAL_FREE_TEXT = frozenset(
     {
         # Short identifiers, not prose.
         ("+1", "author"),
+        ("attach", "author"),
         ("+1", "ref"),
         ("create", "assignee"),
         ("create", "title"),
@@ -503,6 +505,7 @@ _DELIBERATELY_LITERAL_FREE_TEXT = frozenset(
         ("update", "external_ref"),
         ("update", "title"),
         # Structured tokens / names, not free-text bodies.
+        ("attach", "name"),
         ("create", "bug_id"),
         ("create", "model"),
         ("create", "patch"),

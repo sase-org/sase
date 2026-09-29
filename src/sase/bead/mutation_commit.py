@@ -19,6 +19,8 @@ def mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None:
         return f"chore(beads): edit note {issue_ids[0]}"
     if operation == "note_remove" and issue_ids:
         return f"chore(beads): remove note {issue_ids[0]}"
+    if operation == "attach" and issue_ids:
+        return f"chore(beads): attach {' '.join(issue_ids)}"
     if operation == "open" and issue_ids:
         return f"chore(beads): reopen {issue_ids[0]}"
     if operation == "close" and issue_ids:

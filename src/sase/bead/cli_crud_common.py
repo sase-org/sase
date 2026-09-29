@@ -20,6 +20,14 @@ def resolve_mutation_author(project: BeadProject) -> str:
     return identity.name if identity is not None else project.owner
 
 
+def note_attachments_enabled() -> bool:
+    """Return whether the bead note attachments beta flag is on."""
+    from sase.feature_flags.registry import FeatureFlag
+    from sase.feature_flags.snapshot import current_flags
+
+    return bool(current_flags().enabled(FeatureFlag.bead_note_attachments))
+
+
 def print_attachment_echo_rows(rows: list[str]) -> None:
     """Print attachment write-echo rows to stderr.
 

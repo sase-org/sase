@@ -17,6 +17,7 @@ from sase.bead.cli_common import (
     resolve_bead_operation_context,
 )
 from sase.bead.cli_crud_common import (
+    note_attachments_enabled as _note_attachments_enabled,
     print_attachment_echo_rows,
     resolve_mutation_author,
 )
@@ -32,14 +33,6 @@ if TYPE_CHECKING:
     from sase.bead.attachments.authoring import AuthoredNoteAttachments
 
 
-def _note_attachments_enabled() -> bool:
-    """Return whether the bead note attachments beta flag is on."""
-    from sase.feature_flags.registry import FeatureFlag
-    from sase.feature_flags.snapshot import current_flags
-
-    return bool(current_flags().enabled(FeatureFlag.bead_note_attachments))
-
-
 def _withheld_reopen_note(reporter: str, closed_at: str) -> str:
     return (
         f"{reporter}'s +1 postdates the {closed_at} close, but its "
@@ -52,18 +45,37 @@ def _withheld_reopen_note(reporter: str, closed_at: str) -> str:
 def handle_bead_plus_one(args: argparse.Namespace) -> None:
     """Record independently attributed evidence on an existing task bead."""
     verified_after_close = bool(getattr(args, "verified_after_close", False))
+    allow_sensitive = bool(getattr(args, "allow_sensitive", False))
+    attachments_on = _note_attachments_enabled()
     try:
-        note = read_at_path_value(args.note, target="--note")
+        if attachments_on:
+            note = read_note_text_value(args.note, target="--note", bead_id=args.id)
+        else:
+            note = read_at_path_value(args.note, target="--note")
     except CliFileValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     bead_context = resolve_bead_operation_context([args.id], for_write=True)
     issue_id = bead_context.resolved_ids[0]
+    echo_rows: list[str] = []
     with bead_store_mutation(
         auto_commit_bead_store,
         bead_context=bead_context,
     ) as mutation:
         try:
+            stored_note = note
+            note_attachments: list[dict[str, Any]] | None = None
+            if attachments_on:
+                authored = _author_note_text(
+                    mutation,
+                    issue_id,
+                    note,
+                    edit_ordinal=None,
+                    allow_sensitive=allow_sensitive,
+                )
+                stored_note = authored.stored_text
+                note_attachments = authored.attachments or None
+                echo_rows = authored.echo_rows
             reporter = getattr(args, "author", None)
             if reporter is None:
                 reporter = resolve_mutation_author(mutation.project)
@@ -81,10 +93,11 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
                 observed_since = resolve_observation_window_start()
             issue, changed = mutation.project.plus_one(
                 issue_id,
-                note,
+                stored_note,
                 reporter=reporter,
                 refs=getattr(args, "ref", None) or (),
                 observed_since=observed_since,
+                note_attachments=note_attachments,
             )
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
@@ -105,6 +118,9 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
             mutation.commit(require_mutation_commit_message("+1", [issue.id]))
 
     report_word = "report" if issue.plus_one_count == 1 else "reports"
+    if changed:
+        # The withheld-reopen follow-up note is generated text, not scanned.
+        print_attachment_echo_rows(echo_rows)
     if changed and reopen_withheld:
         # Soft wrap: the reminder names two commands, and a mid-word wrap
         # (e.g. splitting `sase bead open`) reads as a broken instruction.

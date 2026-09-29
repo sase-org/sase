@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
+from sase.bead._project_mutations_shared import combine_mutation_outcomes
 from sase.bead.cli_common import (
     auto_commit_bead_store,
     bead_store_mutation,
     resolve_bead_operation_context,
 )
-from sase.bead.cli_crud_common import mutation_outcome_ids, resolve_mutation_author
+from sase.bead.cli_crud_common import (
+    mutation_outcome_ids,
+    note_attachments_enabled as _note_attachments_enabled,
+    print_attachment_echo_rows,
+    resolve_mutation_author,
+)
 from sase.bead.flag_fields import (
     FlagFields,
     flag_fields,
@@ -20,7 +27,14 @@ from sase.bead.flag_fields import (
 )
 from sase.bead.model import Issue
 from sase.bead.mutation_commit import require_mutation_commit_message
-from sase.cli_file_values import CliFileValueError, read_at_path_value
+from sase.cli_file_values import (
+    CliFileValueError,
+    read_at_path_value,
+    read_note_text_value,
+)
+
+if TYPE_CHECKING:
+    from sase.bead.attachments.authoring import AuthoredNoteAttachments
 
 
 def _print_update_results(
@@ -72,6 +86,42 @@ _NOTES_TOMBSTONE_MESSAGE = (
 )
 
 
+def _author_update_notes(
+    proj: Any,
+    issue_ids: list[str],
+    text: str,
+    *,
+    allow_sensitive: bool,
+) -> list[tuple[str, AuthoredNoteAttachments]]:
+    """Run the attachment authoring service once across every updated bead.
+
+    Each unique path is ingested a single time, then the text is composed per
+    bead against that bead's roster, so one filename can uniquify differently
+    on each bead. Returns ``(resolved_id, authored)`` pairs in unique-bead
+    order. Exits non-zero when the text has attachment problems; nothing is
+    written then.
+    """
+    from sase.bead.attachments.authoring import (
+        NoteAttachmentAuthoringError,
+        author_note_attachments_per_bead,
+    )
+
+    resolved_ids = [proj.resolve_id(issue_id) for issue_id in issue_ids]
+    unique_ids = list(dict.fromkeys(resolved_ids))
+    notes_per_bead = [list(proj.show(resolved_id).notes) for resolved_id in unique_ids]
+    try:
+        results = author_note_attachments_per_bead(
+            text,
+            notes_per_bead,
+            cwd=Path.cwd(),
+            allow_sensitive=allow_sensitive,
+        )
+    except NoteAttachmentAuthoringError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    return list(zip(unique_ids, results, strict=True))
+
+
 def _combined_outcome_ids(outcomes: list[dict[str, object]], field: str) -> list[str]:
     ids: list[str] = []
     seen: set[str] = set()
@@ -90,6 +140,8 @@ def handle_bead_update(args: argparse.Namespace) -> None:
     if getattr(args, "notes", None) is not None:
         print(f"Error: {_NOTES_TOMBSTONE_MESSAGE}", file=sys.stderr)
         sys.exit(1)
+    attachments_on = _note_attachments_enabled()
+    allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     try:
         description = (
             read_at_path_value(args.description, target="--description")
@@ -97,7 +149,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             else None
         )
         note = (
-            read_at_path_value(args.note, target="--note")
+            read_note_text_value(args.note, target="--note", bead_id=args.ids[0])
             if getattr(args, "note", None) is not None
             else None
         )
@@ -172,7 +224,18 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)
         outcomes: list[dict[str, object]] = []
+        echo_rows: list[str] = []
         try:
+            # Author attachments before any mutation: an attachment problem
+            # must leave the bead store unchanged, including field updates.
+            authored_per_bead: list[tuple[str, AuthoredNoteAttachments]] | None = None
+            if note is not None and attachments_on:
+                authored_per_bead = _author_update_notes(
+                    proj,
+                    issue_ids,
+                    note,
+                    allow_sensitive=allow_sensitive,
+                )
             if fields:
                 issues = proj.update_many(issue_ids, **fields)
                 outcomes.append(proj.last_mutation_outcome)
@@ -180,8 +243,27 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                 issues = [proj.show(issue_id) for issue_id in issue_ids]
             if note is not None:
                 author = resolve_mutation_author(proj)
-                issues = proj.append_note_many(issue_ids, note, author=author)
-                outcomes.append(proj.last_mutation_outcome)
+                if authored_per_bead is not None:
+                    note_outcomes: list[dict[str, object]] = []
+                    appended: dict[str, Issue] = {}
+                    for resolved_id, result in authored_per_bead:
+                        appended[resolved_id] = proj.append_note(
+                            resolved_id,
+                            result.stored_text,
+                            author=author,
+                            attachments=(result.attachments or None),
+                        )
+                        note_outcomes.append(proj.last_mutation_outcome)
+                    resolved_ids = [proj.resolve_id(issue_id) for issue_id in issue_ids]
+                    issues = [appended[resolved_id] for resolved_id in resolved_ids]
+                    outcomes.append(combine_mutation_outcomes("update", note_outcomes))
+                    for _, result in authored_per_bead:
+                        for row in result.echo_rows:
+                            if row not in echo_rows:
+                                echo_rows.append(row)
+                else:
+                    issues = proj.append_note_many(issue_ids, note, author=author)
+                    outcomes.append(proj.last_mutation_outcome)
         except KeyError as exc:
             message = str(exc.args[0]) if exc.args else ""
             missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
@@ -197,6 +279,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         ]
         if changed_ids:
             mutation.commit(require_mutation_commit_message("update", changed_ids))
+    print_attachment_echo_rows(echo_rows)
     _print_update_results(
         issues,
         changed_ids=changed_ids,

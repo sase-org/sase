@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
 _MUTATING_VERBS = frozenset(
-    {"+1", "close", "create", "open", "ref", "rm", "snooze", "update"}
+    {"+1", "attach", "close", "create", "open", "ref", "rm", "snooze", "update"}
 )
 # Every verb that accepts an ``@<path>`` free-text value, including those
 # Rust does not currently handle. A future Rust arm must not store the raw
@@ -421,14 +421,14 @@ def _argv_requests_at_path(argv: list[str]) -> bool:
 
 
 def _note_argv_needs_python_attachment_surface(argv: list[str]) -> bool:
-    """Return whether a ``note`` argv needs the attachment authoring service.
+    """Return whether a ``note`` or ``+1`` argv needs the authoring service.
 
     With the bead note attachments flag on, ``@`` anywhere in the note text
     (including the middle of an argument) may start a reference, so the
     command stays on the Python surface. With the flag off, the existing
     leading-``@`` rule applies. Never imports the attachments package.
     """
-    if not argv or argv[0] != "note":
+    if not argv or argv[0] not in {"note", "+1"}:
         return False
     if not any("@" in arg for arg in argv[1:]):
         return False
