@@ -6,6 +6,7 @@ content-addressed store from the bead-note-attachments epic.
 """
 
 from sase.bead.attachments.blob_store import BlobStore, BlobStoreError, ProgressCallback
+from sase.bead.attachments.git_store import GitAttachmentStore
 from sase.bead.attachments.images import ImageDims, probe_image
 from sase.bead.attachments.ingest import (
     IngestedBlob,
@@ -22,6 +23,7 @@ from sase.bead.attachments.store import (
 __all__ = [
     "BlobStore",
     "BlobStoreError",
+    "GitAttachmentStore",
     "ImageDims",
     "IngestedBlob",
     "IngestError",

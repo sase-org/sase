@@ -27,17 +27,33 @@ _OBJECT_PATH_RE = re.compile(
 )
 
 
-def is_valid_archive_object(repo: Path, relpath: str) -> bool:
-    """Whether ``relpath`` is a canonical object whose bytes match its name."""
+def canonical_archive_object_digest(relpath: str) -> str | None:
+    """Return the digest when *relpath* is a canonical object path.
+
+    A canonical path is ``files/objects/sha256/<xx>/<sha256>`` where the
+    leading ``<xx>`` matches the digest prefix. Returns ``None`` otherwise.
+    This is the pure path half of :func:`is_valid_archive_object`, shared
+    with stores (such as the bead attachment git store) that address the
+    same layout without a worktree to quarantine into.
+    """
 
     match = _OBJECT_PATH_RE.match(relpath)
     if match is None or not match.group(2).startswith(match.group(1)):
+        return None
+    return match.group(2)
+
+
+def is_valid_archive_object(repo: Path, relpath: str) -> bool:
+    """Whether ``relpath`` is a canonical object whose bytes match its name."""
+
+    digest = canonical_archive_object_digest(relpath)
+    if digest is None:
         return False
     path = repo / relpath
     if path.is_symlink() or not path.is_file():
         return False
     try:
-        return hash_file(path) == match.group(2)
+        return hash_file(path) == digest
     except OSError:
         return False
 
