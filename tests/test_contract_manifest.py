@@ -234,8 +234,21 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # seconds (4.32 s standalone, 2 tests). Estimated 62.33 serial seconds across the
 # refreshed 70-entry set (58.01 s prior plus the added file). The next candidate
 # should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 70
-_MEASURED_SERIAL_COST = "62.33 serial seconds across 70 entries"
+#
+# Re-curated to 72 on 2026-09-29 when `test_validate_sase_core_rs_tool.py`
+# (930 lines) split by domain to keep every file under 500 lines:
+# `test_validate_sase_core_rs_prompt_tool.py` (prompt-stash lifecycle and
+# prompt-prediction contracts, 237 lines) and
+# `test_validate_sase_core_rs_runtime_tool.py` (telemetry, disk-inventory,
+# gate-decision, proc, output-variable, agent-stats, cleanup, vcs-log, snippet,
+# finalizer, and tool-run-handoff bindings, 274 lines) moved out, leaving the
+# original file with the plan/artifact/bead/fleet/code bindings (445 lines).
+# The two added paths redistribute the same 35 validator tests rather than
+# expanding contract membership. The whole 72-entry set measured 53.61 s under
+# the command above on this host (single run; 783 tests); the next candidate
+# should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 72
+_MEASURED_SERIAL_COST = "53.61 serial seconds across 72 entries"
 
 
 def _load_refresh_tool() -> ModuleType:
