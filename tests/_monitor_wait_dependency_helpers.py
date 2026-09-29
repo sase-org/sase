@@ -1,4 +1,9 @@
-"""Shared helpers for monitor wait-dependency tests."""
+"""Shared helpers for monitor wait-dependency tests.
+
+Public aliases (``monitor_handoff_agent_session``,
+``write_completed_workflow_state``) let split test modules share these
+builders without importing ``_``-prefixed names across files.
+"""
 
 from __future__ import annotations
 
@@ -172,3 +177,26 @@ def _monitor_handoff_agent_session(
             outcome=successor_outcome if isinstance(successor_outcome, str) else None,
         )
     return root_dir, monitor_dir, successor_dir
+
+
+def monitor_handoff_agent_session(
+    tmp_path: Path,
+    *,
+    monitor_state: str = "timeout",
+    followup_outcome: str | None = "launched",
+    followup_agent: str | None = "monitor-lane--1",
+    successor_outcome: str | None | bool = "completed",
+) -> tuple[Path, Path, Path | None]:
+    """Public alias for split test modules (see module docstring)."""
+    return _monitor_handoff_agent_session(
+        tmp_path,
+        monitor_state=monitor_state,
+        followup_outcome=followup_outcome,
+        followup_agent=followup_agent,
+        successor_outcome=successor_outcome,
+    )
+
+
+def write_completed_workflow_state(artifact_dir: Path) -> None:
+    """Public alias for split test modules (see module docstring)."""
+    _write_completed_workflow_state(artifact_dir)
