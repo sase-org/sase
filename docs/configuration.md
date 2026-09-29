@@ -5255,20 +5255,23 @@ tools:
         python: [python, --version]
 ```
 
-| Field                                | Type                   | Default  | Description                                                                                 |
-| ------------------------------------ | ---------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| `tools.<name>.argv`                  | string array           | required | Exact argv run at the project root. Not expanded for shell syntax or environment variables. |
-| `tools.<name>.description`           | string                 | `""`     | Human-readable purpose shown by `sase tool list`.                                           |
-| `tools.<name>.stages`                | `run_silent` \| `none` | `none`   | Whether `run_silent` stage producers attach to this tool.                                   |
-| `tools.<name>.inputs`                | string array           | `[]`     | Repository-relative glob patterns observed as fingerprint inputs.                           |
-| `tools.<name>.env`                   | string array           | `[]`     | Allow-listed environment variable names observed as fingerprint inputs.                     |
-| `tools.<name>.args`                  | `allow` \| `deny`      | `deny`   | Whether extra arguments after `--` may be appended to argv.                                 |
-| `tools.<name>.fingerprint.repos`     | string array           | `[]`     | Configured repository identities; empty means the current repository.                       |
-| `tools.<name>.fingerprint.toolchain` | map of argv arrays     | `{}`     | Bounded toolchain probes.                                                                   |
+| Field                                | Type                             | Default              | Description                                                                                                             |
+| ------------------------------------ | -------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `tools.<name>.argv`                  | string array                     | required             | Exact argv run at the project root. Not expanded for shell syntax or environment variables.                             |
+| `tools.<name>.description`           | string                           | `""`                 | Human-readable purpose shown by `sase tool list`.                                                                       |
+| `tools.<name>.stages`                | `run_silent` \| `none`           | `none`               | Whether `run_silent` stage producers attach to this tool.                                                               |
+| `tools.<name>.inputs`                | string array                     | `[]`                 | Repository-relative glob patterns observed as fingerprint inputs.                                                       |
+| `tools.<name>.env`                   | string array                     | `[]`                 | Allow-listed environment variable names observed as fingerprint inputs.                                                 |
+| `tools.<name>.args`                  | `allow` \| `deny`                | `deny`               | Whether extra arguments after `--` may be appended to argv.                                                             |
+| `tools.<name>.duration_class`        | `short` \| `long` \| `unbounded` | `short` (when unset) | Duration-class floor for inline-vs-monitor routing. Validated by the Rust core and excluded from the definition digest. |
+| `tools.<name>.fingerprint.repos`     | string array                     | `[]`                 | Configured repository identities; empty means the current repository.                                                   |
+| `tools.<name>.fingerprint.toolchain` | map of argv arrays               | `{}`                 | Bounded toolchain probes.                                                                                               |
 
 `sase tool list` reports LAST (newest native result for this project and definition) and
 TYPICAL (median duration of up to 30 normally exited native runs in 30 days). Missing
-samples render as an em dash, never as zero or an ETA.
+samples render as an em dash, never as zero or an ETA. It also reports CLASS (the
+effective duration class, `short` when unset) and calibrates each declaration against
+the corpus (see [Duration classes](tool.md#duration-classes)).
 
 Source: `src/sase/config/sase.schema.json`, `src/sase/config/tools.py`,
 `src/sase/main/tool_handler.py`

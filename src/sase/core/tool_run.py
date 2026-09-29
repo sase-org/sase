@@ -67,6 +67,26 @@ def tool_run_unknown_evidence(reason: str) -> dict[str, Any]:
     return dict(require_rust_binding("tool_run_unknown_evidence")(reason))
 
 
+def _duration_payload(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Build a v1 duration request without owning any duration policy."""
+
+    return {"schema_version": 1, **dict(request)}
+
+
+def tool_run_duration_fit(request: Mapping[str, Any]) -> dict[str, Any]:
+    return dict(
+        require_rust_binding("tool_run_duration_fit")(_duration_payload(request))
+    )
+
+
+def tool_run_duration_calibration(request: Mapping[str, Any]) -> dict[str, Any]:
+    return dict(
+        require_rust_binding("tool_run_duration_calibration")(
+            _duration_payload(request)
+        )
+    )
+
+
 def _triage_payload(request: Mapping[str, Any]) -> dict[str, Any]:
     """Build a v1 triage request without owning any triage policy."""
 
@@ -541,6 +561,8 @@ __all__ = [
     "tool_run_detail",
     "tool_run_canonicalize_fingerprint",
     "tool_run_claim",
+    "tool_run_duration_calibration",
+    "tool_run_duration_fit",
     "tool_run_finish",
     "tool_run_list",
     "tool_run_live_glance",

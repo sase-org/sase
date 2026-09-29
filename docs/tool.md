@@ -34,6 +34,36 @@ the [field reference](configuration.md#sase-tool).
 `tool_runs:` (retention and log caps) is separate operational policy and follows
 ordinary config precedence.
 
+### Duration classes
+
+Each catalog entry may declare `duration_class: short | long | unbounded`, the floor
+below which the tool essentially never finishes:
+
+| Class                        | Floor                 | Meaning                                                    |
+| ---------------------------- | --------------------- | ---------------------------------------------------------- |
+| `short` (default when unset) | 0 s                   | Can finish in minutes; always fits inline.                 |
+| `long`                       | 600 s (10 m)          | Essentially never finishes in under 10 minutes.            |
+| `unbounded`                  | none (no upper bound) | Waits on something external; never fits under any ceiling. |
+
+A class is a floor, not a forecast: `check` stays `short` on purpose (it fails fast, and
+its over-ceiling tail is reactive escalation's problem), while `check-full` is `long` (a
+superset of the full test suite). The Rust core owns the class enum, the floor table,
+and validation; an unknown value is a catalog error (exit `2`) naming the entry. Like
+`receipt:`, the field is excluded from the definition digest and serialized only when
+declared, so declaring or changing a class never moves TYPICAL history, triage identity,
+or receipt coverage, and undeclared entries stay byte-identical.
+
+`sase tool list` shows the effective class in a CLASS column and calibrates each
+declaration against the corpus: each JSON tool gains `duration_class` and
+`duration_calibration` (object or `null`; the envelope `schema_version` stays `1`), and
+each calibration summary prints as one stderr diagnostic line in human mode. Calibration
+stays silent below 10 samples and otherwise suggests the class the TYPICAL numbers
+support; it never gates a run. Ad-hoc runs have no class and are always `short`.
+
+Mixed installed cores fail closed: a core older than the duration-class wire rejects
+`duration_class` as an unknown catalog field, so the pin bump and the first declaration
+land together and `just install` heals a stale wheel (same rollout as `receipt:`).
+
 ## Project identity
 
 Every run is recorded under the project identity of the repository that owns its

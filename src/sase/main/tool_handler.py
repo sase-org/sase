@@ -15,7 +15,7 @@ from sase.config.tools import (
     ToolCatalogError,
     load_project_tool_catalog,
 )
-from sase.core.tool_run import tool_run_summary
+from sase.core.tool_run import tool_run_duration_calibration, tool_run_summary
 from sase.tool.control import (
     ToolStopCliRequest,
     ToolWaitCliRequest,
@@ -186,6 +186,38 @@ def _handle_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _duration_calibration(
+    declared: object,
+    typical_ms: object,
+    sample_count: int,
+) -> tuple[str, dict[str, Any] | None]:
+    """Return the effective class plus the calibration object (or None).
+
+    The Rust core owns the default class and the calibration verdict; a
+    calibration failure fails open to the declared class (``short`` when
+    undeclared) with no calibration object.
+    """
+
+    # The loader already validated the declared value through Rust; echo it
+    # back here only so a calibration failure still lists the tool.
+    fallback = str(declared) if isinstance(declared, str) else "short"
+    try:
+        response = tool_run_duration_calibration(
+            {
+                "duration_class": declared,
+                "typical_duration_ms": typical_ms,
+                "typical_sample_count": sample_count,
+            }
+        )
+    except Exception:  # noqa: BLE001 - calibration never gates listing.
+        return fallback, None
+    effective = response.get("duration_class") or fallback
+    calibration = response.get("calibration")
+    if not isinstance(calibration, dict):
+        return str(effective), None
+    return str(effective), dict(calibration)
+
+
 def _list_envelope(catalog: ToolCatalog) -> dict[str, Any]:
     tools: list[dict[str, Any]] = []
     diagnostics = list(catalog.diagnostics)
@@ -201,6 +233,15 @@ def _list_envelope(catalog: ToolCatalog) -> dict[str, Any]:
         last = summary.get("last")
         typical_ms = summary.get("typical_duration_ms")
         sample_count = int(summary.get("typical_sample_count") or 0)
+        duration_class, calibration = _duration_calibration(
+            entry.definition.get("duration_class"),
+            typical_ms,
+            sample_count,
+        )
+        if isinstance(calibration, dict):
+            summary_text = calibration.get("summary")
+            if summary_text:
+                diagnostics.append(f"{entry.name}: {summary_text}")
         tools.append(
             {
                 "name": entry.name,
@@ -218,6 +259,8 @@ def _list_envelope(catalog: ToolCatalog) -> dict[str, Any]:
                 "typical_status_breakdown": dict(
                     summary.get("typical_status_breakdown") or {}
                 ),
+                "duration_class": duration_class,
+                "duration_calibration": calibration,
                 "diagnostics": [
                     *entry.diagnostics,
                     *(str(item) for item in summary.get("diagnostics") or ()),
@@ -241,10 +284,11 @@ def _print_catalog_table(envelope: dict[str, Any]) -> None:
     table.add_column("NAME")
     table.add_column("LAST")
     table.add_column("TYPICAL")
+    table.add_column("CLASS")
     table.add_column("DESCRIPTION")
     tools = envelope.get("tools") or ()
     if not tools:
-        table.add_row(EMPTY, EMPTY, EMPTY, "no named tools in this project")
+        table.add_row(EMPTY, EMPTY, EMPTY, EMPTY, "no named tools in this project")
     for tool in tools:
         table.add_row(
             str(tool.get("name") or EMPTY),
@@ -253,6 +297,7 @@ def _print_catalog_table(envelope: dict[str, Any]) -> None:
                 tool.get("typical_duration_ms"),
                 int(tool.get("typical_sample_count") or 0),
             ),
+            str(tool.get("duration_class") or "short"),
             str(tool.get("description") or EMPTY),
         )
     console.print(table)

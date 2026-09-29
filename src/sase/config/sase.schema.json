@@ -1431,7 +1431,12 @@
           "description": "Whether extra arguments after -- may be appended to argv."
         },
         "fingerprint": { "$ref": "#/definitions/toolFingerprintSpec" },
-        "receipt": { "$ref": "#/definitions/toolReceiptPolicy" }
+        "receipt": { "$ref": "#/definitions/toolReceiptPolicy" },
+        "duration_class": {
+          "type": "string",
+          "enum": ["short", "long", "unbounded"],
+          "description": "Duration class floor for inline-vs-monitor routing. Validated by the Rust core and excluded from the definition digest; unset means short."
+        }
       }
     },
     "toolReceiptPolicy": {

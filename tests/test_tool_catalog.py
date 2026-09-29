@@ -265,3 +265,48 @@ def test_receipt_policy_rejects_unknown_accept_and_overlong_ttl() -> None:
         tool_run_normalize_definition(
             _minimal_definition(receipt={"accept": ["pass"], "ttl": "3h"})
         )
+
+
+def test_check_full_declares_long_duration_class() -> None:
+    """sase-1cp catalog-duration-class: only `check-full` declares a duration
+    class. The loader surfaces it as declared; every other tool stays
+    undeclared (effective `short`)."""
+
+    catalog = load_project_tool_catalog()
+    by_name = {entry.name: entry for entry in catalog.entries}
+    assert by_name["check-full"].definition["duration_class"] == "long"
+    for tool in ("check", "install", "test", "test-visual"):
+        assert "duration_class" not in by_name[tool].definition
+
+
+def test_duration_class_only_edit_preserves_definition_digest() -> None:
+    """sase-1cp catalog-duration-class: duration class lives outside definition
+    identity (like `receipt:`), so declaring any class never moves the digest.
+    A declared value round-trips as declared; undeclared stays omitted."""
+
+    base = tool_run_normalize_definition(_minimal_definition())
+    assert base["digest"]
+    assert "duration_class" not in base["definition"]
+    for class_name in ("short", "long", "unbounded"):
+        classified = tool_run_normalize_definition(
+            _minimal_definition(duration_class=class_name)
+        )
+        assert classified["digest"] == base["digest"]
+        assert classified["definition"]["duration_class"] == class_name
+
+
+def test_unknown_duration_class_names_the_entry_and_value(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """sase-1cp catalog-duration-class: Rust validates the class enum, so an
+    unknown value is a catalog error naming the entry and the rejected value."""
+
+    with pytest.raises(ValueError, match="forever"):
+        tool_run_normalize_definition(_minimal_definition(duration_class="forever"))
+    path = _write_project_tools(
+        tmp_path,
+        {"check": {"argv": ["just", "check"], "duration_class": "forever"}},
+    )
+    monkeypatch.setattr("sase.config.tools.get_local_config_path", lambda: path)
+    with pytest.raises(ToolCatalogError, match=r"tools\.check.*forever"):
+        load_project_tool_catalog()

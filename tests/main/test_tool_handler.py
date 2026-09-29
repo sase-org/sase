@@ -80,6 +80,103 @@ def test_tool_list_human_uses_em_dash_for_empty_samples(
     assert "—" in output
 
 
+def test_tool_list_json_reports_duration_class_and_null_calibration(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = _write_tools(
+        tmp_path,
+        {
+            "slow": {
+                "argv": ["just", "check-full"],
+                "description": "exhaustive check",
+                "duration_class": "long",
+            },
+            "quick": {"argv": ["just", "check"]},
+        },
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sase.config.tools.get_local_config_path", lambda: path)
+    clear_config_cache()
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_tool_command(Namespace(tool_subcommand="list", json=True))
+
+    assert exit_info.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema_version"] == 1
+    by_name = {tool["name"]: tool for tool in payload["tools"]}
+    assert by_name["slow"]["duration_class"] == "long"
+    assert by_name["slow"]["duration_calibration"] is None
+    assert by_name["quick"]["duration_class"] == "short"
+    assert by_name["quick"]["duration_calibration"] is None
+
+
+def test_tool_list_human_shows_class_column(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = _write_tools(
+        tmp_path,
+        {"slow": {"argv": ["just", "check-full"], "duration_class": "long"}},
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sase.config.tools.get_local_config_path", lambda: path)
+    clear_config_cache()
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_tool_command(Namespace(tool_subcommand="list", json=False))
+
+    assert exit_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "CLASS" in output
+    assert "long" in output
+
+
+def test_tool_list_calibration_mismatch_reaches_json_and_human_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = _write_tools(
+        tmp_path,
+        {"slow": {"argv": ["just", "check-full"], "duration_class": "long"}},
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sase.config.tools.get_local_config_path", lambda: path)
+    clear_config_cache()
+    monkeypatch.setattr(
+        "sase.main.tool_handler.tool_run_summary",
+        lambda _request: {
+            "last": None,
+            "typical_duration_ms": 1000,
+            "typical_sample_count": 20,
+            "typical_status_breakdown": {},
+            "diagnostics": [],
+        },
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_tool_command(Namespace(tool_subcommand="list", json=True))
+    assert exit_info.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    calibration = payload["tools"][0]["duration_calibration"]
+    assert payload["tools"][0]["duration_class"] == "long"
+    assert calibration["suggested_class"] == "short"
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_tool_command(Namespace(tool_subcommand="list", json=False))
+    assert exit_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "slow:" in captured.err
+    assert "suggest short" in captured.err
+
+
 def test_malformed_catalog_exits_2_without_listing(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -144,6 +144,9 @@ max_agent_pipe_chain: 40
 # Project-owned named tools. Complete entries; other config layers cannot
 # splice or concatenate this catalog.
 tools:
+  # `check` is short on purpose (sase-1cp): it fails fast (TYPICAL ~2m30s
+  # over 30 samples), and its over-ceiling tail is sase-17g's escalation
+  # problem, not a refusal. No `duration_class` means `short`.
   check:
     argv: [just, check]
     description: Run the repository scoped check.
@@ -197,6 +200,11 @@ tools:
     argv: [just, check-full]
     description: Run the exhaustive repository check.
     stages: run_silent
+    # Duration class (sase-1cp): a superset of the full test suite, whose bare
+    # `test` TYPICAL is 15m37s on athena. Validated by the Rust core and
+    # excluded from the definition digest, so this never moves TYPICAL
+    # history or triage identity.
+    duration_class: long
     inputs:
       - Justfile
       - pyproject.toml
@@ -256,6 +264,9 @@ tools:
       toolchain:
         python: [.venv/bin/python, --version]
         just: [just, --version]
+  # `test-visual` stays undeclared (`short`) for now (sase-1cp): the corpus
+  # holds a single signaled run with no duration, below the 600 s floor
+  # evidence needed for `long`. See the phase bead's PROPOSED FOLLOW-UP note.
   test-visual:
     argv: [just, test-visual]
     description: Run visual and screenshot tests.
