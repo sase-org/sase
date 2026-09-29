@@ -21,7 +21,7 @@ from sase.bead.attachments import (
     GitAttachmentStore,
     LocalAttachmentStore,
 )
-from sase.bead.attachments import git_store as git_store_module
+from sase.bead.attachments.git_store import store as git_store_module
 
 _GIT_TIMEOUT = 60.0
 _STORE_TIMEOUT = 60.0
@@ -139,7 +139,7 @@ def test_has_fetches_once_per_process(
     _store(clone_a).put(digest, _write(tmp_path / "a.bin", data), len(data))
 
     calls: list[list[str]] = []
-    real = git_store_module._run_git
+    real = git_store_module.run_git
 
     def spy(
         args: list[str],
@@ -152,7 +152,7 @@ def test_has_fetches_once_per_process(
             calls.append(list(args))
         return real(args, cwd=cwd, timeout=timeout, env=env)
 
-    monkeypatch.setattr(git_store_module, "_run_git", spy)
+    monkeypatch.setattr(git_store_module, "run_git", spy)
     store_b = _store(clone_b)
 
     assert store_b.has(digest) is True
