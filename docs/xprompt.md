@@ -3076,6 +3076,35 @@ directive's colon. For example, `%effort:%{medium | high | xhigh}` expands into 
 launched prompts with `%effort:medium`, `%effort:high`, and `%effort:xhigh`;
 `%m:%{opus | sonnet}` is equivalent to `%{%m:opus | %m:sonnet}`.
 
+#### Where `%{...}` Opens
+
+`%{` opens an alternation anywhere outside literal/definition zones: at the start of a
+line, after whitespace, mid-word (`foo%{bar | baz}qux` launches `foobarqux` and
+`foobazqux`), after punctuation (`pre-%{a | b}`), right after another group
+(`%{a | b}%{c | d}`), inside a directive value (`%m:op%{us | x}`), and inside another
+alternation's branch (`%{sase-%{core | github} | chezmoi}` launches `sase-core`,
+`sase-github`, and `chezmoi`). A nested group expands only when its branch is selected.
+The only way to write a literal `%{` is inside inline code, fenced blocks, or
+`%xprompts_enabled:false` regions.
+
+The long form `%alt(...)` and the legacy `%(...)` shorthand keep the old rule: they open
+only at a directive-valid position (start of line, or after whitespace, `(`, `[`, `{`,
+`"`, `'`, or `:`). That keeps `%(name)s` format strings, `50%(approx)`, and
+`--format=%(refname)` ordinary text.
+
+A branch glued to neighboring text keeps adjacent directives parseable: when a selected,
+non-empty branch starts with a `%` directive marker and the character before the group
+is not a directive boundary, the renderer inserts one space before the branch, and
+likewise after a trailing `%name…` directive when the next character is a word
+character. So `Review:%{%m:opus | %m:sonnet}` launches `Review: %m:opus` with the opus
+model, and `foo %{%m:opus | %m:sonnet}bar` launches `foo %m:opus bar`. `#xprompt`
+references and `+tag`s in a glued branch are substituted verbatim, so put whitespace
+before the `%{` to keep them references.
+
+One ambiguity to know: a literal `%` immediately followed by a Jinja `{%` tag
+(`100%{% if x %}`) now reads as an alternation opener. Write `100% {% if x %}` or use
+inline code instead.
+
 The long form `%alt(...)` and the legacy `%(...)` shorthand remain accepted; both use
 parentheses with comma-separated branches:
 

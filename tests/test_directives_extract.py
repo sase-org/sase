@@ -431,6 +431,14 @@ def test_raw_alt_model_branches_are_not_top_level_model_metadata() -> None:
     assert directives.model is None
 
 
+def test_glued_alt_model_branches_are_not_top_level_models() -> None:
+    """A mid-word alt holding model branches extracts no top-level model."""
+    prompt = "foo%{%m:opus | %m:sonnet} go"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == prompt
+    assert directives.model is None
+
+
 def test_duplicate_non_model_directive_still_raises() -> None:
     """Non-model duplicate directives continue to raise DirectiveError."""
     prompt = "%hide\n%hide\nPrompt text"

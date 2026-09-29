@@ -106,6 +106,19 @@ def test_validate_alt_branches_are_separate_units() -> None:
     validate_project_tags_for_launch("%{+sase | +bob} audit the README")
 
 
+def test_validate_mid_word_alt_branches_are_separate_units() -> None:
+    validate_project_tags_for_launch("go%{+sase | +bob}now")
+
+
+def test_validate_nested_alt_branches_are_separate_units() -> None:
+    validate_project_tags_for_launch("%{pick %{+sase | +bob} | +widgets} audit")
+
+
+def test_validate_brace_text_does_not_close_alt_group() -> None:
+    # A `{...}` span inside a branch is branch text, not the group close.
+    validate_project_tags_for_launch("%{+sase {fast} | +bob} audit")
+
+
 def test_validate_two_targets_in_one_unit_errors() -> None:
     with pytest.raises(
         ProjectTagError, match="Only one workspace target.*`\\+sase` and `\\+bob`"

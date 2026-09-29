@@ -40,13 +40,16 @@ if TYPE_CHECKING:
 
     from .models import XPrompt
 
-# Pattern to match %alt(, %( or %{ at a directive-valid position, including
-# directive value fan-out after a colon. The group captures through the opening
-# delimiter so ``match.end() - 1`` is the ``(`` or ``{`` that opens the alt
-# body. Mirrors ``alt_directive_re`` in the Rust core.
+# Pattern to match ``%{`` anywhere plus ``%alt(`` / ``%(`` at a
+# directive-valid position, including directive value fan-out after a colon.
+# Group 1 covers the marker in both cases: the bare ``%{`` for the brace form,
+# or the boundary prefix plus the paren marker for the paren forms. Either way
+# ``match.end() - 1`` is the ``(`` or ``{`` that opens the alt body (the brace
+# branch consumes no prefix, so adjacent ``%{a|b}%{c|d}`` openers all match).
+# Do not use ``match.start(1)`` as the marker start for the paren forms — it
+# includes the prefix character. Mirrors ``alt_directive_re`` in the Rust core.
 _ALT_DIRECTIVE_RE = re.compile(
-    r"(?:^|(?<=\s)|(?<=[(\[{\"':]))"
-    r"(%(?:alt)?\(|%\{)",
+    r"((?:^|[\s(\[{\"':])%(?:alt)?\(|%\{)",
     re.MULTILINE,
 )
 

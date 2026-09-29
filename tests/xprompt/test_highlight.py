@@ -369,6 +369,69 @@ def test_project_tags_coexist_with_alt_structure(
     ]
 
 
+def test_alt_callers_share_one_binding_scan_per_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One rebuild's alt callers share a single core scan; plain text skips FFI."""
+    from rich.style import Style
+
+    from sase.ace.tui.util import semantic_overlay, xprompt_syntax
+    from sase.ace.tui.util.semantic_styles import SemanticHighlightStyles
+    from sase.xprompt import alt_inspect
+
+    calls: list[str] = []
+
+    def fake_scan(text: str) -> list[dict[str, object]]:
+        calls.append(text)
+        return [
+            {
+                "form": "brace",
+                "marker_start": 3,
+                "opener_end": 5,
+                "close": 14,
+                "separators": [9],
+                "branch_names": [],
+                "depth": 0,
+            }
+        ]
+
+    monkeypatch.setattr(alt_inspect, "_get_alternation_scan_binding", lambda: fake_scan)
+    alt_inspect._cached_records.cache_clear()
+    try:
+        text = "foo%{bar | baz}qux"
+        assert highlight_spans(text)
+        assert xprompt_syntax.xprompt_overlay_spans(text)
+        target = SimpleNamespace(stylize=lambda *args, **kwargs: None)
+        semantic_overlay.apply_semantic_overlays(
+            target,
+            text,
+            styles=SemanticHighlightStyles(glossary=Style(), repo=Style()),
+            skip_xprompt=True,
+        )
+        delimiters = [
+            span for span in alt_inspect.tokenize(text) if span.kind == "delimiter"
+        ]
+        assert len(delimiters) > 0
+        assert len(tuple(alt_inspect.groups(text))) > 0
+        assert calls == [text]
+
+        calls.clear()
+        plain = "ordinary text with 50% effort"
+        assert highlight_spans(plain) == []
+        assert xprompt_syntax.xprompt_overlay_spans(plain) == ()
+        semantic_overlay.apply_semantic_overlays(
+            target,
+            plain,
+            styles=SemanticHighlightStyles(glossary=Style(), repo=Style()),
+            skip_xprompt=True,
+        )
+        assert alt_inspect.tokenize(plain) == []
+        assert alt_inspect.groups(plain) == ()
+        assert calls == []
+    finally:
+        alt_inspect._cached_records.cache_clear()
+
+
 def _isolate_scanners(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         highlight.xprompt_inspect,

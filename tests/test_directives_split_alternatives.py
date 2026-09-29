@@ -297,3 +297,40 @@ def testsplit_prompt_for_alternatives_brace_unclosed_raises() -> None:
     """An unclosed %{ reports a DirectiveError mentioning the missing close."""
     with pytest.raises(DirectiveError, match=r"%\{"):
         split_prompt_for_alternatives("%{a | b")
+
+
+def testsplit_prompt_for_alternatives_mid_word() -> None:
+    """A mid-word %{ fans out inside the word."""
+    assert split_prompt_for_alternatives("foo%{bar | baz}qux") == [
+        "foobarqux",
+        "foobazqux",
+    ]
+
+
+def testsplit_prompt_for_alternatives_mid_word_single_branch() -> None:
+    """A mid-word single branch is a with/without split."""
+    assert split_prompt_for_alternatives("word%{s}") == ["words", "word"]
+
+
+def testsplit_prompt_for_alternatives_mid_word_unclosed_raises() -> None:
+    """An unclosed mid-word %{ reports a DirectiveError."""
+    with pytest.raises(DirectiveError, match=r"%\{"):
+        split_prompt_for_alternatives("foo%{bar")
+
+
+def testsplit_prompt_for_alternatives_glued_branch_directives() -> None:
+    """Glued branch directives gain separating spaces so they stay parseable."""
+    assert split_prompt_for_alternatives("Review:%{%m:opus | %m:sonnet}") == [
+        "Review: %m:opus",
+        "Review: %m:sonnet",
+    ]
+    assert split_prompt_for_alternatives("foo %{%m:opus | %m:sonnet}bar") == [
+        "foo %m:opus bar",
+        "foo %m:sonnet bar",
+    ]
+
+
+def testsplit_prompt_for_alternatives_paren_still_needs_boundary() -> None:
+    """Glued paren forms do not fan out."""
+    assert split_prompt_for_alternatives("x%(a,b)") is None
+    assert split_prompt_for_alternatives("50%(approx)") is None

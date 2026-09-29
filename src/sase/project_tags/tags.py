@@ -128,32 +128,19 @@ def _vcs_ref_span_ranges(text: str) -> list[tuple[int, int]]:
 
 
 def _alt_group_spans(text: str) -> list[tuple[int, int, list[str]]]:
-    """Return ``(start, end, branches)`` for each top-level ``%{...}`` group."""
+    """Return ``(start, end, branches)`` for each top-level ``%{...}`` group.
 
-    groups: list[tuple[int, int, list[str]]] = []
-    index = 0
-    while True:
-        open_at = text.find("%{", index)
-        if open_at == -1:
-            return groups
-        depth = 0
-        cursor = open_at
-        while cursor < len(text):
-            if text.startswith("%{", cursor):
-                depth += 1
-                cursor += 2
-            elif text[cursor] == "}":
-                depth -= 1
-                cursor += 1
-                if depth == 0:
-                    break
-            else:
-                cursor += 1
-        if depth != 0:
-            return groups
-        inner = text[open_at + 2 : cursor - 1]
-        groups.append((open_at, cursor, inner.split("|")))
-        index = cursor
+    Groups come from the core alternation scan (via
+    :func:`sase.xprompt.alt_inspect.groups`), so literal zones are excluded,
+    ``{...}`` brace text no longer closes the group early, and branches split
+    at the core-reported top-level separators instead of every ``|``.
+    """
+
+    from sase.xprompt.alt_inspect import groups as _alt_groups
+
+    return [
+        (group.start, group.end, list(group.branches)) for group in _alt_groups(text)
+    ]
 
 
 def _mask_ranges(text: str, ranges: list[tuple[int, int]]) -> str:
@@ -287,7 +274,10 @@ def validate_project_tags_with_catalog(
     # One-target rule (D3): tags and VCS refs count together within each
     # future launch unit. Alt groups fan out to separate units, so their
     # contents are masked here and each branch is validated on its own.
-    alt_groups = _alt_group_spans(text) if _alt_depth == 0 else []
+    # The scan reports depths relative to the scanned text, so recursing into
+    # a branch slice re-roots nesting: a nested group is depth 0 in its slice
+    # and validates per branch at the next level.
+    alt_groups = _alt_group_spans(text)
     alt_ranges = [(start, end) for start, end, _ in alt_groups]
     masked = _mask_ranges(text, alt_ranges)
     try:

@@ -82,6 +82,15 @@ def test_alt_with_adjacent_directive_is_not_a_jinja_statement() -> None:
     assert jinja_inspect.has_jinja("%{%m:opus | %m:sonnet}") is False
 
 
+def test_diagnose_is_clean_for_glued_alt_directive() -> None:
+    text = "foo%{%m:opus | %m:sonnet} go"
+
+    diagnostics = jinja_inspect.diagnose(text)
+
+    assert diagnostics.has_jinja is False
+    assert diagnostics.ok is True
+
+
 def test_diagnose_reports_line_and_span_for_invalid_template() -> None:
     text = "first line\nHello {{ name }"
 

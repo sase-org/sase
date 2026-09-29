@@ -387,8 +387,17 @@ def test_has_alt_directive_after_directive_colon(prompt: str) -> None:
 
 
 def test_has_alt_directive_brace_shorthand_word_adjacent() -> None:
-    """Does not detect %{ brace shorthand when glued to a word."""
-    assert has_alt_directive("x%{a | b}") is False
+    """Detects %{ brace shorthand even when glued to a word."""
+    assert has_alt_directive("x%{a | b}") is True
+    assert has_alt_directive("foo%{bar | baz}qux") is True
+
+
+def test_has_alt_directive_paren_shorthand_still_needs_boundary() -> None:
+    """%( / %alt( glued to a word are not alt directives."""
+    assert has_alt_directive("x%(a,b)") is False
+    assert has_alt_directive("fmt%alt(a,b)") is False
+    assert has_alt_directive("50%(approx)") is False
+    assert has_alt_directive("x %(a,b)") is True
 
 
 def test_has_alt_directive_brace_bare_percent_no_brace() -> None:

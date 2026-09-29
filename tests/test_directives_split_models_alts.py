@@ -220,6 +220,14 @@ def test_split_prompt_for_models_model_value_fanout() -> None:
     ]
 
 
+def test_split_prompt_for_models_glued_branch_directives() -> None:
+    """Glued model branches gain separating spaces so they stay parseable."""
+    assert split_prompt_for_models("Review:%{%m:opus | %m:sonnet}") == [
+        "%id:@.cld_opus\nReview: %m:opus",
+        "%id:@.cld_sonnet\nReview: %m:sonnet",
+    ]
+
+
 def test_split_prompt_for_models_with_alt_directive() -> None:
     """Model branches combined with %(x,y) produce 4 prompts."""
     prompt = "%i:foo\n%{%model:opus | %model:sonnet} %(x,y)\nReview this code"
