@@ -262,10 +262,14 @@ def _settle(
 
 
 def _patch_mod(monkeypatch: pytest.MonkeyPatch, name: str, value: object) -> None:
-    monkeypatch.setattr(f"sase.monitor.host_completion.{name}", value, raising=False)
-    monkeypatch.setattr(
-        f"sase.monitor.host_completion_state.{name}", value, raising=False
-    )
+    for module in (
+        "sase.monitor.host_completion_settle",
+        "sase.monitor.host_completion_run",
+        "sase.monitor.host_completion_execute",
+        "sase.monitor.host_completion_complete",
+        "sase.monitor.host_completion_state",
+    ):
+        monkeypatch.setattr(f"{module}.{name}", value, raising=False)
 
 
 def _patch_success_path(

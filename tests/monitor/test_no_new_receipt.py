@@ -605,37 +605,42 @@ def _patch_completion_harness(
     intent: dict[str, Any],
     verify: tuple[Any, Any],
 ) -> None:
-    import sase.monitor.host_completion as host_completion
+    import sase.monitor.host_completion_complete as host_complete
+    import sase.monitor.host_completion_execute as host_execute
+    import sase.monitor.host_completion_run as host_run
+    import sase.monitor.host_completion_settle as host_settle
 
-    monkeypatch.setattr(
-        host_completion,
-        "load_prepared_completion",
-        lambda _ref, artifacts_dir=None: dict(intent),
-    )
-    snapshot = MagicMock()
-    snapshot.plan.entries = []
-    snapshot.plan.plan_digest = "p" * 64
-    snapshot.obligation_ids = ()
-    snapshot.observation_fingerprint = ()
-    snapshot.publication.context.obligations = []
-    monkeypatch.setattr(
-        host_completion, "_snapshot_execution_context", lambda *_a, **_k: snapshot
-    )
-    monkeypatch.setattr(
-        host_completion,
-        "_evaluate_intent",
-        lambda *_a, **_k: {
+    def _eligible_decision(*_a: object, **_k: object) -> dict[str, Any]:
+        return {
             "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
             "eligible": True,
             "action": "complete",
             "reason": None,
             "reasons": [],
             "rendered_message": "done",
-        },
-    )
-    monkeypatch.setattr(host_completion, "_verify_no_new_receipt", lambda **_k: verify)
+        }
+
+    snapshot = MagicMock()
+    snapshot.plan.entries = []
+    snapshot.plan.plan_digest = "p" * 64
+    snapshot.obligation_ids = ()
+    snapshot.observation_fingerprint = ()
+    snapshot.publication.context.obligations = []
+    for module in (host_settle, host_run, host_complete):
+        monkeypatch.setattr(
+            module,
+            "load_prepared_completion",
+            lambda _ref, artifacts_dir=None: dict(intent),
+            raising=False,
+        )
+    for module in (host_run, host_execute):
+        monkeypatch.setattr(
+            module, "_snapshot_execution_context", lambda *_a, **_k: snapshot
+        )
+        monkeypatch.setattr(module, "_verify_no_new_receipt", lambda **_k: verify)
+    monkeypatch.setattr(host_run, "_evaluate_intent", _eligible_decision)
     monkeypatch.setattr(
-        host_completion,
+        host_complete,
         "consume_conditional_completion",
         lambda request: dict(request.get("intent") or {}),
     )
@@ -649,7 +654,7 @@ def _patch_completion_harness(
 def test_host_completion_no_new_persists_verdict_provenance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import sase.monitor.host_completion as host_completion
+    import sase.monitor.host_completion_execute as host_execute
     from sase.monitor.delivery import load_host_completion_receipt
 
     intent = _real_bound_intent()
@@ -663,12 +668,12 @@ def test_host_completion_no_new_persists_verdict_provenance(
     )
     _patch_completion_harness(monkeypatch, intent=intent, verify=(evidence, None))
     monkeypatch.setattr(
-        host_completion,
+        host_execute,
         "can_finish_without_rerun",
         lambda *_a, **_k: True,
     )
     monkeypatch.setattr(
-        host_completion, "_install_prepared_declaration", lambda *_a, **_k: None
+        host_execute, "_install_prepared_declaration", lambda *_a, **_k: None
     )
     artifacts = tmp_path / "monitor"
     artifacts.mkdir()
@@ -719,7 +724,8 @@ def test_host_completion_no_new_refusal_recovers_with_typed_reason(
 def test_host_completion_no_new_shortcut_still_runs_precommit_gate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import sase.monitor.host_completion as host_completion
+    import sase.monitor.host_completion_execute as host_execute
+    import sase.monitor.host_completion_run as host_run
 
     intent = _real_bound_intent()
     evidence = NoNewEvidence(
@@ -732,10 +738,10 @@ def test_host_completion_no_new_shortcut_still_runs_precommit_gate(
     )
     _patch_completion_harness(monkeypatch, intent=intent, verify=(evidence, None))
     monkeypatch.setattr(
-        host_completion, "can_finish_without_rerun", lambda *_a, **_k: True
+        host_execute, "can_finish_without_rerun", lambda *_a, **_k: True
     )
     calls: list[dict[str, Any]] = []
-    real_verify = host_completion._verify_no_new_receipt
+    real_verify = host_run._verify_no_new_receipt
 
     def _gated(**kwargs: Any) -> tuple[Any, Any]:
         calls.append(kwargs)
@@ -743,7 +749,8 @@ def test_host_completion_no_new_shortcut_still_runs_precommit_gate(
             return evidence, None
         return None, "no_new_receipt_fingerprint_changed"
 
-    monkeypatch.setattr(host_completion, "_verify_no_new_receipt", _gated)
+    for module in (host_run, host_execute):
+        monkeypatch.setattr(module, "_verify_no_new_receipt", _gated)
     assert real_verify is not None
     artifacts = tmp_path / "monitor"
     artifacts.mkdir()
@@ -766,7 +773,7 @@ def test_host_completion_resume_reruns_gate_instead_of_trusting_success(
 ) -> None:
     import json
 
-    import sase.monitor.host_completion as host_completion
+    import sase.monitor.host_completion_execute as host_execute
     from sase.monitor.delivery import persist_host_completion_receipt
 
     intent = _real_bound_intent()
@@ -807,7 +814,7 @@ def test_host_completion_resume_reruns_gate_instead_of_trusting_success(
         },
     )
     monkeypatch.setattr(
-        host_completion,
+        host_execute,
         "run_finalizers",
         lambda **_kwargs: (_ for _ in ()).throw(
             AssertionError("must refuse before any commit action")
@@ -826,12 +833,13 @@ def test_host_completion_resume_reruns_gate_instead_of_trusting_success(
 def test_host_completion_pass_intent_never_calls_receipt_gate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import sase.monitor.host_completion as host_completion
+    import sase.monitor.host_completion_execute as host_execute
+    import sase.monitor.host_completion_run as host_run
 
     intent = _real_bound_intent(accept="pass")
     _patch_completion_harness(monkeypatch, intent=intent, verify=(None, "must-not-run"))
     monkeypatch.setattr(
-        host_completion, "can_finish_without_rerun", lambda *_a, **_k: True
+        host_execute, "can_finish_without_rerun", lambda *_a, **_k: True
     )
     called: list[dict[str, Any]] = []
 
@@ -839,7 +847,8 @@ def test_host_completion_pass_intent_never_calls_receipt_gate(
         called.append(kwargs)
         raise AssertionError("receipt gate must not run for pass intents")
 
-    monkeypatch.setattr(host_completion, "_verify_no_new_receipt", _fail_on_call)
+    for module in (host_run, host_execute):
+        monkeypatch.setattr(module, "_verify_no_new_receipt", _fail_on_call)
     artifacts = tmp_path / "monitor"
     artifacts.mkdir()
     meta = _meta()

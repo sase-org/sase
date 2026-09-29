@@ -172,15 +172,18 @@ def _bind_prepared(
         "sase.finalizers.prepare.observe_completion_repositories",
         lambda _root: observations,
     )
-    monkeypatch.setattr(
-        "sase.monitor.host_completion.observe_completion_repositories",
-        lambda _root: observations,
-        raising=False,
-    )
-    monkeypatch.setattr(
-        "sase.monitor.host_completion_state.observe_completion_repositories",
-        lambda _root: observations,
-    )
+    for module in (
+        "sase.monitor.host_completion_settle",
+        "sase.monitor.host_completion_run",
+        "sase.monitor.host_completion_execute",
+        "sase.monitor.host_completion_complete",
+        "sase.monitor.host_completion_state",
+    ):
+        monkeypatch.setattr(
+            f"{module}.observe_completion_repositories",
+            lambda _root: observations,
+            raising=False,
+        )
     publication = publish_final_context(artifacts_dir=str(artifacts))
     prepared = prepare_conditional_completion(
         {
@@ -234,7 +237,7 @@ def test_real_controller_success_uses_zero_model_calls(
         raise AssertionError("no-model host completion must not invoke a provider")
 
     monkeypatch.setattr(
-        "sase.monitor.host_completion._NoModelProvider.invoke", track_invoke
+        "sase.monitor.host_completion_execute._NoModelProvider.invoke", track_invoke
     )
 
     result = settle_host_completion(
