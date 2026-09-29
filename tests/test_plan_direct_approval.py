@@ -275,10 +275,8 @@ def test_name_taken_attach_error_retries_with_at(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.agent.agent_session_attach import AgentSessionAttachError
-    from sase.main.plan_direct_approval import (
-        _resolve_placement,
-        compose_coder_prompt,
-    )
+    from sase.main.plan_direct_approval import compose_coder_prompt
+    from sase.main.plan_direct_approval_placement import resolve_placement
 
     monkeypatch.chdir(tmp_path)
 
@@ -296,7 +294,7 @@ def test_name_taken_attach_error_retries_with_at(
     )
     history = PlanGateHistory(kind="none")
 
-    placement = _resolve_placement("0sk", "demo", history, plan_name="work")
+    placement = resolve_placement("0sk", "demo", history, plan_name="work")
 
     assert not isinstance(placement, DirectApprovalRefusal)
     assert placement.mode == "session"
@@ -317,7 +315,8 @@ def test_name_taken_attach_error_retries_with_at(
 def test_recovery_ignores_parent_running_but_fresh_refuses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.main.plan_direct_approval import DirectApprovalRefusal, _resolve_placement
+    from sase.main.plan_direct_approval import DirectApprovalRefusal
+    from sase.main.plan_direct_approval_placement import resolve_placement
 
     monkeypatch.setattr(
         "sase.agent.agent_session_attach.resolve_agent_session_attach_plan",
@@ -325,12 +324,12 @@ def test_recovery_ignores_parent_running_but_fresh_refuses(
     )
     history = PlanGateHistory(kind="none")
 
-    recovered = _resolve_placement(
+    recovered = resolve_placement(
         "0sk", "demo", history, plan_name="work", recovery=True
     )
     assert not isinstance(recovered, DirectApprovalRefusal)
 
-    fresh = _resolve_placement("0sk", "demo", history, plan_name="work")
+    fresh = resolve_placement("0sk", "demo", history, plan_name="work")
     assert isinstance(fresh, DirectApprovalRefusal)
     assert fresh.code == "planner_running"
 
