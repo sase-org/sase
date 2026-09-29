@@ -80,7 +80,7 @@ def launch_mobile_prompt(
 
     try:
         with mobile_launch_cwd(project_context):
-            results = launch_agents_from_cwd(prompt)
+            results = launch_agents_from_cwd(prompt, origin="typed")
     except Exception as exc:
         raise MobileAgentBridgeError(safe_error_message(exc)) from exc
 

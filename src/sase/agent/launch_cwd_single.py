@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from sase.agent.launch_cwd_common import (
     internal_agent_name_bypass_for_launch,
@@ -12,6 +13,9 @@ from sase.agent.launch_cwd_common import (
 )
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.paths import sase_projects_dir
+
+if TYPE_CHECKING:
+    from sase.history.prompt_store import PromptOrigin
 
 
 def launch_single_agent(
@@ -24,6 +28,7 @@ def launch_single_agent(
     extra_env: dict[str, str] | None,
     timestamp: str | None,
     record_failed_launch_prompt: Callable[[str], None],
+    origin: PromptOrigin | None = None,
 ) -> list[AgentLaunchResult]:
     """Resolve the VCS/workspace context for one prompt and spawn it."""
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
@@ -134,7 +139,7 @@ def launch_single_agent(
         raise
 
     # --- Save prompt to history ---
-    add_or_update_prompt(query)
+    add_or_update_prompt(query, origin=origin)
 
     from sase.agent.launch_executor import LaunchExecutionContext, execute_launch_plan
     from sase.core.agent_launch_facade import plan_fake_fanout

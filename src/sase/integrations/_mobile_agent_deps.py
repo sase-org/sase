@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from sase.agent.launcher import AgentLaunchResult
 from sase.agent.launcher import launch_agents_from_cwd as _real_launch_agents_from_cwd
@@ -17,6 +17,9 @@ from sase.agent.running import list_running_agents as _real_list_running_agents
 
 T = TypeVar("T", bound=Callable[..., object])
 
+if TYPE_CHECKING:
+    from sase.history.prompt_store import PromptOrigin
+
 
 def _facade_override(name: str, fallback: T) -> T:  # noqa: UP047
     module = sys.modules.get("sase.integrations.mobile_agents")
@@ -28,10 +31,20 @@ def _facade_override(name: str, fallback: T) -> T:  # noqa: UP047
     return fallback
 
 
-def launch_agents_from_cwd(prompt: str) -> list[AgentLaunchResult]:
-    return _facade_override("launch_agents_from_cwd", _real_launch_agents_from_cwd)(
-        prompt
-    )
+def launch_agents_from_cwd(
+    prompt: str,
+    *,
+    origin: PromptOrigin | None = None,
+) -> list[AgentLaunchResult]:
+    """Launch *prompt* through the real launcher (or patched test override).
+
+    The ``origin`` prompt-history marker is forwarded to the real launcher;
+    test overrides keep the legacy single-argument contract.
+    """
+    func = _facade_override("launch_agents_from_cwd", _real_launch_agents_from_cwd)
+    if func is _real_launch_agents_from_cwd:
+        return func(prompt, origin=origin)
+    return func(prompt)
 
 
 def allocate_retry_name(name: str) -> str:

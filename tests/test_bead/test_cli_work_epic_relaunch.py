@@ -62,6 +62,7 @@ def test_work_stale_owner_round_trip_wipes_and_rewrites(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         captured["query"] = query
         return FakeLaunchResult()
@@ -135,7 +136,7 @@ def test_work_interrupted_phase_agent_session_is_wiped_before_retry(
     )
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched.append(query) or FakeLaunchResult()
         ),
     )
@@ -188,6 +189,7 @@ def test_work_retry_allows_legacy_epic_clan_container_skip(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         launched.append((query, segment_extra_env))
         return FakeLaunchResult()
@@ -645,6 +647,7 @@ def test_work_relaunch_after_failure_joins_existing_epic_clan(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         launched.append((query, segment_extra_env))
         reserved_clans.add(epic_id)

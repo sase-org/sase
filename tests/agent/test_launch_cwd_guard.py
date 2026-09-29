@@ -75,7 +75,7 @@ def test_blocked_prompt_raises_before_spawn_and_records_failure(
     recorded: list[str] = []
     monkeypatch.setattr(
         "sase.history.prompt.record_failed_launch_prompt",
-        recorded.append,
+        lambda text, **kwargs: recorded.append(text),
     )
     from sase.agent.launcher import launch_agents_from_cwd
 

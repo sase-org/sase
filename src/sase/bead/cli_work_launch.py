@@ -27,11 +27,14 @@ def launch_bead_work_agents(
 
     if launch_context is None:
         return [
-            _launcher.launch_agent_from_cwd(query, segment_extra_env=segment_extra_env)
+            _launcher.launch_agent_from_cwd(
+                query, segment_extra_env=segment_extra_env, origin="generated"
+            )
         ]
     return _launcher.launch_planned_bead_work_agents(
         segments=query.split("\n---\n"),
         segment_extra_env=segment_extra_env,
         expected_names=expected_names,
         project_name=launch_context.project_name,
+        origin="generated",
     )

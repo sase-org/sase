@@ -107,7 +107,9 @@ def test_runner_launches_proposals_in_order_with_wait_directive(
     )
     calls: list[tuple[str, dict[str, str]]] = []
 
-    def _launch(prompt: str, *, extra_env: dict[str, str]) -> SimpleNamespace:
+    def _launch(
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
+    ) -> SimpleNamespace:
         index = len(calls)
         calls.append((prompt, extra_env))
         return SimpleNamespace(
@@ -195,8 +197,10 @@ def test_runner_launches_with_wait_relinked_across_duplicate(
     )
     calls: list[str] = []
 
-    def _launch(prompt: str, *, extra_env: dict[str, str]) -> SimpleNamespace:
-        del extra_env
+    def _launch(
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
+    ) -> SimpleNamespace:
+        del extra_env, origin
         index = len(calls)
         calls.append(prompt)
         return SimpleNamespace(

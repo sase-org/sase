@@ -22,13 +22,21 @@ Archived drafts do not appear in `sase prompt list` or `sase prompt search` unle
 same text was also submitted as a prompt.
 
 `sase prompt` reads and writes those JSON shards directly - there is no separate
-database to manage. Readers aggregate and deduplicate records across shards, so reusing
-the same prompt in a later month still shows one newest entry even if older shard copies
-remain on disk. New launch recordings only touch the current-month shard. Maintenance
-commands such as `delete` and `prune` remove every stored copy of the selected exact
-prompt text. Replay commands (`run`, `edit`, `select`) route through the same launch
-machinery as `sase run`, so multi-prompt, multi-model, and xprompt behavior stay
-identical.
+database to manage. Each shard row stores `text`, `timestamp`, `last_used`, `cancelled`,
+and an optional `origin`: `typed` for prompts a human typed (TUI submit, `sase run`,
+`sase prompt run`, cancelled drafts), `generated` for machine-driven launches
+(LaunchApproval, axe chops, bead work, plan approvals). Rows written before origins
+existed carry no `origin`. When the same text is recorded twice, the merge keeps the
+newest timestamps but never downgrades: `typed` beats `generated` beats no origin, just
+like a successful launch is never downgraded to cancelled. Anything launched from inside
+a SASE agent is recorded as `generated` whatever entry point it came through, so the
+next-word prediction corpus can exclude machine-generated prompts. Readers aggregate and
+deduplicate records across shards, so reusing the same prompt in a later month still
+shows one newest entry even if older shard copies remain on disk. New launch recordings
+only touch the current-month shard. Maintenance commands such as `delete` and `prune`
+remove every stored copy of the selected exact prompt text. Replay commands (`run`,
+`edit`, `select`) route through the same launch machinery as `sase run`, so
+multi-prompt, multi-model, and xprompt behavior stay identical.
 
 ## Selectors
 

@@ -150,7 +150,9 @@ class PromptBarStashStoreMixin:
         from sase.history.prompt import record_failed_launch_prompt
 
         try:
-            await asyncio.to_thread(record_failed_launch_prompt, submitted_prompt)
+            await asyncio.to_thread(
+                record_failed_launch_prompt, submitted_prompt, origin="typed"
+            )
         except Exception:  # pragma: no cover - defensive (thread/IO error)
             return
         await self._refresh_prompt_stash_badge_async()

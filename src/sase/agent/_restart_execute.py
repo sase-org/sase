@@ -77,6 +77,7 @@ def execute_agent_restart(
             results = launch_agents_from_cwd(
                 plan.force_reuse_plan.rewritten_prompt,
                 segment_extra_env=plan.force_reuse_plan.segment_envs,
+                origin="generated",
             )
     except Exception as exc:
         emit("launched", "fail", str(exc))

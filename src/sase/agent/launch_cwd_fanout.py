@@ -15,6 +15,7 @@ from sase.agent.launch_cwd_common import internal_agent_name_bypass_for_launch
 from sase.agent.launch_types import AgentLaunchResult
 
 if TYPE_CHECKING:
+    from sase.history.prompt_store import PromptOrigin
     from sase.xprompt.models import XPrompt
 
 
@@ -31,6 +32,7 @@ def launch_multi_prompt_branch(
     segment_swarm_xprompts: Sequence[tuple[str, ...]],
     submitted_query: str,
     record_failed_launch_prompt: Callable[[str], None],
+    origin: PromptOrigin | None = None,
 ) -> list[AgentLaunchResult]:
     """Launch one agent per ``---`` segment."""
     from sase.agent.launch_projects import (
@@ -86,6 +88,7 @@ def launch_multi_prompt_branch(
     add_or_update_prompt(
         submitted_query,
         allow_short=True,
+        origin=origin,
     )
     try:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
@@ -121,6 +124,7 @@ def launch_repeat_branch_if_applicable(
     extra_env: dict[str, str] | None,
     recursive_launch: Callable[..., list[AgentLaunchResult]],
     record_failed_launch_prompt: Callable[[str], None],
+    origin: PromptOrigin | None = None,
 ) -> list[AgentLaunchResult] | None:
     """Spawn N independent agents when ``%r:N`` is present, else ``None``."""
     from sase.agent.repeat_launcher import (
@@ -173,6 +177,7 @@ def launch_repeat_branch_if_applicable(
                     spec.prompt,
                     extra_env=slot_env,
                     timestamp=spec.timestamp,
+                    origin=origin,
                 )
             )
 
@@ -193,6 +198,7 @@ def launch_alt_branch_if_applicable(
     is_home_mode: bool,
     extra_env: dict[str, str] | None,
     record_failed_launch_prompt: Callable[[str], None],
+    origin: PromptOrigin | None = None,
 ) -> list[AgentLaunchResult] | None:
     """Launch one agent per ``%{a | b}`` alt-split slot, else ``None``."""
     from sase.xprompt.directives import plan_prompt_fanout_variants
@@ -248,7 +254,7 @@ def launch_alt_branch_if_applicable(
 
     from sase.history.prompt import add_or_update_prompt
 
-    add_or_update_prompt(query)
+    add_or_update_prompt(query, origin=origin)
     try:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 

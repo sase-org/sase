@@ -263,7 +263,8 @@ def test_launch_query_tag_failure_blocks_spawn(
     )
     failed: list[str] = []
     monkeypatch.setattr(
-        "sase.history.prompt.record_failed_launch_prompt", failed.append
+        "sase.history.prompt.record_failed_launch_prompt",
+        lambda text, **kwargs: failed.append(text),
     )
     monkeypatch.setattr(
         "sase.ops.commands.run.emit_run_launch_result", lambda **kwargs: None

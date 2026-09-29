@@ -121,7 +121,7 @@ def launch_query(query: str) -> None:
             validate_project_tags_for_launch(query)
         except ProjectTagError as exc:
             message = str(exc)
-            record_failed_launch_prompt(query)
+            record_failed_launch_prompt(query, origin="typed")
             print(f"Error: {message}", file=sys.stderr)
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
@@ -129,7 +129,7 @@ def launch_query(query: str) -> None:
             query = expand_project_tags(query)
         except ProjectTagError as exc:
             message = str(exc)
-            record_failed_launch_prompt(query)
+            record_failed_launch_prompt(query, origin="typed")
             print(f"Error: {message}", file=sys.stderr)
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
@@ -150,7 +150,7 @@ def launch_query(query: str) -> None:
             force_reuse_plan = plan_force_reuse_launch(query)
         except Exception as exc:
             message = str(exc)
-            record_failed_launch_prompt(query)
+            record_failed_launch_prompt(query, origin="typed")
             print(f"Error: {message}", file=sys.stderr)
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
@@ -159,7 +159,7 @@ def launch_query(query: str) -> None:
                 apply_force_reuse_launch(force_reuse_plan)
             except Exception as exc:
                 message = f"Agent name reuse failed: {exc}"
-                record_failed_launch_prompt(query)
+                record_failed_launch_prompt(query, origin="typed")
                 print(f"Error: {message}", file=sys.stderr)
                 emit_run_launch_result(success=False, message=message)
                 sys.exit(1)
@@ -197,11 +197,14 @@ def launch_query(query: str) -> None:
                 query,
                 segment_extra_env=segment_extra_env,
                 launch_units=launch_units,
+                origin="typed",
             )
         elif segment_extra_env is not None:
-            results = launch_agents_from_cwd(query, segment_extra_env=segment_extra_env)
+            results = launch_agents_from_cwd(
+                query, segment_extra_env=segment_extra_env, origin="typed"
+            )
         else:
-            results = launch_agents_from_cwd(query)
+            results = launch_agents_from_cwd(query, origin="typed")
     except RuntimeError as e:
         from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
 

@@ -310,6 +310,7 @@ async def flush_pending_launch_stashes(app: object) -> None:
             record_failed_launch_prompt,
             launch.prompt,
             project=launch.context.project_name,
+            origin="typed",
         )
         for launch in launches
     ]

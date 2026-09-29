@@ -174,7 +174,7 @@ def dispatch_approved_launch_request(
             return dispatch_typed_launch_request(response_dir, data)
         from sase.agent import launcher as launcher_mod
 
-        results = launcher_mod.launch_agents_from_cwd(prompt)
+        results = launcher_mod.launch_agents_from_cwd(prompt, origin="generated")
     finally:
         os.chdir(original_cwd)
 

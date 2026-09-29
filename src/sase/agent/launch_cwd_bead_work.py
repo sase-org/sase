@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.agent.launch_cwd_common import internal_agent_name_bypass_for_launch
 from sase.agent.launch_executor_types import LaunchNameReservationEvidence
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_wire import LaunchFanoutPlanWire
 from sase.core.paths import sase_projects_dir
+
+if TYPE_CHECKING:
+    from sase.history.prompt_store import PromptOrigin
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +44,7 @@ def launch_planned_bead_work_agents(
     segment_extra_env: Sequence[dict[str, str] | None],
     expected_names: Collection[str],
     project_name: str,
+    origin: PromptOrigin | None = None,
 ) -> list[AgentLaunchResult]:
     """Launch a fully-planned ``sase bead work`` multi-prompt directly.
 
@@ -64,6 +70,10 @@ def launch_planned_bead_work_agents(
     if not segments:
         return []
 
+    effective_origin: PromptOrigin | None = (
+        "generated" if os.environ.get("SASE_AGENT") else origin
+    )
+
     def record_failed_launch_prompt(text: str) -> None:
         from sase.axe.chop_agents import is_chop_launch_env
 
@@ -73,7 +83,7 @@ def launch_planned_bead_work_agents(
             record_failed_launch_prompt as record_interactive_failed_launch,
         )
 
-        record_interactive_failed_launch(text)
+        record_interactive_failed_launch(text, origin=effective_origin)
 
     from sase.agent.launch_projects import (
         enable_known_project_vcs_refs_for_launch_prompt,
@@ -159,7 +169,7 @@ def launch_planned_bead_work_agents(
         record_failed_launch_prompt(normalized_query)
         raise
 
-    add_or_update_prompt(normalized_query, allow_short=True)
+    add_or_update_prompt(normalized_query, allow_short=True, origin=effective_origin)
 
     _guard_hard_disabled_bead_work(
         normalized_query,

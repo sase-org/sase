@@ -67,7 +67,9 @@ def test_typed_chop_proposal_uses_durable_admission_and_chop_env(
     patch_condition_workspace_lease(monkeypatch, repo)
     calls: list[tuple[str, dict[str, str]]] = []
 
-    def _launch(prompt: str, *, extra_env: dict[str, str]) -> list[SimpleNamespace]:
+    def _launch(
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
+    ) -> list[SimpleNamespace]:
         calls.append((prompt, extra_env))
         return [
             SimpleNamespace(
@@ -164,8 +166,10 @@ def test_typed_chop_dispatch_carries_launch_hold_key() -> None:
     )
     calls: list[dict[str, str]] = []
 
-    def _launch(prompt: str, *, extra_env: dict[str, str]) -> list[SimpleNamespace]:
-        del prompt
+    def _launch(
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
+    ) -> list[SimpleNamespace]:
+        del prompt, origin
         calls.append(dict(extra_env))
         return [SimpleNamespace(pid=501, agent_name="refresh")]
 

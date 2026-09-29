@@ -253,9 +253,9 @@ def test_typed_clan_dispatch_failed_declarer_blocks_second_declaration(
     }
 
     def _empty_launch(
-        prompt: str, *, extra_env: dict[str, str]
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
     ) -> list[SimpleNamespace]:
-        del prompt, extra_env
+        del prompt, extra_env, origin
         return []
 
     dispatcher_1 = make_axe_chop_agent_dispatcher(

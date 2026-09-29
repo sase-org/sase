@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 from sase.history import prompt_store as store
@@ -14,6 +15,22 @@ class _PromptMutation:
     text: str
     cancelled: bool
     force_cancelled: bool = False
+    origin: store.PromptOrigin | None = None
+
+
+def _effective_prompt_origin(
+    origin: store.PromptOrigin | None,
+) -> store.PromptOrigin | None:
+    """Resolve *origin* for the current process.
+
+    A launch recorded from inside a SASE agent is machine-generated whatever
+    entry point it came through, so an explicit ``typed`` origin is upgraded
+    to ``generated`` there. ``None`` (unknown/legacy path) is left alone so
+    historical rows keep their unwritten state.
+    """
+    if origin == "typed" and os.environ.get("SASE_AGENT"):
+        return "generated"
+    return origin
 
 
 def add_or_update_prompt(
@@ -22,6 +39,7 @@ def add_or_update_prompt(
     cancelled: bool = False,
     allow_short: bool = False,
     record_segments: bool = True,
+    origin: store.PromptOrigin | None = None,
 ) -> None:
     """Add a new prompt or update an existing prompt's last_used timestamp.
 
@@ -53,15 +71,27 @@ def add_or_update_prompt(
     if not store.is_recordable_prompt(text, allow_short=allow_short):
         return
 
+    effective_origin = _effective_prompt_origin(origin)
     current_timestamp = store.generate_timestamp()
-    mutations = [_PromptMutation(text=text, cancelled=cancelled)]
+    mutations = [
+        _PromptMutation(text=text, cancelled=cancelled, origin=effective_origin)
+    ]
     if record_segments:
-        mutations.extend(_multi_prompt_segment_mutations(text, cancelled=cancelled))
+        mutations.extend(
+            _multi_prompt_segment_mutations(
+                text, cancelled=cancelled, origin=effective_origin
+            )
+        )
 
     _apply_prompt_mutations(mutations, current_timestamp)
 
 
-def record_failed_launch_prompt(text: str, *, project: str | None = None) -> None:
+def record_failed_launch_prompt(
+    text: str,
+    *,
+    project: str | None = None,
+    origin: store.PromptOrigin | None = None,
+) -> None:
     """Record a submitted prompt whose launch failed before producing agents.
 
     Failed launch attempts are different from ordinary prompt-bar cancellation:
@@ -85,13 +115,22 @@ def record_failed_launch_prompt(text: str, *, project: str | None = None) -> Non
 
     record_prompt_placeholders(text)
 
+    effective_origin = _effective_prompt_origin(origin)
     current_timestamp = store.generate_timestamp()
-    mutations = [_PromptMutation(text=text, cancelled=True, force_cancelled=True)]
+    mutations = [
+        _PromptMutation(
+            text=text,
+            cancelled=True,
+            force_cancelled=True,
+            origin=effective_origin,
+        )
+    ]
     mutations.extend(
         _PromptMutation(
             text=mutation.text,
             cancelled=True,
             force_cancelled=True,
+            origin=effective_origin,
         )
         for mutation in _multi_prompt_segment_mutations(text, cancelled=True)
     )
@@ -107,6 +146,7 @@ def _multi_prompt_segment_mutations(
     text: str,
     *,
     cancelled: bool,
+    origin: store.PromptOrigin | None = None,
 ) -> list[_PromptMutation]:
     """Return history mutations for long-enough multi-prompt segments."""
     from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
@@ -119,7 +159,9 @@ def _multi_prompt_segment_mutations(
     for segment in multi.segments:
         if not store.is_recordable_prompt(segment):
             continue
-        mutations.append(_PromptMutation(text=segment, cancelled=cancelled))
+        mutations.append(
+            _PromptMutation(text=segment, cancelled=cancelled, origin=origin)
+        )
     return mutations
 
 
@@ -217,6 +259,11 @@ def _apply_prompt_mutations(
                     # Normal cancellation only upgrades to non-cancelled, never
                     # downgrades an already-successful prompt.
                     existing.cancelled = False
+                # Origin merges typed-wins and never downgrades, mirroring the
+                # cancelled rule above.
+                existing.origin = store.merge_prompt_origin(
+                    existing.origin, mutation.origin
+                )
                 continue
 
             prompts.append(
@@ -225,6 +272,7 @@ def _apply_prompt_mutations(
                     timestamp=current_timestamp,
                     last_used=current_timestamp,
                     cancelled=mutation.cancelled,
+                    origin=mutation.origin,
                 )
             )
 

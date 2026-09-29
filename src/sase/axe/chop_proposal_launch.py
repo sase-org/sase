@@ -478,6 +478,7 @@ def launch_chop_proposals(
                 launch_agents_from_cwd_fn(
                     query,
                     segment_extra_env=segment_env,
+                    origin="generated",
                 )
             )
         except Exception as exc:
@@ -532,7 +533,9 @@ def launch_chop_proposals(
             )
         )
         try:
-            result = launch_agent_from_cwd_fn(prompt, extra_env=extra_env)
+            result = launch_agent_from_cwd_fn(
+                prompt, extra_env=extra_env, origin="generated"
+            )
         except AgentNameLaunchCollisionError as exc:
             if not proposal.explicit_agent_name:
                 raise

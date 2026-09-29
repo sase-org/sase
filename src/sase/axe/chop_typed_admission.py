@@ -93,7 +93,7 @@ def make_axe_chop_agent_dispatcher(
             from sase.agent import launcher as launcher_mod
 
             launch = launcher_mod.launch_agents_from_cwd
-        results = list(launch(prompt, extra_env=extra_env))
+        results = list(launch(prompt, extra_env=extra_env, origin="generated"))
         if not results:
             return False, None, "agent_dispatch_produced_no_results", []
         if launch_recorded_fn is not None:

@@ -91,7 +91,7 @@ def test_old_request_without_typed_plan_uses_compat_dispatch(
     )
     seen: dict[str, object] = {}
 
-    def fake_launch(prompt: str) -> list[AgentLaunchResult]:
+    def fake_launch(prompt: str, origin: object = None) -> list[AgentLaunchResult]:
         seen["prompt"] = prompt
         seen["cwd"] = Path.cwd()
         return [_agent_result(tmp_path)]

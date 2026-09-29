@@ -42,6 +42,7 @@ from sase.history.prompt_stats import (
 )
 from sase.history.prompt_store import (
     PromptEntry,
+    PromptOrigin,
     add_or_update_prompt,
     is_recordable_prompt,
     load_prompt_history,
@@ -55,6 +56,7 @@ from sase.history.prompt_store import (
 __all__ = [
     "PromptDateError",
     "PromptEntry",
+    "PromptOrigin",
     "PromptHistoryDoctor",
     "PromptHistoryPage",
     "PromptHistoryPageCursor",

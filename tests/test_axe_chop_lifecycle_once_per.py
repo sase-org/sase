@@ -64,9 +64,11 @@ def test_launch_failure_releases_only_unlaunched_once_per_keys(
     )
     calls = 0
 
-    def _launch(prompt: str, *, extra_env: dict[str, str]) -> SimpleNamespace:
+    def _launch(
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
+    ) -> SimpleNamespace:
         nonlocal calls
-        del prompt, extra_env
+        del prompt, extra_env, origin
         calls += 1
         if calls == 2:
             raise RuntimeError("launcher unavailable")

@@ -138,7 +138,9 @@ def dispatch_agent_unit(
     extra_env.update(hold_env)
     from sase.agent import launcher as launcher_mod
 
-    results = launcher_mod.launch_agents_from_cwd(prompt, extra_env=extra_env)
+    results = launcher_mod.launch_agents_from_cwd(
+        prompt, extra_env=extra_env, origin="generated"
+    )
     if not results:
         return False, None, "agent_dispatch_produced_no_results", [], {}
     identity = results[0].agent_name or f"pid:{results[0].pid}"

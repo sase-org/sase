@@ -100,6 +100,7 @@ def test_rendered_epic_preclaims_make_runner_lifecycle_quiet_noops(
             rendered: str,
             extra_env: object = None,
             segment_extra_env: object = None,
+            origin: object = None,
         ) -> AgentLaunchResult:
             dispatched.update(
                 query=rendered,

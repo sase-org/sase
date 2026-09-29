@@ -477,7 +477,9 @@ def _write_recovery_receipt(
 def _launch_coder(prompt: str, local_plan: Path) -> AgentLaunchResult:
     from sase.agent.launch_cwd import launch_agents_from_cwd
 
-    results = launch_agents_from_cwd(prompt, extra_env={"SASE_PLAN": str(local_plan)})
+    results = launch_agents_from_cwd(
+        prompt, extra_env={"SASE_PLAN": str(local_plan)}, origin="generated"
+    )
     if not results:
         raise RuntimeError("agent launch produced no results")
     return results[0]

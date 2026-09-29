@@ -172,6 +172,7 @@ def test_clan_batch_injects_threshold_into_every_segment(
         query: str,
         *,
         segment_extra_env: list[dict[str, str]],
+        origin: object = None,
     ) -> list[SimpleNamespace]:
         captured.append(query)
         assert len(segment_extra_env) == 2

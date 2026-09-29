@@ -239,7 +239,10 @@ def test_runner_batches_clan_proposals_with_per_member_env_and_full_waits(
     calls: list[tuple[str, list[dict[str, str]]]] = []
 
     def _launch_many(
-        query: str, *, segment_extra_env: list[dict[str, str]]
+        query: str,
+        *,
+        segment_extra_env: list[dict[str, str]],
+        origin: object = None,
     ) -> list[SimpleNamespace]:
         calls.append((query, segment_extra_env))
         return [

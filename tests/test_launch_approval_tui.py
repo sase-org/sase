@@ -216,7 +216,7 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
     seen: dict[str, object] = {}
     notifications_path, pending_path = _isolated_notification_paths(tmp_path)
 
-    def fake_launch(prompt: str) -> list[AgentLaunchResult]:
+    def fake_launch(prompt: str, origin: object = None) -> list[AgentLaunchResult]:
         seen["prompt"] = prompt
         seen["cwd"] = Path.cwd()
         return [
@@ -405,8 +405,8 @@ def test_tui_launch_approval_dispatch_failure_records_failed_response(
     app = _TuiLaunchApprovalApp()
     notifications_path, pending_path = _isolated_notification_paths(tmp_path)
 
-    def fake_launch(prompt: str) -> list[AgentLaunchResult]:
-        del prompt
+    def fake_launch(prompt: str, origin: object = None) -> list[AgentLaunchResult]:
+        del prompt, origin
         raise RuntimeError("launch boom")
 
     from sase.notifications import store as notification_store

@@ -46,7 +46,11 @@ def _assert_canonical_capacity(mapping: dict[str, Any], *, explicit: bool) -> No
 def _capture_launch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     seen: dict[str, Any] = {}
 
-    def fake_launch(prompt: str, extra_env: dict[str, str] | None = None) -> list[Any]:
+    def fake_launch(
+        prompt: str,
+        extra_env: dict[str, str] | None = None,
+        origin: object = None,
+    ) -> list[Any]:
         seen["prompt"] = prompt
         seen["extra_env"] = extra_env
         return [_agent_result(tmp_path)]

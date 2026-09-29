@@ -546,7 +546,7 @@ def test_approve_launch_response_dispatches_stored_request(
     )
     seen: dict[str, object] = {}
 
-    def fake_launch(prompt: str) -> list[AgentLaunchResult]:
+    def fake_launch(prompt: str, origin: object = None) -> list[AgentLaunchResult]:
         seen["prompt"] = prompt
         seen["cwd"] = Path.cwd()
         return [

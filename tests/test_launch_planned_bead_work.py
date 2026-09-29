@@ -324,7 +324,7 @@ def test_adapter_refuses_hard_disabled_provider_before_spawn(
     recorded: list[str] = []
     monkeypatch.setattr(
         "sase.history.prompt.record_failed_launch_prompt",
-        recorded.append,
+        lambda text, **kwargs: recorded.append(text),
     )
     monkeypatch.setattr(
         "sase.history.prompt.add_or_update_prompt", lambda *a, **k: None
@@ -499,7 +499,12 @@ def test_routing_falls_back_without_launch_context(
 
     captured: dict[str, Any] = {}
 
-    def fake_single(query: str, extra_env: Any = None, segment_extra_env: Any = None):
+    def fake_single(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+        origin: Any = None,
+    ):
         captured["query"] = query
         captured["segment_extra_env"] = segment_extra_env
         return "single-result"

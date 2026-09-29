@@ -75,7 +75,9 @@ def test_typed_clan_batch_promotes_first_surviving_member_end_to_end(
     patch_condition_workspace_lease(monkeypatch, repo)
     calls: list[tuple[str, dict[str, str]]] = []
 
-    def _launch(prompt: str, *, extra_env: dict[str, str]) -> list[SimpleNamespace]:
+    def _launch(
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
+    ) -> list[SimpleNamespace]:
         calls.append((prompt, extra_env))
         return [
             SimpleNamespace(
@@ -175,7 +177,9 @@ def test_typed_clan_batch_restores_sequential_member_waits_end_to_end(
     patch_condition_workspace_lease(monkeypatch, repo)
     calls: list[tuple[str, dict[str, str]]] = []
 
-    def _launch(prompt: str, *, extra_env: dict[str, str]) -> list[SimpleNamespace]:
+    def _launch(
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
+    ) -> list[SimpleNamespace]:
         calls.append((prompt, extra_env))
         _, directives = extract_prompt_directives(prompt)
         assert directives.name is not None

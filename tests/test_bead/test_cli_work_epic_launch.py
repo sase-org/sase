@@ -97,6 +97,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         captured["query"] = query
         captured["extra_env"] = extra_env
@@ -212,6 +213,7 @@ def test_work_launch_threads_capacity_into_rendered_multi_prompt(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         del extra_env, segment_extra_env
         captured["query"] = query
@@ -238,6 +240,7 @@ def test_work_launch_capacity_1_stamps_every_segment(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         del extra_env, segment_extra_env
         captured["query"] = query
@@ -366,6 +369,7 @@ def test_launch_snapshots_authoritative_plan_and_overwrites_on_relaunch(
         _query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         del extra_env
         launched_envs.append(segment_extra_env)
@@ -433,6 +437,7 @@ def test_snapshot_failure_warns_and_launches_without_snapshot_metadata(
         _query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         del extra_env
         launched["envs"] = segment_extra_env

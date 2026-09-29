@@ -168,9 +168,11 @@ class PromptBarMountMixin:
 
         recorded = is_recordable_prompt(text)
         if record_segments:
-            add_or_update_prompt(text, cancelled=True)
+            add_or_update_prompt(text, cancelled=True, origin="typed")
         else:
-            add_or_update_prompt(text, cancelled=True, record_segments=False)
+            add_or_update_prompt(
+                text, cancelled=True, record_segments=False, origin="typed"
+            )
 
         from sase.history.file_references import (
             extract_recordable_file_refs,
@@ -574,6 +576,8 @@ class PromptBarMountMixin:
             if initial_text.strip():
                 from sase.history.prompt import add_or_update_prompt
 
-                add_or_update_prompt(initial_text.strip(), cancelled=True)
+                add_or_update_prompt(
+                    initial_text.strip(), cancelled=True, origin="typed"
+                )
             self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
             invalidate_prompt_session(self)

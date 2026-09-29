@@ -69,7 +69,9 @@ def clan_unit_metadata(
 def capturing_launch(
     calls: list[tuple[str, dict[str, str]]], agent_name: str
 ) -> Callable[..., list[SimpleNamespace]]:
-    def _launch(prompt: str, *, extra_env: dict[str, str]) -> list[SimpleNamespace]:
+    def _launch(
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
+    ) -> list[SimpleNamespace]:
         calls.append((prompt, extra_env))
         return [SimpleNamespace(pid=len(calls), agent_name=agent_name, timestamp="")]
 

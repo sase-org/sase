@@ -12,6 +12,7 @@ from sase.agent.launch_types import AgentLaunchResult
 
 if TYPE_CHECKING:
     from sase.agent.launch_guard import LaunchUnitInput
+    from sase.history.prompt_store import PromptOrigin
 
 __all__ = [
     "launch_agent_from_cwd",
@@ -28,6 +29,7 @@ def launch_agents_from_cwd(
     timestamp: str | None = None,
     *,
     launch_units: Sequence[LaunchUnitInput] | None = None,
+    origin: PromptOrigin | None = None,
 ) -> list[AgentLaunchResult]:
     """Resolve project context from CWD and launch background agents."""
     return launch_agents_from_cwd_impl(
@@ -37,6 +39,7 @@ def launch_agents_from_cwd(
         timestamp=timestamp,
         recursive_launch_agents_from_cwd=launch_agents_from_cwd,
         launch_units=launch_units,
+        origin=origin,
     )
 
 
@@ -47,6 +50,7 @@ def launch_agent_from_cwd(
     timestamp: str | None = None,
     *,
     launch_units: Sequence[LaunchUnitInput] | None = None,
+    origin: PromptOrigin | None = None,
 ) -> AgentLaunchResult:
     """Resolve project context from CWD and launch a background agent.
 
@@ -59,6 +63,7 @@ def launch_agent_from_cwd(
         segment_extra_env=segment_extra_env,
         timestamp=timestamp,
         launch_units=launch_units,
+        origin=origin,
     )
     if not results:
         raise RuntimeError("agent launch produced no results")

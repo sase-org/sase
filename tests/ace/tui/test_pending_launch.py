@@ -400,7 +400,7 @@ async def test_quit_flush_stashes_parked_launch_prompt(
     stashed: list[tuple[str, str | None]] = []
     monkeypatch.setattr(
         "sase.history.prompt.record_failed_launch_prompt",
-        lambda text, *, project=None: stashed.append((text, project)),
+        lambda text, *, project=None, origin=None: stashed.append((text, project)),
     )
     app = _app_for(tmp_path)
 

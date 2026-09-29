@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,7 @@ from sase.core.paths import sase_projects_dir
 
 if TYPE_CHECKING:
     from sase.agent.launch_guard import LaunchUnitInput
+    from sase.history.prompt_store import PromptOrigin
 
 
 def launch_agents_from_cwd_impl(
@@ -33,6 +35,7 @@ def launch_agents_from_cwd_impl(
     recursive_launch_agents_from_cwd: Callable[..., list[AgentLaunchResult]]
     | None = None,
     launch_units: Sequence[LaunchUnitInput] | None = None,
+    origin: PromptOrigin | None = None,
 ) -> list[AgentLaunchResult]:
     """Resolve project context from CWD and launch one or more background agents.
 
@@ -57,6 +60,12 @@ def launch_agents_from_cwd_impl(
             provider. Unexpected guard failures are logged and swallowed.
     """
 
+    # A launch recorded from inside a SASE agent is machine-generated
+    # whatever entry point it came through (robustness rule).
+    effective_origin: PromptOrigin | None = (
+        "generated" if os.environ.get("SASE_AGENT") else origin
+    )
+
     def record_failed_launch_prompt(text: str) -> None:
         from sase.axe.chop_agents import is_chop_launch_env
 
@@ -67,7 +76,7 @@ def launch_agents_from_cwd_impl(
             record_failed_launch_prompt as record_interactive_failed_launch,
         )
 
-        record_interactive_failed_launch(text)
+        record_interactive_failed_launch(text, origin=effective_origin)
 
     from sase.agent.names import ensure_historical_auto_name_migration
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
@@ -178,6 +187,7 @@ def launch_agents_from_cwd_impl(
             segment_swarm_xprompts=expanded.swarm_xprompts,
             submitted_query=submitted_query,
             record_failed_launch_prompt=record_failed_launch_prompt,
+            origin=effective_origin,
         )
 
     from sase.agent.launch_projects import (
@@ -215,6 +225,7 @@ def launch_agents_from_cwd_impl(
             recursive_launch_agents_from_cwd or launch_agents_from_cwd_impl
         ),
         record_failed_launch_prompt=record_failed_launch_prompt,
+        origin=effective_origin,
     )
     if repeat_results is not None:
         return repeat_results
@@ -228,6 +239,7 @@ def launch_agents_from_cwd_impl(
         is_home_mode=is_home_mode,
         extra_env=extra_env,
         record_failed_launch_prompt=record_failed_launch_prompt,
+        origin=effective_origin,
     )
     if alt_results is not None:
         return alt_results
@@ -241,4 +253,5 @@ def launch_agents_from_cwd_impl(
         extra_env=extra_env,
         timestamp=timestamp,
         record_failed_launch_prompt=record_failed_launch_prompt,
+        origin=effective_origin,
     )

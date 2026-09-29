@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from sase.core.paths import sase_home
 from sase.core.state_write_guard import assert_test_state_write_isolated
@@ -30,6 +31,35 @@ _PROMPT_PREVIEW_LENGTH = 60
 _MIN_PROMPT_WORDS = 5
 
 
+PromptOrigin = Literal["typed", "generated"]
+"""Where a prompt history row came from.
+
+``typed`` rows were typed by a human; ``generated`` rows were produced by
+machine-driven launch surfaces (LaunchApproval, axe chops, bead work, ...).
+``None`` means the origin was never recorded (legacy rows). The prediction
+corpus excludes ``generated`` rows.
+"""
+
+_ORIGIN_RANK: dict[str, int] = {"typed": 2, "generated": 1}
+
+
+def _origin_rank(origin: PromptOrigin | None) -> int:
+    """Return the merge precedence of *origin* (typed > generated > None)."""
+    if origin is None:
+        return 0
+    return _ORIGIN_RANK.get(origin, 0)
+
+
+def merge_prompt_origin(
+    current: PromptOrigin | None,
+    incoming: PromptOrigin | None,
+) -> PromptOrigin | None:
+    """Merge *incoming* origin over *current* without ever downgrading."""
+    if _origin_rank(incoming) > _origin_rank(current):
+        return incoming
+    return current
+
+
 @dataclass
 class PromptEntry:
     """A single prompt history entry."""
@@ -38,6 +68,7 @@ class PromptEntry:
     timestamp: str
     last_used: str
     cancelled: bool = False
+    origin: PromptOrigin | None = None
     # Legacy fields loaded from old history files for transitional UI
     # compatibility. New writes intentionally omit them.
     branch_or_workspace: str = ""
@@ -137,11 +168,16 @@ def prompt_entry_from_json(value: object) -> PromptEntry | None:
     branch_or_workspace = value.get("branch_or_workspace", "")
     workspace = value.get("workspace", "")
     cancelled = value.get("cancelled", False)
+    raw_origin = value.get("origin")
+    origin: PromptOrigin | None = (
+        raw_origin if raw_origin in ("typed", "generated") else None
+    )
     return PromptEntry(
         text=text,
         timestamp=timestamp,
         last_used=last_used,
         cancelled=cancelled if isinstance(cancelled, bool) else False,
+        origin=origin,
         branch_or_workspace=(
             branch_or_workspace if isinstance(branch_or_workspace, str) else ""
         ),
@@ -235,6 +271,8 @@ def _prompt_to_json(entry: PromptEntry) -> dict[str, object]:
         "last_used": entry.last_used,
         "cancelled": entry.cancelled,
     }
+    if entry.origin in ("typed", "generated"):
+        data["origin"] = entry.origin
     if entry.branch_or_workspace:
         data["branch_or_workspace"] = entry.branch_or_workspace
     if entry.workspace:
@@ -283,6 +321,7 @@ def _reconcile_duplicate_prompt(
     """Merge duplicate prompt entries while keeping newest usage authoritative."""
     if duplicate.timestamp < current.timestamp:
         current.timestamp = duplicate.timestamp
+    current.origin = merge_prompt_origin(current.origin, duplicate.origin)
     return current
 
 
@@ -299,6 +338,7 @@ def dedup_prompt_entries_newest_first(
                 timestamp=entry.timestamp,
                 last_used=entry.last_used,
                 cancelled=entry.cancelled,
+                origin=entry.origin,
                 branch_or_workspace=entry.branch_or_workspace,
                 workspace=entry.workspace,
             )
