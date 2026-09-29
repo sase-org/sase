@@ -16,11 +16,8 @@ from sase.ace.tui.widgets.directive_completion import (
 from sase.feature_flags import override_flags
 from sase.xprompt.hold_directive import AGENT_HOLDS_FLAG
 from tests._xprompt_directive_completion_parity_helpers import _write_failing_helper
-from tests._xprompt_directive_completion_parity_lsp import (
-    LspSession,
-    SurfaceRow,
-    _surface_rows,
-)
+from tests._xprompt_directive_completion_parity_lsp import LspSession, SurfaceRow
+from tests._xprompt_directive_completion_parity_lsp_rows import _surface_rows
 from tests._xprompt_directive_completion_parity_surface import (
     MODEL_ALIAS_DESCRIPTION_PATCH,
     MODEL_ALIAS_NAMES_PATCH,

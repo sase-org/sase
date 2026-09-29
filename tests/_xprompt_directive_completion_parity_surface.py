@@ -26,8 +26,8 @@ from tests._xprompt_directive_completion_parity_lsp import (
     LspSession,
     LspSurfaceRow,
     SurfaceRow,
-    _surface_rows,
 )
+from tests._xprompt_directive_completion_parity_lsp_rows import _surface_rows
 
 MODEL_CATALOG_PATCH = (
     "sase.ace.tui.widgets.directive_completion.build_model_completion_catalog"

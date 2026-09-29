@@ -13,11 +13,11 @@ from tests._xprompt_directive_completion_parity_helpers import (
     _OPTIONAL_FINALIZER_ROWS,
     _write_failing_helper,
 )
-from tests._xprompt_directive_completion_parity_lsp import (
-    LspSession,
+from tests._xprompt_directive_completion_parity_lsp import LspSession
+from tests._xprompt_directive_completion_parity_lsp_protocol import _utf16_len
+from tests._xprompt_directive_completion_parity_lsp_rows import (
     _only_lsp,
     _surface_rows,
-    _utf16_len,
 )
 from tests._xprompt_directive_completion_parity_surface import (
     _ace_and_lsp_rows,
