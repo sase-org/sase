@@ -8076,25 +8076,33 @@ replacing it, and it uses the same size guards, so highlighting stays responsive
 large prompts.
 
 Editing help in sase's TUI prompt input mirrors the Jinja auto-pair behavior and only
-fires for the `%{...}` shorthand:
+fires for the `%{...}` shorthand. Any `%` directly before `{` opens an alternation,
+wherever it appears: at a word boundary, mid-word (`foo%{bar | baz}qux`), after
+punctuation, or nested inside another branch:
 
-- **Auto-pair** — typing `{` immediately after a directive-valid `%` inserts `%{  }` and
-  parks the cursor between the two padding spaces. The expansion fires at end of line,
-  before whitespace, before a bracket closer (`)`, `]`, `}`, `>`), and before trailing
-  punctuation (`.`, `,`, `;`, `:`, `!`, `?`), so a fan-out can be inserted before the
-  existing `?` in `Which is better %{ A | B }?`. It remains suppressed before word
-  characters and other token-opening characters.
+- **Auto-pair** — typing `{` immediately after `%` inserts `%{  }` and parks the cursor
+  between the two padding spaces. The expansion fires at end of line, before whitespace,
+  before a bracket closer (`)`, `]`, `}`, `>`), and before trailing punctuation (`.`,
+  `,`, `;`, `:`, `!`, `?`), so a fan-out can be inserted before the existing `?` in
+  `Which is better %{ A | B }?`. It remains suppressed before word characters and other
+  token-opening characters.
 - **Paired delete** — backspacing the `{` in `%{|}` also removes the auto-inserted `}`;
   a forward delete on `%|{}` removes both braces.
 - **`|` separator normalization** — typing `|` inside a live `%{...}` span inserts a
   padded `|` separator, keeps the cursor after the trailing space and before the closing
   `}`, and normalizes comma spacing in the current branch. For example, typing `|` at
   the end of `%{foo ,bar, and baz` yields `%{foo, bar, and baz | }` with the cursor
-  before `}`.
+  before `}`. Openers inside literal zones (inline code, fenced blocks, disabled
+  regions) are ignored; an unclosed span never extends past the cursor's own line, so a
+  stray opener cannot capture a later `|`; and when alternations nest, the innermost
+  span wins.
+- **No Jinja pair after `%{`** — typing `%`, `#`, or `{` right after an alternation
+  opener starts a branch (`%m:`, `#xprompt`) instead of a Jinja `{%  %}` or `{#  #}`
+  pair.
 
 These edits are suppressed when there is an active selection or when the cursor is not
-inside a directive-valid `%{...}` context, so ordinary `{` and `|` typing elsewhere is
-unaffected. External editor integrations do not own `%{}` auto-pairing or paired delete;
+inside a `%{...}` context, so ordinary `{` and `|` typing elsewhere is unaffected.
+External editor integrations do not own `%{}` auto-pairing or paired delete;
 editor-local brace-pair plugins own that lifecycle there. The
 [Neovim plugin](https://github.com/sase-org/sase-nvim) still provides the same
 separator-normalization behavior for prompt buffers.

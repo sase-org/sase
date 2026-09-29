@@ -83,6 +83,11 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         line = self.document.get_line(row)
         if line[col - 1] != "{":
             return False
+        if col >= 2 and line[col - 2] == "%":
+            # An alternation opener: typing ``%``/``#``/``{`` right after
+            # ``%{`` starts a branch (``%m:``, ``#xprompt``) instead of a
+            # Jinja ``{%  %}`` or ``{#  #}`` pair.
+            return False
 
         # ``{|}``: generic pairing inserted the closing brace; consume it and
         # rebuild the whole delimiter so the final cursor sits mid-pair.

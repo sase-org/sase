@@ -16,10 +16,6 @@ from __future__ import annotations
 
 from sase.ace.tui.widgets._paired_text_editing import TextEdit
 
-# A ``%`` may open a ``%{`` directive at the start of the document or directly
-# after whitespace, a directive-value colon, or one of these opening characters
-# -- mirrors the directive-valid contexts used by ``_ALT_DIRECTIVE_RE``.
-_DIRECTIVE_OPENING_CONTEXTS = frozenset(":([{\"'")
 _PAIR_SAFE_CLOSE_CHARS = frozenset(")]}>")
 # Trailing punctuation can never begin a token, so a padded ``%{  }`` inserted
 # directly before it is unambiguous -- this is how a fan-out question is
@@ -29,15 +25,16 @@ _PAIR_SAFE_FOLLOW_CHARS = _PAIR_SAFE_CLOSE_CHARS | _PAIR_SAFE_PUNCTUATION_CHARS
 
 
 def _is_directive_valid_brace_opening(text: str, percent_index: int) -> bool:
-    """Return True when ``%`` at *percent_index* may open a ``%{`` directive."""
+    """Return True when ``%`` at *percent_index* may open a ``%{`` directive.
+
+    Any ``%`` directly before ``{`` is an alternation opener, wherever it
+    appears -- mid-word, after punctuation, or adjacent to another
+    alternation. Literal zones (inline code, fenced blocks, disabled regions)
+    are excluded by the caller (:func:`_find_enclosing_alt_span`), not here.
+    """
     if percent_index < 0 or percent_index >= len(text):
         return False
-    if text[percent_index] != "%":
-        return False
-    if percent_index == 0:
-        return True
-    previous = text[percent_index - 1]
-    return previous.isspace() or previous in _DIRECTIVE_OPENING_CONTEXTS
+    return text[percent_index] == "%"
 
 
 def _next_char_allows_alt_brace_pair(text: str, offset: int) -> bool:
@@ -49,7 +46,7 @@ def _next_char_allows_alt_brace_pair(text: str, offset: int) -> bool:
 
 
 def plan_alt_brace_pair(text: str, offset: int) -> TextEdit | None:
-    """Plan padded brace insertion for a directive-valid ``%{`` opener.
+    """Plan padded brace insertion for a ``%{`` opener in any position.
 
     The typed ``{`` replaces nothing at *offset* and expands to ``"{  }"`` in the
     TUI, leaving the cursor after the first padding space. Returns ``None`` for
@@ -91,22 +88,48 @@ def _find_enclosing_alt_span(text: str, offset: int) -> tuple[int, int] | None:
     """Return ``(content_start, content_end)`` of the ``%{...}`` enclosing *offset*.
 
     ``content_start`` is the index just after the opening ``{`` and
-    ``content_end`` is the index of the matching ``}`` (or ``len(text)`` when the
-    span is still unclosed). Returns ``None`` when *offset* is not inside any
-    directive-valid ``%{...}`` span.
+    ``content_end`` is the index of the matching ``}``. An unclosed span ends
+    at the end of the cursor's own line, so a stray opener on another line
+    cannot capture the cursor. Openers inside literal zones (inline code,
+    fenced blocks, disabled regions) are ignored. When alternations nest, the
+    innermost enclosing span wins. Returns ``None`` when *offset* is not
+    inside any ``%{...}`` span.
     """
+    if "%{" not in text[:offset]:
+        return None
+    from sase.xprompt._literal_zones import literal_zone_ranges
+
+    literal_zones = literal_zone_ranges(text)
+    line_end = text.find("\n", offset)
+    if line_end == -1:
+        line_end = len(text)
+    best: tuple[int, int] | None = None
     search_from = 0
     while True:
         index = text.find("%{", search_from)
-        if index == -1:
-            return None
-        if _is_directive_valid_brace_opening(text, index):
-            content_start = index + 2
-            close = _find_matching_brace(text, index + 1)
-            content_end = len(text) if close is None else close
-            if content_start <= offset <= content_end:
-                return content_start, content_end
+        if index == -1 or index >= offset:
+            break
         search_from = index + 2
+        if not _is_directive_valid_brace_opening(text, index):
+            continue
+        if any(start <= index < end for start, end in literal_zones):
+            continue
+        content_start = index + 2
+        close = _find_matching_brace(text, index + 1)
+        if close is None:
+            if "\n" in text[content_start:offset]:
+                # Unclosed spans never cross a line: an opener on another
+                # line cannot capture this cursor (e.g. a markdown table
+                # ``|`` below a stray ``x%{``).
+                continue
+            content_end = line_end
+        else:
+            content_end = close
+        if content_start <= offset <= content_end and (
+            best is None or content_start > best[0]
+        ):
+            best = (content_start, content_end)
+    return best
 
 
 def _find_matching_brace(text: str, open_index: int) -> int | None:

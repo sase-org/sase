@@ -32,12 +32,14 @@ class AltEditTestApp(App[None]):
 
 
 def test_is_directive_valid_brace_opening_contexts() -> None:
+    # Any ``%`` may open ``%{`` -- mid-word, after punctuation, or adjacent
+    # to another alternation.
     assert _is_directive_valid_brace_opening("%", 0) is True
     assert _is_directive_valid_brace_opening("run %", 4) is True
     assert _is_directive_valid_brace_opening("(%", 1) is True
     assert _is_directive_valid_brace_opening("%effort:%", 8) is True
-    assert _is_directive_valid_brace_opening("a%", 1) is False
-    assert _is_directive_valid_brace_opening("50%", 2) is False
+    assert _is_directive_valid_brace_opening("a%", 1) is True
+    assert _is_directive_valid_brace_opening("50%", 2) is True
     assert _is_directive_valid_brace_opening("x", 0) is False
 
 
@@ -53,9 +55,30 @@ def test_find_enclosing_alt_span() -> None:
     assert _find_enclosing_alt_span("%{foo", 4) == (2, 5)
 
 
-def test_find_enclosing_alt_span_ignores_non_directive_brace() -> None:
-    # ``a%{`` is not a directive-valid opening, so no span is reported.
-    assert _find_enclosing_alt_span("a%{foo}", 4) is None
+def test_find_enclosing_alt_span_recognizes_mid_word_brace() -> None:
+    # ``a%{`` is a mid-word opening, so the span is reported.
+    assert _find_enclosing_alt_span("a%{foo}", 4) == (3, 6)
+
+
+def test_find_enclosing_alt_span_ignores_inline_code_brace() -> None:
+    # Openers inside literal zones are ignored.
+    assert _find_enclosing_alt_span("`a%{foo}`", 5) is None
+    assert plan_alt_separator("`a%{foo}`", 5) is None
+
+
+def test_find_enclosing_alt_span_prefers_innermost_nested_span() -> None:
+    text = "%{a %{x | y} | b}"
+    assert _find_enclosing_alt_span(text, 8) == (6, 11)
+    assert _find_enclosing_alt_span(text, 4) == (2, 16)
+
+
+def test_find_enclosing_alt_span_ignores_unclosed_opener_on_other_line() -> None:
+    # A stray unclosed opener cannot capture a cursor on another line, so a
+    # later ``|`` (for example a markdown table) stays literal.
+    assert _find_enclosing_alt_span("x%{\nfoo|bar", 8) is None
+    assert plan_alt_separator("x%{\nfoo|bar", 8) is None
+    # ... while an opener on the cursor's own line still applies.
+    assert _find_enclosing_alt_span("x%{\nfoo%{bar", 12) == (9, 12)
 
 
 def test_plan_alt_separator_simple_branch() -> None:
@@ -113,8 +136,20 @@ def test_plan_alt_brace_pair_after_directive_percent() -> None:
 
 
 def test_plan_alt_brace_pair_requires_directive_valid_percent() -> None:
+    # A ``%`` with no ``{`` following is not an alt context.
     assert plan_alt_brace_pair("word", 4) is None
-    assert plan_alt_brace_pair("word%", 5) is None
+
+
+def test_plan_alt_brace_pair_pads_mid_word_opener() -> None:
+    assert plan_alt_brace_pair("foo%", 4) == TextEdit(
+        start=4,
+        end=4,
+        text="{  }",
+        cursor=6,
+    )
+    assert plan_alt_separator("foo%{bar}", 8) == TextEdit(
+        start=5, end=8, text="bar | ", cursor=11
+    )
 
 
 @pytest.mark.parametrize("punctuation", ".,;:!?")
@@ -258,6 +293,33 @@ async def test_alt_separator_in_unclosed_span() -> None:
         await pilot.press("|")
         assert ta.text == "%{foo | "
         assert ta.cursor_location == (0, 8)
+
+
+async def test_jinja_auto_pair_skipped_right_after_alt_opener() -> None:
+    app = AltEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        for character in "foo%{":
+            await pilot.press(character)
+        assert ta.text == "foo%{  }"
+        # Typing ``%`` starts a ``%m:`` branch, not a Jinja ``{%  %}`` pair.
+        await pilot.press("%")
+        assert ta.text == "foo%{ % }"
+        assert ta.cursor_location == (0, 7)
+
+
+async def test_mid_word_alt_typing_normalizes_and_highlights() -> None:
+    app = AltEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        for character in "foo%{bar|baz":
+            await pilot.press(character)
+        assert ta.text == "foo%{ bar | baz }"
+        assert ta.cursor_location == (0, 15)
+        ta._build_highlight_map()
+        names = {name for row in ta._highlights.values() for *_range, name in row}
+        assert "alt.delimiter" in names
+        assert "alt.separator" in names
 
 
 async def test_pipe_outside_alt_span_inserts_literal() -> None:
