@@ -158,11 +158,13 @@ recent non-home prefix.
 **Stash** holds drafts saved with `Ctrl+S` from a non-empty prompt pane. `Ctrl+S` on an
 empty prompt opens Stash instead of saving. **Trash** holds drafts you discarded from
 Stash, not launched prompts. Restoring a Trash row puts it back in Stash and does not
-launch it. Every draft that permanently leaves Stash — restored, deleted, purged,
-evicted, or overwritten — is archived first and recoverable with
+launch it. A copy is archived when a draft permanently leaves Stash or Trash, or when an
+existing Stash row is updated in place. Recover that copy with
 [`sase prompt stash-archive`](prompt.md#recover-a-stashed-draft). `[` and `]` cycle the
-two top-level tabs, Stash and History. From Stash, press `t` or select the 🗑️ chip to
-view Trash; `t` or `Esc` returns to Stash. See
+two top-level tabs, Stash and History. Trash is a view of the Stash tab, not a third
+tab: press `t` or select the 🗑️ chip to open it. From Trash, `t` or `Esc` returns to the
+Stash list. `[` or `]` from Trash opens History, and the bracket that comes back
+restores Trash. `Esc` on the Stash list or on History closes the overlay. See
 [Prompts Overlay](ace.md#prompt-history-modal).
 
 The colored `project: +<project>` chip at the right of each tab's status row is the

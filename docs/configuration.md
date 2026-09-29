@@ -1770,7 +1770,7 @@ ace:
 A lowered limit is applied the next time the overlay opens. Over-limit rows are
 permanently deleted, oldest discarded first, and a toast reports how many were deleted.
 The Trash list in that same window still shows the rows from before the deletion.
-`Enter` on one of those already-deleted rows does not bring it back. The Trash tab then
+`Enter` on one of those already-deleted rows does not bring it back. The Trash view then
 repaints from the store, so every already-deleted row disappears. Close the overlay and
 open it again to see the rows that remain without pressing `Enter`. See
 [Prompts Overlay](ace.md#prompt-history-modal) for the toast text and the failure case.

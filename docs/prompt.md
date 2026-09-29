@@ -15,10 +15,11 @@ to scan, exact when printing text, safe around destructive actions, and scriptab
 through stable JSON.
 
 Unsent drafts saved from the TUI live in **Stash**, separately from submitted prompt
-history. Discarded Stash drafts go to **Trash**. Drafts that permanently leave either
-place are retained in the [stash archive](#recover-a-stashed-draft), which has its own
-CLI commands. They do not appear in `sase prompt list` or `sase prompt search` unless
-they were also submitted as prompts.
+history. Discarding a Stash draft normally moves it to **Trash**. A copy is kept in the
+[stash archive](#recover-a-stashed-draft) when a draft permanently leaves Stash or
+Trash, and when a Stash row is updated in place. Those copies have their own commands.
+Archived drafts do not appear in `sase prompt list` or `sase prompt search` unless the
+same text was also submitted as a prompt.
 
 `sase prompt` reads and writes those JSON shards directly - there is no separate
 database to manage. Readers aggregate and deduplicate records across shards, so reusing
@@ -59,7 +60,7 @@ asks for a longer selector. Adding newer prompts never changes an existing promp
 | `sase prompt prune`         | Remove prompts by objective criteria (`--keep`, `--before`, `--cancelled`).          |
 | `sase prompt save`          | Save a prompt as a reusable [xprompt](xprompt.md) markdown file.                     |
 | `sase prompt export`        | Export a prompt to stdout or a local file; `--sdd` is a retired compatibility flag.  |
-| `sase prompt stash-archive` | List, inspect, and restore drafts that permanently left Stash.                       |
+| `sase prompt stash-archive` | List, show, and restore drafts archived from Stash or Trash.                         |
 
 `list`, `show`, `search`, `stats`, and `doctor` are read-only. `list`, `search` (default
 `compact` format), `stats`, and `doctor` never print full prompt text — they show
@@ -71,30 +72,54 @@ Run `sase prompt <command> --help` for the full flag list of any subcommand.
 
 ## Recover a Stashed Draft
 
-In the TUI, `Ctrl+S` saves a non-empty prompt pane to Stash. Discarding a Stash draft
-normally moves it to Trash, where `Enter` returns it to Stash. A draft that permanently
-leaves Stash or Trash is first appended with its full text to
-`prompt_stash_archive.jsonl`, next to `prompt_stash.jsonl`. This includes a restored
-unpinned draft, a deletion, a Trash purge or eviction, and an overwritten pinned draft.
-The stash archive is separate from the canonical agents archive searched by
-`sase prompt search`.
+Stash, Trash, and the stash archive are three different stores.
+
+- **Stash** holds unsent drafts. `Ctrl+S` saves the active non-empty pane. An empty
+  `Ctrl+S` opens Stash instead of saving. `gs` saves every non-empty pane, in order, as
+  one Stash row. When the panes are empty and frontmatter is present, `gs` saves that
+  frontmatter.
+- **Trash** holds drafts you discarded from Stash. `Enter` there puts a row back in
+  Stash and does not launch it. Moving a row into Trash does not archive it. With
+  `ace.prompt_stash.trash_limit` set to `0`, a discard never enters Trash and is
+  archived immediately.
+- The **stash archive** is `~/.sase/prompt_stash_archive.jsonl`, next to
+  `~/.sase/prompt_stash.jsonl`. It keeps a full copy when a draft permanently leaves
+  Stash or Trash, and when a Stash row's text, frontmatter, or cursor is replaced. It is
+  not the canonical agents archive that `sase prompt search` reads.
+
+`list -r` names why the copy was written:
+
+| Reason        | When the copy is written                                                                                                                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `popped`      | An unpinned Stash row was loaded into the prompt bar and removed from Stash. Loading a pinned row leaves it in Stash, so that load is not archived.                                                             |
+| `purged`      | A Trash row was permanently deleted.                                                                                                                                                                            |
+| `evicted`     | Trash dropped the row to stay within its limit. A discard while the limit is `0` is archived as `evicted` and never appears in Trash.                                                                           |
+| `overwritten` | A Stash row's text, frontmatter, or cursor was replaced. `gS` does this when it updates a pinned draft. The row stays in Stash; the archive keeps the previous version. Changing only the pin does not archive. |
 
 ```bash
-sase prompt stash-archive list                   # newest archived drafts, 20 by default
-sase prompt stash-archive list -q parser         # search draft text and frontmatter
-sase prompt stash-archive list -r purged -n 50   # filter by reason and widen the result
-sase prompt stash-archive list -j                # JSON for scripts
-sase prompt stash-archive show <ID>              # full text and metadata
-sase prompt stash-archive restore <ID>           # put a draft back in Stash
+sase prompt stash-archive                        # newest 20 archived drafts
+sase prompt stash-archive list -q parser         # draft text and frontmatter only
+sase prompt stash-archive list -r popped -n 50   # one reason, up to 50 rows
+sase prompt stash-archive list -j                # JSON, including each row's full text
+sase prompt stash-archive show <ID>              # newest copy: full text and metadata
+sase prompt stash-archive restore <ID>           # append the newest copy back to Stash
 ```
 
-Bare `sase prompt stash-archive` defaults to `list`. `show` and `restore` accept a full
-draft ID or an unambiguous prefix; `restore` accepts several IDs. A restored draft is
-ready to reopen from Stash with `@` or the Prompts overlay; restoring it does not launch
-an agent. If a draft is already in Stash or Trash, `restore` skips it and explains why
-(restore a Trash row in the TUI instead). `list -r` accepts `evicted`, `overwritten`,
-`popped`, and `purged`. See [Stash and Trash in the TUI](ace.md#prompt-stacks) for the
-keys and [Trash limits](configuration.md#aceprompt_stash) for retention settings.
+Bare `sase prompt stash-archive` is `list`. `show` prints one draft. `restore` appends
+one or more drafts back onto Stash. It does not launch an agent and it does not open the
+prompt bar. Load the returned row from Stash with `@` or the Prompts overlay. `@` loads
+a row immediately only when it is the sole unpinned draft; otherwise `@` opens the
+overlay.
+
+`show` and `restore` take a full draft id or a prefix that matches exactly one archived
+id. The list's ID column prints the first eight characters. If the id is already in
+Stash, `restore` skips it with `already in Stash`. If it is in Trash, `restore` skips it
+with `in Trash: restore it from the Trash view instead`. When the same id was archived
+more than once, `show` and `restore` use the newest copy. Older copies remain in
+`list -j`. `-n` changes how many rows are printed. `-q` and `-r` search the newest
+100,000 archive rows, then print up to that limit. `-q` does not match the id, project,
+or reason. See [Stash and Trash in the TUI](ace.md#prompt-stacks) for the keys and
+[Trash limits](configuration.md#aceprompt_stash) for retention settings.
 
 ## Search
 

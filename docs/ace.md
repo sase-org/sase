@@ -3645,12 +3645,28 @@ A plain `q` quits sase's TUI directly when nothing would be interrupted. Otherwi
 shows a y/n confirmation (default No) listing the in-process TUI work that would be
 lost; confirming quits, declining (or `esc`/`q`) stays in the TUI.
 
-An open unsent agent prompt draft does not require a quit confirmation by itself. On
-explicit quit, the TUI saves its non-empty panes to Stash before exiting. If that save
-fails, it stays open and shows an error so the draft can be recovered or retried. A TUI
-restart also attempts to stash the draft first; after a successful save, press `@` to
-restore it. Pending launch prompts are stashed for `@` when a confirmed exit would
-otherwise drop them.
+An unsent agent prompt does not, by itself, ask you to confirm. After any required
+confirmation — and immediately when none is required — plain `q` and menu quit (`1` /
+`s`) write that prompt to Stash before exiting. The save is one Stash row: every
+non-empty pane, in order, or the frontmatter alone when every pane is empty but
+frontmatter is present. Plan Feedback and Coder Prompt bars are not saved. If the write
+fails, the exit stops, the TUI stays open, and the error is
+`Failed to stash prompt draft — staying so no text is lost`. Choosing `1` / `s` also
+leaves the scheduler running when that save fails.
+
+Restart (`2` / `r`, or `3` / `a`) tries the same save. When it succeeds, the TUI says
+`Prompt draft stashed; press @ to restore after restart`. When it fails, the restart
+still exits and the draft is not written.
+
+A submitted prompt that is still waiting to launch does not, by itself, ask you to
+confirm. The scheduler batches in the next paragraph are separate: they are chop
+launches that have not all been started. When a quit or restart actually exits, each
+waiting prompt is recorded in prompt history as cancelled and copied to Stash so `@` can
+bring the Stash copy back. The exit still completes if that copy fails or does not
+finish within 3 seconds. When a confirmation is shown for other in-process work, its
+summary adds `Your unsent prompt draft will be stashed` when a draft is open, and a
+count such as `1 pending launch will be stashed for @` when prompts are waiting.
+Declining the confirmation writes nothing.
 
 Options `1` and `3` also check for in-flight scheduler launch batches (a chop run that
 has proposed launches but has not launched them all yet). When quitting would drop the
@@ -7165,7 +7181,10 @@ the `stash:` chip always opens that overlay, including when exactly one draft is
 and when Stash is empty. The empty placeholder says to stash the current prompt. When
 Trash has rows, it also names that count and says to press `t` to view. `[` and `]`
 toggle between the Stash and History tabs with wraparound, so `]` from Stash opens
-History. Press `t` on Stash to open its Trash view.
+History. Trash is a view of the Stash tab, not a third tab. Press `t` on Stash, or
+select the 🗑️ chip, to open it. From Trash, `t` or `Esc` returns to the Stash list. `[`
+or `]` from Trash opens History, and the bracket that returns to the Stash tab brings
+Trash back, because the tab remembers which view was open.
 
 In the Stash tab, `space` toggles a row's persistent pin, `Tab` toggles a row's restore
 mark, `d` marks one row for discard, `D` marks every row for discard, `a` toggles
@@ -7176,12 +7195,12 @@ from Stash and are not moved to Trash.
 
 Number keys `1`-`9` and `0` restore rows 1-10 directly with the same pin-aware behavior.
 `@` on the Stash tab restores the newest draft, so `@@` pops the latest stash when
-several are stashed. `Escape` or `q` closes the overlay and discards unconfirmed marks.
-Confirming discards for only some rows keeps the overlay open and repaints it in place;
-discarding every row, or combining discards with restores, closes the overlay. A small
-`stash: ≡ N` pink-chip top-bar group shows how many restorable drafts are currently
-stashed; the Trash count appears as the 🗑️ chip on the Stash tab, expanding to
-`Trash N/LIMIT` in the Trash view.
+several are stashed. On the Stash list, `Escape` or `q` closes the overlay and discards
+unconfirmed marks. Confirming discards for only some rows keeps the overlay open and
+repaints it in place; discarding every row, or combining discards with restores, closes
+the overlay. A small `stash: ≡ N` pink-chip top-bar group shows how many restorable
+drafts are currently stashed; the Trash count appears as the 🗑️ chip on the Stash tab,
+expanding to `Trash N/LIMIT` in the Trash view.
 
 Every Prompts overlay entry point — including the History ones (`Ctrl+K`, `,.`, `,>`) —
 first reads the stash store. If that read fails (for example a stale core binding, or a
@@ -7213,13 +7232,15 @@ lock times out. Trash recovers only drafts deliberately discarded from Stash. A
 successful restore of an unpinned Stash row removes that row without putting it in
 Trash. This overlay has no action that deletes History rows.
 
-Every row that permanently leaves the stash is archived first to the append-only
-`prompt_stash_archive.jsonl` sitting next to `prompt_stash.jsonl`: restored, deleted,
-purged, evicted, and overwritten drafts all land there with their full text, so even a
-confirmed purge stays recoverable. List recent archive rows with
-`sase prompt stash-archive` (a bare invocation defaults to `list`), filter with
-`-q/--query` and `-r/--reason`, inspect one draft with
-`sase prompt stash-archive show ID`, and append drafts back to Stash with
+A permanent removal, and a replacement of a row's text, frontmatter, or cursor, is
+archived first to the append-only `prompt_stash_archive.jsonl` sitting next to
+`prompt_stash.jsonl`. The copy keeps the full previous text. Reason names are `popped`,
+`purged`, `evicted`, and `overwritten`; see
+[Recover a Stashed Draft](prompt.md#recover-a-stashed-draft). Moving a row into Trash,
+and bringing it back from Trash, do not write an archive copy. A confirmed purge stays
+recoverable from that file. List recent archive rows with `sase prompt stash-archive` (a
+bare invocation defaults to `list`), filter with `-q/--query` and `-r/--reason`, inspect
+one draft with `sase prompt stash-archive show ID`, and append drafts back to Stash with
 `sase prompt stash-archive restore ID...` (unique id prefixes work). The purge
 confirmation, purge and eviction toasts, and the in-place delete toast all name this
 recovery command.
@@ -8274,14 +8295,16 @@ always apply to whole selected lines regardless of the cursor column.
 Stash and History live in one **Prompts** overlay: a single frame with a split-button
 Stash tab (`≡ Stash N` plus a 🗑️ chip) and a `↺ History` tab, a consistent list/preview
 split, and one contextual footer per view. Trash is the Stash tab's Trash view, opened
-with `t` or the 🗑️ chip; `t`/`Esc` return to the Stash list and `q` closes. `@` on Stash
-restores the newest draft, so `@@` pops the most recently stashed prompt when several
-are stashed. `[` and `]` cycle the two top-level tabs with wraparound (even from the
-focused History filter), clicking the Stash label shows the list while clicking the 🗑️
-chip shows Trash, `Esc` closes, and `q` closes when focus is outside a text input. Each
-tab keeps its highlight, scroll, filter, loaded pages, preview position, and staged
-marks across switches, the Stash tab remembers its last view, and History loads lazily
-on first activation so opening Stash performs no history disk I/O.
+with `t` or the 🗑️ chip; `t` or `Esc` there returns to the Stash list, and `q` closes
+the overlay. `@` on Stash restores the newest draft, so `@@` pops the most recently
+stashed prompt when several are stashed. `[` and `]` cycle the two top-level tabs with
+wraparound (even from the focused History filter). From Trash, either bracket opens
+History, and coming back restores Trash because the Stash tab remembers its view.
+Clicking the Stash label shows the list, while clicking the 🗑️ chip shows Trash. `Esc`
+on the Stash list or on History closes the overlay, and `q` closes when focus is outside
+a text input. Each tab keeps its highlight, scroll, filter, loaded pages, preview
+position, and staged marks across switches, the Stash tab remembers its last view, and
+History loads lazily on first activation so opening Stash performs no history disk I/O.
 
 Press `Ctrl+K` from the prompt input to open the overlay on the History tab. That
 shortcut is available when the current prompt is a single logical line; that line's
@@ -8328,8 +8351,9 @@ the most recent entry and `Ctrl+N` starts at the oldest one.
 | `Ctrl+K`         | Unload the last page, never dropping below the first page |
 | `Ctrl+X`         | Toggle visibility of cancelled prompts                    |
 | `Ctrl+Y`         | Copy prompt to clipboard and close the overlay            |
-| `[` / `]`        | Switch to the previous / next overlay tab                 |
-| `Esc` / `q`      | Close the overlay (`q` only outside the filter input)     |
+| `[` / `]`        | Cycle the Stash tab and History; Trash is remembered      |
+| `Esc`            | Trash: back to the Stash list. Otherwise: close           |
+| `q`              | Close the overlay when focus is outside a text input      |
 
 `Enter` submits directly only when the overlay was opened from a History entry point
 (`Ctrl+K`, `,.`, `,>`). When it was opened from a Stash entry point (`@`, `,@`,
