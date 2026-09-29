@@ -29,6 +29,7 @@ from sase.ace.tui.widgets.artifacts.beads_rendering import (
 )
 from sase.bead.model import (
     BeadNote,
+    BeadNoteAttachment,
     CloseRecord,
     Dependency,
     Issue,
@@ -661,3 +662,67 @@ def test_task_rows_and_detail_render_reopen_badges_and_close_history(
     assert body.index("## Previously Closed") < body.index("## Description")
     assert "↺ Closed 2026-07-30T09:12:04Z · canceled" in body
     assert "Reopened 2026-08-05T17:04:11Z by a +1 from @claude.probe" in body
+
+
+def test_detail_note_attachments_render_chips_and_descriptor_strip(
+    tmp_path: Path,
+    pinned_clock: None,
+) -> None:
+    """Notes with manifests render chips plus a compact attachments strip."""
+    value = snapshot(tmp_path)
+    issue = value.tasks[0].issue
+    issue.notes = [
+        BeadNote(
+            id="note-1",
+            timestamp="2026-07-07T12:00:00Z",
+            author="agent.alpha",
+            text="Crash right after login @attachment:login.png — full log: @attachment:crash.log",
+            attachments=(
+                BeadNoteAttachment(
+                    name="login.png",
+                    sha256="9f2c1e0b77aa4c10" + "0" * 48,
+                    size_bytes=188416,
+                    mime_type="image/png",
+                    image=(1280, 720),
+                ),
+                BeadNoteAttachment(
+                    name="crash.log",
+                    sha256="41aa07c3e9b1d2f0" + "1" * 48,
+                    size_bytes=2202009,
+                    mime_type="text/plain",
+                ),
+            ),
+        ),
+    ]
+
+    body = bead_body_markdown(issue)
+
+    assert "📎 2" in body
+    assert "[login.png]" in body
+    assert "[crash.log]" in body
+    assert "@attachment:" not in body
+    assert "**Attachments:**" in body
+    assert "login.png · image/png · 1280×720" in body
+    assert "crash.log · text/plain" in body
+
+
+def test_detail_note_without_attachments_renders_verbatim(
+    tmp_path: Path,
+    pinned_clock: None,
+) -> None:
+    """Notes without manifests pay zero attachment cost and render unchanged."""
+    value = snapshot(tmp_path)
+    issue = value.tasks[0].issue
+    issue.notes = [
+        BeadNote(
+            id="note-1",
+            timestamp="2026-07-07T12:00:00Z",
+            author="agent.alpha",
+            text="Plain note with @large and me@host left alone.",
+        ),
+    ]
+
+    body = bead_body_markdown(issue)
+
+    assert "Plain note with @large and me@host left alone." in body
+    assert "**Attachments:**" not in body

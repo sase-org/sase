@@ -100,15 +100,40 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
         workspace = (
             None if snapshot is None else snapshot.workspace_dirs.get(row.project)
         )
+        cwd = Path(workspace) if workspace else Path.cwd()
+        bead_id = row.issue.id
+        project = row.project
 
-        def submit_note(note: str) -> None:
-            stored_text, manifest = _author_bead_note_text(note)
-            if stored_text is None:
-                return
+        def submit_direct(typed: str) -> None:
+            """Append *typed* verbatim (flag off): no authoring, no echo."""
 
             def mutate(project: Any) -> Issue:
                 return project.append_note(
-                    row.issue.id,
+                    bead_id,
+                    typed,
+                    author=bead_note_author(project),
+                )
+
+            self._submit_bead_mutation(
+                pane,
+                row,
+                operation="note",
+                display_name=f"Add note · {bead_id}",
+                success_message=f"Added note to {bead_id}",
+                mutation=mutate,
+                commit_operation="note",
+            )
+
+        def submit_authored(
+            stored_text: str,
+            manifest: list[dict[str, Any]] | None,
+            echo_rows: list[str],
+        ) -> None:
+            """Append authoring output from the worker thread (flag on)."""
+
+            def mutate(project: Any) -> Issue:
+                return project.append_note(
+                    bead_id,
                     stored_text,
                     author=bead_note_author(project),
                     attachments=(manifest or None),
@@ -118,38 +143,44 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 pane,
                 row,
                 operation="note",
-                display_name=f"Add note · {row.issue.id}",
-                success_message=f"Added note to {row.issue.id}",
+                display_name=f"Add note · {bead_id}",
+                success_message=f"Added note to {bead_id}",
                 mutation=mutate,
                 commit_operation="note",
             )
+            # Success toast mirrors the CLI write echo; the typed text was
+            # already dismissed, so this is the only confirmation.
+            if echo_rows:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Added note to {bead_id}\n" + "\n".join(echo_rows),
+                    severity="information",
+                )
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Added note to {bead_id}",
+                    severity="information",
+                )
 
-        def dismissed(note: str | None) -> None:
-            if note is None:
-                return
-            submit_note(note)
+        def show_inline_error(typed: str, message: str) -> None:
+            """Re-open the modal with the typed text and caret diagnostics.
 
-        def _author_bead_note_text(
-            typed: str,
-            *,
-            local_only: bool = False,
-        ) -> tuple[str | None, list[dict[str, Any]] | None]:
-            """Compose typed text via the authoring service when flagged on.
-
-            With the flag off the typed text is returned unchanged (and
-            *local_only* does nothing). With the flag on, a service failure
-            notifies and re-opens the modal with the typed text, returning
-            ``(None, None)``. The TUI has no local-only toggle, so callers
-            pass the default ``False`` (upload when a shared store exists).
-            Raw ``@path`` text is never appended. No path completion, paste
-            handling, or thumbnails.
+            Runs on the UI thread via ``call_from_thread``. The typed text
+            is never lost; diagnostics render inline in the modal (plus a
+            toast so the failure is visible even if the modal is missed).
             """
-            from sase.feature_flags.registry import FeatureFlag
-            from sase.feature_flags.snapshot import current_flags
+            self.notify(message, severity="error")  # type: ignore[attr-defined]
+            self.push_screen(  # type: ignore[attr-defined]
+                BeadNoteModal(bead_id, initial_value=typed, error=message, cwd=cwd),
+                dismissed,
+            )
 
-            if not current_flags().enabled(FeatureFlag.bead_note_attachments):
-                return typed, None
-            _ = local_only  # Threaded for CLI parity; the TUI passes False.
+        def author_off_thread(typed: str) -> None:
+            """Run the authoring service off the event loop (flag on).
+
+            Ingest hashes file bytes on disk; it must never run on the
+            pump. Raw ``@path`` text is never appended: failures re-open
+            the modal, successes submit the composed text and manifest.
+            """
             from sase.bead.attachments.authoring import (
                 NoteAttachmentAuthoringError,
                 author_note_attachments,
@@ -159,17 +190,40 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 authored = author_note_attachments(
                     typed,
                     notes=row.issue.notes,
-                    cwd=Path(workspace) if workspace else Path.cwd(),
+                    cwd=cwd,
                 )
             except NoteAttachmentAuthoringError as exc:
-                self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
-                self.push_screen(  # type: ignore[attr-defined]
-                    BeadNoteModal(row.issue.id, initial_value=typed), dismissed
+                self.call_from_thread(  # type: ignore[attr-defined]
+                    show_inline_error, typed, str(exc)
                 )
-                return None, None
-            return authored.stored_text, (authored.attachments or None)
+                return
+            self.call_from_thread(  # type: ignore[attr-defined]
+                submit_authored,
+                authored.stored_text,
+                (authored.attachments or None),
+                list(authored.echo_rows),
+            )
 
-        self.push_screen(BeadNoteModal(row.issue.id), dismissed)  # type: ignore[attr-defined]
+        def dismissed(note: str | None) -> None:
+            if note is None:
+                return
+            from sase.feature_flags.registry import FeatureFlag
+            from sase.feature_flags.snapshot import current_flags
+
+            if not current_flags().enabled(FeatureFlag.bead_note_attachments):
+                submit_direct(note)
+                return
+            self.run_worker(  # type: ignore[attr-defined]
+                lambda: author_off_thread(note),
+                thread=True,
+                group=f"beads-note-author:{project}:{bead_id}",
+                exclusive=True,
+                exit_on_error=False,
+            )
+
+        self.push_screen(  # type: ignore[attr-defined]
+            BeadNoteModal(bead_id, cwd=cwd), dismissed
+        )
 
     def action_beads_snooze(self) -> None:
         selected = self._selected_bead()

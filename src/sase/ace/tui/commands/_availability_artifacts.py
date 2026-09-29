@@ -107,6 +107,7 @@ _BEADS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.beads_snooze",
         "app.beads_launch_work",
         "app.beads_open_bug",
+        "app.beads_open_attachments",
         "app.start_bead_issue_mode",
     }
 )

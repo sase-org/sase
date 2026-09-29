@@ -90,6 +90,7 @@ class AppKeymaps:
     beads_snooze: str
     beads_launch_work: str
     beads_open_bug: str
+    beads_open_attachments: str
     start_bead_issue_mode: str
     # Files sub-tab
     files_next: str

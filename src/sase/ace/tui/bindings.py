@@ -181,6 +181,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("z", "beads_snooze", "Snooze Bead", show=False),
     Binding("w", "beads_launch_work", "Launch Bead Work", show=False),
     Binding("E", "beads_open_bug", "Open Linked Issue", show=False),
+    Binding("O", "beads_open_attachments", "Open Attachments", show=False),
     Binding("y", "beads_copy_bug", "Copy Linked Issue", show=False),
     Binding("b", "start_bead_issue_mode", "Bead Issue Mode", show=False),
     Binding("R", "beads_refresh", "Refresh Beads", show=False),

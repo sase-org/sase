@@ -101,9 +101,31 @@ def note_markdown(issue: Issue) -> list[str]:
             [
                 f"### {bead_note_label(note, ordinal, relative=True)}",
                 "",
-                note.text,
             ]
         )
+        attachments = getattr(note, "attachments", ())
+        if attachments:
+            # Pure render: chips plus a compact descriptor strip. The Markdown
+            # body cannot host Rich renderables (cell thumbnails), and render
+            # paths must not stat the CAS (tui_perf rule 8), so availability
+            # badges and pixels live behind the open-attachments viewer key.
+            from sase.bead.attachment_presentation import (
+                attachment_descriptor,
+                prose_with_chips,
+            )
+
+            prose = prose_with_chips(
+                note.text, [attachment.name for attachment in attachments]
+            )
+            lines.extend(prose.splitlines() or [""])
+            lines.append("")
+            lines.append("**Attachments:**")
+            for attachment in attachments:
+                lines.append(
+                    f"- {attachment_descriptor(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, sha256=attachment.sha256)}"
+                )
+        else:
+            lines.append(note.text)
     return lines
 
 

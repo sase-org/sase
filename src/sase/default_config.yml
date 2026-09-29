@@ -790,6 +790,7 @@ ace:
       beads_snooze: "z"
       beads_launch_work: "w"
       beads_open_bug: "E"
+      beads_open_attachments: "O"
       start_bead_issue_mode: "b"
       # Files sub-tab
       files_next: "j"

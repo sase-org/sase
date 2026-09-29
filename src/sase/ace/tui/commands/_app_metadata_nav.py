@@ -293,6 +293,7 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("beads_snooze", "Beads: snooze task", "Proposals & Sync", CL_ONLY, ()),
     ("beads_launch_work", "Beads: launch work", "Agents", CL_ONLY, ()),
     ("beads_open_bug", "Beads: open linked issue", "Display", CL_ONLY, ()),
+    ("beads_open_attachments", "Beads: open attachments", "Display", CL_ONLY, ()),
     ("start_bead_issue_mode", "Beads: issue actions", "Bugs", CL_ONLY, ()),
     # Files sub-tab
     ("files_next", "Files: next row", "Navigation", CL_ONLY, ("file down",)),

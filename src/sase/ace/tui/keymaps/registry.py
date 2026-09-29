@@ -131,6 +131,9 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # forward/reverse grouping cycles.
         frozenset({"choose_agent_grouping", "cycle_grouping_mode"}),
         frozenset({"choose_agent_grouping", "cycle_grouping_mode_reverse"}),
+        # Pane-disjoint: Beads has no grouping mode, so ``O`` opens cached
+        # bead attachments there while grouping panes keep the reverse cycle.
+        frozenset({"beads_open_attachments", "cycle_grouping_mode_reverse"}),
         # Tab-disjoint: Agents vs Services panel jumps share J/K.
         frozenset({"focus_next_agent_panel", "focus_next_service_panel"}),
         frozenset({"focus_prev_agent_panel", "focus_prev_service_panel"}),

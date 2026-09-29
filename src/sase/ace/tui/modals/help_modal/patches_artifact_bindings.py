@@ -176,6 +176,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 (d(a.beads_snooze), "Snooze / re-snooze task bead"),
                 (d(a.beads_launch_work), "Launch bead work"),
                 (d(a.beads_open_bug), "Open linked issue"),
+                (d(a.beads_open_attachments), "Open cached attachments"),
                 (d(a.artifacts_copy_reference), "Copy @bead: reference"),
                 (d(a.start_bead_issue_mode), "Issue actions"),
                 ("b v/e/s/u/a/c", "View, edit, state, URL, attach, create"),

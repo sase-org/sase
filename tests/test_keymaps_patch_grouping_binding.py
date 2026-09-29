@@ -1,7 +1,8 @@
 """Regression coverage for Agents grouping picker and Artifacts grouping keys.
 
 ``o`` opens the Agents grouping picker and cycles grouping on Artifacts panes
-that have a grouping mode. ``O`` remains the Artifacts reverse cycle. The two
+that have a grouping mode. ``O`` remains the Artifacts reverse cycle except on
+Beads, where it opens cached bead attachments. The two
 Artifacts open-externally actions (``beads_open_bug``, ``files_open_external``)
 share ``E``. Bang-mode ``!o`` still owns ``mark_pr_origin``.
 """
@@ -104,7 +105,7 @@ def test_agents_tab_o_reaches_picker_not_grouping_cycle() -> None:
         ("files", "O", ["cycle_grouping_mode_reverse"]),
         ("files", "E", ["files_open_external"]),
         ("beads", "o", []),
-        ("beads", "O", []),
+        ("beads", "O", ["beads_open_attachments"]),
         ("beads", "E", ["beads_open_bug"]),
         ("ref:plan", "o", []),
         ("ref:plan", "O", []),
