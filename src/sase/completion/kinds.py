@@ -332,6 +332,7 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "goal_id",
         "host",
         "id",
+        "ids",
         "input",
         "instance",
         "instruction",

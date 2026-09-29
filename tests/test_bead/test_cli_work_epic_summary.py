@@ -241,6 +241,7 @@ Deliver the plan-first epic summary.
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         del extra_env
         assert segment_extra_env

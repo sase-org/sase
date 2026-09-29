@@ -262,14 +262,25 @@ async def _resize_terminal(page: Any, width: int, height: int) -> None:
     await wait_for(page._pilot, screen_matches_terminal)
 
 
-async def _wait_for_border_recompose(page: Any, frame: Any) -> None:
-    """Wait until both border labels span the laid-out frame width."""
+def _expected_frame_width(terminal_width: int) -> int:
+    # Mirrors the frame's `96%` / `max 200` CSS.
+    return min(200, terminal_width * 96 // 100)
+
+
+async def _wait_for_border_recompose(
+    page: Any, frame: Any, expected_width: int
+) -> None:
+    """Wait until the frame itself reaches *expected_width* and both border labels span it."""
 
     def labels_span_frame() -> bool:
-        budget = frame.outer_size.width - 6
-        return budget > 0 and all(
-            cell_len(label) == budget
-            for label in (frame.top_label.plain, frame.bottom_label.plain)
+        budget = expected_width - 6
+        return (
+            frame.outer_size.width == expected_width
+            and budget > 0
+            and all(
+                cell_len(label) == budget
+                for label in (frame.top_label.plain, frame.bottom_label.plain)
+            )
         )
 
     await wait_for(page._pilot, labels_span_frame)
@@ -328,7 +339,9 @@ async def test_chrome_recomposes_and_stays_aligned_on_resize(
         chips: list[str] = []
         for size in (wide, narrow, wide):
             await _resize_terminal(page, *size)
-            await _wait_for_border_recompose(page, frame)
+            await _wait_for_border_recompose(
+                page, frame, _expected_frame_width(size[0])
+            )
             budget = frame.outer_size.width - 6
             widths.append(frame.outer_size.width)
             for label in (frame.top_label.plain, frame.bottom_label.plain):
@@ -365,7 +378,7 @@ async def test_frame_width_cap_and_full_height_toggle_keep_the_labels(
         below = 40 - (frame.region.y + frame.outer_size.height)
         assert below == frame.region.y == 4
         await _resize_terminal(page, 100, 40)
-        await _wait_for_border_recompose(page, frame)
+        await _wait_for_border_recompose(page, frame, _expected_frame_width(100))
         assert frame.outer_size.width == 96
         await page.press("ctrl+t")
         await page.pause()

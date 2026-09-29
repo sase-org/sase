@@ -303,7 +303,7 @@ def test_launch_query_real_agent_session_cleanup_failure_prevents_spawn(
 
     assert excinfo.value.code == 1
     mock_launch.assert_not_called()
-    record_failed.assert_called_once_with(prompt)
+    record_failed.assert_called_once_with(prompt, origin="typed")
     emit_result.assert_called_once()
     emit_kwargs = emit_result.call_args.kwargs
     assert emit_kwargs["success"] is False

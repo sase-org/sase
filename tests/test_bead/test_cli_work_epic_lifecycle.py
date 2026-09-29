@@ -31,6 +31,7 @@ def test_work_rolls_back_on_launch_failure(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         raise RuntimeError("workspace claim failed")
 
@@ -65,7 +66,7 @@ def test_work_checkpoint_failure_rolls_back_before_launch(
     launches: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launches.append(query) or FakeLaunchResult()
         ),
     )
@@ -105,6 +106,7 @@ def test_work_allows_already_ready_epic_and_launches_remaining_phases(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         captured["query"] = query
         return FakeLaunchResult()
@@ -152,6 +154,7 @@ def test_work_retry_does_not_unmark_already_ready_epic_on_launch_failure(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         raise RuntimeError("workspace claim failed")
 
@@ -193,6 +196,7 @@ def test_work_rollback_restores_prior_in_progress_status(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         raise RuntimeError("workspace claim failed")
 
@@ -239,6 +243,7 @@ def test_rollback_kills_partially_launched_agents(
             query: str,
             extra_env: Any = None,
             segment_extra_env: Any = None,
+            origin: Any = None,
         ) -> Any:
             with BeadProject(project_dir) as project:
                 project.claim_for_agent_launch(epic_id, f"{epic_id}.land")

@@ -80,7 +80,7 @@ def _stub_launch(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched.append(query) or FakeLaunchResult()
         ),
     )

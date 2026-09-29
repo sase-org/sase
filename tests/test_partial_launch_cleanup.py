@@ -72,7 +72,7 @@ def test_launch_query_rolls_back_partial_multi_prompt_launch(
 
     result = _launch_result()
 
-    def fail_launch(query: str) -> list[AgentLaunchResult]:
+    def fail_launch(query: str, origin: object = None) -> list[AgentLaunchResult]:
         del query
         raise _MultiPromptPartialLaunchError([result], RuntimeError("boom"))
 
@@ -112,7 +112,7 @@ def test_launch_query_prints_each_launched_agent_pid(
     monkeypatch.setattr(
         _launch,
         "launch_agents_from_cwd",
-        lambda _query: [first, second],
+        lambda _query, **kwargs: [first, second],
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -145,7 +145,7 @@ def test_launch_query_warns_on_unresolved_xprompt_and_still_launches(
     monkeypatch.setattr(
         _launch,
         "launch_agents_from_cwd",
-        lambda _query: [_launch_result()],
+        lambda _query, **kwargs: [_launch_result()],
     )
 
     with pytest.raises(SystemExit) as exc_info:

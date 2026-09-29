@@ -64,6 +64,7 @@ def test_work_retry_allows_terminal_same_name_attempt(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         captured["query"] = query
         return FakeLaunchResult()
@@ -96,7 +97,7 @@ def test_work_retry_force_reuses_live_phase_owner_and_launches(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launch_calls.append(query) or FakeLaunchResult()
         ),
     )
@@ -137,7 +138,7 @@ def test_work_force_reuses_live_land_owner_and_launches(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launch_calls.append(query) or FakeLaunchResult()
         ),
     )
@@ -170,7 +171,7 @@ def test_work_force_reuses_legacy_land_owner_and_launches(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launch_calls.append(query) or FakeLaunchResult()
         ),
     )
@@ -204,7 +205,7 @@ def test_work_dry_run_warns_force_reuse_without_mutating(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launch_calls.append(query) or FakeLaunchResult()
         ),
     )
@@ -274,7 +275,7 @@ def test_work_force_reuses_workflow_name_only_owner(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launch_calls.append(query) or FakeLaunchResult()
         ),
     )
@@ -298,7 +299,7 @@ def test_work_dry_run_retry_filters_closed_phases_without_mutating(
     launch_calls: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launch_calls.append(query) or FakeLaunchResult()
         ),
     )
@@ -343,6 +344,7 @@ def test_work_passes_when_no_collisions(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         captured["query"] = query
         return FakeLaunchResult()

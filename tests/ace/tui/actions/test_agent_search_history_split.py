@@ -161,9 +161,14 @@ async def test_async_bounded_agents_search_load_rejects_stale_query() -> None:
 
 
 def test_bounded_agents_viewport_expands_near_prefix_end() -> None:
+    from sase.ace.tui.actions.agents._loading_disk_viewport import (
+        current_agents_history_query_key,
+    )
+
     app = _SearchLoadApp()
     app.current_idx = 105
     app.size = SimpleNamespace(height=20)
+    app._agents_roster_complete_query_key = current_agents_history_query_key(app)
     app._agent_load_state = AgentLoadState(
         tier="tier1",
         complete_visible_inbox=True,

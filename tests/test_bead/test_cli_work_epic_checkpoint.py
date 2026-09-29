@@ -32,7 +32,7 @@ def test_work_invokes_push_when_config_flag_enabled(
 
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             events.append("launch") or FakeLaunchResult()
         ),
     )
@@ -73,7 +73,9 @@ def test_work_uses_sync_push_even_when_config_flag_disabled(
 
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
+            FakeLaunchResult()
+        ),
     )
     pushes: list[Path] = []
     monkeypatch.setattr(
@@ -256,7 +258,9 @@ def test_work_no_push_flag_overrides_config(
 
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
+            FakeLaunchResult()
+        ),
     )
     # Config asks for a push, but --no-push wins for this invocation.
     monkeypatch.setattr(
@@ -298,7 +302,7 @@ def test_work_no_push_rejects_detached_store_before_launch(
     monkeypatch.setattr("sase.bead.sync.bead_state_is_clean", lambda _path: True)
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launches.append(query) or FakeLaunchResult()
         ),
     )
@@ -326,7 +330,7 @@ def test_work_async_config_is_upgraded_to_sync_prelaunch_push(
 
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             events.append("launch") or FakeLaunchResult()
         ),
     )
@@ -371,7 +375,7 @@ def test_work_push_failure_stops_before_launch_and_preserves_checkpoint(
 
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launches.append(query) or FakeLaunchResult()
         ),
     )

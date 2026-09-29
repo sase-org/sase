@@ -105,7 +105,10 @@ def test_start_last_vcs_xprompt_editor_cancel_records_prefilled_prefix(
         lambda *a, **k: [("#gh:sase", "#gh:sase")],
     )
 
-    def _record_cancelled_prompt(text: str, *, cancelled: bool = False) -> None:
+    def _record_cancelled_prompt(
+        text: str, *, cancelled: bool = False, origin: object = None
+    ) -> None:
+        del origin
         cancelled_prompts.append((text, cancelled))
 
     monkeypatch.setattr(

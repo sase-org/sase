@@ -7523,7 +7523,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "ef5c07abe0d4c0c5",
+            "description_digest": "716a1cffb0abfd5c",
             "hidden": false,
             "mutex_groups": [],
             "name": "+1",
@@ -7590,6 +7590,22 @@
                   "--ref"
                 ],
                 "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "allow_sensitive",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-S",
+                  "--allow-sensitive"
+                ],
+                "takes_value": false,
                 "value_hint": null
               },
               {
@@ -7720,6 +7736,282 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "f953c1123fa1327b",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "attach",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "author",
+                "hidden": false,
+                "kind": "agent",
+                "metavar": "NAME",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--author"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "note",
+                "hidden": false,
+                "kind": null,
+                "metavar": "TEXT",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--note"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "name",
+                "hidden": false,
+                "kind": null,
+                "metavar": "NAME",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-N",
+                  "--name"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "allow_sensitive",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-S",
+                  "--allow-sensitive"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "bead",
+              "attach"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "id",
+                "nargs": null,
+                "required": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "dest": "files",
+                "is_remainder": false,
+                "kind": "path",
+                "metavar": "FILE",
+                "nargs": "+",
+                "required": true,
+                "value_hint": "path"
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": "list",
+            "description_digest": "5ef092a76e46ad7b",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "attachment",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "bead",
+              "attachment"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "bf12074b13935435",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "attachment",
+                  "list"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "id",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "id",
+                    "nargs": "?",
+                    "required": false,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "1a3730b58f6bff6c",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "path",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "attachment",
+                  "path"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "id",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "id",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  },
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "name",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              }
+            ],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "dbcdbf3999edde40",
             "hidden": false,
             "mutex_groups": [],
@@ -7755,7 +8047,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "52e7c2449b442cea",
+            "description_digest": "7eb74d67393c5631",
             "hidden": false,
             "mutex_groups": [],
             "name": "close",
@@ -7823,6 +8115,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "allow_sensitive",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-S",
+                  "--allow-sensitive"
+                ],
+                "takes_value": false,
+                "value_hint": null
               },
               {
                 "choices": null,
@@ -9174,7 +9482,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "1f7aa0a6404865e7",
+            "description_digest": "b9b2ae99a3f4c754",
             "hidden": false,
             "mutex_groups": [
               [
@@ -9214,6 +9522,22 @@
                   "--author"
                 ],
                 "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "allow_sensitive",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-S",
+                  "--allow-sensitive"
+                ],
+                "takes_value": false,
                 "value_hint": null
               },
               {
@@ -10976,7 +11300,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "724360f06d623ea8",
+            "description_digest": "35ff2bdf4d3fa3dc",
             "hidden": false,
             "mutex_groups": [
               [
@@ -11128,6 +11452,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "allow_sensitive",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-S",
+                  "--allow-sensitive"
+                ],
+                "takes_value": false,
+                "value_hint": null
               },
               {
                 "choices": null,
@@ -29905,6 +30245,257 @@
             "run_policy": [],
             "stdin": false,
             "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": "list",
+            "description_digest": "8fed5ae1f4da5ab6",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "stash-archive",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "prompt",
+              "stash-archive"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "8c7663ddcb33b171",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "20",
+                    "dest": "limit",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-n",
+                      "--limit"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "int"
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "query",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-q",
+                      "--query"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "text"
+                  },
+                  {
+                    "choices": [
+                      "evicted",
+                      "overwritten",
+                      "popped",
+                      "purged"
+                    ],
+                    "default": null,
+                    "dest": "reason",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-r",
+                      "--reason"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "text"
+                  }
+                ],
+                "path": [
+                  "prompt",
+                  "stash-archive",
+                  "list"
+                ],
+                "positionals": [],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "7e1f36d1c4f17b60",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "restore",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "prompt",
+                  "stash-archive",
+                  "restore"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "ids",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ID",
+                    "nargs": "+",
+                    "required": true,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": true
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "82a97d3660c52775",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "show",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "prompt",
+                  "stash-archive",
+                  "show"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "id",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "id",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              }
+            ],
             "writes": false
           },
           {

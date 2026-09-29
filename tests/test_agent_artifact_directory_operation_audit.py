@@ -78,6 +78,12 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "None of these touch the tracked marker layer."
         ),
     ),
+    "src/sase/bead/attachments/store.py:remove": DirOpReview(
+        exemption=(
+            "Removes only a content-addressed attachment view directory under "
+            "SASE_HOME/attachments/views, not an agent artifact directory."
+        ),
+    ),
     "src/sase/llm_provider/_plan_utils.py:move_plan_to_sase": DirOpReview(
         exemption=(
             "Moves a submitted scratch plan file into the machine-local "

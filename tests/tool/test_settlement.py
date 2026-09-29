@@ -17,7 +17,7 @@ from sase.tool.liveness import (
     reconcile_unsettled_tool_runs,
 )
 from sase.tool.owner import observe_owner_fact, owner_fact_from_settlement
-from tool._settlement_helpers import (
+from tests.tool._settlement_helpers import (
     claim,
     clean_env,
     dead_identity,

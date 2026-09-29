@@ -91,7 +91,8 @@ def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
     assert query.include_recent_completed is True
     assert query.include_full_history is False
     assert query.active_limit == 1000
-    assert query.recent_completed_limit == 200
+    assert query.recent_completed_limit == 2000
+    assert query.window_limit == 2000
     assert query.include_hidden is False
     assert query.freshness == "cached"
     assert query.record_shape == "list"
@@ -207,6 +208,6 @@ def test_viewport_window_keeps_tier1_caps(tmp_path: Path) -> None:
         query = mock_query.call_args.kwargs["query"]
         assert query.window_limit == 120
         assert query.active_limit == 1000
-        assert query.recent_completed_limit == 200
+        assert query.recent_completed_limit == 2000
         assert query.agents_list_projection is True
         mock_scan.assert_not_called()

@@ -21,9 +21,9 @@ def handle_bead_attachment(args: argparse.Namespace) -> None:
     """Dispatch one ``sase bead attachment`` action."""
     action = getattr(args, "attachment_action", None)
     if action == "path":
-        handle_bead_attachment_path(args)
+        _handle_bead_attachment_path(args)
     elif action == "list":
-        handle_bead_attachment_list(args)
+        _handle_bead_attachment_list(args)
     else:
         print(f"Unknown attachment action: {action}", file=sys.stderr)
         sys.exit(1)
@@ -41,7 +41,7 @@ def _roster_for_issue(issue: Issue) -> dict[str, BeadNoteAttachment]:
     return roster
 
 
-def handle_bead_attachment_list(args: argparse.Namespace) -> None:
+def _handle_bead_attachment_list(args: argparse.Namespace) -> None:
     """List attachment descriptors for one bead, or every bead when unscoped."""
     issue_id = getattr(args, "id", None)
     as_json = bool(getattr(args, "json", False))
@@ -164,7 +164,7 @@ def _list_json(issues: Sequence[Issue]) -> str:
     return json.dumps(payload, indent=2) + "\n"
 
 
-def handle_bead_attachment_path(args: argparse.Namespace) -> None:
+def _handle_bead_attachment_path(args: argparse.Namespace) -> None:
     """Print the absolute local view path for one attachment."""
     issue_id = args.id
     name = args.name
@@ -206,6 +206,4 @@ def handle_bead_attachment_path(args: argparse.Namespace) -> None:
 
 __all__ = [
     "handle_bead_attachment",
-    "handle_bead_attachment_list",
-    "handle_bead_attachment_path",
 ]

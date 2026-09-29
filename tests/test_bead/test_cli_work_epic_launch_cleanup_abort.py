@@ -48,7 +48,7 @@ def test_work_expected_name_container_conflict_aborts_before_mutation(
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched.append(query) or FakeLaunchResult()
         ),
     )
@@ -149,7 +149,7 @@ def test_work_agent_session_cleanup_failure_aborts_before_mutation(
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched.append(query) or FakeLaunchResult()
         ),
     )
@@ -213,7 +213,7 @@ def test_work_force_reuse_cleanup_failure_aborts_before_mutation(
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched.append(query) or FakeLaunchResult()
         ),
     )

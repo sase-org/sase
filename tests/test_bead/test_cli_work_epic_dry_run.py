@@ -34,6 +34,7 @@ def test_work_dry_run_never_mutates_or_launches(
         query: str,
         extra_env: Any = None,
         segment_extra_env: Any = None,
+        origin: Any = None,
     ) -> FakeLaunchResult:
         launch_calls.append(query)
         return FakeLaunchResult()
@@ -106,7 +107,7 @@ def test_work_dry_run_matches_confirmed_launch_before_force_reuse_rewrite(
     launched_queries: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched_queries.append(query) or FakeLaunchResult()
         ),
     )
@@ -153,7 +154,9 @@ def test_work_dry_run_renders_model_directives(
 
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: FakeLaunchResult(),
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
+            FakeLaunchResult()
+        ),
     )
 
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))

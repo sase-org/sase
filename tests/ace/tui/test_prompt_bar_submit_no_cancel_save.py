@@ -161,7 +161,9 @@ def test_save_text_as_cancelled_returns_recorded_text() -> None:
         stored = harness._save_text_as_cancelled("  fix the auth bug today  ")
 
     assert stored == "fix the auth bug today"
-    add_or_update.assert_called_once_with("fix the auth bug today", cancelled=True)
+    add_or_update.assert_called_once_with(
+        "fix the auth bug today", cancelled=True, origin="typed"
+    )
 
 
 def test_save_text_as_cancelled_returns_empty_for_unrecordable_text() -> None:
@@ -179,7 +181,7 @@ def test_save_text_as_cancelled_returns_empty_for_unrecordable_text() -> None:
 
     assert empty == ""
     assert short == ""
-    add_or_update.assert_called_once_with("#gh:sase", cancelled=True)
+    add_or_update.assert_called_once_with("#gh:sase", cancelled=True, origin="typed")
 
 
 def test_save_bar_text_as_cancelled_propagates_recorded_text() -> None:

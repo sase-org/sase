@@ -43,6 +43,8 @@ ROUTED_EXISTING_ID_COMMANDS = frozenset(
     {
         "+1",
         "apply-status",
+        "attach",
+        "attachment",
         "close",
         "create",
         "dep",

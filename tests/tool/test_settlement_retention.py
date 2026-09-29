@@ -26,7 +26,7 @@ from sase.tool.handoff import (
 from sase.tool.liveness import current_boot_id, reconcile_unsettled_tool_runs
 from sase.tool.owner import owner_retention
 from sase.tool.query import ToolShowCliRequest, handle_show
-from tool._settlement_helpers import (
+from tests.tool._settlement_helpers import (
     claim,
     clean_env,
     expected_notification_id,

@@ -144,7 +144,7 @@ def test_launch_query_fanout_contradiction_surfaces_clear_error(
     assert exc.code == 1
     wipe_names.assert_not_called()
     mock_launch.assert_not_called()
-    record_failed.assert_called_once_with(prompt)
+    record_failed.assert_called_once_with(prompt, origin="typed")
     emit_result.assert_called_once()
     emit_kwargs = emit_result.call_args.kwargs
     assert emit_kwargs["success"] is False
@@ -168,7 +168,7 @@ def test_launch_query_wipe_failure_records_and_emits(
     assert exc.code == 1
     wipe_names.assert_called_once_with(["foo"])
     mock_launch.assert_not_called()
-    record_failed.assert_called_once_with(prompt)
+    record_failed.assert_called_once_with(prompt, origin="typed")
     emit_result.assert_called_once()
     emit_kwargs = emit_result.call_args.kwargs
     assert emit_kwargs["success"] is False
@@ -190,7 +190,7 @@ def test_launch_query_parse_failure_records_and_emits(
     assert exc.code == 1
     wipe_names.assert_not_called()
     mock_launch.assert_not_called()
-    record_failed.assert_called_once_with(prompt)
+    record_failed.assert_called_once_with(prompt, origin="typed")
     emit_result.assert_called_once()
     assert emit_result.call_args.kwargs["success"] is False
     assert "must start with '_'" in emit_result.call_args.kwargs["message"]

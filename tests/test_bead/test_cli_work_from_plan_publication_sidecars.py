@@ -169,8 +169,9 @@ def test_git_sidecar_fresh_clone_sees_complete_graph_before_launch(
         _query: str,
         extra_env: object = None,
         segment_extra_env: object = None,
+        origin: object = None,
     ) -> FakeLaunchResult:
-        del extra_env, segment_extra_env
+        del extra_env, segment_extra_env, origin
         observer = tmp_path / "fresh-worker"
         subprocess.run(
             ["git", "clone", str(remote), str(observer)],

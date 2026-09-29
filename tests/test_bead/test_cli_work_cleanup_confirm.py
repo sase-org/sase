@@ -58,7 +58,7 @@ def _seed_live_collision(
     monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched.append(query) or FakeLaunchResult()
         ),
     )
@@ -201,7 +201,7 @@ def test_fresh_epic_has_no_cleanup_prompt_and_yes_skips_launch_prompt(
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched.append(query) or FakeLaunchResult()
         ),
     )
@@ -318,7 +318,7 @@ def test_orphaned_agent_session_bundle_is_released_and_launch_proceeds(
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched.append(query) or FakeLaunchResult()
         ),
     )
@@ -368,7 +368,7 @@ def test_orphaned_clan_bundle_is_released_and_launch_proceeds(
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
+        lambda query, extra_env=None, segment_extra_env=None, origin=None: (
             launched.append(query) or FakeLaunchResult()
         ),
     )

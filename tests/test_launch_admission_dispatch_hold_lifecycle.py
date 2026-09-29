@@ -53,7 +53,9 @@ def test_agent_dispatch_carries_hold_key_and_reanchors_to_runner(
     artifacts_dir = tmp_path / "runner-artifacts"
     artifacts_dir.mkdir()
 
-    def launch(prompt: str, *, extra_env: dict[str, str]) -> list[AgentLaunchResult]:
+    def launch(
+        prompt: str, *, extra_env: dict[str, str], origin: object = None
+    ) -> list[AgentLaunchResult]:
         del prompt
         captured_env.update(extra_env)
         return [

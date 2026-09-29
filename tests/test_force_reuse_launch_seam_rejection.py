@@ -52,7 +52,7 @@ def _run_launch_query_unauthorized(
     assert excinfo.value.code == 1
     # No authorization means no force-reuse rewrite/wipe: the untouched
     # (still-``!``) prompt reaches the same validation the child always ran.
-    mock_launch.assert_called_once_with(prompt)
+    mock_launch.assert_called_once_with(prompt, origin="typed")
 
 
 def test_plain_sase_run_without_request_sidecar_still_rejects_forced_reuse(

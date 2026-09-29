@@ -54,7 +54,7 @@ def prose_with_chips(text: str, names: Any = None) -> str:
     return _ATTACHMENT_TOKEN_RE.sub(_repl, text)
 
 
-def format_attachment_size(size_bytes: int) -> str:
+def _format_attachment_size(size_bytes: int) -> str:
     """Format a byte count the way the write echo does."""
     if size_bytes < 1024:
         return f"{size_bytes} bytes"
@@ -63,7 +63,7 @@ def format_attachment_size(size_bytes: int) -> str:
     return f"{size_bytes / (1024 * 1024):g} MiB"
 
 
-def format_attachment_dims(image: Any) -> str | None:
+def _format_attachment_dims(image: Any) -> str | None:
     """Return ``WxH`` for an image attachment, else ``None``."""
     if image is None:
         return None
@@ -96,8 +96,8 @@ def attachment_descriptor(
 ) -> str:
     """Return one ``name · mime · dims · size · sha256:<12>`` descriptor."""
     display = strip_display_name(name)
-    dims = format_attachment_dims(image)
-    size = format_attachment_size(size_bytes)
+    dims = _format_attachment_dims(image)
+    size = _format_attachment_size(size_bytes)
     parts = [display, mime_type]
     if dims is not None:
         parts.append(dims)
@@ -127,7 +127,7 @@ def attachment_view_path(sha256: str, name: str) -> str | None:
         return None
 
 
-def total_attachment_count(notes: Any) -> int:
+def _total_attachment_count(notes: Any) -> int:
     """Count manifests already stored on ``BeadNote`` records."""
     return sum(len(getattr(note, "attachments", ())) for note in notes)
 
@@ -136,7 +136,7 @@ def _issue_attachment_count(issue: Any) -> int:
     """Count note plus +1 evidence attachments on one bead."""
     notes = getattr(issue, "notes", ())
     evidence = getattr(issue, "plus_one_evidence", ())
-    return total_attachment_count(notes) + sum(
+    return _total_attachment_count(notes) + sum(
         len(getattr(entry, "attachments", ())) for entry in evidence
     )
 
@@ -146,13 +146,8 @@ def compact_attachment_suffix(notes: Any) -> str:
     if hasattr(notes, "notes") and hasattr(notes, "plus_one_evidence"):
         total = _issue_attachment_count(notes)
     else:
-        total = total_attachment_count(notes)
+        total = _total_attachment_count(notes)
     return f" \U0001f4ce{total}" if total else ""
-
-
-def note_label_attachment_suffix(attachment_count: int) -> str:
-    """Return `` · 📎 N`` for a note label, or ```` when there are none."""
-    return f" \u00b7 \U0001f4ce {attachment_count}" if attachment_count else ""
 
 
 def extract_attachment_tokens(text: str) -> list[str]:
@@ -171,10 +166,6 @@ __all__ = [
     "attachment_view_path",
     "compact_attachment_suffix",
     "extract_attachment_tokens",
-    "format_attachment_dims",
-    "format_attachment_size",
-    "note_label_attachment_suffix",
     "prose_with_chips",
     "strip_display_name",
-    "total_attachment_count",
 ]

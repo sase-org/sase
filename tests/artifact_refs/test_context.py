@@ -162,6 +162,7 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         "goal",
         "agent",
         "file",
+        "attachment",
         "tool",
         "job",
         "commit",

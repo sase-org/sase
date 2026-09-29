@@ -499,8 +499,9 @@ def test_valid_plan_runs_real_bead_work_wave_path(
         query: str,
         extra_env: object = None,
         segment_extra_env: object = None,
+        origin: object = None,
     ) -> FakeLaunchResult:
-        del extra_env, segment_extra_env
+        del extra_env, segment_extra_env, origin
         captured["query"] = query
         return FakeLaunchResult()
 
