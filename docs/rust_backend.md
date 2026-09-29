@@ -243,6 +243,23 @@ Unicode scalar (char) offset, exactly a Python `str` index. The
 fails fast on drift, and sase-core owns the fixture regeneration step
 (`crates/sase_core/tests/fixtures/command_line/`).
 
+### Prompt prediction handles
+
+Next-word prompt prediction compiles through the frozen `PromptPredictionCorpus` and
+`PromptPredictionModel` pyclasses in `sase_core_rs`
+(`crates/sase_core/src/prompt_prediction/` in `sase-core`, bound in
+`crates/sase_core_py/src/prompt_prediction/`). Each corpus compiles typed prompt rows
+once off the event loop with the GIL released (recency-weighted n-gram mass, distinct
+support, per-project partitions); a model cheaply composes frozen corpora (history,
+session, archive) plus config and answers per keystroke: `predict` (confidence gate,
+ghost continuation, menu candidates) and `rank_prefix` (context-aware current-word
+ranking). Python rebuilds the model, not the corpora, whenever any corpus swaps. The
+sase side (`src/sase/core/prompt_prediction_facade.py` plus the
+`prompt_prediction_wire.py` dataclasses) is only a loader plus typed views, and
+`tools/validate_sase_core_rs` probes the compile/predict/rank round trip. The
+`PROMPT_PREDICTION_WIRE_SCHEMA_VERSION` mirror (Rust
+`PROMPT_PREDICTION_WIRE_SCHEMA_VERSION`) fails fast on drift.
+
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace
 with a PyO3 crate at `crates/sase_core_py/`.
 

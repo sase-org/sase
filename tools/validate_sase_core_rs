@@ -133,6 +133,9 @@ REQUIRED_BINDINGS = (
     "restore_prompt_stash",
     "purge_prompt_stash",
     "reconcile_prompt_stash_trash",
+    "PromptPredictionCorpus",
+    "PromptPredictionModel",
+    "prompt_prediction_wire_schema_version",
     "plan_validate",
     "plan_frontmatter_schema",
     "plan_reference_parse",
@@ -1585,6 +1588,107 @@ def _validate_prompt_stash_lifecycle_contract(module: ModuleType) -> bool:
         or zeroed.get("snapshot", {}).get("trash") != []
     ):
         _error(f"prompt stash zero-limit trash probe returned {zeroed!r}")
+        valid = False
+    return valid
+
+
+def _validate_prompt_prediction_contract(module: ModuleType) -> bool:
+    """Exercise the frozen corpus/model prediction round trip.
+
+    A binding-name check alone cannot catch an installed wheel that
+    exports the new classes but compiles rows without the legacy origin
+    filter or gates every guess silent. This probe exercises the
+    smallest compile/predict/rank cycle the sase checkout relies on.
+    """
+    try:
+        actual_version = int(module.prompt_prediction_wire_schema_version())
+    except Exception as exc:
+        _error(f"prompt_prediction_wire_schema_version() probe failed: {exc}")
+        return False
+    if actual_version != 1:
+        _error(
+            "prompt_prediction_wire_schema_version() returned stale schema: "
+            f"got {actual_version}, expected 1"
+        )
+        return False
+    rows = [
+        {
+            "text": "help me implement the plan",
+            "epoch_seconds": 100,
+            "project": "sase",
+            "origin": "typed",
+            "cancelled": False,
+        },
+        {
+            "text": "help me implement the fix",
+            "epoch_seconds": 101,
+            "project": "sase",
+            "origin": "typed",
+            "cancelled": False,
+        },
+        {
+            "text": "help me implement the docs",
+            "epoch_seconds": 102,
+            "project": "sase",
+            "origin": "typed",
+            "cancelled": False,
+        },
+    ]
+    try:
+        corpus = module.PromptPredictionCorpus(
+            json.dumps(rows), json.dumps({"schema_version": 1, "now_epoch": 200})
+        )
+        stats = corpus.stats()
+        model = module.PromptPredictionModel(
+            [(corpus, "history", 1.0)], json.dumps({"schema_version": 1})
+        )
+        result = model.predict(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "text_before_cursor": "help me implement",
+                    "project": "sase",
+                    "limit": 5,
+                    "max_words": 4,
+                    "confidence": "balanced",
+                    "include_draft": True,
+                }
+            )
+        )
+        ranked = model.rank_prefix(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "text_before_word": "help me ",
+                    "prefix": "imp",
+                    "project": "sase",
+                    "limit": 5,
+                }
+            )
+        )
+    except Exception as exc:
+        _error(f"prompt prediction probe failed: {exc}")
+        return False
+    valid = True
+    if not isinstance(stats, dict) or stats.get("rows_used") != 3:
+        _error(f"prompt prediction stats probe returned {stats!r}")
+        valid = False
+    if (
+        not isinstance(result, dict)
+        or result.get("schema_version") != 1
+        or result.get("blocked_reason") is not None
+        or result.get("confident") is not True
+        or not result.get("ghost", [])[:1] == ["the"]
+        or not result.get("candidates")
+    ):
+        _error(f"prompt prediction predict probe returned {result!r}")
+        valid = False
+    matches = ranked.get("matches") if isinstance(ranked, dict) else None
+    first_key = (
+        matches[0].get("key") if isinstance(matches, list) and matches else None
+    )
+    if not isinstance(ranked, dict) or first_key != "implement":
+        _error(f"prompt prediction rank probe returned {ranked!r}")
         valid = False
     return valid
 
@@ -3272,6 +3376,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_prompt_stash_lifecycle_schema(module):
         return 1
     if not _validate_prompt_stash_lifecycle_contract(module):
+        return 1
+    if not _validate_prompt_prediction_contract(module):
         return 1
     if not _validate_project_lifecycle_contract(module):
         return 1

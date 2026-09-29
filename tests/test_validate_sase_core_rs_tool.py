@@ -585,6 +585,90 @@ def test_validate_sase_core_rs_probes_prompt_stash_lifecycle_contract() -> None:
     assert not validator._validate_prompt_stash_lifecycle_contract(stale)
 
 
+def test_validate_sase_core_rs_requires_prompt_prediction_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "PromptPredictionCorpus",
+        "PromptPredictionModel",
+        "prompt_prediction_wire_schema_version",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_bindings(module_with_required_bindings(validator))
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
+def _prompt_prediction_module(**overrides: object) -> SimpleNamespace:
+    class _Corpus:
+        def stats(self) -> dict[str, object]:
+            return {
+                "schema_version": 1,
+                "rows_used": 3,
+                "rows_generated_skipped": 0,
+                "rows_duplicate_skipped": 0,
+                "tokens": 18,
+                "contexts": 10,
+                "successor_entries": 12,
+                "approx_bytes": 512,
+            }
+
+    class _Model:
+        def predict(self, _request: str) -> dict[str, object]:
+            return {
+                "schema_version": 1,
+                "blocked_reason": None,
+                "context_words": ["help", "me", "implement"],
+                "confident": True,
+                "ghost": ["the"],
+                "candidates": [
+                    {
+                        "word": "the",
+                        "key": "the",
+                        "score": 0.9,
+                        "probability": 0.9,
+                        "support": 3,
+                        "order": 2,
+                        "source_shares": {"history": 1.0},
+                        "continuation": [],
+                    }
+                ],
+            }
+
+        def rank_prefix(self, _request: str) -> dict[str, object]:
+            return {
+                "schema_version": 1,
+                "context_words": ["help", "me"],
+                "matches": [
+                    {
+                        "word": "implement",
+                        "key": "implement",
+                        "score": 0.8,
+                        "order": 2,
+                        "support": 3,
+                    }
+                ],
+            }
+
+    namespace = {
+        "prompt_prediction_wire_schema_version": lambda: 1,
+        "PromptPredictionCorpus": lambda _rows, _options: _Corpus(),
+        "PromptPredictionModel": lambda _sources, _config: _Model(),
+    }
+    namespace.update(overrides)
+    return SimpleNamespace(**namespace)
+
+
+def test_validate_sase_core_rs_probes_prompt_prediction_contract() -> None:
+    validator = load_validate_sase_core_rs()
+    assert validator._validate_prompt_prediction_contract(_prompt_prediction_module())
+    assert not validator._validate_prompt_prediction_contract(
+        _prompt_prediction_module(prompt_prediction_wire_schema_version=lambda: 2)
+    )
+
+
 def test_validate_sase_core_rs_requires_telemetry_bindings() -> None:
     validator = load_validate_sase_core_rs()
     telemetry_bindings = {

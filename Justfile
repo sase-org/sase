@@ -390,6 +390,14 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-1cj.5(PromptPredictionCandidate)' \
+        --epic-symbol 'sase-1cj.5(PromptPredictionCorpus)' \
+        --epic-symbol 'sase-1cj.5(PromptPredictionModel)' \
+        --epic-symbol 'sase-1cj.5(PromptPredictionSourceShares)' \
+        --epic-symbol 'sase-1cj.5(PromptPrefixRankMatch)' \
+        --epic-symbol 'sase-1cj.5(prompt_prediction_candidate_from_dict)' \
+        --epic-symbol 'sase-1cj.5(prompt_prediction_source_shares_from_dict)' \
+        --epic-symbol 'sase-1cj.5(prompt_prefix_rank_match_from_dict)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
