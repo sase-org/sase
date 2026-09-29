@@ -300,10 +300,18 @@ def register_bead_note_parser(
         "text",
         nargs="*",
         help=(
-            f"Note text to append; a single-token {AT_PATH_PREFIX}<path> is "
-            f"read from that file, {AT_PATH_PREFIX * 2} escapes a literal "
-            f"leading {AT_PATH_PREFIX}. Required to append or with --edit; "
-            "omit with --remove"
+            "Note text to append. Inside note text, @<path> attaches a "
+            "snapshot of that file (with the bead_note_attachments beta "
+            "flag on; the bead keeps the exact bytes on every machine). "
+            "Accepted forms: @./shot.png, @~/logs/crash.log, "
+            '@/tmp/trace.json, @docs/plan.md, @"name with spaces.png", '
+            "or a bare @name.ext for a known file type. Write @@ where you "
+            "need a literal @ that would otherwise start a reference. "
+            "me@host, @large, and @research:… citations never need "
+            "escaping. A note argument that is only @<file> still reads "
+            "the note's text from that file. To attach files without "
+            "prose, use `sase bead attach`. Required to append or with "
+            "--edit; omit with --remove"
         ),
     )
     parser.add_argument(
@@ -311,6 +319,16 @@ def register_bead_note_parser(
         "--author",
         metavar="NAME",
         help="Author recorded on the entry (default: current agent, else store owner)",
+    )
+    parser.add_argument(
+        "-S",
+        "--allow-sensitive",
+        dest="allow_sensitive",
+        action="store_true",
+        help=(
+            "Attach files from sensitive paths (with the "
+            "bead_note_attachments beta flag on)"
+        ),
     )
     edit_group = parser.add_mutually_exclusive_group()
     edit_group.add_argument(

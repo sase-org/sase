@@ -14,14 +14,15 @@ class BeadNoteModal(ModalScreen[str | None]):
 
     BINDINGS = [("escape", "cancel", "Cancel"), ("ctrl+s", "save", "Add note")]
 
-    def __init__(self, bead_id: str) -> None:
+    def __init__(self, bead_id: str, initial_value: str = "") -> None:
         super().__init__()
         self.bead_id = bead_id
+        self.initial_value = initial_value
 
     def compose(self) -> ComposeResult:
         with Container(id="bead-note-container", classes="bead-modal-container small"):
             yield Label(f"Add note · {self.bead_id}", classes="bead-modal-title")
-            yield TextArea("", id="bead-note-text")
+            yield TextArea(self.initial_value, id="bead-note-text")
             with Horizontal(classes="bead-modal-buttons"):
                 yield Button("Add note  Ctrl+S", id="bead-note-save", variant="primary")
                 yield Button("Cancel  Esc", id="bead-note-cancel")

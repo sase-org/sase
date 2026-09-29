@@ -64,6 +64,11 @@ def test_note_parser_accepts_edit_and_remove_flags() -> None:
     )
     assert edit_args.edit == 2
     assert edit_args.text == ["corrected"]
+    assert edit_args.allow_sensitive is False
+    sensitive_args = create_parser().parse_args(
+        ["bead", "note", "sase-1", "-S", "see", "@./shot.png"]
+    )
+    assert sensitive_args.allow_sensitive is True
 
     remove_args = create_parser().parse_args(["bead", "note", "sase-1", "-x", "1"])
     assert remove_args.remove == 1

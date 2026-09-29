@@ -4758,6 +4758,21 @@
           "default": 5,
           "minimum": 1
         },
+        "attachments": {
+          "type": "object",
+          "description": "Bead note attachment policy: extra sensitive-path glob patterns, additive with the built-in policy.",
+          "additionalProperties": false,
+          "properties": {
+            "sensitive_patterns": {
+              "type": "array",
+              "description": "Extra glob patterns treated as sensitive by the bead note attachment authoring service. A note that references a matching path fails unless -S/--allow-sensitive is passed.",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "task_triage": {
           "type": "object",
           "description": "Volume controls for task-bead triage gates: the +1 bar a ready task bead needs before it earns a TaskTriage gate, and the staleness sweep for the sub-threshold remainder.",
@@ -5580,6 +5595,11 @@
           "description": "AXE configuration projection and public JSON use canonical routine/job names while accepted inputs still normalize to the internal AXE model.",
           "default": true,
           "deprecated": true
+        },
+        "bead_note_attachments": {
+          "type": "boolean",
+          "description": "@<path> references inside bead note text attach content-addressed file snapshots, and `sase bead attach` is available.",
+          "default": false
         },
         "bgcmd_legacy_slots": {
           "type": "boolean",

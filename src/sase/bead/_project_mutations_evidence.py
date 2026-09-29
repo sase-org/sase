@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.bead._project_mutations_shared import combine_mutation_outcomes
 from sase.bead.model import Issue
@@ -31,6 +31,7 @@ class BeadProjectMutationEvidenceMixin:
         entry: str,
         *,
         author: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> Issue:
         """Append one attributed entry to an issue's notes."""
         from sase.core import bead_mutation_facade as rust_beads
@@ -42,6 +43,7 @@ class BeadProjectMutationEvidenceMixin:
             entry,
             author=author,
             now=self._current_time(),
+            attachments=attachments,
         )
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
@@ -54,8 +56,13 @@ class BeadProjectMutationEvidenceMixin:
         text: str,
         *,
         author: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> Issue:
-        """Rewrite note ``#ordinal`` (1-based, per `sase bead show`) with new text."""
+        """Rewrite note ``#ordinal`` (1-based, per `sase bead show`) with new text.
+
+        ``attachments`` is ``None`` to keep the note's current manifest or a
+        list (possibly empty) to replace it.
+        """
         from sase.core import bead_mutation_facade as rust_beads
 
         issue_id = self.resolve_id(issue_id)
@@ -67,6 +74,7 @@ class BeadProjectMutationEvidenceMixin:
             text,
             author=author,
             now=self._current_time(),
+            attachments=attachments,
         )
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
@@ -101,6 +109,7 @@ class BeadProjectMutationEvidenceMixin:
         entry: str,
         *,
         author: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> list[Issue]:
         """Append one attributed entry to each unique issue, preserving result order."""
         from sase.core import bead_mutation_facade as rust_beads
@@ -119,6 +128,7 @@ class BeadProjectMutationEvidenceMixin:
                 entry,
                 author=author,
                 now=now,
+                attachments=attachments,
             )
             issue_by_id[issue_id] = issue
             outcomes.append(outcome)
@@ -134,6 +144,7 @@ class BeadProjectMutationEvidenceMixin:
         reporter: str,
         refs: list[str] | tuple[str, ...] = (),
         observed_since: str | None = None,
+        note_attachments: list[dict[str, Any]] | None = None,
     ) -> tuple[Issue, bool]:
         """Record one independently attributed +1 on a task bead."""
         from sase.core import bead_mutation_facade as rust_beads
@@ -146,6 +157,7 @@ class BeadProjectMutationEvidenceMixin:
             refs=refs,
             now=self._current_time(),
             observed_since=observed_since,
+            note_attachments=note_attachments,
         )
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()

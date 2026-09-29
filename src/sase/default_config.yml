@@ -1912,6 +1912,11 @@ bead:
   # llm_provider.big_epic_lander_model unless the plan sets an explicit land
   # model.
   big_epic_phase_threshold: 5
+  # Extra glob patterns treated as sensitive by the bead note attachment
+  # authoring service, additive with the built-in policy. A note that
+  # references a matching path fails unless -S/--allow-sensitive is passed.
+  attachments:
+    sensitive_patterns: []
   # Volume controls for task-bead triage gates. A ready task bead earns a
   # TaskTriage gate only once independent reporters have corroborated it, and
   # the remainder that never clears that bar is swept periodically instead of

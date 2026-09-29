@@ -96,15 +96,22 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
         pane, row = selected
         from ..modals.bead_note_modal import BeadNoteModal
 
-        def dismissed(note: str | None) -> None:
-            if note is None:
+        snapshot = pane.snapshot
+        workspace = (
+            None if snapshot is None else snapshot.workspace_dirs.get(row.project)
+        )
+
+        def submit_note(note: str) -> None:
+            stored_text, manifest = _author_bead_note_text(note)
+            if stored_text is None:
                 return
 
             def mutate(project: Any) -> Issue:
                 return project.append_note(
                     row.issue.id,
-                    note,
+                    stored_text,
                     author=bead_note_author(project),
+                    attachments=(manifest or None),
                 )
 
             self._submit_bead_mutation(
@@ -116,6 +123,46 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 mutation=mutate,
                 commit_operation="note",
             )
+
+        def dismissed(note: str | None) -> None:
+            if note is None:
+                return
+            submit_note(note)
+
+        def _author_bead_note_text(
+            typed: str,
+        ) -> tuple[str | None, list[dict[str, Any]] | None]:
+            """Compose typed text via the authoring service when flagged on.
+
+            With the flag off the typed text is returned unchanged. With
+            the flag on, a service failure notifies and re-opens the modal
+            with the typed text, returning ``(None, None)``. Raw ``@path``
+            text is never appended. No path completion, paste handling, or
+            thumbnails.
+            """
+            from sase.feature_flags.registry import FeatureFlag
+            from sase.feature_flags.snapshot import current_flags
+
+            if not current_flags().enabled(FeatureFlag.bead_note_attachments):
+                return typed, None
+            from sase.bead.attachments.authoring import (
+                NoteAttachmentAuthoringError,
+                author_note_attachments,
+            )
+
+            try:
+                authored = author_note_attachments(
+                    typed,
+                    notes=row.issue.notes,
+                    cwd=Path(workspace) if workspace else Path.cwd(),
+                )
+            except NoteAttachmentAuthoringError as exc:
+                self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
+                self.push_screen(  # type: ignore[attr-defined]
+                    BeadNoteModal(row.issue.id, initial_value=typed), dismissed
+                )
+                return None, None
+            return authored.stored_text, (authored.attachments or None)
 
         self.push_screen(BeadNoteModal(row.issue.id), dismissed)  # type: ignore[attr-defined]
 

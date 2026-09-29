@@ -18,9 +18,78 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sase.bead.model import BeadNote
+from sase.bead.model import BeadNote, BeadNoteAttachment
 
 LEGACY_NOTE_ID_PREFIX = "__legacy_note__"
+
+
+def _attachment_to_dict(attachment: BeadNoteAttachment) -> dict[str, Any]:
+    """Encode one attachment in sase-core wire field order."""
+    return {
+        "name": attachment.name,
+        "sha256": attachment.sha256,
+        "size_bytes": attachment.size_bytes,
+        "mime_type": attachment.mime_type,
+        **(
+            {
+                "image": {
+                    "width": attachment.image[0],
+                    "height": attachment.image[1],
+                }
+            }
+            if attachment.image is not None
+            else {}
+        ),
+        **({"origin": attachment.origin} if attachment.origin is not None else {}),
+    }
+
+
+def _attachment_from_dict(entry: object) -> BeadNoteAttachment | None:
+    if not isinstance(entry, dict):
+        return None
+    name = str(entry.get("name") or "").strip()
+    sha256 = str(entry.get("sha256") or "").strip()
+    mime_type = str(entry.get("mime_type") or "").strip()
+    size_bytes = entry.get("size_bytes")
+    if not name or not sha256 or not mime_type:
+        return None
+    if isinstance(size_bytes, bool) or not isinstance(size_bytes, int):
+        return None
+    image: tuple[int, int] | None = None
+    raw_image = entry.get("image")
+    if raw_image is not None:
+        if not isinstance(raw_image, dict):
+            return None
+        width = raw_image.get("width")
+        height = raw_image.get("height")
+        if (
+            isinstance(width, bool)
+            or not isinstance(width, int)
+            or isinstance(height, bool)
+            or not isinstance(height, int)
+        ):
+            return None
+        image = (width, height)
+    origin = entry.get("origin")
+    return BeadNoteAttachment(
+        name=name,
+        sha256=sha256,
+        size_bytes=size_bytes,
+        mime_type=mime_type,
+        image=image,
+        origin=None if origin is None else str(origin),
+    )
+
+
+def _attachments_from_list(value: object) -> tuple[BeadNoteAttachment, ...]:
+    if not isinstance(value, list):
+        return ()
+    attachments: list[BeadNoteAttachment] = []
+    for entry in value:
+        attachment = _attachment_from_dict(entry)
+        if attachment is not None:
+            attachments.append(attachment)
+    return tuple(attachments)
 
 
 def _note_to_dict(note: BeadNote) -> dict[str, Any]:
@@ -32,6 +101,11 @@ def _note_to_dict(note: BeadNote) -> dict[str, Any]:
         "text": note.text,
         **({"edited_at": note.edited_at} if note.edited_at is not None else {}),
         **({"edited_by": note.edited_by} if note.edited_by is not None else {}),
+        **(
+            {"attachments": [_attachment_to_dict(a) for a in note.attachments]}
+            if note.attachments
+            else {}
+        ),
     }
 
 
@@ -57,6 +131,7 @@ def _note_from_dict(entry: object) -> BeadNote | None:
         text=text,
         edited_at=None if edited_at is None else str(edited_at),
         edited_by=None if edited_by is None else str(edited_by),
+        attachments=_attachments_from_list(entry.get("attachments")),
     )
 
 
@@ -123,7 +198,7 @@ def parse_legacy_note_blob(
     fallback_timestamp = _fallback_value(timestamp)
     fallback_author = _fallback_value(actor)
     records: list[BeadNote] = []
-    current: dict[str, str] | None = None
+    current: dict[str, Any] | None = None
 
     for paragraph in _legacy_note_paragraphs(text):
         header = _legacy_note_header(paragraph)

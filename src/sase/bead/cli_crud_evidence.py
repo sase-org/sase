@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 from rich.markup import escape
@@ -14,10 +16,28 @@ from sase.bead.cli_common import (
     bead_store_mutation,
     resolve_bead_operation_context,
 )
-from sase.bead.cli_crud_common import resolve_mutation_author
+from sase.bead.cli_crud_common import (
+    print_attachment_echo_rows,
+    resolve_mutation_author,
+)
 from sase.bead.model import Status
 from sase.bead.mutation_commit import require_mutation_commit_message
-from sase.cli_file_values import CliFileValueError, read_at_path_value
+from sase.cli_file_values import (
+    CliFileValueError,
+    read_at_path_value,
+    read_note_text_value,
+)
+
+if TYPE_CHECKING:
+    from sase.bead.attachments.authoring import AuthoredNoteAttachments
+
+
+def _note_attachments_enabled() -> bool:
+    """Return whether the bead note attachments beta flag is on."""
+    from sase.feature_flags.registry import FeatureFlag
+    from sase.feature_flags.snapshot import current_flags
+
+    return bool(current_flags().enabled(FeatureFlag.bead_note_attachments))
 
 
 def _withheld_reopen_note(reporter: str, closed_at: str) -> str:
@@ -119,6 +139,8 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
 def handle_bead_note(args: argparse.Namespace) -> None:
     edit_ordinal = getattr(args, "edit", None)
     remove_ordinal = getattr(args, "remove", None)
+    allow_sensitive = bool(getattr(args, "allow_sensitive", False))
+    attachments_on = _note_attachments_enabled()
     text = args.text
 
     if edit_ordinal is not None and not text:
@@ -133,17 +155,22 @@ def handle_bead_note(args: argparse.Namespace) -> None:
 
     if isinstance(text, list) and text:
         try:
-            text = (
-                read_at_path_value(text[0], target="note text")
-                if len(text) == 1
-                else " ".join(text)
-            )
+            if len(text) == 1:
+                if attachments_on:
+                    text = read_note_text_value(
+                        text[0], target="note text", bead_id=args.id
+                    )
+                else:
+                    text = read_at_path_value(text[0], target="note text")
+            else:
+                text = " ".join(text)
         except CliFileValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
 
     bead_context = resolve_bead_operation_context([args.id], for_write=True)
     issue_id = bead_context.resolved_ids[0]
+    echo_rows: list[str] = []
     with bead_store_mutation(
         auto_commit_bead_store,
         bead_context=bead_context,
@@ -152,9 +179,26 @@ def handle_bead_note(args: argparse.Namespace) -> None:
             author = args.author
             if author is None:
                 author = resolve_mutation_author(mutation.project)
+            stored_text = str(text)
+            manifest: list[dict[str, Any]] | None = None
+            if attachments_on and remove_ordinal is None:
+                authored = _author_note_text(
+                    mutation,
+                    issue_id,
+                    str(text),
+                    edit_ordinal=edit_ordinal,
+                    allow_sensitive=allow_sensitive,
+                )
+                stored_text = authored.stored_text
+                manifest = authored.attachments
+                echo_rows = authored.echo_rows
             if edit_ordinal is not None:
                 issue = mutation.project.edit_note(
-                    issue_id, edit_ordinal, str(text), author=author
+                    issue_id,
+                    edit_ordinal,
+                    stored_text,
+                    author=author,
+                    attachments=manifest,
                 )
                 operation = "note_edit"
             elif remove_ordinal is not None:
@@ -165,8 +209,9 @@ def handle_bead_note(args: argparse.Namespace) -> None:
             else:
                 issue = mutation.project.append_note(
                     issue_id,
-                    str(text),
+                    stored_text,
                     author=author,
+                    attachments=(manifest or None),
                 )
                 operation = "note"
         except KeyError:
@@ -177,9 +222,50 @@ def handle_bead_note(args: argparse.Namespace) -> None:
             sys.exit(1)
         mutation.commit(require_mutation_commit_message(operation, [issue.id]))
 
+    print_attachment_echo_rows(echo_rows)
     if edit_ordinal is not None:
         print(f"Note #{edit_ordinal} edited: {issue.id} — {issue.title}")
     elif remove_ordinal is not None:
         print(f"Note #{remove_ordinal} removed: {issue.id} — {issue.title}")
     else:
         print(f"Noted: {issue.id} — {issue.title}")
+
+
+def _author_note_text(
+    mutation: Any,
+    issue_id: str,
+    text: str,
+    *,
+    edit_ordinal: int | None,
+    allow_sensitive: bool,
+) -> AuthoredNoteAttachments:
+    """Run the attachment authoring service over note text.
+
+    Returns the composed stored text, the manifest to persist, and the
+    echo rows. Exits non-zero when the text has attachment problems;
+    nothing is written then.
+    """
+    from sase.bead.attachments.authoring import (
+        NoteAttachmentAuthoringError,
+        author_note_attachments,
+    )
+
+    current = mutation.project.show(issue_id)
+    previous: tuple[str, ...] = ()
+    if edit_ordinal is not None and 1 <= edit_ordinal <= len(current.notes):
+        previous = tuple(
+            attachment.name
+            for attachment in current.notes[edit_ordinal - 1].attachments
+        )
+    try:
+        authored = author_note_attachments(
+            text,
+            notes=current.notes,
+            cwd=Path.cwd(),
+            allow_sensitive=allow_sensitive,
+            previous_manifest=previous,
+        )
+    except NoteAttachmentAuthoringError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    return authored

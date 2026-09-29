@@ -104,6 +104,43 @@ class TaskPlusOneEvidence:
 
 
 @dataclass(frozen=True)
+class BeadNoteAttachment:
+    """One content-addressed file snapshot attached to a bead note.
+
+    Mirrors ``BeadNoteAttachmentWire`` in sase-core. No paths, store
+    locations, or availability belong here: those are machine-local and are
+    resolved at render time from the local content-addressed store.
+    ``image`` is ``(width, height)`` pixels, present only when the ingest
+    probe returned dimensions.
+    """
+
+    name: str
+    sha256: str
+    size_bytes: int
+    mime_type: str
+    image: tuple[int, int] | None = None
+    origin: str | None = None
+
+    def validate(self) -> None:
+        if not self.name.strip():
+            raise ValueError("bead note attachment name cannot be empty or blank")
+        if not self.sha256.strip():
+            raise ValueError("bead note attachment sha256 cannot be empty or blank")
+        if not self.mime_type.strip() or "/" not in self.mime_type:
+            raise ValueError(
+                "bead note attachment mime_type must be shaped type/subtype"
+            )
+        if self.size_bytes < 0:
+            raise ValueError("bead note attachment size_bytes cannot be negative")
+        if self.image is not None:
+            width, height = self.image
+            if width <= 0 or height <= 0:
+                raise ValueError("bead note attachment image dimensions must exceed 0")
+        if self.origin is not None and not self.origin.strip():
+            raise ValueError("bead note attachment origin cannot be empty or blank")
+
+
+@dataclass(frozen=True)
 class BeadNote:
     """One timestamped, attributed entry in a bead's append-only note log.
 
@@ -118,6 +155,7 @@ class BeadNote:
     text: str
     edited_at: str | None = None
     edited_by: str | None = None
+    attachments: tuple[BeadNoteAttachment, ...] = ()
 
     def validate(self) -> None:
         if not self.id.strip():
@@ -128,6 +166,8 @@ class BeadNote:
             raise ValueError("bead note author cannot be empty or blank")
         if not self.text.strip():
             raise ValueError("bead note text cannot be empty or blank")
+        for attachment in self.attachments:
+            attachment.validate()
         if (self.edited_at is None) != (self.edited_by is None):
             raise ValueError(
                 "bead note edited_at and edited_by must both be present or "

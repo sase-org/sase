@@ -42,6 +42,33 @@ def get_big_epic_phase_threshold() -> int:
     return value
 
 
+def get_attachment_sensitive_patterns() -> list[str]:
+    """Return extra sensitive-path globs for bead note attachments.
+
+    Reads ``bead.attachments.sensitive_patterns`` from the merged config.
+    Missing or malformed values fail open to ``[]``: the core sensitive-path
+    policy still applies, only the user extras are dropped.
+    """
+    try:
+        merged: object = load_merged_config()
+    except Exception:
+        return []
+    if not isinstance(merged, dict):
+        return []
+    bead_config = merged.get("bead", {})
+    if not isinstance(bead_config, dict):
+        return []
+    attachments = bead_config.get("attachments", {})
+    if not isinstance(attachments, dict):
+        return []
+    patterns = attachments.get("sensitive_patterns", [])
+    if not isinstance(patterns, list):
+        return []
+    return [
+        pattern for pattern in patterns if isinstance(pattern, str) and pattern.strip()
+    ]
+
+
 def _task_triage_config() -> dict[str, object]:
     """Return the merged ``bead.task_triage`` config section, or ``{}``.
 

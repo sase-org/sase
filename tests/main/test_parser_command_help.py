@@ -424,7 +424,9 @@ def test_bead_create_and_update_help_document_at_path() -> None:
     _assert_metavar_option_documented(update_help, "-n", "--note", "NOTE")
     assert "@<path> reads it from that file" in update_help
 
-    assert "single-token @<path>" in note_help
+    assert "@<path> attaches a snapshot" in note_help
+    assert "sase bead attach" in note_help
+    assert "-S, --allow-sensitive" in note_help
 
     _assert_metavar_option_documented(close_help, "-n", "--note", "NOTE")
     _assert_metavar_option_documented(close_help, "-r", "--reason", "REASON")

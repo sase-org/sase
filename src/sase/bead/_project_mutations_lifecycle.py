@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.bead.model import Issue, Resolution
 
@@ -31,6 +31,7 @@ class BeadProjectMutationLifecycleMixin:
         force: bool = False,
         note: str | None = None,
         author: str | None = None,
+        note_attachments: list[dict[str, Any]] | None = None,
     ) -> list[Issue]:
         """Close one or more issues.
 
@@ -52,6 +53,7 @@ class BeadProjectMutationLifecycleMixin:
             note=note,
             author=author,
             now=self._current_time(),
+            note_attachments=note_attachments,
         )
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()

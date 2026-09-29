@@ -136,11 +136,12 @@ def append_note(
     *,
     author: str | None = None,
     now: str | None = None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "append_note")
     binding = require_rust_binding("bead_append_note")
     payload = _call_issue_operation(
-        binding, str(beads_dir), issue_id, entry, author, now
+        binding, str(beads_dir), issue_id, entry, author, now, attachments
     )
     return _issue_payload(payload), payload
 
@@ -153,11 +154,12 @@ def edit_note(
     *,
     author: str | None = None,
     now: str | None = None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "edit_note")
     binding = require_rust_binding("bead_note_edit")
     payload = _call_issue_operation(
-        binding, str(beads_dir), issue_id, note_id, text, author, now
+        binding, str(beads_dir), issue_id, note_id, text, author, now, attachments
     )
     return _issue_payload(payload), payload
 
@@ -187,6 +189,7 @@ def plus_one(
     refs: list[str] | tuple[str, ...] = (),
     now: str | None = None,
     observed_since: str | None = None,
+    note_attachments: list[dict[str, Any]] | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     """Append one structured, independently attributed task report."""
     _guard_bead_store_write(beads_dir, "plus_one")
@@ -200,6 +203,7 @@ def plus_one(
         list(refs),
         now,
         observed_since,
+        note_attachments,
     )
     return _issue_payload(payload), payload
 
@@ -336,6 +340,7 @@ def close(
     note: str | None = None,
     author: str | None = None,
     now: str | None = None,
+    note_attachments: list[dict[str, Any]] | None = None,
 ) -> tuple[list[Issue], dict[str, Any]]:
     """Close issues, recording ``author`` on the note and every close event."""
     _guard_bead_store_write(beads_dir, "close")
@@ -353,6 +358,7 @@ def close(
         now,
         note,
         author,
+        note_attachments,
     )
     return issues_from_list(payload.get("issues", [])), payload
 

@@ -26,6 +26,7 @@ class FeatureFlag(StrEnum):
     axe_routine_job_contract = "axe_routine_job_contract"
     agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
+    bead_note_attachments = "bead_note_attachments"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
     legacy_agent_family_syntax = "legacy_agent_family_syntax"
     legacy_sase_shell_syntax = "legacy_sase_shell_syntax"
@@ -85,6 +86,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "skill guard, and SSH relay phases land."
         ),
         bead="sase-111",
+    ),
+    FeatureFlag.bead_note_attachments: FeatureFlagDefinition(
+        key=FeatureFlag.bead_note_attachments,
+        kind="beta",
+        description=(
+            "@<path> references inside bead note text attach "
+            "content-addressed file snapshots, and `sase bead attach` is "
+            "available."
+        ),
+        bead="sase-1cl",
     ),
     FeatureFlag.legacy_agent_family_syntax: FeatureFlagDefinition(
         key=FeatureFlag.legacy_agent_family_syntax,
