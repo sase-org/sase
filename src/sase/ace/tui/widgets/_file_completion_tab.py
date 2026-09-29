@@ -264,6 +264,12 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         if len(candidates) == 1:
             self._commit_word_completion(result, candidates[0].insertion)
             self._clear_file_completion()
+            arm = getattr(self, "_arm_next_word_chain", None)
+            if callable(arm):
+                try:
+                    arm()
+                except Exception:
+                    pass
             return True
 
         if result.shared_extension:
@@ -321,6 +327,12 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         if len(candidates) == 1:
             self._commit_word_completion(result, candidates[0].insertion)
             self._clear_file_completion()
+            arm = getattr(self, "_arm_next_word_chain", None)
+            if callable(arm):
+                try:
+                    arm()
+                except Exception:
+                    pass
             return True
 
         if result.shared_extension:

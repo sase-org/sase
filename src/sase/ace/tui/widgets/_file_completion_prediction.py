@@ -72,6 +72,14 @@ class FileCompletionPredictionMixin(FileCompletionWorkerMixin):
         logs once). The returned ghost is truncated before the first
         history-deleted word and deleted candidates are dropped.
         """
+        try:
+            settings = getattr(self, "_prompt_completion_settings", None)
+            if callable(settings):
+                mode = getattr(settings(), "next_word", "chain")
+                if mode == "off":
+                    return None
+        except Exception:
+            pass
         if self._prompt_prediction_session_disabled():
             return None
         model = self._prompt_prediction_model()

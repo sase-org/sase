@@ -97,6 +97,12 @@ class StartupPromptPredictionMixin:
         """Schedule an off-thread prediction corpus staleness check and rebuild."""
         if self._prompt_prediction_disabled or self._prompt_prediction_unavailable:
             return
+        try:
+            settings = self.get_prompt_completion_settings()
+            if getattr(settings, "next_word", "chain") == "off":
+                return
+        except Exception:
+            pass
         if self._prompt_prediction_rebuild_in_flight:
             self._prompt_prediction_rebuild_pending = True
             return
@@ -248,10 +254,22 @@ class StartupPromptPredictionMixin:
         self._refresh_visible_prompt_prediction_surfaces()
 
     def _refresh_visible_prompt_prediction_surfaces(self: Any) -> None:
-        """Apply a newly warm model to visible prediction surfaces.
+        """Redraw armed next-word ghosts once a warm model lands."""
+        try:
+            from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
-        No-op until the ghost-chain phase fills it with ghost redraws.
-        """
+            text_areas = list(self.query(PromptTextArea))
+        except Exception:
+            return
+        for text_area in text_areas:
+            try:
+                if not getattr(text_area, "is_mounted", False):
+                    continue
+                refresh = getattr(text_area, "_refresh_visible_next_word_surface", None)
+                if callable(refresh):
+                    refresh()
+            except Exception:
+                log.debug("Failed to refresh next-word surface", exc_info=True)
 
 
 def _prune_session_texts(

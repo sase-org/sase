@@ -60,6 +60,12 @@ class SnippetExpansionMixin(_MixinBase):
     def _clear_snippet_session(self) -> None:
         """End any active snippet tabstop session."""
         self._snippet_session = clear_snippet_session(self._snippet_session).state
+        try:
+            clearer = getattr(self, "_clear_next_word_chain", None)
+            if callable(clearer):
+                clearer()
+        except Exception:
+            pass
 
     def edit(self, edit: Edit) -> EditResult:
         """Feed every document mutation's delta to the active snippet session.
@@ -239,6 +245,12 @@ class SnippetExpansionMixin(_MixinBase):
             tabstop_offsets=plan.tabstop_offsets,
         )
         self._snippet_session = transition.state
+        try:
+            clearer = getattr(self, "_clear_next_word_chain", None)
+            if callable(clearer):
+                clearer()
+        except Exception:
+            pass
 
         return True
 
@@ -254,6 +266,12 @@ class SnippetExpansionMixin(_MixinBase):
 
         self.cursor_location = self._location_from_absolute(transition.cursor_offset)
         self._try_auto_placeholder_completion()
+        try:
+            clearer = getattr(self, "_clear_next_word_chain", None)
+            if callable(clearer):
+                clearer()
+        except Exception:
+            pass
         return True
 
     def _snippet_tabstop_jump_moves(self, *, retreat: bool) -> bool:
@@ -281,4 +299,10 @@ class SnippetExpansionMixin(_MixinBase):
 
         self.cursor_location = self._location_from_absolute(transition.cursor_offset)
         self._try_auto_placeholder_completion()
+        try:
+            clearer = getattr(self, "_clear_next_word_chain", None)
+            if callable(clearer):
+                clearer()
+        except Exception:
+            pass
         return True

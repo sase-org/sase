@@ -239,3 +239,35 @@ def test_bundled_default_ace_prompt_stash_trash_limit_is_100() -> None:
     assert trash_schema["type"] == "integer"
     assert trash_schema["minimum"] == 0
     assert trash_schema["default"] == 100
+
+
+def test_prompt_completion_next_word_default_contract() -> None:
+    public_schema = schema()
+    default_config = yaml.safe_load(
+        (REPO_ROOT / "src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+    prompt_completion = public_schema["properties"]["ace"]["properties"][
+        "prompt_completion"
+    ]
+    assert default_config["ace"]["prompt_completion"]["next_word"] == "chain"
+    assert default_config["ace"]["prompt_completion"]["next_word_max_words"] == 4
+    assert (
+        default_config["ace"]["prompt_completion"]["next_word_confidence"] == "balanced"
+    )
+    assert prompt_completion["properties"]["next_word"]["enum"] == ["off", "chain"]
+    assert prompt_completion["properties"]["next_word"]["default"] == "chain"
+    assert prompt_completion["properties"]["next_word_max_words"]["default"] == 4
+    assert prompt_completion["properties"]["next_word_max_words"]["minimum"] == 1
+    assert prompt_completion["properties"]["next_word_max_words"]["maximum"] == 8
+    assert prompt_completion["properties"]["next_word_confidence"]["enum"] == [
+        "cautious",
+        "balanced",
+        "eager",
+    ]
+    Draft7Validator(public_schema).validate(
+        {"ace": {"prompt_completion": {"next_word": "chain"}}}
+    )
+    with pytest.raises(ValidationError):
+        Draft7Validator(public_schema).validate(
+            {"ace": {"prompt_completion": {"next_word": "auto"}}}
+        )

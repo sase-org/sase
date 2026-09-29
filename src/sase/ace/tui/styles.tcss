@@ -4460,6 +4460,11 @@ PromptInputBar PromptTextArea.prompt-input.-vim-visual .text-area--cursor {
     text-style: bold;
 }
 
+/* Fish-style next-word ghost: same muted style as the Command Line ghost. */
+PromptInputBar PromptTextArea.prompt-input .text-area--suggestion {
+    color: $text-muted;
+}
+
 /* Generalized vim cursor accents for any VimTextArea (config-tab editors,
    etc.).  Textual type selectors match base classes, so these also cover
    PromptTextArea, but the prompt-scoped rules above win there by specificity

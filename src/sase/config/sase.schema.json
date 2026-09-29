@@ -2212,6 +2212,25 @@
               "type": "boolean",
               "description": "Whether saved-placeholder rows render the score meter, dominant-reason chip, and panel legend for smart ranking",
               "default": true
+            },
+            "next_word": {
+              "type": "string",
+              "description": "Next-word prediction chain mode: 'chain' arms ghost text after word commits, 'off' disables predictions",
+              "enum": ["off", "chain"],
+              "default": "chain"
+            },
+            "next_word_max_words": {
+              "type": "integer",
+              "description": "Maximum next-word ghost words shown at once",
+              "minimum": 1,
+              "maximum": 8,
+              "default": 4
+            },
+            "next_word_confidence": {
+              "type": "string",
+              "description": "Confidence gate for next-word ghost predictions",
+              "enum": ["cautious", "balanced", "eager"],
+              "default": "balanced"
             }
           }
         },

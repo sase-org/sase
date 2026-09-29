@@ -17,6 +17,7 @@ from sase.ace.tui.widgets._jinja_highlight import JinjaHighlightMixin
 from sase.ace.tui.widgets._misspelling_highlight import MisspellingHighlightMixin
 from sase.ace.tui.widgets._placeholder_highlight import PlaceholderHighlightMixin
 from sase.ace.tui.widgets._prompt_glossary import PromptGlossaryMixin
+from sase.ace.tui.widgets._prompt_next_word import PromptNextWordMixin
 from sase.ace.tui.widgets._prompt_repo_mentions import PromptRepoMentionMixin
 from sase.ace.tui.widgets._prompt_soft_completion import PromptSoftCompletionMixin
 from sase.ace.tui.widgets._prompt_text_area_actions import (
@@ -79,6 +80,7 @@ __all__ = [
 
 
 class PromptTextArea(
+    PromptNextWordMixin,
     PromptTextAreaKeyHandlingMixin,
     PromptTextAreaActionsMixin,
     JinjaDiagnosticsMixin,
@@ -188,6 +190,9 @@ class PromptTextArea(
         self._prompt_completion_task: Any | None = None
         self._prompt_completion_timer: Any | None = None
         self._soft_completion: PromptSoftCompletion | None = None
+        self._next_word_chain = None
+        self._next_word_ghost = None
+        self._next_word_hint: str | None = None
         self._prompt_preview_request_id: int = 0
         self._prompt_jump_request_id: int = 0
         self._prompt_format_request_id: int = 0

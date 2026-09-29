@@ -282,13 +282,38 @@ class PromptInputBarCompletionMixin(_MixinBase):
     def set_prompt_mode_subtitle(self, subtitle: str) -> None:
         """Set the prompt mode subtitle, preserving any visible soft suggestion."""
         self._mode_subtitle = subtitle
+        if getattr(self, "_next_word_hint_visible", False):
+            return
         if not self._soft_completion_visible:
             self._subtitle_base = subtitle
             self.border_subtitle = self._render_subtitle(subtitle)
 
+    def show_next_word_hint(self, text: str) -> None:
+        """Render a next-word ghost or transient hint in the border subtitle."""
+        if self._completion_panel_kind == "jinja":
+            return
+        self._next_word_hint_visible = True
+        self._next_word_hint_text = text
+        self._subtitle_base = text
+        self.border_subtitle = self._render_subtitle(text)
+
+    def hide_next_word_hint(self) -> None:
+        """Restore the mode subtitle when no next-word hint is visible."""
+        if not getattr(self, "_next_word_hint_visible", False):
+            return
+        self._next_word_hint_visible = False
+        self._next_word_hint_text = ""
+        if self._soft_completion_visible:
+            return
+        self._subtitle_base = self._mode_subtitle
+        self.border_subtitle = self._render_subtitle(self._mode_subtitle)
+
     def show_soft_completion(self, suggestion: PromptSoftCompletion) -> None:
         """Render a soft completion in the prompt bar subtitle."""
         if self._completion_panel_kind == "jinja":
+            return
+        if getattr(self, "_next_word_hint_visible", False):
+            self._soft_completion_visible = True
             return
         display = suggestion.display.replace("\n", " ").strip()
         if len(display) > 48:
@@ -303,6 +328,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
         if not self._soft_completion_visible:
             return
         self._soft_completion_visible = False
+        if getattr(self, "_next_word_hint_visible", False):
+            return
         self._subtitle_base = self._mode_subtitle
         self.border_subtitle = self._render_subtitle(self._mode_subtitle)
 

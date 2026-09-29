@@ -39,6 +39,7 @@ class PromptInputBarStackNavigationMixin(_MixinBase):
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
         def hide_file_completions(self) -> None: ...
+        def hide_next_word_hint(self) -> None: ...
         def hide_soft_completion(self) -> None: ...
 
     def focus_relative(self, delta: int, target_mode: str = "normal") -> bool:
@@ -148,5 +149,13 @@ class PromptInputBarStackNavigationMixin(_MixinBase):
             text_area._clear_soft_completion(cancel_timer=True)
             text_area._clear_xprompt_arg_hint()
             text_area._clear_prompt_search(clear_highlights=True)
+            try:
+                text_area._clear_next_word_chain()
+            except Exception:
+                pass
         self.hide_file_completions()
         self.hide_soft_completion()
+        try:
+            self.hide_next_word_hint()
+        except Exception:
+            pass

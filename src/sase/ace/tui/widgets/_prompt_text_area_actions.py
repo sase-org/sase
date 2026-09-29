@@ -81,6 +81,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
+        try:
+            self._clear_next_word_chain()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self._vcs_mru_index = None
         bar = self._find_prompt_bar()
         if bar:
@@ -93,6 +97,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
+        try:
+            self._clear_next_word_chain()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self._vcs_mru_index = None
         bar = self._find_prompt_bar()
         if bar:
@@ -113,6 +121,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
+        try:
+            self._clear_next_word_chain()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self._vcs_mru_index = None
 
         PromptInputBar = prompt_bar_class()
@@ -144,6 +156,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_insert_g_prefix()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_xprompt_arg_hint()
+        try:
+            self._clear_next_word_chain()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         if bar._mode == "prompt" and bar.is_stacked():
             bar.post_message(PromptInputBar.AllEditorRequested())
             return
@@ -160,6 +176,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             self._clear_insert_g_prefix()
             self._clear_soft_completion(cancel_timer=True)
             self._clear_xprompt_arg_hint()
+            try:
+                self._clear_next_word_chain()  # type: ignore[attr-defined]
+            except Exception:
+                pass
             bar.post_message(PromptInputBar.WorkflowEditorRequested())
 
     def _open_recursive_file_finder(self) -> None:
@@ -185,6 +205,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         )
         self._clear_file_completion()
         self._clear_soft_completion(cancel_timer=True)
+        try:
+            self._clear_next_word_chain()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
         def _on_result(result: CompletionCandidate | None) -> None:
             self._refocus_if_needed()
@@ -226,6 +250,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_file_completion()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_xprompt_arg_hint()
+        try:
+            self._clear_next_word_chain()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
         def _on_result(result: PromptSubmitChoice | None) -> None:
             self._refocus_if_needed()
@@ -346,6 +374,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._vcs_mru_index = None
         self._clear_soft_completion(cancel_timer=True)
         self._clear_snippet_session()
+        try:
+            self._clear_next_word_chain()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def _enter_insert_mode(self) -> None:
         """Switch to vim INSERT mode, clearing the prompt prefix / search UI."""
@@ -367,6 +399,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_insert_g_prefix()
         self._clear_normal_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
+        try:
+            self._clear_next_word_chain()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self.call_later(self._refocus_if_needed)
 
     def _refocus_if_needed(self) -> None:

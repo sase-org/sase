@@ -156,6 +156,8 @@ class PromptInputBar(
         self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
         self._subtitle_base = self._mode_subtitle
         self._soft_completion_visible = False
+        self._next_word_hint_visible = False
+        self._next_word_hint_text = ""
         self._title_mode_suffix = ""
         self._readonly_xprompt_target: XPromptReadonlyTarget | None = None
         self._xprompt_source_stale = False

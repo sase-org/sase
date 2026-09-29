@@ -229,6 +229,12 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
                 return False
             self._commit_word_completion(result, selected.insertion)
             self._clear_file_completion()
+            arm = getattr(self, "_arm_next_word_chain", None)
+            if callable(arm):
+                try:
+                    arm()
+                except Exception:
+                    pass
             return True
         if self._completion_kind == HISTORY_WORD_COMPLETION_KIND:
             if isinstance(selected.metadata, HistoryWordCompletionPlaceholder):
@@ -245,6 +251,12 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
                 return False
             self._commit_word_completion(result, selected.insertion)
             self._clear_file_completion()
+            arm = getattr(self, "_arm_next_word_chain", None)
+            if callable(arm):
+                try:
+                    arm()
+                except Exception:
+                    pass
             return True
         if self._completion_kind == "file_history":
             row, col = self.cursor_location

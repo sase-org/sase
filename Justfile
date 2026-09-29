@@ -394,6 +394,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1cj.7(PromptPredictionSourceShares)' \
         --epic-symbol 'sase-1cj.7(prompt_prediction_candidate_from_dict)' \
         --epic-symbol 'sase-1cj.7(prompt_prediction_source_shares_from_dict)' \
+        --epic-symbol 'sase-1cj.7(next_word_has_word_suffix)' \
         --epic-symbol 'sase-1cj.8(PromptPrefixRankMatch)' \
         --epic-symbol 'sase-1cj.8(prompt_prefix_rank_match_from_dict)' \
         {{ args }}

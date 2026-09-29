@@ -240,6 +240,13 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
             bar.hide_file_completions()
             return
 
+        try:
+            clearer = getattr(self, "_clear_next_word_chain", None)
+            if callable(clearer):
+                clearer()
+        except Exception:
+            pass
+
         rows = self._file_completion_candidates
         group_rule = self._completion_group_rule_reserved()
         scroll_offset = completion_scroll_offset(

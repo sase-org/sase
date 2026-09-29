@@ -35,6 +35,12 @@ class PromptTextAreaEditActionsMixin(PromptTextAreaListEditingMixin):
 
     def _refresh_completion_after_cursor_move(self) -> None:
         """Refresh prompt assist surfaces after TextArea cursor actions."""
+        validate = getattr(self, "_validate_next_word_ghost", None)
+        if callable(validate):
+            try:
+                validate()
+            except Exception:
+                pass
         self._refresh_file_completion_from_cursor()
         self._refresh_xprompt_arg_hint_from_cursor()
 
@@ -43,6 +49,19 @@ class PromptTextAreaEditActionsMixin(PromptTextAreaListEditingMixin):
         self._refresh_completion_after_cursor_move()
 
     def action_cursor_right(self, select: bool = False) -> None:
+        accept = getattr(self, "_accept_next_word_all", None)
+        visible = getattr(self, "_next_word_ghost_visible", None)
+        try:
+            if (
+                not select
+                and callable(accept)
+                and callable(visible)
+                and bool(visible())
+            ):
+                if bool(accept()):
+                    return
+        except Exception:
+            pass
         super().action_cursor_right(select)
         self._refresh_completion_after_cursor_move()
 
@@ -80,6 +99,12 @@ class PromptTextAreaEditActionsMixin(PromptTextAreaListEditingMixin):
 
     def _refresh_completion_after_text_delete(self) -> None:
         """Refresh prompt assist surfaces after TextArea delete actions."""
+        validate = getattr(self, "_validate_next_word_ghost", None)
+        if callable(validate):
+            try:
+                validate()
+            except Exception:
+                pass
         self._refresh_file_completion_from_cursor()
         self._refresh_xprompt_arg_hint_from_cursor()
 

@@ -32,6 +32,8 @@ from sase.ace.tui.widgets.xprompt_completion import (
 PromptCompletionAutoMode = Literal["off", "soft"]
 WordRankingMode = Literal["smart", "recent"]
 PlaceholderRankingMode = WordRankingMode
+NextWordMode = Literal["off", "chain"]
+NextWordConfidence = Literal["cautious", "balanced", "eager"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +54,9 @@ class PromptCompletionSettings:
     word_ranking_signals: bool = True
     placeholder_ranking: PlaceholderRankingMode = "smart"
     placeholder_ranking_signals: bool = True
+    next_word: NextWordMode = "chain"
+    next_word_max_words: int = 4
+    next_word_confidence: NextWordConfidence = "balanced"
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +187,21 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
             DEFAULT_PROMPT_COMPLETION_SETTINGS.placeholder_ranking_signals,
         )
     )
+    next_word = _parse_next_word_mode(
+        raw.get("next_word", DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word)
+    )
+    next_word_max_words = _parse_next_word_max_words(
+        raw.get(
+            "next_word_max_words",
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word_max_words,
+        )
+    )
+    next_word_confidence = _parse_next_word_confidence(
+        raw.get(
+            "next_word_confidence",
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word_confidence,
+        )
+    )
     return PromptCompletionSettings(
         auto=auto,
         debounce_ms=debounce_ms,
@@ -197,6 +217,9 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         word_ranking_signals=word_ranking_signals,
         placeholder_ranking=placeholder_ranking,
         placeholder_ranking_signals=placeholder_ranking_signals,
+        next_word=next_word,
+        next_word_max_words=next_word_max_words,
+        next_word_confidence=next_word_confidence,
     )
 
 
@@ -395,6 +418,35 @@ def _parse_ranking_mode(value: Any, *, default: WordRankingMode) -> WordRankingM
     if normalized == "smart":
         return "smart"
     return default
+
+
+def _parse_next_word_mode(value: Any) -> NextWordMode:
+    """Parse ``next_word`` with a conservative ``chain`` fallback."""
+    if isinstance(value, bool):
+        return "chain" if value else "off"
+    normalized = str(value).strip().lower()
+    if normalized in {"off", "false", "no", "0", "none", "disabled"}:
+        return "off"
+    if normalized in {"chain", "on", "true", "yes", "1"}:
+        return "chain"
+    return DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word
+
+
+def _parse_next_word_max_words(value: Any) -> int:
+    """Parse ``next_word_max_words`` clamped to 1–8."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word_max_words
+    return max(1, min(8, parsed))
+
+
+def _parse_next_word_confidence(value: Any) -> NextWordConfidence:
+    """Parse ``next_word_confidence`` with a ``balanced`` fallback."""
+    normalized = str(value).strip().lower()
+    if normalized in {"cautious", "balanced", "eager"}:
+        return normalized  # type: ignore[return-value]
+    return DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word_confidence
 
 
 def _parse_non_negative_int(value: Any, default: int) -> int:

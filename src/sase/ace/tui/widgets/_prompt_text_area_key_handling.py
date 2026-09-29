@@ -127,6 +127,12 @@ class PromptTextAreaKeyHandlingMixin(
         def _move_file_completion(self, delta: int) -> bool: ...
         def _on_prompt_completion_context_changed(self) -> None: ...
         def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
+        def _next_word_ghost_visible(self) -> bool: ...
+        def _accept_next_word_one(self) -> bool: ...
+        def _accept_next_word_all(self) -> bool: ...
+        def _explicit_next_word_request(self) -> bool: ...
+        def _clear_next_word_chain(self) -> None: ...
+        def _validate_next_word_ghost(self) -> None: ...
         def _open_recursive_file_finder(self) -> None: ...
         def _open_submit_choice_panel(self) -> None: ...
         def _refresh_file_completion_from_cursor(self) -> None: ...
@@ -285,6 +291,7 @@ class PromptTextAreaKeyHandlingMixin(
             self._clear_file_completion()
             self._clear_soft_completion(cancel_timer=True)
             self._clear_xprompt_arg_hint()
+            self._clear_next_word_chain()
             bar = self._find_prompt_bar()
             if bar:
                 bar.action_cancel()
@@ -394,6 +401,19 @@ class PromptTextAreaKeyHandlingMixin(
                     self._accept_file_completion()
                     return
 
+        # Ghost accept-all on ``ctrl+l`` before soft completion. Pane focus
+        # moved to the normal-mode ``K`` / ``J`` keys, so an unconsumed
+        # ``ctrl+l`` still falls through to ``dismiss_toasts`` as before.
+        if event.key == "ctrl+l" and self._next_word_ghost_visible():
+            event.stop()
+            event.prevent_default()
+            self._accept_next_word_all()
+            return
+        if event.key == "alt+f" and self._next_word_ghost_visible():
+            event.stop()
+            event.prevent_default()
+            self._accept_next_word_one()
+            return
         # Insert-mode ``ctrl+l`` accepts a soft completion when one is pending;
         # pane focus moved to the normal-mode ``K`` / ``J`` keys, so there is no
         # longer a focus fallback here -- an unconsumed ``ctrl+l`` falls through
@@ -419,6 +439,20 @@ class PromptTextAreaKeyHandlingMixin(
             self._handle_vcs_mru_cycle_key("ctrl+p")
             return
 
+        # Ctrl+T ladder rows 2-3 before the manual dispatcher (row 4).
+        # Row 2 takes the visible ghost's first word; row 3 shows the
+        # gated ghost or a transient hint when the chain is armed.
+        if event.key == "ctrl+t" and self._next_word_ghost_visible():
+            event.stop()
+            event.prevent_default()
+            self._clear_soft_completion(cancel_timer=True)
+            self._accept_next_word_one()
+            return
+        if event.key == "ctrl+t" and self._explicit_next_word_request():
+            event.stop()
+            event.prevent_default()
+            self._clear_soft_completion(cancel_timer=True)
+            return
         # Ctrl+T in INSERT mode: dispatch manual prompt completion.
         if event.key == "ctrl+t":
             event.stop()

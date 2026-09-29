@@ -83,6 +83,12 @@ class XPromptArgHintMixin(_MixinBase):
 
     def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
         """Render the active xprompt argument hint through the prompt bar."""
+        try:
+            clearer = getattr(self, "_clear_next_word_chain", None)
+            if callable(clearer):
+                clearer()
+        except Exception:
+            pass
         bar = self._find_prompt_bar()
         if bar:
             bar.show_xprompt_arg_hint(hint)
