@@ -18,6 +18,7 @@ from sase.ace.tui.widgets.next_word_completion import (
     NextWordGhost,
     build_next_word_ghost_text,
     fit_next_word_ghost,
+    next_word_auto_space_eligible,
     next_word_chain_armed,
     next_word_ghost_expected,
     next_word_leading_separator,
@@ -87,7 +88,7 @@ class PromptNextWordMixin(_MixinBase):
         mode = getattr(settings, "next_word", "chain")
         max_words = getattr(settings, "next_word_max_words", 4)
         confidence = getattr(settings, "next_word_confidence", "balanced")
-        if mode not in {"off", "chain"}:
+        if mode not in {"off", "chain", "auto"}:
             mode = "chain"
         try:
             max_words = max(1, min(8, int(max_words)))
@@ -348,6 +349,34 @@ class PromptNextWordMixin(_MixinBase):
             return
         if not self._set_next_word_ghost(list(result.ghost), separator):
             self._hide_next_word_hint()
+
+    def _maybe_auto_next_word_ghost(self, character: str | None) -> bool:
+        """Show a gated ghost right after a typed space in ``auto`` mode.
+
+        Only the space keystroke predicts: the space must follow a word
+        token at end of line and the ghost preconditions must hold. The
+        chain is armed at the cursor and the ghost carries no leading
+        separator (the text before the cursor already ends with the
+        typed space). Everything else follows the ghost-chain contract.
+        """
+        if character != " ":
+            return False
+        mode, _, _ = self._next_word_settings()
+        if mode != "auto":
+            return False
+        if self._next_word_ghost_visible():
+            return False
+        try:
+            text = self.text
+            offset = self._absolute_offset(self.cursor_location)
+        except Exception:
+            return False
+        if not next_word_auto_space_eligible(text, offset):
+            return False
+        if not self._next_word_ghost_allowed():
+            return False
+        self._arm_next_word_chain()
+        return self._next_word_ghost_visible()
 
     def _accept_next_word_one(self) -> bool:
         """Insert the ghost's first word, then predict again without flicker."""

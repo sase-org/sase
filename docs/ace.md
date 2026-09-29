@@ -7632,8 +7632,11 @@ token under the cursor:
   a menu inside structural syntax). Ghosts show only at end of line, capped at
   `ace.prompt_completion.next_word_max_words`, and never from a unigram. `Ctrl+D` on a
   highlighted next-word row forgets it through the history-word deletions store. Set
-  `ace.prompt_completion.next_word: off` to disable the chain. Principles: `Ctrl+T`
-  never inserts an unseen guess, always moves forward, and stays silent when unsure.
+  `ace.prompt_completion.next_word: auto` to also show the gated ghost right after a
+  typed space that ends a prose word at end of line (after `, ` a ghost may appear;
+  after `. ` never, because the context is `<s>` only), or `off` to disable the chain.
+  Principles: `Ctrl+T` never inserts an unseen guess, always moves forward, and stays
+  silent when unsure.
 
 | Key                 | Action                                                                                               |
 | ------------------- | ---------------------------------------------------------------------------------------------------- |

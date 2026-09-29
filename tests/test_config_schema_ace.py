@@ -254,7 +254,11 @@ def test_prompt_completion_next_word_default_contract() -> None:
     assert (
         default_config["ace"]["prompt_completion"]["next_word_confidence"] == "balanced"
     )
-    assert prompt_completion["properties"]["next_word"]["enum"] == ["off", "chain"]
+    assert prompt_completion["properties"]["next_word"]["enum"] == [
+        "off",
+        "chain",
+        "auto",
+    ]
     assert prompt_completion["properties"]["next_word"]["default"] == "chain"
     assert prompt_completion["properties"]["next_word_max_words"]["default"] == 4
     assert prompt_completion["properties"]["next_word_max_words"]["minimum"] == 1
@@ -267,7 +271,6 @@ def test_prompt_completion_next_word_default_contract() -> None:
     Draft7Validator(public_schema).validate(
         {"ace": {"prompt_completion": {"next_word": "chain"}}}
     )
-    with pytest.raises(ValidationError):
-        Draft7Validator(public_schema).validate(
-            {"ace": {"prompt_completion": {"next_word": "auto"}}}
-        )
+    Draft7Validator(public_schema).validate(
+        {"ace": {"prompt_completion": {"next_word": "auto"}}}
+    )

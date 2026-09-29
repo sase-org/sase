@@ -289,3 +289,63 @@ async def test_one_undo_step_per_accept() -> None:
         assert ta.text != before
         ta.undo()
         assert ta.text == before
+
+
+def _auto_app() -> NextWordTestApp:
+    return NextWordTestApp(settings=PromptCompletionSettings(next_word="auto"))
+
+
+async def test_auto_space_shows_ghost_without_separator() -> None:
+    app = _auto_app()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        bar = app.query_one(PromptInputBar)
+        ta.load_text("Can you help me,")
+        ta.cursor_location = (0, len(ta.text))
+        await pilot.press("space")
+        await pilot.pause()
+        assert ta.text == "Can you help me, "
+        assert ta._next_word_ghost_visible() is True
+        # The typed space is the separator, so the ghost has none.
+        assert not ta.suggestion.startswith(" ")
+        assert ta._next_word_chain_is_armed() is True
+        assert "[^T] word" in _bar_hint(bar)
+
+
+async def test_auto_space_after_sentence_end_shows_nothing() -> None:
+    app = _auto_app()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me.")
+        ta.cursor_location = (0, len(ta.text))
+        await pilot.press("space")
+        await pilot.pause()
+        assert ta.text == "Can you help me. "
+        # Sentence-final punctuation resets the context to ``<s>`` only,
+        # which never passes the gate.
+        assert ta._next_word_ghost_visible() is False
+
+
+async def test_auto_space_only_fires_in_auto_mode() -> None:
+    app = NextWordTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me,")
+        ta.cursor_location = (0, len(ta.text))
+        await pilot.press("space")
+        await pilot.pause()
+        assert ta.text == "Can you help me, "
+        assert ta._next_word_ghost_visible() is False
+        assert ta._next_word_chain_is_armed() is False
+
+
+async def test_auto_second_space_shows_nothing() -> None:
+    app = _auto_app()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me, ")
+        ta.cursor_location = (0, len(ta.text))
+        await pilot.press("space")
+        await pilot.pause()
+        assert ta.text == "Can you help me,  "
+        assert ta._next_word_ghost_visible() is False

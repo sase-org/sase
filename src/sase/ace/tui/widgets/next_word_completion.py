@@ -142,6 +142,37 @@ def next_word_ghost_expected(
     return ghost.full_text[consumed_len:]
 
 
+#: Trailing clause punctuation allowed between a word and an auto-mode space.
+_NEXT_WORD_AUTO_TRAILING_PUNCT = frozenset(",;:!?.)]}“”\"'’*…")
+
+#: Word-ish characters for the auto-mode word-token check (mirrors
+#: ``is_word_character`` in ``prompt_word_completion`` plus apostrophes).
+_NEXT_WORD_AUTO_WORD_CHARS = frozenset({"-", "_", "'", "’"})
+
+
+def next_word_auto_space_eligible(text: str, cursor_offset: int) -> bool:
+    """Return whether a just-typed space may trigger an ``auto`` ghost.
+
+    The cursor must sit just after the inserted space at end of line, and
+    the space must follow a word token (trailing clause punctuation such
+    as ``,`` is skipped, so ``", "`` is eligible while ``". "`` is left to
+    the model gate, which never predicts from a ``<s>``-only context).
+    """
+    if cursor_offset <= 0 or cursor_offset > len(text):
+        return False
+    if text[cursor_offset - 1] != " ":
+        return False
+    if next_word_rest_of_line(text, cursor_offset).strip() != "":
+        return False
+    index = cursor_offset - 2
+    while index >= 0 and text[index] in _NEXT_WORD_AUTO_TRAILING_PUNCT:
+        index -= 1
+    if index < 0:
+        return False
+    char = text[index]
+    return char.isalnum() or char in _NEXT_WORD_AUTO_WORD_CHARS
+
+
 def next_word_rest_of_line(text: str, cursor_offset: int) -> str:
     """Return the text after the cursor on its current line."""
     line_end = text.find("\n", cursor_offset)
@@ -163,6 +194,7 @@ __all__ = [
     "NextWordGhost",
     "build_next_word_ghost_text",
     "fit_next_word_ghost",
+    "next_word_auto_space_eligible",
     "next_word_chain_armed",
     "next_word_ghost_expected",
     "next_word_has_word_suffix",

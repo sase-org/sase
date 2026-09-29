@@ -1634,25 +1634,25 @@ ace:
     next_word_confidence: balanced
 ```
 
-| Field                         | Type        | Default    | Description                                                                                                                         |
-| ----------------------------- | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `auto`                        | bool/string | `soft`     | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.                           |
-| `debounce_ms`                 | int         | `90`       | Delay before computing a live suggestion after text or cursor changes.                                                              |
-| `auto_file_paths`             | bool        | `false`    | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.                        |
-| `auto_xprompt_menu`           | bool        | `true`     | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.                   |
-| `auto_directive_menu`         | bool        | `true`     | Automatically open directive completion while typing `%` tokens, fixed values such as `%model:`, `=alias`, and `==model` shortcuts. |
-| `auto_artifact_menu`          | bool        | `true`     | Automatically open the grouped `@` reference menu from bare `@`, narrowed path/kind queries, or `@kind:` payloads.                  |
-| `max_auto_rows`               | int         | `1`        | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                                          |
-| `history_word_count`          | int         | `10000`    | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.                       |
-| `common_placeholder_count`    | int         | `100`      | Maximum saved `<placeholder>` tags retained and offered after prompt-local placeholder matches; `0` disables them.                  |
-| `word_min_length`             | int         | `5`        | Shared minimum length for prompt-local and prompt-history word candidates; values below `1` clamp to `1`.                           |
-| `word_ranking`                | string      | `smart`    | History-word ordering. `smart` ranks by relation, recency, and frequency; `recent` restores plain most-recently-used order.         |
-| `word_ranking_signals`        | bool        | `true`     | Whether smart-ranked history-word rows render the score meter, dominant-reason chip, and panel legend.                              |
-| `placeholder_ranking`         | string      | `smart`    | Saved-placeholder ordering. `smart` ranks by relation, recency, and frequency; `recent` restores stored count-then-recency order.   |
-| `placeholder_ranking_signals` | bool        | `true`     | Whether smart-ranked saved-placeholder rows render the score meter, dominant-reason chip, and panel legend.                         |
-| `next_word`                   | string      | `chain`    | Next-word chain mode. `chain` arms ghost text after word commits; `off` disables predictions.                                       |
-| `next_word_max_words`         | int         | `4`        | Maximum ghost words shown at once; clamped to 1–8.                                                                                  |
-| `next_word_confidence`        | string      | `balanced` | Confidence gate for ghost predictions: `cautious`, `balanced`, or `eager`.                                                          |
+| Field                         | Type        | Default    | Description                                                                                                                                                |
+| ----------------------------- | ----------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto`                        | bool/string | `soft`     | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.                                                  |
+| `debounce_ms`                 | int         | `90`       | Delay before computing a live suggestion after text or cursor changes.                                                                                     |
+| `auto_file_paths`             | bool        | `false`    | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.                                               |
+| `auto_xprompt_menu`           | bool        | `true`     | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.                                          |
+| `auto_directive_menu`         | bool        | `true`     | Automatically open directive completion while typing `%` tokens, fixed values such as `%model:`, `=alias`, and `==model` shortcuts.                        |
+| `auto_artifact_menu`          | bool        | `true`     | Automatically open the grouped `@` reference menu from bare `@`, narrowed path/kind queries, or `@kind:` payloads.                                         |
+| `max_auto_rows`               | int         | `1`        | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                                                                 |
+| `history_word_count`          | int         | `10000`    | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.                                              |
+| `common_placeholder_count`    | int         | `100`      | Maximum saved `<placeholder>` tags retained and offered after prompt-local placeholder matches; `0` disables them.                                         |
+| `word_min_length`             | int         | `5`        | Shared minimum length for prompt-local and prompt-history word candidates; values below `1` clamp to `1`.                                                  |
+| `word_ranking`                | string      | `smart`    | History-word ordering. `smart` ranks by relation, recency, and frequency; `recent` restores plain most-recently-used order.                                |
+| `word_ranking_signals`        | bool        | `true`     | Whether smart-ranked history-word rows render the score meter, dominant-reason chip, and panel legend.                                                     |
+| `placeholder_ranking`         | string      | `smart`    | Saved-placeholder ordering. `smart` ranks by relation, recency, and frequency; `recent` restores stored count-then-recency order.                          |
+| `placeholder_ranking_signals` | bool        | `true`     | Whether smart-ranked saved-placeholder rows render the score meter, dominant-reason chip, and panel legend.                                                |
+| `next_word`                   | string      | `chain`    | Next-word chain mode. `chain` arms ghost text after word commits; `auto` also shows the gated ghost right after a typed space; `off` disables predictions. |
+| `next_word_max_words`         | int         | `4`        | Maximum ghost words shown at once; clamped to 1–8.                                                                                                         |
+| `next_word_confidence`        | string      | `balanced` | Confidence gate for ghost predictions: `cautious`, `balanced`, or `eager`.                                                                                 |
 
 The minimum applies to the complete candidate, so a shorter typed prefix can still
 complete an eligible word. Prompt-local words below the threshold are skipped before

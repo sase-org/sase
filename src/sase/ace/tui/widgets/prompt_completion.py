@@ -32,7 +32,7 @@ from sase.ace.tui.widgets.xprompt_completion import (
 PromptCompletionAutoMode = Literal["off", "soft"]
 WordRankingMode = Literal["smart", "recent"]
 PlaceholderRankingMode = WordRankingMode
-NextWordMode = Literal["off", "chain"]
+NextWordMode = Literal["off", "chain", "auto"]
 NextWordConfidence = Literal["cautious", "balanced", "eager"]
 
 
@@ -429,6 +429,8 @@ def _parse_next_word_mode(value: Any) -> NextWordMode:
         return "off"
     if normalized in {"chain", "on", "true", "yes", "1"}:
         return "chain"
+    if normalized == "auto":
+        return "auto"
     return DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word
 
 

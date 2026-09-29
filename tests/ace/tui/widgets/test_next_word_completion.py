@@ -10,6 +10,7 @@ from sase.ace.tui.widgets.next_word_completion import (
     NextWordGhost,
     build_next_word_ghost_text,
     fit_next_word_ghost,
+    next_word_auto_space_eligible,
     next_word_chain_armed,
     next_word_ghost_expected,
     next_word_has_word_suffix,
@@ -77,6 +78,21 @@ def test_rest_of_line_and_suffix() -> None:
     assert next_word_rest_of_line("hello world", 5) == " world"
     assert next_word_has_word_suffix("foo bar", 4) is True
     assert next_word_has_word_suffix("foo bar", 3) is False
+
+
+def test_auto_space_eligible_word_boundary() -> None:
+    assert next_word_auto_space_eligible("hello ", 6) is True
+    assert next_word_auto_space_eligible("hello, ", 7) is True
+    # Mid-line spaces never trigger.
+    assert next_word_auto_space_eligible("hello world", 6) is False
+    # Doubled spaces, line starts, and empty text have no word token.
+    assert next_word_auto_space_eligible("hello  ", 7) is False
+    assert next_word_auto_space_eligible(" ", 1) is False
+    assert next_word_auto_space_eligible("", 0) is False
+    # Structural prefixes are not word tokens.
+    assert next_word_auto_space_eligible("# ", 2) is False
+    assert next_word_auto_space_eligible("( ", 2) is False
+    assert next_word_auto_space_eligible("hello. ", 7) is True
 
 
 def test_hint_constants() -> None:

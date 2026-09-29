@@ -110,6 +110,13 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parse_prompt_completion_settings({}).placeholder_ranking_signals is True
     assert parse_prompt_completion_settings({"auto": False}).auto == "off"
     assert parse_prompt_completion_settings({"auto": "soft"}).auto == "soft"
+    assert parse_prompt_completion_settings({"next_word": "auto"}).next_word == "auto"
+    assert parse_prompt_completion_settings({"next_word": "chain"}).next_word == "chain"
+    assert parse_prompt_completion_settings({"next_word": "off"}).next_word == "off"
+    assert (
+        parse_prompt_completion_settings({"next_word": "sometimes"}).next_word
+        == "chain"
+    )
     parsed = parse_prompt_completion_settings(
         {
             "debounce_ms": "-1",
