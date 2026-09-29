@@ -48,21 +48,21 @@ from tests.ace.tui.test_bulk_marked_patch_launch import (
     _patch,
     _patch_bulk_dependencies,
 )
-from tests.ace.tui.test_kill_and_edit_launch_barrier import (
-    _barriers,
-    _done_agent,
-    _home_prompt_context,
-    _launch_procs,
-    _prompt_bar_ready,
-    _RealBarLaunchApp,
-    _submit_launch,
-    _waiting_notified,
+from tests.ace.tui._kill_and_edit_launch_barrier_helpers import (
+    RealBarLaunchApp,
+    barriers,
+    done_agent,
+    home_prompt_context,
+    launch_procs,
+    prompt_bar_ready,
+    submit_launch,
+    waiting_notified,
 )
 
 PROMPT = "%id:!foo\nDo work edited"
 
 
-class _PendingLaunchApp(_RealBarLaunchApp):
+class _PendingLaunchApp(RealBarLaunchApp):
     """Real bar lifecycle plus a live (unstarted) proc observer and a stash spy."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -89,15 +89,15 @@ async def _park_launch(app: _PendingLaunchApp, pilot: Any) -> dict[str, Any]:
     """
     app._kill_and_edit_agent()
     await wait_for(pilot, lambda: bool(app.tracked_procs))
-    await wait_for(pilot, lambda: _prompt_bar_ready(app))
+    await wait_for(pilot, lambda: prompt_bar_ready(app))
     cleanup_task = app.tracked_procs[-1]
-    _submit_launch(app, PROMPT)
+    submit_launch(app, PROMPT)
     await pilot.pause()
     return cleanup_task
 
 
 def _app_for(tmp_path: Path) -> _PendingLaunchApp:
-    agent = _done_agent(tmp_path, "feature", "20260801200000", "%id:foo\nDo work")
+    agent = done_agent(tmp_path, "feature", "20260801200000", "%id:foo\nDo work")
     return _PendingLaunchApp([agent], selected=agent)
 
 
@@ -116,8 +116,8 @@ async def test_submit_behind_barrier_removes_bar_and_shows_pending_row(
         # the launch is visible as a pending row and a ``PREPARING`` record.
         assert not app.query(PromptInputBar)
         assert app._prompt_context is None
-        assert _launch_procs(app) == []
-        assert _waiting_notified(app)
+        assert launch_procs(app) == []
+        assert waiting_notified(app)
         (launch,) = _pending_launches(app)
         assert launch.stage is PendingLaunchStage.WAITING_CLEANUP
         (row,) = _pending_rows(app)
@@ -134,9 +134,9 @@ async def test_submit_behind_barrier_removes_bar_and_shows_pending_row(
         # Settling the cleanup submits exactly once and hands the row and the
         # record to the durable proc.
         cleanup_task["proc_callable"]()
-        await wait_for(pilot, lambda: bool(_launch_procs(app)))
+        await wait_for(pilot, lambda: bool(launch_procs(app)))
 
-        launched = _launch_procs(app)
+        launched = launch_procs(app)
         assert len(launched) == 1
         assert launched[0]["request"]["prompt"] == PROMPT
         assert _pending_launches(app) == []
@@ -144,18 +144,18 @@ async def test_submit_behind_barrier_removes_bar_and_shows_pending_row(
         assert record.state is LaunchRecordState.IN_FLIGHT
         assert record.proc_ids == ("task-1",)
         assert record.submitted_prompts == {"task-1": PROMPT}
-        assert _barriers(app) == []
+        assert barriers(app) == []
 
 
 async def test_submit_without_barrier_leaves_no_pending_state() -> None:
     app = _PendingLaunchApp([])
 
     async with app.run_test(size=(100, 35)) as pilot:
-        begin_prompt_session(app, _home_prompt_context())
-        _submit_launch(app, "%id:new\nnew")
+        begin_prompt_session(app, home_prompt_context())
+        submit_launch(app, "%id:new\nnew")
         await pilot.pause()
 
-        assert len(_launch_procs(app)) == 1
+        assert len(launch_procs(app)) == 1
         assert _pending_launches(app) == []
         assert _pending_rows(app) == []
         record = latest_live_launch_record(app)
@@ -180,15 +180,15 @@ async def test_dispatch_preview_starts_after_the_prompt_bar_unmounts(
     monkeypatch.setattr("sase.dispatch.launch.preview_dispatch_launch", preview)
 
     async with app.run_test(size=(100, 35)) as pilot:
-        begin_prompt_session(app, _home_prompt_context())
+        begin_prompt_session(app, home_prompt_context())
         await app.mount(PromptInputBar(initial_value=prompt, id="prompt-input-bar"))
-        await wait_for(pilot, lambda: _prompt_bar_ready(app))
-        _submit_launch(app, prompt)
-        await wait_for(pilot, lambda: bool(_launch_procs(app)))
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
+        submit_launch(app, prompt)
+        await wait_for(pilot, lambda: bool(launch_procs(app)))
 
         assert observed_bar_states == [False]
         assert not app.query(PromptInputBar)
-        assert _launch_procs(app)[0]["request"]["prompt"] == prompt
+        assert launch_procs(app)[0]["request"]["prompt"] == prompt
 
 
 async def test_blocked_dispatch_source_restores_prompt_with_context_error(
@@ -204,11 +204,11 @@ async def test_blocked_dispatch_source_restores_prompt_with_context_error(
     monkeypatch.setattr("sase.dispatch.launch.preview_dispatch_launch", blocked)
 
     async with app.run_test(size=(100, 35)) as pilot:
-        begin_prompt_session(app, _home_prompt_context())
+        begin_prompt_session(app, home_prompt_context())
         await app.mount(PromptInputBar(initial_value=prompt, id="prompt-input-bar"))
-        await wait_for(pilot, lambda: _prompt_bar_ready(app))
-        _submit_launch(app, prompt)
-        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
+        submit_launch(app, prompt)
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
@@ -216,17 +216,17 @@ async def test_blocked_dispatch_source_restores_prompt_with_context_error(
         assert visible is True
         assert severity == "error"
         assert "source blocked: source is unavailable" in text.plain
-        assert _launch_procs(app) == []
+        assert launch_procs(app) == []
 
 
 async def test_keep_bar_submit_snapshots_context_and_leaves_bar_session_live() -> None:
     app = _PendingLaunchApp([])
 
     async with app.run_test(size=(100, 35)):
-        session = begin_prompt_session(app, _home_prompt_context())
-        _submit_launch(app, "%id:pane\npane", keep_bar=True)
+        session = begin_prompt_session(app, home_prompt_context())
+        submit_launch(app, "%id:pane\npane", keep_bar=True)
 
-        assert len(_launch_procs(app)) == 1
+        assert len(launch_procs(app)) == 1
         assert current_prompt_session(app) is session
         assert app._prompt_context is not None
 
@@ -241,11 +241,11 @@ async def test_kill_last_launch_cancels_pending_launch_and_keeps_replacement_hel
 
     async with app.run_test(size=(100, 35)) as pilot:
         cleanup_task = await _park_launch(app, pilot)
-        operation = _barriers(app)[0].operation
+        operation = barriers(app)[0].operation
         assert operation is not None
 
         app._kill_and_edit_last_launch()
-        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
 
         # The prompt is back in a bar under the same relaunch operation; the
         # pending launch, its waiter, its row, and its record are gone.
@@ -261,13 +261,13 @@ async def test_kill_last_launch_cancels_pending_launch_and_keeps_replacement_hel
 
         # The replacement submit is still held behind the open barrier.
         replacement = "%id:!foo\nreplacement"
-        _submit_launch(app, replacement)
-        assert _launch_procs(app) == []
+        submit_launch(app, replacement)
+        assert launch_procs(app) == []
 
         cleanup_task["proc_callable"]()
-        await wait_for(pilot, lambda: bool(_launch_procs(app)))
+        await wait_for(pilot, lambda: bool(launch_procs(app)))
 
-        launched = _launch_procs(app)
+        launched = launch_procs(app)
         assert [task["request"]["prompt"] for task in launched] == [replacement]
 
 
@@ -278,12 +278,12 @@ async def test_settling_after_cancel_launches_nothing(tmp_path: Path) -> None:
         cleanup_task = await _park_launch(app, pilot)
 
         app._kill_and_edit_last_launch()
-        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
         cleanup_task["proc_callable"]()
         await pilot.pause()
 
-        assert _launch_procs(app) == []
-        assert _barriers(app) == []
+        assert launch_procs(app) == []
+        assert barriers(app) == []
 
 
 async def test_kill_last_launch_skips_record_without_pending_launch() -> None:
@@ -312,25 +312,25 @@ async def test_replacement_submit_during_inflight_kill_is_a_parked_pending_launc
     app = _PendingLaunchApp([])
 
     async with app.run_test(size=(100, 35)) as pilot:
-        begin_prompt_session(app, _home_prompt_context())
-        _submit_launch(app, "%id:foo\nDo work")
-        (original,) = _launch_procs(app)
+        begin_prompt_session(app, home_prompt_context())
+        submit_launch(app, "%id:foo\nDo work")
+        (original,) = launch_procs(app)
         assert original["request"]["prompt"] == "%id:foo\nDo work"
 
         # ``,X`` right after submit restores the prompt and waits for the
         # launch to finish so it can be killed.
         app._kill_and_edit_last_launch()
-        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
         record = latest_live_launch_record(app)
         assert record is not None
         assert has_pending_launch_kill(app)
 
         replacement = "%id:!foo\nDo work v2"
-        _submit_launch(app, replacement)
+        submit_launch(app, replacement)
         await pilot.pause()
 
         assert not app.query(PromptInputBar)
-        assert len(_launch_procs(app)) == 1
+        assert len(launch_procs(app)) == 1
         (launch,) = _pending_launches(app)
         assert launch.stage is PendingLaunchStage.WAITING_LAST_LAUNCH
         (row,) = _pending_rows(app)
@@ -343,7 +343,7 @@ async def test_replacement_submit_during_inflight_kill_is_a_parked_pending_launc
             app, operation=record.relaunch_operation
         )
 
-        assert [task["request"]["prompt"] for task in _launch_procs(app)] == [
+        assert [task["request"]["prompt"] for task in launch_procs(app)] == [
             "%id:foo\nDo work",
             replacement,
         ]
@@ -359,9 +359,9 @@ async def test_rejected_submit_restores_prompt_into_a_bar() -> None:
     app._submit_launch_proc = lambda **_kwargs: None  # type: ignore[method-assign]
 
     async with app.run_test(size=(100, 35)) as pilot:
-        begin_prompt_session(app, _home_prompt_context())
-        _submit_launch(app, "%id:new\nnew")
-        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        begin_prompt_session(app, home_prompt_context())
+        submit_launch(app, "%id:new\nnew")
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
 
         assert app.query_one(PromptInputBar).all_prompt_texts() == ["%id:new\nnew"]
         assert app.stash_calls == []
@@ -375,13 +375,13 @@ async def test_rejected_submit_stashes_prompt_when_a_bar_is_mounted() -> None:
     app._submit_launch_proc = lambda **_kwargs: None  # type: ignore[method-assign]
 
     async with app.run_test(size=(100, 35)) as pilot:
-        begin_prompt_session(app, _home_prompt_context())
+        begin_prompt_session(app, home_prompt_context())
         await app.mount(PromptInputBar(initial_value="typing", id="prompt-input-bar"))
-        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        await wait_for(pilot, lambda: prompt_bar_ready(app))
 
         # A keep-bar submit leaves the user's bar in place, so an automatic
         # abort must stash instead of overwriting it.
-        _submit_launch(app, "%id:pane\npane", keep_bar=True)
+        submit_launch(app, "%id:pane\npane", keep_bar=True)
 
         assert app.stash_calls == ["%id:pane\npane"]
         assert app.query_one(PromptInputBar).all_prompt_texts() == ["typing"]
@@ -416,7 +416,7 @@ async def test_quit_flush_stashes_parked_launch_prompt(
 
         cleanup_task["proc_callable"]()
         await pilot.pause()
-        assert _launch_procs(app) == []
+        assert launch_procs(app) == []
 
 
 async def test_controlled_exit_flushes_pending_launch_stashes_before_quitting() -> None:
@@ -450,7 +450,7 @@ async def test_pending_launch_trace_events(
     async with app.run_test(size=(100, 35)) as pilot:
         cleanup_task = await _park_launch(app, pilot)
         cleanup_task["proc_callable"]()
-        await wait_for(pilot, lambda: bool(_launch_procs(app)))
+        await wait_for(pilot, lambda: bool(launch_procs(app)))
 
     accepted = [fields for event, fields in events if event == "launch.accepted"]
     submitted = [fields for event, fields in events if event == "launch.submitted"]
@@ -472,19 +472,19 @@ async def test_unrelated_prompt_launches_while_an_older_launch_is_parked() -> No
             app, "older cleanup", operation=operation
         )
         begin_prompt_session(
-            app, _home_prompt_context("older"), relaunch_operation=operation
+            app, home_prompt_context("older"), relaunch_operation=operation
         )
-        _submit_launch(app, "%id:!older\nolder")
-        assert _launch_procs(app) == []
+        submit_launch(app, "%id:!older\nolder")
+        assert launch_procs(app) == []
 
-        begin_prompt_session(app, _home_prompt_context("unrelated"))
-        _submit_launch(app, "%id:unrelated\nunrelated")
-        assert [task["request"]["prompt"] for task in _launch_procs(app)] == [
+        begin_prompt_session(app, home_prompt_context("unrelated"))
+        submit_launch(app, "%id:unrelated\nunrelated")
+        assert [task["request"]["prompt"] for task in launch_procs(app)] == [
             "%id:unrelated\nunrelated"
         ]
 
         _relaunch_barrier.settle_relaunch_cleanup_barrier(app, barrier)
-        assert [task["request"]["prompt"] for task in _launch_procs(app)] == [
+        assert [task["request"]["prompt"] for task in launch_procs(app)] == [
             "%id:unrelated\nunrelated",
             "%id:!older\nolder",
         ]
