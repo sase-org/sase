@@ -40,6 +40,8 @@ want a standalone agent instead of a coordination layer, use those CLIs directly
   shell history.
 - Track every PR-sized unit of work with status, commits, comments, and review state
   (**Patches**).
+- Keep person-owned outcomes and their status in durable **Goals**.
+- Record named command runs and their diagnostics as **ToolRuns**.
 - Schedule background and recurring agent work with the **scheduler** service proc.
 
 sase does not replace coding agents; it makes agent-driven engineering dependable.
@@ -123,6 +125,11 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [sase's TUI](https://sase.sh/ace/) — the interactive control surface
 - [Prompts overlay](https://sase.sh/ace/#prompt-history-modal) — past launches, saved
   drafts, and drafts discarded from Stash
+- [Prompt history and draft recovery](https://sase.sh/prompt/) — replay submitted
+  prompts and recover drafts that left Stash
+- [Goals](https://sase.sh/goals/) — track outcomes across agent runs
+- [Named Tools](https://sase.sh/tool/) — run commands with recorded output and
+  diagnostics
 - [XPrompts](https://sase.sh/xprompt/) — reusable prompts and multi-step workflows
 - [Patches](https://sase.sh/change_spec/) — tracked PR-sized units of work
 - [Scheduler and Service Host](https://sase.sh/axe/) — scheduled and background agent

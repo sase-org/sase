@@ -3645,6 +3645,13 @@ A plain `q` quits sase's TUI directly when nothing would be interrupted. Otherwi
 shows a y/n confirmation (default No) listing the in-process TUI work that would be
 lost; confirming quits, declining (or `esc`/`q`) stays in the TUI.
 
+An open unsent agent prompt draft does not require a quit confirmation by itself. On
+explicit quit, the TUI saves its non-empty panes to Stash before exiting. If that save
+fails, it stays open and shows an error so the draft can be recovered or retried. A TUI
+restart also attempts to stash the draft first; after a successful save, press `@` to
+restore it. Pending launch prompts are stashed for `@` when a confirmed exit would
+otherwise drop them.
+
 Options `1` and `3` also check for in-flight scheduler launch batches (a chop run that
 has proposed launches but has not launched them all yet). When quitting would drop the
 remaining launches — or when in-process TUI work would be lost — a y/n confirmation

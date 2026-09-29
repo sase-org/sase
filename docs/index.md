@@ -84,6 +84,17 @@ title: Structured Agentic Software Engineering
   </article>
 
   <article class="sase-card">
+  <h3>I want to track an outcome</h3>
+
+  <p>
+    Create a Goal for the result you want, cite it in prompts, and keep its status and timeline across agent runs.
+  </p>
+
+<a href="goals/">Open Goals</a>
+
+  </article>
+
+  <article class="sase-card">
   <h3>I need shared agent memory</h3>
 
   <p>
@@ -139,7 +150,7 @@ title: Structured Agentic Software Engineering
   <h2>The coordination model</h2>
 
   <p>
-    SASE keeps the work state outside the chat transcript. Plans, Patches, beads, agent artifacts, and workflow
+    SASE keeps the work state outside the chat transcript. Goals, plans, Patches, beads, agent artifacts, and workflow
     records let agents be scheduled, resumed, reviewed, retried, or handed off without relying on one session's context
     window.
   </p>
@@ -149,6 +160,7 @@ title: Structured Agentic Software Engineering
   <ul>
     <li><strong>ProjectSpecs and Patches</strong> track project lifecycle, PR-sized work, commits, review state, comments, mentors, and lifecycle transitions.</li>
     <li><strong>Beads</strong> provide git-native issue tracking for plans, executable epics, phase dependencies, and agent handoff.</li>
+    <li><strong>Goals</strong> record person-owned outcomes, status, and progress independently of beads and plans.</li>
     <li><strong>XPrompts</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
     <li><strong>sase's TUI</strong> is the interactive control surface for daily work.</li>
     <li><strong>Scheduler and Service Host</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>

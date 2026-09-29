@@ -1,4 +1,4 @@
-# Prompt History
+# Prompt History and Draft Recovery
 
 Prompts you launch with `sase run` or from [sase's TUI](ace.md) are recorded in prompt
 history when they are useful to replay. Normal launch writes skip prompts shorter than
@@ -13,6 +13,12 @@ a `legacy-imported-<timestamp>.json.bak` backup inside the shard directory. The
 and clean up that history. It is built to feel like a well-made shell-history tool: fast
 to scan, exact when printing text, safe around destructive actions, and scriptable
 through stable JSON.
+
+Unsent drafts saved from the TUI live in **Stash**, separately from submitted prompt
+history. Discarded Stash drafts go to **Trash**. Drafts that permanently leave either
+place are retained in the [stash archive](#recover-a-stashed-draft), which has its own
+CLI commands. They do not appear in `sase prompt list` or `sase prompt search` unless
+they were also submitted as prompts.
 
 `sase prompt` reads and writes those JSON shards directly - there is no separate
 database to manage. Readers aggregate and deduplicate records across shards, so reusing
@@ -38,21 +44,22 @@ asks for a longer selector. Adding newer prompts never changes an existing promp
 
 ## Command Inventory
 
-| Command              | Purpose                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| `sase prompt list`   | List recent prompts as a Rich table (default) or stable JSON (`-j`).                 |
-| `sase prompt show`   | Print one prompt as raw text, Markdown, or JSON.                                     |
-| `sase prompt search` | Find prompts matching a query across the canonical agents archive and local history. |
-| `sase prompt stats`  | Summarize the store: counts, size, length percentiles, largest prompts, top chips.   |
-| `sase prompt copy`   | Copy a prompt's exact text to the system clipboard.                                  |
-| `sase prompt run`    | Replay a stored prompt through the normal launch path.                               |
-| `sase prompt edit`   | Open a stored prompt in the editor, then launch the edited text.                     |
-| `sase prompt select` | Pick a prompt with an `fzf` picker, then launch it.                                  |
-| `sase prompt doctor` | Read-only health report for the store (parseability, duplicates, oversized, …).      |
-| `sase prompt delete` | Remove exactly one prompt by selector.                                               |
-| `sase prompt prune`  | Remove prompts by objective criteria (`--keep`, `--before`, `--cancelled`).          |
-| `sase prompt save`   | Save a prompt as a reusable [xprompt](xprompt.md) markdown file.                     |
-| `sase prompt export` | Export a prompt to stdout or a local file; `--sdd` is a retired compatibility flag.  |
+| Command                     | Purpose                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `sase prompt list`          | List recent prompts as a Rich table (default) or stable JSON (`-j`).                 |
+| `sase prompt show`          | Print one prompt as raw text, Markdown, or JSON.                                     |
+| `sase prompt search`        | Find prompts matching a query across the canonical agents archive and local history. |
+| `sase prompt stats`         | Summarize the store: counts, size, length percentiles, largest prompts, top chips.   |
+| `sase prompt copy`          | Copy a prompt's exact text to the system clipboard.                                  |
+| `sase prompt run`           | Replay a stored prompt through the normal launch path.                               |
+| `sase prompt edit`          | Open a stored prompt in the editor, then launch the edited text.                     |
+| `sase prompt select`        | Pick a prompt with an `fzf` picker, then launch it.                                  |
+| `sase prompt doctor`        | Read-only health report for the store (parseability, duplicates, oversized, …).      |
+| `sase prompt delete`        | Remove exactly one prompt by selector.                                               |
+| `sase prompt prune`         | Remove prompts by objective criteria (`--keep`, `--before`, `--cancelled`).          |
+| `sase prompt save`          | Save a prompt as a reusable [xprompt](xprompt.md) markdown file.                     |
+| `sase prompt export`        | Export a prompt to stdout or a local file; `--sdd` is a retired compatibility flag.  |
+| `sase prompt stash-archive` | List, inspect, and restore drafts that permanently left Stash.                       |
 
 `list`, `show`, `search`, `stats`, and `doctor` are read-only. `list`, `search` (default
 `compact` format), `stats`, and `doctor` never print full prompt text — they show
@@ -61,6 +68,33 @@ previews only — so they stay bounded even on a history with thousands of entri
 hatches.
 
 Run `sase prompt <command> --help` for the full flag list of any subcommand.
+
+## Recover a Stashed Draft
+
+In the TUI, `Ctrl+S` saves a non-empty prompt pane to Stash. Discarding a Stash draft
+normally moves it to Trash, where `Enter` returns it to Stash. A draft that permanently
+leaves Stash or Trash is first appended with its full text to
+`prompt_stash_archive.jsonl`, next to `prompt_stash.jsonl`. This includes a restored
+unpinned draft, a deletion, a Trash purge or eviction, and an overwritten pinned draft.
+The stash archive is separate from the canonical agents archive searched by
+`sase prompt search`.
+
+```bash
+sase prompt stash-archive list                   # newest archived drafts, 20 by default
+sase prompt stash-archive list -q parser         # search draft text and frontmatter
+sase prompt stash-archive list -r purged -n 50   # filter by reason and widen the result
+sase prompt stash-archive list -j                # JSON for scripts
+sase prompt stash-archive show <ID>              # full text and metadata
+sase prompt stash-archive restore <ID>           # put a draft back in Stash
+```
+
+Bare `sase prompt stash-archive` defaults to `list`. `show` and `restore` accept a full
+draft ID or an unambiguous prefix; `restore` accepts several IDs. A restored draft is
+ready to reopen from Stash with `@` or the Prompts overlay; restoring it does not launch
+an agent. If a draft is already in Stash or Trash, `restore` skips it and explains why
+(restore a Trash row in the TUI instead). `list -r` accepts `evicted`, `overwritten`,
+`popped`, and `purged`. See [Stash and Trash in the TUI](ace.md#prompt-stacks) for the
+keys and [Trash limits](configuration.md#aceprompt_stash) for retention settings.
 
 ## Search
 
