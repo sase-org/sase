@@ -359,6 +359,10 @@ def _target_marker(target: PagerTargetSpan, *, dangling: bool) -> _TargetMarker:
     if target.kind == LinkSpanKind.URL.value:
         return _TargetMarker(_URL_ICON, EXTERNAL_ACCENT)
 
+    attachment_marker = _attachment_target_marker(target)
+    if attachment_marker is not None:
+        return attachment_marker
+
     tab = _target_artifact_tab(target)
     if tab is None:
         return _TargetMarker(_DEFAULT_LINK_ICON, _DEFAULT_LINK_ACCENT)
@@ -368,6 +372,65 @@ def _target_marker(target: PagerTargetSpan, *, dangling: bool) -> _TargetMarker:
         ARTIFACTS_ICONS.get(tab, _DEFAULT_LINK_ICON),
         ARTIFACTS_ACCENTS.get(tab, _DEFAULT_LINK_ACCENT),
     )
+
+
+_ATTACHMENT_ICONS: dict[str, tuple[str, str]] = {
+    "image": ("🖼", "#FFAF5F"),
+    "video": ("🎞", "#FFAF5F"),
+    "pdf": ("📕", "#FFAF5F"),
+    "text": ("≡", "#FFAF5F"),
+    "archive": ("▤", "#FFAF5F"),
+    "audio": ("♫", "#FFAF5F"),
+    "other": ("◇", "#FFAF5F"),
+    "attachment": ("📎", "#FFAF5F"),
+}
+
+_ATTACHMENT_SUFFIX_ICONS: tuple[tuple[tuple[str, ...], str, str], ...] = (
+    (
+        (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif"),
+        "🖼",
+        "#FFAF5F",
+    ),
+    ((".mp4", ".mov", ".mkv", ".webm", ".ogv"), "🎞", "#FFAF5F"),
+    ((".mp3", ".wav", ".flac", ".ogg", ".opus"), "♫", "#FFAF5F"),
+    ((".pdf",), "📕", "#FFAF5F"),
+    (
+        (
+            ".md",
+            ".txt",
+            ".log",
+            ".json",
+            ".jsonl",
+            ".yaml",
+            ".yml",
+            ".toml",
+            ".csv",
+            ".diff",
+            ".patch",
+            ".py",
+            ".rs",
+            ".ts",
+            ".sh",
+        ),
+        "≡",
+        "#FFAF5F",
+    ),
+    ((".zip", ".tar", ".gz", ".bz2", ".xz", ".zst", ".7z"), "▤", "#FFAF5F"),
+)
+
+
+def _attachment_target_marker(target: PagerTargetSpan) -> _TargetMarker | None:
+    """Return the attachment icon for ``attachment:`` refs, else ``None``."""
+    ref = target.target if isinstance(target.target, str) else target.text
+    if not isinstance(ref, str) or not ref.lower().startswith("attachment:"):
+        return None
+    payload = ref.split(":", 1)[1] if ":" in ref else ""
+    name = payload.rsplit("/", 1)[-1].lower() if payload else ""
+    for suffixes, icon, accent in _ATTACHMENT_SUFFIX_ICONS:
+        if name.endswith(suffixes):
+            return _TargetMarker(icon, accent)
+    icon, accent = _ATTACHMENT_ICONS["attachment"]
+    return _TargetMarker(icon, accent)
 
 
 def _target_artifact_tab(target: PagerTargetSpan) -> str | None:

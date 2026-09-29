@@ -1918,6 +1918,10 @@ bead:
   # references a matching path fails unless -S/--allow-sensitive is passed.
   attachments:
     sensitive_patterns: []
+  show:
+    # Image previews for `sase bead show`: auto, cells, kitty, or never.
+    # `read`, JSON, and piped `show` never draw.
+    images: auto
   # Volume controls for task-bead triage gates. A ready task bead earns a
   # TaskTriage gate only once independent reporters have corroborated it, and
   # the remainder that never clears that bar is swept periodically instead of

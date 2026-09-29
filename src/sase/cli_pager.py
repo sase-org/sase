@@ -38,6 +38,7 @@ def page_or_print(
     mode: PagerMode | str,
     document: PagerDocument | None = None,
     syntax_session: PagerSyntaxSession | None = None,
+    attached_handlers: object | None = None,
 ) -> None:
     """Write *text* directly or hand it to the SASE pager."""
     resolved_mode = mode if isinstance(mode, PagerMode) else resolve_pager_mode(mode)
@@ -46,7 +47,15 @@ def page_or_print(
         return
 
     try:
-        _run_sase_pager(text, document=document, syntax_session=syntax_session)
+        if attached_handlers is None:
+            _run_sase_pager(text, document=document, syntax_session=syntax_session)
+        else:
+            _run_sase_pager(
+                text,
+                document=document,
+                syntax_session=syntax_session,
+                attached_handlers=attached_handlers,  # type: ignore[arg-type]
+            )
     except Exception:
         _write_direct(text)
 
@@ -80,6 +89,7 @@ def _run_sase_pager(
     *,
     document: PagerDocument | None,
     syntax_session: PagerSyntaxSession | None = None,
+    attached_handlers: object | None = None,
 ) -> None:
     from sase.pager.app import SasePager
     from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
@@ -114,6 +124,13 @@ def _run_sase_pager(
             origin=PagerOrigin.FILE,
             link_context=context,
         )
+    if isinstance(attached_handlers, dict):
+        SasePager(
+            pager_document,
+            syntax_session=session,
+            attached_handlers=dict(attached_handlers),
+        ).run()
+        return
     SasePager(pager_document, syntax_session=session).run()
 
 

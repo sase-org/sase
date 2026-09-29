@@ -169,7 +169,20 @@ def _prepare_body(result: ResolvedArtifactReference) -> tuple[str, Path | None, 
             path = result.resolution.resolved_path
 
     if path is not None and _is_text_path(path, result):
-        text = path.read_text(encoding="utf-8")
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError, ValueError):
+            return _binary_card(result, path), path, should_record_read_link()
+        if result.parsed.kind == "attachment":
+            try:
+                from sase.bead.show_images import sanitize_text_line
+
+                text = "\n".join(
+                    sanitize_text_line(line) for line in text.splitlines()
+                ) + ("\n" if text.endswith("\n") else "")
+            except Exception:
+                pass
+            return text, path, should_record_read_link()
         return _strip_managed_text(text), path, should_record_read_link()
 
     if path is not None:
@@ -314,6 +327,12 @@ def _print_neighborhood(
 def _is_text_path(path: Path, result: ResolvedArtifactReference) -> bool:
     kind = result.file.kind if result.file is not None else result.parsed.kind
     mime = result.file.mime_type if result.file is not None else None
+    if result.parsed.kind == "attachment":
+        return is_openable_text_path(
+            path,
+            logical_filename=path.name,
+            mime=mime,
+        )
     if kind in _TEXT_KINDS or result.parsed.kind_type in {"chat", "document"}:
         return not preview_has_nul(path)
     return is_openable_text_path(

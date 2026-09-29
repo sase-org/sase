@@ -41,6 +41,7 @@ def render_issue_detail(
     project_label: str | None = None,
     style: DetailStyle = DetailStyle.PLAIN,
     wrap: int | None = None,
+    images_mode: str = "never",
 ) -> str:
     """Render the established human-readable bead detail block.
 
@@ -60,6 +61,7 @@ def render_issue_detail(
         style=style,
         wrap=wrap,
         present_creator=present_agent_name,
+        images_mode=images_mode,
     )
 
 

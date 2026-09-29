@@ -44,7 +44,10 @@ def handle_path(args: argparse.Namespace) -> int:
             print(line, file=sys.stderr)
         return 1
 
-    path = Path(path).expanduser().resolve(strict=False)
+    if result.parsed.kind == "attachment":
+        path = Path(path).expanduser().absolute()
+    else:
+        path = Path(path).expanduser().resolve(strict=False)
     print(path)
     return 0
 

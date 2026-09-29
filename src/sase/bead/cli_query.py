@@ -330,6 +330,25 @@ def _run_bead_view(args: argparse.Namespace, *, audited_reason: str | None) -> N
     wrap = resolve_wrap_width(getattr(args, "wrap", markdown_print_width()))
     pager_mode: PagerMode = resolve_pager_mode(getattr(args, "pager", "auto"))
     pager_document = None
+    is_show = audited_reason is None
+    images_mode = "never"
+    images_hint: str | None = None
+    if is_show and getattr(args, "format", "full") == "full":
+        try:
+            from sase.bead.show_images import resolve_images_mode
+
+            cli_images = getattr(args, "images", None)
+            images_mode, images_hint = resolve_images_mode(
+                cli_images,
+                is_tty=sys.stdout.isatty(),
+                env=dict(os.environ),
+            )
+        except Exception:
+            images_mode, images_hint = "never", None
+    if getattr(args, "format", "full") != "full":
+        images_mode, images_hint = "never", None
+    if images_mode == "kitty":
+        pager_mode = PagerMode.NEVER
 
     render_context_for = default_show_render_context_resolver(
         design_paths_are_relative_fn=design_paths_are_relative,
@@ -364,6 +383,7 @@ def _run_bead_view(args: argparse.Namespace, *, audited_reason: str | None) -> N
                 style=style,
                 wrap=wrap,
                 render_context_for=render_context_for,
+                images_mode=images_mode,
             )
             pager_document = document
             body = render_show_document(document, style=style, wrap=wrap)
@@ -375,16 +395,67 @@ def _run_bead_view(args: argparse.Namespace, *, audited_reason: str | None) -> N
                 style=style,
                 wrap=wrap,
                 render_context_for=render_context_for,
+                images_mode="never",
             )
         if audited_reason is not None:
             _record_bead_reads_before_print(batch, reason=audited_reason)
 
+    if images_hint and sys.stderr.isatty():
+        print(f"\x1b[2m{images_hint}\x1b[0m", file=sys.stderr)
+    elif images_hint:
+        print(images_hint, file=sys.stderr)
     if body:
         page_or_print(body, mode=pager_mode, document=pager_document)
+    if images_mode == "kitty" and is_show and getattr(args, "format", "full") == "full":
+        _emit_kitty_attachment_pixels(batch)
     for failure in batch.failures:
         print(f"Error: {failure.message}", file=sys.stderr)
     if batch.failures:
         sys.exit(1)
+
+
+def _emit_kitty_attachment_pixels(batch: Any) -> None:
+    """Emit kitty-graphics pixels for cached raster attachments, bypassing pager."""
+    try:
+        from sase.bead.show_images import (
+            MAX_THUMBS_PER_NOTE,
+            is_previewable_raster,
+            kitty_escape_for_path,
+        )
+        from sase.bead.attachment_presentation import (
+            attachment_availability,
+            attachment_view_path,
+        )
+    except Exception:
+        return
+    for entry in getattr(batch, "entries", ()):
+        issue = getattr(entry, "issue", None)
+        if issue is None:
+            continue
+        for note in getattr(issue, "notes", ()):
+            emitted = 0
+            for attachment in getattr(note, "attachments", ()):
+                if emitted >= MAX_THUMBS_PER_NOTE:
+                    break
+                name = str(getattr(attachment, "name", ""))
+                mime_type = str(getattr(attachment, "mime_type", ""))
+                sha256 = str(getattr(attachment, "sha256", ""))
+                if not name or not sha256:
+                    continue
+                if not is_previewable_raster(name, mime_type):
+                    continue
+                if attachment_availability(sha256) != "cached":
+                    continue
+                try:
+                    view = attachment_view_path(sha256, name)
+                except Exception:
+                    continue
+                if view is None:
+                    continue
+                escape = kitty_escape_for_path(view)
+                if escape:
+                    sys.stdout.write(escape + "\n")
+                    emitted += 1
 
 
 def _record_bead_reads_before_print(batch: Any, *, reason: str) -> None:

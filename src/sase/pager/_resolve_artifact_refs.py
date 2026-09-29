@@ -136,6 +136,8 @@ def _resolve_artifact_result(
         return bead_link_resolution(result.parsed, context=link_context)
     if kind_type in {"stitch", "commit"}:
         return LinkResolution(target=commit_link_target(result, context=link_context))
+    if result.parsed.kind == "attachment":
+        return _resolve_attachment_artifact_link(result, link_context=link_context)
 
     try:
         path = resolved_file_path(result)
@@ -178,6 +180,129 @@ def _resolve_artifact_result(
     return LinkResolution(
         target=card_link_target(result, path=path, context=link_context)
     )
+
+
+def _resolve_attachment_artifact_link(
+    result: ResolvedArtifactReference,
+    *,
+    link_context: LinkResolutionContext | None,
+) -> LinkResolution:
+    """Materialize an attachment view and delegate classification to file logic."""
+    from sase.bead.attachment_resolve import split_attachment_ref
+
+    split = split_attachment_ref(result.canonical_reference)
+    if split is None:
+        return LinkResolution(
+            unresolved_message=f"{result.canonical_reference} is not a valid attachment reference."
+        )
+    bead_id, name = split
+    try:
+        path = resolved_file_path(result)
+    except (ImportError, OSError, RuntimeError, ValueError):
+        path = result.resolution.resolved_path
+    if path is None:
+        diagnostic = (
+            getattr(result.resolution, "diagnostic", None)
+            or f"attachment {name} is ✕ unavailable offline on {bead_id}."
+        )
+        return LinkResolution(unresolved_message=diagnostic)
+    if path.is_dir():
+        return LinkResolution(target=directory_link_target(path, context=link_context))
+    line = _fragment_line(result.parsed.fragment)
+    mode = artifact_file_view_mode(path, kind="attachment")
+    if mode in _MEDIA_MODES:
+        try:
+            from sase.bead.attachment_resolve import (
+                roster_for_bead_id,
+                viewable_media_specs,
+            )
+
+            issue, _roster = roster_for_bead_id(bead_id)
+            specs = viewable_media_specs(issue, name)
+        except Exception:
+            specs = ()
+        if not specs:
+            specs = (ArtifactFileViewSpec(path, kind=mode),)
+        return LinkResolution(
+            target=LinkTarget(
+                kind=LinkTargetKind.MEDIA,
+                media_specs=specs,  # type: ignore[arg-type]
+                edit_path=path,
+                edit_line=line,
+            )
+        )
+    if is_probably_text(path, logical_filename=path.name):
+        sanitized = _sanitized_attachment_text(path)
+        if sanitized is not None:
+            from rich.text import Text
+
+            from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+
+            section = PagerSection(
+                identity=result.canonical_reference,
+                title=f"{bead_id}/{name}",
+                kind="file",
+                body=Text(sanitized),
+                subject_ref=result.canonical_reference,
+                known_kinds=(),
+            )
+            document = PagerDocument(
+                sections=(section,),
+                title=f"{bead_id}/{name}",
+                origin=PagerOrigin.FILE,
+                link_context=link_context,
+            )
+            from sase.pager._resolve_common import file_link_target as _file_target
+
+            _ = _file_target
+            return LinkResolution(
+                target=LinkTarget(
+                    kind=LinkTargetKind.DOCUMENT,
+                    document=document,
+                    scroll_line=line,
+                    edit_path=path,
+                    edit_line=line,
+                )
+            )
+        return LinkResolution(
+            target=file_link_target(
+                path,
+                requested_line=line,
+                context=link_context,
+                logical_filename=path.name,
+                category=artifact_syntax_category(
+                    kind_type=result.parsed.kind_type, kind="attachment"
+                ),
+                subject_ref=result.canonical_reference,
+            )
+        )
+    return LinkResolution(
+        target=card_link_target(result, path=path, context=link_context)
+    )
+
+
+def _sanitized_attachment_text(path: Path) -> str | None:
+    """Return sanitized UTF-8 text, or ``None`` when binary/unreadable."""
+    try:
+        if path.stat().st_size > 5 * 1024 * 1024:
+            return None
+        raw = path.read_bytes()
+    except OSError:
+        return None
+    if b"\x00" in raw[:8192]:
+        return None
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    try:
+        from sase.bead.show_images import sanitize_text_line
+
+        return "\n".join(sanitize_text_line(line) for line in text.splitlines()) + (
+            "\n" if text.endswith("\n") else ""
+        )
+    except Exception:
+        return text
 
 
 def _fragment_line(fragment: ArtifactRefFragment | None) -> int | None:

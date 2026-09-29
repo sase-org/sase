@@ -56,6 +56,7 @@ def render_issue_detail(
     style: DetailStyle = DetailStyle.PLAIN,
     wrap: int | None = None,
     present_creator: Callable[[str], str],
+    images_mode: str = "never",
 ) -> str:
     """Render the established human-readable bead detail block."""
     issue = detail.issue
@@ -292,7 +293,11 @@ def render_issue_detail(
     description_lines = description_and_task_type_lines(issue, style=style, wrap=wrap)
     if description_lines:
         lines.extend(["", palette.section("DESCRIPTION"), *description_lines])
-    lines.extend(render_bead_note_lines(issue, palette=palette, style=style, wrap=wrap))
+    lines.extend(
+        render_bead_note_lines(
+            issue, palette=palette, style=style, wrap=wrap, images_mode=images_mode
+        )
+    )
     if issue.plus_one_evidence:
         lines.extend(
             render_plus_one_evidence_lines(
@@ -301,6 +306,7 @@ def render_issue_detail(
                 style=style,
                 wrap=wrap,
                 reference_context=reference_context,
+                images_mode=images_mode,
             )
         )
     if issue.issue_type == IssueType.PLAN and (

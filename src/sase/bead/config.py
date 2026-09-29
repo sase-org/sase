@@ -69,6 +69,37 @@ def get_attachment_sensitive_patterns() -> list[str]:
     ]
 
 
+def get_show_images_default() -> str:
+    """Return the configured ``bead.show.images`` mode, or ``auto``.
+
+    Missing or malformed values fail open to ``auto``: ``read``, JSON, and
+    piped ``show`` never draw regardless of this setting.
+    """
+    try:
+        from sase.bead.show_images import DEFAULT_SHOW_IMAGES, SHOW_IMAGE_MODES
+
+        from sase.config import load_merged_config as _load_merged
+    except Exception:
+        return "auto"
+    try:
+        merged: object = _load_merged()
+    except Exception:
+        return "auto"
+    if not isinstance(merged, dict):
+        return "auto"
+    bead_config = merged.get("bead", {})
+    if not isinstance(bead_config, dict):
+        return "auto"
+    show = bead_config.get("show", {})
+    if not isinstance(show, dict):
+        return "auto"
+    value = show.get("images", DEFAULT_SHOW_IMAGES)
+    if not isinstance(value, str):
+        return "auto"
+    normalized = value.strip().lower()
+    return normalized if normalized in SHOW_IMAGE_MODES else "auto"
+
+
 def _task_triage_config() -> dict[str, object]:
     """Return the merged ``bead.task_triage`` config section, or ``{}``.
 

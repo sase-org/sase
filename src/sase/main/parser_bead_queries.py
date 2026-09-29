@@ -344,6 +344,7 @@ def _add_bead_view_arguments(
     default_wrap_width: int,
     *,
     require_reason: bool = False,
+    with_images: bool = False,
 ) -> None:
     """Add the shared ``show``/``read`` view options, alphabetically."""
     parser.add_argument(
@@ -360,6 +361,18 @@ def _add_bead_view_arguments(
         default="full",
         help="Output format: compact, json, or full (default: full)",
     )
+    if with_images:
+        parser.add_argument(
+            "-i",
+            "--images",
+            choices=["auto", "cells", "kitty", "never"],
+            default=None,
+            help=(
+                "Attachment image previews for --format full: auto, cells, "
+                "kitty, or never (default: bead.show.images, auto). "
+                "read, JSON, and piped show never draw"
+            ),
+        )
     parser.add_argument(
         "-N",
         "--no-links",
@@ -445,7 +458,9 @@ def register_bead_show_parser(
             "is paged with color intact. DESCRIPTION, NOTES, link reasons, "
             "and +1 evidence prose wrap at "
             f"{default_wrap_width} columns by default without breaking URLs "
-            "or inline code spans. This is the human command; inside a "
+            "or inline code spans. -i/--images controls attachment previews "
+            "(auto, cells, kitty, never); read, JSON, and piped show never "
+            "draw. This is the human command; inside a "
             "SASE agent run it refuses with exit 2 and names the matching "
             '`sase bead read ... -r "<why>"` command. Agents consulting '
             "beads to do work must use `sase bead read` instead."
@@ -462,11 +477,12 @@ def register_bead_show_parser(
             "  sase bead show 1e --project bob-cli\n"
             "  sase bead show sase-64 --style rich --color always\n"
             "  sase bead show sase-64 --wrap auto\n"
+            "  sase bead show sase-64 -i kitty\n"
             f"  sase bead show sase-tt{EXPANSION_SUFFIX}"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    _add_bead_view_arguments(parser, default_wrap_width)
+    _add_bead_view_arguments(parser, default_wrap_width, with_images=True)
     parser.add_argument(
         "ids",
         nargs="+",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any, cast
 
 import sase
 from sase.artifact_ref_models import ArtifactRefContext
@@ -253,6 +254,7 @@ def render_bead_note_lines(
     palette: DetailPalette,
     style: DetailStyle,
     wrap: int | None,
+    images_mode: str = "never",
 ) -> list[str]:
     """Render one timestamped, attributed block for each note record."""
 
@@ -300,6 +302,13 @@ def render_bead_note_lines(
                         lines.append("         \u2715 unavailable offline")
                 else:
                     lines.append("         \u2715 unavailable offline")
+            lines.extend(
+                _note_preview_lines(
+                    note.attachments,
+                    palette=palette,
+                    images_mode=images_mode,
+                )
+            )
         else:
             lines.extend(
                 _prose_lines(note.text, style=style, wrap=wrap, indent="     ")
@@ -314,6 +323,7 @@ def render_plus_one_evidence_lines(
     style: DetailStyle,
     wrap: int | None,
     reference_context: ArtifactRefContext | None,
+    images_mode: str = "never",
 ) -> list[str]:
     """Render structured corroboration without performing extra store reads."""
 
@@ -373,6 +383,13 @@ def render_plus_one_evidence_lines(
                         lines.append("         \u2715 unavailable offline")
                 else:
                     lines.append("         \u2715 unavailable offline")
+            lines.extend(
+                _note_preview_lines(
+                    attachments,
+                    palette=palette,
+                    images_mode=images_mode,
+                )
+            )
         else:
             lines.extend(
                 _prose_lines(evidence.note, style=style, wrap=wrap, indent="    ")
@@ -393,6 +410,109 @@ def render_plus_one_evidence_lines(
             f"      {palette.path(line)}"
             for line in artifact_ref_list_display_lines(resolved_refs)
         )
+    return lines
+
+
+def _note_preview_lines(
+    attachments: object,
+    *,
+    palette: DetailPalette,
+    images_mode: str = "never",
+) -> list[str]:
+    """Render cell thumbnails and text previews for one note's attachments.
+
+    Cheap path: ``never`` mode or no attachments returns ``[]`` without
+    importing Pillow, git, or the CAS. ``kitty`` mode renders text previews
+    only here; pixels are emitted directly outside the pager.
+    """
+    if images_mode not in ("cells", "kitty"):
+        return []
+    items: tuple[Any, ...] = tuple(cast(Any, attachments) or ())
+    if not items:
+        return []
+    try:
+        from sase.bead.show_images import (
+            MAX_THUMBS_PER_NOTE,
+            is_previewable_raster,
+            preview_text_attachment,
+            previews_enabled,
+            render_cell_thumbnail,
+            sanitize_text_line,  # noqa: F401 - re-exported for tests
+            thumbnail_size,
+        )
+    except Exception:
+        return []
+    if not previews_enabled(images_mode):
+        return []
+    try:
+        from sase.bead.attachment_presentation import (
+            attachment_availability,
+            attachment_view_path,
+        )
+    except Exception:
+        return []
+    import shutil as _shutil
+
+    try:
+        term_width = max(20, _shutil.get_terminal_size(fallback=(80, 24)).columns)
+    except Exception:
+        term_width = 80
+    lines: list[str] = []
+    thumbs = 0
+    for attachment in items:
+        name = str(getattr(attachment, "name", ""))
+        mime_type = str(getattr(attachment, "mime_type", ""))
+        sha256 = str(getattr(attachment, "sha256", ""))
+        image = getattr(attachment, "image", None)
+        if not name or not sha256:
+            continue
+        if attachment_availability(sha256) != "cached":
+            continue
+        view: str | None = None
+        try:
+            view = attachment_view_path(sha256, name)
+        except Exception:
+            view = None
+        if view is None:
+            lines.append(
+                f"         {palette.placeholder('preview unavailable: missing view')}"
+            )
+            continue
+        if is_previewable_raster(name, mime_type):
+            if images_mode != "cells":
+                continue
+            if thumbs >= MAX_THUMBS_PER_NOTE:
+                continue
+            width, height = (0, 0)
+            if isinstance(image, (list, tuple)) and len(image) == 2:
+                try:
+                    width, height = int(image[0]), int(image[1])
+                except Exception:
+                    width, height = (0, 0)
+            columns, rows = thumbnail_size(width, height, term_width)
+            rendered = render_cell_thumbnail(view, columns=columns, rows=rows)
+            if rendered is None:
+                lines.append(
+                    f"         {palette.placeholder('preview unavailable: image could not be decoded')}"
+                )
+                continue
+            thumbs += 1
+            for rendered_line in rendered.splitlines():
+                lines.append(f"         {rendered_line}" if rendered_line else "")
+            continue
+        if mime_type.lower().startswith("text/") or mime_type.lower() in {
+            "application/json",
+            "application/toml",
+            "application/x-yaml",
+            "application/yaml",
+            "application/xml",
+        }:
+            previewed = preview_text_attachment(view)
+            if not previewed:
+                continue
+            for preview_line in previewed:
+                lines.append(f"         {palette.placeholder('│ ' + preview_line)}")
+            continue
     return lines
 
 

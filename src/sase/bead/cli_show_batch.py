@@ -445,6 +445,7 @@ def render_show_batch(
     style: DetailStyle,
     wrap: int | None,
     render_context_for: _ShowRenderContextResolver | None = None,
+    images_mode: str = "never",
 ) -> str:
     """Render one resolved show batch in the requested format."""
     if not batch.entries:
@@ -469,6 +470,7 @@ def render_show_batch(
                 style=style,
                 wrap=wrap,
                 render_context_for=render_context_for,
+                images_mode=images_mode,
             )
         case _:
             raise AssertionError(f"unknown show format: {format_name}")
@@ -480,6 +482,7 @@ def build_show_batch_document(
     style: DetailStyle,
     wrap: int | None,
     render_context_for: _ShowRenderContextResolver | None = None,
+    images_mode: str = "never",
 ) -> PagerDocument:
     """Build a pager document with one full-rendered section per bead."""
     render_context_for = render_context_for or default_show_render_context_resolver()
@@ -488,6 +491,7 @@ def build_show_batch_document(
         style=style,
         wrap=wrap,
         render_context_for=render_context_for,
+        images_mode=images_mode,
     )
     return PagerDocument(
         sections=sections,
@@ -569,12 +573,14 @@ def _render_full_batch(
     style: DetailStyle,
     wrap: int | None,
     render_context_for: _ShowRenderContextResolver,
+    images_mode: str = "never",
 ) -> str:
     document = build_show_batch_document(
         batch,
         style=style,
         wrap=wrap,
         render_context_for=render_context_for,
+        images_mode=images_mode,
     )
     return render_show_document(document, style=style, wrap=wrap)
 
@@ -585,6 +591,7 @@ def _show_batch_sections(
     style: DetailStyle,
     wrap: int | None,
     render_context_for: _ShowRenderContextResolver,
+    images_mode: str = "never",
 ) -> tuple[PagerSection, ...]:
     reference_contexts: dict[object, ArtifactRefContext | None] = {}
 
@@ -602,30 +609,47 @@ def _show_batch_sections(
         context = render_context_for(entry.origin)
         subject_ref = f"bead:{issue.id}"
         reference_context = context_for(entry, context)
+        body = render_issue_detail(
+            _require_detail(entry),
+            relativize_design=context.relativize_design,
+            plan_roots=context.plan_roots,
+            design_cwd=context.design_cwd,
+            reference_context=reference_context,
+            creator_url=(
+                context.creator_url_for(issue.created_by) if issue.created_by else None
+            ),
+            page_url=context.page_url_for(issue.id),
+            project_label=(
+                entry.origin.project_label if entry.origin is not None else None
+            ),
+            style=style,
+            wrap=wrap,
+            images_mode=images_mode,
+        )
+        targets: tuple[object, ...] = ()
+        try:
+            from sase.bead.show_images import attachment_targets_for_body
+
+            names: list[str] = []
+            for note in issue.notes:
+                names.extend(attachment.name for attachment in note.attachments)
+            for evidence in issue.plus_one_evidence:
+                names.extend(
+                    attachment.name
+                    for attachment in getattr(evidence, "attachments", ())
+                )
+            if names:
+                targets = attachment_targets_for_body(issue.id, body, names)  # type: ignore[assignment]
+        except Exception:
+            targets = ()
         sections.append(
             PagerSection(
                 identity=subject_ref,
                 title=f"{issue.id} · {issue.title}",
                 kind="bead",
-                body=render_issue_detail(
-                    _require_detail(entry),
-                    relativize_design=context.relativize_design,
-                    plan_roots=context.plan_roots,
-                    design_cwd=context.design_cwd,
-                    reference_context=reference_context,
-                    creator_url=(
-                        context.creator_url_for(issue.created_by)
-                        if issue.created_by
-                        else None
-                    ),
-                    page_url=context.page_url_for(issue.id),
-                    project_label=(
-                        entry.origin.project_label if entry.origin is not None else None
-                    ),
-                    style=style,
-                    wrap=wrap,
-                ),
+                body=body,
                 subject_ref=subject_ref,
+                targets=targets,  # type: ignore[arg-type]
                 link_anchors=_show_entry_link_anchors(context),
                 origin=PagerOrigin.BEAD,
                 owner=document_owner_from_path(

@@ -147,18 +147,20 @@ def register_bead_attachment_parser(
     """Register ``sase bead attachment``."""
     parser = subparsers.add_parser(
         "attachment",
-        help="List attachment snapshots or print a local view path",
+        help="List, open, or resolve attachment snapshots",
         description=(
-            "List content-addressed attachment snapshots on a bead, or print "
-            "the absolute local view path for one attachment. "
+            "List content-addressed attachment snapshots on a bead, open one "
+            "in the terminal viewer, or print the absolute local view path "
+            "for one attachment. "
             "Invoking 'sase bead attachment' without a subcommand delegates "
-            "to 'sase bead attachment list'. Neither command fetches and "
-            "neither checks the bead_note_attachments beta flag."
+            "to 'sase bead attachment list'. No command fetches and "
+            "none checks the bead_note_attachments beta flag."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead attachment list sase-ab\n"
             "  sase bead attachment list sase-ab --json\n"
+            "  sase bead attachment open sase-ab shot.png\n"
             "  sase bead attachment path sase-ab shot.png"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -185,6 +187,24 @@ def register_bead_attachment_parser(
         dest="json",
         action="store_true",
         help="Emit machine-readable attachment data",
+    )
+    open_parser = attachment_subparsers.add_parser(
+        "open",
+        help="Open one attachment in the terminal viewer",
+        description=(
+            "Materialize the extension-preserving local view and open it in "
+            "the terminal viewer, with n/p across all viewable attachments "
+            "on the bead. With no name, open the only viewable attachment or "
+            "list candidates. Fails with a clear unavailable error when no "
+            "local object exists; it never fetches."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    open_parser.add_argument("id", help="Full or shorthand issue ID")
+    open_parser.add_argument(
+        "name",
+        nargs="?",
+        help="Attachment name; omit to open the only viewable attachment",
     )
     path_parser = attachment_subparsers.add_parser(
         "path",

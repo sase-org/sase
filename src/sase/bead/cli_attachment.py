@@ -1,4 +1,4 @@
-"""Bead attachment read commands: ``sase bead attachment list|path``."""
+"""Bead attachment read commands: ``sase bead attachment list|open|path``."""
 
 from __future__ import annotations
 
@@ -22,6 +22,8 @@ def handle_bead_attachment(args: argparse.Namespace) -> None:
     action = getattr(args, "attachment_action", None)
     if action == "path":
         _handle_bead_attachment_path(args)
+    elif action == "open":
+        _handle_bead_attachment_open(args)
     elif action == "list":
         _handle_bead_attachment_list(args)
     else:
@@ -202,6 +204,122 @@ def _handle_bead_attachment_path(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
     print(view_path)
+
+
+def _handle_bead_attachment_open(args: argparse.Namespace) -> None:
+    """Open one attachment in the terminal viewer, with n/p across viewables."""
+    issue_id = args.id
+    name = getattr(args, "name", None)
+    bead_context = resolve_bead_operation_context([issue_id])
+    resolved_id = bead_context.resolved_ids[0]
+    with get_read_view(bead_context=bead_context) as view:
+        try:
+            issue = view.show(resolved_id)
+        except KeyError:
+            print(f"Error: issue not found: {issue_id}", file=sys.stderr)
+            sys.exit(1)
+    roster = _roster_for_issue(issue)
+    if not roster:
+        print(f"Error: {resolved_id}: no attachments.", file=sys.stderr)
+        sys.exit(1)
+    if name is None:
+        cached = sorted(
+            attachment_name
+            for attachment_name, record in roster.items()
+            if attachment_availability(record.sha256) == "cached"
+        )
+        if not cached:
+            print(
+                f"Error: {resolved_id} has no cached attachments "
+                "(✕ unavailable offline).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if len(cached) == 1:
+            name = cached[0]
+        else:
+            import sys as _sys
+
+            if _sys.stdin.isatty() and _sys.stderr.isatty():
+                print(f"Attachments on {resolved_id}:", file=sys.stderr)
+                for index, candidate in enumerate(cached, start=1):
+                    print(f"  {index}. {candidate}", file=sys.stderr)
+                try:
+                    choice = input("Open which attachment [1]? ").strip() or "1"
+                except (EOFError, KeyboardInterrupt):
+                    print("Error: no attachment chosen.", file=sys.stderr)
+                    sys.exit(1)
+                try:
+                    name = cached[int(choice) - 1]
+                except (IndexError, ValueError):
+                    print(
+                        f"Error: invalid choice {choice!r}; "
+                        f"choose 1-{len(cached)} or name one explicitly.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+            else:
+                listing = ", ".join(cached)
+                print(
+                    f"Error: {resolved_id} has {len(cached)} cached attachments: "
+                    f"{listing}; specify a name.",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+    attachment = roster.get(name)
+    if attachment is None:
+        print(
+            f"Error: attachment not found: {strip_display_name(name)} on {resolved_id}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if attachment_availability(attachment.sha256) != "cached":
+        print(
+            f"Error: attachment {strip_display_name(name)} is "
+            "✕ unavailable offline on this machine.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        from sase.bead.attachment_resolve import viewable_media_specs
+    except Exception:
+        viewable_media_specs = None  # type: ignore[assignment]
+    specs: tuple[object, ...] = ()
+    if viewable_media_specs is not None:
+        try:
+            specs = viewable_media_specs(issue, attachment.name)  # type: ignore[assignment]
+        except Exception:
+            specs = ()
+    if not specs:
+        view_path = attachment_view_path(attachment.sha256, attachment.name)
+        if view_path is None:
+            print(
+                f"Error: attachment {strip_display_name(name)} is "
+                "✕ unavailable offline on this machine.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            from sase.ace.tui.graphics import ArtifactFileViewSpec
+        except Exception as exc:
+            print(f"Error: viewer unavailable: {exc}", file=sys.stderr)
+            sys.exit(1)
+        specs = (ArtifactFileViewSpec(view_path, kind=None),)
+    try:
+        from sase.ace.tui.graphics import view_artifact_files
+    except Exception as exc:
+        print(f"Error: viewer unavailable: {exc}", file=sys.stderr)
+        sys.exit(1)
+    result = view_artifact_files(specs)  # type: ignore[arg-type]
+    if getattr(result, "ok", True) is False:
+        warnings = getattr(result, "warnings", ())
+        detail = (
+            "; ".join(str(getattr(item, "message", item)) for item in warnings)
+            if warnings
+            else "viewer failed"
+        )
+        print(f"Error: could not open {name}: {detail}", file=sys.stderr)
+        sys.exit(1)
 
 
 __all__ = [

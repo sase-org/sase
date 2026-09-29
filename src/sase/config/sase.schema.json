@@ -4789,6 +4789,19 @@
             }
           }
         },
+        "show": {
+          "type": "object",
+          "description": "Bead show image previews for sase bead show.",
+          "additionalProperties": false,
+          "properties": {
+            "images": {
+              "type": "string",
+              "enum": ["auto", "cells", "kitty", "never"],
+              "default": "auto",
+              "description": "Image previews for sase bead show: auto, cells, kitty, or never. read, JSON, and piped show never draw."
+            }
+          }
+        },
         "task_triage": {
           "type": "object",
           "description": "Volume controls for task-bead triage gates: the +1 bar a ready task bead needs before it earns a TaskTriage gate, and the staleness sweep for the sub-threshold remainder.",

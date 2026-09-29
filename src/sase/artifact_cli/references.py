@@ -96,6 +96,8 @@ def resolve_cli_reference(
 
     normalized = _normalize_artifact_reference(value)
     parsed = parse_artifact_ref(normalized)
+    if parsed.kind == "attachment":
+        return _resolve_attachment_reference(value, parsed, context=context)
     resolved_context = context or launch_artifact_ref_context(is_home_mode=False)
     ref_context = explicit_prompt_ref_context(resolved_context)
     outcome = resolve_builtin_entry(
@@ -194,6 +196,130 @@ def resolved_file_path(result: ResolvedArtifactReference) -> Path | None:
             repositories=result.context.repositories,
         )
     return None
+
+
+def _resolve_attachment_reference(
+    value: str,
+    parsed: ArtifactRef,
+    *,
+    context: ArtifactRefContext | None = None,
+) -> ResolvedArtifactReference:
+    """Resolve ``attachment:<bead-id>/<name>`` to its cached view path.
+
+    Shared core behavior (kind registration and ``parse_artifact_ref``) stays
+    in sase-core; Python owns I/O: roster lookup and CAS materialization.
+    Unavailable attachments resolve with ``missing`` status and a dead-end
+    diagnostic so ``path|open|read`` report gracefully.
+    """
+    from sase.artifact_refs import ArtifactRefResolution
+    from sase.artifact_refs import launch_artifact_ref_context as _launch_context
+
+    resolved_context = context or _launch_context(is_home_mode=False)
+    payload_path = getattr(parsed.payload, "path", None) or ""
+    bead_id, sep, name = payload_path.partition("/")
+    bead_id, name = bead_id.strip(), name.strip()
+    canonical = parsed.rendered
+    if not bead_id or not sep or not name or "/" in name:
+        resolution = ArtifactRefResolution(
+            schema_version=parsed.schema_version,
+            status="missing",
+            rendered=canonical,
+            locator=None,
+            resolved_path=None,
+            candidates=(),
+            diagnostic=(
+                f"malformed attachment reference {canonical!r}; "
+                "want attachment:<bead-id>/<name>"
+            ),
+        )
+        return ResolvedArtifactReference(
+            input=value,
+            canonical_reference=canonical,
+            parsed=parsed,
+            resolution=resolution,
+            file=None,
+            context=resolved_context,
+            entry=None,
+        )
+    try:
+        from sase.bead.attachment_resolve import materialize_attachment_view
+    except Exception as exc:
+        resolution = ArtifactRefResolution(
+            schema_version=parsed.schema_version,
+            status="missing",
+            rendered=canonical,
+            locator=None,
+            resolved_path=None,
+            candidates=(),
+            diagnostic=f"attachment support unavailable: {exc}",
+        )
+        return ResolvedArtifactReference(
+            input=value,
+            canonical_reference=canonical,
+            parsed=parsed,
+            resolution=resolution,
+            file=None,
+            context=resolved_context,
+            entry=None,
+        )
+    try:
+        view = materialize_attachment_view(bead_id, name)
+    except (KeyError, ValueError, RuntimeError) as exc:
+        resolution = ArtifactRefResolution(
+            schema_version=parsed.schema_version,
+            status="missing",
+            rendered=canonical,
+            locator=None,
+            resolved_path=None,
+            candidates=(),
+            diagnostic=str(exc),
+        )
+        return ResolvedArtifactReference(
+            input=value,
+            canonical_reference=canonical,
+            parsed=parsed,
+            resolution=resolution,
+            file=None,
+            context=resolved_context,
+            entry=None,
+        )
+    except FileNotFoundError as exc:
+        resolution = ArtifactRefResolution(
+            schema_version=parsed.schema_version,
+            status="missing",
+            rendered=canonical,
+            locator=None,
+            resolved_path=None,
+            candidates=(),
+            diagnostic=str(exc),
+        )
+        return ResolvedArtifactReference(
+            input=value,
+            canonical_reference=canonical,
+            parsed=parsed,
+            resolution=resolution,
+            file=None,
+            context=resolved_context,
+            entry=None,
+        )
+    resolution = ArtifactRefResolution(
+        schema_version=parsed.schema_version,
+        status="exact",
+        rendered=canonical,
+        locator=f"bead:{bead_id}",
+        resolved_path=Path(view),
+        candidates=(str(view),),
+        diagnostic=None,
+    )
+    return ResolvedArtifactReference(
+        input=value,
+        canonical_reference=canonical,
+        parsed=parsed,
+        resolution=resolution,
+        file=None,
+        context=resolved_context,
+        entry=None,
+    )
 
 
 def _find_file_record(
