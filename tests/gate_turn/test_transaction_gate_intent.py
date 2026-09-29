@@ -112,12 +112,7 @@ def _install_transaction_fakes(
     monkeypatch.setattr(
         transaction_module, "_resolve_creator", lambda _project: creator
     )
-    monkeypatch.setattr(
-        transaction_module, "_gate_lane_lock_path", lambda *_: tmp_path / "lock"
-    )
-    monkeypatch.setattr(
-        transaction_module, "log_file_lock", lambda _path: nullcontext()
-    )
+    monkeypatch.setattr(transaction_module, "gate_lane_lock", lambda *_: nullcontext())
     monkeypatch.setattr(
         transaction_module, "find_gate_turn_by_gate_id", lambda *_: None
     )

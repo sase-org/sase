@@ -20,6 +20,7 @@ from sase.gate_turn.handoff import (
     store_reconcile_cursor,
     with_gate_followup_lock,
 )
+from sase.gate_turn.lane_lock import try_gate_lane_lock
 from sase.gate_turn.lifecycle import (
     DISPOSITION_ACCEPTED_FAILED,
     DISPOSITION_ACCEPTED_OWNER_LOST,
@@ -159,6 +160,44 @@ def reclaim_pending_gate_turns(
     return GateTurnReclaimSummary(**counts, error_details=tuple(error_details))
 
 
+def settle_lost_unless_creating(
+    record: GateTurnRecord,
+    reason: str,
+) -> Literal["creating", "reachable", "settled"] | None:
+    """Settle a bundle-less gate turn as lost unless its creation is running.
+
+    The reclaim chop acts on a snapshot read seconds earlier, so a pending
+    member with no bundle path may be mid-creation: its ``gate_bundle_path``
+    is only recorded after ``create_gate()`` returns, while an ``%auto``
+    gate still executes its selected commands inline. Settling such a
+    member ``lost`` races the live creator's own settlement.
+
+    Every creation runs inside the lane lock, so holding it here proves no
+    creation is in flight: a ``False`` attempt means "creating", and the
+    caller defers. Otherwise the member is re-read from disk (the snapshot
+    may be stale) and, while still holding the lane lock, settled ``lost``
+    with *reason* — ``settled`` — unless the fresh record is missing or
+    already terminal (``None``: nothing to do) or now points at a
+    verifiable bundle (``reachable``: the next pass classifies it normally).
+    """
+    with try_gate_lane_lock(record.project_name, record.lane) as acquired:
+        if not acquired:
+            return "creating"
+        fresh = read_gate_turn_marker(record.project_name, record.artifacts_dir)
+        if fresh is None or fresh.is_terminal:
+            return None
+        bundle = Path(fresh.bundle_path) if fresh.bundle_path else None
+        if bundle is not None and bundle.is_dir():
+            try:
+                load_and_verify_bundle(bundle)
+            except Exception:
+                pass
+            else:
+                return "reachable"
+        settle_gate_turn(fresh, gate_state="lost", reason=reason)
+        return "settled"
+
+
 def _reclaim_one(
     record: GateTurnRecord,
     *,
@@ -167,13 +206,13 @@ def _reclaim_one(
 ) -> str | None:
     bundle = Path(record.bundle_path) if record.bundle_path else None
     if bundle is None or not bundle.is_dir():
-        settle_gate_turn(record, gate_state="lost", reason="gate bundle unreachable")
-        return "lost"
+        outcome = settle_lost_unless_creating(record, "gate bundle unreachable")
+        return "lost" if outcome == "settled" else None
     try:
         envelope, _adapter = load_and_verify_bundle(bundle)
     except Exception:
-        settle_gate_turn(record, gate_state="lost", reason="gate bundle unreadable")
-        return "lost"
+        outcome = settle_lost_unless_creating(record, "gate bundle unreadable")
+        return "lost" if outcome == "settled" else None
 
     deadline = _deadline(envelope)
     facts = collect_gate_lifecycle_facts(
@@ -537,4 +576,5 @@ __all__ = [
     "GateTurnReclaimSummary",
     "reclaim_pending_gate_turns",
     "reconcile_incomplete_gate_handoffs",
+    "settle_lost_unless_creating",
 ]

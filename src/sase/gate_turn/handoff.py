@@ -46,6 +46,10 @@ ERROR_MESSAGE_FIELD = "gate_followup_error_message"
 RECONCILE_CURSOR_NAME = ".gate_handoff_reconcile.json"
 RECONCILE_BATCH_SIZE = 32
 FOLLOWUP_LOCK_TIMEOUT_SECONDS = 5.0
+#: A creator-live settlement runs in the agent runner after the gate's
+#: selected commands may already have produced irreversible side effects,
+#: so it waits out benign contention instead of failing the run on it.
+CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS = 60.0
 
 
 def _gate_followup_lock_path(artifacts_dir: str) -> Path:
@@ -53,11 +57,15 @@ def _gate_followup_lock_path(artifacts_dir: str) -> Path:
     return Path(artifacts_dir) / FOLLOWUP_LOCK_NAME
 
 
-def with_gate_followup_lock(artifacts_dir: str) -> Any:
+def with_gate_followup_lock(
+    artifacts_dir: str,
+    *,
+    timeout: float | None = FOLLOWUP_LOCK_TIMEOUT_SECONDS,
+) -> Any:
     """Return the exclusive lock context for one gate's handoff."""
     return file_lock(
         _gate_followup_lock_path(artifacts_dir),
-        timeout=FOLLOWUP_LOCK_TIMEOUT_SECONDS,
+        timeout=timeout,
     )
 
 

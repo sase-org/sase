@@ -9,7 +9,9 @@ from sase.gate_turn.lifecycle import (
     resolve_already_answered_race,
 )
 from sase.gate_turn.models import GateTurnRecord
+from sase.gate_turn.reclaim import settle_lost_unless_creating
 from sase.gate_turn.settlement import settle_gate_turn
+from sase.gate_turn.store import read_gate_turn_marker
 from sase.notification_gates.executor import cancel_gate
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import RESPONSE_FILENAME
@@ -29,6 +31,10 @@ def cancel_gate_turn(
     settles as answered rather than being cancelled out from under its
     reviewer, and an unreachable bundle settles as lost.
 
+    A member whose gate creation is still running is returned unchanged: its
+    bundle path is only recorded after ``create_gate()`` returns, so a
+    missing bundle while the lane lock is held means "creating", not "lost".
+
     An accepted decision whose execution has not published a response yet
     also blocks cancellation (``cancel_gate`` raises the same
     ``already_answered`` code for a receipt as for a real response), but
@@ -40,9 +46,18 @@ def cancel_gate_turn(
         return record
     bundle = Path(record.bundle_path) if record.bundle_path else None
     if bundle is None or not bundle.is_dir():
-        return settle_gate_turn(
-            record, gate_state="lost", reason="gate bundle unreachable"
-        )
+        outcome = settle_lost_unless_creating(record, "gate bundle unreachable")
+        if outcome == "creating":
+            return record
+        fresh = read_gate_turn_marker(record.project_name, record.artifacts_dir)
+        if fresh is None:
+            return record
+        if outcome == "settled" or fresh.is_terminal:
+            return fresh
+        record = fresh
+        bundle = Path(record.bundle_path) if record.bundle_path else None
+        if bundle is None or not bundle.is_dir():
+            return record
     if (bundle / RESPONSE_FILENAME).exists():
         return settle_gate_turn(record, gate_state="answered", reason="gate answered")
     try:

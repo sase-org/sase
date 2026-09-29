@@ -647,9 +647,12 @@ The `gate_turn_reclaim` job is the backstop for
 members across projects, settles turns whose gate bundle is already terminal, cancels
 gates that reached their own deadline, and force-settles a turn as `lost` once
 `gate.turn.reclaim_grace_seconds` (one hour by default) has passed after that deadline.
-It then diagnoses settled gates whose requested successor never recorded, reading the
-agent artifact index once per pass and resuming from a per-project cursor. Work left
-when the pass-wide time budget runs out is deferred to the next tick.
+Reclaim skips a turn whose gate creation is still running (its session's gate-creation
+lock is held), so an `%auto` gate that is still executing its selected commands is never
+marked lost; a turn whose creator died before recording a bundle is still settled lost
+on a later pass. It then diagnoses settled gates whose requested successor never
+recorded, reading the agent artifact index once per pass and resuming from a per-project
+cursor. Work left when the pass-wide time budget runs out is deferred to the next tick.
 
 The `artifact_link_backfill` job runs four bounded jobs per enabled project. It sweeps
 older documents for deterministic derived links, resuming from a per-project checkpoint

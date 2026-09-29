@@ -6,7 +6,6 @@ import json
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
-from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -14,6 +13,7 @@ from uuid import uuid4
 from sase.agent.gate_intent import begin_gate_intent, clear_gate_intent
 from sase.axe.run_agent_helpers_artifacts import update_meta_fields
 from sase.gate_turn import naming
+from sase.gate_turn.lane_lock import gate_lane_lock
 from sase.gate_turn.member import create_gate_turn_member
 from sase.gate_turn.models import (
     GateTurnError,
@@ -31,7 +31,6 @@ from sase.gate_turn.store import (
     has_any_gate_turn,
     read_gate_turn_marker,
 )
-from sase.logs._bounded import log_file_lock
 from sase.notification_gates.model_request import GateSpec
 from sase.notification_gates.model_results import GateCreationResult
 from sase.notification_gates.service import create_gate
@@ -134,8 +133,7 @@ def _create_gate_turn_transaction(
 
     project_name = _resolve_project_name()
     creator = _resolve_creator(project_name)
-    lock_path = _gate_lane_lock_path(project_name, creator.durable_lane)
-    with log_file_lock(lock_path):
+    with gate_lane_lock(project_name, creator.durable_lane):
         replay = find_gate_turn_by_gate_id(project_name, spec.request_id)
         if replay is not None:
             _stamp_pending_shell_on_spec(
@@ -459,19 +457,6 @@ def _optional_int(value: object) -> int | None:
         return int(value)
     except ValueError:
         return None
-
-
-def _gate_lane_lock_path(project_name: str, lane: str) -> Path:
-    key = sha256(f"{project_name}\0{lane}".encode()).hexdigest()[:32]
-    from sase.core.paths import sase_projects_dir
-
-    return (
-        sase_projects_dir()
-        / project_name
-        / "artifacts"
-        / "ace-run"
-        / f".gate-turn-{key}"
-    )
 
 
 __all__ = [

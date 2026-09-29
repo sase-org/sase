@@ -21,7 +21,12 @@ from sase.gate_turn.followup_policy import (
     resolve_gate_followup,
     shell_block_unparseable,
 )
-from sase.gate_turn.handoff import merge_followup_fields, with_gate_followup_lock
+from sase.gate_turn.handoff import (
+    CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS,
+    FOLLOWUP_LOCK_TIMEOUT_SECONDS,
+    merge_followup_fields,
+    with_gate_followup_lock,
+)
 from sase.gate_turn.handoff_launch import (
     launch_or_record_followup,
     record_selected_options,
@@ -183,7 +188,12 @@ def settle_gate_turn(
     handoff never completed. Approval and archive receipts stay as they are.
     """
     artifacts_dir = record.artifacts_dir
-    with with_gate_followup_lock(artifacts_dir):
+    timeout = (
+        CREATOR_LIVE_FOLLOWUP_LOCK_TIMEOUT_SECONDS
+        if creator_live
+        else FOLLOWUP_LOCK_TIMEOUT_SECONDS
+    )
+    with with_gate_followup_lock(artifacts_dir, timeout=timeout):
         return _settle_gate_turn_locked(
             record,
             gate_state=gate_state,

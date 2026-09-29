@@ -1614,7 +1614,10 @@ The hourly `gate_turn_reclaim` housekeeping job settles pending turns whose gate
 already answered, cancelled, or removed. It also times out gates past their own
 `gate_timeout_seconds` deadline, and it marks a turn lost once
 [`gate.turn.reclaim_grace_seconds`](configuration.md#gate) (one hour by default) has
-passed after that deadline.
+passed after that deadline. Reclaim skips a turn whose gate creation is still running
+(its session's gate-creation lock is held), so an `%auto` gate that is still executing
+its selected commands is never marked lost; a turn whose creator died before recording a
+bundle is still settled lost on a later pass.
 
 Agent-side gate creation also writes a per-process intent marker before slow setup work
 starts. A clean creation error or the normal runner handoff clears it. If the provider
