@@ -1,10 +1,23 @@
-"""Shared helpers for the ``test_agent_session_*`` test modules."""
+"""Shared helpers for the ``test_agent_session_*`` test modules.
+
+Public helpers used by more than one ``test_agent_session_members_*`` module
+live here under public names so no new module imports a ``_``-prefixed
+name from another new module.
+"""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 
 from sase.ace.tui.models.agent import Agent, AgentType
+
+__all__ = [
+    "make_agent",
+    "make_gate_member",
+    "make_monitor_member",
+    "make_plan_root",
+    "make_plan_root_with_main_step",
+]
 
 _STARTED = datetime(2026, 7, 19, 9, 0, 0)
 
@@ -118,3 +131,75 @@ def _gate_member(
     gate.gate_stop_status = "GATED"
     gate.gate_label = name
     return gate
+
+
+def make_agent(
+    name: str,
+    *,
+    role: str,
+    parent_timestamp: str | None = None,
+    workflow_child: bool = False,
+    start_offset: int = 0,
+    stop_offset: int | None = None,
+    status: str = "DONE",
+    status_bucket: str | None = None,
+    step_type: str = "agent",
+) -> Agent:
+    """Build a session-member test agent (public alias of ``_agent``)."""
+    return _agent(
+        name,
+        role=role,
+        parent_timestamp=parent_timestamp,
+        workflow_child=workflow_child,
+        start_offset=start_offset,
+        stop_offset=stop_offset,
+        status=status,
+        status_bucket=status_bucket,
+        step_type=step_type,
+    )
+
+
+def make_plan_root(*, name: str = "alpha--plan") -> Agent:
+    """Build a plan-chain root (public alias of ``_plan_root``)."""
+    return _plan_root(name=name)
+
+
+def make_plan_root_with_main_step(*, name: str = "alpha--plan") -> tuple[Agent, Agent]:
+    """Build a plan root with its loaded ``main`` step (public alias)."""
+    return _plan_root_with_main_step(name=name)
+
+
+def make_monitor_member(
+    name: str,
+    *,
+    root: Agent,
+    monitor_id: str,
+    monitor_state: str | None,
+    stop_offset: int | None = None,
+) -> Agent:
+    """Build a monitor member (public alias of ``_monitor_member``)."""
+    return _monitor_member(
+        name,
+        root=root,
+        monitor_id=monitor_id,
+        monitor_state=monitor_state,
+        stop_offset=stop_offset,
+    )
+
+
+def make_gate_member(
+    name: str,
+    *,
+    root: Agent,
+    gate_id: str,
+    gate_state: str | None,
+    stop_offset: int | None = None,
+) -> Agent:
+    """Build a gate member (public alias of ``_gate_member``)."""
+    return _gate_member(
+        name,
+        root=root,
+        gate_id=gate_id,
+        gate_state=gate_state,
+        stop_offset=stop_offset,
+    )
