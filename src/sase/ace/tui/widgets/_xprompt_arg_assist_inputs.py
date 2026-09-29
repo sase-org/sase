@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.xprompt.models import UNSET, InputArg
+from sase.xprompt.properties import single_line_default
 
 from ._xprompt_arg_assist_models import XPromptAssistEntry, XPromptInputHint
 
@@ -126,7 +127,9 @@ def _styled_input_label(input_hint: XPromptInputHint, include_types: bool) -> st
 
 def _default_suffix(input_hint: XPromptInputHint) -> str:
     if input_hint.default_display:
-        return f"={input_hint.default_display}"
+        compacted = single_line_default(input_hint.default_display)
+        if compacted.strip(" …"):
+            return f"={compacted}"
     return "?"
 
 

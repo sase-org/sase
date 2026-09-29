@@ -103,8 +103,14 @@ def build_structured_xprompts_catalog(
     query: str | None = None,
     include_pdf: bool = False,
     limit: int | None = None,
+    include_string_defaults: bool = False,
 ) -> StructuredCatalogProjection:
-    """Return a mobile-safe structured xprompt catalog projection."""
+    """Return a mobile-safe structured xprompt catalog projection.
+
+    The projection is mobile-safe by default. Pass
+    ``include_string_defaults=True`` only for local, non-network consumers
+    (the TUI); the mobile helper must never pass it.
+    """
     _sync_catalog_source_dependencies()
     from ._catalog_structured import build_structured_xprompts_catalog as _build
 
@@ -115,6 +121,7 @@ def build_structured_xprompts_catalog(
         query=query,
         include_pdf=include_pdf,
         limit=limit,
+        include_string_defaults=include_string_defaults,
     )
 
 

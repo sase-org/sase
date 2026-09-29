@@ -12,13 +12,16 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     append_input_args,
     append_input_hints,
     build_xprompt_assist_entries,
+    input_default_suffix,
     input_label,
     named_args_skeleton,
     required_inputs,
     visible_inputs,
+    xprompt_assist_entry_from_workflow,
 )
 from sase.xprompt.models import UNSET, InputArg, InputType, OutputSpec, XPrompt
 from sase.xprompt.models import MemoryType
+from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
 def _make_xprompt(
@@ -97,7 +100,7 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
         for inp in entry.inputs
     ] == [
         ("required_word", "word", True, None, 0),
-        ("string_default", "line", False, None, 1),
+        ("string_default", "line", False, "secret", 1),
         ("null_default", "text", False, None, 2),
         ("count", "int", False, "3", 3),
         ("enabled", "bool", False, "false", 4),
@@ -273,3 +276,86 @@ def test_append_input_args_preserves_modal_style_for_input_args() -> None:
         (23, 28, "dim #D7AF87"),
         (28, 30, "dim #888888"),
     ]
+
+
+def test_string_default_renders_in_prompt_bar_hints(tmp_path: Path) -> None:
+    xp = _make_xprompt(
+        "split_epic_like",
+        inputs=[InputArg(name="lang", type=InputType.WORD, default="Rust")],
+    )
+    with (
+        patch(
+            "sase.xprompt.catalog.get_all_xprompts",
+            return_value={"split_epic_like": xp},
+        ),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        entry = build_xprompt_assist_entries()[0]
+
+    assert entry.inputs[0].default_display == "Rust"
+    text = Text("split_epic_like")
+    append_input_hints(text, entry.inputs)
+    assert "lang?: word=Rust" in text.plain
+
+
+def test_catalog_and_workflow_adapters_agree_on_string_defaults(
+    tmp_path: Path,
+) -> None:
+    inputs = [
+        InputArg(name="lang", type=InputType.WORD, default="Rust"),
+        InputArg(name="count", type=InputType.INT, default=3),
+    ]
+    xp = _make_xprompt("typed", inputs=list(inputs))
+    workflow = Workflow(
+        name="typed",
+        steps=[WorkflowStep(name="main", agent="Do it")],
+        source_path="config",
+        inputs=list(inputs),
+    )
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"typed": xp}),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch(
+            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+            return_value=tmp_path / "pkg",
+        ),
+    ):
+        catalog_entry = build_xprompt_assist_entries()[0]
+    workflow_entry = xprompt_assist_entry_from_workflow("typed", workflow)
+
+    catalog_by_name = {inp.name: inp.default_display for inp in catalog_entry.inputs}
+    workflow_by_name = {inp.name: inp.default_display for inp in workflow_entry.inputs}
+    assert catalog_by_name["lang"] == workflow_by_name["lang"] == "Rust"
+    assert catalog_by_name["count"] == workflow_by_name["count"] == "3"
+
+
+def test_multiline_string_default_renders_on_one_row() -> None:
+    hint = XPromptInputHint(
+        name="body",
+        type="text",
+        required=False,
+        default_display="first\nsecond",
+        position=0,
+    )
+    text = Text("example")
+    append_input_hints(text, (hint,))
+    assert "=first …" in text.plain
+    row = text.plain.split("body?: text", 1)[1]
+    assert "\n" not in row
+    assert input_default_suffix(hint) == "=first …"
+
+
+def test_newlines_only_default_falls_back_to_question_mark() -> None:
+    hint = XPromptInputHint(
+        name="body",
+        type="text",
+        required=False,
+        default_display="\n\n",
+        position=0,
+    )
+    text = Text("example")
+    append_input_hints(text, (hint,))
+    assert "body?: text?" in text.plain
+    assert input_default_suffix(hint) == "?"

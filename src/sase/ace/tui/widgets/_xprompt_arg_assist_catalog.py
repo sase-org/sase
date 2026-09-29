@@ -19,7 +19,11 @@ def build_xprompt_assist_entries(
     project: str | None = None,
 ) -> list[XPromptAssistEntry]:
     """Build immutable TUI assist entries from the structured xprompt catalog."""
-    projection = build_structured_xprompts_catalog(project=project)
+    # The TUI is a local display; the string-default redaction exists only
+    # for the mobile wire.
+    projection = build_structured_xprompts_catalog(
+        project=project, include_string_defaults=True
+    )
     return [
         XPromptAssistEntry(
             name=entry.name,

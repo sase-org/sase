@@ -1,4 +1,9 @@
-"""Mobile-safe structured xprompt catalog projection."""
+"""Mobile-safe structured xprompt catalog projection.
+
+By default string defaults are redacted (``default_display`` is ``None``).
+Pass ``include_string_defaults=True`` only for local, non-network consumers
+(such as the TUI); the mobile gateway must never pass it.
+"""
 
 from __future__ import annotations
 
@@ -39,12 +44,17 @@ def build_structured_xprompts_catalog(
     query: str | None = None,
     include_pdf: bool = False,
     limit: int | None = None,
+    include_string_defaults: bool = False,
 ) -> StructuredCatalogProjection:
     """Return a mobile-safe structured xprompt catalog projection.
 
     This path intentionally gathers and filters xprompt metadata without
     requiring an HTML/PDF renderer. PDF generation is best-effort and only runs
     when explicitly requested.
+
+    The projection is mobile-safe by default: string defaults are redacted.
+    Pass ``include_string_defaults=True`` only for local, non-network
+    consumers (the TUI). The mobile helper must never pass it.
     """
     filtered_entries = filter_structured_catalog_entries(
         gather_structured_entries(),
@@ -58,7 +68,10 @@ def build_structured_xprompts_catalog(
     if limit is not None:
         entries = entries[:limit]
 
-    structured_entries = [structured_entry(entry) for entry in entries]
+    structured_entries = [
+        structured_entry(entry, include_string_defaults=include_string_defaults)
+        for entry in entries
+    ]
     warnings: list[str] = []
     skipped: list[StructuredCatalogSkipped] = []
     attachment: StructuredCatalogAttachment | None = None
@@ -156,7 +169,9 @@ def structured_entry_matches_query(
     return query in haystack.casefold()
 
 
-def structured_entry(entry: StructuredCatalogSource) -> StructuredCatalogEntry:
+def structured_entry(
+    entry: StructuredCatalogSource, *, include_string_defaults: bool = False
+) -> StructuredCatalogEntry:
     input_signature = format_inputs(entry.workflow.inputs) or None
     return StructuredCatalogEntry(
         name=entry.name,
@@ -169,7 +184,9 @@ def structured_entry(entry: StructuredCatalogSource) -> StructuredCatalogEntry:
         project=entry.project,
         tags=sorted(tag.value for tag in entry.workflow.tags),
         input_signature=input_signature,
-        inputs=structured_inputs(entry.workflow.inputs),
+        inputs=structured_inputs(
+            entry.workflow.inputs, include_string_defaults=include_string_defaults
+        ),
         is_skill=entry.is_skill,
         skill_name=entry.skill_name,
         memory_type=entry.memory_type,
@@ -179,7 +196,9 @@ def structured_entry(entry: StructuredCatalogSource) -> StructuredCatalogEntry:
     )
 
 
-def structured_inputs(inputs: list[InputArg]) -> list[StructuredCatalogInput]:
+def structured_inputs(
+    inputs: list[InputArg], *, include_string_defaults: bool = False
+) -> list[StructuredCatalogInput]:
     rows: list[StructuredCatalogInput] = []
     for inp in inputs:
         if inp.is_step_input:
@@ -189,7 +208,9 @@ def structured_inputs(inputs: list[InputArg]) -> list[StructuredCatalogInput]:
                 name=inp.name,
                 type=inp.type.value,
                 required=inp.default is UNSET,
-                default_display=default_display(inp.default),
+                default_display=default_display(
+                    inp.default, include_strings=include_string_defaults
+                ),
                 position=len(rows),
                 repeatable=inp.repeatable,
                 description=inp.description,
@@ -198,9 +219,13 @@ def structured_inputs(inputs: list[InputArg]) -> list[StructuredCatalogInput]:
     return rows
 
 
-def default_display(default: object) -> str | None:
-    if default is UNSET or default is None or isinstance(default, str):
+def default_display(default: object, *, include_strings: bool = False) -> str | None:
+    if default is UNSET or default is None:
         return None
+    if isinstance(default, str):
+        if not include_strings or default == "":
+            return None
+        return default
     if isinstance(default, bool):
         return "true" if default else "false"
     if isinstance(default, (int, float)):

@@ -614,3 +614,37 @@ def test_structured_catalog_pdf_engine_warning_does_not_block_records(
     assert projection.catalog_attachment is None
     assert projection.warnings == ["PDF catalog was not generated"]
     assert projection.skipped[0].target == "xprompt-catalog.pdf"
+
+
+def test_structured_catalog_include_string_defaults_opts_in() -> None:
+    xp = make_xprompt(
+        "typed",
+        source_path="config",
+        inputs=[
+            InputArg(name="string_default", type=InputType.LINE, default="secret"),
+            InputArg(name="empty_default", type=InputType.LINE, default=""),
+            InputArg(name="null_default", type=InputType.TEXT, default=None),
+            InputArg(name="count", type=InputType.INT, default=3),
+            InputArg(name="enabled", type=InputType.BOOL, default=False),
+        ],
+    )
+
+    def _by_name(projection):
+        return {inp.name: inp.default_display for inp in projection.entries[0].inputs}
+
+    with (
+        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"typed": xp}),
+        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+    ):
+        redacted = _by_name(build_structured_xprompts_catalog())
+        opted_in = _by_name(
+            build_structured_xprompts_catalog(include_string_defaults=True)
+        )
+
+    assert redacted["string_default"] is None
+    assert opted_in["string_default"] == "secret"
+    assert opted_in["empty_default"] is None
+    assert opted_in["null_default"] is None
+    assert opted_in["count"] == "3"
+    assert opted_in["enabled"] == "false"
