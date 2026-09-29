@@ -568,6 +568,42 @@ async def test_structured_token_keeps_precedence_over_prompt_words() -> None:
         )
 
 
+async def test_second_ctrl_t_accepts_highlighted_prompt_word_row() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("alpha alpine al")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "alpha alpine alp"
+        assert ta._file_completion_active is True
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_subtitle == "[^T] accept"
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "alpha alpine alpine"
+        assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
+
+
+async def test_ctrl_n_then_ctrl_t_accepts_second_prompt_word_row() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("alpha alpine al")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t", "ctrl+n", "ctrl+t")
+
+        assert ta.text == "alpha alpine alpha"
+        assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
+
+
 async def test_whitespace_keeps_recent_file_history_precedence() -> None:
     history = CompletionCandidate(
         display="docs/readme.md",

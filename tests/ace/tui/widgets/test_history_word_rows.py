@@ -144,7 +144,7 @@ def test_subtitle_shows_legend_when_wide_and_metadata_present() -> None:
 
     assert isinstance(subtitle, Text)
     assert subtitle.plain.startswith("⇄ related · ◷ recent · ✦ frequent")
-    assert subtitle.plain.endswith("[^L] accept  [^D] delete")
+    assert subtitle.plain.endswith("[^T] accept  [^D] delete")
 
 
 def test_subtitle_falls_back_to_plain_hint_when_too_narrow() -> None:
@@ -154,7 +154,7 @@ def test_subtitle_falls_back_to_plain_hint_when_too_narrow() -> None:
 
     narrow = history_word_completion_subtitle(visible, full.cell_len - 1)
 
-    assert narrow == "[^L] accept  [^D] delete"
+    assert narrow == "[^T] accept  [^D] delete"
 
 
 def test_subtitle_falls_back_when_no_row_carries_metadata() -> None:
@@ -162,7 +162,7 @@ def test_subtitle_falls_back_when_no_row_carries_metadata() -> None:
 
     subtitle = history_word_completion_subtitle(visible, 200)
 
-    assert subtitle == "[^L] accept  [^D] delete"
+    assert subtitle == "[^T] accept  [^D] delete"
 
 
 def test_subtitle_is_empty_when_only_placeholder_is_visible() -> None:
@@ -229,4 +229,4 @@ async def test_panel_renders_plain_rows_when_signals_disabled() -> None:
         assert "reconcile" in rendered
         assert "▰" not in rendered
         assert "⇄" not in rendered
-        assert panel.border_subtitle == "[^L] accept  [^D] delete"
+        assert panel.border_subtitle == "[^T] accept  [^D] delete"

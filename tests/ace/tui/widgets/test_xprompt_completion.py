@@ -584,6 +584,29 @@ async def test_xprompt_enter_submits_unexpanded_text_while_menu_is_open() -> Non
     assert submitted == 1
 
 
+async def test_second_ctrl_t_redispatches_xprompt_menu() -> None:
+    entries = [
+        _entry("many"),
+        _entry("more"),
+    ]
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#m")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, entries)
+        await pilot.press("ctrl+t")
+
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt"
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "#m"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt"
+
+
 async def test_ctrl_t_required_text_before_existing_text_keeps_single_space() -> None:
     entries = [_entry("ask", inputs=(_input("body", "text"),))]
     app = CompletionTestApp()

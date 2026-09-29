@@ -81,6 +81,34 @@ class TestPromptFileCompletion:
             assert ta._file_completion_active is True
             assert bar._completion_visible is True
 
+    async def test_second_ctrl_t_redispatches_file_menu(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / "research").write_text("x", encoding="utf-8")
+        (tmp_path / "results").write_text("x", encoding="utf-8")
+        app = CompletionTestApp()
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("~/re")
+            ta.cursor_location = (0, 4)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("ctrl+t")
+
+                assert ta.text == "~/res"
+                assert ta._file_completion_active is True
+                assert ta._completion_kind == "file"
+
+                await pilot.press("ctrl+t")
+
+                assert ta.text == "~/res"
+                assert ta._file_completion_active is True
+                assert ta._completion_kind == "file"
+
     async def test_navigation_keys_update_highlight(
         self,
         tmp_path: Path,

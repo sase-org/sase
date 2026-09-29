@@ -94,6 +94,29 @@ async def test_ctrl_t_at_alias_partial_inserts_canonical_directive() -> None:
     ]
 
 
+async def test_second_ctrl_t_redispatches_directive_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%")
+        ta.cursor_location = (0, 1)
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            await pilot.press("ctrl+t")
+
+            assert ta._file_completion_active is True
+            assert ta._completion_kind == "directive"
+
+            await pilot.press("ctrl+t")
+
+            assert ta.text == "%"
+            assert ta._file_completion_active is True
+            assert ta._completion_kind == "directive"
+
+
 async def test_multi_candidate_directive_completion_accepts_ctrl_l() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:

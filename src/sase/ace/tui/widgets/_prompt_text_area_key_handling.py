@@ -31,10 +31,23 @@ from sase.ace.tui.widgets._prompt_text_area_key_g_prefix import (
 from sase.ace.tui.widgets._prompt_text_area_key_pairing import (
     PromptTextAreaKeyPairingMixin,
 )
+from sase.ace.tui.widgets.history_word_completion import (
+    HISTORY_WORD_COMPLETION_KIND,
+    HistoryWordCompletionPlaceholder,
+)
+from sase.ace.tui.widgets.prompt_word_completion import PROMPT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.vim_text_area import INSERT_NORMAL_MODE_KEYS
+
+# Completion kinds where a second Ctrl+T on the open menu accepts the
+# highlighted row instead of re-dispatching. The next-word-menu phase extends
+# this set with the next_word kind.
+WORD_MENU_CTRL_T_ACCEPT_KINDS = frozenset(
+    {PROMPT_WORD_COMPLETION_KIND, HISTORY_WORD_COMPLETION_KIND}
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
+    from sase.ace.tui.widgets.file_completion import CompletionCandidate
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
     from sase.ace.tui.widgets.xprompt_arg_assist import (
@@ -62,7 +75,10 @@ class PromptTextAreaKeyHandlingMixin(
     if TYPE_CHECKING:
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
         _pending_xprompt_completion_spacer: PendingXPromptCompletionSpacer | None
+        _completion_kind: str
         _file_completion_active: bool
+        _file_completion_candidates: list[CompletionCandidate]
+        _file_completion_index: int
         _pending_keys: str
         _vcs_mru_index: int | None
         _vim_mode: str
@@ -360,6 +376,23 @@ class PromptTextAreaKeyHandlingMixin(
                 event.prevent_default()
                 self._delete_selected_file_completion()
                 return
+            # A second Ctrl+T on an open prompt-word or history-word menu
+            # accepts the highlighted row. The loading placeholder still
+            # falls through to the Ctrl+T dispatch below, which refreshes
+            # once the cache is warm.
+            if (
+                event.key == "ctrl+t"
+                and self._completion_kind in WORD_MENU_CTRL_T_ACCEPT_KINDS
+                and 0
+                <= self._file_completion_index
+                < len(self._file_completion_candidates)
+            ):
+                selected = self._file_completion_candidates[self._file_completion_index]
+                if not isinstance(selected.metadata, HistoryWordCompletionPlaceholder):
+                    event.stop()
+                    event.prevent_default()
+                    self._accept_file_completion()
+                    return
 
         # Insert-mode ``ctrl+l`` accepts a soft completion when one is pending;
         # pane focus moved to the normal-mode ``K`` / ``J`` keys, so there is no

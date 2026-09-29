@@ -30,6 +30,7 @@ from sase.ace.tui.widgets.history_word_completion import (
     HistoryWordCompletionMetadata,
     HistoryWordCompletionPlaceholder,
 )
+from sase.ace.tui.widgets.prompt_word_completion import PROMPT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
     PlaceholderCompletionMetadata,
@@ -549,12 +550,14 @@ def completion_delete_subtitle(
     delete_hint = "[^L] accept  [^D] delete"
     if completion_kind == "file_history":
         return delete_hint
+    if completion_kind == PROMPT_WORD_COMPLETION_KIND:
+        return "[^T] accept"
     if completion_kind == HISTORY_WORD_COMPLETION_KIND:
         if visible and all(
             not isinstance(candidate.metadata, HistoryWordCompletionPlaceholder)
             for candidate in visible
         ):
-            return delete_hint
+            return "[^T] accept  [^D] delete"
         return ""
     if completion_kind == PLACEHOLDER_COMPLETION_KIND:
         legend = (

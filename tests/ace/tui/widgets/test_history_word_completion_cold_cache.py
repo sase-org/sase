@@ -107,3 +107,29 @@ async def test_warm_history_with_no_prefix_match_is_a_noop() -> None:
 
         assert ta.text == "rev"
         assert ta._file_completion_active is False
+
+
+async def test_second_ctrl_t_on_loading_placeholder_redispatches() -> None:
+    app = HistoryCompletionTestApp(None)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("rev")
+        ta.cursor_location = (0, 3)
+
+        await pilot.press("ctrl+t")
+
+        assert ta._file_completion_active is True
+        assert isinstance(
+            ta._file_completion_candidates[0].metadata,
+            HistoryWordCompletionPlaceholder,
+        )
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "rev"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == HISTORY_WORD_COMPLETION_KIND
+        assert isinstance(
+            ta._file_completion_candidates[0].metadata,
+            HistoryWordCompletionPlaceholder,
+        )

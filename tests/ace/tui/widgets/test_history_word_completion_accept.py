@@ -36,7 +36,7 @@ async def test_ctrl_t_opens_history_words_after_local_miss() -> None:
         rendered = panel.render()
         assert isinstance(rendered, Content)
         assert panel.border_title == "history words"
-        assert panel.border_subtitle == "[^L] accept  [^D] delete"
+        assert panel.border_subtitle == "[^T] accept  [^D] delete"
         assert "📁" not in rendered.plain
         assert "📄" not in rendered.plain
 
@@ -161,3 +161,37 @@ async def test_history_navigation_ctrl_l_accept_preserves_suffix() -> None:
         assert ta.text == "review ZZZ"
         assert ta.cursor_location == (0, len("review"))
         assert ta._file_completion_active is False
+
+
+async def test_second_ctrl_t_accepts_highlighted_history_word_row() -> None:
+    app = HistoryCompletionTestApp(["alpine", "alpha"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("al")
+        ta.cursor_location = (0, 2)
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "alp"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == HISTORY_WORD_COMPLETION_KIND
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "alpine"
+        assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
+
+
+async def test_ctrl_n_then_ctrl_t_accepts_second_history_word_row() -> None:
+    app = HistoryCompletionTestApp(["alpine", "alpha"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("al")
+        ta.cursor_location = (0, 2)
+
+        await pilot.press("ctrl+t", "ctrl+n", "ctrl+t")
+
+        assert ta.text == "alpha"
+        assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
