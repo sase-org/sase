@@ -9,6 +9,7 @@ from sase.ace.tui._agent_completion_models import AgentCompletionCandidate
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_kinds import (
     CompletionPanelKinds,
 )
+from sase.ace.tui.widgets._prompt_context_ranking import has_context_promotion
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     at_reference_directory_display,
 )
@@ -494,7 +495,29 @@ def history_word_completion_subtitle(
     if not has_metadata:
         return plain_hint
 
-    legend = ranking_signal_legend()
+    legend = ranking_signal_legend(with_context=has_context_promotion(visible))
+    legend.append("   ", style="dim")
+    legend.append(plain_hint, style="dim")
+
+    if inner_width > 0 and legend.cell_len > inner_width:
+        return plain_hint
+    return legend
+
+
+def prompt_word_completion_subtitle(
+    visible: list[CompletionCandidate],
+    inner_width: int,
+) -> Text | str:
+    """Return the prompt-word menu's border subtitle.
+
+    Menus with a context-promoted row name the sequence signal in the
+    legend; every other menu keeps exactly today's accept hint.
+    """
+    plain_hint = completion_delete_subtitle(PROMPT_WORD_COMPLETION_KIND, visible)
+    if not has_context_promotion(visible):
+        return plain_hint
+
+    legend = ranking_signal_legend(with_context=True)
     legend.append("   ", style="dim")
     legend.append(plain_hint, style="dim")
 

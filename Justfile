@@ -393,8 +393,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1cj(PromptPredictionSourceShares)' \
         --epic-symbol 'sase-1cj(prompt_prediction_candidate_from_dict)' \
         --epic-symbol 'sase-1cj(prompt_prediction_source_shares_from_dict)' \
-        --epic-symbol 'sase-1cj.8(PromptPrefixRankMatch)' \
-        --epic-symbol 'sase-1cj.8(prompt_prefix_rank_match_from_dict)' \
+        --epic-symbol 'sase-1cj(prompt_prefix_rank_match_from_dict)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -36,6 +36,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
     history_word_completion_subtitle,
     model_completion_subtitle,
     placeholder_completion_subtitle,
+    prompt_word_completion_subtitle,
     xprompt_arg_name_completion_subtitle,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
@@ -186,6 +187,11 @@ class PromptInputBarCompletionMixin(_MixinBase):
         delete_subtitle = completion_delete_subtitle(completion_kind, visible)
         if kinds.history_word and word_ranking_signals:
             panel.border_subtitle = history_word_completion_subtitle(
+                visible,
+                panel_inner_width,
+            )
+        elif kinds.prompt_word and word_ranking_signals:
+            panel.border_subtitle = prompt_word_completion_subtitle(
                 visible,
                 panel_inner_width,
             )

@@ -35,6 +35,8 @@ class PlaceholderRankingMetadata:
     relation: float
     recency: float
     frequency: float
+    context: float = 0.0
+    context_words: str = ""
 
 
 @dataclass(frozen=True, slots=True)

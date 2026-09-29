@@ -7582,7 +7582,11 @@ token under the cursor:
   applies to the complete candidate rather than the typed prefix. This provider scans
   only the current prompt pane and takes precedence over history words when it has an
   eligible match. Candidates are ordered nearest-first: the word you just wrote is the
-  one you are most likely repeating.
+  one you are most likely repeating. When the next-word model is warm, candidates it
+  predicts for the words before the cursor sort first instead, each marked with a violet
+  `⇢ <context>` chip naming the evidence context; the border subtitle then carries the
+  matching `⇢ context` legend entry. A cold or disabled model leaves nearest-first order
+  untouched.
 - **History-word completion**: When prompt-local words have no match, `Ctrl+T` filters
   recently used words derived from recorded prompt history using that same
   left-of-cursor prefix; any suffix under the cursor is never consulted to include or
@@ -7610,12 +7614,15 @@ token under the cursor:
   filled length is the composite score and whose cell colors show each signal's share,
   plus a dominant-reason chip — `⇄ <word>` for the context word it relates to, `◷ <age>`
   for recency, or `✦ <count>×` for frequency — and the panel's border subtitle carries a
-  matching `⇄ related · ◷ recent · ✦ frequent` color legend. The meter and chip are
-  dropped (leaving the word alone) on panels too narrow to fit them, and the legend
-  falls back to the plain `[^T] accept  [^D] delete` hint under the same width pressure.
-  Set `word_ranking: recent` to restore the previous most-recent-use ordering with no
-  signal column, or `word_ranking_signals: false` to keep smart ranking but hide the
-  meter, chip, and legend.
+  matching `⇄ related · ◷ recent · ✦ frequent` color legend. When the next-word model is
+  warm, rows it predicts for the words before the cursor sort first with a fourth,
+  violet meter share and a `⇢ <context>` chip naming the sequence evidence, and the
+  legend gains a matching `⇢ context` entry. The meter and chip are dropped (leaving the
+  word alone) on panels too narrow to fit them, and the legend falls back to the plain
+  `[^T] accept  [^D] delete` hint under the same width pressure. Set
+  `word_ranking: recent` to restore the previous most-recent-use ordering with no signal
+  column, or `word_ranking_signals: false` to keep smart ranking but hide the meter,
+  chip, and legend.
 
 - **Next-word prediction**: After every prompt-local or history-word commit, `Ctrl+T`
   arms a next-word chain. Confident guesses from your own typed prompt history appear as

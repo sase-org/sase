@@ -11,6 +11,9 @@ from sase.ace.tui.widgets._ranking_signal_rows import (
     ranking_label_width,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.history_word_completion import (
+    HistoryWordCompletionMetadata,
+)
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.placeholder_completion import PlaceholderCompletionMetadata
 from sase.ace.tui.widgets.xprompt_arg_assist import (
@@ -233,6 +236,30 @@ def append_prompt_word_completion_row(
     content: Text,
     candidate: CompletionCandidate,
     is_selected: bool,
+    *,
+    inner_width: int | None = None,
+    signals_enabled: bool = True,
 ) -> None:
-    """Append one prompt-local word without a file-type icon."""
+    """Append one prompt-local word without a file-type icon.
+
+    Rows the prediction model promotes for the preceding words append the
+    sequence-context chip after the word (dropped when it would not fit),
+    so promoted rows read as model-predicted without growing a meter
+    column this menu otherwise never shows. Every other row renders
+    exactly as before.
+    """
     content.append(candidate.display, style="bold" if is_selected else "")
+    metadata = (
+        candidate.metadata
+        if isinstance(candidate.metadata, HistoryWordCompletionMetadata)
+        else None
+    )
+    if metadata is None or metadata.reason != "context" or not signals_enabled:
+        return
+    chip = format_reason_chip(metadata)
+    used = cell_len(candidate.display) + 2 + chip.cell_len
+    available = None if inner_width is None else max(0, inner_width - 2)
+    if available is not None and used > available:
+        return
+    content.append("  ")
+    content.append_text(chip)

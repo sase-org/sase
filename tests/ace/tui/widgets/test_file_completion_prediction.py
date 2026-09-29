@@ -14,6 +14,8 @@ from sase.core.prompt_prediction_wire import (
     PromptPredictionCandidate,
     PromptPredictionResult,
     PromptPredictionSourceShares,
+    PromptPrefixRankMatch,
+    PromptPrefixRankResult,
 )
 
 
@@ -24,9 +26,11 @@ class _FakeModel:
         self,
         result: PromptPredictionResult | None = None,
         error: BaseException | None = None,
+        rank_result: PromptPrefixRankResult | None = None,
     ) -> None:
         self.result = result
         self.error = error
+        self.rank_result = rank_result
         self.requests: list[Any] = []
 
     def predict(self, request: Any) -> PromptPredictionResult:
@@ -35,6 +39,13 @@ class _FakeModel:
             raise self.error
         assert self.result is not None
         return self.result
+
+    def rank_prefix(self, request: Any) -> PromptPrefixRankResult:
+        self.requests.append(request)
+        if self.error is not None:
+            raise self.error
+        assert self.rank_result is not None
+        return self.rank_result
 
 
 class _StubApp:
@@ -190,3 +201,62 @@ def test_missing_app_provider_degrades_to_silence(
     assert widget._predict_next_words("help me") is None
     assert widget._prompt_prediction_project("help me") is None
     widget._schedule_prompt_prediction_load()  # Must not raise.
+
+
+def _rank_result(matches: list[str]) -> PromptPrefixRankResult:
+    return PromptPrefixRankResult(
+        schema_version=1,
+        context_words=["help", "me"],
+        matches=[
+            PromptPrefixRankMatch(
+                word=word, key=word.lower(), score=0.9, order=2, support=4
+            )
+            for word in matches
+        ],
+    )
+
+
+def test_rank_prefix_cold_without_model_degrades_to_silence(
+    widget: _StubWidget,
+) -> None:
+    assert widget._rank_prefix_context("help me ", "imp") is None
+
+
+def test_rank_prefix_passes_project_prefix_and_limit(
+    app: _StubApp, widget: _StubWidget
+) -> None:
+    app.model = _FakeModel(rank_result=_rank_result(["implement"]))
+    app.project = "sase"
+    ranked = widget._rank_prefix_context("help me ", "imp", limit=7)
+    assert ranked is not None
+    assert [match.word for match in ranked.matches] == ["implement"]
+    assert ranked.context_words == ["help", "me"]
+    assert app.model.requests[0].project == "sase"
+    assert app.model.requests[0].text_before_word == "help me "
+    assert app.model.requests[0].prefix == "imp"
+    assert app.model.requests[0].limit == 7
+
+
+def test_rank_prefix_drops_deleted_matches(app: _StubApp, widget: _StubWidget) -> None:
+    app.model = _FakeModel(rank_result=_rank_result(["implement", "obsolete"]))
+    app.deletions = frozenset({"obsolete"})
+    ranked = widget._rank_prefix_context("help me ", "imp")
+    assert ranked is not None
+    assert [match.word for match in ranked.matches] == ["implement"]
+
+
+def test_rank_prefix_failure_disables_session(
+    app: _StubApp, widget: _StubWidget
+) -> None:
+    app.model = _FakeModel(error=RuntimeError("core blew up"))
+    assert widget._rank_prefix_context("help me ", "imp") is None
+    assert app.disabled is True
+
+
+def test_rank_prefix_short_circuits_when_session_disabled(
+    app: _StubApp, widget: _StubWidget
+) -> None:
+    app.model = _FakeModel(rank_result=_rank_result(["implement"]))
+    app.disabled = True
+    assert widget._rank_prefix_context("help me ", "imp") is None
+    assert app.model.requests == []

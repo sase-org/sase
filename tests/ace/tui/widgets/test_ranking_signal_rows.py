@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from sase.ace.tui.widgets._ranking_signal_rows import (
     RECENCY_COLOR,
     RELATION_COLOR,
+    SEQUENCE_COLOR,
     _RankingSignals,
     build_score_meter,
     format_reason_chip,
@@ -27,6 +28,8 @@ class _Signals:
     relation: float
     recency: float
     frequency: float
+    context: float = 0.0
+    context_words: str = ""
 
 
 def test_ranking_signals_protocol_is_satisfied_structurally() -> None:
@@ -183,3 +186,72 @@ def test_ranking_signal_legend_lists_all_three_signals_in_order() -> None:
     legend = ranking_signal_legend()
 
     assert legend.plain == "⇄ related · ◷ recent · ✦ frequent"
+
+
+def test_score_meter_renders_violet_context_share_last() -> None:
+    signals = _Signals(
+        reason="context",
+        related_to="",
+        use_count=0,
+        age_seconds=0.0,
+        score=0.6,
+        relation=0.1,
+        recency=0.0,
+        frequency=0.0,
+        context=0.5,
+        context_words="help me",
+    )
+
+    meter = build_score_meter(signals)
+
+    assert meter.plain == "▰▰▰▱▱"
+    styles = [str(span.style) for span in meter.spans]
+    assert styles == [
+        f"bold {RELATION_COLOR}",
+        f"bold {SEQUENCE_COLOR}",
+        f"bold {SEQUENCE_COLOR}",
+        "dim",
+        "dim",
+    ]
+
+
+def test_reason_chip_shows_context_evidence_in_violet() -> None:
+    signals = _Signals(
+        reason="context",
+        related_to="",
+        use_count=0,
+        age_seconds=0.0,
+        score=0.4,
+        relation=0.0,
+        recency=0.0,
+        frequency=0.0,
+        context=0.25,
+        context_words="help me",
+    )
+
+    chip = format_reason_chip(signals)
+
+    assert chip.plain == "⇢ help me"
+    assert str(chip.spans[0].style) == f"bold {SEQUENCE_COLOR}"
+
+
+def test_reason_chip_context_without_words_shows_glyph_only() -> None:
+    signals = _Signals(
+        reason="context",
+        related_to="",
+        use_count=0,
+        age_seconds=0.0,
+        score=0.2,
+        relation=0.0,
+        recency=0.0,
+        frequency=0.0,
+        context=0.2,
+    )
+
+    assert format_reason_chip(signals).plain == "⇢"
+
+
+def test_ranking_signal_legend_with_context_appends_sequence_entry() -> None:
+    legend = ranking_signal_legend(with_context=True)
+
+    assert legend.plain == "⇄ related · ◷ recent · ✦ frequent · ⇢ context"

@@ -1,9 +1,10 @@
 """Provider-neutral score meter, reason chip, and legend for ranked rows.
 
 Shared by every completion provider that ranks candidates by relation,
-recency, and frequency (history words today, saved placeholders once phase
-``signals`` lands) so they render identical evidence from one small
-structural protocol rather than each provider's own metadata dataclass.
+recency, frequency, and n-gram sequence context (history words today, saved
+placeholders once phase ``signals`` lands) so they render identical evidence
+from one small structural protocol rather than each provider's own metadata
+dataclass.
 """
 
 from __future__ import annotations
@@ -36,11 +37,13 @@ _REASON_GLYPHS = {
     "relation": RELATION_GLYPH,
     "recency": RECENCY_GLYPH,
     "frequency": FREQUENCY_GLYPH,
+    "context": SEQUENCE_GLYPH,
 }
 _REASON_COLORS = {
     "relation": RELATION_COLOR,
     "recency": RECENCY_COLOR,
     "frequency": FREQUENCY_COLOR,
+    "context": SEQUENCE_COLOR,
 }
 
 
@@ -64,6 +67,10 @@ class _RankingSignals(Protocol):
     def recency(self) -> float: ...
     @property
     def frequency(self) -> float: ...
+    @property
+    def context(self) -> float: ...
+    @property
+    def context_words(self) -> str: ...
 
 
 def ranking_label_width(display: str, *, badge_cells: int, cap: int) -> int:
@@ -95,7 +102,7 @@ def build_score_meter(signals: _RankingSignals) -> Text:
 
     Filled length tracks ``signals.score``; the filled cells are colored by
     signal, largest-remainder distributed in a fixed relation -> recency ->
-    frequency order so the colors never shuffle between repaints.
+    frequency -> context order so the colors never shuffle between repaints.
     """
     filled = (
         0
@@ -117,8 +124,9 @@ def _meter_cell_colors(signals: _RankingSignals, filled: int) -> list[str]:
         (signals.relation, RELATION_COLOR),
         (signals.recency, RECENCY_COLOR),
         (signals.frequency, FREQUENCY_COLOR),
+        (signals.context, SEQUENCE_COLOR),
     )
-    total = signals.relation + signals.recency + signals.frequency
+    total = signals.relation + signals.recency + signals.frequency + signals.context
     if total <= 0:
         return [_REASON_COLORS.get(signals.reason, RECENCY_COLOR)] * filled
 
@@ -127,7 +135,7 @@ def _meter_cell_colors(signals: _RankingSignals, filled: int) -> list[str]:
     remainders = [share - base for share, base in zip(shares, bases, strict=True)]
 
     remaining = filled - sum(bases)
-    remainder_order = sorted(range(3), key=lambda i: (-remainders[i], i))
+    remainder_order = sorted(range(4), key=lambda i: (-remainders[i], i))
     for index in remainder_order[:remaining]:
         bases[index] += 1
 
@@ -143,6 +151,11 @@ def format_reason_chip(signals: _RankingSignals) -> Text:
     color = _REASON_COLORS.get(signals.reason, RECENCY_COLOR)
     chip = Text(no_wrap=True)
     chip.append(glyph, style=f"bold {color}")
+    if signals.reason == "context":
+        if signals.context_words:
+            chip.append(" ")
+            chip.append(truncate_cell(signals.context_words, _CONTEXT_WORD_MAX_CELLS))
+        return chip
     chip.append(" ")
     if signals.reason == "relation" and signals.related_to:
         chip.append(truncate_cell(signals.related_to, _CONTEXT_WORD_MAX_CELLS))
@@ -170,8 +183,12 @@ def _format_age(age_seconds: float) -> str:
     return f"{int(days / 7)}w"
 
 
-def ranking_signal_legend() -> Text:
-    """Return the colored relation/recency/frequency legend for ranked menus."""
+def ranking_signal_legend(*, with_context: bool = False) -> Text:
+    """Return the colored signal legend for ranked menus.
+
+    The sequence-context entry appears only when *with_context* is set, so
+    menus without a promoted row keep exactly today's legend.
+    """
     legend = Text(no_wrap=True)
     legend.append(RELATION_GLYPH, style=f"bold {RELATION_COLOR}")
     legend.append(" related", style="dim")
@@ -181,4 +198,8 @@ def ranking_signal_legend() -> Text:
     legend.append(" · ", style="dim")
     legend.append(FREQUENCY_GLYPH, style=f"bold {FREQUENCY_COLOR}")
     legend.append(" frequent", style="dim")
+    if with_context:
+        legend.append(" · ", style="dim")
+        legend.append(SEQUENCE_GLYPH, style=f"bold {SEQUENCE_COLOR}")
+        legend.append(" context", style="dim")
     return legend

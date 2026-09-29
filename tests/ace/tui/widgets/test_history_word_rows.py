@@ -9,6 +9,7 @@ from sase.ace.tui.widgets._history_word_rows import (
     append_history_word_completion_row,
     history_word_label_width,
 )
+from sase.ace.tui.widgets._ranking_signal_rows import SEQUENCE_COLOR
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
     history_word_completion_subtitle,
 )
@@ -135,6 +136,57 @@ def test_row_renders_placeholder_dim_italic() -> None:
 
     assert rendered.plain == placeholder.display
     assert str(rendered.spans[0].style) == "dim italic"
+
+
+def _context_candidate(word: str) -> CompletionCandidate:
+    return CompletionCandidate(
+        display=word,
+        insertion=word,
+        is_dir=False,
+        name=word,
+        metadata=HistoryWordCompletionMetadata(
+            reason="context",
+            related_to="",
+            use_count=0,
+            age_seconds=0.0,
+            score=0.7,
+            relation=0.1,
+            recency=0.1,
+            frequency=0.0,
+            context=0.5,
+            context_order=2,
+            context_support=4,
+            context_words="help me",
+        ),
+    )
+
+
+def test_row_renders_violet_share_and_context_chip_when_promoted() -> None:
+    candidate = _context_candidate("implement")
+
+    rendered = _render_row(candidate, label_width=14, inner_width=40)
+
+    assert rendered.plain == "implement" + " " * 7 + "▰▰▰▰▱" + "  " + "⇢ help me"
+    styles = [str(span.style) for span in rendered.spans]
+    assert f"bold {SEQUENCE_COLOR}" in styles
+
+
+def test_subtitle_names_context_legend_entry_when_promoted_row_visible() -> None:
+    visible = [_context_candidate("implement"), _ranked_candidate("important")]
+
+    subtitle = history_word_completion_subtitle(visible, 200)
+
+    assert isinstance(subtitle, Text)
+    assert "⇢ context" in subtitle.plain
+
+
+def test_subtitle_omits_context_legend_entry_without_promotion() -> None:
+    visible = [_ranked_candidate("implement")]
+
+    subtitle = history_word_completion_subtitle(visible, 200)
+
+    assert isinstance(subtitle, Text)
+    assert "⇢ context" not in subtitle.plain
 
 
 def test_subtitle_shows_legend_when_wide_and_metadata_present() -> None:

@@ -328,7 +328,13 @@ def _append_candidate_row(
             signals_enabled=placeholder_ranking_signals,
         )
     elif kinds.prompt_word:
-        append_prompt_word_completion_row(content, candidate, is_selected)
+        append_prompt_word_completion_row(
+            content,
+            candidate,
+            is_selected,
+            inner_width=inner_width,
+            signals_enabled=word_ranking_signals,
+        )
     elif kinds.history_word:
         append_history_word_completion_row(
             content,

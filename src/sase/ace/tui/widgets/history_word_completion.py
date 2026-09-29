@@ -31,7 +31,13 @@ class HistoryWordCompletionPlaceholder:
 
 @dataclass(frozen=True, slots=True)
 class HistoryWordCompletionMetadata:
-    """Ranking evidence carried by one smart-ranked history-word candidate."""
+    """Ranking evidence carried by one smart-ranked history-word candidate.
+
+    ``context`` carries the n-gram sequence contribution for rows the
+    prediction model promotes for the preceding words (``reason`` is then
+    ``"context"`` and ``context_words`` names the evidence context); it is
+    zero on every other row so meters, chips, and legends render unchanged.
+    """
 
     reason: str
     related_to: str
@@ -41,6 +47,10 @@ class HistoryWordCompletionMetadata:
     relation: float
     recency: float
     frequency: float
+    context: float = 0.0
+    context_order: int = 0
+    context_support: int = 0
+    context_words: str = ""
 
 
 def build_history_word_completion_result(

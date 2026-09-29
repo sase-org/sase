@@ -199,12 +199,33 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         self,
         cursor_offset: int,
     ) -> WordCompletionResult | None:
-        """Build prompt-local words with the configured shared threshold."""
-        return build_prompt_word_completion_result(
+        """Build prompt-local words with the configured shared threshold.
+
+        Candidates the prediction model forecasts for the preceding words
+        sort first and carry context evidence for the sequence signal; a
+        cold or disabled model leaves the nearest-first order untouched.
+        """
+        from dataclasses import replace
+
+        from sase.ace.tui.widgets._prompt_context_ranking import (
+            apply_context_promotion,
+        )
+
+        result = build_prompt_word_completion_result(
             self.text,
             cursor_offset,
             min_length=self._prompt_completion_settings().word_min_length,
         )
+        if result is None:
+            return None
+        ranked = self._rank_prefix_context(
+            self.text[: result.replacement_start],
+            result.prefix,
+        )
+        promoted = apply_context_promotion(result.candidates, ranked)
+        if promoted is result.candidates:
+            return result
+        return replace(result, candidates=promoted)
 
     def _commit_word_completion(
         self,

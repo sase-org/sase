@@ -18,7 +18,10 @@ from sase.ace.tui.widgets._file_completion_workers import FileCompletionWorkerMi
 
 if TYPE_CHECKING:
     from sase.core.prompt_prediction_facade import PromptPredictionModel
-    from sase.core.prompt_prediction_wire import PromptPredictionResult
+    from sase.core.prompt_prediction_wire import (
+        PromptPredictionResult,
+        PromptPrefixRankResult,
+    )
 
 log = logging.getLogger(__name__)
 
@@ -101,6 +104,63 @@ class FileCompletionPredictionMixin(FileCompletionWorkerMixin):
             self._disable_prompt_prediction_for_session()
             return None
         return self._post_filter_deleted_words(result)
+
+    def _rank_prefix_context(
+        self,
+        text_before_word: str,
+        prefix: str,
+        *,
+        limit: int | None = None,
+    ) -> PromptPrefixRankResult | None:
+        """Return prefix-rank matches for the current word, or ``None``.
+
+        Silence covers ``next_word: off``, the cold model, a
+        session-disabled feature, and any prediction failure (which disables
+        the feature for the session and logs once). History-deleted words
+        are dropped, so ``Ctrl+D`` forget applies to context promotion
+        without waiting for a corpus rebuild.
+        """
+        from sase.ace.tui.widgets._prompt_context_ranking import CONTEXT_RANK_LIMIT
+        from sase.core.prompt_prediction_wire import PromptPrefixRankRequest
+
+        try:
+            settings = getattr(self, "_prompt_completion_settings", None)
+            if callable(settings):
+                mode = getattr(settings(), "next_word", "chain")
+                if mode == "off":
+                    return None
+        except Exception:
+            pass
+        if self._prompt_prediction_session_disabled():
+            return None
+        model = self._prompt_prediction_model()
+        if model is None:
+            return None
+        try:
+            result = model.rank_prefix(
+                PromptPrefixRankRequest(
+                    text_before_word=text_before_word,
+                    prefix=prefix,
+                    project=self._prompt_prediction_project(text_before_word),
+                    limit=limit if limit is not None else CONTEXT_RANK_LIMIT,
+                )
+            )
+        except Exception:
+            self._disable_prompt_prediction_for_session()
+            return None
+        return self._post_filter_deleted_matches(result)
+
+    def _post_filter_deleted_matches(
+        self, result: PromptPrefixRankResult
+    ) -> PromptPrefixRankResult:
+        """Drop history-deleted words from a prefix-rank result."""
+        deletions = self._prediction_deleted_words()
+        if not deletions:
+            return result
+        matches = [match for match in result.matches if match.key not in deletions]
+        if len(matches) == len(result.matches):
+            return result
+        return replace(result, matches=matches)
 
     def _prompt_prediction_project(self, text_before_cursor: str) -> str | None:
         """Resolve the draft's project key without disk I/O."""

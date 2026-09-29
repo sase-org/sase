@@ -94,6 +94,11 @@ class FileCompletionHistoryMixin(FileCompletionPredictionMixin):
         is responsible for handling the cold-cache case (see
         :meth:`_history_word_cache_is_cold`) before calling this.
         """
+        from dataclasses import replace
+
+        from sase.ace.tui.widgets._prompt_context_ranking import (
+            apply_context_promotion,
+        )
         from sase.ace.tui.widgets.history_word_completion import (
             build_history_word_completion_result,
             build_indexed_history_word_completion_result,
@@ -103,7 +108,7 @@ class FileCompletionHistoryMixin(FileCompletionPredictionMixin):
             index = self._history_prompt_word_index()
             if index is None:
                 return None
-            return build_indexed_history_word_completion_result(
+            result = build_indexed_history_word_completion_result(
                 self.text,
                 cursor_offset,
                 index,
@@ -111,12 +116,25 @@ class FileCompletionHistoryMixin(FileCompletionPredictionMixin):
                 now=time.time(),
                 smart=self._history_word_ranking_mode() == "smart",
             )
+        else:
+            if words is None:
+                words = self._history_prompt_words()
+            if words is None:
+                return None
+            result = build_history_word_completion_result(
+                self.text, cursor_offset, words
+            )
 
-        if words is None:
-            words = self._history_prompt_words()
-        if words is None:
+        if result is None:
             return None
-        return build_history_word_completion_result(self.text, cursor_offset, words)
+        ranked = self._rank_prefix_context(
+            self.text[: result.replacement_start],
+            result.prefix,
+        )
+        promoted = apply_context_promotion(result.candidates, ranked)
+        if promoted is result.candidates:
+            return result
+        return replace(result, candidates=promoted)
 
     def _schedule_history_word_completion_load(self) -> None:
         """Ask the app cache to warm for an active cold history menu."""
