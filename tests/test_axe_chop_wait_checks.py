@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-import sase.scripts.sase_chop_wait_checks as wait_checks_module
+import sase.scripts._chop_wait_checks_run as wait_checks_module
 from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
     dependency_resolution_status,

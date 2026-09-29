@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 import sase.scripts.sase_chop_bead_claim_checks as claim_checks
-import sase.scripts.sase_chop_wait_checks as wait_checks_module
+import sase.scripts._chop_wait_checks_run as wait_checks_module
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     rebuild_agent_artifact_index,

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-import sase.scripts.sase_chop_wait_checks as wait_checks
+import sase.scripts._chop_wait_checks_run as wait_checks
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import (
     make_waiting_agent,

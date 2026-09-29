@@ -257,7 +257,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "check by the liveness prober; no marker is written here."
         ),
     ),
-    "src/sase/scripts/sase_chop_wait_checks.py:_run": PathPassingReview(
+    "src/sase/scripts/_chop_wait_checks_run.py:_run": PathPassingReview(
         exemption=(
             "Run-scoped agent_meta.json read cache: marker paths are dict "
             "keys for reusing already-loaded metadata in the confirmation "

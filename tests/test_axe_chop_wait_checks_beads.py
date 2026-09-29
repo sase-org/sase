@@ -10,7 +10,7 @@ import pytest
 
 import sase.bead.store_locator as bead_store_locator
 import sase.scripts.sase_chop_sidecar_auto_sync as sidecar_auto_sync_chop
-import sase.scripts.sase_chop_wait_checks as wait_checks_module
+import sase.scripts._chop_wait_checks_run as wait_checks_module
 from sase._sidecar_auto_sync import SidecarSyncResult
 from sase.axe.chop_script_context import ChopScriptContext
 from sase.bead.model import IssueType
