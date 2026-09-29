@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         PromptPredictionModel,
     )
     from sase.core.prompt_prediction_wire import PromptPredictionRow
+    from sase.history.prompt_prediction_archive import ArchivePredictionToken
     from sase.history.prompt_prediction_rows import (
         PromptPredictionProjectResolver,
         PromptPredictionSourceToken,
@@ -40,6 +41,9 @@ class _PromptPredictionLoadResult:
     source_token: PromptPredictionSourceToken
     history_corpus: PromptPredictionCorpus | None
     session_corpus: PromptPredictionCorpus | None
+    archive_corpus: PromptPredictionCorpus | None
+    archive_token: ArchivePredictionToken | None
+    archive_built_at: float
     model: PromptPredictionModel | None
     history_texts: frozenset[str]
     resolver: PromptPredictionProjectResolver | None
@@ -50,6 +54,10 @@ class StartupPromptPredictionMixin:
 
     _prompt_prediction_history_corpus: PromptPredictionCorpus | None
     _prompt_prediction_session_corpus: PromptPredictionCorpus | None
+    _prompt_prediction_archive_corpus: PromptPredictionCorpus | None
+    _prompt_prediction_archive_token: ArchivePredictionToken | None
+    _prompt_prediction_archive_built_at: float
+    _prompt_prediction_archive_primed: bool
     _prompt_prediction_model: PromptPredictionModel | None
     _prompt_prediction_source_token: PromptPredictionSourceToken | None
     _prompt_prediction_history_texts: frozenset[str]
@@ -117,6 +125,13 @@ class StartupPromptPredictionMixin:
             or self._prompt_prediction_history_corpus is not None
             else None
         )
+        # The archive corpus first builds after first paint: the priming
+        # swap below schedules a follow-up warm, so the startup pass keeps
+        # first paint off the multi-thousand-document archive read.
+        include_archive = (
+            bool(self._prompt_prediction_archive_primed)
+            and self._prompt_prediction_archive_enabled()
+        )
 
         async def run_rebuild() -> None:
             await self._run_prompt_prediction_rebuild(
@@ -127,6 +142,10 @@ class StartupPromptPredictionMixin:
                 session_dirty=session_dirty,
                 known_history_texts=self._prompt_prediction_history_texts,
                 known_resolver=self._prompt_prediction_project_resolver,
+                include_archive=include_archive,
+                archive_corpus=self._prompt_prediction_archive_corpus,
+                archive_token=self._prompt_prediction_archive_token,
+                archive_built_at=self._prompt_prediction_archive_built_at,
             )
 
         try:
@@ -173,6 +192,21 @@ class StartupPromptPredictionMixin:
         except Exception:
             log.debug("Failed to schedule session prediction rebuild", exc_info=True)
 
+    def _prompt_prediction_archive_enabled(self: Any) -> bool:
+        """Return whether the archive source is enabled, without disk I/O."""
+        try:
+            settings = self.get_prompt_completion_settings()
+        except Exception:
+            return False
+        try:
+            sources = getattr(settings, "next_word_sources", ("history",))
+        except Exception:
+            return False
+        return any(
+            isinstance(item, str) and item.strip().lower() == "archive"
+            for item in (sources if isinstance(sources, (list, tuple)) else ())
+        )
+
     def _prompt_bar_project_key(self: Any) -> str | None:
         """Return the mounted prompt bar's project key from memory, if known."""
         try:
@@ -196,6 +230,10 @@ class StartupPromptPredictionMixin:
         session_dirty: bool,
         known_history_texts: frozenset[str],
         known_resolver: PromptPredictionProjectResolver | None,
+        include_archive: bool,
+        archive_corpus: PromptPredictionCorpus | None,
+        archive_token: ArchivePredictionToken | None,
+        archive_built_at: float,
     ) -> None:
         """Build prediction corpora off-thread and swap them on the UI task."""
         import asyncio
@@ -210,6 +248,10 @@ class StartupPromptPredictionMixin:
                 session_dirty=session_dirty,
                 known_history_texts=known_history_texts,
                 known_resolver=known_resolver,
+                include_archive=include_archive,
+                archive_corpus=archive_corpus,
+                archive_token=archive_token,
+                archive_built_at=archive_built_at,
             )
         except (AttributeError, ImportError):
             if not self._prompt_prediction_unavailable:
@@ -242,6 +284,9 @@ class StartupPromptPredictionMixin:
         """Atomically publish freshly built corpora and the composed model."""
         self._prompt_prediction_history_corpus = result.history_corpus
         self._prompt_prediction_session_corpus = result.session_corpus
+        self._prompt_prediction_archive_corpus = result.archive_corpus
+        self._prompt_prediction_archive_token = result.archive_token
+        self._prompt_prediction_archive_built_at = result.archive_built_at
         self._prompt_prediction_model = result.model
         self._prompt_prediction_source_token = result.source_token
         self._prompt_prediction_history_texts = result.history_texts
@@ -251,6 +296,14 @@ class StartupPromptPredictionMixin:
             self._prompt_prediction_session_texts = _prune_session_texts(
                 self._prompt_prediction_session_texts, result.history_texts
             )
+        if not self._prompt_prediction_archive_primed:
+            # First paint has happened by the time a model lands: prime the
+            # archive lane so the next warm may build it off-thread.
+            self._prompt_prediction_archive_primed = True
+            try:
+                self.warm_prompt_prediction()
+            except Exception:
+                log.debug("Failed to schedule archive prediction warm", exc_info=True)
         self._refresh_visible_prompt_prediction_surfaces()
 
     def _refresh_visible_prompt_prediction_surfaces(self: Any) -> None:
@@ -295,19 +348,32 @@ def _load_prompt_prediction_caches(
     session_dirty: bool,
     known_history_texts: frozenset[str],
     known_resolver: PromptPredictionProjectResolver | None,
+    include_archive: bool,
+    archive_corpus: PromptPredictionCorpus | None,
+    archive_token: ArchivePredictionToken | None,
+    archive_built_at: float,
 ) -> _PromptPredictionLoadResult | None:
     """Read row inputs and compile corpora, rebuilding only what went stale.
 
     A deletions-only change recompiles just the session corpus (when session
     texts exist); history keeps its baked-in exclusions until the next
     history rebuild, and the widget post-filter covers predictions in the
-    meantime.
+    meantime. The archive corpus rebuilds only on token change and at most
+    every ten minutes; disabling the source drops it without a rebuild.
     """
+    import time as _time
+
     from sase.core.prompt_prediction_facade import (
         PromptPredictionCorpus,
         PromptPredictionModel,
     )
     from sase.core.prompt_prediction_wire import PromptPredictionModelConfig
+    from sase.history.prompt_prediction_archive import (
+        ARCHIVE_CORPUS_WEIGHT,
+        ARCHIVE_REBUILD_MIN_INTERVAL_SECONDS,
+        ARCHIVE_SOURCE_ROLE,
+        archive_prediction_source_token,
+    )
     from sase.history.prompt_prediction_rows import (
         build_prompt_prediction_project_resolver,
         build_prompt_prediction_rows,
@@ -321,17 +387,40 @@ def _load_prompt_prediction_caches(
     history_stale = previous_token is None or previous_shards != source_token[0]
     deletions_stale = previous_deletions != source_token[1]
 
+    now = _time.time()
+    archive_token_now = archive_prediction_source_token() if include_archive else None
+    archive_throttled = (
+        archive_built_at > 0
+        and now - archive_built_at < ARCHIVE_REBUILD_MIN_INTERVAL_SECONDS
+    )
+    if include_archive:
+        archive_stale = archive_token is None or archive_token_now != archive_token
+        want_archive_rebuild = (archive_stale or archive_corpus is None) and (
+            not archive_throttled
+        )
+    else:
+        archive_stale = archive_corpus is not None
+        want_archive_rebuild = False
+
     pruned_session = tuple(
         (text, epoch) for text, epoch in session_texts if text and text.strip()
     )
-    if not history_stale and not session_dirty and not deletions_stale:
+    if (
+        not history_stale
+        and not session_dirty
+        and not deletions_stale
+        and not archive_stale
+        and not want_archive_rebuild
+    ):
         return None
 
     resolver = known_resolver
     history_texts = known_history_texts
+    history_seed: list[str] | None = None
     if history_stale:
         resolver = build_prompt_prediction_project_resolver()
         rows = build_prompt_prediction_rows(resolve_project=resolver.resolve)
+        history_seed = [row.text for row in rows]
         history_texts = frozenset(normalize_session_text(row.text) for row in rows)
         pruned_session = tuple(
             (text, epoch)
@@ -349,11 +438,28 @@ def _load_prompt_prediction_caches(
         session_rows = _session_rows(pruned_session, resolver)
         session_corpus = _compile_session_corpus(session_rows) if session_rows else None
 
+    if want_archive_rebuild:
+        rebuilt = _compile_archive_corpus(history_seed)
+        if rebuilt is not None:
+            archive_corpus = rebuilt
+            archive_built_at = now
+        else:
+            # No archive rows (or a failed compile): drop any stale corpus
+            # but still record the token, so later warms retry only when
+            # the month directories actually change.
+            archive_corpus = None
+        archive_token = archive_token_now
+    elif not include_archive:
+        archive_corpus = None
+        archive_token = None
+
     sources: list[tuple[PromptPredictionCorpus, str, float]] = []
     if history_corpus is not None:
         sources.append((history_corpus, "history", 1.0))
     if session_corpus is not None:
         sources.append((session_corpus, "session", 1.0))
+    if include_archive and archive_corpus is not None:
+        sources.append((archive_corpus, ARCHIVE_SOURCE_ROLE, ARCHIVE_CORPUS_WEIGHT))
     model: PromptPredictionModel | None = None
     if sources:
         model = PromptPredictionModel.compose(sources, PromptPredictionModelConfig())
@@ -362,6 +468,9 @@ def _load_prompt_prediction_caches(
         source_token=source_token,
         history_corpus=history_corpus,
         session_corpus=session_corpus,
+        archive_corpus=archive_corpus if include_archive else None,
+        archive_token=archive_token if include_archive else None,
+        archive_built_at=archive_built_at,
         model=model,
         history_texts=history_texts,
         resolver=resolver,
@@ -424,3 +533,40 @@ def _compile_session_corpus(
             excluded_words=sorted(load_deleted_prompt_words()),
         ),
     )
+
+
+def _compile_archive_corpus(
+    history_seed: list[str] | None,
+) -> PromptPredictionCorpus | None:
+    """Compile pruned archive rows, or ``None`` when there is nothing to add.
+
+    Never raises: an empty archive or a failed read degrades the model to
+    history-only, and the caller records the token so the next attempt waits
+    for the month directories to change.
+    """
+    import time as _time
+
+    from sase.core.prompt_prediction_facade import PromptPredictionCorpus
+    from sase.core.prompt_prediction_wire import PromptPredictionCorpusOptions
+    from sase.history.prompt_prediction_archive import build_archive_prediction_rows
+    from sase.history.prompt_word_deletions import load_deleted_prompt_words
+
+    try:
+        rows = build_archive_prediction_rows(history_texts=history_seed)
+    except Exception:
+        log.debug("Archive prediction rows failed", exc_info=True)
+        return None
+    if not rows:
+        return None
+    try:
+        return PromptPredictionCorpus.compile(
+            rows,
+            PromptPredictionCorpusOptions(
+                now_epoch=int(_time.time()),
+                prune_singleton_contexts=True,
+                excluded_words=sorted(load_deleted_prompt_words()),
+            ),
+        )
+    except Exception:
+        log.debug("Archive prediction compile failed", exc_info=True)
+        return None

@@ -54,6 +54,7 @@ if TYPE_CHECKING:
         PromptPredictionCorpus,
         PromptPredictionModel,
     )
+    from sase.history.prompt_prediction_archive import ArchivePredictionToken
     from sase.history.prompt_prediction_rows import (
         PromptPredictionProjectResolver,
         PromptPredictionSourceToken,
@@ -218,6 +219,10 @@ class StartupMixin(
     _history_prompt_words_rebuild_pending: bool
     _prompt_prediction_history_corpus: PromptPredictionCorpus | None
     _prompt_prediction_session_corpus: PromptPredictionCorpus | None
+    _prompt_prediction_archive_corpus: PromptPredictionCorpus | None
+    _prompt_prediction_archive_token: ArchivePredictionToken | None
+    _prompt_prediction_archive_built_at: float
+    _prompt_prediction_archive_primed: bool
     _prompt_prediction_model: PromptPredictionModel | None
     _prompt_prediction_source_token: PromptPredictionSourceToken | None
     _prompt_prediction_history_texts: frozenset[str]

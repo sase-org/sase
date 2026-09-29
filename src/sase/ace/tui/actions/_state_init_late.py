@@ -273,6 +273,10 @@ def init_late_startup_state(
     self._history_prompt_words_rebuild_pending = False
     self._prompt_prediction_history_corpus = None
     self._prompt_prediction_session_corpus = None
+    self._prompt_prediction_archive_corpus = None
+    self._prompt_prediction_archive_token = None
+    self._prompt_prediction_archive_built_at = 0.0
+    self._prompt_prediction_archive_primed = False
     self._prompt_prediction_model = None
     self._prompt_prediction_source_token = None
     self._prompt_prediction_history_texts = frozenset()

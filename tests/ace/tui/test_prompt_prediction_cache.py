@@ -43,6 +43,10 @@ class _PredictionCacheApp(StartupPromptPredictionMixin):
     def __init__(self) -> None:
         self._prompt_prediction_history_corpus = None
         self._prompt_prediction_session_corpus = None
+        self._prompt_prediction_archive_corpus = None
+        self._prompt_prediction_archive_token = None
+        self._prompt_prediction_archive_built_at = 0.0
+        self._prompt_prediction_archive_primed = False
         self._prompt_prediction_model = None
         self._prompt_prediction_source_token = None
         self._prompt_prediction_history_texts = frozenset()
@@ -97,6 +101,10 @@ def test_loader_builds_and_composes_on_first_warm() -> None:
             session_dirty=False,
             known_history_texts=frozenset(),
             known_resolver=None,
+            include_archive=False,
+            archive_corpus=None,
+            archive_token=None,
+            archive_built_at=0.0,
         )
     assert result is not None
     assert result.source_token == _SOURCE_TOKEN
@@ -135,6 +143,10 @@ def test_loader_skips_rebuild_for_unchanged_token() -> None:
             session_dirty=False,
             known_history_texts=frozenset(),
             known_resolver=None,
+            include_archive=False,
+            archive_corpus=None,
+            archive_token=None,
+            archive_built_at=0.0,
         )
     assert result is None
     build.assert_not_called()
@@ -166,6 +178,10 @@ def test_loader_rebuilds_only_session_when_history_fresh() -> None:
             session_dirty=True,
             known_history_texts=frozenset(),
             known_resolver=PromptPredictionProjectResolver(mapping={}),
+            include_archive=False,
+            archive_corpus=None,
+            archive_token=None,
+            archive_built_at=0.0,
         )
     assert result is not None
     assert result.history_corpus is history_corpus
@@ -183,6 +199,11 @@ async def test_warm_swaps_atomically_and_prunes_session() -> None:
     patches = _loader_patches()
     with patches[0], patches[1], patches[2], patches[3]:
         app.warm_prompt_prediction()
+        assert app.worker_task is not None
+        await app.worker_task
+        # The priming swap schedules a post-paint follow-up warm, which
+        # is a no-op here because the archive source is not enabled.
+        assert app._prompt_prediction_archive_primed is True
         assert app.worker_task is not None
         await app.worker_task
 
@@ -289,3 +310,179 @@ def test_disable_is_session_scoped_and_idempotent() -> None:
     app.disable_prompt_prediction()
     app.disable_prompt_prediction()
     assert app.prompt_prediction_disabled() is True
+
+
+_ARCHIVE_TOKEN = (("sase", "202609", 7, 3),)
+
+
+def _archive_rows() -> list[PromptPredictionRow]:
+    return [
+        PromptPredictionRow(
+            text="archived prose about the plan",
+            epoch_seconds=200,
+            project="sase",
+        )
+    ]
+
+
+def test_loader_builds_pruned_archive_at_low_weight() -> None:
+    from sase.core.prompt_prediction_facade import (
+        PromptPredictionCorpus,
+        PromptPredictionModel,
+    )
+
+    real_compile = PromptPredictionCorpus.compile
+    real_compose = PromptPredictionModel.compose
+    seen_options: list[Any] = []
+    seen_sources: list[list[tuple[str, float]]] = []
+
+    def spy_compile(rows: Any, options: Any) -> Any:  # type: ignore[no-untyped-def]
+        seen_options.append(options)
+        return real_compile(rows, options)
+
+    def spy_compose(sources: Any, config: Any) -> Any:  # type: ignore[no-untyped-def]
+        seen_sources.append([(role, weight) for _corpus, role, weight in sources])
+        return real_compose(sources, config)
+
+    patches = _loader_patches()
+    with (
+        patches[0],
+        patches[1],
+        patches[2],
+        patches[3],
+        patch(
+            "sase.history.prompt_prediction_archive.archive_prediction_source_token",
+            return_value=_ARCHIVE_TOKEN,
+        ),
+        patch(
+            "sase.history.prompt_prediction_archive.build_archive_prediction_rows",
+            return_value=_archive_rows(),
+        ),
+        patch.object(
+            PromptPredictionCorpus, "compile", autospec=True, side_effect=spy_compile
+        ),
+        patch.object(
+            PromptPredictionModel, "compose", autospec=True, side_effect=spy_compose
+        ),
+    ):
+        result = _load_prompt_prediction_caches(
+            previous_token=None,
+            history_corpus=None,
+            session_corpus=None,
+            session_texts=(),
+            session_dirty=False,
+            known_history_texts=frozenset(),
+            known_resolver=None,
+            include_archive=True,
+            archive_corpus=None,
+            archive_token=None,
+            archive_built_at=0.0,
+        )
+    assert result is not None
+    assert result.archive_corpus is not None
+    assert result.archive_token == _ARCHIVE_TOKEN
+    assert result.archive_built_at > 0
+    # The archive compile prunes singleton contexts; history does not.
+    assert [options.prune_singleton_contexts for options in seen_options] == [
+        False,
+        True,
+    ]
+    assert seen_sources and seen_sources[-1] == [
+        ("history", 1.0),
+        ("archive", 0.25),
+    ]
+
+
+def test_loader_skips_archive_rebuild_within_throttle() -> None:
+    import time as _time
+
+    from sase.core.prompt_prediction_facade import PromptPredictionCorpus
+
+    patches = _loader_patches()
+    with (
+        patches[0],
+        patch(
+            "sase.history.prompt_prediction_archive.archive_prediction_source_token",
+            return_value=_ARCHIVE_TOKEN,
+        ),
+        patch(
+            "sase.history.prompt_prediction_archive.build_archive_prediction_rows",
+        ) as build_archive,
+        patch.object(PromptPredictionCorpus, "compile", autospec=True) as compile,
+    ):
+        result = _load_prompt_prediction_caches(
+            previous_token=_SOURCE_TOKEN,
+            history_corpus=object(),
+            session_corpus=None,
+            session_texts=(),
+            session_dirty=False,
+            known_history_texts=frozenset(),
+            known_resolver=None,
+            include_archive=True,
+            archive_corpus=object(),
+            archive_token=_ARCHIVE_TOKEN,
+            archive_built_at=_time.time(),
+        )
+    assert result is None
+    build_archive.assert_not_called()
+    compile.assert_not_called()
+
+
+def test_loader_drops_archive_when_source_disabled() -> None:
+    from sase.core.prompt_prediction_facade import (
+        PromptPredictionCorpus,
+        PromptPredictionModel,
+    )
+    from sase.core.prompt_prediction_wire import PromptPredictionCorpusOptions
+
+    history_corpus = PromptPredictionCorpus.compile(
+        _rows(), PromptPredictionCorpusOptions(now_epoch=200)
+    )
+    real_compose = PromptPredictionModel.compose
+    seen_sources: list[list[tuple[str, float]]] = []
+
+    def spy_compose(sources: Any, config: Any) -> Any:  # type: ignore[no-untyped-def]
+        seen_sources.append([(role, weight) for _corpus, role, weight in sources])
+        return real_compose(sources, config)
+
+    patches = _loader_patches()
+    with (
+        patches[0],
+        patches[1],
+        patches[2],
+        patches[3],
+        patch.object(
+            PromptPredictionModel, "compose", autospec=True, side_effect=spy_compose
+        ),
+    ):
+        result = _load_prompt_prediction_caches(
+            previous_token=_SOURCE_TOKEN,
+            history_corpus=history_corpus,
+            session_corpus=None,
+            session_texts=(),
+            session_dirty=False,
+            known_history_texts=frozenset(),
+            known_resolver=None,
+            include_archive=False,
+            archive_corpus=object(),
+            archive_token=_ARCHIVE_TOKEN,
+            archive_built_at=0.0,
+        )
+    assert result is not None
+    assert result.archive_corpus is None
+    assert result.archive_token is None
+    assert seen_sources and all(
+        role != "archive" for roles in seen_sources for role, _ in roles
+    )
+
+
+def test_compile_archive_corpus_never_raises() -> None:
+    from sase.ace.tui.actions._startup_prompt_prediction import (
+        _compile_archive_corpus,
+    )
+
+    with patch(
+        "sase.history.prompt_prediction_archive.build_archive_prediction_rows",
+        side_effect=OSError("sidecar gone"),
+    ):
+        assert _compile_archive_corpus(None) is None

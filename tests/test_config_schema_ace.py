@@ -268,6 +268,23 @@ def test_prompt_completion_next_word_default_contract() -> None:
         "balanced",
         "eager",
     ]
+    assert default_config["ace"]["prompt_completion"]["next_word_sources"] == [
+        "history"
+    ]
+    assert prompt_completion["properties"]["next_word_sources"]["items"] == {
+        "type": "string",
+        "enum": ["history", "archive"],
+    }
+    assert prompt_completion["properties"]["next_word_sources"]["default"] == [
+        "history"
+    ]
+    Draft7Validator(public_schema).validate(
+        {"ace": {"prompt_completion": {"next_word_sources": ["history", "archive"]}}}
+    )
+    with pytest.raises(ValidationError):
+        Draft7Validator(public_schema).validate(
+            {"ace": {"prompt_completion": {"next_word_sources": ["common-sense"]}}}
+        )
     Draft7Validator(public_schema).validate(
         {"ace": {"prompt_completion": {"next_word": "chain"}}}
     )

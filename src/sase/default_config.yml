@@ -521,6 +521,7 @@ ace:
     next_word: chain
     next_word_max_words: 4
     next_word_confidence: balanced
+    next_word_sources: [history]
   prompt_spellcheck:
     highlight: true
     max_remembered_words: 5000

@@ -117,6 +117,22 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
         parse_prompt_completion_settings({"next_word": "sometimes"}).next_word
         == "chain"
     )
+    assert parse_prompt_completion_settings({}).next_word_sources == ("history",)
+    assert parse_prompt_completion_settings(
+        {"next_word_sources": ["archive", "history"]}
+    ).next_word_sources == ("history", "archive")
+    assert parse_prompt_completion_settings(
+        {"next_word_sources": ["archive"]}
+    ).next_word_sources == ("archive",)
+    assert parse_prompt_completion_settings(
+        {"next_word_sources": ["common-sense", "archive"]}
+    ).next_word_sources == ("archive",)
+    assert parse_prompt_completion_settings(
+        {"next_word_sources": []}
+    ).next_word_sources == ("history",)
+    assert parse_prompt_completion_settings(
+        {"next_word_sources": "bogus"}
+    ).next_word_sources == ("history",)
     parsed = parse_prompt_completion_settings(
         {
             "debounce_ms": "-1",

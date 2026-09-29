@@ -34,6 +34,7 @@ WordRankingMode = Literal["smart", "recent"]
 PlaceholderRankingMode = WordRankingMode
 NextWordMode = Literal["off", "chain", "auto"]
 NextWordConfidence = Literal["cautious", "balanced", "eager"]
+NextWordSource = Literal["history", "archive"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +58,7 @@ class PromptCompletionSettings:
     next_word: NextWordMode = "chain"
     next_word_max_words: int = 4
     next_word_confidence: NextWordConfidence = "balanced"
+    next_word_sources: tuple[str, ...] = ("history",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,6 +204,12 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
             DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word_confidence,
         )
     )
+    next_word_sources = _parse_next_word_sources(
+        raw.get(
+            "next_word_sources",
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word_sources,
+        )
+    )
     return PromptCompletionSettings(
         auto=auto,
         debounce_ms=debounce_ms,
@@ -220,6 +228,7 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         next_word=next_word,
         next_word_max_words=next_word_max_words,
         next_word_confidence=next_word_confidence,
+        next_word_sources=next_word_sources,
     )
 
 
@@ -449,6 +458,32 @@ def _parse_next_word_confidence(value: Any) -> NextWordConfidence:
     if normalized in {"cautious", "balanced", "eager"}:
         return normalized  # type: ignore[return-value]
     return DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word_confidence
+
+
+def _parse_next_word_sources(value: Any) -> tuple[str, ...]:
+    """Parse ``next_word_sources`` with a ``("history",)`` fallback.
+
+    Keeps the known sources in canonical ``history, archive`` order and
+    drops anything else. An empty or fully unknown selection falls back to
+    the default so prediction never silently loses its history source.
+    """
+    if isinstance(value, str):
+        candidates = [value]
+    elif isinstance(value, (list, tuple)):
+        candidates = list(value)
+    else:
+        return DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word_sources
+    kept = [
+        source
+        for source in ("history", "archive")
+        if any(
+            isinstance(item, str) and item.strip().lower() == source
+            for item in candidates
+        )
+    ]
+    if not kept:
+        return DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word_sources
+    return tuple(kept)
 
 
 def _parse_non_negative_int(value: Any, default: int) -> int:

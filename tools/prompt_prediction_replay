@@ -31,6 +31,9 @@ from sase.core.prompt_prediction_wire import (  # noqa: E402
     PromptPredictionReplayOptions,
     PromptPredictionReplayReport,
 )
+from sase.history.prompt_prediction_archive import (  # noqa: E402
+    build_archive_prediction_rows,
+)
 from sase.history.prompt_prediction_rows import (  # noqa: E402
     build_prompt_prediction_project_resolver,
     build_prompt_prediction_rows,
@@ -59,7 +62,9 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--sources",
         default="history",
         help="comma-separated replay sources from history[,archive] "
-        "(default: history; archive lands in the archive-source phase)",
+        "(default: history; archive appends the pruned cross-machine "
+        "prompt-archive rows at full weight, an upper bound on the "
+        "production 0.25 weight)",
     )
     parser.add_argument(
         "--json",
@@ -69,7 +74,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _check_sources(sources: str) -> None:
+def _check_sources(sources: str) -> list[str]:
     names = [name.strip().lower() for name in sources.split(",") if name.strip()]
     if not names or any(name not in ("history", "archive") for name in names):
         print(
@@ -77,13 +82,14 @@ def _check_sources(sources: str) -> None:
             file=sys.stderr,
         )
         raise SystemExit(2)
-    if "archive" in names:
+    if "archive" in names and "history" not in names:
         print(
-            "error: the archive source lands in the archive-source phase; "
-            "replay history only for now",
+            "error: --sources archive requires history "
+            "(the archive is a background source, not a standalone corpus)",
             file=sys.stderr,
         )
         raise SystemExit(2)
+    return names
 
 
 def _preset_metrics(
@@ -221,9 +227,19 @@ def _print_tables(
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    _check_sources(args.sources)
+    names = _check_sources(args.sources)
     resolver = build_prompt_prediction_project_resolver()
     rows = build_prompt_prediction_rows(resolve_project=resolver.resolve)
+    if "archive" in names:
+        # The archive joins the replay with its real epochs, so prequential
+        # order treats older archived prompts as background: prompts typed
+        # on one machine predict prompts typed later on another, which is
+        # exactly the cross-machine value being measured. This runs the
+        # archive at full weight with no singleton pruning, so it is an
+        # upper bound on the production source (weight 0.25, pruned).
+        rows = rows + build_archive_prediction_rows(
+            history_texts=[row.text for row in rows],
+        )
     options = PromptPredictionReplayOptions(
         now_epoch=int(time.time()),
         excluded_words=sorted(load_deleted_prompt_words()),

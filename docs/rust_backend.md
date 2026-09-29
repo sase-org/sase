@@ -291,6 +291,63 @@ rows and ~225k contexts. Calibration outcome: the novel
 > novel >=65%. Novel headroom is thin (~0.7pp), so re-run the tool before loosening
 > these presets; cautious (>=85%) and eager (>=60%) already met their targets unchanged.
 
+#### Archive source (cross-machine prompt archive)
+
+The archive source (`src/sase/history/prompt_prediction_archive.py`) reads the enabled
+projects' canonical agents-sidecar prompt archives through the Rust-backed
+`prompt_archive_inventory` facade, bounded to the 6 most recent month directories per
+sidecar and 1.5M whitespace tokens newest first. It compiles each document's
+`PromptArchiveDocument.body` (header bullets already excluded) after stripping rendered
+reference-style link tables (`[label]: url`, including bare labels with the URL on the
+next indented line). Rows carry the sidecar's sync project key and the document mtime
+epoch with `origin=None`, so the core `looks_generated` heuristic still excludes
+machine-generated archive prompts at compile time — the inventory schema records no
+launch-topology field, so there is nothing archive-side to filter on. Paragraphs dedup
+by normalized hash (whitespace-folded, casefolded) within the archive (swarm copies) and
+against local history paragraphs; fully duplicated documents are dropped.
+
+2026-09 extraction over 3 sidecars: 7,126 documents in window, 34,792 paragraphs, 10,744
+within-archive dupes, 7,393 history dupes, 4,819 documents kept (4,063 rows used after
+the core's generated filter), 1.09M whitespace tokens / 594k Rust tokens. The pruned
+archive corpus (`prune_singleton_contexts`, role `archive`, weight 0.25) compiles in
+~2.6s with `approx_bytes` ~28.8MB, under the 60MB budget (history corpus is ~27.7MB for
+comparison). The TUI builds it off-thread only after first paint
+(`_prompt_prediction_archive_primed`), on month-directory mtime/count token change, at
+most every 10 minutes; `ace.prompt_completion.next_word_sources` (default `[history]`)
+gates it, and disabling the source drops the corpus without a rebuild.
+
+Default decision: `tools/prompt_prediction_replay --sources history,archive` appends the
+archive rows with real epochs to the same prequential replay, so older archived prompts
+act as background while recent ones are scored — a measure of cross-machine value.
+Because the replay runs the archive at full weight with no singleton pruning, it is an
+upper bound on the production source (0.25, pruned). Archive joins the default only on a
+clear win: **+1 point or more novel top-3 at equal coverage with near-duplicate top-1
+dropping at most 1 point**; otherwise the default stays `[history]` and the archive is
+an opt-in (`next_word_sources: [history, archive]`).
+
+2026-09 history-only baseline for that comparison (11,506 rows; 4,276 typed, 1,710
+warmed, 2,557 scored, 188,239 positions; ungated top-1 50.8%, top-3 59.7%):
+
+| cohort         | positions | top-1 | top-3 | balanced cov | balanced prec |
+| -------------- | --------: | ----: | ----: | -----------: | ------------: |
+| novel          |    88,297 | 26.4% | 38.4% |        18.6% |         65.7% |
+| mid            |    22,987 | 48.4% | 58.8% |        33.5% |         86.0% |
+| near-duplicate |    76,955 | 79.5% | 84.4% |        56.4% |         99.0% |
+
+The `history,archive` replay (same flags plus `--sources history,archive`) produced no
+numbers: it did not finish within a 40-minute monitor budget on 2026-09-29 (empty JSON
+output, `replay_exit` never printed). The archive roughly doubles the scored rows (~4k
+extra rows at full weight with no singleton pruning), and the prequential replay cost
+scales with corpus size, so the upper-bound run costs far more than the ~5-minute
+history-only baseline. With no archive table to judge the +1pt rule against, there is no
+demonstrated win — and the research already found broader text buys little (~2 points at
+50x corpus size while lowering gated precision), a gain the production 0.25 pruned
+weight would dilute further.
+
+Verdict: the default stays `[history]`; the archive remains an opt-in
+(`next_word_sources: [history, archive]`). Re-run the `history,archive` replay before
+reconsidering — it needs a longer budget or a sampled row set, not a stronger claim.
+
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace
 with a PyO3 crate at `crates/sase_core_py/`.
 

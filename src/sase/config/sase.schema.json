@@ -2241,6 +2241,12 @@
               "description": "Confidence gate for next-word ghost predictions",
               "enum": ["cautious", "balanced", "eager"],
               "default": "balanced"
+            },
+            "next_word_sources": {
+              "type": "array",
+              "description": "Prediction corpus sources: local typed history plus the pruned cross-machine prompt archive (opt-in until the replay harness shows a clear novel-prompt gain)",
+              "items": {"type": "string", "enum": ["history", "archive"]},
+              "default": ["history"]
             }
           }
         },
