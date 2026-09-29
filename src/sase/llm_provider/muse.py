@@ -268,6 +268,16 @@ class MuseProvider(LLMProvider):
         """Return the Muse model name for the given tier."""
         return provider_tier_model("muse", model_tier)
 
+    def sync_ceiling_seconds(self) -> int | None:
+        """Return the legacy ``shell`` tool's hard kill ceiling, when active."""
+        if _muse_synchronous_shell_enabled():
+            return _MUSE_SYNC_CEILING_SECONDS
+        return None
+
+    @hookimpl
+    def llm_sync_ceiling_seconds(self) -> int | None:
+        return self.sync_ceiling_seconds()
+
     @hookimpl
     def llm_provider_name(self) -> str:
         return "muse"

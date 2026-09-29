@@ -223,6 +223,17 @@ class LLMHookSpec:
         ...
 
     @hookspec(firstresult=True)
+    def llm_sync_ceiling_seconds(self) -> int | None:
+        """Hard per-command synchronous kill ceiling, in seconds.
+
+        The most time one synchronous command can run in the caller's
+        provider harness before the harness kills it. ``None`` (or omitting
+        the hook) means the provider declares no ceiling, so third-party
+        providers stay compatible without implementing it.
+        """
+        ...
+
+    @hookspec(firstresult=True)
     def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:
         """Collect a subscription-usage observation for *context*.
 

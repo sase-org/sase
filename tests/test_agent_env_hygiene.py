@@ -30,6 +30,23 @@ def test_scrub_agent_identity_env_removes_complete_identity_family() -> None:
     }
 
 
+def test_scrub_agent_identity_env_drops_the_provider_sync_ceiling() -> None:
+    env = {
+        "SASE_AGENT": "1",
+        "SASE_PROVIDER_SYNC_CEILING_SECONDS": "600",
+        # An exact-key pop: the teardown grace variable must survive.
+        "SASE_PROVIDER_TEARDOWN_GRACE_SECONDS": "120",
+        "OTHER": "keep",
+    }
+
+    scrub_agent_identity_env(env)
+
+    assert env == {
+        "SASE_PROVIDER_TEARDOWN_GRACE_SECONDS": "120",
+        "OTHER": "keep",
+    }
+
+
 def test_scrub_chop_context_env_removes_only_chop_family() -> None:
     env = {
         "SASE_CHOP_NAME": "workflow_checks",

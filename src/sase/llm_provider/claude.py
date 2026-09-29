@@ -76,6 +76,24 @@ def _claude_max_wait_continuations() -> int:
         return _DEFAULT_MAX_WAIT_CONTINUATIONS
 
 
+def _claude_sync_ceiling_seconds() -> int | None:
+    """Return the effective Bash-tool timeout ceiling, in seconds.
+
+    Uses the same resolution ``_run_subprocess`` applies: the user's valid
+    positive ``BASH_MAX_TIMEOUT_MS`` wins, otherwise the SASE default.
+    """
+    try:
+        timeout_ms = int(os.environ.get("BASH_MAX_TIMEOUT_MS", _BASH_MAX_TIMEOUT_MS))
+    except (TypeError, ValueError):
+        timeout_ms = int(_BASH_MAX_TIMEOUT_MS)
+    if timeout_ms <= 0:
+        timeout_ms = int(_BASH_MAX_TIMEOUT_MS)
+    ceiling = timeout_ms // 1000
+    if ceiling <= 0:
+        ceiling = int(_BASH_MAX_TIMEOUT_MS) // 1000
+    return ceiling
+
+
 def _join_response_parts(left: str, right: str) -> str:
     """Join non-empty response fragments using SASE's provider convention."""
     return (left + "\n\n" + right.strip()).strip()
@@ -125,6 +143,14 @@ class ClaudeCodeProvider(LLMProvider):
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Claude model alias for the given tier."""
         return provider_tier_model("claude", model_tier)
+
+    def sync_ceiling_seconds(self) -> int | None:
+        """Return the effective ``BASH_MAX_TIMEOUT_MS`` ceiling, in seconds."""
+        return _claude_sync_ceiling_seconds()
+
+    @hookimpl
+    def llm_sync_ceiling_seconds(self) -> int | None:
+        return self.sync_ceiling_seconds()
 
     @hookimpl
     def llm_provider_name(self) -> str:

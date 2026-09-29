@@ -289,13 +289,14 @@ current model, so SASE intentionally does not pin them to point version IDs.
 
 ### Environment Variables
 
-| Variable                             | Description                                                |
-| ------------------------------------ | ---------------------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`                | Extra CLI args for `large` tier (generic, preferred)       |
-| `SASE_LLM_SMALL_ARGS`                | Extra CLI args for `small` tier (generic, preferred)       |
-| `SASE_CLAUDE_LARGE_ARGS`             | Extra CLI args for `large` tier (Claude-specific fallback) |
-| `SASE_CLAUDE_SMALL_ARGS`             | Extra CLI args for `small` tier (Claude-specific fallback) |
-| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` | Wait-guard continuation cap (default: `2`)                 |
+| Variable                             | Description                                                                                                        |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `SASE_LLM_LARGE_ARGS`                | Extra CLI args for `large` tier (generic, preferred)                                                               |
+| `SASE_LLM_SMALL_ARGS`                | Extra CLI args for `small` tier (generic, preferred)                                                               |
+| `SASE_CLAUDE_LARGE_ARGS`             | Extra CLI args for `large` tier (Claude-specific fallback)                                                         |
+| `SASE_CLAUDE_SMALL_ARGS`             | Extra CLI args for `small` tier (Claude-specific fallback)                                                         |
+| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` | Wait-guard continuation cap (default: `2`)                                                                         |
+| `BASH_MAX_TIMEOUT_MS`                | Bash-tool timeout ceiling (default: `14400000` = 4 h); also sets the exported `SASE_PROVIDER_SYNC_CEILING_SECONDS` |
 
 The generic `SASE_LLM_*_ARGS` variables take precedence. Values are split on whitespace
 and appended to the command.
@@ -778,6 +779,11 @@ Muse's synchronous ceiling goes to a SASE monitor, chosen before the command sta
   running at 600 seconds is killed and returns only `tool timed out`, so final
   verification prefers prepared monitor completion and long commands start under
   `/sase_monitor` (see the directive).
+- **Synchronous-ceiling export.** Around every provider invocation SASE sets
+  `SASE_PROVIDER_SYNC_CEILING_SECONDS=600` (absent when the flag is off), so in-harness
+  tooling can read the kill ceiling instead of guessing it. The variable is scrubbed at
+  every agent, monitor, and proc boundary, so a child never inherits its starter's
+  ceiling.
 - **Mode-aware single-turn directive.** Every Muse prompt carries a short prefix stating
   the ceiling and the up-front routing rules: final verification prefers prepared
   monitor completion (`/sase_final`), commands that can take longer than 10 minutes go
@@ -2693,13 +2699,14 @@ Complete reference of environment variables used by the LLM provider layer.
 
 ### Generic (Provider-Agnostic)
 
-| Variable                   | Description                                                                         |
-| -------------------------- | ----------------------------------------------------------------------------------- |
-| `SASE_LLM_EXEC_PROVIDER`   | Execute through this provider while retaining the requested provider/model metadata |
-| `SASE_LLM_LARGE_ARGS`      | Extra CLI args for `large` tier invocations                                         |
-| `SASE_LLM_SMALL_ARGS`      | Extra CLI args for `small` tier invocations                                         |
-| `SASE_MODEL_TIER_OVERRIDE` | Force all invocations to a specific model tier                                      |
-| `SASE_MODEL_SIZE_OVERRIDE` | Legacy alias for `SASE_MODEL_TIER_OVERRIDE`                                         |
+| Variable                             | Description                                                                                                                                                                                               |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_LLM_EXEC_PROVIDER`             | Execute through this provider while retaining the requested provider/model metadata                                                                                                                       |
+| `SASE_LLM_LARGE_ARGS`                | Extra CLI args for `large` tier invocations                                                                                                                                                               |
+| `SASE_LLM_SMALL_ARGS`                | Extra CLI args for `small` tier invocations                                                                                                                                                               |
+| `SASE_MODEL_TIER_OVERRIDE`           | Force all invocations to a specific model tier                                                                                                                                                            |
+| `SASE_MODEL_SIZE_OVERRIDE`           | Legacy alias for `SASE_MODEL_TIER_OVERRIDE`                                                                                                                                                               |
+| `SASE_PROVIDER_SYNC_CEILING_SECONDS` | Set by the agent runner around each provider invocation: that harness's hard per-command kill ceiling in seconds (unset when the provider declares none); scrubbed at agent, monitor, and proc boundaries |
 
 `SASE_LLM_EXEC_PROVIDER` must name a registered provider. It changes subprocess dispatch
 and execution-provider retry policy only; agent, step, and chat metadata continue to

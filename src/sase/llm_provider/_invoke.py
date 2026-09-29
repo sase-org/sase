@@ -16,6 +16,7 @@ from sase.continuation_capture import (
     record_prepared_prompt_capture_best_effort,
 )
 from sase.core.time import generate_timestamp
+from sase.env_contracts import SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV
 from .messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
 from sase.telemetry.metrics import (
@@ -56,6 +57,26 @@ from .types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _provider_sync_ceiling_seconds(provider: object) -> int | None:
+    """Return *provider*'s validated synchronous kill ceiling, if any.
+
+    A provider without the hook, an exception, a non-integer, or a value
+    <= 0 all resolve to ``None`` (no ceiling), so the export fails open.
+    """
+    accessor = getattr(provider, "sync_ceiling_seconds", None)
+    if accessor is None:
+        return None
+    try:
+        value = accessor()
+    except Exception:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    if value <= 0:
+        return None
+    return value
 
 
 def _mark_usage_hot_for_launch(provider_name: str | None) -> None:
@@ -323,6 +344,7 @@ def invoke_agent(
     context.metadata_model = model_override
     t0 = time.monotonic()
     previous_finalizer_nonce = os.environ.get("SASE_FINAL_TURN_NONCE")
+    previous_sync_ceiling = os.environ.get(SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV)
     if artifacts_dir:
         from sase.finalizers.declaration import mint_finalizer_turn_nonce
 
@@ -332,6 +354,15 @@ def invoke_agent(
             provider_lookup_name,
             routing_context=routing_context,
         )
+        # Export the execution provider's synchronous kill ceiling around
+        # every provider invocation (popping any inherited value when the
+        # provider declares none), so each provider subprocess — including
+        # the finalizer follow-up turns inside run_finalizers — sees it.
+        sync_ceiling = _provider_sync_ceiling_seconds(provider)
+        if sync_ceiling is None:
+            os.environ.pop(SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV, None)
+        else:
+            os.environ[SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV] = str(sync_ceiling)
         if artifacts_dir:
             from sase.axe.run_agent_helpers import update_meta_field
 
@@ -526,3 +557,7 @@ def invoke_agent(
                 os.environ.pop("SASE_FINAL_TURN_NONCE", None)
             else:
                 os.environ["SASE_FINAL_TURN_NONCE"] = previous_finalizer_nonce
+        if previous_sync_ceiling is None:
+            os.environ.pop(SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV, None)
+        else:
+            os.environ[SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV] = previous_sync_ceiling

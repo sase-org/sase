@@ -61,3 +61,13 @@ class LLMProvider(ABC):
         Subclasses should override to return provider-specific names.
         """
         return "unknown"
+
+    def sync_ceiling_seconds(self) -> int | None:
+        """Return this provider's hard synchronous-command kill ceiling.
+
+        Default: no ceiling. Providers with a synchronous harness that
+        kills long commands declare it here (and as the
+        ``llm_sync_ceiling_seconds`` pluggy hook, which is how the
+        registry-dispatched provider object resolves it).
+        """
+        return None

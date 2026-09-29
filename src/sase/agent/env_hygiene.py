@@ -8,6 +8,10 @@ def scrub_agent_identity_env(env: MutableMapping[str, str]) -> None:
     for key in list(env):
         if key == "SASE_AGENT" or key.startswith("SASE_AGENT_"):
             env.pop(key, None)
+    # The synchronous kill ceiling belongs to the starter's provider harness,
+    # never to a child agent, monitor, proc, or chop script. Popped by exact
+    # key so SASE_PROVIDER_TEARDOWN_GRACE_SECONDS survives.
+    env.pop("SASE_PROVIDER_SYNC_CEILING_SECONDS", None)
 
 
 def scrub_chop_context_env(env: MutableMapping[str, str]) -> None:

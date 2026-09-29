@@ -384,12 +384,13 @@ Three variables decide everything, and the decision is makeable without starting
 `sase` process — the override exists precisely for when `sase` is broken. Any repo can
 implement this table from scratch (linked-repo catalogs do exactly that):
 
-| Variable                 | Set by                  | Meaning                                                                       |
-| ------------------------ | ----------------------- | ----------------------------------------------------------------------------- |
-| `SASE_AGENT`             | the agent runner        | this process tree is a SASE agent process                                     |
-| `SASE_TOOL_NAME`         | `sase tool run`, always | the tree is inside `sase tool run <name>`, or `ad-hoc`                        |
-| `SASE_TOOL_PROJECT_ROOT` | `sase tool run`, always | the resolved project root the named run executes in; empty for an ad-hoc run  |
-| `SASE_TOOL_BYPASS`       | an agent or human       | run raw on purpose; any non-empty value bypasses, and the value is the reason |
+| Variable                             | Set by                  | Meaning                                                                                                                                                                                                        |
+| ------------------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_AGENT`                         | the agent runner        | this process tree is a SASE agent process                                                                                                                                                                      |
+| `SASE_TOOL_NAME`                     | `sase tool run`, always | the tree is inside `sase tool run <name>`, or `ad-hoc`                                                                                                                                                         |
+| `SASE_TOOL_PROJECT_ROOT`             | `sase tool run`, always | the resolved project root the named run executes in; empty for an ad-hoc run                                                                                                                                   |
+| `SASE_TOOL_BYPASS`                   | an agent or human       | run raw on purpose; any non-empty value bypasses, and the value is the reason                                                                                                                                  |
+| `SASE_PROVIDER_SYNC_CEILING_SECONDS` | the agent runner        | the caller's provider-harness kill ceiling in seconds for one synchronous command; set around each provider invocation, scrubbed at agent, monitor, and proc boundaries, unset when the provider declares none |
 
 `SASE_TOOL_NAME` is exported whether or not recording succeeded: recording stays
 fail-open, so a guard keyed on the run id would refuse the child of a fail-open

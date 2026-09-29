@@ -52,3 +52,25 @@ class LLMPluginManager(LLMProvider):
                 "provider_name is not supported by this LLM provider"
             )
         return result  # type: ignore[return-value]
+
+    def sync_ceiling_seconds(self) -> int | None:
+        """Return the execution provider's validated synchronous ceiling.
+
+        A missing hook, an exception, a non-integer, or a value <= 0 all
+        resolve to ``None`` (no ceiling), so third-party providers stay
+        compatible without implementing the hook.
+        """
+        try:
+            result = self._pm.hook.llm_sync_ceiling_seconds()
+        except Exception:
+            return None
+        return validate_sync_ceiling_seconds(result)
+
+
+def validate_sync_ceiling_seconds(value: object) -> int | None:
+    """Return *value* when it is a usable sync ceiling, else ``None``."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    if value <= 0:
+        return None
+    return value
