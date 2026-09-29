@@ -14,6 +14,11 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefPayloadCompletionMetadata,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.next_word_completion import (
+    next_word_has_word_suffix,
+    next_word_leading_separator,
+)
+from sase.ace.tui.widgets.next_word_menu import NextWordCompletionMetadata
 from sase.ace.tui.widgets._model_shortcut_edits import (
     ModelShortcutPlannedEdit,
     apply_model_shortcut_edit,
@@ -280,6 +285,47 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
         self._replace_absolute_range(0, len(old_text), new_text)
         self.cursor_location = self._location_from_absolute(planned.caret_offset)
         self._clear_file_completion()
+        return True
+
+    def _accept_next_word_completion(
+        self,
+        selected: CompletionCandidate,
+    ) -> bool:
+        """Accept a next-word row, then arm the chain again.
+
+        Inserts the word with its leading separator (§3) as one undo step,
+        adding a trailing space when an identifier-like character follows
+        the cursor, exactly like :meth:`_commit_word_completion`.
+        """
+        if not isinstance(selected.metadata, NextWordCompletionMetadata):
+            self._clear_file_completion()
+            return False
+        if not selected.insertion:
+            self._clear_file_completion()
+            return False
+        try:
+            text = self.text
+            offset = self._absolute_offset(self.cursor_location)
+        except Exception:
+            self._clear_file_completion()
+            return False
+        separator = next_word_leading_separator(text[:offset])
+        has_suffix = next_word_has_word_suffix(text, offset)
+        insertion = f"{separator}{selected.insertion}"
+        if has_suffix:
+            insertion = f"{insertion} "
+        self._replace_absolute_range(offset, offset, insertion)
+        if has_suffix:
+            self.cursor_location = self._location_from_absolute(
+                offset + len(separator) + len(selected.insertion)
+            )
+        self._clear_file_completion()
+        arm = getattr(self, "_arm_next_word_chain", None)
+        if callable(arm):
+            try:
+                arm()
+            except Exception:
+                pass
         return True
 
     def _accept_artifact_ref_completion(

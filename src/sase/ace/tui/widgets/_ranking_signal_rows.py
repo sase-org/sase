@@ -21,9 +21,11 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_utils import (
 RELATION_COLOR = "#5FD7D7"
 RECENCY_COLOR = "#87D787"
 FREQUENCY_COLOR = "#D7AF5F"
+SEQUENCE_COLOR = "#AF87FF"
 RELATION_GLYPH = "⇄"
 RECENCY_GLYPH = "◷"
 FREQUENCY_GLYPH = "✦"
+SEQUENCE_GLYPH = "⇢"
 
 _METER_CELLS = 5
 _METER_FILLED = "▰"
@@ -67,6 +69,25 @@ class _RankingSignals(Protocol):
 def ranking_label_width(display: str, *, badge_cells: int, cap: int) -> int:
     """Visible width for the label column of one ranked row, badge included."""
     return min(cap, badge_cells + cell_len(display))
+
+
+def build_sequence_meter(probability: float) -> Text:
+    """Return the 5-cell sequence-confidence meter for one next-word row.
+
+    Filled length tracks *probability*; filled cells use the sequence violet
+    so next-word confidence never reads as relation, recency, or frequency.
+    """
+    filled = (
+        0
+        if probability <= 0
+        else max(1, min(_METER_CELLS, round(probability * _METER_CELLS)))
+    )
+    meter = Text(no_wrap=True)
+    for _ in range(filled):
+        meter.append(_METER_FILLED, style=f"bold {SEQUENCE_COLOR}")
+    for _ in range(_METER_CELLS - filled):
+        meter.append(_METER_EMPTY, style="dim")
+    return meter
 
 
 def build_score_meter(signals: _RankingSignals) -> Text:

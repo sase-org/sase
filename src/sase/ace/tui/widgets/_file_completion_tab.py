@@ -61,6 +61,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         def _try_vcs_ref_completion(self, *, force: bool = False) -> bool: ...
         def _try_artifact_ref_completion(self, *, force: bool = False) -> bool: ...
         def _try_artifact_ref_completion_tab(self) -> bool: ...
+        def _try_next_word_word_end_fallback(self) -> bool: ...
         def _try_auto_directive_arg_completion(self) -> bool: ...
         def _try_model_shortcut_completion(self, *, force: bool = False) -> bool: ...
         def _try_file_history_completion(self) -> bool: ...
@@ -297,6 +298,8 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         """Handle the final plain-prose Ctrl+T completion fallback."""
         settings = self._prompt_completion_settings()
         if settings.history_word_count <= 0 or not self._history_word_source_ready():
+            if self._try_next_word_word_end_fallback():
+                return True
             self._clear_file_completion()
             return False
 
@@ -319,6 +322,8 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
 
         result = self._build_history_word_result(cursor_offset)
         if result is None:
+            if self._try_next_word_word_end_fallback():
+                return True
             self._clear_file_completion()
             return False
 

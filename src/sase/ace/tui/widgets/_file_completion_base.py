@@ -16,6 +16,7 @@ from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
     completion_scroll_offset,
 )
+from sase.ace.tui.widgets.next_word_menu import NEXT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.model_alias_completion import (
     MODEL_ALIAS_COMPLETION_KIND,
     ModelAliasShortcutContext,
@@ -240,12 +241,15 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
             bar.hide_file_completions()
             return
 
-        try:
-            clearer = getattr(self, "_clear_next_word_chain", None)
-            if callable(clearer):
-                clearer()
-        except Exception:
-            pass
+        if self._completion_kind != NEXT_WORD_COMPLETION_KIND:
+            # Every other menu disarms the chain on open; the next-word menu
+            # opens from the armed chain and every accept arms it again.
+            try:
+                clearer = getattr(self, "_clear_next_word_chain", None)
+                if callable(clearer):
+                    clearer()
+            except Exception:
+                pass
 
         rows = self._file_completion_candidates
         group_rule = self._completion_group_rule_reserved()

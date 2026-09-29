@@ -30,6 +30,7 @@ from sase.ace.tui.widgets.history_word_completion import (
     HistoryWordCompletionPlaceholder,
     build_loading_history_words_placeholder,
 )
+from sase.ace.tui.widgets.next_word_menu import NEXT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
 )
@@ -67,6 +68,13 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
     def _refresh_file_completion_from_cursor(self) -> None:
         """Recompute active completions after edits or cursor movement."""
         if not self._file_completion_active:
+            return
+
+        if self._completion_kind == NEXT_WORD_COMPLETION_KIND:
+            # The menu snapshots one explicit request; any edit or cursor
+            # move dismisses it instead of re-predicting mid-menu. The chain
+            # stays armed only when the document still matches its anchor.
+            self._clear_file_completion()
             return
 
         if self._completion_kind == ARTIFACT_REF_COMPLETION_KIND:

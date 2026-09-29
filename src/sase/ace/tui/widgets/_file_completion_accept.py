@@ -38,6 +38,7 @@ from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.next_word_menu import NEXT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
     word_range_at_cursor,
@@ -98,6 +99,9 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
                 self._absolute_offset(self.cursor_location),
             )
             self._update_file_completion_panel("" if result is None else result.prefix)
+            return True
+        if self._completion_kind == NEXT_WORD_COMPLETION_KIND:
+            self._update_file_completion_panel("")
             return True
         if self._completion_kind == HISTORY_WORD_COMPLETION_KIND:
             result = (
@@ -264,6 +268,8 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
             self.cursor_location = (row, col + len(selected.insertion))
             self._clear_file_completion()
             return True
+        if self._completion_kind == NEXT_WORD_COMPLETION_KIND:
+            return self._accept_next_word_completion(selected)
         if self._completion_kind.startswith("xprompt_arg_"):
             return self._accept_xprompt_arg_completion_candidate(selected)
         ctx = self._get_token_context()

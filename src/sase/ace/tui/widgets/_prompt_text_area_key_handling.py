@@ -35,14 +35,18 @@ from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     HistoryWordCompletionPlaceholder,
 )
+from sase.ace.tui.widgets.next_word_menu import NEXT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.prompt_word_completion import PROMPT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.vim_text_area import INSERT_NORMAL_MODE_KEYS
 
 # Completion kinds where a second Ctrl+T on the open menu accepts the
-# highlighted row instead of re-dispatching. The next-word-menu phase extends
-# this set with the next_word kind.
+# highlighted row instead of re-dispatching.
 WORD_MENU_CTRL_T_ACCEPT_KINDS = frozenset(
-    {PROMPT_WORD_COMPLETION_KIND, HISTORY_WORD_COMPLETION_KIND}
+    {
+        PROMPT_WORD_COMPLETION_KIND,
+        HISTORY_WORD_COMPLETION_KIND,
+        NEXT_WORD_COMPLETION_KIND,
+    }
 )
 
 if TYPE_CHECKING:

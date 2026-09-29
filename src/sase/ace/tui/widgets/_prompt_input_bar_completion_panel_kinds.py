@@ -31,6 +31,7 @@ from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_K
 from sase.ace.tui.widgets.model_explicit_completion import (
     MODEL_EXPLICIT_COMPLETION_KIND,
 )
+from sase.ace.tui.widgets.next_word_menu import NEXT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
 )
@@ -63,6 +64,7 @@ class CompletionPanelKinds:
     placeholder: bool
     prompt_word: bool
     history_word: bool
+    next_word: bool
     vcs_project: bool
     vcs_ref: bool
     vcs_repo: bool
@@ -105,6 +107,7 @@ class CompletionPanelKinds:
             placeholder=completion_kind == PLACEHOLDER_COMPLETION_KIND,
             prompt_word=completion_kind == PROMPT_WORD_COMPLETION_KIND,
             history_word=completion_kind == HISTORY_WORD_COMPLETION_KIND,
+            next_word=completion_kind == NEXT_WORD_COMPLETION_KIND,
             vcs_project=completion_kind == VCS_PROJECT_COMPLETION_KIND,
             vcs_ref=completion_kind == VCS_REF_COMPLETION_KIND,
             vcs_repo=completion_kind == VCS_REPO_COMPLETION_KIND,

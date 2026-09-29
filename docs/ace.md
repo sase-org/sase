@@ -7622,9 +7622,16 @@ token under the cursor:
   dim inline ghost text with a `[^T] word  [^F] all` border hint. `Ctrl+T` (or `Alt+F`)
   takes one ghost word; `Ctrl+F`, `Right`, or `Ctrl+L` takes the whole ghost; each
   accept predicts again without flicker. Typing that matches the ghost consumes it, any
-  other key clears it, and an armed chain with no guess shows `no next-word guess` (or
-  `warming next words…` while the model warms). Ghosts show only at end of line, capped
-  at `ace.prompt_completion.next_word_max_words`, and never from a unigram. Set
+  other key clears it. When the chain is armed but no ghost can be shown (uncertain
+  gate, mid-line cursor, or no width), `Ctrl+T` opens a `next word ⇢ "…"` menu naming
+  the evidence context instead: each row shows the word, a violet confidence meter, and
+  a dim `⇢ continuation` preview, and accepting a row inserts it with its separator and
+  continues the chain. `Ctrl+T` at the end of a prose word with no current-word
+  completion runs the same explicit request, and an armed chain with nothing to offer
+  shows `no next-word guess` (or `warming next words…` while the model warms, and never
+  a menu inside structural syntax). Ghosts show only at end of line, capped at
+  `ace.prompt_completion.next_word_max_words`, and never from a unigram. `Ctrl+D` on a
+  highlighted next-word row forgets it through the history-word deletions store. Set
   `ace.prompt_completion.next_word: off` to disable the chain. Principles: `Ctrl+T`
   never inserts an unseen guess, always moves forward, and stays silent when unsure.
 
@@ -7637,7 +7644,7 @@ token under the cursor:
 | `Right`             | Move right, or take the whole ghost when one is visible                                              |
 | `Alt+F`             | Move one word right, or take one ghost word when one is visible                                      |
 | `Enter`             | Submit the prompt as typed; never accept a candidate                                                 |
-| `Ctrl+D`            | Delete a highlighted recent file, saved placeholder, or history word                                 |
+| `Ctrl+D`            | Delete a highlighted recent file, saved placeholder, history word, or predicted next word            |
 | `Escape`            | Cancel completion                                                                                    |
 
 Press `Ctrl+R` to open the recursive fuzzy file finder. With a token such as `src/alp`,

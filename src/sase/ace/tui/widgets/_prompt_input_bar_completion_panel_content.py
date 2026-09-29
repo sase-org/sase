@@ -12,6 +12,10 @@ from sase.ace.tui.models.tribe_display import named_tribe_identity_colors
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_kinds import (
     CompletionPanelKinds,
 )
+from sase.ace.tui.widgets._next_word_rows import (
+    append_next_word_completion_row,
+    next_word_label_width,
+)
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_agent_completion_row,
     append_artifact_ref_completion_row,
@@ -61,6 +65,7 @@ class _RowLayout:
     finalizer: tuple[int, int]
     artifact_kind: int
     history_word: int
+    next_word: int
     placeholder: int
     xprompt_arg_name: int
     tribe_colors: dict[str, str] | None
@@ -165,6 +170,7 @@ def _row_layout(
         history_word=_max_label_width(
             visible, history_word_label_width, kinds.history_word
         ),
+        next_word=_max_label_width(visible, next_word_label_width, kinds.next_word),
         placeholder=_max_label_width(
             visible, placeholder_label_width, kinds.placeholder
         ),
@@ -331,6 +337,14 @@ def _append_candidate_row(
             label_width=layout.history_word,
             inner_width=inner_width,
             signals_enabled=word_ranking_signals,
+        )
+    elif kinds.next_word:
+        append_next_word_completion_row(
+            content,
+            candidate,
+            is_selected,
+            label_width=layout.next_word,
+            inner_width=inner_width,
         )
     elif candidate.is_dir:
         content.append("\U0001f4c1 ")

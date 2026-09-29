@@ -390,11 +390,9 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1cj.7(PromptPredictionCandidate)' \
-        --epic-symbol 'sase-1cj.7(PromptPredictionSourceShares)' \
-        --epic-symbol 'sase-1cj.7(prompt_prediction_candidate_from_dict)' \
-        --epic-symbol 'sase-1cj.7(prompt_prediction_source_shares_from_dict)' \
-        --epic-symbol 'sase-1cj.7(next_word_has_word_suffix)' \
+        --epic-symbol 'sase-1cj(PromptPredictionSourceShares)' \
+        --epic-symbol 'sase-1cj(prompt_prediction_candidate_from_dict)' \
+        --epic-symbol 'sase-1cj(prompt_prediction_source_shares_from_dict)' \
         --epic-symbol 'sase-1cj.8(PromptPrefixRankMatch)' \
         --epic-symbol 'sase-1cj.8(prompt_prefix_rank_match_from_dict)' \
         {{ args }}

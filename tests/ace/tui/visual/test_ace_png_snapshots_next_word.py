@@ -5,9 +5,14 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.next_word_completion import (
     NEXT_WORD_GHOST_HINT,
     NEXT_WORD_NO_GUESS_HINT,
+)
+from sase.ace.tui.widgets.next_word_menu import (
+    NEXT_WORD_COMPLETION_KIND,
+    NextWordCompletionMetadata,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -21,6 +26,37 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+def _menu_candidate(
+    word: str,
+    *,
+    probability: float,
+    support: int = 3,
+    order: int = 2,
+    continuation: list[str] | None = None,
+) -> CompletionCandidate:
+    return CompletionCandidate(
+        display=word,
+        insertion=word,
+        is_dir=False,
+        name=word,
+        metadata=NextWordCompletionMetadata(
+            score=probability,
+            probability=probability,
+            support=support,
+            order=order,
+            continuation=list(continuation or []),
+            context_words=["help", "me"],
+        ),
+    )
+
+
+_MENU_ROWS = [
+    _menu_candidate("implement", probability=0.82, continuation=["it", "now"]),
+    _menu_candidate("review", probability=0.55, continuation=["the", "plan"]),
+    _menu_candidate("fix", probability=0.3),
+]
 
 
 async def _mount_prompt_bar(page: AcePage, text: str) -> PromptInputBar:
@@ -86,4 +122,60 @@ async def test_next_word_no_guess_png_snapshot(
             page,
             "next_word_no_guess_120x40",
             title="ACE prompt input — next-word no guess",
+        )
+
+
+async def test_next_word_menu_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await _mount_prompt_bar(page, "Can you help me")
+        bar.show_file_completions(
+            "",
+            list(_MENU_ROWS),
+            selected_index=0,
+            completion_kind=NEXT_WORD_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "next word")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "next_word_menu_120x40",
+            title="ACE prompt input — next-word menu",
+        )
+
+
+async def test_next_word_menu_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches(), size=(70, 24)) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await _mount_prompt_bar(page, "Can you help me")
+        bar.show_file_completions(
+            "",
+            list(_MENU_ROWS),
+            selected_index=0,
+            completion_kind=NEXT_WORD_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "next word")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "next_word_menu_narrow_70x24",
+            title="ACE prompt input — narrow next-word menu",
         )

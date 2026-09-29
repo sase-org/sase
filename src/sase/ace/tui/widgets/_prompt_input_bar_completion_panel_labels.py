@@ -30,6 +30,11 @@ from sase.ace.tui.widgets.history_word_completion import (
     HistoryWordCompletionMetadata,
     HistoryWordCompletionPlaceholder,
 )
+from sase.ace.tui.widgets.next_word_menu import (
+    NEXT_WORD_COMPLETION_KIND,
+    next_word_menu_context,
+    next_word_menu_title,
+)
 from sase.ace.tui.widgets.prompt_word_completion import PROMPT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
@@ -107,6 +112,8 @@ def completion_panel_title(
         return "prompt words"
     if kinds.history_word:
         return "history words"
+    if kinds.next_word:
+        return next_word_menu_title(next_word_menu_context(rows))
     if kinds.history:
         return "recent files"
     if "/" in token:
@@ -559,6 +566,8 @@ def completion_delete_subtitle(
         ):
             return "[^T] accept  [^D] delete"
         return ""
+    if completion_kind == NEXT_WORD_COMPLETION_KIND:
+        return "[^T] accept  [^D] delete"
     if completion_kind == PLACEHOLDER_COMPLETION_KIND:
         legend = (
             _PLACEHOLDER_SOURCE_LEGEND

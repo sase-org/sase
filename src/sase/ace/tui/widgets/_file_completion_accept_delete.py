@@ -10,6 +10,10 @@ from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     HistoryWordCompletionPlaceholder,
 )
+from sase.ace.tui.widgets.next_word_menu import (
+    NEXT_WORD_COMPLETION_KIND,
+    NextWordCompletionMetadata,
+)
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
     PlaceholderCompletionMetadata,
@@ -37,6 +41,8 @@ class FileCompletionAcceptDeleteMixin(FileCompletionAcceptKindsMixin):
             return self._delete_selected_file_history_completion(idx, selected)
         if self._completion_kind == HISTORY_WORD_COMPLETION_KIND:
             return self._delete_selected_history_word_completion(idx, selected)
+        if self._completion_kind == NEXT_WORD_COMPLETION_KIND:
+            return self._delete_selected_next_word_completion(idx, selected)
         if self._completion_kind == PLACEHOLDER_COMPLETION_KIND:
             return self._delete_selected_placeholder_completion(idx, selected)
         return False
@@ -46,6 +52,7 @@ class FileCompletionAcceptDeleteMixin(FileCompletionAcceptKindsMixin):
         return self._completion_kind in {
             "file_history",
             HISTORY_WORD_COMPLETION_KIND,
+            NEXT_WORD_COMPLETION_KIND,
             PLACEHOLDER_COMPLETION_KIND,
         }
 
@@ -81,6 +88,43 @@ class FileCompletionAcceptDeleteMixin(FileCompletionAcceptKindsMixin):
             forget(word)
         else:
             self._remove_completion_candidate_locally(idx)
+        self._notify_completion_delete(f"Deleted history word: {word}")
+
+        warm = getattr(self.app, "warm_history_prompt_words", None)
+        schedule_persist(
+            self.app,
+            delete_prompt_word,
+            word,
+            error_label="Deleting history word",
+            on_error=(lambda _exc: warm()) if callable(warm) else None,
+        )
+        return True
+
+    def _delete_selected_next_word_completion(
+        self,
+        idx: int,
+        selected: CompletionCandidate,
+    ) -> bool:
+        """Forget one predicted word through the history-word deletions store.
+
+        The row is hidden immediately by local removal (the app's forget hook
+        only refreshes history-word menus) and persisted for future corpus
+        builds; the prediction accessor already post-filters deleted words.
+        """
+        if not isinstance(selected.metadata, NextWordCompletionMetadata):
+            return False
+
+        from sase.ace.tui.util.io_async import schedule_persist
+        from sase.history.prompt_word_deletions import delete_prompt_word
+
+        word = selected.name
+        forget = getattr(self.app, "forget_history_prompt_word", None)
+        if callable(forget):
+            try:
+                forget(word)
+            except Exception:
+                pass
+        self._remove_completion_candidate_locally(idx)
         self._notify_completion_delete(f"Deleted history word: {word}")
 
         warm = getattr(self.app, "warm_history_prompt_words", None)

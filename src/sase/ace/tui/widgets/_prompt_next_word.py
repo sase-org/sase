@@ -24,6 +24,12 @@ from sase.ace.tui.widgets.next_word_completion import (
     next_word_rest_of_line,
     split_next_word_one,
 )
+from sase.ace.tui.widgets.next_word_menu import (
+    NEXT_WORD_COMPLETION_KIND,
+    NEXT_WORD_MENU_LIMIT,
+    build_next_word_completion_candidates,
+    next_word_fallback_at_word_end,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -37,7 +43,10 @@ class PromptNextWordMixin(_MixinBase):
     """Mixin providing the ghost-text next-word chain for PromptTextArea."""
 
     if TYPE_CHECKING:
+        _completion_kind: str
         _file_completion_active: bool
+        _file_completion_candidates: list[Any]
+        _file_completion_index: int
         _next_word_chain: NextWordChain | None
         _next_word_ghost: NextWordGhost | None
         _next_word_hint: str | None
@@ -68,6 +77,7 @@ class PromptNextWordMixin(_MixinBase):
         def _prompt_prediction_is_cold(self) -> bool: ...
         def _schedule_prompt_prediction_load(self) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
+        def _update_file_completion_panel(self, token: str) -> None: ...
         def _soft_completion_blocked(self) -> bool: ...
 
     def _next_word_settings(self) -> tuple[str, int, str]:
@@ -369,18 +379,18 @@ class PromptNextWordMixin(_MixinBase):
         return True
 
     def _explicit_next_word_request(self) -> bool:
-        """Handle ``Ctrl+T`` row 3: show the ghost or a transient hint.
+        """Handle ``Ctrl+T`` row 3: ghost, menu, or a transient hint.
 
         Returns True when the chain was armed (the press is consumed even
-        when only a hint is shown). In this phase row 3 never opens a menu.
+        when only a hint is shown). A confident ghost wins; otherwise the
+        top candidates open the ``next_word`` menu, including when a ghost
+        cannot be shown (mid-line or no width). Structural contexts with
+        nothing to offer show the hint instead of a menu.
         """
         if not self._next_word_chain_is_armed():
             return False
         if self._next_word_ghost_visible():
             return False
-        if not self._next_word_ghost_allowed():
-            self._show_next_word_transient_hint(NEXT_WORD_NO_GUESS_HINT)
-            return True
         _, max_words, confidence = self._next_word_settings()
         try:
             text = self.text
@@ -401,7 +411,10 @@ class PromptNextWordMixin(_MixinBase):
             return True
         try:
             result = self._predict_next_words(
-                text_before, limit=5, max_words=max_words, confidence=confidence
+                text_before,
+                limit=NEXT_WORD_MENU_LIMIT,
+                max_words=max_words,
+                confidence=confidence,
             )
         except Exception:
             result = None
@@ -420,11 +433,63 @@ class PromptNextWordMixin(_MixinBase):
                 self._show_next_word_transient_hint(NEXT_WORD_NO_GUESS_HINT)
             return True
         if getattr(result, "confident", False) and result.ghost:
-            separator = next_word_leading_separator(text_before)
-            if self._set_next_word_ghost(list(result.ghost), separator):
-                return True
-        self._show_next_word_transient_hint(NEXT_WORD_NO_GUESS_HINT)
+            if self._next_word_ghost_allowed():
+                separator = next_word_leading_separator(text_before)
+                if self._set_next_word_ghost(list(result.ghost), separator):
+                    return True
+            # A confident ghost that cannot be shown (mid-line or no width)
+            # falls through to the menu below.
+        return self._open_next_word_menu_for_result(result)
+
+    def _open_next_word_menu_for_result(self, result: PromptPredictionResult) -> bool:
+        """Open the menu for *result*'s candidates, or hint when empty.
+
+        Always consumes the press: blocked or evidence-free contexts show
+        the transient hint and never open a menu.
+        """
+        if result.blocked_reason:
+            self._show_next_word_transient_hint(NEXT_WORD_NO_GUESS_HINT)
+            return True
+        candidates = build_next_word_completion_candidates(
+            result, limit=NEXT_WORD_MENU_LIMIT
+        )
+        if not candidates:
+            self._show_next_word_transient_hint(NEXT_WORD_NO_GUESS_HINT)
+            return True
+        return self._open_next_word_menu(candidates)
+
+    def _open_next_word_menu(self, candidates: list[Any]) -> bool:
+        """Show an explicit next-word menu over the armed chain."""
+        if not candidates:
+            return False
+        self._completion_kind = NEXT_WORD_COMPLETION_KIND
+        self._file_completion_active = True
+        self._file_completion_candidates = list(candidates)
+        self._file_completion_index = 0
+        self._hide_next_word_hint()
+        self._update_file_completion_panel("")
         return True
+
+    def _try_next_word_word_end_fallback(self) -> bool:
+        """Arm the chain and run an explicit request at a prose word end.
+
+        Ladder row 4b: ``Ctrl+T`` at the end of a prose word with no
+        current-word candidate behaves like an explicit next-word request.
+        Anywhere else the press stays unconsumed.
+        """
+        if not self._next_word_enabled():
+            return False
+        try:
+            text = self.text
+            offset = self._absolute_offset(self.cursor_location)
+        except Exception:
+            return False
+        if not next_word_fallback_at_word_end(text, offset):
+            return False
+        self._arm_next_word_chain()
+        if self._next_word_ghost_visible():
+            return True
+        return self._explicit_next_word_request()
 
     def _refresh_visible_next_word_surface(self) -> None:
         """Show a ghost when a warm model lands while the chain is armed."""
