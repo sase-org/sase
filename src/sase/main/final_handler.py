@@ -90,7 +90,59 @@ def _handle_submit(args: argparse.Namespace) -> int:
         print(message)
     else:
         print("Accepted final declaration; no payloads were required.")
+    after_turn_note = _after_turn_commit_note(manifest)
+    if after_turn_note is not None:
+        print(after_turn_note)
     return 0
+
+
+def _commit_bead_actions(manifest: Mapping[str, Any]) -> tuple[bool, list[str]]:
+    """Return (has_commit, bead_actions) for commit decisions in ``manifest``."""
+
+    payloads = manifest.get("payloads")
+    if not isinstance(payloads, list):
+        return False, []
+    has_commit = False
+    bead_actions: list[str] = []
+    for entry in payloads:
+        payload = entry.get("payload") if isinstance(entry, Mapping) else None
+        if not isinstance(payload, Mapping):
+            continue
+        repositories = payload.get("repositories")
+        if not isinstance(repositories, list):
+            continue
+        for decision in repositories:
+            if not isinstance(decision, Mapping):
+                continue
+            if decision.get("action") != "commit":
+                continue
+            has_commit = True
+            bead_action = decision.get("bead_action")
+            if isinstance(bead_action, str) and bead_action in {"keep", "close"}:
+                if bead_action not in bead_actions:
+                    bead_actions.append(bead_action)
+    return has_commit, bead_actions
+
+
+def _after_turn_commit_note(manifest: Mapping[str, Any]) -> str | None:
+    """Explain that the host commits declared repos after this turn ends."""
+
+    has_commit, bead_actions = _commit_bead_actions(manifest)
+    if not has_commit:
+        return None
+    note = (
+        "Host commits the declared repositories after this turn ends; "
+        "until then they stay dirty and `git log` is unchanged, so end "
+        "the turn now without re-checking or resubmitting."
+    )
+    if "close" in bead_actions:
+        note += (
+            " bead_action close closes the assigned bead after the primary "
+            "commit lands."
+        )
+    if "keep" in bead_actions:
+        note += " bead_action keep leaves it open with nothing resuming it."
+    return note
 
 
 def _handle_defer(args: argparse.Namespace) -> int:

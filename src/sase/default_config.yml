@@ -2044,7 +2044,10 @@ xprompts:
       coding agent can finish the remaining work directly (`xsmall`, `small`, or `medium` per the SASE size guidance).
       Author a child `epic` only when the remaining work genuinely needs multiple agents or phases, or is too large
       (`large`/`xlarge`) for one agent to implement directly. A tale has no land agent of its own and nothing resumes
-      this landing after its coder finishes, so a lander-authored tale must finish the landing itself. Before proposing
+      this landing after its coder finishes, so a lander-authored tale must finish the landing itself. The tale's
+      coder commits only after its turn ends, so the closeout must never wait for, or be ordered after, a step that
+      needs this work's own commit (its SHA, push, or CI result): closing the epic in the same turn as the final
+      code is the normal landing. Before proposing
       the tale, finish the step-3 follow-up triage yourself: for each genuinely distinct follow-up that is not caused by
       the epic, use `/sase_new_task` with details identifying the proposing bead, and record every outcome, including why
       any proposal was declined, with `sase bead note {{ bead_id }} "..."`. The tale's final step must be this epic's
