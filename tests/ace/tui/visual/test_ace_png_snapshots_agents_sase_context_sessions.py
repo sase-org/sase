@@ -1,0 +1,377 @@
+"""sase's TUI PNG visual snapshots for Agents-tab session context lanes."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
+
+import pytest
+
+from sase.ace.testing import AcePage
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_associated_plan import (
+    BeadSummary,
+    _AgentPlanEnrichment,
+)
+from sase.ace.tui.widgets import AgentDetail
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
+    should_refresh_detail_header_summary,
+)
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailContextLane
+from sase.ace.tui.widgets.renderable_text import renderable_to_text
+from sase.bead.model import Issue, IssueType
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    assert_page_svg_contains,
+    choose_agent_metadata_view,
+)
+from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+    patches,
+    patch_startup_loaders,
+    wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
+    wait_for_visual_idle,
+)
+from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
+
+pytestmark = pytest.mark.visual
+
+
+async def test_agents_task_bead_notes_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    notes = (
+        "[2026-08-01T14:03:00Z · alice] Confirmed the notes row belongs "
+        "directly under the task description.\n\n"
+        "[2026-08-01T14:07:00Z · bob] This second note is intentionally long "
+        "enough to wrap in the BEAD lane while keeping attribution readable."
+    )
+    bead = BeadSummary(
+        id="sase-notes.4",
+        phase_title="Display persisted bead notes",
+        description="Render task metadata without requiring a plan file.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size="medium",
+        created_at="2026-07-03T13:00:00Z",
+        bead_type="task",
+        notes=notes,
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-task-notes",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 8, 1, 14, 0, 0),
+        raw_suffix="20260801140000",
+        agent_name="sase-notes.4",
+        step_type="bash",
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
+        "resolve_agent_plan_enrichment",
+        lambda *_args, **_kwargs: _AgentPlanEnrichment("task", bead, None, ()),
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual-task-notes"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "Notes:")
+        await page.press("z", "z")
+        await wait_for_svg_contains(page, "alice")
+        await wait_for_svg_contains(page, "attribution readable")
+        await wait_for_visual_idle(page)
+
+        svg_plain = page.export_svg(title="ACE task BEAD notes assertion").replace(
+            "&#160;",
+            " ",
+        )
+        assert "Task Title:" in svg_plain
+        assert "Description:" in svg_plain
+        assert "Notes:" in svg_plain
+        assert "alice" in svg_plain
+        assert "bob" in svg_plain
+        assert "attribution readable" in svg_plain
+
+        panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        metadata = renderable_to_text(panel.content) or ""
+        assert "Size:" in metadata
+        assert "Task Type:" in metadata
+        assert "untyped" in metadata
+        assert "Created:" in metadata
+        assert "2026-07-03" in metadata
+        assert "Epic Plan:" not in svg_plain
+        assert "Epic Title:" not in svg_plain
+
+        await wait_for_svg_contains(page, "Size:")
+        await wait_for_svg_contains(page, "Created:")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_task_bead_notes_120x40",
+            title="ACE agents task BEAD notes lane",
+        )
+
+
+async def test_agents_phase_agent_session_bead_and_plan_context_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    epic_ref = Path("p/epic.md")
+    epic_path = tmp_path / epic_ref
+    epic_path.parent.mkdir(parents=True)
+    epic_path.write_text(
+        "---\n"
+        "tier: epic\n"
+        "title: Parent epic\n"
+        "goal: Coordinate provider updates without leaking the full roadmap.\n"
+        "phases:\n"
+        "  - id: snapshot\n"
+        "    title: Provider update snapshot\n"
+        "    depends_on: []\n"
+        "    description: Provider context.\n"
+        "    size: small\n"
+        "  - id: render\n"
+        "    title: Render update awareness\n"
+        "    depends_on: [snapshot]\n"
+        "    size: medium\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    authored_ref = Path("p/phase.md")
+    authored_path = tmp_path / authored_ref
+    authored_path.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Phase plan\n"
+        "goal: Approved handoff beside the parent.\n"
+        "size: small\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-phase-plan-family",
+        project_file="/workspace/sase/visual_project.sase",
+        status="TALE APPROVED",
+        start_time=datetime(2026, 7, 20, 10, 30, 0),
+        stop_time=datetime(2026, 7, 20, 10, 36, 0),
+        raw_suffix="20260720103000",
+        role_suffix="--plan",
+        agent_name="sase-83.1--plan",
+        agent_session="sase-83.1",
+        agent_session_role="root",
+        plan_chain_root=True,
+        epic_bead_id="sase-83",
+        phase_bead_id="sase-83.1",
+        epic_plan_ref=epic_ref.as_posix(),
+        archived_plan_path=authored_ref.as_posix(),
+        sdd_plan_path=authored_ref.as_posix(),
+        plan_committed=True,
+        plan_action="tale",
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-phase-plan-family-code",
+        project_file=root.project_file,
+        status="DONE",
+        start_time=datetime(2026, 7, 20, 10, 37, 0),
+        stop_time=datetime(2026, 7, 20, 10, 45, 0),
+        raw_suffix="20260720103700",
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--code",
+        agent_name="sase-83.1--code",
+        agent_session="sase-83.1",
+        agent_session_role="code",
+        epic_bead_id="sase-83",
+        phase_bead_id="sase-83.1",
+        epic_plan_ref=epic_ref.as_posix(),
+        archived_plan_path=authored_ref.as_posix(),
+        sdd_plan_path=authored_ref.as_posix(),
+        plan_committed=True,
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    phase_issue = Issue(
+        id="sase-83.1",
+        title="Provider update snapshot",
+        issue_type=IssueType.PHASE,
+        parent_id="sase-83",
+        created_at="2026-07-03T13:00:00Z",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_associated_plan._lookup_issue",
+        lambda _agent, bead_id, **_kwargs: (
+            phase_issue if bead_id == phase_issue.id else None
+        ),
+    )
+    patch_startup_loaders(monkeypatch, agents=[root, coder])
+
+    async with AcePage(query='"visual-phase-plan-family"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await choose_agent_metadata_view(page)
+        panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        await page.wait_for(
+            lambda _state: "Phase plan" in (renderable_to_text(panel.content) or "")
+        )
+        await page.press("Z")
+        await page.expect_no_modal()
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        assert detail.is_deck_zoomed is True
+        await wait_for_state(
+            page,
+            lambda: (
+                "Phase plan" in (metadata := (renderable_to_text(panel.content) or ""))
+                and "▸ ARTIFACTS · resolving…" not in metadata
+                and "▸ MEMORY · resolving…" not in metadata
+            ),
+            description="phase-session PLAN plus resolved ARTIFACTS and MEMORY lanes",
+        )
+        await wait_for_visual_idle(page)
+
+        metadata = renderable_to_text(panel.content) or ""
+        assert metadata.index("▸ PLAN") < metadata.index("▸ BEAD")
+        svg = page.export_svg(title="ACE phase session dual context assertion")
+        svg_plain = svg.replace("&#160;", " ")
+        assert "SASE CONTEXT" in svg_plain
+        assert "BEAD" in svg_plain
+        assert "PLAN" in svg_plain
+        assert svg_plain.index("PLAN") < svg_plain.index("BEAD")
+        assert "sase-83.1" in svg_plain
+        assert "Parent epic" in svg_plain
+        assert "Provider update snapshot" in svg_plain
+        assert "Created:" in svg_plain
+        assert "2026-07-03" in svg_plain
+        assert "Render update awareness" not in svg_plain
+        assert "small" in svg_plain
+        assert "medium" not in svg_plain
+        assert "Phase plan" in svg_plain
+        assert "tale" in svg_plain
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_phase_bead_and_plan_context_120x40",
+            title="ACE agents phase family BEAD and PLAN context lanes",
+        )
+
+
+async def test_agents_partially_streamed_context_lanes_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Mid-stream SASE CONTEXT marks unresolved lanes (bead sase-l6.4).
+
+    Lanes resolve cheapest-first and publish as they land, so the section is
+    routinely on screen while the store-backed lanes are still resolving.
+    Holding ``memory`` and ``skills`` back for the whole capture makes that
+    transient state a stable frame: the enrichment worker still runs to
+    completion (so the page reaches visual idle) but never marks those two
+    lanes ready, which is exactly what the renderer sees between two
+    streamed publishes.
+    """
+    workspace = tmp_path / "sase_42"
+    relative_plan_path = Path("sase/repos/plans/202608/streaming context lanes.md")
+    plan_path = workspace / relative_plan_path
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Streaming SASE context lanes\n"
+        "goal: Render each context lane as soon as it resolves.\n"
+        "size: medium\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-streaming-lanes",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 8, 13, 18, 15, 0),
+        raw_suffix="20260813181500",
+        agent_name="visual.streaming-lanes",
+        plan_path=relative_plan_path.as_posix(),
+        sdd_plan_path=relative_plan_path.as_posix(),
+        plan_committed=True,
+        plan_action="tale",
+        workspace_dir=str(workspace),
+        llm_provider="codex",
+        model="gpt-5",
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "feat(ace): stream SASE CONTEXT lanes",
+                    "sha": "1234567890abcdef",
+                    "cwd": str(workspace),
+                }
+            ],
+        },
+    )
+
+    withheld: frozenset[DetailContextLane] = frozenset({"memory", "skills"})
+
+    def _refresh_without_store_lanes(
+        panel: AgentPromptPanel,
+        row: Agent,
+    ) -> frozenset[DetailContextLane]:
+        return frozenset(should_refresh_detail_header_summary(panel, row) - withheld)
+
+    monkeypatch.setattr(
+        AgentPromptPanel,
+        "_should_refresh_detail_header_summary",
+        _refresh_without_store_lanes,
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        await page.wait_for(
+            lambda _state: "resolving" in (renderable_to_text(panel.content) or "")
+        )
+        await wait_for_visual_idle(page)
+
+        metadata = renderable_to_text(panel.content) or ""
+        assert "SASE CONTEXT" in metadata
+        assert "Streaming SASE context lanes" in metadata
+        for resolved_label in ("PLAN", "ARTIFACTS"):
+            assert f"▸ {resolved_label} · resolving…\n" not in metadata
+        for pending_label in ("MEMORY", "SKILLS"):
+            assert f"▸ {pending_label} · resolving…\n" in metadata
+        assert metadata.index("▸ ARTIFACTS") < metadata.index("▸ MEMORY")
+        assert metadata.index("▸ MEMORY") < metadata.index("▸ SKILLS")
+        assert_page_svg_contains(page, "SASE CONTEXT")
+        assert_page_svg_contains(page, "resolving")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_partially_streamed_context_lanes_120x40",
+            title="ACE agents partially streamed SASE context lanes",
+        )
