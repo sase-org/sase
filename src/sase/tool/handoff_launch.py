@@ -9,6 +9,7 @@ from pathlib import Path
 
 from sase.tool.argv import ToolRunUsageError, resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest
+from sase.tool.routing import monitor_start_form
 
 
 def execute_handoff(
@@ -42,10 +43,7 @@ def execute_handoff(
 
     words = tuple(request.words)
     quoted = " ".join(shlex.quote(part) for part in words)
-    monitor_form = (
-        "sase monitor start -p verify --reason 'hand off tool run' "
-        f"-- sase tool run {quoted}".strip()
-    )
+    monitor_form = monitor_start_form(words, reason="hand off tool run")
     if os.environ.get("SASE_AGENT"):
         print(monitor_form, file=sys.stderr)
         return 2

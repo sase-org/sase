@@ -141,6 +141,14 @@ def execute_tool_run(request: ToolRunCliRequest) -> int:
         verbose=request.verbose,
         owns_output=ownership.owns_output,
     )
+    # Ceiling refusal runs before any reconcile, reservation, or spawn: a
+    # refused tool writes no ToolRun row and starts no child (exit 2).
+    from sase.tool.routing import inline_refusal
+
+    refusal = inline_refusal(resolved)
+    if refusal is not None:
+        print(refusal, file=sys.stderr)
+        return 2
     # The executor owns the run lifecycle, so it also reaps identity-matched
     # survivors of lost runs. Read-only store paths (``tool runs``/``show``)
     # reconcile without reaping and never signal.

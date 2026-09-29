@@ -287,6 +287,28 @@ Thin ledgers deliberately produce mostly UNKNOWN items until independent evidenc
 accumulated. Classification uses the stored rule version and evidence, with the
 `min_witnesses` and `touched_requires_clean_witness` knobs recorded alongside it.
 
+## Inline routing
+
+`sase tool run` refuses an inline run before starting anything (exit `2`) when all four
+conditions hold: the caller is a SASE agent (`SASE_AGENT` is set), a valid provider
+synchronous ceiling is present (`SASE_PROVIDER_SYNC_CEILING_SECONDS`), the run is a
+named catalog tool, and the tool's duration class floor meets that ceiling (`long` under
+a 600 s ceiling; `unbounded` under any ceiling). The refusal prints why (tool, class,
+floor, ceiling), states that nothing was started, and prints two runnable forms: a
+`sase monitor start -p verify` hand-off with a `--next` placeholder, and the
+prepared-completion variant (`-f <ref>`) with the `verification.command` argv to seal
+first. No ToolRun row is written and no child starts.
+
+The class is a floor, not a forecast, so on a correctly declared catalog the refusal can
+only fire where the ceiling would have killed the run anyway. `short` tools such as
+`check` always run inline and gain no hand-offs; their over-ceiling tail is reactive
+escalation's problem (`sase-17g`), which reads the same ceiling variable. There is no
+bypass flag: running inline past the ceiling is killed anyway, and a monitor always
+works. A misdeclared class is fixed in the project-owned catalog, and with no `long` or
+`unbounded` declaration nothing is ever refused (rollback is the catalog itself).
+Humans, CI, monitors, and procs never evaluate the check, and ad-hoc runs are never
+refused.
+
 ## Hand-off and lifecycle control
 
 A handed-off run has a durable identity before its caller lets go. The launcher reserves
@@ -307,7 +329,9 @@ sase tool stop RUN         # ask the owner to stop it; reports requested vs stop
 
 Agents hand off through `sase monitor start` (which reserves the run and prints its id
 before the turn ends); `sase tool run -H` refuses inside an agent or a live owner with
-the exact monitor form to use instead (exit `2`).
+the exact monitor form to use instead (exit `2`). An agent's inline run of a catalog
+tool declared `long` or `unbounded` is likewise refused before starting when its class
+floor meets the provider's synchronous ceiling (see "Inline routing" above).
 
 Recording failures behave differently by leg. Explicit `-H` is **fail-closed**: if the
 reservation cannot be committed, nothing starts (exit `1`, "nothing was started").

@@ -214,7 +214,11 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
             "stderr. The child has no output TTY; stdin is inherited.\n\n"
             "`-H` hands the run off to a durable proc and returns at once "
             "with the run id. With `-H`, `-q` prints only the run id, while "
-            "`-v` and `-T` are usage errors. Exit codes: 0 accepted, "
+            "`-v` and `-T` are usage errors. An agent's inline run of a "
+            "catalog tool declared `long` or `unbounded` is refused before "
+            "starting (exit `2`) when its class floor meets the provider's "
+            "synchronous ceiling, with the monitor command to use instead. "
+            "Exit codes: 0 accepted, "
             "1 not started, 2 usage or refusal."
         ),
         epilog=(
