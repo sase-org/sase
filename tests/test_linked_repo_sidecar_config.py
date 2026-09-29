@@ -4,12 +4,27 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+from jsonschema import Draft7Validator
+from jsonschema.exceptions import ValidationError
+
 from sase._linked_repo_config import (
     _merge_resolution_config,
     configured_sidecar_roles,
     merged_sidecar_entries_from_config,
 )
+from tests._config_schema_helpers import schema
 from tests._linked_repo_resolution_helpers import _set_github_origin
+
+
+def test_schema_accepts_attachments_private_under_builtin_only() -> None:
+    """The reserved role is a builtin key and never a custom document role."""
+    validator = Draft7Validator(schema())
+    validator.validate({"repos": {"sidecar": {"builtin": {"attachments-private": {}}}}})
+    with pytest.raises(ValidationError):
+        validator.validate(
+            {"repos": {"sidecar": {"custom": {"attachments-private": {}}}}}
+        )
 
 
 def test_removed_legacy_sidecar_list_form_yields_no_entries(tmp_path: Path) -> None:
@@ -44,6 +59,7 @@ def test_bucketed_sidecar_roles_emit_builtin_order_then_configured_custom_order(
             "sidecar": {
                 # Deliberately authored out of canonical order.
                 "builtin": {
+                    "attachments-private": {},
                     "agents": {},
                     "beads": {"auto_clone": True},
                     "plans": {"auto_clone": True},
@@ -55,7 +71,14 @@ def test_bucketed_sidecar_roles_emit_builtin_order_then_configured_custom_order(
 
     assert configured_sidecar_roles(
         config, primary_workspace_dir=str(primary), include_hidden=True
-    ) == ("plans", "beads", "agents", "designs", "research")
+    ) == (
+        "plans",
+        "beads",
+        "agents",
+        "attachments-private",
+        "designs",
+        "research",
+    )
 
 
 def test_bucketed_sidecar_layers_merge_per_role_key(tmp_path: Path) -> None:

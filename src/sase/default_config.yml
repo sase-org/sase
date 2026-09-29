@@ -20,8 +20,8 @@ plugins:
 default_linked_repos: true
 # Linked and sidecar repositories are lazy by default. Set auto_clone: true per
 # entry when every launched agent needs the repository materialized.
-# Sidecars are keyed by role: the reserved plans/beads/agents roles live under
-# builtin, and every other document sidecar lives under custom.
+# Sidecars are keyed by role: the reserved plans/beads/agents/attachments-private
+# roles live under builtin, and every other document sidecar lives under custom.
 repos:
   linked: []
   sidecar:

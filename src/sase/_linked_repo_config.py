@@ -20,6 +20,7 @@ from sase._yaml_safe import yaml_safe_load
 from sase.content_layout import resolve_project_config_read_path
 from sase.sdd._store_types import (
     AGENTS_SIDECAR_ROLE,
+    ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
     BEADS_SIDECAR_ROLE,
     PLANS_SIDECAR_ROLE,
 )
@@ -41,7 +42,12 @@ DEFAULT_BEADS_DESCRIPTION = (
 )
 DEFAULT_PLANS_DESCRIPTION = "Durable SASE plans and plan-side generated docs."
 DEFAULT_RESEARCH_DESCRIPTION = "Durable SASE research reports and generated media."
-HIDDEN_SIDECAR_ROLES = frozenset({AGENTS_SIDECAR_ROLE})
+DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION = (
+    "Hidden sidecar that stores private bead attachment bytes for this project."
+)
+HIDDEN_SIDECAR_ROLES = frozenset(
+    {AGENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE}
+)
 
 SIDECAR_BUILTIN_CONFIG_KEY = "builtin"
 SIDECAR_CUSTOM_CONFIG_KEY = "custom"
@@ -52,6 +58,7 @@ _BUILTIN_SIDECAR_ROLE_ORDER: tuple[str, ...] = (
     PLANS_SIDECAR_ROLE,
     BEADS_SIDECAR_ROLE,
     AGENTS_SIDECAR_ROLE,
+    ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
 )
 
 _DEFAULT_LINKED_REPO_MARKER = "_sase_default_linked_repo"
@@ -197,6 +204,11 @@ def _merged_sidecar_entries_cached(
         normalized_entry.setdefault("auto_clone", False)
         normalized_entry.setdefault("auto_sync", False)
         normalized_entry.setdefault("visibility", "public")
+        if normalized_entry.get("name") == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
+            # The private attachment store is private-only: an explicit
+            # ``visibility: public`` is a config error surfaced by preflight
+            # ("config requires private"), never a public create.
+            normalized_entry["visibility"] = "private"
         normalized_entry.setdefault("disabled", False)
         normalized_entry[_SIDECAR_REPO_MARKER] = True
         if identity is not None:
@@ -350,37 +362,45 @@ def inject_default_linked_repos(
             }
         )
 
-    agents_identity = resolve_sidecar_repo_identity(
-        {
-            "name": AGENTS_SIDECAR_ROLE,
-            _DEFAULT_LINKED_REPO_MARKER: True,
-        },
-        primary_workspace_dir=primary_workspace_dir,
-        default_entry=True,
-        config=config if config is not None else local_config,
-    )
-    if agents_identity is not None and not (
-        agents_identity.slug in configured_names
-        or {AGENTS_SIDECAR_ROLE, agents_identity.slug}.intersection(
-            configured_sidecar_tokens
-        )
+    for hidden_role, hidden_description, hidden_visibility in (
+        (AGENTS_SIDECAR_ROLE, DEFAULT_AGENTS_DESCRIPTION, "public"),
+        (
+            ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+            DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION,
+            "private",
+        ),
     ):
-        merged.append(
+        hidden_identity = resolve_sidecar_repo_identity(
             {
-                "name": agents_identity.slug,
-                "path": f"../{agents_identity.slug}",
-                "description": DEFAULT_AGENTS_DESCRIPTION,
-                "auto_clone": False,
-                "auto_sync": False,
-                "visibility": "public",
+                "name": hidden_role,
                 _DEFAULT_LINKED_REPO_MARKER: True,
-                _SIDECAR_REPO_MARKER: True,
-                _SIDECAR_ROLE_KEY: AGENTS_SIDECAR_ROLE,
-                _SIDECAR_SLUG_KEY: agents_identity.slug,
-                _SIDECAR_REPO_REF_KEY: agents_identity.repo,
-                _SIDECAR_REMOTE_URL_KEY: agents_identity.remote_url,
-            }
+            },
+            primary_workspace_dir=primary_workspace_dir,
+            default_entry=True,
+            config=config if config is not None else local_config,
         )
+        if hidden_identity is not None and not (
+            hidden_identity.slug in configured_names
+            or {hidden_role, hidden_identity.slug}.intersection(
+                configured_sidecar_tokens
+            )
+        ):
+            merged.append(
+                {
+                    "name": hidden_identity.slug,
+                    "path": f"../{hidden_identity.slug}",
+                    "description": hidden_description,
+                    "auto_clone": False,
+                    "auto_sync": False,
+                    "visibility": hidden_visibility,
+                    _DEFAULT_LINKED_REPO_MARKER: True,
+                    _SIDECAR_REPO_MARKER: True,
+                    _SIDECAR_ROLE_KEY: hidden_role,
+                    _SIDECAR_SLUG_KEY: hidden_identity.slug,
+                    _SIDECAR_REPO_REF_KEY: hidden_identity.repo,
+                    _SIDECAR_REMOTE_URL_KEY: hidden_identity.remote_url,
+                }
+            )
     return merged
 
 
@@ -400,9 +420,10 @@ def _sidecar_config_entries(config: Mapping[str, Any]) -> list[Mapping[str, Any]
 
     ``repos.sidecar`` is a ``{builtin: {...}, custom: {...}}`` mapping keyed by
     role. The reserved builtin roles are emitted in canonical
-    ``plans, beads, agents`` order followed by custom roles in configured
-    order; a role declared in both buckets resolves to the ``custom`` entry,
-    matching how custom model aliases win over builtin ones.
+    ``plans, beads, agents, attachments-private`` order followed by custom
+    roles in configured order; a role declared in both buckets resolves to
+    the ``custom`` entry, matching how custom model aliases win over builtin
+    ones.
     """
 
     repos = config.get(REPOS_CONFIG_KEY)

@@ -8,7 +8,9 @@ import pytest
 
 from sase._linked_repo_config import (
     AGENTS_SIDECAR_ROLE,
+    ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
     DEFAULT_AGENTS_DESCRIPTION,
+    DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION,
     HIDDEN_SIDECAR_ROLES,
     inject_default_linked_repos,
     merged_sidecar_entries_from_config,
@@ -37,7 +39,7 @@ def test_managed_project_injects_hidden_agents_sidecar_config(tmp_path: Path) ->
         for entry in entries
         if entry.get("_sase_sidecar_role") == AGENTS_SIDECAR_ROLE
     )
-    assert HIDDEN_SIDECAR_ROLES == frozenset({"agents"})
+    assert HIDDEN_SIDECAR_ROLES == frozenset({"agents", "attachments-private"})
     assert agents["name"] == "widget--agents"
     assert agents["description"] == DEFAULT_AGENTS_DESCRIPTION
     assert agents["auto_clone"] is False
@@ -46,6 +48,22 @@ def test_managed_project_injects_hidden_agents_sidecar_config(tmp_path: Path) ->
     assert agents["_sase_sidecar_repo_ref"] == "acme/widget--agents"
     assert agents["_sase_sidecar_remote_url"] == (
         "git@github.com:acme/widget--agents.git"
+    )
+
+    attachments = next(
+        entry
+        for entry in entries
+        if entry.get("_sase_sidecar_role") == ATTACHMENTS_PRIVATE_SIDECAR_ROLE
+    )
+    assert attachments["name"] == "widget--attachments-private"
+    assert attachments["description"] == DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION
+    assert attachments["auto_clone"] is False
+    assert attachments["auto_sync"] is False
+    assert attachments["visibility"] == "private"
+    assert attachments["_sase_sidecar_slug"] == "widget--attachments-private"
+    assert attachments["_sase_sidecar_repo_ref"] == "acme/widget--attachments-private"
+    assert attachments["_sase_sidecar_remote_url"] == (
+        "git@github.com:acme/widget--attachments-private.git"
     )
 
     assert (
@@ -101,6 +119,38 @@ def test_explicit_agents_override_suppresses_implicit_default(
     assert agents["_sase_sidecar_remote_url"] == (
         "git@github.com:acme/widget--agents.git"
     )
+
+
+def test_attachments_private_visibility_is_forced_private(tmp_path: Path) -> None:
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    config = {
+        "repos": {
+            "sidecar": {
+                "builtin": {
+                    "attachments-private": {"visibility": "public"},
+                    "agents": {"visibility": "private"},
+                }
+            }
+        },
+    }
+
+    entries = merged_sidecar_entries_from_config(
+        config,
+        primary_workspace_dir=str(primary),
+    )
+    by_role = {
+        entry.get("_sase_sidecar_role"): entry
+        for entry in entries
+        if entry.get("_sase_sidecar_role")
+    }
+
+    # The private attachment store is private-only: an explicit public
+    # visibility never survives merging (preflight fails it closed).
+    assert by_role["attachments-private"]["visibility"] == "private"
+    # No other role's default changes.
+    assert by_role["agents"]["visibility"] == "private"
 
 
 def test_hidden_agents_sidecar_never_resolves_for_launch(tmp_path: Path) -> None:

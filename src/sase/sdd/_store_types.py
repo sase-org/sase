@@ -19,8 +19,14 @@ SDD_STORE_RECORD_FILENAME = "sdd-store.json"
 PLANS_SIDECAR_ROLE = "plans"
 BEADS_SIDECAR_ROLE = "beads"
 AGENTS_SIDECAR_ROLE = "agents"
+ATTACHMENTS_PRIVATE_SIDECAR_ROLE = "attachments-private"
 RESERVED_SIDECAR_ROLES = frozenset(
-    {PLANS_SIDECAR_ROLE, BEADS_SIDECAR_ROLE, AGENTS_SIDECAR_ROLE}
+    {
+        PLANS_SIDECAR_ROLE,
+        BEADS_SIDECAR_ROLE,
+        AGENTS_SIDECAR_ROLE,
+        ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    }
 )
 
 _STORAGE_VALUES: frozenset[str] = frozenset(
@@ -37,14 +43,19 @@ def document_sidecar_roles(
     """Return configured document roles in their original order.
 
     ``plans`` is reserved but is also a document corpus, so callers that need
-    the complete corpus can opt into it explicitly. ``beads`` and ``agents``
-    are never document roles.
+    the complete corpus can opt into it explicitly. ``beads``, ``agents``,
+    and ``attachments-private`` are never document roles.
     """
 
     return tuple(
         role
         for role in dict.fromkeys(roles)
-        if role not in {BEADS_SIDECAR_ROLE, AGENTS_SIDECAR_ROLE}
+        if role
+        not in {
+            BEADS_SIDECAR_ROLE,
+            AGENTS_SIDECAR_ROLE,
+            ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+        }
         and (include_plans or role != PLANS_SIDECAR_ROLE)
     )
 

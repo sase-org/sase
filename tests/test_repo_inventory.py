@@ -11,6 +11,7 @@ import pytest
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase._linked_repo_config import (
     DEFAULT_AGENTS_DESCRIPTION,
+    DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION,
     DEFAULT_BEADS_DESCRIPTION,
 )
 from sase.linked_repos import external_repo_clone_dir, hidden_sidecar_clone_dir
@@ -544,6 +545,46 @@ def test_inventory_exposes_hidden_agents_at_one_machine_level_path(
     assert all(not clone.exists for clone in agents.clones)
     assert not (primary / "sase" / "repos" / "agents").exists()
     assert not (workspace_10 / "sase" / "repos" / "agents").exists()
+
+
+def test_inventory_exposes_hidden_attachments_private_at_machine_level_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_record(tmp_path)
+    primary = Path(project.workspace_dir or "")
+    _set_github_origin(primary)
+    state_root = tmp_path / "state"
+    monkeypatch.setenv("SASE_HOME", str(state_root))
+    config = {"workspace": {"root": str(tmp_path / "managed")}}
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: config,
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.read_project_local_config",
+        lambda *_args, **_kwargs: {"is_sase_managed": True},
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    store = next(
+        record for record in inventory.records if record.name == "attachments-private"
+    )
+    expected = hidden_sidecar_clone_dir(project.project_name, "attachments-private")
+    assert store.kind == "sidecar"
+    assert store.slug == "widget--attachments-private"
+    assert store.description == DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION
+    assert store.remote_url == ("git@github.com:acme/widget--attachments-private.git")
+    assert store.path == expected
+    assert store.exists is False
+    assert store.auto_clone is False
+    assert store.env_name is None
+    assert not (primary / "sase" / "repos" / "attachments-private").exists()
 
 
 def test_inventory_dedupes_agents_row_when_store_record_lists_it(

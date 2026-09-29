@@ -56,7 +56,15 @@ def test_custom_sidecar_record_without_research_routes_generic_role(
 
 
 def test_document_sidecar_roles_exclude_non_document_reserved_roles() -> None:
-    roles = ("plans", "beads", "research", "agents", "designs", "research")
+    roles = (
+        "plans",
+        "beads",
+        "research",
+        "agents",
+        "attachments-private",
+        "designs",
+        "research",
+    )
 
     assert document_sidecar_roles(roles) == ("research", "designs")
     assert document_sidecar_roles(roles, include_plans=True) == (

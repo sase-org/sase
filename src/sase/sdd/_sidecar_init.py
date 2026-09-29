@@ -26,8 +26,13 @@ from sase.sdd._store_records import (
     read_sdd_store_record,
     write_sdd_store_record,
 )
+from sase.sdd._sidecar_bare import (
+    ensure_attachments_private_bare_clone,
+    is_bare_sidecar_clone,
+)
 from sase.sdd._store_types import (
     AGENTS_SIDECAR_ROLE,
+    ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
     BEADS_SIDECAR_ROLE,
     SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
@@ -62,12 +67,16 @@ class _SidecarInitOutcome:
     roots: dict[str, Path]
 
 
-def unresolved_project_key_message(workspace_dir: str | Path) -> str:
-    """Describe an agents sidecar whose owning SASE project key is unknown."""
+def unresolved_project_key_message(
+    workspace_dir: str | Path,
+    *,
+    role: str = AGENTS_SIDECAR_ROLE,
+) -> str:
+    """Describe a hidden sidecar whose owning SASE project key is unknown."""
 
     workspace = Path(workspace_dir).expanduser()
     return (
-        "could not resolve the owning SASE project key for the agents "
+        f"could not resolve the owning SASE project key for the {role} "
         f"sidecar from {workspace}"
     )
 
@@ -79,11 +88,14 @@ def resolve_sidecar_clone_root(workspace_dir: str | Path, role: str) -> Path | N
     failure still raises :class:`SddMaterializationError`.
     """
 
-    from sase._linked_repo_config import AGENTS_SIDECAR_ROLE
+    from sase._linked_repo_config import (
+        AGENTS_SIDECAR_ROLE,
+        ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    )
     from sase.linked_repos import hidden_sidecar_clone_dir, sidecar_repo_clone_dir
 
     workspace = Path(workspace_dir).expanduser()
-    if role != AGENTS_SIDECAR_ROLE:
+    if role not in (AGENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE):
         return Path(sidecar_repo_clone_dir(workspace, role))
 
     from sase.bead.project_name import infer_project_name_from_cwd
@@ -95,7 +107,7 @@ def resolve_sidecar_clone_root(workspace_dir: str | Path, role: str) -> Path | N
         return Path(hidden_sidecar_clone_dir(project_key, role))
     except ValueError as exc:
         raise SddMaterializationError(
-            f"could not resolve the agents sidecar clone path: {exc}"
+            f"could not resolve the {role} sidecar clone path: {exc}"
         ) from exc
 
 
@@ -104,7 +116,9 @@ def sidecar_clone_root(workspace_dir: str | Path, role: str) -> Path:
 
     root = resolve_sidecar_clone_root(workspace_dir, role)
     if root is None:
-        raise SddMaterializationError(unresolved_project_key_message(workspace_dir))
+        raise SddMaterializationError(
+            unresolved_project_key_message(workspace_dir, role=role)
+        )
     return root
 
 
@@ -201,6 +215,11 @@ def initialize_sidecars(
         for spec in sidecar_specs:
             root = roots[spec.role]
             sidecar = sidecars[spec.role]
+            if spec.role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
+                # A bare partial clone has no worktree, so the working-tree
+                # clone helper above must not manage it.
+                ensure_attachments_private_bare_clone(root, sidecar.remote_url)
+                continue
             ensure_sidecar_sdd_clone(
                 root,
                 sidecar.remote_url,
@@ -276,7 +295,7 @@ def initialize_materialized_sidecars(
         spec.role: sidecar_clone_root(workspace, spec.role) for spec in sidecar_specs
     }
     for role, root in roots.items():
-        if not (root / ".git").is_dir():
+        if not ((root / ".git").is_dir() or is_bare_sidecar_clone(root)):
             raise SddMaterializationError(
                 f"configured {role} sidecar is not materialized at {root}; "
                 "rerun `sase repo init` with the repository's workspace provider"
@@ -302,6 +321,10 @@ def _seed_sidecars(
     publish_changes: bool = True,
 ) -> None:
     for spec in sidecar_specs:
+        if spec.role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
+            # The private attachment store is a bare object store: no
+            # document seeding, README generation, or artifact-link gitignore.
+            continue
         root = roots[spec.role]
         generated = list(
             ensure_sdd_sidecar_initialized(

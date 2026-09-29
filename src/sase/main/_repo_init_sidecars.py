@@ -7,13 +7,24 @@ from pathlib import Path
 import sys
 from typing import TYPE_CHECKING, TextIO
 
-from sase._linked_repo_config import AGENTS_SIDECAR_ROLE
+from sase._linked_repo_config import (
+    AGENTS_SIDECAR_ROLE,
+    ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+)
+from sase.sdd._sidecar_bare import is_bare_sidecar_clone
 
 from .init_plan import InitAction
 
 if TYPE_CHECKING:
     from sase.sdd._sidecar_init import SidecarInitSpec
     from sase.workspace_provider import SddSidecarPreflight
+
+
+#: Hidden sidecar roles whose absence never blocks ``sase repo init``: a
+#: declined or missing role simply continues init without that sidecar.
+_OPTIONAL_HIDDEN_SIDECAR_ROLES = frozenset(
+    {AGENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE}
+)
 
 
 def run_configured_sidecars(
@@ -48,7 +59,7 @@ def run_configured_sidecars(
     }
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     if missing and getattr(args, "onboarding", False) and not stdin.isatty():
-        deferred_non_agents = False
+        deferred_document_roles = False
         for role, preflight in missing.items():
             print(
                 f"warning: {preflight.provider} sidecar repository "
@@ -56,11 +67,11 @@ def run_configured_sidecars(
                 "interactively to create it",
                 file=sys.stderr,
             )
-            if role == AGENTS_SIDECAR_ROLE:
+            if role in _OPTIONAL_HIDDEN_SIDECAR_ROLES:
                 selected_roles.discard(role)
             else:
-                deferred_non_agents = True
-        if deferred_non_agents:
+                deferred_document_roles = True
+        if deferred_document_roles:
             return 0
 
     for role, preflight in preflights.items():
@@ -68,7 +79,7 @@ def run_configured_sidecars(
             if role not in selected_roles:
                 continue
             if not _confirm_sidecar_creation(args, role, preflight):
-                if role == AGENTS_SIDECAR_ROLE:
+                if role in _OPTIONAL_HIDDEN_SIDECAR_ROLES:
                     selected_roles.discard(role)
                     continue
                 return 1
@@ -86,7 +97,7 @@ def run_configured_sidecars(
         publish_sidecar_changes=not getattr(args, "no_commit", False),
     )
     for spec in selected_specs:
-        print(outcome.roots[spec.role] / "README.md")
+        print(_initialized_sidecar_path(outcome.roots[spec.role], spec.role))
     return 0
 
 
@@ -108,7 +119,7 @@ def run_materialized_sidecars(
     materialized: list[SidecarInitSpec] = []
     for spec in specs:
         root = sidecar_clone_root(project_root, spec.role)
-        if (root / ".git").is_dir():
+        if (root / ".git").is_dir() or is_bare_sidecar_clone(root):
             materialized.append(spec)
         elif spec.role not in recorded_roles:
             raise SddMaterializationError(
@@ -121,8 +132,20 @@ def run_materialized_sidecars(
         publish_sidecar_changes=publish_sidecar_changes,
     )
     for spec in materialized:
-        print(roots[spec.role] / "README.md")
+        print(_initialized_sidecar_path(roots[spec.role], spec.role))
     return 0
+
+
+def _initialized_sidecar_path(root: Path, role: str) -> Path:
+    """Return the init echo path for one sidecar root.
+
+    The private attachment store is a bare object store with no README, so
+    init prints the bare clone path itself.
+    """
+
+    if role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
+        return root
+    return root / "README.md"
 
 
 def _confirm_sidecar_creation(
@@ -132,6 +155,8 @@ def _confirm_sidecar_creation(
 ) -> bool:
     if role == AGENTS_SIDECAR_ROLE:
         return _confirm_agents_sidecar_creation(args, preflight)
+    if role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
+        return _confirm_attachments_private_sidecar_creation(args, preflight)
 
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     resource = f"{preflight.provider} sidecar repository"
@@ -223,6 +248,60 @@ def _confirm_agents_sidecar_creation(
     return False
 
 
+def _confirm_attachments_private_sidecar_creation(
+    args: argparse.Namespace,
+    preflight: SddSidecarPreflight,
+) -> bool:
+    stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
+    resource = f"{preflight.provider} attachments-private sidecar repository"
+    if not stdin.isatty():
+        print(
+            f"warning: {resource} creation refused: interactive y/yes "
+            "confirmation is required; run `sase repo init` interactively "
+            "to create it; continuing without the attachments-private sidecar",
+            file=sys.stderr,
+        )
+        return False
+
+    input_func = getattr(args, "_init_input_func", None) or input
+    visibility = preflight.visibility.strip() or "private"
+    prompt = (
+        "The attachments-private sidecar will hold private bead attachment "
+        "bytes for this project.\n"
+        f"Repository visibility: {visibility.upper()}.\n"
+        "Set repos.sidecar.builtin.attachments-private.disabled: true in "
+        "sase/sase.yml to opt out.\n\n"
+        f"Create {visibility} {preflight.provider} attachments-private "
+        f"sidecar repository {preflight.repo} on {preflight.host}? [y/N] "
+    )
+    try:
+        answer = input_func(prompt)
+    except EOFError:
+        print(
+            f"warning: {resource} creation refused: no confirmation was "
+            "received; rerun `sase repo init` interactively to create it; "
+            "continuing without the attachments-private sidecar",
+            file=sys.stderr,
+        )
+        return False
+    except KeyboardInterrupt:
+        print(
+            f"\nwarning: {resource} creation refused; rerun `sase repo init` "
+            "interactively to create it; continuing without the "
+            "attachments-private sidecar",
+            file=sys.stderr,
+        )
+        return False
+    if answer.strip().lower() in {"y", "yes"}:
+        return True
+    print(
+        f"warning: {resource} creation declined; continuing without the "
+        "attachments-private sidecar",
+        file=sys.stderr,
+    )
+    return False
+
+
 def run_legacy_store_init(project_root: Path) -> int:
     """Initialize the legacy local or in-tree SDD store."""
 
@@ -282,16 +361,16 @@ def plan_sidecar_actions(
         if root is None:
             warnings.append(
                 f"skipped {spec.role} sidecar planning: "
-                f"{unresolved_project_key_message(project_root)}"
+                f"{unresolved_project_key_message(project_root, role=spec.role)}"
             )
             continue
         roots[spec.role] = root
-        clone_exists = (root / ".git").is_dir()
+        clone_exists = (root / ".git").is_dir() or is_bare_sidecar_clone(root)
         needs_connection = not clone_exists and spec.role not in recorded_roles
         if needs_connection:
             requires_tty = True
             detail = f"create or connect the provider {spec.role} sidecar repository"
-            if spec.role == AGENTS_SIDECAR_ROLE:
+            if spec.role in (AGENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE):
                 detail += (
                     f" with configured {spec.visibility} visibility at the "
                     "machine-level hidden path"
@@ -303,6 +382,9 @@ def plan_sidecar_actions(
                     detail=detail,
                 )
             )
+        if spec.role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
+            # The bare object store has no guide files to plan.
+            continue
         if clone_exists or needs_connection:
             actions.extend(
                 InitAction(

@@ -208,6 +208,83 @@ def test_declined_agents_sidecar_continues_other_sidecars(
     assert "continuing without the agents sidecar" in stderr
 
 
+@pytest.mark.parametrize(
+    "response",
+    [
+        "",
+        "no",
+        pytest.param(EOFError(), id="eof"),
+        pytest.param(KeyboardInterrupt(), id="interrupt"),
+    ],
+)
+def test_declined_attachments_private_sidecar_continues_other_sidecars(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    response: str | BaseException,
+) -> None:
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (
+        SidecarInitSpec(role="plans"),
+        SidecarInitSpec(
+            role="attachments-private",
+            repo="acme/widget--attachments-private",
+            visibility="private",
+        ),
+    )
+    prompts: list[str] = []
+    calls: list[tuple[tuple[str, ...], dict[str, bool] | None]] = []
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {
+            "plans": _preflight("plans", status="found"),
+            "attachments-private": _preflight(
+                "attachments-private",
+                visibility="private",
+            ),
+        },
+    )
+
+    def initialize(
+        _root: Path,
+        _workspace: int,
+        selected: tuple[SidecarInitSpec, ...],
+        *,
+        creation_authorized: dict[str, bool] | None = None,
+        publish_sidecar_changes: bool = True,
+    ) -> _SidecarInitOutcome:
+        calls.append((tuple(spec.role for spec in selected), creation_authorized))
+        assert publish_sidecar_changes is False
+        return _outcome(tmp_path, selected)
+
+    def answer(prompt: str) -> str:
+        prompts.append(prompt)
+        if isinstance(response, BaseException):
+            raise response
+        return response
+
+    monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", initialize)
+    args = _args(tmp_path)
+    args._init_stdin = _Tty()
+    args._init_input_func = answer
+
+    assert run_repo_init(args) == 0
+    assert calls == [(("plans",), {})]
+    assert prompts and "PRIVATE" in prompts[0]
+    assert "private bead attachment bytes" in prompts[0]
+    stderr = capsys.readouterr().err
+    assert "continuing without the attachments-private sidecar" in stderr
+
+
 def test_non_tty_refuses_only_agents_creation_and_explains_rerun(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

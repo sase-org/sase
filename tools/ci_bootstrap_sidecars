@@ -8,8 +8,8 @@ broke ``sase validate`` on every master run), so the environment is derived
 from the configuration instead.
 
 Only sidecar roles that the SDD store record can represent are cloned. The
-hidden ``agents`` sidecar is skipped because ``sase init repo --check`` merely
-warns about it.
+hidden ``agents`` and ``attachments-private`` sidecars are skipped because
+``sase init repo --check`` merely warns about them.
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ STORE_RECORD_PATH = Path(".sase") / "sdd-store.json"
 # The store record schema names exactly these sidecar roles; anything else in
 # ``repos.sidecar`` has no place to be recorded and is not needed by CI.
 STORE_SIDECAR_ROLES: tuple[str, ...] = ("plans", "research", "beads")
-# ``sase init repo --check`` only warns when this sidecar is absent, so CI does
-# not pay for the clone.
-HIDDEN_SIDECAR_ROLES = frozenset({"agents"})
+# ``sase init repo --check`` only warns when these sidecars are absent, so CI
+# does not pay for the clones.
+HIDDEN_SIDECAR_ROLES = frozenset({"agents", "attachments-private"})
 # A sidecar store is only materialized once both of these exist.
 REQUIRED_SIDECAR_ROLES: tuple[str, ...] = ("plans", "research")
 

@@ -4654,14 +4654,14 @@
         },
         "sidecar": {
           "type": "object",
-          "description": "Project-owned sidecar repositories keyed by role name. Reserved roles (plans, beads, agents) belong under builtin; every other role is a document sidecar and belongs under custom. Ordinary roles clone below sase/repos/<role>; the hidden agents role is explicitly accessible only at ~/.sase/projects/<project_key>/repos/agents.",
+          "description": "Project-owned sidecar repositories keyed by role name. Reserved roles (plans, beads, agents, attachments-private) belong under builtin; every other role is a document sidecar and belongs under custom. Ordinary roles clone below sase/repos/<role>; the hidden agents and attachments-private roles are explicitly accessible only at ~/.sase/projects/<project_key>/repos/<role>.",
           "additionalProperties": false,
           "properties": {
             "builtin": {
               "type": "object",
-              "description": "Overrides for the reserved sidecar roles. Keys are role names and must be one of plans, beads, or agents.",
+              "description": "Overrides for the reserved sidecar roles. Keys are role names and must be one of plans, beads, agents, or attachments-private.",
               "propertyNames": {
-                "enum": ["plans", "beads", "agents"]
+                "enum": ["plans", "beads", "agents", "attachments-private"]
               },
               "additionalProperties": {
                 "$ref": "#/definitions/sidecarRepo"
@@ -4669,11 +4669,11 @@
             },
             "custom": {
               "type": "object",
-              "description": "User-declared document sidecars such as research. Keys are role names and must not name a reserved role (plans, beads, agents).",
+              "description": "User-declared document sidecars such as research. Keys are role names and must not name a reserved role (plans, beads, agents, attachments-private).",
               "propertyNames": {
                 "minLength": 1,
                 "not": {
-                  "enum": ["plans", "beads", "agents"]
+                  "enum": ["plans", "beads", "agents", "attachments-private"]
                 }
               },
               "additionalProperties": {

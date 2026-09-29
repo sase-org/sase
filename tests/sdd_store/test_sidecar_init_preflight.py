@@ -33,7 +33,87 @@ def test_sidecar_clone_root_keeps_agents_machine_scoped(
     assert sidecar_clone_root(project, "agents") == (
         state_root / "projects" / "gh_acme__widget" / "repos" / "agents"
     )
+    assert sidecar_clone_root(project, "attachments-private") == (
+        state_root / "projects" / "gh_acme__widget" / "repos" / "attachments-private"
+    )
     assert not state_root.exists()
+
+
+def test_attachments_private_preflight_pins_reserved_role_visibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "widget"
+    project.mkdir()
+    captured: list[dict[str, object]] = []
+    spec = SidecarInitSpec(
+        role="attachments-private",
+        repo="acme/widget--attachments-private",
+        remote_url="https://github.com/acme/widget--attachments-private.git",
+        visibility="private",
+        description="Hidden sidecar that stores private bead attachment bytes.",
+    )
+
+    def preflight(
+        _primary: str,
+        _workspace: str,
+        options: dict[str, object],
+    ) -> SddSidecarPreflight:
+        captured.append(options)
+        return SddSidecarPreflight(
+            status="not_found",
+            provider="GitHub",
+            host="github.com",
+            repo="acme/widget--attachments-private",
+            visibility="private",
+        )
+
+    monkeypatch.setattr("sase.workspace_provider.preflight_sdd_sidecar", preflight)
+
+    result = preflight_sidecars(project, 1, (spec,))
+
+    assert result["attachments-private"].visibility == "private"
+    assert captured == [
+        {
+            "create": False,
+            "provider_policy": "separate_repo",
+            "sdd_sidecar_suffix": "attachments-private",
+            "sdd_visibility": "private",
+            "workspace_num": 1,
+            "sdd_repo": "acme/widget--attachments-private",
+            "sdd_remote_url": (
+                "https://github.com/acme/widget--attachments-private.git"
+            ),
+            "sdd_description": (
+                "Hidden sidecar that stores private bead attachment bytes."
+            ),
+        }
+    ]
+
+
+def test_attachments_private_preflight_rejects_public_provider_visibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "widget"
+    project.mkdir()
+    spec = SidecarInitSpec(role="attachments-private", visibility="private")
+    monkeypatch.setattr(
+        "sase.workspace_provider.preflight_sdd_sidecar",
+        lambda *_args: SddSidecarPreflight(
+            status="not_found",
+            provider="GitHub",
+            host="github.com",
+            repo="acme/widget--attachments-private",
+            visibility="public",
+        ),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="config requires private",
+    ):
+        preflight_sidecars(project, 1, (spec,))
 
 
 def test_custom_sidecar_preflight_passes_pin_visibility_and_description(
