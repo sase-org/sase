@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from sase.ace.tui.graphics.images import is_supported_image_path
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     file_hint_match_span,
     iter_file_path_matches,
@@ -25,6 +26,7 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 PreviewKind = Literal["xprompt", "file"]
 PreviewDefaultView = Literal["source", "rendered"]
+PreviewMedia = Literal["text", "image"]
 
 _MAX_PREVIEW_READ_BYTES = 512_000
 _BINARY_SNIFF_BYTES = 8192
@@ -67,6 +69,7 @@ class PreviewPayload:
     reference: str | None = None
     default_view: PreviewDefaultView = "source"
     properties: XPromptProperties | None = None
+    media: PreviewMedia = "text"
 
 
 class PreviewError(Exception):
@@ -309,6 +312,16 @@ def _resolve_file_preview(
         raise PreviewError(f"'{token.target}' is a directory, not a file")
     if not resolved.is_file():
         raise PreviewError(f"Cannot preview non-file path: {token.target}")
+    if is_supported_image_path(resolved):
+        return PreviewPayload(
+            kind_label="image",
+            icon="@",
+            title=token.raw,
+            source_path=str(resolved),
+            content="",
+            lexer="text",
+            media="image",
+        )
 
     content = _read_text_file(resolved, display_path=token.target)
     return PreviewPayload(

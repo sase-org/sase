@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.ace.testing import PromptPage
+from pathlib import Path
 from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
 from sase.ace.tui.widgets._prompt_preview_target import (
     PreviewError,
@@ -386,3 +387,48 @@ async def test_k_on_long_xprompt_opens_taller_than_baseline(
         container = modal.query_one("#preview-modal-container", Container)
         assert container.styles.height.cells is not None
         assert container.styles.height.cells > baseline.height
+
+
+async def test_k_on_image_file_pushes_image_modal(tmp_path: Path) -> None:
+    from sase.ace.tui.graphics import CellImageRenderable
+    from sase.ace.tui.modals.preview_panel_image_modal import (
+        ImagePreviewPanelModal,
+    )
+
+    image: Path = tmp_path / "view.png"
+    from PIL import Image as _Image
+
+    _Image.new("RGBA", (16, 16), (0, 255, 0, 255)).save(image)
+
+    async with PromptPage(f"view {image}", cursor=(0, 5), size=(100, 30)) as page:
+        await page.press("K")
+        await page.wait_for(
+            lambda: isinstance(
+                page.ta.app.screen_stack[-1],
+                ImagePreviewPanelModal,
+            )
+        )
+        modal = page.ta.app.screen_stack[-1]
+        assert isinstance(modal, ImagePreviewPanelModal)
+        await page.wait_for(
+            lambda: isinstance(
+                modal._image_renderable,  # noqa: SLF001
+                CellImageRenderable,
+            )
+        )
+
+
+async def test_k_on_text_file_pushes_plain_preview_modal(tmp_path: Path) -> None:
+    from sase.ace.tui.modals.preview_panel_image_modal import (
+        ImagePreviewPanelModal,
+    )
+
+    text: Path = tmp_path / "notes.txt"
+    text.write_text("hello\n", encoding="utf-8")
+
+    async with PromptPage(f"view {text}", cursor=(0, 5), size=(100, 30)) as page:
+        await page.press("K")
+        await page.wait_for(lambda: _top_is_preview(page))
+        modal = page.ta.app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        assert not isinstance(modal, ImagePreviewPanelModal)

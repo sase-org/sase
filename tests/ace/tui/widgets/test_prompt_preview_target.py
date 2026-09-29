@@ -486,3 +486,54 @@ def test_directory_and_binary_files_raise_preview_errors(tmp_path: Path) -> None
             project=None,
             base_dir=str(tmp_path),
         )
+
+
+def test_resolves_image_preview_without_reading_bytes(tmp_path: Path) -> None:
+    from PIL import Image
+
+    image = tmp_path / "shot.PNG"
+    Image.new("RGBA", (8, 8), (255, 0, 0, 255)).save(image)
+    payload = resolve_preview_target(
+        PreviewToken("file", "shot.PNG", "shot.PNG", 0, 8),
+        project=None,
+        base_dir=str(tmp_path),
+    )
+
+    assert payload.media == "image"
+    assert payload.kind_label == "image"
+    assert payload.source_path == str(image)
+    assert payload.content == ""
+
+    nul_image = tmp_path / "nul.png"
+    nul_image.write_bytes(b"\x89PNG\x00\x01\x02binary\x00payload")
+    nul_payload = resolve_preview_target(
+        PreviewToken("file", "nul.png", "nul.png", 0, 7),
+        project=None,
+        base_dir=str(tmp_path),
+    )
+
+    assert nul_payload.media == "image"
+    assert nul_payload.kind_label == "image"
+    assert nul_payload.source_path == str(nul_image)
+    assert nul_payload.content == ""
+
+
+def test_missing_image_raises_file_not_found(tmp_path: Path) -> None:
+    with pytest.raises(PreviewError, match="File not found: missing.png"):
+        resolve_preview_target(
+            PreviewToken("file", "missing.png", "missing.png", 0, 11),
+            project=None,
+            base_dir=str(tmp_path),
+        )
+
+
+def test_image_directory_raises_directory_error(tmp_path: Path) -> None:
+    directory = tmp_path / "dir.png"
+    directory.mkdir()
+
+    with pytest.raises(PreviewError, match="is a directory, not a file"):
+        resolve_preview_target(
+            PreviewToken("file", "dir.png", "dir.png", 0, 7),
+            project=None,
+            base_dir=str(tmp_path),
+        )

@@ -862,6 +862,12 @@ Markdown switches to source view. `Esc` in the input cancels the edit, while `Es
 a committed search first clears the matches and only closes the reader on the next
 press.
 
+Prompt `K` on a supported image path (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`) opens
+the reader with an inline cell preview sized to the near-full-screen panel. It
+re-renders on terminal resize. The footer shows
+`Y path | % copy | Z viewer | esc close`, and `Z` opens the full-fidelity artifact
+viewer. `y`, `/`, and `o` warn instead of acting on image previews.
+
 ### File Pane
 
 Files browses the artifact-file index that backs [`sase artifact list`](cli.md). The
@@ -7633,14 +7639,15 @@ position captured when the finder opened. Inside the finder, type to filter, use
 and `Esc` to cancel.
 
 In prompt NORMAL mode, `K` previews the xprompt, slash skill, or file under the cursor.
-Inside `#name: ` / `#name:: ` argument text, `K` and `Ctrl+]` prefer a nested reference,
-file path, glossary term, or plain word under the cursor, and fall back to the xprompt
-that owns the argument text only when nothing else matches. On ordinary prompt text,
-sase's TUI checks the warm project glossary before falling back to plain word lookup or
-spelling fixes. `Ctrl+]` jumps to an xprompt, skill, file, or glossary definition, or
-opens an action picker when several jump targets are available. Glossary terms come from
-the project selected by a leading VCS workflow reference, or from the active workspace
-project when the prompt does not select one.
+Image files preview inline in the reader, while `Ctrl+]` still opens images directly in
+the artifact viewer. Inside `#name: ` / `#name:: ` argument text, `K` and `Ctrl+]`
+prefer a nested reference, file path, glossary term, or plain word under the cursor, and
+fall back to the xprompt that owns the argument text only when nothing else matches. On
+ordinary prompt text, sase's TUI checks the warm project glossary before falling back to
+plain word lookup or spelling fixes. `Ctrl+]` jumps to an xprompt, skill, file, or
+glossary definition, or opens an action picker when several jump targets are available.
+Glossary terms come from the project selected by a leading VCS workflow reference, or
+from the active workspace project when the prompt does not select one.
 
 #### Glossary terms
 

@@ -24,6 +24,7 @@ class ImageFallbackRenderable:
 
     path: str
     reason: str
+    hint: str = "Open artifact with A"
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
@@ -39,7 +40,7 @@ class ImageFallbackRenderable:
         if size is not None:
             text.append(f"\n{size:,} bytes", style="dim")
         text.append(f"\n{self.reason}", style="dim italic")
-        text.append("\nOpen artifact with A", style="dim")
+        text.append(f"\n{self.hint}", style="dim")
         yield text
 
 
@@ -49,15 +50,17 @@ def image_preview(
     *,
     columns: int = 40,
     rows: int = 12,
+    fallback_hint: str | None = None,
 ) -> CellImageRenderable | ImageFallbackRenderable:
     """Return a Pillow-backed renderable for a local image path without raising."""
     expanded = os.path.abspath(os.path.expanduser(path))
+    hint = fallback_hint or "Open artifact with A"
     if not is_supported_image_path(expanded):
         return ImageFallbackRenderable(
-            expanded, "file extension is not a supported image type"
+            expanded, "file extension is not a supported image type", hint
         )
     if not os.path.exists(expanded):
-        return ImageFallbackRenderable(expanded, "file does not exist")
+        return ImageFallbackRenderable(expanded, "file does not exist", hint)
 
     render_context = context or image_render_context()
     try:
@@ -68,6 +71,8 @@ def image_preview(
             truecolor=render_context.truecolor,
         )
     except OSError as exc:
-        return ImageFallbackRenderable(expanded, str(exc))
+        return ImageFallbackRenderable(expanded, str(exc), hint)
     except CellImageError as exc:
-        return ImageFallbackRenderable(expanded, f"image preview unavailable: {exc}")
+        return ImageFallbackRenderable(
+            expanded, f"image preview unavailable: {exc}", hint
+        )

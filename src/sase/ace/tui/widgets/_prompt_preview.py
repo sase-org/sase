@@ -109,6 +109,14 @@ class PromptPreviewMixin(_MixinBase):
         if request_id != self._prompt_preview_request_id or not self.is_mounted:
             return
 
+        if payload.media == "image":
+            from sase.ace.tui.modals.preview_panel_image_modal import (
+                ImagePreviewPanelModal,
+            )
+
+            self.app.push_screen(ImagePreviewPanelModal(payload))
+            return
+
         from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
 
         self.app.push_screen(PreviewPanelModal(payload))
