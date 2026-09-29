@@ -144,3 +144,26 @@ def _seed(path: Path, rows: list[_SeedRow]) -> None:
                 pinned=pinned,
             ),
         )
+
+
+# --- Public aliases for split test modules ---------------------------------
+# Split-out test modules must not import `_`-prefixed names across files, so
+# shared fixtures are also available under public names here. This module is
+# already private (`_`-prefixed), which is where shared helpers belong.
+
+
+FakeBar = _FakeBar
+
+RestoreHarness = _RestoreHarness
+
+point_store_at = _point_store_at
+
+restore_pairs = _restore_pairs
+
+seed_prompt_stash = _seed
+
+skip_without_prompt_stash_bindings = _skip_without_prompt_stash_bindings
+
+skip_without_pinned_binding = _skip_without_pinned_binding
+
+wait_prompt_stash_tasks = _wait_prompt_stash_tasks
