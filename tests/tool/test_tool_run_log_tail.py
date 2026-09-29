@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.tool.logs import _ToolRunLogTail, record_truncation, tool_run_log_tail
-from sase.tool.query import _replay_logs
+from sase.tool.query_show import _replay_logs
 
 
 def _write(path: Path, text: str) -> Path:
