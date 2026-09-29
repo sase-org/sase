@@ -94,6 +94,8 @@ def _links_from_data(value: object) -> list[BeadLink]:
 def _plus_one_evidence_list(value: object) -> list[TaskPlusOneEvidence]:
     if not isinstance(value, list):
         return []
+    from sase.bead.note_codec import attachments_from_list
+
     return [
         TaskPlusOneEvidence(
             timestamp=_optional_str(evidence.get("timestamp", "")),
@@ -105,6 +107,7 @@ def _plus_one_evidence_list(value: object) -> list[TaskPlusOneEvidence]:
                 if evidence.get("observed_since") is None
                 else _optional_str(evidence.get("observed_since"))
             ),
+            attachments=attachments_from_list(evidence.get("attachments")),
         )
         for evidence in value
         if isinstance(evidence, dict)
@@ -170,6 +173,36 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
                         **(
                             {"observed_since": evidence.observed_since}
                             if evidence.observed_since
+                            else {}
+                        ),
+                        **(
+                            {
+                                "attachments": [
+                                    {
+                                        "name": attachment.name,
+                                        "sha256": attachment.sha256,
+                                        "size_bytes": attachment.size_bytes,
+                                        "mime_type": attachment.mime_type,
+                                        **(
+                                            {
+                                                "image": {
+                                                    "width": attachment.image[0],
+                                                    "height": attachment.image[1],
+                                                }
+                                            }
+                                            if attachment.image is not None
+                                            else {}
+                                        ),
+                                        **(
+                                            {"origin": attachment.origin}
+                                            if attachment.origin is not None
+                                            else {}
+                                        ),
+                                    }
+                                    for attachment in evidence.attachments
+                                ]
+                            }
+                            if evidence.attachments
                             else {}
                         ),
                     }

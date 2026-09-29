@@ -123,7 +123,7 @@ def render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
             f"{issue_id} · {issue.title}"
             f"{_flag_compact_cells(issue, use_color=use_color)}"
             f"{row_badges(issue, use_color=use_color)}"
-            f"{compact_attachment_suffix(issue.notes)}{parent}"
+            f"{compact_attachment_suffix(issue)}{parent}"
             f"{created_cell(issue, use_color=use_color)}"
         )
     return "\n".join(lines) + "\n"
@@ -201,7 +201,7 @@ def render_search_compact(
             f"{issue.id} · "
             f"{issue.title}{_flag_compact_cells(issue, use_color=use_color)}"
             f"{row_badges(issue, use_color=use_color)}"
-            f"{compact_attachment_suffix(issue.notes)}"
+            f"{compact_attachment_suffix(issue)}"
             f"{created_cell(issue, use_color=use_color)}"
         )
         snippet = _compact_snippet(match, query, regex)

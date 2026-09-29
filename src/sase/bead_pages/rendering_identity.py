@@ -166,10 +166,28 @@ def render_plus_one_evidence(
                 f"> **Observed since:** {_render_instant(evidence.observed_since)}"
             )
         lines.append(">")
+        from sase.bead.attachment_presentation import (
+            attachment_descriptor,
+            prose_with_chips,
+        )
+
+        attachments = getattr(evidence, "attachments", ())
+        note_text = evidence.note
+        if attachments:
+            note_text = prose_with_chips(
+                note_text, [attachment.name for attachment in attachments]
+            )
         lines.extend(
             f"> {line}" if line else ">"
-            for line in _bounded_prose(evidence.note).splitlines()
+            for line in _bounded_prose(note_text).splitlines()
         )
+        if attachments:
+            lines.append(">")
+            lines.append("> **Attachments:**")
+            for attachment in attachments:
+                lines.append(
+                    f"> - {md_escape(attachment_descriptor(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, sha256=attachment.sha256))}"
+                )
         if evidence.refs:
             lines.append(">")
             refs = ", ".join(

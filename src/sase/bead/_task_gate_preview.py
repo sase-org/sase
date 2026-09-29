@@ -234,6 +234,11 @@ def _task_triage_evidence_preview(
 ) -> str:
     if not evidence_rows:
         return ""
+    from sase.bead.attachment_presentation import (
+        attachment_descriptor,
+        prose_with_chips,
+    )
+
     lines = ["", f"## {PLUS_ONE_SECTION_LABEL.title()}", ""]
     for index, evidence in enumerate(evidence_rows):
         if index:
@@ -250,9 +255,20 @@ def _task_triage_evidence_preview(
             lines.append(
                 f"> **Observed since:** {_markdown_code(evidence.observed_since)}"
             )
-        lines.extend(
-            f"> {line}" if line else ">" for line in evidence.note.splitlines()
-        )
+        attachments = getattr(evidence, "attachments", ())
+        note_text = evidence.note
+        if attachments:
+            note_text = prose_with_chips(
+                note_text, [attachment.name for attachment in attachments]
+            )
+        lines.extend(f"> {line}" if line else ">" for line in note_text.splitlines())
+        if attachments:
+            lines.append(">")
+            lines.append("> **Attachments:**")
+            for attachment in attachments:
+                lines.append(
+                    f"> - {_markdown_code(attachment_descriptor(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, sha256=attachment.sha256))}"
+                )
         if evidence.refs:
             rendered_refs = ", ".join(
                 f"`{_markdown_code(ref)}`" for ref in evidence.refs

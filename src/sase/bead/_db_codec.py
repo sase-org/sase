@@ -19,6 +19,8 @@ from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
 
 
 def plus_one_evidence_json(evidence: list[TaskPlusOneEvidence]) -> str:
+    from sase.bead.note_codec import attachment_to_dict as _evidence_attachment_to_dict
+
     return json.dumps(
         [
             {
@@ -29,6 +31,15 @@ def plus_one_evidence_json(evidence: list[TaskPlusOneEvidence]) -> str:
                 **(
                     {"observed_since": entry.observed_since}
                     if entry.observed_since
+                    else {}
+                ),
+                **(
+                    {
+                        "attachments": [
+                            _evidence_attachment_to_dict(a) for a in entry.attachments
+                        ]
+                    }
+                    if entry.attachments
                     else {}
                 ),
             }
@@ -134,6 +145,8 @@ def plus_one_evidence_from_json(value: object) -> list[TaskPlusOneEvidence]:
         return []
     if not isinstance(records, list):
         return []
+    from sase.bead.note_codec import attachments_from_list as _attachments_from_list
+
     return [
         TaskPlusOneEvidence(
             timestamp=str(record.get("timestamp", "")),
@@ -145,6 +158,7 @@ def plus_one_evidence_from_json(value: object) -> list[TaskPlusOneEvidence]:
                 if record.get("observed_since") is None
                 else str(record.get("observed_since"))
             ),
+            attachments=_attachments_from_list(record.get("attachments")),
         )
         for record in records
         if isinstance(record, dict)

@@ -124,30 +124,39 @@ def test_close_missing_attachment_writes_nothing(
     assert _show(project_dir, issue_id).status is Status.OPEN
 
 
-def test_plus_one_note_attachments_refused(project_dir: Path, work_dir: Path) -> None:
-    # At the pinned sase-core, TaskPlusOneEvidence carries no manifest: the
-    # core refuses a +1 manifest without a snooze wake, so the CLI surfaces
-    # the refusal and records nothing rather than dropping the bytes.
-    (work_dir / "shot.png").write_bytes(PNG_HEAD + b"pixels")
+def test_plus_one_note_attachments_persist(project_dir: Path, work_dir: Path) -> None:
+    data = PNG_HEAD + b"pixels"
+    (work_dir / "shot.png").write_bytes(data)
     issue_id = _create_task(project_dir)
 
     with override_flags(bead_note_attachments=True):
-        _, err, code = _run(
+        out, err, code = _run(
             ["+1", issue_id, "-a", "reporter.agent", "-n", "repro @./shot.png"]
         )
 
-    assert code == 1
-    assert "wakes a snoozed bead" in err
-    assert _show(project_dir, issue_id).plus_one_evidence == []
+    assert code == 0
+    assert "+1 recorded" in out
+    assert "attached shot.png" in err
+    task = _show(project_dir, issue_id)
+    assert len(task.plus_one_evidence) == 1
+    evidence = task.plus_one_evidence[0]
+    assert evidence.note == "repro @attachment:shot.png"
+    assert len(evidence.attachments) == 1
+    assert evidence.attachments[0].name == "shot.png"
+    assert evidence.attachments[0].size_bytes == len(data)
+    # Bytes are content-addressed: deleting the source keeps them available.
+    (work_dir / "shot.png").unlink()
+    from sase.bead.attachments.store import LocalAttachmentStore
+
+    digest = evidence.attachments[0].sha256
+    assert LocalAttachmentStore().object_path(digest).read_bytes() == data
+    reread = _show(project_dir, issue_id)
+    assert reread.plus_one_evidence[0].attachments[0].sha256 == digest
 
 
-def test_plus_one_note_attachments_refused_on_snooze_wake(
+def test_plus_one_note_attachments_on_snooze_wake(
     project_dir: Path, work_dir: Path
 ) -> None:
-    # Even the snooze-wake path cannot record a +1 manifest at this pin: the
-    # generated wake note carries no @attachment tokens, so the core's
-    # token/manifest check refuses it. Nothing is recorded, including the
-    # evidence itself.
     (work_dir / "shot.png").write_bytes(PNG_HEAD + b"pixels")
     issue_id = _create_task(project_dir)
     with override_flags(bead_note_attachments=True):
@@ -155,14 +164,39 @@ def test_plus_one_note_attachments_refused_on_snooze_wake(
         assert (
             _run(["snooze", issue_id, "-u", "2030-01-01T00:00:00Z", "-p", "1"])[2] == 0
         )
-        _, _, code = _run(
+        out, err, code = _run(
             ["+1", issue_id, "-a", "reporter.agent", "-n", "repro @./shot.png"]
         )
 
-    assert code == 1
+    assert code == 0, err
+    assert "+1 recorded" in out
     task = _show(project_dir, issue_id)
-    assert task.plus_one_evidence == []
-    assert task.status is Status.SNOOZED
+    assert task.status is Status.READY
+    assert len(task.plus_one_evidence) == 1
+    assert task.plus_one_evidence[0].note == "repro @attachment:shot.png"
+    assert task.plus_one_evidence[0].attachments[0].name == "shot.png"
+    # Snooze note plus the generated wake note; the wake note stays
+    # attachment-free because its preset text has no @attachment tokens.
+    assert len(task.notes) == 2
+    assert task.notes[1].attachments == ()
+    assert "Reopened by +1 threshold" in task.notes[1].text
+
+
+def test_plus_one_no_manifest_evidence_unchanged(
+    project_dir: Path, work_dir: Path
+) -> None:
+    issue_id = _create_task(project_dir)
+
+    with override_flags(bead_note_attachments=True):
+        out, _, code = _run(
+            ["+1", issue_id, "-a", "reporter.agent", "-n", "plain repro"]
+        )
+
+    assert code == 0
+    assert "+1 recorded" in out
+    task = _show(project_dir, issue_id)
+    assert task.plus_one_evidence[0].note == "plain repro"
+    assert task.plus_one_evidence[0].attachments == ()
 
 
 def test_plus_one_note_stays_literal_when_off(

@@ -274,8 +274,20 @@ def _legacy_note_header(paragraph: str) -> tuple[str, str, str] | None:
     return (timestamp, actor, body)
 
 
+def attachment_to_dict(attachment: BeadNoteAttachment) -> dict[str, Any]:
+    """Encode one attachment in sase-core wire field order."""
+    return _attachment_to_dict(attachment)
+
+
+def attachments_from_list(value: object) -> tuple[BeadNoteAttachment, ...]:
+    """Decode an attachment manifest list, tolerating absence and junk."""
+    return _attachments_from_list(value)
+
+
 __all__ = [
     "LEGACY_NOTE_ID_PREFIX",
+    "attachment_to_dict",
+    "attachments_from_list",
     "notes_from_data",
     "notes_from_dicts",
     "notes_text",

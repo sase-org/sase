@@ -330,6 +330,26 @@ def _bead_detail_wire(
                     project=project,
                     beads_dir=representative_dir,
                 ),
+                **(
+                    {"observed_since": evidence.observed_since}
+                    if evidence.observed_since
+                    else {}
+                ),
+                **(
+                    {
+                        "attachments": [
+                            {
+                                "name": attachment.name,
+                                "sha256": attachment.sha256,
+                                "size_bytes": attachment.size_bytes,
+                                "mime_type": attachment.mime_type,
+                            }
+                            for attachment in getattr(evidence, "attachments", ())
+                        ]
+                    }
+                    if getattr(evidence, "attachments", ())
+                    else {}
+                ),
             }
             for evidence in issue.plus_one_evidence
         ],

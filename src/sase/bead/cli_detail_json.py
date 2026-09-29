@@ -133,6 +133,41 @@ def _enrich_note_dicts_with_availability(issue: Issue) -> list[dict[str, object]
     return note_dicts  # type: ignore[return-value]
 
 
+def _evidence_attachment_dicts_with_availability(
+    evidence: object,
+) -> list[dict[str, object]] | None:
+    """Return evidence attachments plus availability, or None when empty.
+
+    Only ``issue_to_wire_dict`` carries ``availability``/``local_path``;
+    the store codecs stay byte-identical. No bytes, no paths from the
+    manifest itself, and no escape codes.
+    """
+    from sase.bead.attachment_presentation import (
+        attachment_availability,
+        attachment_view_path,
+    )
+    from sase.bead.note_codec import attachment_to_dict
+
+    attachments = getattr(evidence, "attachments", ())
+    if not attachments:
+        return None
+    wire_list: list[dict[str, object]] = []
+    for attachment in attachments:
+        wire = dict(attachment_to_dict(attachment))
+        entry: dict[str, object] = dict(wire)
+        sha = wire.get("sha256")
+        name = wire.get("name")
+        if isinstance(sha, str) and isinstance(name, str):
+            availability = attachment_availability(sha)
+            entry["availability"] = availability
+            if availability == "cached":
+                view = attachment_view_path(sha, name)
+                if view is not None:
+                    entry["local_path"] = view
+        wire_list.append(entry)
+    return wire_list
+
+
 def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
     """Return the shared flat issue schema used by read-command JSON."""
     payload: dict[str, object] = {
@@ -177,6 +212,15 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
                 "note": evidence.note,
                 "refs": list(evidence.refs),
                 "observed_since": evidence.observed_since,
+                **(
+                    {
+                        "attachments": _evidence_attachment_dicts_with_availability(
+                            evidence
+                        )
+                    }
+                    if getattr(evidence, "attachments", ())
+                    else {}
+                ),
                 # Derived here rather than left to the reader: agents use this
                 # JSON to decide whether a duplicate is worth reviving, and
                 # re-deriving the join is how renderings drift apart.

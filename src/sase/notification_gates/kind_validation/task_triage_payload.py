@@ -223,9 +223,12 @@ def _parse_plus_one_evidence(
     reporters: set[str] = set()
     for index, raw_item in enumerate(raw_evidence):
         item_fields = set(raw_item) if isinstance(raw_item, Mapping) else set()
-        allowed_fields = (
+        allowed_bases = (
             {"timestamp", "reporter", "note", "refs"},
             {"timestamp", "reporter", "note", "refs", "observed_since"},
+        )
+        allowed_fields = (
+            tuple(base | {"attachments"} for base in allowed_bases) + allowed_bases
         )
         if not isinstance(raw_item, Mapping) or item_fields not in allowed_fields:
             raise GateError(
@@ -258,12 +261,24 @@ def _parse_plus_one_evidence(
                 f"payload.plus_one_evidence.{index}.observed_since",
                 f"{label} +1 evidence observed_since must be a string",
             )
+        from sase.bead.note_codec import attachments_from_list
+
+        raw_attachments = raw_item.get("attachments", [])
+        if raw_attachments is None:
+            raw_attachments = []
+        if not isinstance(raw_attachments, list):
+            raise GateError(
+                code,
+                f"payload.plus_one_evidence.{index}.attachments",
+                f"{label} +1 evidence attachments must be a list",
+            )
         item = TaskPlusOneEvidence(
             timestamp=cast(str, raw_item["timestamp"]),
             reporter=cast(str, raw_item["reporter"]),
             note=cast(str, raw_item["note"]),
             refs=tuple(item_refs),
             observed_since=cast(str | None, observed_since),
+            attachments=attachments_from_list(raw_attachments),
         )
         try:
             item.validate()

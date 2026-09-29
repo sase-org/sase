@@ -35,6 +35,9 @@ def _roster_for_issue(issue: Issue) -> dict[str, BeadNoteAttachment]:
     for note in issue.notes:
         for attachment in note.attachments:
             roster[attachment.name] = attachment
+    for evidence in issue.plus_one_evidence:
+        for attachment in getattr(evidence, "attachments", ()):
+            roster[attachment.name] = attachment
     return roster
 
 

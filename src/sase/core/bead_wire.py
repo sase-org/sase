@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from sase.bead.close_history_codec import close_history_from_dicts
-from sase.bead.note_codec import notes_from_data
+from sase.bead.note_codec import attachments_from_list, notes_from_data
 from sase.bead.snooze_codec import snooze_from_dict
 from sase.bead.model import (
     BeadLink,
@@ -131,6 +131,7 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
                     if evidence.get("observed_since") is None
                     else str(evidence.get("observed_since"))
                 ),
+                attachments=attachments_from_list(evidence.get("attachments")),
             )
             for evidence in data.get("plus_one_evidence") or []
         ],

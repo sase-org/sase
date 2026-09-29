@@ -85,6 +85,7 @@ class TaskPlusOneEvidence:
     note: str
     refs: tuple[str, ...] = ()
     observed_since: str | None = None
+    attachments: tuple[BeadNoteAttachment, ...] = ()
 
     def validate(self) -> None:
         if not self.timestamp.strip():
@@ -101,6 +102,8 @@ class TaskPlusOneEvidence:
             raise ValueError(
                 "task +1 evidence refs must be normalized and deduplicated"
             )
+        for attachment in self.attachments:
+            attachment.validate()
 
 
 @dataclass(frozen=True)

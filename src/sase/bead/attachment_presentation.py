@@ -132,9 +132,21 @@ def total_attachment_count(notes: Any) -> int:
     return sum(len(getattr(note, "attachments", ())) for note in notes)
 
 
+def _issue_attachment_count(issue: Any) -> int:
+    """Count note plus +1 evidence attachments on one bead."""
+    notes = getattr(issue, "notes", ())
+    evidence = getattr(issue, "plus_one_evidence", ())
+    return total_attachment_count(notes) + sum(
+        len(getattr(entry, "attachments", ())) for entry in evidence
+    )
+
+
 def compact_attachment_suffix(notes: Any) -> str:
     """Return `` 📎N`` when the total attachment count is non-zero, else ````."""
-    total = total_attachment_count(notes)
+    if hasattr(notes, "notes") and hasattr(notes, "plus_one_evidence"):
+        total = _issue_attachment_count(notes)
+    else:
+        total = total_attachment_count(notes)
     return f" \U0001f4ce{total}" if total else ""
 
 

@@ -55,6 +55,11 @@ def close_history_markdown(issue: Issue) -> list[str]:
 def plus_one_evidence_markdown(issue: Issue) -> list[str]:
     if not issue.plus_one_evidence:
         return []
+    from sase.bead.attachment_presentation import (
+        attachment_descriptor,
+        prose_with_chips,
+    )
+
     lines = ["", f"## {PLUS_ONE_SECTION_LABEL.title()}", ""]
     for index, evidence in enumerate(issue.plus_one_evidence):
         if index:
@@ -65,9 +70,20 @@ def plus_one_evidence_markdown(issue: Issue) -> list[str]:
         lines.append(f"> [!TIP] **{label}**")
         if evidence.observed_since:
             lines.append(f"> **Observed since:** {evidence.observed_since}")
-        lines.extend(
-            f"> {line}" if line else ">" for line in evidence.note.splitlines()
-        )
+        attachments = getattr(evidence, "attachments", ())
+        note_text = evidence.note
+        if attachments:
+            note_text = prose_with_chips(
+                note_text, [attachment.name for attachment in attachments]
+            )
+        lines.extend(f"> {line}" if line else ">" for line in note_text.splitlines())
+        if attachments:
+            lines.append(">")
+            lines.append("> **Attachments:**")
+            for attachment in attachments:
+                lines.append(
+                    f"> - {attachment_descriptor(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, sha256=attachment.sha256)}"
+                )
         if evidence.refs:
             lines.append(">")
             lines.append(f"> **Refs:** {', '.join(evidence.refs)}")

@@ -340,7 +340,43 @@ def render_plus_one_evidence_lines(
             lines.append(
                 f"    {palette.label('Observed since:')} {evidence.observed_since}"
             )
-        lines.extend(_prose_lines(evidence.note, style=style, wrap=wrap, indent="    "))
+        attachments = getattr(evidence, "attachments", ())
+        if attachments:
+            from sase.bead.attachment_presentation import (
+                attachment_availability,
+                attachment_descriptor,
+                attachment_view_path,
+                prose_with_chips,
+            )
+
+            prose = prose_with_chips(
+                evidence.note, [attachment.name for attachment in attachments]
+            )
+            lines.extend(_prose_lines(prose, style=style, wrap=wrap, indent="    "))
+            lines.append("     ATTACHMENTS")
+            for attachment in attachments:
+                lines.append(
+                    "       "
+                    + attachment_descriptor(
+                        name=attachment.name,
+                        mime_type=attachment.mime_type,
+                        image=attachment.image,
+                        size_bytes=attachment.size_bytes,
+                        sha256=attachment.sha256,
+                    )
+                )
+                if attachment_availability(attachment.sha256) == "cached":
+                    view = attachment_view_path(attachment.sha256, attachment.name)
+                    if view is not None:
+                        lines.append(f"         {view}")
+                    else:
+                        lines.append("         \u2715 unavailable offline")
+                else:
+                    lines.append("         \u2715 unavailable offline")
+        else:
+            lines.extend(
+                _prose_lines(evidence.note, style=style, wrap=wrap, indent="    ")
+            )
         if not evidence.refs:
             continue
         resolved_refs: Iterable[ArtifactRefListEntry | str] = evidence.refs

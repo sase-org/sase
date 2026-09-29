@@ -182,6 +182,36 @@ def build_bead_snooze_gate_spec(
                     if item.observed_since
                     else {}
                 ),
+                **(
+                    {
+                        "attachments": [
+                            {
+                                "name": attachment.name,
+                                "sha256": attachment.sha256,
+                                "size_bytes": attachment.size_bytes,
+                                "mime_type": attachment.mime_type,
+                                **(
+                                    {
+                                        "image": {
+                                            "width": attachment.image[0],
+                                            "height": attachment.image[1],
+                                        }
+                                    }
+                                    if attachment.image is not None
+                                    else {}
+                                ),
+                                **(
+                                    {"origin": attachment.origin}
+                                    if attachment.origin is not None
+                                    else {}
+                                ),
+                            }
+                            for attachment in item.attachments
+                        ]
+                    }
+                    if getattr(item, "attachments", ())
+                    else {}
+                ),
             }
             for item in evidence
         ],

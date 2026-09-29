@@ -207,6 +207,41 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
                 "reporter": evidence.reporter,
                 "note": evidence.note,
                 "refs": evidence.refs,
+                **(
+                    {"observed_since": evidence.observed_since}
+                    if evidence.observed_since
+                    else {}
+                ),
+                **(
+                    {
+                        "attachments": [
+                            {
+                                "name": attachment.name,
+                                "sha256": attachment.sha256,
+                                "size_bytes": attachment.size_bytes,
+                                "mime_type": attachment.mime_type,
+                                **(
+                                    {
+                                        "image": {
+                                            "width": attachment.image[0],
+                                            "height": attachment.image[1],
+                                        }
+                                    }
+                                    if attachment.image is not None
+                                    else {}
+                                ),
+                                **(
+                                    {"origin": attachment.origin}
+                                    if attachment.origin is not None
+                                    else {}
+                                ),
+                            }
+                            for attachment in evidence.attachments
+                        ]
+                    }
+                    if getattr(evidence, "attachments", ())
+                    else {}
+                ),
             }
             for evidence in issue.plus_one_evidence
         ],
