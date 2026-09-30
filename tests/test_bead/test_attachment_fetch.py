@@ -145,6 +145,41 @@ def _read_full(issue_id: str, *extra: str) -> tuple[str, str, int]:
     )
 
 
+def test_read_without_attachments_skips_store_discovery(
+    project_dir: Path,
+    work_dir: Path,
+    remote: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Show/read of a bead with no attachments does no store discovery."""
+    import sase.bead.attachments.git_store as git_store_mod
+    import sase.bead.attachments.upload as upload_mod
+
+    home_a = tmp_path / "sase-home-a"
+    _plant_hidden_clone(home_a, remote)
+    issue_id = _create_plan(project_dir)
+
+    calls = {"clone_has_remote": 0, "GitAttachmentStore": 0}
+    orig_has_remote = upload_mod.clone_has_remote
+    orig_store = git_store_mod.GitAttachmentStore
+
+    def _spy_has_remote(clone: Path) -> bool:
+        calls["clone_has_remote"] += 1
+        return bool(orig_has_remote(clone))
+
+    def _spy_store(*args: object, **kwargs: object) -> object:
+        calls["GitAttachmentStore"] += 1
+        return orig_store(*args, **kwargs)  # type: ignore[operator]
+
+    monkeypatch.setattr(upload_mod, "clone_has_remote", _spy_has_remote)
+    monkeypatch.setattr(git_store_mod, "GitAttachmentStore", _spy_store)
+
+    out, err, code = _read_full(issue_id)
+    assert code == 0, err
+    assert calls == {"clone_has_remote": 0, "GitAttachmentStore": 0}, calls
+
+
 # -- config ------------------------------------------------------------
 
 

@@ -62,6 +62,7 @@ class FetchContext:
     cap_bytes: int = 26214400
     failed: set[str] = field(default_factory=set)
     corrupt: set[str] = field(default_factory=set)
+    discover: bool = False
 
 
 _current: ContextVar[FetchContext | None] = ContextVar(
@@ -136,13 +137,41 @@ def build_fetch_context(*, mode: FetchMode = "never") -> FetchContext:
 
 @contextlib.contextmanager
 def fetch_context(*, mode: FetchMode = "never") -> Iterator[FetchContext]:
-    """Set the ambient fetch context for one command's render."""
-    context = build_fetch_context(mode=mode)
+    """Set the ambient fetch context for one command's render.
+
+    Discovery stays lazy: no store, outbox, or ``upload`` import happens
+    here. The first :func:`attachment_state` or :func:`resolve_badge_origin`
+    call inside the context discovers them via :func:`_ensure_discovered`.
+    """
+    context = FetchContext(mode=mode, cap_bytes=get_auto_fetch_cap(), discover=True)
     token = _current.set(context)
     try:
         yield context
     finally:
         _current.reset(token)
+
+
+def _ensure_discovered(context: FetchContext | None) -> None:
+    """Run one-time lazy discovery for a ``fetch_context`` context.
+
+    No-op unless ``discover`` is true, so contexts built by tests or by the
+    ``context is None`` fallback never replace an injected ``store``. Clears
+    the flag first, then copies ``project_key``, ``store``, and ``outbox``
+    from today's eager discovery body. Leaves ``mode``, ``cap_bytes``,
+    ``failed``, and ``corrupt`` alone. Never raises: a discovery failure
+    leaves ``store`` as ``None``, matching the eager path.
+    """
+    if context is None or not context.discover:
+        return
+    context.discover = False
+    try:
+        discovered = build_fetch_context(mode=context.mode)
+    except Exception as exc:
+        log.debug("attachment shared-store lazy discovery skipped: %s", exc)
+        return
+    context.project_key = discovered.project_key
+    context.store = discovered.store
+    context.outbox = discovered.outbox
 
 
 def _local_store() -> Any | None:
@@ -255,6 +284,8 @@ def attachment_state(
     context = context if context is not None else _current.get()
     if context is None:
         context = FetchContext()
+    else:
+        _ensure_discovered(context)
     cas = _local_store()
     if cas is None:
         return "unavailable"
@@ -308,6 +339,7 @@ def resolve_badge_origin(
     """Return the machine name for the pending/local-only badges."""
     context = context if context is not None else _current.get()
     if context is not None:
+        _ensure_discovered(context)
         try:
             entry = context.outbox.get(sha256)
             entry_origin = getattr(entry, "origin", None)
