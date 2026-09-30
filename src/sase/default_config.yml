@@ -1935,6 +1935,13 @@ bead:
     # Missing or malformed values fail open to this default. -d/--download
     # lifts the cap for one invocation; attachment path always fetches.
     auto_fetch_max_bytes: 26214400
+    # Objects at or above this size upload in the background (64 MiB).
+    # Missing or malformed values fail open to this default.
+    background_upload_min_bytes: 67108864
+    # Optional rclone large-object tier for objects above git_max_bytes.
+    # Set remote to an rclone destination such as "athena-sftp:attachments"
+    # or a local path; max_bytes defaults to 2 GiB. Null disables the tier.
+    large_store: null
   show:
     # Image previews for `sase bead show`: auto, cells, kitty, or never.
     # `read`, JSON, and piped `show` never draw.

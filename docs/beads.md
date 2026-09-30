@@ -901,6 +901,61 @@ only `cached` (object present in the local CAS, view materialized) or `unavailab
 local object, prose still renders). Bytes never enter the bead store, and this work does
 not upload, fetch, or draw images.
 
+#### Large-object store (rclone)
+
+Objects above `bead.attachments.git_max_bytes` (default 50 MiB) need the optional rclone
+large tier: set `bead.attachments.large_store` to
+`{remote: "<rclone remote:path>", max_bytes: 2147483648}` (default cap 2 GiB). Placement
+is deterministic by size — at exactly `git_max_bytes` the object still takes the git
+tier; one byte over moves to the large tier. Without a tier that accepts the size, the
+command fails before writing unless `-L/--local-only` is given. Uploads stage to a
+`.partial-<uuid>` name, move into place, then verify the remote size (and SHA-256 when
+the backend reports one).
+
+Objects at or above `bead.attachments.background_upload_min_bytes` (default 64 MiB)
+upload in the background: the command queues them in the durable outbox, launches a
+detached drain worker, and echoes
+`⇡ uploading in background (1.8 GiB) — sase bead attachment push`. The outbox is the
+crash recovery — entries left by a dead worker drain on the next `push`, bead sync, or
+worker launch. `sase bead attachment push` drains every tier with live per-object
+progress; `require_upload: true` stays synchronous instead.
+
+Transfers above 8 MiB draw a Rich progress bar on stderr on a TTY; agents and pipes get
+only the final echo line.
+
+Remote setup is per machine, in that machine's `rclone.conf` (`RCLONE_CONFIG` overrides
+the path when set):
+
+```ini
+# Recommended: SFTP to athena over the tailnet (private, free, unlimited).
+[athena-sftp]
+type = sftp
+host = athena
+user = bryan
+key_file = ~/.ssh/id_ed25519
+shell_type = unix
+```
+
+```yaml
+# Project config (checked in): points at the athena remote.
+bead:
+  attachments:
+    large_store: { remote: "athena-sftp:attachments", max_bytes: 2147483648 }
+```
+
+```ini
+# Alternative: Cloudflare R2 (S3-compatible, needs credentials).
+[r2-attachments]
+type = s3
+provider = Cloudflare
+access_key_id = <R2 token key>
+secret_access_key = <R2 token secret>
+endpoint = https://<account-id>.r2.cloudflarestorage.com
+```
+
+A local directory path also works as the remote (the acceptance tests use one).
+`sase doctor` reports a missing `rclone` binary and an unreachable large remote.
+
 Text viewing rules: prose replaces each `@attachment:<name>` token with `[name]`
 (filenames stripped of control and bidi characters). The note label gains `📎 N` when
 that note has attachments. Under the prose, an `ATTACHMENTS` block lists

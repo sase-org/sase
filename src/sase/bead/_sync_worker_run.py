@@ -474,12 +474,25 @@ def _drain_attachment_outbox_best_effort(repo_root: Path) -> None:
 
             store = GitAttachmentStore(clone, describe_label(clone, project_key))
         except Exception:
-            return
-        drain_outbox(
-            project_key,
-            store,
-            time_bound_seconds=5.0,
-        )
+            store = None
+        if store is not None:
+            drain_outbox(
+                project_key,
+                store,
+                time_bound_seconds=5.0,
+            )
+        try:
+            from sase.bead.attachments.upload import discover_large_store
+
+            large_store = discover_large_store(None)
+        except Exception:
+            large_store = None
+        if large_store is not None:
+            drain_outbox(
+                project_key,
+                large_store,
+                time_bound_seconds=5.0,
+            )
     except Exception as exc:
         import logging as _logging
 

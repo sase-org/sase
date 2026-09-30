@@ -109,12 +109,15 @@ def _author_update_notes(
     resolved_ids = [proj.resolve_id(issue_id) for issue_id in issue_ids]
     unique_ids = list(dict.fromkeys(resolved_ids))
     notes_per_bead = [list(proj.show(resolved_id).notes) for resolved_id in unique_ids]
+    from sase.bead.attachments.progress import transfer_progress
+
     try:
         results = author_note_attachments_per_bead(
             text,
             notes_per_bead,
             cwd=Path.cwd(),
             allow_sensitive=allow_sensitive,
+            progress_factory=transfer_progress,
         )
     except NoteAttachmentAuthoringError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -306,7 +309,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         reopened_ancestors = [
             proj.show(ancestor_id) for ancestor_id in reopened_ancestor_ids
         ]
-        if placement == "git" and placement_wires:
+        if placement in ("git", "large", "mixed") and placement_wires:
             from sase.bead.attachments.upload import post_write_queue
 
             post_write_queue(
@@ -314,7 +317,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                 placement_wires,
                 echo_rows,
                 placement=placement,
-                store=placement_store,
+                stores=placement_store,
                 project_key=placement_key,
                 require_upload=placement_require,
                 attachments_on=attachments_on,

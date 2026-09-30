@@ -48,16 +48,19 @@ def format_attachment_size(size_bytes: int | None) -> str:
         return f"{size_bytes} bytes"
     if size_bytes < 1024 * 1024:
         return f"{size_bytes / 1024:g} KiB"
-    return f"{size_bytes / (1024 * 1024):g} MiB"
+    if size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):g} MiB"
+    return f"{size_bytes / (1024 * 1024 * 1024):g} GiB"
 
 
 @dataclass
 class FetchContext:
-    """One command's shared fetch inputs: store, outbox, cap, and mode."""
+    """One command's shared fetch inputs: stores, outbox, cap, and mode."""
 
     mode: FetchMode = "never"
     project_key: str | None = None
     store: Any | None = None
+    stores: list[Any] = field(default_factory=list)
     outbox: dict[str, Any] = field(default_factory=dict)
     cap_bytes: int = 26214400
     failed: set[str] = field(default_factory=set)
@@ -98,7 +101,7 @@ def should_auto_fetch(size_bytes: int, cap_bytes: int) -> bool:
 
 
 def build_fetch_context(*, mode: FetchMode = "never") -> FetchContext:
-    """Discover the shared store and outbox once for one command.
+    """Discover the shared stores and outbox once for one command.
 
     Never raises: a missing store or unreadable outbox degrades to local
     observation instead of failing the read.
@@ -106,10 +109,11 @@ def build_fetch_context(*, mode: FetchMode = "never") -> FetchContext:
     cap = get_auto_fetch_cap()
     project_key: str | None = None
     store: Any | None = None
+    stores: list[Any] = []
     outbox: dict[str, Any] = {}
     try:
         from sase.bead.attachments.upload import (
-            discover_shared_store,
+            discover_stores,
             resolve_project_key,
         )
 
@@ -119,10 +123,12 @@ def build_fetch_context(*, mode: FetchMode = "never") -> FetchContext:
         project_key = None
     if project_key:
         try:
-            store = discover_shared_store(None)
+            stores = list(discover_stores(None).values())
+            store = stores[0] if stores else None
         except Exception as exc:
             log.debug("attachment shared-store discovery skipped: %s", exc)
             store = None
+            stores = []
         try:
             from sase.bead.attachments.outbox import read_outbox
 
@@ -131,7 +137,44 @@ def build_fetch_context(*, mode: FetchMode = "never") -> FetchContext:
             log.debug("attachment outbox read skipped: %s", exc)
             outbox = {}
     return FetchContext(
-        mode=mode, project_key=project_key, store=store, outbox=outbox, cap_bytes=cap
+        mode=mode,
+        project_key=project_key,
+        store=store,
+        stores=stores,
+        outbox=outbox,
+        cap_bytes=cap,
+    )
+
+
+def _ordered_stores(context: FetchContext, size_bytes: int | None) -> list[Any]:
+    """Return the context stores ordered by the size-routed tier first.
+
+    Placement is deterministic by size, so the tier that should hold the
+    object probes first; the other tier is still probed on a miss (the
+    caps may have changed since the upload). A missing size probes git
+    first, the historical default.
+    """
+    seen: list[Any] = []
+    for store in list(getattr(context, "stores", None) or []):
+        if store is not None and not any(store is known for known in seen):
+            seen.append(store)
+    primary = getattr(context, "store", None)
+    if primary is not None and not any(primary is known for known in seen):
+        seen.insert(0, primary)
+    if size_bytes is None or len(seen) < 2:
+        return seen
+    try:
+        from sase.bead.config import get_attachment_git_max_bytes
+
+        git_max = get_attachment_git_max_bytes()
+    except Exception:
+        return seen
+    if size_bytes > git_max:
+        return sorted(
+            seen, key=lambda item: 0 if getattr(item, "name", "") == "large" else 1
+        )
+    return sorted(
+        seen, key=lambda item: 1 if getattr(item, "name", "") == "large" else 0
     )
 
 
@@ -220,13 +263,15 @@ def ensure_fetched(
     size_bytes: int | None = None,
     name: str | None = None,
 ) -> bool:
-    """Fetch *sha256* into the local CAS through *context*'s store.
+    """Fetch *sha256* into the local CAS through the ordered tier stores.
 
     Returns True when the local object is present and digest-verified. A
     digest mismatch records ``corrupt`` and installs nothing; any other
-    failure records ``failed``. Never raises.
+    failure records ``failed``. Downloads above 8 MiB draw a TTY progress
+    bar. Never raises.
     """
-    del size_bytes, name  # Reserved for progress reporting (later phase).
+    from sase.bead.attachments.progress import transfer_progress
+
     cas = _local_store()
     if cas is None:
         return False
@@ -235,25 +280,28 @@ def ensure_fetched(
             return True
     except Exception:
         return False
-    store = context.store
-    if store is None or sha256 in context.failed or sha256 in context.corrupt:
+    stores = _ordered_stores(context, size_bytes)
+    if not stores or sha256 in context.failed or sha256 in context.corrupt:
         return False
-    try:
-        store.get(sha256, cas.root)
-    except Exception as exc:
-        transient = bool(getattr(exc, "transient", True))
-        message = str(exc).lower()
-        if not transient or "mismatch" in message or "hash" in message:
-            context.corrupt.add(sha256)
-        else:
-            context.failed.add(sha256)
-        log.debug("attachment fetch of %s… failed: %s", sha256[:12], exc)
-        return False
-    try:
-        if cas.has(sha256) and cas.verify(sha256):
-            return True
-    except Exception:
-        pass
+    label = name or f"{sha256[:12]}…"
+    for store in stores:
+        try:
+            with transfer_progress(label, size_bytes) as progress:
+                store.get(sha256, cas.root, progress=progress)
+        except Exception as exc:
+            transient = bool(getattr(exc, "transient", True))
+            message = str(exc).lower()
+            if not transient or "mismatch" in message or "hash" in message:
+                context.corrupt.add(sha256)
+                log.debug("attachment fetch of %s… failed: %s", sha256[:12], exc)
+                return False
+            log.debug("attachment fetch of %s… failed: %s", sha256[:12], exc)
+            continue
+        try:
+            if cas.has(sha256) and cas.verify(sha256):
+                return True
+        except Exception:
+            pass
     context.failed.add(sha256)
     return False
 
@@ -274,7 +322,7 @@ def attachment_state(
     ``cached``, anything else ``unavailable``. ``remote`` is never returned;
     observation-only callers see ``not_downloaded`` for store-held objects.
     """
-    del origin, name  # Badge inputs; state needs only digest, size, and context.
+    del origin  # Badge input; state also uses the name for fetch progress.
     from sase.bead.attachments.store import validate_sha256
 
     try:
@@ -298,10 +346,15 @@ def attachment_state(
             return "purged"
     except Exception:
         pass
-    store = context.store
-    remote_has = _store_has(store, sha256) if store is not None else False
-    if store is not None and _store_has_tombstone(store, sha256):
-        return "purged"
+    stores = _ordered_stores(context, size_bytes)
+    remote_has = False
+    for store in stores:
+        if _store_has(store, sha256):
+            remote_has = True
+            break
+    for store in stores:
+        if _store_has_tombstone(store, sha256):
+            return "purged"
     if sha256 in context.corrupt:
         return "corrupt"
     try:
@@ -310,19 +363,19 @@ def attachment_state(
         verified = False
     if local_present and not verified:
         return "corrupt"
-    if local_present and (store is None or remote_has):
+    if local_present and (not stores or remote_has):
         return "cached"
     if sha256 in context.outbox:
         return "pending_upload"
     if local_present:
         return "local_only"
-    if store is not None and remote_has:
+    if remote_has:
         if context.mode == "force" or (
             context.mode == "auto"
             and size_bytes is not None
             and should_auto_fetch(size_bytes, context.cap_bytes)
         ):
-            if ensure_fetched(context, sha256):
+            if ensure_fetched(context, sha256, size_bytes=size_bytes, name=name):
                 return "cached"
             if sha256 in context.corrupt:
                 return "corrupt"

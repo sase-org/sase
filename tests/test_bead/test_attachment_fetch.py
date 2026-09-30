@@ -262,7 +262,7 @@ class _FakeStore:
     def has_tombstone(self, sha256: str) -> bool:
         return sha256 in self.tombstones
 
-    def get(self, sha256: str, dest: object) -> None:
+    def get(self, sha256: str, dest: object, progress: object = None) -> None:
         from sase.bead.attachments.store import LocalAttachmentStore
 
         if sha256 not in self.objects:

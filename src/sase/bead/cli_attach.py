@@ -110,7 +110,7 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
-        if placement == "git" and placement_wires:
+        if placement in ("git", "large", "mixed") and placement_wires:
             from sase.bead.attachments.upload import post_write_queue
 
             post_write_queue(
@@ -118,7 +118,7 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
                 placement_wires,
                 echo_rows,
                 placement=placement,
-                store=placement_store,
+                stores=placement_store,
                 project_key=placement_key,
                 require_upload=placement_require,
                 attachments_on=True,
@@ -145,6 +145,8 @@ def _author_files_attach(
 
     source = _attach_source_text(prose, files)
     preferred = {files[0]: name} if name is not None else None
+    from sase.bead.attachments.progress import transfer_progress
+
     try:
         return author_note_attachments(
             source,
@@ -152,6 +154,7 @@ def _author_files_attach(
             cwd=Path.cwd(),
             allow_sensitive=allow_sensitive,
             preferred_names=preferred,
+            progress_factory=transfer_progress,
         )
     except NoteAttachmentAuthoringError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -182,6 +185,8 @@ def _author_stdin_attach(
     roster = roster_wires(notes)
     manifest: list[dict[str, Any]] = []
     echo_rows: list[str] = []
+    from sase.bead.attachments.progress import transfer_progress
+
     if prose:
         try:
             authored = author_note_attachments(
@@ -189,6 +194,7 @@ def _author_stdin_attach(
                 notes=notes,
                 cwd=Path.cwd(),
                 allow_sensitive=allow_sensitive,
+                progress_factory=transfer_progress,
             )
         except NoteAttachmentAuthoringError as exc:
             print(f"Error: {exc}", file=sys.stderr)

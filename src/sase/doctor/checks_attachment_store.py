@@ -108,8 +108,115 @@ def _tip_branch(clone: object) -> str:
     return branch or "main"
 
 
+def _large_store_result(project_key: str) -> DiagnosticCheck | None:
+    """Probe the configured rclone large tier.
+
+    Returns None when no large tier is configured, otherwise an OK or
+    WARN check for the tier alone.
+    """
+    try:
+        from sase.bead.config import get_attachment_large_store
+    except Exception:
+        return None
+    try:
+        configured = get_attachment_large_store()
+    except Exception:
+        return None
+    if not configured:
+        return None
+    remote = str(configured.get("remote") or "")
+    try:
+        from sase.bead.attachments.rclone_store import rclone_binary
+    except Exception:
+        rclone_binary = None  # type: ignore[assignment]
+    binary = rclone_binary() if rclone_binary is not None else None
+    if binary is None:
+        return _warn(
+            f"large attachment store {remote} for {project_key} is unusable",
+            "the rclone binary is not installed; install rclone and "
+            "configure the large-store remote per docs/beads.md "
+            "(Large-object store).",
+        )
+    try:
+        from sase.sdd._git import network_git_timeout
+
+        probe_timeout = network_git_timeout()
+    except Exception:
+        probe_timeout = 60.0
+    try:
+        probed = subprocess.run(
+            [binary, "lsjson", "--max-depth", "0", remote],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=probe_timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return _warn(
+            f"large attachment store {remote} for {project_key} is unreachable",
+            "bounded rclone lsjson timed out; "
+            "attachments above the git tier stay local-only.",
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return _warn(
+            f"large attachment store {remote} for {project_key} is unreachable",
+            f"bounded rclone lsjson failed: {exc}",
+        )
+    if probed.returncode != 0:
+        detail = ((probed.stderr or probed.stdout) or "unknown rclone error").strip()
+        first = detail.splitlines()[0] if detail else "unknown rclone error"
+        return _warn(
+            f"large attachment store {remote} for {project_key} is unreachable",
+            f"bounded rclone lsjson of {remote} failed: {first}",
+        )
+    return DiagnosticCheck(
+        id=_CHECK_ID,
+        group="project",
+        status="OK",
+        title=_TITLE,
+        summary=(f"large attachment store {remote} for {project_key} is reachable"),
+    )
+
+
 def _check_attachment_store(context: DoctorContext) -> DiagnosticCheck:
     """Warn about an unreachable store or a backed-up upload outbox."""
+    git_result = _check_git_store_and_outbox(context)
+    project_key = _resolve_project_key(context)
+    if project_key is None:
+        return git_result
+    large = _large_store_result(project_key)
+    if large is None:
+        return git_result
+    if large.status != "WARN":
+        if "no attachments-private shared store" in git_result.summary:
+            return DiagnosticCheck(
+                id=git_result.id,
+                group=git_result.group,
+                status="OK",
+                title=git_result.title,
+                summary=(
+                    f"project {project_key} has no attachments-private git "
+                    "store; the rclone large tier is reachable"
+                ),
+            )
+        return git_result
+    if git_result.status != "WARN":
+        return large
+    merged = (
+        list(git_result.details or []) + [large.summary] + list(large.details or [])
+    )
+    return DiagnosticCheck(
+        id=git_result.id,
+        group=git_result.group,
+        status="WARN",
+        title=git_result.title,
+        summary=git_result.summary,
+        details=merged,
+    )
+
+
+def _check_git_store_and_outbox(context: DoctorContext) -> DiagnosticCheck:
+    """Warn about an unreachable git store or a backed-up upload outbox."""
     project_key = _resolve_project_key(context)
     if project_key is None:
         return _skip("no current project; attachment store check needs one")

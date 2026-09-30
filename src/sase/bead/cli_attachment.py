@@ -367,12 +367,13 @@ def _handle_bead_attachment_push(args: argparse.Namespace) -> None:
     """Drain the upload outbox and promote local-only objects.
 
     With an ID, drain only digests referenced by that bead; without one,
-    drain the project outbox. Available with the flag off; it never authors
-    notes.
+    drain the project outbox. Every configured tier drains (git, then the
+    rclone large tier) with live TTY progress per object. Available with
+    the flag off; it never authors notes.
     """
-    from sase.bead.attachments.outbox import drain_outbox
+    from sase.bead.attachments.background import drain_project_outbox
     from sase.bead.attachments.upload import (
-        discover_shared_store,
+        discover_stores,
         promote_local_only,
         resolve_project_key,
     )
@@ -381,7 +382,6 @@ def _handle_bead_attachment_push(args: argparse.Namespace) -> None:
     bead_context = None
     only_digests: set[str] | None = None
     project_key: str | None = None
-    store = None
     if scope_id:
         bead_context = resolve_bead_operation_context([scope_id])
         resolved_id = bead_context.resolved_ids[0]
@@ -394,29 +394,30 @@ def _handle_bead_attachment_push(args: argparse.Namespace) -> None:
         roster = _roster_for_issue(issue)
         only_digests = {record.sha256 for record in roster.values()}
         project_key = resolve_project_key(bead_context)
-        store = discover_shared_store(bead_context)
     else:
         project_key = resolve_project_key(None)
-        store = discover_shared_store(None)
     if project_key is None:
         print(
             "Error: cannot determine the project for attachment push.", file=sys.stderr
         )
         sys.exit(1)
-    if store is None:
+    stores = discover_stores(bead_context)
+    if not stores:
         print(
-            "Error: no attachments-private shared store on this machine; "
+            "Error: no attachment shared store on this machine "
+            "(neither attachments-private nor a large_store remote); "
             "attachments stay local.",
             file=sys.stderr,
         )
         sys.exit(1)
-    drained, remaining = drain_outbox(
+    drained, remaining = drain_project_outbox(
         project_key,
-        store,
-        time_bound_seconds=60.0,
+        time_bound_seconds=600.0,
         only_digests=only_digests,
+        progress=True,
+        stores=list(stores.values()),
     )
-    promoted = promote_local_only(project_key, store, time_bound_seconds=30.0)
+    promoted = promote_local_only(project_key, stores, time_bound_seconds=30.0)
     scope = f" for {scope_id}" if scope_id else ""
     print(
         f"Pushed {drained} attachment(s){scope}; "

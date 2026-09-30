@@ -4822,6 +4822,30 @@
               "description": "Largest single attachment fetched automatically by read/show, in bytes (25 MiB). Missing or malformed values fail open to the default; -d/--download lifts the cap for one invocation and attachment path always fetches.",
               "default": 26214400,
               "minimum": 1
+            },
+            "background_upload_min_bytes": {
+              "type": "integer",
+              "description": "Objects at or above this size upload in the background (64 MiB). Missing or malformed values fail open to the default.",
+              "default": 67108864,
+              "minimum": 1
+            },
+            "large_store": {
+              "type": ["object", "null"],
+              "description": "Optional rclone large-object tier for objects above git_max_bytes. Null disables the tier.",
+              "default": null,
+              "additionalProperties": false,
+              "properties": {
+                "remote": {
+                  "type": "string",
+                  "description": "Rclone destination such as athena-sftp:attachments, a cloud remote, or a local path."
+                },
+                "max_bytes": {
+                  "type": "integer",
+                  "description": "Largest single attachment the large tier accepts, in bytes (2 GiB).",
+                  "default": 2147483648,
+                  "minimum": 1
+                }
+              }
             }
           }
         },

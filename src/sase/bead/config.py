@@ -120,6 +120,8 @@ def get_attachment_require_upload() -> bool:
 
 
 DEFAULT_ATTACHMENT_AUTO_FETCH_MAX_BYTES = 26214400
+DEFAULT_ATTACHMENT_BACKGROUND_UPLOAD_MIN_BYTES = 67108864
+DEFAULT_ATTACHMENT_LARGE_MAX_BYTES = 2147483648
 
 
 def get_attachment_auto_fetch_max_bytes() -> int:
@@ -134,6 +136,42 @@ def get_attachment_auto_fetch_max_bytes() -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         return DEFAULT_ATTACHMENT_AUTO_FETCH_MAX_BYTES
     return value
+
+
+def get_attachment_background_upload_min_bytes() -> int:
+    """Return the size at which uploads move to the background worker.
+
+    Missing or malformed values fail open to 64 MiB. Booleans are rejected
+    explicitly because ``bool`` is a subclass of ``int``.
+    """
+    value = _attachment_config().get(
+        "background_upload_min_bytes",
+        DEFAULT_ATTACHMENT_BACKGROUND_UPLOAD_MIN_BYTES,
+    )
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return DEFAULT_ATTACHMENT_BACKGROUND_UPLOAD_MIN_BYTES
+    return value
+
+
+def get_attachment_large_store() -> dict[str, object] | None:
+    """Return the configured rclone large-object store, or None.
+
+    The value is ``{"remote": "<rclone remote:path>", "max_bytes": 2 GiB}``.
+    Missing, malformed, or remote-less values fail open to None: the git
+    tier alone serves placement and oversized objects stay local-only.
+    """
+    value = _attachment_config().get("large_store", None)
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        return None
+    remote = value.get("remote")
+    if not isinstance(remote, str) or not remote.strip():
+        return None
+    max_bytes = value.get("max_bytes", DEFAULT_ATTACHMENT_LARGE_MAX_BYTES)
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1:
+        max_bytes = DEFAULT_ATTACHMENT_LARGE_MAX_BYTES
+    return {"remote": remote.strip(), "max_bytes": max_bytes}
 
 
 def get_show_images_default() -> str:

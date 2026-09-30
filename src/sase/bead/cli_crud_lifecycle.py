@@ -152,12 +152,15 @@ def _author_close_note(
     notes = []
     for resolved_id in resolved_ids:
         notes.extend(mutation.project.show(resolved_id).notes)
+    from sase.bead.attachments.progress import transfer_progress
+
     try:
         return author_note_attachments(
             text,
             notes=notes,
             cwd=Path.cwd(),
             allow_sensitive=allow_sensitive,
+            progress_factory=transfer_progress,
         )
     except NoteAttachmentAuthoringError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -255,7 +258,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         already_closed_ids = mutation_outcome_ids(outcome, "already_closed_ids")
         noted_ids = mutation_outcome_ids(outcome, "noted_ids")
         cascade_closed_ids = mutation_outcome_ids(outcome, "cascade_closed_ids")
-        if placement == "git" and placement_wires:
+        if placement in ("git", "large", "mixed") and placement_wires:
             from sase.bead.attachments.upload import post_write_queue
 
             post_write_queue(
@@ -263,7 +266,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                 placement_wires,
                 echo_rows,
                 placement=placement,
-                store=placement_store,
+                stores=placement_store,
                 project_key=placement_key,
                 require_upload=placement_require,
                 attachments_on=attachments_on,

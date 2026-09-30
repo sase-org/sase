@@ -8,6 +8,7 @@ content-addressed store from the bead-note-attachments epic.
 from sase.bead.attachments.blob_store import BlobStore, BlobStoreError, ProgressCallback
 from sase.bead.attachments.git_store import GitAttachmentStore
 from sase.bead.attachments.images import ImageDims, probe_image
+from sase.bead.attachments.rclone_store import RcloneAttachmentStore, rclone_binary
 from sase.bead.attachments.ingest import (
     IngestedBlob,
     IngestError,
@@ -29,9 +30,11 @@ __all__ = [
     "IngestError",
     "LocalAttachmentStore",
     "ProgressCallback",
+    "RcloneAttachmentStore",
     "default_store_root",
     "ingest_path",
     "ingest_stream",
     "probe_image",
+    "rclone_binary",
     "validate_sha256",
 ]

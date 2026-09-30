@@ -173,72 +173,179 @@ def discover_shared_store_with_meta(
         return (None, None, project_key)
 
 
+def discover_large_store(bead_context: Any | None = None) -> Any | None:
+    """Return a ``RcloneAttachmentStore`` when ``large_store`` is configured.
+
+    Returns None when the config has no remote. Never raises for a missing
+    tier; a missing ``rclone`` binary only fails at use time with a clear
+    error (and a doctor finding).
+    """
+    del bead_context  # The large tier is config-addressed, not clone-addressed.
+    try:
+        from sase.bead.config import get_attachment_large_store
+    except Exception:
+        return None
+    try:
+        configured = get_attachment_large_store()
+    except Exception:
+        return None
+    if not configured:
+        return None
+    try:
+        from sase.bead.attachments.rclone_store import RcloneAttachmentStore
+
+        raw_max = configured["max_bytes"]
+        max_bytes = (
+            raw_max
+            if isinstance(raw_max, int) and not isinstance(raw_max, bool)
+            else 2147483648
+        )
+        return RcloneAttachmentStore(
+            str(configured["remote"]),
+            str(configured["remote"]),
+            max_bytes=max_bytes,
+        )
+    except Exception:
+        return None
+
+
+def discover_stores(bead_context: Any | None = None) -> dict[str, Any]:
+    """Return every reachable shared store by tier name, git first."""
+    stores: dict[str, Any] = {}
+    try:
+        git_store = discover_shared_store(bead_context)
+    except Exception:
+        git_store = None
+    if git_store is not None:
+        stores["git"] = git_store
+    try:
+        large_store = discover_large_store(bead_context)
+    except Exception:
+        large_store = None
+    if large_store is not None:
+        stores["large"] = large_store
+    return stores
+
+
+def placement_tiers(
+    stores: dict[str, Any], *, git_max_bytes: int
+) -> list[dict[str, Any]]:
+    """Build the ordered core-policy tier list for the reachable *stores*."""
+    tiers: list[dict[str, Any]] = []
+    if stores.get("git") is not None:
+        tiers.append({"name": "git", "max_bytes": git_max_bytes})
+    large_store = stores.get("large")
+    if large_store is not None:
+        try:
+            large_max = int(getattr(large_store, "max_bytes", 2147483648))
+        except (TypeError, ValueError):
+            large_max = 2147483648
+        tiers.append({"name": "large", "max_bytes": large_max})
+    return tiers
+
+
+def split_wires_by_tier(
+    wires: list[dict[str, Any]],
+    tiers: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Route each wire to its core-policy tier name; raise on oversize.
+
+    Raises :class:`AttachmentTooLargeError` naming the first wire no
+    configured tier accepts.
+    """
+    from sase.core.rust import require_rust_binding
+
+    placement = require_rust_binding("attachment_placement")
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for wire in wires:
+        size = int(wire.get("size_bytes") or 0)
+        try:
+            decision = placement(size, tiers, False)
+            tier_name = str(decision.get("store"))
+        except Exception:
+            tier_name = ""
+        if not tier_name:
+            name = str(wire.get("name") or "attachment")
+            raise AttachmentTooLargeError((name, size))
+        grouped.setdefault(tier_name, []).append(wire)
+    return grouped
+
+
 def _format_size(size_bytes: int) -> str:
     if size_bytes < 1024:
         return f"{size_bytes} bytes"
     if size_bytes < 1024 * 1024:
         return f"{size_bytes / 1024:g} KiB"
-    return f"{size_bytes / (1024 * 1024):g} MiB"
+    if size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):g} MiB"
+    return f"{size_bytes / (1024 * 1024 * 1024):g} GiB"
 
 
 def decide_placement(
     wires: list[dict[str, Any]],
+    tiers: list[dict[str, Any]],
     *,
     local_only: bool,
-    store_exists: bool,
-    git_max_bytes: int,
     require_upload: bool,
 ) -> str:
-    """Return ``local_only`` | ``no_store`` | ``git`` for *wires*.
+    """Return ``local_only`` | ``no_store`` | a tier name | ``mixed``.
 
-    Raises :class:`AttachmentTooLargeError` when a size is rejected and
-    ``-L`` was not passed/accepted, and :class:`AttachmentStoreMissingError`
-    when ``require_upload`` needs a store that does not exist. On a TTY, an
+    *tiers* is the ordered reachable-tier list from :func:`placement_tiers`
+    (empty when no shared store exists). Raises
+    :class:`AttachmentTooLargeError` when a size is rejected and ``-L`` was
+    not passed/accepted, and :class:`AttachmentStoreMissingError` when
+    ``require_upload`` needs a store that does not exist. On a TTY, an
     oversize prompts y/N to continue local-only.
     """
     if not wires:
-        return "git" if store_exists else "no_store"
+        if not tiers:
+            return "no_store"
+        return str(tiers[0]["name"])
     if local_only:
         return "local_only"
-    if not store_exists:
+    if not tiers:
         if require_upload:
             raise AttachmentStoreMissingError(
                 "require_upload is set but no attachments-private shared "
                 "store exists on this machine; attachment bytes cannot upload."
             )
         return "no_store"
-    from sase.core.rust import require_rust_binding
-
-    placement = require_rust_binding("attachment_placement")
-    tiers = [{"name": "git", "max_bytes": git_max_bytes}]
-    oversize: dict[str, Any] | None = None
-    for wire in wires:
-        size = int(wire.get("size_bytes") or 0)
-        try:
-            placement(size, tiers, False)
-        except Exception:
-            oversize = wire
-            break
-    if oversize is None:
-        return "git"
-    size = int(oversize.get("size_bytes") or 0)
-    name = str(oversize.get("name") or "attachment")
-    hint = (
-        f"attachment {name} is {_format_size(size)} "
-        f"(git tier accepts up to {_format_size(git_max_bytes)}); "
-        "pass -L/--local-only to keep it on this machine."
-    )
-    if sys.stdin.isatty():
-        try:
-            answer = (
-                input(f"{hint}\nKeep {name} local-only instead? [y/N] ").strip().lower()
-            )
-        except (EOFError, KeyboardInterrupt):
-            answer = ""
-        if answer in {"y", "yes"}:
-            return "local_only"
-        raise AttachmentTooLargeError(hint)
-    raise AttachmentTooLargeError(hint)
+    try:
+        grouped = split_wires_by_tier(wires, tiers)
+    except AttachmentTooLargeError as exc:
+        oversize: dict[str, Any] | None = None
+        if exc.args and isinstance(exc.args[0], tuple):
+            oversize_name, oversize_size = exc.args[0]
+            oversize = {"name": oversize_name, "size_bytes": oversize_size}
+        if oversize is None:
+            oversize = wires[0]
+        size = int(oversize.get("size_bytes") or 0)
+        name = str(oversize.get("name") or "attachment")
+        caps = "; ".join(
+            f"{spec['name']} tier accepts up to {_format_size(int(spec['max_bytes']))}"
+            for spec in tiers
+        )
+        hint = (
+            f"attachment {name} is {_format_size(size)} ({caps}); "
+            "pass -L/--local-only to keep it on this machine."
+        )
+        if sys.stdin.isatty():
+            try:
+                answer = (
+                    input(f"{hint}\nKeep {name} local-only instead? [y/N] ")
+                    .strip()
+                    .lower()
+                )
+            except (EOFError, KeyboardInterrupt):
+                answer = ""
+            if answer in {"y", "yes"}:
+                return "local_only"
+            raise AttachmentTooLargeError(hint) from exc
+        raise AttachmentTooLargeError(hint) from exc
+    names = sorted(grouped)
+    if len(names) == 1:
+        return names[0]
+    return "mixed"
 
 
 def prepare_placement(
@@ -246,12 +353,12 @@ def prepare_placement(
     *,
     local_only: bool,
     bead_context: Any | None = None,
-) -> tuple[str, Any | None, str | None]:
+) -> tuple[str, dict[str, Any], str | None]:
     """Decide placement, exiting non-zero before any bead write on refusal.
 
-    Returns ``(placement, store, project_key)``. Prints ``Error:`` and exits
-    1 when an oversize or missing-store refusal must leave the store
-    unchanged.
+    Returns ``(placement, stores, project_key)`` where *stores* maps every
+    reachable tier name to its store. Prints ``Error:`` and exits 1 when an
+    oversize or missing-store refusal must leave the store unchanged.
     """
     from sase.bead.config import (
         get_attachment_git_max_bytes,
@@ -260,19 +367,20 @@ def prepare_placement(
 
     git_max = get_attachment_git_max_bytes()
     require_upload = get_attachment_require_upload()
-    store, _repo, project_key = discover_shared_store_with_meta(bead_context)
+    stores = discover_stores(bead_context)
+    tiers = placement_tiers(stores, git_max_bytes=git_max)
     try:
+        project_key = resolve_project_key(bead_context)
         placement = decide_placement(
             wires,
+            tiers,
             local_only=local_only,
-            store_exists=store is not None,
-            git_max_bytes=git_max,
             require_upload=require_upload,
         )
     except (AttachmentTooLargeError, AttachmentStoreMissingError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
-    return (placement, store, project_key)
+    return (placement, stores, project_key)
 
 
 def rewrite_echo_for_local(echo_rows: list[str]) -> None:
@@ -324,26 +432,45 @@ def rewrite_echo_for_upload(
 
 def upload_wires_now(
     wires: list[dict[str, Any]],
-    store: Any,
+    stores: dict[str, Any],
+    tiers: list[dict[str, Any]] | None = None,
 ) -> dict[str, float]:
-    """Upload *wires* through *store*, returning digest → elapsed seconds."""
-    from sase.bead.attachments.blob_store import BlobStoreError
-    from sase.bead.attachments.store import LocalAttachmentStore
+    """Upload *wires* through their tier stores, returning digest → seconds.
 
+    *stores* maps tier names to stores; wires route via the core placement
+    policy (a single store also works when every wire lands on its tier).
+    Each object draws a TTY progress bar above 8 MiB.
+    """
+    from sase.bead.attachments.blob_store import BlobStoreError
+    from sase.bead.attachments.progress import transfer_progress
+    from sase.bead.attachments.store import LocalAttachmentStore
+    from sase.bead.config import get_attachment_git_max_bytes
+
+    if tiers is None:
+        tiers = placement_tiers(stores, git_max_bytes=get_attachment_git_max_bytes())
+    grouped = split_wires_by_tier(wires, tiers)
     local = LocalAttachmentStore()
     elapsed: dict[str, float] = {}
-    for wire in wires:
-        digest = str(wire.get("sha256") or wire.get("digest") or "")
-        size = int(wire.get("size_bytes") or 0)
-        src = local.object_path(digest)
-        started = time.monotonic()
-        try:
-            store.put(digest, src, size)
-        except BlobStoreError:
-            raise
-        except Exception as exc:
-            raise BlobStoreError(str(exc)) from exc
-        elapsed[digest] = time.monotonic() - started
+    for tier_name, tier_wires in grouped.items():
+        store = stores.get(tier_name)
+        if store is None:
+            raise BlobStoreError(f"no reachable {tier_name} store for upload")
+        for wire in tier_wires:
+            digest = str(wire.get("sha256") or wire.get("digest") or "")
+            size = int(wire.get("size_bytes") or 0)
+            name = str(wire.get("name") or digest[:12])
+            src = local.object_path(digest)
+            started = time.monotonic()
+            try:
+                with transfer_progress(
+                    f"{name} → {store.describe()}", size
+                ) as progress:
+                    store.put(digest, src, size, progress=progress)
+            except BlobStoreError:
+                raise
+            except Exception as exc:
+                raise BlobStoreError(str(exc)) from exc
+            elapsed[digest] = time.monotonic() - started
     return elapsed
 
 
@@ -351,12 +478,19 @@ def queue_pending_upload(
     mutation: Any,
     wires: list[dict[str, Any]],
     *,
+    store_name: str,
     store_repo: str,
     store_label: str,
     project_key: str,
     echo_rows: list[str] | None = None,
+    background: bool = False,
 ) -> None:
-    """Register *wires* for post-commit upload on *mutation*."""
+    """Register *wires* for post-commit upload on *mutation*.
+
+    *store_name* is the tier (``git`` or ``large``) so the post-commit
+    runner rebuilds the right store. *background* marks entries the
+    detached worker drains instead of the inline post-commit upload.
+    """
     pending = getattr(mutation, "pending_attachment_uploads", None)
     if pending is None:
         pending = []
@@ -369,9 +503,11 @@ def queue_pending_upload(
             {
                 "digest": digest,
                 "size_bytes": int(wire.get("size_bytes") or 0),
+                "store_name": store_name,
                 "store_repo": store_repo,
                 "store_label": store_label,
                 "project_key": project_key,
+                "background": background,
             }
         )
     if echo_rows is not None:
@@ -379,8 +515,34 @@ def queue_pending_upload(
         mutation.pending_attachment_wires = list(wires)
 
 
+def _store_for_pending_item(item: dict[str, Any]) -> Any | None:
+    """Rebuild the tier store for one queued upload item, if reachable."""
+    store_name = str(item.get("store_name") or "git")
+    if store_name == "large":
+        try:
+            return discover_large_store(None)
+        except Exception:
+            return None
+    repo = str(item.get("store_repo") or "")
+    label = str(item.get("store_label") or "")
+    project_key = str(item.get("project_key") or "")
+    if not repo:
+        return None
+    try:
+        from sase.bead.attachments.git_store import GitAttachmentStore
+
+        return GitAttachmentStore(repo, label or f"{project_key} (private)")
+    except Exception:
+        return None
+
+
 def run_pending_uploads(mutation: Any) -> None:
-    """Upload mutation-registered digests; failures queue to the outbox."""
+    """Upload mutation-registered digests; failures queue to the outbox.
+
+    Items marked ``background`` skip the inline upload: they move to the
+    durable outbox and a detached worker drains them, so the command
+    returns promptly.
+    """
     pending = list(getattr(mutation, "pending_attachment_uploads", None) or [])
     if not pending:
         return
@@ -392,8 +554,8 @@ def run_pending_uploads(mutation: Any) -> None:
         digest = str(wire.get("sha256") or wire.get("digest") or "")
         if digest:
             by_digest[digest] = wire
-    from sase.bead.attachments.blob_store import BlobStoreError
     from sase.bead.attachments.outbox import OutboxEntry, enqueue_outbox
+    from sase.bead.attachments.progress import transfer_progress
     from sase.bead.attachments.store import LocalAttachmentStore
     from sase.config import get_machine_name
 
@@ -404,56 +566,99 @@ def run_pending_uploads(mutation: Any) -> None:
     local = LocalAttachmentStore()
     elapsed: dict[str, float] = {}
     failed: dict[str, str] = {}
-    label = str(pending[0].get("store_label") or "")
+    background_digests: set[str] = set()
+    background_projects: set[str] = set()
+    labels: dict[str, str] = {}
     for item in pending:
         digest = str(item.get("digest") or "")
         size = int(item.get("size_bytes") or 0)
-        repo = str(item.get("store_repo") or "")
         project_key = str(item.get("project_key") or "")
-        if not digest or not repo or not project_key:
+        store_name = str(item.get("store_name") or "git")
+        if not digest or not project_key:
+            continue
+        labels[digest] = str(item.get("store_label") or "")
+        if item.get("background"):
+            _enqueue_failed(project_key, digest, size, origin, store_name=store_name)
+            background_digests.add(digest)
+            background_projects.add(project_key)
             continue
         src = local.object_path(digest)
         if not src.is_file():
             continue
-        try:
-            from sase.bead.attachments.git_store import GitAttachmentStore
-
-            store = GitAttachmentStore(repo, label or f"{project_key} (private)")
-        except Exception as exc:
-            log.warning("attachment upload skipped: %s", exc)
+        store = _store_for_pending_item(item)
+        if store is None:
+            log.warning("attachment upload skipped: no reachable store")
             failed[digest] = project_key
-            _enqueue_failed(project_key, digest, size, origin)
+            _enqueue_failed(project_key, digest, size, origin, store_name=store_name)
             continue
         started = time.monotonic()
         try:
-            store.put(digest, src, size)
+            wire = by_digest.get(digest)
+            name = str((wire or {}).get("name") or digest[:12])
+            with transfer_progress(f"{name} → {store.describe()}", size) as progress:
+                store.put(digest, src, size, progress=progress)
         except Exception as exc:
             log.warning("attachment upload of %s… failed: %s", digest[:12], exc)
             failed[digest] = project_key
-            _enqueue_failed(project_key, digest, size, origin)
+            _enqueue_failed(project_key, digest, size, origin, store_name=store_name)
             continue
         elapsed[digest] = time.monotonic() - started
+    if background_digests:
+        from sase.bead.attachments.background import (
+            launch_background_drain,
+            rewrite_echo_for_background,
+        )
+
+        for background_project in sorted(background_projects):
+            launch_background_drain(background_project)
+        if echo_rows is not None:
+            background_wires = [
+                wire
+                for wire in wires
+                if str(wire.get("sha256") or wire.get("digest") or "")
+                in background_digests
+            ]
+            rewrite_echo_for_background(echo_rows, background_wires)
     if echo_rows is not None and wires:
+        label = next((value for value in labels.values() if value), "")
+        foreground_wires = [
+            wire
+            for wire in wires
+            if str(wire.get("sha256") or wire.get("digest") or "")
+            not in background_digests
+        ]
         rewrite_echo_for_upload(
             echo_rows,
-            wires,
+            foreground_wires,
             label=label,
             elapsed=elapsed,
             pending=set(failed),
         )
-    _ = BlobStoreError
     _ = enqueue_outbox
+    _ = OutboxEntry
 
 
 def _enqueue_failed(
-    project_key: str, digest: str, size_bytes: int, origin: str | None
+    project_key: str,
+    digest: str,
+    size_bytes: int,
+    origin: str | None,
+    *,
+    store_name: str = "git",
 ) -> None:
     from sase.bead.attachments.outbox import OutboxEntry, enqueue_outbox
 
     try:
         enqueue_outbox(
             project_key,
-            [OutboxEntry(digest=digest, size_bytes=size_bytes, origin=origin)],
+            [
+                OutboxEntry(
+                    digest=digest,
+                    size_bytes=size_bytes,
+                    store=store_name,
+                    origin=origin,
+                )
+            ],
         )
     except (OSError, ValueError) as exc:
         log.warning("attachment outbox enqueue failed: %s", exc)
@@ -466,20 +671,22 @@ def pre_write_upload(
     local_only: bool,
     bead_context: Any | None = None,
     attachments_on: bool = True,
-) -> tuple[str, Any | None, str | None, bool]:
+) -> tuple[str, dict[str, Any], str | None, bool]:
     """Decide placement and run the pre-write half of the upload protocol.
 
-    Returns ``(placement, store, project_key, require_upload)``. Local-only
-    and no-store rows are rewritten in place; ``require_upload`` successes
-    are uploaded now and rewritten with the destination. Exits non-zero
-    before any bead write on oversize or missing-store refusal.
+    Returns ``(placement, stores, project_key, require_upload)`` where
+    *stores* maps every reachable tier name to its store. Local-only and
+    no-store rows are rewritten in place; ``require_upload`` successes
+    upload now (synchronously, even above the background threshold) and
+    are rewritten with the destination. Exits non-zero before any bead
+    write on oversize or missing-store refusal.
     """
     from sase.bead.config import get_attachment_require_upload
 
     if not attachments_on or not wires:
-        return ("skip", None, None, False)
+        return ("skip", {}, None, False)
     drain_before_upload(bead_context)
-    placement, store, project_key = prepare_placement(
+    placement, stores, project_key = prepare_placement(
         wires,
         local_only=local_only,
         bead_context=bead_context,
@@ -487,19 +694,28 @@ def pre_write_upload(
     require_upload = get_attachment_require_upload()
     if placement in ("local_only", "no_store"):
         rewrite_echo_for_local(echo_rows)
-        return (placement, store, project_key, require_upload)
+        return (placement, stores, project_key, require_upload)
     if require_upload:
-        assert store is not None
+        assert stores
         try:
-            elapsed = upload_wires_now(wires, store)
+            elapsed = upload_wires_now(wires, stores)
         except Exception as exc:
             print(f"Error: attachment upload failed: {exc}", file=sys.stderr)
             sys.exit(1)
+        first_store = next(iter(stores.values()))
         rewrite_echo_for_upload(
-            echo_rows, wires, label=store.describe(), elapsed=elapsed
+            echo_rows, wires, label=first_store.describe(), elapsed=elapsed
         )
-        return ("uploaded", store, project_key, require_upload)
-    return ("git", store, project_key, require_upload)
+        return ("uploaded", stores, project_key, require_upload)
+    return (placement, stores, project_key, require_upload)
+
+
+def _store_identity(tier_name: str, store: Any) -> tuple[str, str]:
+    """Return ``(store_repo, store_label)`` for one tier store."""
+    if tier_name == "large":
+        remote = str(getattr(store, "_remote", "") or store.describe())
+        return (remote, store.describe())
+    return (str(getattr(store, "_repo", "") or ""), store.describe())
 
 
 def post_write_queue(
@@ -508,31 +724,77 @@ def post_write_queue(
     echo_rows: list[str],
     *,
     placement: str,
-    store: Any | None,
+    stores: dict[str, Any] | Any | None,
     project_key: str | None,
     require_upload: bool,
     attachments_on: bool = True,
 ) -> None:
-    """Register a post-commit upload when placement chose the shared store."""
+    """Register a post-commit upload when placement chose a shared store.
+
+    Wires route per tier; wires at or above the background threshold are
+    marked for the detached worker instead of the inline post-commit
+    upload. *stores* is the tier-name mapping from :func:`pre_write_upload`
+    (a single store still works for one-tier placements).
+    """
     if not attachments_on or not wires:
         return
-    if placement != "git" or require_upload or store is None:
+    if placement not in ("git", "large", "mixed") or require_upload:
+        return
+    if not isinstance(stores, dict):
+        stores = {"git": stores} if stores is not None else {}
+    if not stores:
         return
     if project_key is None:
         project_key = resolve_project_key(None)
         if project_key is None:
             return
-    repo = str(getattr(store, "_repo", "") or "")
-    if not repo:
+    from sase.bead.attachments.background import should_background
+    from sase.bead.config import get_attachment_git_max_bytes
+
+    tiers = placement_tiers(stores, git_max_bytes=get_attachment_git_max_bytes())
+    try:
+        grouped = split_wires_by_tier(wires, tiers)
+    except AttachmentTooLargeError as exc:
+        log.warning("attachment post-write queue skipped: %s", exc)
         return
-    queue_pending_upload(
-        mutation,
-        wires,
-        store_repo=repo,
-        store_label=store.describe(),
-        project_key=project_key,
-        echo_rows=echo_rows,
-    )
+    for tier_name, tier_wires in grouped.items():
+        store = stores.get(tier_name)
+        if store is None:
+            continue
+        repo, label = _store_identity(tier_name, store)
+        if tier_name == "git" and not repo:
+            continue
+        foreground = [
+            wire
+            for wire in tier_wires
+            if not should_background(int(wire.get("size_bytes") or 0))
+        ]
+        background_wires = [
+            wire
+            for wire in tier_wires
+            if should_background(int(wire.get("size_bytes") or 0))
+        ]
+        if foreground:
+            queue_pending_upload(
+                mutation,
+                foreground,
+                store_name=tier_name,
+                store_repo=repo,
+                store_label=label,
+                project_key=project_key,
+                echo_rows=echo_rows,
+            )
+        if background_wires:
+            queue_pending_upload(
+                mutation,
+                background_wires,
+                store_name=tier_name,
+                store_repo=repo,
+                store_label=label,
+                project_key=project_key,
+                echo_rows=echo_rows,
+                background=True,
+            )
 
 
 def drain_before_upload(
@@ -546,28 +808,39 @@ def drain_before_upload(
         project_key = resolve_project_key(bead_context)
         if not project_key:
             return
-        active = store if store is not None else discover_shared_store(bead_context)
-        if active is None:
+        if store is not None:
+            actives = [store]
+        else:
+            actives = list(discover_stores(bead_context).values())
+        if not actives:
             return
         from sase.bead.attachments.outbox import drain_outbox
 
-        drain_outbox(project_key, active, time_bound_seconds=time_bound_seconds)
+        for active in actives:
+            drain_outbox(project_key, active, time_bound_seconds=time_bound_seconds)
     except Exception as exc:
         log.warning("attachment outbox opportunistic drain skipped: %s", exc)
 
 
 def promote_local_only(
     project_key: str,
-    store: Any,
+    stores: dict[str, Any] | Any,
     *,
     time_bound_seconds: float = 10.0,
 ) -> int:
     """Upload local-only objects referenced by current notes, if placeable.
 
+    *stores* maps tier names to stores (a single store still means the git
+    tier). Each object routes via the core placement policy, so big
+    local-only objects promote to the large tier when it is configured.
     Returns the count promoted. Objects still rejected by placement stay
     local-only. Never raises.
     """
     deadline = time.monotonic() + max(0.0, time_bound_seconds)
+    if not isinstance(stores, dict):
+        stores = {"git": stores} if stores is not None else {}
+    if not stores:
+        return 0
     try:
         from sase.bead.cli_common import get_read_view
         from sase.bead.config import get_attachment_git_max_bytes
@@ -581,7 +854,9 @@ def promote_local_only(
     try:
         git_max = get_attachment_git_max_bytes()
         placement = require_rust_binding("attachment_placement")
-        tiers = [{"name": "git", "max_bytes": git_max}]
+        tiers = placement_tiers(stores, git_max_bytes=git_max)
+        if not tiers:
+            return 0
         try:
             queued = {entry.digest for entry in read_outbox(project_key)}
         except (OSError, ValueError):
@@ -613,12 +888,16 @@ def promote_local_only(
                     if not local.has(digest):
                         continue
                     try:
-                        if store.has(digest):
-                            continue
+                        decision = placement(size, tiers, False)
+                        tier_name = str(decision.get("store"))
                     except Exception:
                         continue
+                    store = stores.get(tier_name)
+                    if store is None:
+                        continue
                     try:
-                        placement(size, tiers, False)
+                        if store.has(digest):
+                            continue
                     except Exception:
                         continue
                     try:
@@ -643,10 +922,13 @@ __all__ = [
     "clone_has_remote",
     "decide_placement",
     "describe_label",
+    "discover_large_store",
     "discover_shared_store",
     "discover_shared_store_with_meta",
+    "discover_stores",
     "drain_before_upload",
     "hidden_clone_path",
+    "placement_tiers",
     "post_write_queue",
     "pre_write_upload",
     "prepare_placement",
@@ -656,5 +938,6 @@ __all__ = [
     "rewrite_echo_for_local",
     "rewrite_echo_for_upload",
     "run_pending_uploads",
+    "split_wires_by_tier",
     "upload_wires_now",
 ]

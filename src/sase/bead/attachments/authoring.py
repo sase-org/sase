@@ -26,6 +26,7 @@ from sase.bead.attachments.ingest import IngestError, ingest_path
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from sase.bead.attachments.progress import ProgressFactory
     from sase.bead.model import BeadNote
 
 #: Echo rows starting with this prefix are dim hints, not attached files.
@@ -62,17 +63,20 @@ def author_note_attachments(
     allow_sensitive: bool = False,
     previous_manifest: Sequence[str] = (),
     preferred_names: Mapping[str, str] | None = None,
+    progress_factory: ProgressFactory | None = None,
 ) -> AuthoredNoteAttachments:
     """Scan *text*, ingest referenced files, and compose the stored note.
 
     *preferred_names* maps a raw scanner path (as written in the note text)
     to the attachment name it should take instead of its file basename.
+    *progress_factory* draws a TTY bar per ingested file (the CLI passes
+    :func:`transfer_progress`); the TUI passes nothing and stays clean.
     """
     from sase.core.rust import require_rust_binding
 
     roster = roster_wires(notes)
     scan, path_refs, reuse_refs, resolved, blobs, base_dir = _scan_resolve_ingest(
-        text, list(roster), cwd, allow_sensitive
+        text, list(roster), cwd, allow_sensitive, progress_factory
     )
     assigned, display_bases = _assign_names(
         resolved, blobs, roster, path_refs, preferred_names
@@ -103,19 +107,22 @@ def author_note_attachments_per_bead(
     cwd: Path | str | None = None,
     allow_sensitive: bool = False,
     preferred_names: Mapping[str, str] | None = None,
+    progress_factory: ProgressFactory | None = None,
 ) -> list[AuthoredNoteAttachments]:
     """Scan and ingest *text* once, then compose one result per bead roster.
 
     Every unique path is resolved and ingested a single time, but names are
     uniquified against each bead's own roster, so one filename can land on
     different names on different beads. Reuse tokens join per bead too.
+    *progress_factory* draws a TTY bar per ingested file (the CLI passes
+    :func:`transfer_progress`); the TUI passes nothing and stays clean.
     """
     from sase.core.rust import require_rust_binding
 
     rosters = [roster_wires(notes) for notes in notes_per_bead]
     union_names = list(dict.fromkeys(name for roster in rosters for name in roster))
     scan, path_refs, reuse_refs, resolved, blobs, base_dir = _scan_resolve_ingest(
-        text, union_names, cwd, allow_sensitive
+        text, union_names, cwd, allow_sensitive, progress_factory
     )
     compose_binding = require_rust_binding("compose_note_attachment_text")
     results: list[AuthoredNoteAttachments] = []
@@ -181,6 +188,7 @@ def _scan_resolve_ingest(
     roster_names: list[str],
     cwd: Path | str | None,
     allow_sensitive: bool,
+    progress_factory: ProgressFactory | None = None,
 ) -> tuple[
     dict[str, Any],
     list[dict[str, Any]],
@@ -205,7 +213,7 @@ def _scan_resolve_ingest(
     resolved = _resolve_path_refs(text, path_refs, base_dir, allow_sensitive, problems)
     if problems:
         raise NoteAttachmentAuthoringError(_problems_message(problems))
-    blobs = _ingest_unique_paths(text, path_refs, resolved)
+    blobs = _ingest_unique_paths(text, path_refs, resolved, progress_factory)
     return scan, path_refs, reuse_refs, resolved, blobs, base_dir
 
 
@@ -308,10 +316,12 @@ def _ingest_unique_paths(
     text: str,
     path_refs: list[dict[str, Any]],
     resolved: dict[int, Path],
+    progress_factory: ProgressFactory | None = None,
 ) -> dict[Path, Any]:
     """Ingest each unique resolved path once, in first-seen order.
 
     A failure raises one combined error and writes no bead event.
+    *progress_factory* draws a TTY bar per file when given.
     """
     unique: list[Path] = []
     for index in sorted(resolved):
@@ -322,7 +332,15 @@ def _ingest_unique_paths(
     problems: list[str] = []
     for target in unique:
         try:
-            blobs[target] = ingest_path(str(target))
+            if progress_factory is None:
+                blobs[target] = ingest_path(str(target))
+            else:
+                try:
+                    total = target.stat().st_size
+                except OSError:
+                    total = None
+                with progress_factory(target.name, total) as bar:
+                    blobs[target] = ingest_path(str(target), progress=bar)
         except IngestError as exc:
             first = next(index for index, path in resolved.items() if path == target)
             problems.append(
