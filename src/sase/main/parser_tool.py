@@ -424,8 +424,10 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
             "cannot be combined; `-F` and `-l` cannot be combined; "
             "`-F -j` waits, then prints the final JSON envelope. "
             "Ctrl-C detaches the viewer (exit 130); the run continues. "
+            "In an agent with a sync wait budget, `-F` stops at the budget "
+            "with the escalation block (exit 124); the run continues. "
             "Exit codes: 0 shown or followed, 1 store failure, "
-            "2 unknown run or usage."
+            "2 unknown run or usage, 124 budget reached."
         ),
         epilog=(
             "examples:\n"
@@ -506,9 +508,11 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
             "run is never affected. A settled run with an exit code "
             "returns that code; a settled run without one returns 1. "
             "A passed deadline returns 124. Ctrl-C returns 130; the run "
-            "continues. Exit codes: exit code of the run, 1 settled "
-            "without an exit code, 124 still running, 2 unknown run or "
-            "usage, 130 interrupted."
+            "continues. In an agent with a sync wait budget, the deadline "
+            "is the smaller of `-t` and the budget, and a reached budget "
+            "prints the escalation block. Exit codes: exit code of the run, "
+            "1 settled without an exit code, 124 still running, 2 unknown "
+            "run or usage, 130 interrupted."
         ),
         epilog=(
             "examples:\n"

@@ -104,21 +104,58 @@ def handle_wait(request: ToolWaitCliRequest) -> int:
         return 2
     if is_settled(run):
         return _report_wait_outcome(request, run_id, run)
+    budget = _agent_wait_budget()
+    effective_s = timeout_s
+    if budget is not None:
+        try:
+            budget_s = float(budget["budget_seconds"])
+        except (KeyError, TypeError, ValueError):
+            budget_s = 0.0
+            budget = None
+        else:
+            if effective_s is None or effective_s > budget_s:
+                if effective_s is not None:
+                    print(
+                        f"sase tool wait: timeout {request.timeout_raw} clamped to "
+                        f"the agent's sync wait budget "
+                        f"({int(budget_s)}s, {budget['source']})",
+                        file=sys.stderr,
+                    )
+                effective_s = budget_s
+    from sase.tool.follow_run import FollowOutcome, follow_run
+
     try:
-        envelope = wait_for_settlement(run_id, timeout_s=timeout_s)
+        outcome: FollowOutcome = follow_run(
+            run_id, deadline_s=effective_s, stream_output=False
+        )
     except UnknownRunError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    except KeyboardInterrupt:
+    if outcome.kind == "stopped":
         print("sase tool wait: interrupted; the run continues", file=sys.stderr)
         return 130
+    if outcome.kind == "deadline":
+        return _report_wait_timeout(request, run_id, tail_lines, budget=budget)
+    envelope = outcome.envelope
     if envelope is None:
-        return _report_wait_timeout(request, run_id, tail_lines)
+        return _report_wait_timeout(request, run_id, tail_lines, budget=budget)
     final = envelope.get("run")
     if not isinstance(final, dict):
         print(f"tool run {run_id} was not found", file=sys.stderr)
         return 2
     return _report_wait_outcome(request, run_id, final)
+
+
+def _agent_wait_budget() -> dict[str, Any] | None:
+    """Return the agent's sync wait budget, or ``None`` when unbounded."""
+
+    try:
+        from sase.tool.routing import sync_wait_budget
+
+        raw = sync_wait_budget()
+    except Exception:  # noqa: BLE001 - the budget never blocks a wait.
+        return None
+    return dict(raw) if isinstance(raw, dict) else None
 
 
 def _report_wait_outcome(
@@ -141,8 +178,14 @@ def _report_wait_outcome(
 
 
 def _report_wait_timeout(
-    request: ToolWaitCliRequest, run_id: str, tail_lines: int | None
+    request: ToolWaitCliRequest,
+    run_id: str,
+    tail_lines: int | None,
+    *,
+    budget: dict[str, Any] | None = None,
 ) -> int:
+    if budget is not None:
+        return _report_wait_budget(request, run_id, tail_lines, budget)
     if request.json:
         try:
             run = load_run(run_id)
@@ -158,6 +201,37 @@ def _report_wait_timeout(
         run = load_run(run_id)
     except UnknownRunError:
         return 124
+    _print_wait_tail(run_id, run, tail_lines)
+    return 124
+
+
+def _report_wait_budget(
+    request: ToolWaitCliRequest,
+    run_id: str,
+    tail_lines: int | None,
+    budget: dict[str, Any],
+) -> int:
+    """Print the escalation block after an agent's budgeted wait hits its bound."""
+
+    from sase.tool.routing import escalation_block, escalation_json, is_joinable
+
+    try:
+        run = load_run(run_id)
+    except UnknownRunError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    joinable = is_joinable(run)
+    block = escalation_block(run, budget, run_id)
+    if request.json:
+        payload = _wait_json(run_id, run)
+        payload["timed_out"] = True
+        payload["escalation"] = escalation_json(
+            run_id, budget, joinable, str(run.get("tool_name") or "") or None
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        print(block, file=sys.stderr)
+        return 124
+    print(block, file=sys.stderr)
     _print_wait_tail(run_id, run, tail_lines)
     return 124
 

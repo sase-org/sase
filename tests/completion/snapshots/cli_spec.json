@@ -7523,7 +7523,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "a68976c1d118550f",
+            "description_digest": "e7d529535308de9c",
             "hidden": false,
             "mutex_groups": [],
             "name": "+1",
@@ -7620,6 +7620,54 @@
                 "strings": [
                   "-L",
                   "--local-only"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "private",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-K",
+                  "--private"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "public",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-W",
+                  "--public"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-y",
+                  "--yes"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -7752,7 +7800,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "ccf3851744b26d57",
+            "description_digest": "8e52257bce063811",
             "hidden": false,
             "mutex_groups": [],
             "name": "attach",
@@ -7849,6 +7897,54 @@
                 "strings": [
                   "-L",
                   "--local-only"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "private",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-K",
+                  "--private"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "public",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-W",
+                  "--public"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-y",
+                  "--yes"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -8324,7 +8420,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "4b717811ee3c3cba",
+            "description_digest": "0abe05f18d07cce2",
             "hidden": false,
             "mutex_groups": [],
             "name": "close",
@@ -8421,6 +8517,54 @@
                 "strings": [
                   "-L",
                   "--local-only"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "private",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-K",
+                  "--private"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "public",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-W",
+                  "--public"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-y",
+                  "--yes"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -9791,7 +9935,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "e57761564e6cf0d2",
+            "description_digest": "f071327d3b6b769e",
             "hidden": false,
             "mutex_groups": [
               [
@@ -9861,6 +10005,54 @@
                 "strings": [
                   "-L",
                   "--local-only"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "private",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-K",
+                  "--private"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "public",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-W",
+                  "--public"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-y",
+                  "--yes"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -11678,7 +11870,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "946545251a927e75",
+            "description_digest": "e29c4590ca78839a",
             "hidden": false,
             "mutex_groups": [
               [
@@ -11859,6 +12051,54 @@
                 "strings": [
                   "-L",
                   "--local-only"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "private",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-K",
+                  "--private"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "public",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-W",
+                  "--public"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-y",
+                  "--yes"
                 ],
                 "takes_value": false,
                 "value_hint": null

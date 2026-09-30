@@ -365,6 +365,27 @@ owner or parent run, `-H` together with `-d`, and `-v`/`-T`. `-k`/`-x` are allow
 travel as the envelope continuation mode, and `long` tools are accepted detached since a
 join can finish them.
 
+### Ceiling-bounded wait
+
+(Behind the `tool_run_escalation` beta flag, agents only.) An agent's `sase tool wait`
+and `sase tool show -F` never block past the caller's synchronous ceiling: the wait
+budget is computed by the Rust core from the hard ceiling
+(`SASE_PROVIDER_SYNC_CEILING_SECONDS`) and the soft ceiling
+(`SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS`) as the smaller of the budgets that are
+present — the hard budget is the ceiling minus a margin of 15% clamped to 90–300 s (but
+never below half the ceiling), the soft budget is the soft ceiling itself, and a tie
+reports `hard`. With neither ceiling there is no budget. `wait` uses the smaller of `-t`
+and the budget (a clamped `-t` prints one notice); `show -F` stops following at the
+budget. At the bound both print one shared escalation block on stderr and exit `124`
+without stopping the run: tool and run id, elapsed time, the budget source, the
+`sase monitor start -J ...` join form, the bounded `sase tool wait ... -T 200` re-wait
+form, and the turn-end stop rule. A run that is not joinable (not detached, another
+agent's run, or joined elsewhere) prints only the still-running line plus the re-wait
+form — never a join command that would be refused. `wait -j` adds an `escalation` object
+(`budget_seconds`, `source`, `joinable`, `join_command`) at the deadline;
+`schema_version` stays 1. Humans are never bounded, and with the flag off both commands
+keep today's unbounded behaviour.
+
 Recording failures behave differently by leg. Explicit `-H` is **fail-closed**: if the
 reservation cannot be committed, nothing starts (exit `1`, "nothing was started").
 Foreground `sase tool run` stays **fail-open** as above. A monitor start's reservation
