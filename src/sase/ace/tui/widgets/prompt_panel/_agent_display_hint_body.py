@@ -18,7 +18,7 @@ from ._agent_display_content import (
     render_timestamp_divider,
 )
 from ._agent_display_header import AgentHeader
-from ._agent_display_xprompt import attach_xprompt_to_identity
+from ._agent_display_xprompt import attach_xprompt_to_identity, xprompt_hints_enabled
 from ._agent_display_hint_annotators import (
     hint_gate_annotator,
     hint_monitor_annotator,
@@ -75,39 +75,80 @@ def render_agent_prompt_hint_body(
         raw_xprompt or "",
     )
     if raw_xprompt:
-        source_xprompt = raw_xprompt
-        raw_xprompt = humanize_text(source_xprompt)
-        xprompt = Text()
-        xprompt_hints_before = hint_counter
-        hint_counter = append_bounded_text_with_file_hints(
-            xprompt,
-            raw_xprompt + "\n",
-            hint_counter,
-            hint_mappings,
-            workspace_dir,
-            matcher=iter_xprompt_file_path_matches,
-        )
-        xprompt_source = xprompt.plain
-        hint_spans = tuple(xprompt.spans)
-        apply_authored_prompt_overlays(
-            xprompt,
-            xprompt_source,
-            highlight_context,
-            region_start=0,
-            include_xprompt=True,
-            hint_spans=hint_spans,
-        )
-        if not attach_xprompt_to_identity(
-            panel,
-            header_text,
-            xprompt,
-            has_hints=hint_counter != xprompt_hints_before,
-        ):
-            append_section_heading(header_text, "AGENT XPROMPT")
-            header_text.append_text(xprompt)
-            header_text.append("\n")
-            header_text.append("─" * 50 + "\n", style="dim")
-            header_text.append("\n")
+        if not xprompt_hints_enabled(panel):
+            display_raw = getattr(panel, "_display_raw_xprompt", None)
+            render_xprompt = getattr(panel, "_render_xprompt", None)
+            if callable(display_raw) and callable(render_xprompt):
+                humanized_xprompt = display_raw(agent, raw_xprompt)
+                plain_xprompt = render_xprompt(
+                    agent,
+                    raw_xprompt,
+                    humanized_xprompt,
+                    context=highlight_context,
+                )
+                if not attach_xprompt_to_identity(
+                    panel,
+                    header_text,
+                    plain_xprompt,
+                ):
+                    append_section_heading(header_text, "AGENT XPROMPT")
+                    header_text.append_text(plain_xprompt)
+                    header_text.append("\n")
+                    header_text.append("─" * 50 + "\n", style="dim")
+                    header_text.append("\n")
+            else:
+                humanized_fallback = humanize_text(raw_xprompt)
+                fallback_xprompt = Text(humanized_fallback + "\n")
+                apply_authored_prompt_overlays(
+                    fallback_xprompt,
+                    fallback_xprompt.plain,
+                    highlight_context,
+                    region_start=0,
+                    include_xprompt=True,
+                    hint_spans=(),
+                )
+                if not attach_xprompt_to_identity(
+                    panel,
+                    header_text,
+                    fallback_xprompt,
+                ):
+                    append_section_heading(header_text, "AGENT XPROMPT")
+                    header_text.append_text(fallback_xprompt)
+                    header_text.append("\n")
+                    header_text.append("─" * 50 + "\n", style="dim")
+                    header_text.append("\n")
+        else:
+            source_xprompt = raw_xprompt
+            raw_xprompt = humanize_text(source_xprompt)
+            xprompt = Text()
+            hint_counter = append_bounded_text_with_file_hints(
+                xprompt,
+                raw_xprompt + "\n",
+                hint_counter,
+                hint_mappings,
+                workspace_dir,
+                matcher=iter_xprompt_file_path_matches,
+            )
+            xprompt_source = xprompt.plain
+            hint_spans = tuple(xprompt.spans)
+            apply_authored_prompt_overlays(
+                xprompt,
+                xprompt_source,
+                highlight_context,
+                region_start=0,
+                include_xprompt=True,
+                hint_spans=hint_spans,
+            )
+            if not attach_xprompt_to_identity(
+                panel,
+                header_text,
+                xprompt,
+            ):
+                append_section_heading(header_text, "AGENT XPROMPT")
+                header_text.append_text(xprompt)
+                header_text.append("\n")
+                header_text.append("─" * 50 + "\n", style="dim")
+                header_text.append("\n")
 
     # AGENT PROMPT section (with file path hints, Text instead of Syntax)
     append_section_heading(header_text, "AGENT PROMPT")

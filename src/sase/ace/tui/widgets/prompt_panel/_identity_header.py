@@ -43,18 +43,16 @@ class IdentityHeader:
     accent: str
     expanded: AgentHeader
     compact: Text
-    has_hints: bool = False
     xprompt: Text | None = None
     xprompt_pending: bool = False
 
-    def with_xprompt(self, text: Text, *, has_hints: bool = False) -> IdentityHeader:
+    def with_xprompt(self, text: Text) -> IdentityHeader:
         """Return this identity with its full, highlighted xprompt attached."""
         xprompt = text.copy()
         xprompt = xprompt[: len(xprompt.plain.rstrip("\n"))]
         return replace(
             self,
             xprompt=xprompt,
-            has_hints=self.has_hints or has_hints,
             xprompt_pending=False,
         )
 

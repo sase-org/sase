@@ -36,6 +36,12 @@ class _DetachedPanel(FakePromptPanel):
         return True
 
 
+class _CollapsedDetachedPanel(_DetachedPanel):
+    @property
+    def identity_header_hints_enabled(self) -> bool:
+        return False
+
+
 def test_identity_xprompt_is_inline_after_expanded_fields() -> None:
     agent = make_agent(agent_name="solo")
     document, _ = build_header_text(agent, detach_identity=True)
@@ -116,9 +122,34 @@ def test_hinted_xprompt_moves_to_identity_and_keeps_its_markers(tmp_path: Path) 
     assert identity is not None
     assert identity.xprompt is not None
     assert identity.xprompt.plain == "Read [1] @src/example.py"
-    assert identity.has_hints is True
     assert result.file_hints == {1: str(workspace / "src/example.py")}
     assert "AGENT XPROMPT" not in plain_of(panel.captured[-1])
+
+
+def test_collapsed_detached_xprompt_skips_markers(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    (workspace / "src").mkdir(parents=True)
+    (workspace / "src" / "example.py").write_text("", encoding="utf-8")
+    (workspace / "src" / "body.py").write_text("", encoding="utf-8")
+    panel = _CollapsedDetachedPanel()
+    agent = make_artifact_agent(
+        tmp_path,
+        status="DONE",
+        workspace_dir=str(workspace),
+        raw_xprompt="Read @src/example.py",
+    )
+    prompt_path = Path(str(agent.artifacts_dir)) / "01_prompt.md"
+    prompt_path.write_text("See src/body.py\n", encoding="utf-8")
+
+    result = panel.update_display_with_hints(agent)
+
+    identity = find_identity_header(panel.captured[-1])
+    assert identity is not None
+    assert identity.xprompt is not None
+    assert identity.xprompt.plain == "Read @src/example.py"
+    assert "[1]" not in identity.xprompt.plain
+    assert str(workspace / "src/example.py") not in result.file_hints.values()
+    assert result.file_hints[1] == str(workspace / "src/body.py")
 
 
 def test_agent_session_xprompt_moves_to_identity_when_detached(tmp_path: Path) -> None:

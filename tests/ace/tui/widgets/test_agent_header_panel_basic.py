@@ -2,18 +2,12 @@
 
 from __future__ import annotations
 
-import dataclasses
 from datetime import datetime
 from typing import Any
 
 from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
-from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
-from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
-    AgentHeaderRenderable,
-)
-from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -24,6 +18,7 @@ from tests.ace.tui.widgets._agent_header_panel_shared import (
     header_panel,
     header_text,
     show_agent,
+    show_agent_full,
     solo_agent,
 )
 
@@ -175,21 +170,69 @@ async def test_search_overlay_keeps_header_visible() -> None:
         assert not panel.has_class("hidden")
 
 
-async def test_hint_document_forces_expansion() -> None:
-    agent = solo_agent()
-    document, _ = build_header_text(agent, cheap=True, detach_identity=True)
-    assert isinstance(document, AgentHeaderRenderable)
-    identity = find_identity_header(document)
-    assert identity is not None
-    hinted = dataclasses.replace(identity, has_hints=True)
+async def test_hint_mode_keeps_collapsed_header_unchanged(tmp_path: Any) -> None:
+    from pathlib import Path
+
+    from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
+
+    workspace = tmp_path / "workspace"
+    (workspace / "src").mkdir(parents=True)
+    (workspace / "src" / "example.py").write_text("", encoding="utf-8")
+    (workspace / "src" / "body.py").write_text("", encoding="utf-8")
+    agent = make_artifact_agent(
+        tmp_path,
+        status="DONE",
+        raw_xprompt="Read @src/example.py",
+        workspace_dir=str(workspace),
+    )
+    Path(str(agent.response_path)).write_text("See src/body.py\n", encoding="utf-8")
     app = DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
-        await show_agent(detail, agent, pilot)
+        await show_agent_full(detail, agent, pilot)
         panel = header_panel(detail)
         assert not panel.is_expanded
-        panel.show_identity(hinted)
-        assert "Name:" in header_text(panel)
+        pre_text = header_text(panel)
+        pre_rows = panel.rendered_row_count
+        result = detail.update_display_with_hints(agent)
+        await pilot.pause()
+        assert not panel.is_expanded
+        assert header_text(panel) == pre_text
+        assert panel.rendered_row_count == pre_rows
+        assert "[1]" not in header_text(panel)
+        assert str(workspace / "src/example.py") not in result.file_hints.values()
+        assert result.file_hints[1] == str(workspace / "src/body.py")
+
+
+async def test_hint_mode_numbers_expanded_header_first(tmp_path: Any) -> None:
+    from pathlib import Path
+
+    from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
+
+    workspace = tmp_path / "workspace"
+    (workspace / "src").mkdir(parents=True)
+    (workspace / "src" / "example.py").write_text("", encoding="utf-8")
+    (workspace / "src" / "body.py").write_text("", encoding="utf-8")
+    agent = make_artifact_agent(
+        tmp_path,
+        status="DONE",
+        raw_xprompt="Read @src/example.py",
+        workspace_dir=str(workspace),
+    )
+    Path(str(agent.response_path)).write_text("See src/body.py\n", encoding="utf-8")
+    app = DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await show_agent_full(detail, agent, pilot)
+        assert detail.toggle_header_expanded() is True
+        await pilot.pause()
+        panel = header_panel(detail)
+        assert panel.is_expanded
+        result = detail.update_display_with_hints(agent)
+        await pilot.pause()
+        assert panel.is_expanded
+        assert "[1]" in header_text(panel)
+        assert result.file_hints[1] == str(workspace / "src/example.py")
 
 
 async def test_bottom_pinned_body_stays_pinned_across_toggle() -> None:

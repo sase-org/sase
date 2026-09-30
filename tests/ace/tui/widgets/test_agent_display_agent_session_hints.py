@@ -29,6 +29,21 @@ from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
 )
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel, plain_of
 from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary
+from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
+
+
+class _CollapsedDetachedSessionPanel(FakePromptPanel):
+    @property
+    def detaches_identity_header(self) -> bool:
+        return True
+
+    @property
+    def detaches_xprompt(self) -> bool:
+        return True
+
+    @property
+    def identity_header_hints_enabled(self) -> bool:
+        return False
 
 
 def test_agent_session_hint_render_returns_cached_plan_delta_artifact_and_commit_views(
@@ -248,3 +263,29 @@ def test_agent_session_reply_resolves_workspace_once_for_all_chunks(
         2: "/workspace/src/chunk-1.py",
         3: "/workspace/src/chunk-2.py",
     }
+
+
+def test_session_collapsed_detached_xprompt_skips_markers(tmp_path: Path) -> None:
+    root, _child = make_agent_session(tmp_path)
+    workspace = tmp_path / "workspace"
+    (workspace / "src").mkdir(parents=True)
+    (workspace / "src" / "example.py").write_text("", encoding="utf-8")
+    (workspace / "src" / "body.py").write_text("", encoding="utf-8")
+    root.workspace_dir = str(workspace)
+    Path(str(root.artifacts_dir)).joinpath("raw_xprompt.md").write_text(
+        "Read @src/example.py\n", encoding="utf-8"
+    )
+    Path(str(root.artifacts_dir)).joinpath("01_prompt.md").write_text(
+        "See src/body.py\n", encoding="utf-8"
+    )
+    panel = _CollapsedDetachedSessionPanel()
+
+    result = panel.update_display_with_hints(root)
+
+    identity = find_identity_header(panel.captured[-1])
+    assert identity is not None
+    assert identity.xprompt is not None
+    assert "[1]" not in identity.xprompt.plain
+    assert "Read @src/example.py" in identity.xprompt.plain
+    assert str(workspace / "src/example.py") not in result.file_hints.values()
+    assert result.file_hints[1] == str(workspace / "src/body.py")

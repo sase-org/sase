@@ -130,3 +130,27 @@ def test_attempt_pinned_number_isolated_in_hint_cache(tmp_path: Path) -> None:
 
     assert pinned is not unpinned
     assert panel.captured[-1] is not unpinned_renderable
+
+
+def test_identity_header_hints_flip_invalidates_hint_cache(tmp_path: Path) -> None:
+    from sase.ace.tui.widgets.prompt_panel._agent_display_hint_cache import (
+        agent_hint_render_cache_key,
+    )
+
+    agent = make_artifact_agent(tmp_path, status="DONE")
+    panel = FakePromptPanel()
+    cache_detail_header_summary(panel, agent, DetailHeaderSummary())
+    first = panel.update_display_with_hints(agent)
+    assert panel.hint_document_is_current(agent)
+
+    enabled_key = agent_hint_render_cache_key(panel, agent)
+    assert enabled_key.identity_header_hints is True
+    panel.identity_header_hints_enabled = False  # type: ignore[attr-defined]
+    disabled_key = agent_hint_render_cache_key(panel, agent)
+    assert disabled_key.identity_header_hints is False
+    assert disabled_key != enabled_key
+    assert not panel.hint_document_is_current(agent)
+
+    second = panel.update_display_with_hints(agent)
+    assert second is not first
+    assert panel.hint_document_is_current(agent)

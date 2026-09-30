@@ -1,5 +1,6 @@
 """Agent prompt panel widget for sase's TUI."""
 
+from collections.abc import Callable
 from typing import Any
 
 from rich.console import Group
@@ -42,6 +43,7 @@ class AgentPromptPanel(
 
     _identity_header_sink: IdentityHeaderSink | None = None
     _detach_xprompt: bool = False
+    _identity_header_expanded_probe: Callable[[], bool] | None = None
     _identity_last_published: IdentityHeader | None = None
     _identity_last_content: Any = ""
     _last_prompt_panel_content: Any = None
@@ -56,10 +58,14 @@ class AgentPromptPanel(
         sink: IdentityHeaderSink | None,
         *,
         detach_xprompt: bool = False,
+        header_expanded: Callable[[], bool] | None = None,
     ) -> None:
         """Publish detached identity headers to ``sink`` on each update."""
         self._identity_header_sink = sink
         self._detach_xprompt = sink is not None and detach_xprompt
+        self._identity_header_expanded_probe = (
+            header_expanded if sink is not None else None
+        )
 
     @property
     def detaches_identity_header(self) -> bool:
@@ -70,6 +76,19 @@ class AgentPromptPanel(
     def detaches_xprompt(self) -> bool:
         """Whether xprompts travel with the detached identity header."""
         return self.detaches_identity_header and self._detach_xprompt
+
+    @property
+    def identity_header_hints_enabled(self) -> bool:
+        """Whether detached identity content may carry hint markers."""
+        if not self.detaches_identity_header:
+            return True
+        probe = getattr(self, "_identity_header_expanded_probe", None)
+        if probe is None:
+            return True
+        try:
+            return bool(probe())
+        except Exception:
+            return False
 
     def attach_member_jump_map_sink(self, sink: MemberJumpMapSink | None) -> None:
         """Publish carried jump maps to ``sink`` on each update."""

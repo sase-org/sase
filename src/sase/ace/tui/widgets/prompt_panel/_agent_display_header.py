@@ -103,6 +103,7 @@ def build_header_text(
     runner_capacity: RunnerCapacitySnapshot | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
     detach_identity: bool = False,
+    identity_hints: bool = True,
 ) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
@@ -175,14 +176,13 @@ def build_header_text(
     kind_accent = ""
     identity_text = Text()
     identity_ranges: dict[str, tuple[int, int]] = {}
-    hint_counter_before = hint_state.hint_counter if hint_state is not None else None
     if detach_identity:
         kind_label, kind_accent = identity_kind_for_agent(agent)
         metadata = append_agent_metadata_fields(
             identity_text,
             agent,
             cheap=cheap,
-            hint_state=hint_state,
+            hint_state=hint_state if identity_hints else None,
             summary=summary,
             agent_status_buckets=agent_status_buckets,
             # Keep this dependency supplied by the public module so existing
@@ -461,11 +461,6 @@ def build_header_text(
     header_text.append("\n")
 
     if detach_identity:
-        has_hints = (
-            hint_state is not None
-            and hint_counter_before is not None
-            and hint_state.hint_counter != hint_counter_before
-        )
         identity_sections = _assemble_responsive_sections(
             identity_ranges,
             page_section,
@@ -497,7 +492,6 @@ def build_header_text(
                 if agent_session_fold_enabled
                 else None,
             ),
-            has_hints=has_hints,
         )
         body_text, removed_chars = strip_leading_document_chrome(header_text)
         shifted_ranges = {

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 from typing import Any
 
 from textual.app import App, ComposeResult
@@ -116,14 +115,16 @@ async def test_hint_expanded_header_claims_scroll(tmp_path: Any) -> None:
     app = _HeaderScrollNavApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
-        await show_agent_full(
-            detail, artifact_agent(tmp_path, "a", LONG_XPROMPT), pilot
-        )
+        agent = artifact_agent(tmp_path, "a", LONG_XPROMPT)
+        await show_agent_full(detail, agent, pilot)
         panel = header_panel(detail)
         assert not panel.is_expanded
         assert panel.is_header_scrollable() is False
-        hinted = dataclasses.replace(panel._identity, has_hints=True)  # noqa: SLF001
-        panel.show_identity(hinted)
+        detail.update_display_with_hints(agent)
+        await pilot.pause()
+        assert not panel.is_expanded
+        assert panel.is_header_scrollable() is False
+        assert detail.toggle_header_expanded() is True
         await pilot.pause()
         assert panel.is_header_scrollable() is True
         assert int(panel.max_scroll_y) > 0

@@ -125,7 +125,6 @@ def build_tribe_detail_text(
                 snapshot=snapshot,
                 fold_level=fold_level,
             ),
-            has_hints=False,
         )
         carrier = AgentHeaderRenderable(body, (), identity_header=identity)
         if tribe_jump_map is not None and (

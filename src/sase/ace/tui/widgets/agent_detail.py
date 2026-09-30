@@ -110,7 +110,9 @@ class AgentDetail(
             return
         try:
             prompt_panel.attach_identity_header_sink(
-                self._on_identity_header, detach_xprompt=True
+                self._on_identity_header,
+                detach_xprompt=True,
+                header_expanded=self._header_expanded,
             )
         except Exception:
             pass
@@ -129,6 +131,16 @@ class AgentDetail(
             return self.query_one("#agent-header-panel", AgentHeaderPanel)
         except Exception:
             return None
+
+    def _header_expanded(self) -> bool:
+        """Return whether the sticky header panel is expanded."""
+        panel = self._header_panel_or_none()
+        if panel is None:
+            return False
+        try:
+            return bool(panel.is_expanded)
+        except Exception:
+            return False
 
     def _on_identity_header(self, header: Any | None) -> None:
         """Show the published identity, then sync header visibility."""

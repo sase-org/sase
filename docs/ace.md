@@ -5892,11 +5892,12 @@ the preferred card.
   `AGENT PROMPT`. A clan's collapsed rows mirror the tribe layout: name, status, and
   count chip on row 1; tribes, member totals, runtime, and the fold chip on row 2.
   Collapsed/expanded state is per session and holds across row moves, tribe focus, and
-  layout changes. While file-hint markers (`[N]`) are visible the panel renders expanded
-  so every hint stays selectable. Attempt-pinned views never rendered `AGENT XPROMPT`
-  and show no preview, and nodes without an xprompt show exactly the two chip rows
-  inside the border. Deck search (`,/`) covers the focused panel's deck only, since
-  header fields stay on screen.
+  layout changes. Hint mode never changes the panel's state: expanded, its fields and
+  `AGENT XPROMPT` carry hint markers numbered first; collapsed, it keeps its normal
+  preview, header content gets no markers, and numbering starts in the deck body.
+  Attempt-pinned views never rendered `AGENT XPROMPT` and show no preview, and nodes
+  without an xprompt show exactly the two chip rows inside the border. Deck search
+  (`,/`) covers the focused panel's deck only, since header fields stay on screen.
 - **Jump panel**: Every live numbered roster target (session turns, neighbors, clan
   members, tribe members) lives in its own always-visible panel at the bottom of the
   detail column, below the deck panels in every deck layout; the Main deck body does not

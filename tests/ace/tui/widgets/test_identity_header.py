@@ -454,7 +454,6 @@ def test_clan_hint_mode_numbers_body_from_one_without_header_hints() -> None:
     document, _ = build_header_text(container, hint_state=state, detach_identity=True)
     identity = find_identity_header(document)
     assert identity is not None
-    assert identity.has_hints is False
     assert isinstance(document, AgentHeaderRenderable)
     assert "[1] docs/summary.md" in document.plain
     assert list(state.hint_mappings) == [1]
@@ -467,6 +466,69 @@ def test_non_detached_builders_publish_no_identity() -> None:
     assert find_identity_header(plain) is None
     snapshot = make_tribe_snapshot()
     assert find_identity_header(build_tribe_detail_text(snapshot)) is None
+
+
+def test_prompt_panel_identity_header_hints_probe() -> None:
+    panel = AgentPromptPanel()
+    assert panel.identity_header_hints_enabled is True
+
+    received: list[object | None] = []
+    panel.attach_identity_header_sink(received.append)
+    assert panel.identity_header_hints_enabled is True
+
+    panel.attach_identity_header_sink(received.append, header_expanded=lambda: True)
+    assert panel.identity_header_hints_enabled is True
+
+    panel.attach_identity_header_sink(received.append, header_expanded=lambda: False)
+    assert panel.identity_header_hints_enabled is False
+
+    def _raises() -> bool:
+        raise RuntimeError("probe failed")
+
+    panel.attach_identity_header_sink(received.append, header_expanded=_raises)
+    assert panel.identity_header_hints_enabled is False
+
+    panel.attach_identity_header_sink(None)
+    assert panel.identity_header_hints_enabled is True
+
+
+def test_build_header_identity_hints_false_skips_markers(monkeypatch: Any) -> None:
+    from sase.ace.tui.models.agent import Agent as AgentModel
+    from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
+
+    monkeypatch.setattr(
+        AgentModel,
+        "timestamps_display",
+        property(lambda self: "START | src/example.py"),
+    )
+    agent = make_agent(agent_name="solo")
+    agent.workspace_dir = "/tmp/identity-hints"
+
+    enabled_state = HeaderHintState(1, {}, "/tmp/identity-hints", {})
+    enabled_document, _ = build_header_text(
+        agent,
+        hint_state=enabled_state,
+        detach_identity=True,
+        identity_hints=True,
+    )
+    enabled_identity = find_identity_header(enabled_document)
+    assert enabled_identity is not None
+    assert "[1]" in enabled_identity.expanded.plain
+    assert enabled_state.hint_counter == 2
+    assert list(enabled_state.hint_mappings) == [1]
+
+    skipped_state = HeaderHintState(1, {}, "/tmp/identity-hints", {})
+    skipped_document, _ = build_header_text(
+        agent,
+        hint_state=skipped_state,
+        detach_identity=True,
+        identity_hints=False,
+    )
+    skipped_identity = find_identity_header(skipped_document)
+    assert skipped_identity is not None
+    assert "[1]" not in skipped_identity.expanded.plain
+    assert skipped_state.hint_counter == 1
+    assert skipped_state.hint_mappings == {}
 
 
 async def test_panel_sink_receives_identity_before_digest_return() -> None:

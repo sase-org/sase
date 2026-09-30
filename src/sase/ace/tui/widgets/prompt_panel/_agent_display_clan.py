@@ -164,8 +164,6 @@ def build_clan_detail_text(
 
     counts = clan_member_counts(agent, unread_ids)
     agent_session_count = len(agent_session_members)
-    hint_counter_before = hint_state.hint_counter if hint_state is not None else None
-    hint_counter_after_identity: int | None = None
 
     if detach_identity:
         identity_text = Text()
@@ -177,9 +175,6 @@ def build_clan_detail_text(
             agent_session_count=agent_session_count,
             fold_level=fold_level,
             now=now,
-        )
-        hint_counter_after_identity = (
-            hint_state.hint_counter if hint_state is not None else None
         )
         body = Text()
     else:
@@ -385,12 +380,6 @@ def build_clan_detail_text(
     ):
         append_scanning_tail(body)
     if detach_identity:
-        has_hints = (
-            hint_state is not None
-            and hint_counter_before is not None
-            and hint_counter_after_identity is not None
-            and hint_counter_after_identity != hint_counter_before
-        )
         stripped_body, _ = strip_leading_document_chrome(body)
         carrier = AgentHeaderRenderable(
             stripped_body,
@@ -407,7 +396,6 @@ def build_clan_detail_text(
                     fold_level=fold_level,
                     now=now,
                 ),
-                has_hints=has_hints,
             ),
         )
         if hint_state is None and (jump_map.targets or jump_map.sections):

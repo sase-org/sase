@@ -83,7 +83,7 @@ class AgentHeaderPanel(VerticalScroll):
     def on_resize(self, _event: Any = None) -> None:
         """Re-fit the preview when the panel width changes."""
         identity = self._identity
-        if identity is None or self._expanded or identity.has_hints:
+        if identity is None or self._expanded:
             return
         self.show_identity(identity)
 
@@ -228,7 +228,7 @@ class AgentHeaderPanel(VerticalScroll):
             self.border_title = ""
             self.border_subtitle = ""
             return
-        shown_expanded = bool(self._expanded or header.has_hints)
+        shown_expanded = bool(self._expanded)
         width = self._content_width()
         budget = self._preview_budget()
         pending = bool(header.xprompt_pending and header.xprompt is None)
@@ -269,9 +269,7 @@ class AgentHeaderPanel(VerticalScroll):
         if identity is None:
             return False
         try:
-            expanded = bool(
-                self._expanded or bool(getattr(identity, "has_hints", False))
-            )
+            expanded = bool(self._expanded)
         except Exception:
             return False
         if not expanded:

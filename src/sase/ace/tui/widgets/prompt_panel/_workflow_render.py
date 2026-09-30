@@ -230,7 +230,6 @@ def build_workflow_detail_renderable(
             accent=WORKFLOW_IDENTITY_COLOR,
             expanded=identity_text,
             compact=build_workflow_compact_lines(agent=agent),
-            has_hints=False,
         )
         renderables = [AgentHeaderRenderable(body_text, (), identity_header=identity)]
     else:

@@ -140,6 +140,7 @@ class AgentHintRenderMixin:
             agent,
             hint_state=header_hint_state,
             detach_identity=getattr(self, "detaches_identity_header", False),
+            identity_hints=bool(getattr(self, "identity_header_hints_enabled", True)),
             summary=summary,
             agent_status_buckets=agent_status_buckets,
             clan_wait_member_statuses=clan_wait_member_statuses,

@@ -29,6 +29,7 @@ from ._agent_display_state import HeaderHintState
 from ._agent_display_xprompt import (
     attach_xprompt_to_identity,
     memoize_xprompt,
+    xprompt_hints_enabled,
 )
 from ._agent_gate_section import GateTextAnnotator, build_gate_phase
 from ._agent_monitor_section import MonitorTextAnnotator, build_monitor_phase
@@ -123,6 +124,7 @@ class AgentSessionDisplayMixin:
         xprompt: Text | None = None
         if raw_xprompt:
             humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
+            xprompt_hinting = hint_state is not None and xprompt_hints_enabled(self)
             xprompt = (
                 self._render_xprompt(
                     agent,
@@ -130,13 +132,11 @@ class AgentSessionDisplayMixin:
                     humanized_xprompt,
                     context=highlight_context,
                 )
-                if hint_state is None
+                if not xprompt_hinting
                 else Text(humanized_xprompt)
             )
-            xprompt_hints_before = (
-                hint_state.hint_counter if hint_state is not None else None
-            )
-            if hint_state is not None:
+            if xprompt_hinting:
+                assert hint_state is not None
                 xprompt = self._agent_session_text_with_hints(
                     xprompt,
                     hint_state,
@@ -150,11 +150,6 @@ class AgentSessionDisplayMixin:
                 self,
                 header_text,
                 xprompt,
-                has_hints=(
-                    xprompt_hints_before is not None
-                    and hint_state is not None
-                    and hint_state.hint_counter != xprompt_hints_before
-                ),
             )
             if not xprompt_detached:
                 append_section_heading(header_text, "AGENT XPROMPT")

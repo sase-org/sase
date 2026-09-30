@@ -13,12 +13,17 @@ from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
 _XPROMPT_MEMO_LIMIT = 128
 
 
+def xprompt_hints_enabled(panel: object) -> bool:
+    """Return whether a detached xprompt may carry hint markers."""
+    if not bool(getattr(panel, "detaches_xprompt", False)):
+        return True
+    return bool(getattr(panel, "identity_header_hints_enabled", True))
+
+
 def attach_xprompt_to_identity(
     panel: object,
     document: AgentHeader,
     xprompt: Text,
-    *,
-    has_hints: bool = False,
 ) -> bool:
     """Attach ``xprompt`` to a detached identity, returning whether it moved."""
     if not bool(getattr(panel, "detaches_xprompt", False)):
@@ -28,7 +33,7 @@ def attach_xprompt_to_identity(
     identity = document.identity_header
     if identity is None:
         return False
-    document.with_identity_header(identity.with_xprompt(xprompt, has_hints=has_hints))
+    document.with_identity_header(identity.with_xprompt(xprompt))
     return True
 
 
@@ -103,4 +108,5 @@ __all__ = [
     "attach_memoized_xprompt",
     "attach_xprompt_to_identity",
     "memoize_xprompt",
+    "xprompt_hints_enabled",
 ]
