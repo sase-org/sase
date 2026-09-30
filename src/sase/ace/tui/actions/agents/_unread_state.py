@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any, cast
 from ...models.agent_nodes import (
     AgentCompletionKey,
     agent_node_completion_keys,
-    agent_node_projection_index,
     is_agents_tab_agent_node,
 )
 from ...models.agent_status import is_unread_completed_status
@@ -81,8 +80,16 @@ class AgentUnreadStateMixin:
             or getattr(self, "_agents", ()),
         )
         loaded_agents = tuple(loaded_source)
-        roster = [*requested_agents, *loaded_agents]
-        node_index = agent_node_projection_index(roster)
+        loaded_identities = {agent.identity for agent in loaded_agents}
+        if all(agent.identity in loaded_identities for agent in requested_agents):
+            # Targets already loaded: index the loaded roster alone so this
+            # shares the cached build with the reconcile/finalize passes.
+            roster = list(loaded_agents)
+        else:
+            roster = [*requested_agents, *loaded_agents]
+        from ._roster_generation import cached_agent_node_projection_index
+
+        node_index = cached_agent_node_projection_index(self, roster)
         keys: list[AgentCompletionKey] = []
         seen: set[AgentCompletionKey] = set()
         for agent in requested_agents:
@@ -332,7 +339,9 @@ class AgentUnreadStateMixin:
             *dismissed_agents,
             *(getattr(self, "_agents_with_children", None) or self._agents),
         ]
-        node_index = agent_node_projection_index(roster)
+        from ._roster_generation import cached_agent_node_projection_index
+
+        node_index = cached_agent_node_projection_index(self, roster)
         identities = {agent.identity for agent in dismissed_agents}
         identities.update(
             projection.identity

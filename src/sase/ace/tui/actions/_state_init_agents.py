@@ -39,6 +39,12 @@ def init_agent_state(self: Any) -> None:
     self._patches_last_name = None
     self._agents_last_idx = 0
     self._agents_last_identity = None
+    # Roster generation for the cached projection index
+    # (``_roster_generation``): bumped on every roster assignment and
+    # in-place status mutation. Initialised here; all later assignments
+    # go through ``set_agents_roster``.
+    self._agents_roster_generation = 0
+    self._agent_node_projection_index_cache = {}
     self._agents = []
     # Tab-independent committed query result plus the active-tab scope
     # stage (scope-stage phase). The scoped `_agents` view is derived from

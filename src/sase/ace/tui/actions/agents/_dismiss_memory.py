@@ -147,15 +147,23 @@ class AgentDismissMemoryMixin:
             for agent in self._agents_with_children
         )
 
-        self._agents_with_children = [
-            a
-            for a in self._agents_with_children
-            if a.identity not in removed_identities
-        ]
+        from ._roster_generation import set_agents_roster
+
+        set_agents_roster(
+            self,
+            agents_with_children=[
+                a
+                for a in self._agents_with_children
+                if a.identity not in removed_identities
+            ],
+        )
         if clan_projection_changed:
             from ...models._agent_tree import project_clan_tree
 
-            self._agents_with_children = project_clan_tree(self._agents_with_children)
+            set_agents_roster(
+                self,
+                agents_with_children=project_clan_tree(self._agents_with_children),
+            )
 
         sync_local = getattr(self, "_sync_agents_local_source_from_current", None)
         if callable(sync_local):

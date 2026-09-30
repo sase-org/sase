@@ -404,3 +404,20 @@ def test_nested_monitors_do_not_cross_agent_sessions() -> None:
         index.owner_for_identity(second_monitor.identity)
         is index.by_node_identity[second_node.identity]
     )
+
+
+def test_duplicate_roster_rows_dedupe_preserving_order() -> None:
+    node, gate, monitor = _gate_launch_agent_session()
+    roster = [node, gate, monitor]
+
+    single = agent_node_projection_index(roster)
+    duplicated = agent_node_projection_index([*roster, monitor, gate, node])
+
+    expected = [
+        row.identity for row in single.by_node_identity[node.identity].owned_rows
+    ]
+    actual = [
+        row.identity for row in duplicated.by_node_identity[node.identity].owned_rows
+    ]
+    assert actual == expected
+    assert len(set(actual)) == len(actual)

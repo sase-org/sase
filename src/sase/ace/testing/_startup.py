@@ -136,7 +136,9 @@ def _finish_fast_agent_startup(app: AceApp) -> None:
     # The real loader establishes both projections before flipping its first-
     # load flag. Keep the same invariant so later tab switches can run the
     # production in-memory refilter path against an intentionally empty list.
-    app._agents_with_children = []
+    from sase.ace.tui.actions.agents._roster_generation import set_agents_roster
+
+    set_agents_roster(app, agents_with_children=[])
     app._agents_refresh_pending_callbacks.clear()
     app._agents_refresh_scheduled = False
     app._agents_first_load_done = True

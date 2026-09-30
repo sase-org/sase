@@ -111,7 +111,9 @@ def remove_agents_from_views(
         filtered = project_clan_tree(filtered)
     owner._agents_query_result = filtered
     refresh_agent_tab_index(owner)
-    owner._agents = _scoped_agents_for_owner(owner, filtered)
+    from ._roster_generation import set_agents_roster
+
+    set_agents_roster(owner, agents=_scoped_agents_for_owner(owner, filtered))
     invalidate = getattr(owner, "_invalidate_agent_panel_cache", None)
     if callable(invalidate):
         invalidate()
@@ -130,7 +132,9 @@ def _rescope_agents_to_active_tab(owner: Any) -> None:
 
     query_result = list(getattr(owner, "_agents_query_result", None) or [])
     previous_agents = list(getattr(owner, "_agents", ()))
-    owner._agents = _scoped_agents_for_owner(owner, query_result)
+    from ._roster_generation import set_agents_roster
+
+    set_agents_roster(owner, agents=_scoped_agents_for_owner(owner, query_result))
     invalidate = getattr(owner, "_invalidate_agent_panel_cache", None)
     if callable(invalidate):
         invalidate()

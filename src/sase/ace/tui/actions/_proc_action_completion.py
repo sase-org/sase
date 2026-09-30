@@ -199,12 +199,18 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
         ) == named_proc_agent_signature(named_procs):
             return
 
+        from .agents._roster_generation import set_agents_roster
+
         previous_agents = list(getattr(self, "_agents", []) or [])
-        self._agents_with_children = merge_named_proc_agents(
+        merged = merge_named_proc_agents(
             current_unfiltered,
             named_procs,
         )
-        self._agents = list(self._agents_with_children)
+        set_agents_roster(
+            self,
+            agents_with_children=merged,
+            agents=list(merged),
+        )
         invalidate = getattr(self, "_invalidate_agent_panel_cache", None)
         if callable(invalidate):
             invalidate()

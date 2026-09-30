@@ -165,6 +165,10 @@ class AgentRemoteLifecycleMixin:
             live = self._agent_by_identity(agent.identity) or agent
             live.status = label
             live.fleet_bounded_intent = f"{kind} requested"
+        if agents:
+            from ._roster_generation import notify_roster_status_mutation
+
+            notify_roster_status_mutation(self)
             if isinstance(overrides, dict):
                 overrides[live.identity] = label
         refilter = getattr(self, "_refilter_agents", None)

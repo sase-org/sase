@@ -512,6 +512,9 @@ class AgentWaitActionsMixin:
             agent.status,
             slot_queued=True,
         )
+        from ._roster_generation import notify_roster_status_mutation
+
+        notify_roster_status_mutation(self)
         label = _capacity_wait_label(result)
         if result.priority is not None:
             label = f"{label}, priority {result.priority}"

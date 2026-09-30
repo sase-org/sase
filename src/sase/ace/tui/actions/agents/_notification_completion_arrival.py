@@ -316,6 +316,10 @@ def install_completion_arrival_overlays(
             survives_stale_apply=survives,
         )
         changed.add(identity)
+    if changed:
+        from ._roster_generation import notify_roster_status_mutation
+
+        notify_roster_status_mutation(app)
     if prep.artifact_dirs:
         schedule_delta = getattr(app, "_schedule_agent_artifact_delta_refresh", None)
         if callable(schedule_delta):
@@ -342,6 +346,7 @@ def reconcile_arrival_status_overlays(app: Any) -> None:
         return
     roster = loaded_real_agent_roster(app)
     roster_by_identity = {agent.identity: agent for agent in roster}
+    reapplied = False
     for identity in list(overlays.keys()):
         overlay = overlays.get(identity)
         if overlay is None:
@@ -354,6 +359,7 @@ def reconcile_arrival_status_overlays(app: Any) -> None:
             try:
                 if not is_unread_completed_status(live.status):
                     live.status = overlay.status
+                    reapplied = True
             except Exception:
                 pass
             try:
@@ -362,6 +368,10 @@ def reconcile_arrival_status_overlays(app: Any) -> None:
                 pass
         else:
             overlays.pop(identity, None)
+    if reapplied:
+        from ._roster_generation import notify_roster_status_mutation
+
+        notify_roster_status_mutation(app)
 
 
 __all__ = [

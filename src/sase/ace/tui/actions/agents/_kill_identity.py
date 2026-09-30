@@ -161,6 +161,8 @@ class AgentKillIdentityMixin:
         self, identities: set[AgentIdentity], *, refresh: bool = True
     ) -> None:
         """Remove killed agents from memory and optionally refresh the Agents tab."""
+        from ._roster_generation import set_agents_roster
+
         if not identities:
             return
 
@@ -213,8 +215,15 @@ class AgentKillIdentityMixin:
             # disappear until the next disk load.
             from ...models._agent_tree import project_clan_tree
 
-            self._agents_with_children = project_clan_tree(
-                [a for a in self._agents_with_children if a.identity not in identities]
+            set_agents_roster(
+                self,
+                agents_with_children=project_clan_tree(
+                    [
+                        a
+                        for a in self._agents_with_children
+                        if a.identity not in identities
+                    ]
+                ),
             )
             sync_local = getattr(self, "_sync_agents_local_source_from_current", None)
             if callable(sync_local):
@@ -224,13 +233,19 @@ class AgentKillIdentityMixin:
             self._refilter_agents(prior_pos=prior_pos)  # type: ignore[attr-defined]
             return
 
-        self._agents_with_children = [
-            a for a in self._agents_with_children if a.identity not in identities
-        ]
+        set_agents_roster(
+            self,
+            agents_with_children=[
+                a for a in self._agents_with_children if a.identity not in identities
+            ],
+        )
         if clan_projection_changed:
             from ...models._agent_tree import project_clan_tree
 
-            self._agents_with_children = project_clan_tree(self._agents_with_children)
+            set_agents_roster(
+                self,
+                agents_with_children=project_clan_tree(self._agents_with_children),
+            )
         # Route the visible-list update through the cached query result so a
         # later tab switch cannot resurrect a killed row. Module function
         # (not the mixin method) so narrow test stubs keep working.

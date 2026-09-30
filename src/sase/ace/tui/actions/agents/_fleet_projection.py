@@ -170,8 +170,13 @@ class AgentFleetProjectionMixin:
         ):
             self._update_agents_header()  # type: ignore[attr-defined]
             return
-        self._agents_with_children = projected_agents
-        self._agents = list(self._agents_with_children)
+        from ._roster_generation import set_agents_roster
+
+        set_agents_roster(
+            self,
+            agents_with_children=projected_agents,
+            agents=list(projected_agents),
+        )
         self._agents_refresh_active_source = source  # type: ignore[attr-defined]
         try:
             self._finalize_agent_list(  # type: ignore[attr-defined]

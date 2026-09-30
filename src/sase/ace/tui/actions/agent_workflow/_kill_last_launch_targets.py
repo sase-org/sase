@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 from ._launch_delta import artifact_dir_from_launch_result
 from ._launch_records import LaunchRecord
@@ -241,9 +241,11 @@ def is_gate_dismissable(agent: Agent) -> bool:
 
 def ensure_agent_visible(app: object, agent: Agent) -> None:
     """Inject *agent* so bulk/single kill can see it in ``_agents_with_children``."""
+    from ..agents._roster_generation import bump_roster_generation, set_agents_roster
+
     children = getattr(app, "_agents_with_children", None)
     if not isinstance(children, list):
-        cast(Any, app)._agents_with_children = [agent]
+        set_agents_roster(app, agents_with_children=[agent])
         children = app._agents_with_children  # type: ignore[attr-defined]
     identity = getattr(agent, "identity", None)
     if identity is not None and any(
@@ -254,6 +256,7 @@ def ensure_agent_visible(app: object, agent: Agent) -> None:
     agents = getattr(app, "_agents", None)
     if isinstance(agents, list) and agent not in agents:
         agents.append(agent)
+    bump_roster_generation(app)
 
 
 def synthetic_agent_from_launch_result(result: AgentLaunchResult) -> Agent | None:

@@ -172,6 +172,7 @@ def _build_agent_node_projection_index(
     """Build the ownership index for an already-materialized roster."""
     node_agents: list[Agent] = []
     owned_by_node: dict[AgentIdentity, list[Agent]] = {}
+    owned_seen: dict[AgentIdentity, set[AgentIdentity]] = {}
     node_by_raw_suffix: dict[str, Agent] = {}
     seen_nodes: set[AgentIdentity] = set()
     for agent in roster:
@@ -182,6 +183,9 @@ def _build_agent_node_projection_index(
         seen_nodes.add(agent.identity)
         node_agents.append(agent)
         owned_by_node[agent.identity] = list(_agent_node_owned_rows(agent))
+        owned_seen[agent.identity] = {
+            row.identity for row in owned_by_node[agent.identity]
+        }
         if agent.raw_suffix is not None:
             node_by_raw_suffix[agent.raw_suffix] = agent
 
@@ -206,7 +210,9 @@ def _build_agent_node_projection_index(
         if parent is None:
             continue
         owned_rows = owned_by_node[parent.identity]
-        if all(row.identity != agent.identity for row in owned_rows):
+        seen_owned = owned_seen[parent.identity]
+        if agent.identity not in seen_owned:
+            seen_owned.add(agent.identity)
             owned_rows.append(agent)
 
     projections: list[_AgentNodeProjection] = []

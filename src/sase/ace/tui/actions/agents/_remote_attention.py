@@ -543,6 +543,9 @@ class RemoteAttentionMixin:
         if agent is not None:
             live = self._agent_by_identity(agent.identity) or agent  # type: ignore[attr-defined]
             live.status = label
+            from ._roster_generation import notify_roster_status_mutation
+
+            notify_roster_status_mutation(self)
             overrides = getattr(self, "_agent_status_overrides", None)
             if isinstance(overrides, dict):
                 overrides[live.identity] = label

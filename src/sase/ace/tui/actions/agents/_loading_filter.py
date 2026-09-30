@@ -207,20 +207,26 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         if callable(filter_removed):
             source_agents = filter_removed(source_agents)
             self._agents_local_with_children = list(source_agents)  # type: ignore[attr-defined]
+        from ._roster_generation import set_agents_roster
+
         project_current_mode = getattr(self, "_agents_source_for_current_mode", None)
         if callable(project_current_mode):
-            self._agents_with_children = project_current_mode(source_agents)
+            set_agents_roster(
+                self, agents_with_children=project_current_mode(source_agents)
+            )
         else:
             from ...models._agent_tree import project_clan_tree
 
-            self._agents_with_children = project_clan_tree(source_agents)
+            set_agents_roster(
+                self, agents_with_children=project_clan_tree(source_agents)
+            )
 
         # Start from the cached unfiltered list (already has dismiss/hide applied)
         if previous_agents is None:
             previous_agents = self._snapshot_agents_for_local_display()
         else:
             previous_agents = list(previous_agents)
-        self._agents = list(self._agents_with_children)
+        set_agents_roster(self, agents=list(self._agents_with_children))
 
         self._finalize_agent_list(
             on_agents_tab,
@@ -347,7 +353,9 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             selected_identity = getattr(self, "_agents_last_identity", None)
 
         previous_agents = list(self._agents)
-        self._agents = current_agents
+        from ._roster_generation import set_agents_roster
+
+        set_agents_roster(self, agents=current_agents)
         self._finalize_agent_list(
             on_agents_tab,
             selected_identity,

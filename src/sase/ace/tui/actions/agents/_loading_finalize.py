@@ -56,13 +56,11 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
         app._manual_unread_agent_ids = manual_ids  # type: ignore[attr-defined]
 
     from ._notification_unread_projection import loaded_real_agent_roster
-    from ...models.agent_nodes import (
-        agent_node_projection_index,
-        normalize_agent_node_identities,
-    )
+    from ._roster_generation import cached_agent_node_projection_index
+    from ...models.agent_nodes import normalize_agent_node_identities
 
     loaded_agents = loaded_real_agent_roster(app)
-    node_index = agent_node_projection_index(loaded_agents)
+    node_index = cached_agent_node_projection_index(app, loaded_agents)
     prior_unread_ids = set(unread_ids)
     prior_manual_ids = set(manual_ids)
     unread_ids.clear()
@@ -212,7 +210,9 @@ def _apply_live_query_filter_inline(app: AgentLoadingMixin) -> None:
         app._agent_query_parse_error = None
         if facade is not None:
             app._agents_live_query_facade = facade
-    app._agents = filtered
+    from ._roster_generation import set_agents_roster
+
+    set_agents_roster(app, agents=filtered)
     app._agent_content_search_cache.prune(app._agents)
     if session_open:
         app._agents_filter_match_count = (len(app._agents), total_before)
@@ -260,6 +260,8 @@ def _apply_finalize_plan(
     refresh_display: bool,
 ) -> None:
     """UI-thread half of the precomputed-plan apply path."""
+    from ._roster_generation import notify_roster_status_mutation, set_agents_roster
+
     _surface_query_parse_error_from_plan(app, plan)
 
     # Cache the agents-live facade (sase-zf.2) so a later sync refilter
@@ -282,12 +284,16 @@ def _apply_finalize_plan(
     # can land while another tab is active, and the override must remain on
     # the off-tab row when the user switches back.
     overrides_by_identity = dict(plan.overrides.overrides_to_apply)
+    overrides_applied = False
     for agent in app._agents_query_result:
         override = overrides_by_identity.get(agent.identity)
         if override is not None:
             agent.status = override
+            overrides_applied = True
     for identity in plan.overrides.cleared_identities:
         app._agent_status_overrides.pop(identity, None)
+    if overrides_applied:
+        notify_roster_status_mutation(app)
 
     # Tab-state-keys maintenance on the worker path: the plan's scope may
     # predate a startup selection or machine fallback, so reconcile first
@@ -304,13 +310,16 @@ def _apply_finalize_plan(
 
         from ._tab_scope import current_agent_tab_scope
 
-        app._agents = scope_agents_to_tab(
-            list(plan.agents_query_result),
-            plan.tab_index,
-            current_agent_tab_scope(app),
+        set_agents_roster(
+            app,
+            agents=scope_agents_to_tab(
+                list(plan.agents_query_result),
+                plan.tab_index,
+                current_agent_tab_scope(app),
+            ),
         )
     else:
-        app._agents = list(plan.scoped_agents)
+        set_agents_roster(app, agents=list(plan.scoped_agents))
     app._agent_content_search_cache.prune(app._agents_query_result)
 
     saved_idx = plan.selection.restored_idx
@@ -392,6 +401,8 @@ def finalize_agent_list(
             ``_restore_focus_after_removal`` so focus lands on the
             agent visually below the removed one.
     """
+    from ._roster_generation import notify_roster_status_mutation, set_agents_roster
+
     # A fast post-first-paint fold-state load gets one chance to become the
     # baseline before the first real Agents projection reconciles and renders.
     # This is a pure in-memory import; the loader's file/JSON work ran in its
@@ -416,7 +427,7 @@ def finalize_agent_list(
     if save_unfiltered:
         # Save unfiltered list (with children) for bundle/dismiss operations
         # that need to find child steps even when fold state is COLLAPSED.
-        app._agents_with_children = list(app._agents)
+        set_agents_roster(app, agents_with_children=list(app._agents))
         app._agent_content_search_source_generation = (
             getattr(app, "_agent_content_search_source_generation", 0) + 1
         )
@@ -425,9 +436,10 @@ def finalize_agent_list(
         from ...models import filter_agents_by_fold_state
 
         with tui_trace("agents.fold_filtering", count=len(app._agents)):
-            app._agents, app._fold_counts = filter_agents_by_fold_state(
+            filtered_agents, app._fold_counts = filter_agents_by_fold_state(
                 app._agents, app._fold_manager
             )
+            set_agents_roster(app, agents=filtered_agents)
 
     if precomputed_plan is not None:
         _apply_finalize_plan(
@@ -465,7 +477,7 @@ def finalize_agent_list(
 
             from ...models._agent_tree import filter_tree_rows
 
-            app._agents = filter_tree_rows(app._agents, _matches)
+            set_agents_roster(app, agents=filter_tree_rows(app._agents, _matches))
             # Release cache entries for agents no longer in the list so
             # memory stays bounded across many refresh cycles.
             app._agent_content_search_cache.prune(app._agents)
@@ -474,6 +486,7 @@ def finalize_agent_list(
     # that the fresh loader state has overtaken.
     loaded_identities = {a.identity for a in app._agents}
     agent_session_index = build_question_answer_agent_session_index(app._agents)
+    overrides_applied = False
     for agent in app._agents:
         override = app._agent_status_overrides.get(agent.identity)
         if override is None:
@@ -484,6 +497,9 @@ def finalize_agent_list(
             app._agent_status_overrides.pop(agent.identity, None)
         else:
             agent.status = override
+            overrides_applied = True
+    if overrides_applied:
+        notify_roster_status_mutation(app)
 
     # Clean overrides for agents that no longer exist in the loaded list
     for identity in list(app._agent_status_overrides):
@@ -502,10 +518,13 @@ def finalize_agent_list(
 
     app._agents_query_result = list(app._agents)
     tab_index = refresh_agent_tab_index(app)
-    app._agents = scope_agents_to_tab(
-        app._agents_query_result,
-        tab_index,
-        current_agent_tab_scope(app),
+    set_agents_roster(
+        app,
+        agents=scope_agents_to_tab(
+            app._agents_query_result,
+            tab_index,
+            current_agent_tab_scope(app),
+        ),
     )
     tab_scope_token = current_agent_tab_scope_token(app)
 

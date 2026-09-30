@@ -9,7 +9,6 @@ from ._notification_utils import (
     loaded_real_agent_roster as loaded_real_agent_roster,
 )
 from ...models.agent_nodes import (
-    agent_node_projection_index,
     normalize_agent_node_identities,
     projection_has_active_completion,
 )
@@ -56,7 +55,9 @@ class AgentNotificationUnreadMixin:
 
         combined = set(changed) | status_changed_set
         roster = loaded_real_agent_roster(self)
-        node_index = agent_node_projection_index(roster)
+        from ._roster_generation import cached_agent_node_projection_index
+
+        node_index = cached_agent_node_projection_index(self, roster)
         roster_by_identity = {agent.identity: agent for agent in roster}
         changed_members = [
             roster_by_identity[identity]
@@ -186,7 +187,9 @@ class AgentNotificationUnreadMixin:
         )
         before = set(unread_ids)
         roster = loaded_real_agent_roster(self)
-        node_index = agent_node_projection_index(roster)
+        from ._roster_generation import cached_agent_node_projection_index
+
+        node_index = cached_agent_node_projection_index(self, roster)
         prior_unread_ids = set(unread_ids)
         prior_manual_ids = set(manual_ids)
         unread_node_ids = normalize_agent_node_identities(

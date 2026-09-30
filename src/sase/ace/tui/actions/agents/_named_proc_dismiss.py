@@ -85,15 +85,23 @@ class NamedProcDismissMixin:
         clan_projection_changed = any(
             agent.is_clan_container or agent.tree_parent_key for agent in targets
         )
-        self._agents_with_children = [
-            agent
-            for agent in self._agents_with_children
-            if agent.identity not in removed
-        ]
+        from ._roster_generation import set_agents_roster
+
+        set_agents_roster(
+            self,
+            agents_with_children=[
+                agent
+                for agent in self._agents_with_children
+                if agent.identity not in removed
+            ],
+        )
         if clan_projection_changed:
             from ...models._agent_tree import project_clan_tree
 
-            self._agents_with_children = project_clan_tree(self._agents_with_children)
+            set_agents_roster(
+                self,
+                agents_with_children=project_clan_tree(self._agents_with_children),
+            )
             refilter = getattr(self, "_refilter_agents", None)
             if callable(refilter):
                 refilter(prior_pos=prior_pos)

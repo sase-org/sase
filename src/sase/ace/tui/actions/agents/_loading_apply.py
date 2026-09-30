@@ -480,9 +480,11 @@ class AgentLoadingApplyMixin(
             boundary.fold.local_unfiltered_agents
         )
         self._agents_local_visible = list(boundary.fold.local_visible_agents)  # type: ignore[attr-defined]
-        self._agents_with_children = unfiltered_agents
+        from ._roster_generation import set_agents_roster
+
+        set_agents_roster(self, agents_with_children=unfiltered_agents)
         rearm_live_agent_watch_coverage(self)
-        self._agents = visible_agents
+        set_agents_roster(self, agents=visible_agents)
         if capacity_inputs_stale:
             schedule_capacity_refresh = getattr(
                 self,
