@@ -313,11 +313,15 @@ class AgentNotificationPollingMixin:
         except Exception:
             log.exception("Completion arrival install failed; continuing")
             arrival_status_changed = set()
-        from ._pending_ack_fence import snapshot_read_seq
+        from ._pending_ack_fence import snapshot_generation
+
+        from ._notification_utils import (
+            unread_completion_index_rows_from_notifications,
+        )
 
         self._reconcile_unread_from_completion_notifications(
-            notifications,
-            snapshot_seq=snapshot_read_seq(snapshot),
+            unread_completion_index_rows_from_notifications(notifications),
+            applied_generation=snapshot_generation(snapshot),
         )
         self._patch_unread_completed_agent_changes(
             before_unread_agents, status_changed=arrival_status_changed

@@ -33,6 +33,7 @@ class AceNotificationSnapshot:
     expired_ids: list[str] = field(default_factory=list)
     next_snooze_deadline: str | None = None
     shared_snapshot: AceSnapshot[Notification] | None = None
+    generation: int = 0
 
 
 @dataclass(frozen=True)

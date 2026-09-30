@@ -5,6 +5,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
+from sase.ace.tui.actions.agents._notification_utils import (
+    unread_completion_index_rows_from_notifications as _rows,
+)
 from sase.ace.tui.actions.agents._notifications import (
     _active_completion_agent_keys,
 )
@@ -141,11 +144,13 @@ def test_reconcile_marks_unread_for_active_settlement_row() -> None:
     app = _ProjectionApp([agent])
 
     app._reconcile_unread_from_completion_notifications(
-        [
-            _make_settlement_notification(
-                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
-            )
-        ]
+        _rows(
+            [
+                _make_settlement_notification(
+                    cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+                )
+            ]
+        )
     )
 
     assert agent.identity in app._unread_completed_agent_ids
@@ -156,13 +161,15 @@ def test_reconcile_marks_unread_for_monitor_settlement_row() -> None:
     app = _ProjectionApp([agent])
 
     app._reconcile_unread_from_completion_notifications(
-        [
-            _make_settlement_notification(
-                sender="monitor-settlement",
-                cl_name=agent.cl_name,
-                raw_suffix=agent.raw_suffix,
-            )
-        ]
+        _rows(
+            [
+                _make_settlement_notification(
+                    sender="monitor-settlement",
+                    cl_name=agent.cl_name,
+                    raw_suffix=agent.raw_suffix,
+                )
+            ]
+        )
     )
 
     assert agent.identity in app._unread_completed_agent_ids
@@ -173,7 +180,9 @@ def test_reconcile_ignores_settlement_row_with_different_raw_suffix() -> None:
     app = _ProjectionApp([agent])
 
     app._reconcile_unread_from_completion_notifications(
-        [_make_settlement_notification(cl_name=agent.cl_name, raw_suffix="other")]
+        _rows(
+            [_make_settlement_notification(cl_name=agent.cl_name, raw_suffix="other")]
+        )
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
@@ -184,11 +193,13 @@ def test_reconcile_ignores_settlement_row_for_running_agent() -> None:
     app = _ProjectionApp([agent])
 
     app._reconcile_unread_from_completion_notifications(
-        [
-            _make_settlement_notification(
-                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
-            )
-        ]
+        _rows(
+            [
+                _make_settlement_notification(
+                    cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+                )
+            ]
+        )
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
@@ -198,22 +209,26 @@ def test_reconcile_clears_unread_when_settlement_row_dismissed() -> None:
     agent = make_agent(status="DONE")
     app = _ProjectionApp([agent])
     app._reconcile_unread_from_completion_notifications(
-        [
-            _make_settlement_notification(
-                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
-            )
-        ]
+        _rows(
+            [
+                _make_settlement_notification(
+                    cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+                )
+            ]
+        )
     )
     assert agent.identity in app._unread_completed_agent_ids
 
     app._reconcile_unread_from_completion_notifications(
-        [
-            _make_settlement_notification(
-                cl_name=agent.cl_name,
-                raw_suffix=agent.raw_suffix,
-                dismissed=True,
-            )
-        ]
+        _rows(
+            [
+                _make_settlement_notification(
+                    cl_name=agent.cl_name,
+                    raw_suffix=agent.raw_suffix,
+                    dismissed=True,
+                )
+            ]
+        )
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
@@ -225,11 +240,13 @@ def test_reconcile_does_not_re_add_manual_unread_for_settlement_row() -> None:
     app._manual_unread_agent_ids.add(agent.identity)
 
     app._reconcile_unread_from_completion_notifications(
-        [
-            _make_settlement_notification(
-                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
-            )
-        ]
+        _rows(
+            [
+                _make_settlement_notification(
+                    cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+                )
+            ]
+        )
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
@@ -239,21 +256,23 @@ def test_settlement_arriving_after_completion_read_reflags_row_unread() -> None:
     agent = make_agent(status="DONE")
     app = _ProjectionApp([agent])
     app._reconcile_unread_from_completion_notifications(
-        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+        _rows([_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)])
     )
     assert agent.identity in app._unread_completed_agent_ids
 
     # Completion read: no active rows left.
-    app._reconcile_unread_from_completion_notifications([])
+    app._reconcile_unread_from_completion_notifications(_rows([]))
     assert agent.identity not in app._unread_completed_agent_ids
 
     # Settlement arrives after the completion was read.
     app._reconcile_unread_from_completion_notifications(
-        [
-            _make_settlement_notification(
-                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
-            )
-        ]
+        _rows(
+            [
+                _make_settlement_notification(
+                    cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+                )
+            ]
+        )
     )
 
     assert agent.identity in app._unread_completed_agent_ids
@@ -264,7 +283,7 @@ def test_reconcile_marks_unread_when_notification_active() -> None:
     app = _ProjectionApp([agent])
 
     app._reconcile_unread_from_completion_notifications(
-        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+        _rows([_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)])
     )
 
     assert agent.identity in app._unread_completed_agent_ids
@@ -277,13 +296,15 @@ def test_reconcile_new_unread_invalidates_pending_bulk_read_undo() -> None:
     app._pending_bulk_read_agent_ids = {first.identity}
 
     app._reconcile_unread_from_completion_notifications(
-        [_make_notification(cl_name=second.cl_name, raw_suffix=second.raw_suffix)]
+        _rows(
+            [_make_notification(cl_name=second.cl_name, raw_suffix=second.raw_suffix)]
+        )
     )
 
     assert app._pending_bulk_read_agent_ids is None
     assert app._unread_completed_agent_ids == {second.identity}
 
-    app._reconcile_unread_from_completion_notifications([])
+    app._reconcile_unread_from_completion_notifications(_rows([]))
     assert app._pending_bulk_read_agent_ids is None
 
 
@@ -295,12 +316,12 @@ def test_reconcile_preserving_or_removing_unread_keeps_pending_bulk_read_undo() 
     app._pending_bulk_read_agent_ids = {saved.identity}
 
     app._reconcile_unread_from_completion_notifications(
-        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+        _rows([_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)])
     )
 
     assert app._pending_bulk_read_agent_ids == {saved.identity}
 
-    app._reconcile_unread_from_completion_notifications([])
+    app._reconcile_unread_from_completion_notifications(_rows([]))
     assert app._pending_bulk_read_agent_ids == {saved.identity}
     assert app._unread_completed_agent_ids == set()
 
@@ -310,7 +331,7 @@ def test_reconcile_clears_unread_when_notification_missing() -> None:
     app = _ProjectionApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
 
-    app._reconcile_unread_from_completion_notifications([])
+    app._reconcile_unread_from_completion_notifications(_rows([]))
 
     assert agent.identity not in app._unread_completed_agent_ids
 
@@ -338,7 +359,7 @@ def test_reconcile_preserves_manual_unread_when_no_notification() -> None:
     app._unread_completed_agent_ids.add(agent.identity)
     app._manual_unread_agent_ids.add(agent.identity)
 
-    app._reconcile_unread_from_completion_notifications([])
+    app._reconcile_unread_from_completion_notifications(_rows([]))
 
     assert agent.identity in app._unread_completed_agent_ids
 
@@ -350,7 +371,7 @@ def test_reconcile_does_not_re_add_manual_cleared_agent_with_notification() -> N
     app._manual_unread_agent_ids.add(agent.identity)
 
     app._reconcile_unread_from_completion_notifications(
-        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+        _rows([_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)])
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
@@ -361,7 +382,7 @@ def test_reconcile_skips_running_agent_rows() -> None:
     app = _ProjectionApp([agent])
 
     app._reconcile_unread_from_completion_notifications(
-        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+        _rows([_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)])
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
@@ -373,7 +394,7 @@ def test_reconcile_disambiguates_by_raw_suffix() -> None:
     app = _ProjectionApp([first, second])
 
     app._reconcile_unread_from_completion_notifications(
-        [_make_notification(cl_name="demo", raw_suffix="20260507100000")]
+        _rows([_make_notification(cl_name="demo", raw_suffix="20260507100000")])
     )
 
     assert first.identity not in app._unread_completed_agent_ids
@@ -385,7 +406,7 @@ def test_reconcile_unrelated_notification_does_not_affect_rows() -> None:
     app = _ProjectionApp([agent])
 
     app._reconcile_unread_from_completion_notifications(
-        [_make_notification(action="PlanApproval")]
+        _rows([_make_notification(action="PlanApproval")])
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
@@ -457,7 +478,7 @@ def test_reconcile_marks_plan_agent_session_root_unread_for_its_own_completion()
     app = _ProjectionApp([root, main_step])
 
     app._reconcile_unread_from_completion_notifications(
-        [_make_notification(cl_name=root.cl_name, raw_suffix=root.raw_suffix)]
+        _rows([_make_notification(cl_name=root.cl_name, raw_suffix=root.raw_suffix)])
     )
 
     assert root.identity in app._unread_completed_agent_ids
@@ -490,23 +511,27 @@ def test_reconcile_marks_node_unread_for_nested_gate_monitor_settlement() -> Non
     app = _ProjectionApp([node, gate, monitor])
 
     app._reconcile_unread_from_completion_notifications(
-        [
-            _make_settlement_notification(
-                cl_name=monitor.cl_name, raw_suffix=monitor.raw_suffix
-            )
-        ]
+        _rows(
+            [
+                _make_settlement_notification(
+                    cl_name=monitor.cl_name, raw_suffix=monitor.raw_suffix
+                )
+            ]
+        )
     )
 
     assert node.identity in app._unread_completed_agent_ids
 
     app._reconcile_unread_from_completion_notifications(
-        [
-            _make_settlement_notification(
-                cl_name=monitor.cl_name,
-                raw_suffix=monitor.raw_suffix,
-                dismissed=True,
-            )
-        ]
+        _rows(
+            [
+                _make_settlement_notification(
+                    cl_name=monitor.cl_name,
+                    raw_suffix=monitor.raw_suffix,
+                    dismissed=True,
+                )
+            ]
+        )
     )
 
     assert node.identity not in app._unread_completed_agent_ids
@@ -523,7 +548,7 @@ def test_poll_reconcile_prunes_absent_identity_but_not_fold_hidden_member() -> N
     app._unread_completed_agent_ids.update({member.identity, stale.identity})
     app._manual_unread_agent_ids.update({member.identity, stale.identity})
 
-    app._reconcile_unread_from_completion_notifications([])
+    app._reconcile_unread_from_completion_notifications(_rows([]))
 
     assert app._unread_completed_agent_ids == {member.identity}
     assert app._manual_unread_agent_ids == {member.identity}

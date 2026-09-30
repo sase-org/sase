@@ -27,10 +27,12 @@ from ._leader_keymap_helpers import _FakeApp
 
 
 @pytest.fixture(autouse=True)
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=1)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(
+        return_value=SimpleNamespace(dismissed_ids={"n-acked"}, generation=7),
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     return dismiss

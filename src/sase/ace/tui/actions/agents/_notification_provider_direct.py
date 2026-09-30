@@ -30,6 +30,11 @@ def notification_snapshot_from_direct(snapshot: Any) -> AceNotificationSnapshot:
     notifications = list(getattr(snapshot, "notifications", []))
     expired_ids = list(getattr(snapshot, "expired_ids", []))
     next_snooze_deadline = getattr(snapshot, "next_snooze_deadline", None)
+    try:
+        raw_generation = getattr(snapshot, "generation", 0)
+        generation = int(raw_generation) if raw_generation is not None else 0
+    except (TypeError, ValueError):
+        generation = 0
     normalized = AceNotificationSnapshot(
         notifications=notifications,
         counts=AceNotificationCounts(
@@ -41,6 +46,7 @@ def notification_snapshot_from_direct(snapshot: Any) -> AceNotificationSnapshot:
         tabs=notification_tabs_from_core(getattr(snapshot, "tabs", [])),
         expired_ids=expired_ids,
         next_snooze_deadline=next_snooze_deadline,
+        generation=generation,
     )
     return notification_snapshot_with_shared_metadata(
         normalized,

@@ -1,72 +1,48 @@
-"""Sequence-fenced pending-ack overlay for unread acknowledgments.
+"""Generation-fenced pending-ack overlay for unread acknowledgments.
 
-Phase ``pending-ack-fence`` (epic ``sase-1d7``): snapshot reads are stamped
-with a read sequence captured when the read starts, the snapshot cache
-rejects stale snapshots, and in-flight acks are kept as a pending overlay
-that every reconcile path honors until a post-write read retires them.
+Phase ``core-unread-ack-index`` (epic ``sase-1d7``): the notification
+store persists a generation that bumps on every successful write. An ack
+returns the generation its write landed in, and snapshots carry the
+generation their rows were observed at. In-flight acks are kept as a
+pending overlay that every reconcile path honors until an applied index
+generation at or past the ack's generation retires them.
 
 Ownership model
 ---------------
 
-Each ack registers ``pending[identity] = (op_id, done_seq=None)`` before its
-store worker is scheduled. When the worker succeeds, ``done_seq`` records the
-current read sequence. A pending entry retires only when a snapshot whose
-read-start sequence is *greater* than ``done_seq`` is applied (a read that
-began after the write landed). A genuinely new completion for the same
-identity therefore resurfaces at most one poll later.
+Each ack registers ``pending[identity] = (op_id, done_generation=None)``
+before its store worker is scheduled. When the worker succeeds,
+``done_generation`` records the generation ``ack_agent_completions``
+returned. A pending entry retires only when an applied generation is
+**greater than or equal to** ``done_generation`` (the ack's returned
+generation already includes its write). A genuinely new completion for
+the same identity therefore resurfaces at most one poll later.
 
-A later op on the same identity overwrites the entry and takes ownership; a
-failed write restores only the identities its op still owns.
+A later op on the same identity overwrites the entry and takes
+ownership; a failed write restores only the identities its op still
+owns.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-#: Attribute stamped on notification snapshots carrying their read-start seq.
-READ_SEQ_ATTR = "_sase_notif_read_seq"
 
+def snapshot_generation(snapshot: Any) -> int | None:
+    """Return the store generation carried by *snapshot*, if any.
 
-def _get_notif_read_seq(app: Any) -> int:
-    """Return the current notification read sequence (0 when never read)."""
+    Reads the wire field ``generation``. Snapshots without one (test
+    doubles, locally derived snapshots) report ``None`` and inherit the
+    cached generation wherever they are applied.
+    """
     try:
-        return int(getattr(app, "_notif_read_seq", 0) or 0)
-    except (TypeError, ValueError):
-        return 0
-
-
-def next_notif_read_seq(app: Any) -> int:
-    """Consume the next notification read sequence for a starting read."""
-    seq = _get_notif_read_seq(app) + 1
-    try:
-        app._notif_read_seq = seq
-    except (AttributeError, TypeError):
-        pass
-    return seq
-
-
-def stamp_snapshot_read_seq(snapshot: Any, seq: int) -> Any:
-    """Carry *seq* on *snapshot*; tolerate snapshots that reject attrs."""
-    try:
-        object.__setattr__(snapshot, READ_SEQ_ATTR, int(seq))
-    except (AttributeError, TypeError, ValueError):
-        try:
-            setattr(snapshot, READ_SEQ_ATTR, int(seq))
-        except (AttributeError, TypeError, ValueError):
-            pass
-    return snapshot
-
-
-def snapshot_read_seq(snapshot: Any) -> int | None:
-    """Return the read-start sequence carried by *snapshot*, if any."""
-    try:
-        seq = getattr(snapshot, READ_SEQ_ATTR, None)
+        generation = getattr(snapshot, "generation", None)
     except Exception:
         return None
-    if seq is None:
+    if generation is None:
         return None
     try:
-        return int(seq)
+        return int(generation)
     except (TypeError, ValueError):
         return None
 
@@ -117,19 +93,23 @@ def mark_pending_ack_write_complete(
     app: Any,
     op_id: int,
     identities: Any,
+    generation: int | None,
 ) -> None:
-    """Record the current read sequence as ``done_seq`` for owned entries."""
+    """Record the ack's returned store generation for owned entries."""
     overlay = _pending_ack_overlay_for(app)
     if overlay is None:
         return
-    done_seq = _get_notif_read_seq(app)
+    try:
+        done_generation = int(generation) if generation is not None else None
+    except (TypeError, ValueError):
+        done_generation = None
     for identity in identities:
         try:
             entry = overlay.get(identity)
         except TypeError:
             continue
         if entry is not None and entry[0] == op_id:
-            overlay[identity] = (op_id, done_seq)
+            overlay[identity] = (op_id, done_generation)
 
 
 def owned_pending_ack_identities(app: Any, op_id: int, identities: Any) -> set[Any]:
@@ -173,17 +153,17 @@ def pending_ack_identities(app: Any) -> set[Any]:
         return set()
 
 
-def retire_pending_ack_entries(app: Any, snapshot_seq: int | None) -> set[Any]:
-    """Retire entries a post-write read has superseded; return survivors."""
+def retire_pending_ack_entries(app: Any, applied_generation: int | None) -> set[Any]:
+    """Retire entries an applied generation has superseded; return survivors."""
     overlay = _pending_ack_overlay_for(app)
-    if overlay is None or snapshot_seq is None:
+    if overlay is None or applied_generation is None:
         return pending_ack_identities(app)
     try:
-        wanted = int(snapshot_seq)
+        wanted = int(applied_generation)
     except (TypeError, ValueError):
         return pending_ack_identities(app)
-    for identity, (_op_id, done_seq) in list(overlay.items()):
-        if done_seq is not None and wanted > done_seq:
+    for identity, (_op_id, done_generation) in list(overlay.items()):
+        if done_generation is not None and wanted >= done_generation:
             try:
                 del overlay[identity]
             except KeyError:
@@ -192,14 +172,11 @@ def retire_pending_ack_entries(app: Any, snapshot_seq: int | None) -> set[Any]:
 
 
 __all__ = [
-    "READ_SEQ_ATTR",
     "mark_pending_ack_write_complete",
-    "next_notif_read_seq",
     "owned_pending_ack_identities",
     "pending_ack_identities",
     "register_pending_ack",
     "release_pending_ack_entries",
     "retire_pending_ack_entries",
-    "snapshot_read_seq",
-    "stamp_snapshot_read_seq",
+    "snapshot_generation",
 ]

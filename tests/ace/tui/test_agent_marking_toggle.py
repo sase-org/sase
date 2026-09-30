@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from tests.ace.tui._agent_marking_helpers import _FakeMarkApp, _make_agent
@@ -40,15 +41,15 @@ def test_toggle_mark_auto_advance_acknowledges_unread_done_target() -> None:
     app._unread_completed_agent_ids.add(unread.identity)
 
     with patch(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
-        return_value=0,
-    ) as dismiss_notifications:
+        "sase.notifications.ack_agent_completions",
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    ) as ack_completions:
         app._toggle_mark_agent()
 
     assert app.current_idx == 1
     assert marked.identity in app._marked_agents
     assert unread.identity not in app._unread_completed_agent_ids
-    dismiss_notifications.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": unread.cl_name, "raw_suffix": unread.raw_suffix}]
     )
     assert app.patch_calls.count(marked) == 1
@@ -68,15 +69,15 @@ def test_toggle_mark_acknowledges_unread_when_advance_wraps_to_same_row() -> Non
     app._unread_completed_agent_ids.add(unread.identity)
 
     with patch(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
-        return_value=0,
-    ) as dismiss_notifications:
+        "sase.notifications.ack_agent_completions",
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    ) as ack_completions:
         app._toggle_mark_agent()
 
     assert app.current_idx == 0
     assert unread.identity in app._marked_agents
     assert unread.identity not in app._unread_completed_agent_ids
-    dismiss_notifications.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": unread.cl_name, "raw_suffix": unread.raw_suffix}]
     )
     assert app.patch_calls == [unread]
@@ -97,15 +98,15 @@ def test_toggle_mark_manual_unread_target_stays_guarded_on_first_arrival() -> No
     app._manual_unread_agent_ids.add(guarded.identity)
 
     with patch(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
-        return_value=0,
-    ) as dismiss_notifications:
+        "sase.notifications.ack_agent_completions",
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    ) as ack_completions:
         app._toggle_mark_agent()
 
     assert app.current_idx == 1
     assert guarded.identity in app._unread_completed_agent_ids
     assert guarded.identity in app._manual_unread_agent_ids
-    dismiss_notifications.assert_not_called()
+    ack_completions.assert_not_called()
     assert app.patch_calls.count(origin) == 1
     assert app.patch_calls.count(guarded) == 1
     assert app.highlight_refresh_calls == 1
@@ -124,21 +125,21 @@ def test_toggle_mark_arms_manual_unread_departure_before_return() -> None:
     app._manual_unread_agent_ids.add(guarded.identity)
 
     with patch(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
-        return_value=0,
-    ) as dismiss_notifications:
+        "sase.notifications.ack_agent_completions",
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    ) as ack_completions:
         app._toggle_mark_agent()
 
         assert app.current_idx == 1
         assert guarded.identity in app._unread_completed_agent_ids
         assert guarded.identity not in app._manual_unread_agent_ids
-        dismiss_notifications.assert_not_called()
+        ack_completions.assert_not_called()
 
         app._toggle_mark_agent()
 
     assert app.current_idx == 0
     assert guarded.identity not in app._unread_completed_agent_ids
-    dismiss_notifications.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": guarded.cl_name, "raw_suffix": guarded.raw_suffix}]
     )
 

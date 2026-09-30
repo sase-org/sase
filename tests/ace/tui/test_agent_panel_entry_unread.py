@@ -1,6 +1,7 @@
 """Unread acknowledgment when descending from whole-panel focus."""
 
 from __future__ import annotations
+from types import SimpleNamespace
 
 from datetime import datetime
 from unittest.mock import Mock
@@ -18,10 +19,12 @@ _STOP_TIME = datetime(2026, 7, 15, 12, 5, 0)
 
 
 @pytest.fixture(autouse=True)
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=1)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(
+        return_value=SimpleNamespace(dismissed_ids={"n-acked"}, generation=7),
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     return dismiss
@@ -51,7 +54,7 @@ def _entry_app() -> tuple[AgentPanelUnreadEntryApp, Agent, Agent]:
 
 
 def test_l_acknowledges_first_panel_entry_row(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     app, _remembered, first_rendered = _entry_app()
     app._unread_completed_agent_ids.add(first_rendered.identity)
@@ -63,7 +66,7 @@ def test_l_acknowledges_first_panel_entry_row(
     assert app.patch_calls == [first_rendered]
     assert app.notification_count_refresh_calls == 0
     assert app.scheduled_notification_resync_calls == 1
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [
             {
                 "cl_name": first_rendered.cl_name,
@@ -74,7 +77,7 @@ def test_l_acknowledges_first_panel_entry_row(
 
 
 def test_l_acknowledges_remembered_panel_entry_row(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     app, remembered, _first_rendered = _entry_app()
     app._panel_selection_memory[("default", "alpha")] = ("agent", 0)
@@ -85,11 +88,11 @@ def test_l_acknowledges_remembered_panel_entry_row(
     assert app.current_idx == 0
     assert remembered.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [remembered]
-    notification_dismiss.assert_called_once()
+    ack_completions.assert_called_once()
 
 
 def test_escape_acknowledges_panel_entry_row(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     app, _remembered, first_rendered = _entry_app()
     app._unread_completed_agent_ids.add(first_rendered.identity)
@@ -99,11 +102,11 @@ def test_escape_acknowledges_panel_entry_row(
     assert app.current_idx == 1
     assert first_rendered.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [first_rendered]
-    notification_dismiss.assert_called_once()
+    ack_completions.assert_called_once()
 
 
 def test_banner_panel_entry_does_not_acknowledge_agent(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     unread = make_agent(
         name="one",
@@ -130,11 +133,11 @@ def test_banner_panel_entry_does_not_acknowledge_agent(
     assert app._current_group_key == banner
     assert unread.identity in app._unread_completed_agent_ids
     assert app.patch_calls == []
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_panel_entry_preserves_manually_unread_row(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     app, _remembered, first_rendered = _entry_app()
     app._unread_completed_agent_ids.add(first_rendered.identity)
@@ -145,4 +148,4 @@ def test_panel_entry_preserves_manually_unread_row(
     assert first_rendered.identity in app._unread_completed_agent_ids
     assert first_rendered.identity in app._manual_unread_agent_ids
     assert app.patch_calls == []
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()

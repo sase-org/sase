@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -188,8 +189,8 @@ async def _run_unread_branches(
         "SASE_TUI_TRACE_PATH", str(log_path.with_name("tui_trace_unread.jsonl"))
     )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
-        lambda _keys: 0,
+        "sase.notifications.ack_agent_completions",
+        lambda _keys: SimpleNamespace(dismissed_ids=set(), generation=7),
     )
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
     results: dict[str, dict[str, dict[str, float]]] = {}

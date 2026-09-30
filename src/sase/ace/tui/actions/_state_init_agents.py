@@ -404,10 +404,9 @@ def init_agent_state(self: Any) -> None:
     self._delivered_notification_activity_cursors = set()
     self._notification_snapshot_cache = None
     self._notification_snapshot_version = 0
-    self._notification_snapshot_read_seq = None
-    # Pending-ack fence (epic sase-1d7): read sequence stamping, the op
-    # counter, and the in-flight ack overlay.
-    self._notif_read_seq = 0
+    self._notification_snapshot_generation = None
+    # Pending-ack fence (epic sase-1d7): the op counter and the in-flight
+    # ack overlay. Entries retire against the store generation.
     self._pending_ack_op_seq = 0
     self._pending_ack_overlay = {}
     # Coalescing ack writer (epic sase-1d7 phase ack-pipeline): queued

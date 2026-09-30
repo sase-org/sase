@@ -550,6 +550,37 @@ def dismiss_agent_completion_notifications_matching_agents(
     return int(outcome.changed_count)
 
 
+def ack_agent_completions(agent_keys: list[dict[str, Any] | Any]) -> Any:
+    """Dismiss completion and settlement rows for ``agent_keys`` via Rust.
+
+    Unlike
+    :func:`dismiss_agent_completion_notifications_matching_agents` this
+    returns the outcome: the ids the call newly dismissed and the store
+    generation after the call. An empty key list is a no-op read of the
+    current generation: no bump, empty ids.
+    """
+    from sase.core import notification_store_facade
+
+    keys = _normalize_agent_keys(agent_keys)
+    outcome = notification_store_facade.ack_agent_completions(
+        _notifications_path(), keys
+    )
+    if outcome.dismissed_ids:
+        _invalidate_load_cache()
+    return outcome
+
+
+def read_unread_completion_index() -> Any:
+    """Read the lean unread completion index and its store generation.
+
+    One row per live completion and settlement row, dismissed rows
+    included, with the generation those rows were observed at.
+    """
+    from sase.core import notification_store_facade
+
+    return notification_store_facade.read_unread_completion_index(_notifications_path())
+
+
 def _normalize_agent_keys(agent_keys: list[dict[str, Any] | Any]) -> list[Any]:
     """Convert mapping-or-wire agent keys into Rust wire objects."""
     from sase.core import notification_store_wire

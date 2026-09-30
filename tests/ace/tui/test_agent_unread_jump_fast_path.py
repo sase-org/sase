@@ -1,6 +1,7 @@
 """Fast-path unread jump tests (epic sase-1d7 phase unread-jump-fast-path)."""
 
 from __future__ import annotations
+from types import SimpleNamespace
 
 from datetime import datetime
 from unittest.mock import Mock
@@ -12,10 +13,12 @@ from ._agent_unread_navigation_helpers import LeaderUnreadJumpApp, UnreadJumpApp
 
 
 @pytest.fixture(autouse=True)
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=0)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(
+        return_value=SimpleNamespace(dismissed_ids={"n-acked"}, generation=7),
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     return dismiss

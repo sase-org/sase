@@ -47,6 +47,7 @@ from sase.notifications.senders import (
     notify_workflow_complete,
 )
 from sase.notifications.store import (
+    ack_agent_completions,
     append_notification,
     compact_notification_store,
     dismiss_agent_completion_notifications_matching_agents,
@@ -66,6 +67,7 @@ from sase.notifications.store import (
     mark_undismissed,
     read_notification_snapshot,
     read_current_notification_snapshot,
+    read_unread_completion_index,
     reconcile_notification_rows,
     rewrite_notifications,
 )
@@ -80,6 +82,7 @@ __all__ = [
     "QuestionEntry",
     "QuestionOption",
     "QuestionSummary",
+    "ack_agent_completions",
     "append_notification",
     "cleanup_transport_actions",
     "compact_notification_store",
@@ -117,6 +120,7 @@ __all__ = [
     "read_current_notification_snapshot",
     "reconcile_notification_rows",
     "question_answer_state",
+    "read_unread_completion_index",
     "resolve_notification_ref",
     "remove_transport_action",
     "rewrite_notifications",

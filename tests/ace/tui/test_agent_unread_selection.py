@@ -31,6 +31,16 @@ def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
     return dismiss
 
 
+@pytest.fixture(autouse=True)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    ack = Mock(return_value=SimpleNamespace(dismissed_ids={"n-acked"}, generation=7))
+    monkeypatch.setattr(
+        "sase.notifications.ack_agent_completions",
+        ack,
+    )
+    return ack
+
+
 class _SelectionEvent:
     def __init__(
         self,
@@ -269,9 +279,11 @@ def test_agent_row_selection_guard_ignores_different_agent() -> None:
 
 
 def test_acknowledge_agent_unread_dismisses_matching_notification(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-acked"}, generation=7
+    )
     agent = make_agent(status="DONE")
     app = _SelectionApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -279,7 +291,7 @@ def test_acknowledge_agent_unread_dismisses_matching_notification(
     assert app._acknowledge_agent_unread(agent)
 
     assert agent.identity not in app._unread_completed_agent_ids
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
     assert app.notification_count_refresh_calls == 0
@@ -287,9 +299,11 @@ def test_acknowledge_agent_unread_dismisses_matching_notification(
 
 
 def test_acknowledge_agent_unread_filters_stale_cached_notification(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-agent"}, generation=7
+    )
     agent = make_agent(status="DONE")
     app = _SelectionApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -315,9 +329,11 @@ def test_acknowledge_agent_unread_filters_stale_cached_notification(
 
 
 def test_agent_row_selection_dismisses_matching_settlement_row_from_cache(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-settlement"}, generation=7
+    )
     agent = make_agent(status="DONE")
     app = _SelectionApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -344,16 +360,18 @@ def test_agent_row_selection_dismisses_matching_settlement_row_from_cache(
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
     assert app._notification_snapshot_cache.notifications == [other_suffix]
 
 
 def test_agent_row_selection_dismisses_nested_gate_monitor_settlement(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-nested-settlement"}, generation=7
+    )
     node = make_agent(
         name="build--plan", status="EPIC CREATED", raw_suffix="node-suffix"
     )
@@ -401,8 +419,8 @@ def test_agent_row_selection_dismisses_nested_gate_monitor_settlement(
     )
 
     assert node.identity not in app._unread_completed_agent_ids
-    notification_dismiss.assert_called_once()
-    (key_dicts,), _ = notification_dismiss.call_args
+    ack_completions.assert_called_once()
+    (key_dicts,), _ = ack_completions.call_args
     assert {"cl_name": monitor.cl_name, "raw_suffix": monitor.raw_suffix} in key_dicts
     assert app._notification_snapshot_cache.notifications == [unrelated]
 

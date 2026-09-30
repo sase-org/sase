@@ -1,6 +1,7 @@
 """Regression tests for J/K panel switching selection on the Agents tab."""
 
 from __future__ import annotations
+from types import SimpleNamespace
 
 from datetime import datetime
 from typing import Any
@@ -207,10 +208,12 @@ class _UnreadPanelSwitchApp(AgentUnreadMixin, _StubApp):
 
 
 @pytest.fixture
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=0)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     return dismiss
@@ -237,7 +240,7 @@ def test_focus_next_agent_panel_selects_first_rendered_agent_not_first_raw() -> 
 
 
 def test_focus_next_agent_panel_acknowledges_unread_agent_row(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     agents = [
         _agent(tribe=None, project="home", cl="home", name="no_tribe"),
@@ -259,7 +262,7 @@ def test_focus_next_agent_panel_acknowledges_unread_agent_row(
     assert app.current_idx == 1
     assert unread_agent.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [unread_agent]
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": unread_agent.cl_name, "raw_suffix": unread_agent.raw_suffix}]
     )
 
@@ -328,7 +331,7 @@ def test_focus_prev_agent_panel_selects_last_rendered_agent_not_last_raw() -> No
 
 
 def test_focus_prev_agent_panel_acknowledges_unread_agent_row(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     agents = [
         _agent(
@@ -351,7 +354,7 @@ def test_focus_prev_agent_panel_acknowledges_unread_agent_row(
     assert app.current_idx == 0
     assert unread_agent.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [unread_agent]
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": unread_agent.cl_name, "raw_suffix": unread_agent.raw_suffix}]
     )
 
@@ -427,7 +430,7 @@ def test_navigation_stop_cache_tracks_only_focused_panel_registry_version() -> N
 
 
 def test_panel_switch_collapsed_banner_does_not_acknowledge_unread_agent(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     agents = [
         _agent(tribe=None, project="home", cl="home", name="no_tribe"),
@@ -453,7 +456,7 @@ def test_panel_switch_collapsed_banner_does_not_acknowledge_unread_agent(
     assert app.current_idx == 2
     assert unread_agent.identity in app._unread_completed_agent_ids
     assert app.patch_calls == []
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_prev_panel_switch_can_land_on_last_collapsed_banner() -> None:
@@ -478,7 +481,7 @@ def test_prev_panel_switch_can_land_on_last_collapsed_banner() -> None:
 
 
 def test_panel_switch_arms_manual_unread_departure_before_return_selection(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     agents = [
         _agent(
@@ -505,7 +508,7 @@ def test_panel_switch_arms_manual_unread_departure_before_return_selection(
 
     assert manual_agent.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [manual_agent]
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": manual_agent.cl_name, "raw_suffix": manual_agent.raw_suffix}]
     )
 

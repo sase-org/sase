@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from sase.core.notification_store_wire import UnreadCompletionIndexRowWire
     from sase.notifications import Notification
 
 
@@ -218,6 +219,75 @@ def agent_row_notification_matches_agent(
     ) or agent_settlement_notification_matches_agent(
         notification, cl_name=cl_name, raw_suffix=raw_suffix
     )
+
+
+def unread_completion_index_rows_from_notifications(
+    notifications: list[Notification],
+) -> list[UnreadCompletionIndexRowWire]:
+    """Project full notifications into lean unread-index rows.
+
+    Same inclusion rules as the Rust ``read_unread_completion_index``:
+    one row per completion row (``sender == "user-agent"``, action
+    ``JumpToAgent``/``ViewErrorReport``, non-empty ``cl_name``) and one
+    per settlement row (``epic-launch``/``monitor-settlement`` with
+    non-empty ``cl_name`` and ``raw_suffix``), dismissed rows included,
+    with literal (not timestamp-normalized) suffixes. A completion with
+    no suffix projects as ``(cl_name, None)``, preserving the
+    ``cl_name``-only fallback; settlement rows contribute only their
+    exact pair. Pending-gate rows and every other sender stay out.
+    """
+    from sase.core.notification_store_wire import UnreadCompletionIndexRowWire
+
+    rows: list[UnreadCompletionIndexRowWire] = []
+    for n in notifications:
+        action_data = n.action_data or {}
+        # `id` and `read` are new lean-row fields: older test doubles
+        # predate them, so default rather than fail. The reconcile only
+        # matches on keys and the dismissed flag.
+        notification_id = getattr(n, "id", None) or ""
+        read = bool(getattr(n, "read", False))
+        if n.sender == "user-agent" and n.action in ("JumpToAgent", "ViewErrorReport"):
+            cl_name = action_data.get("cl_name")
+            if not cl_name:
+                continue
+            rows.append(
+                UnreadCompletionIndexRowWire(
+                    id=notification_id,
+                    cl_name=cl_name,
+                    raw_suffix=action_data.get("raw_suffix") or None,
+                    read=read,
+                    dismissed=bool(n.dismissed),
+                )
+            )
+            continue
+        if n.sender in SETTLEMENT_NOTIFICATION_SENDERS:
+            cl_name = action_data.get("cl_name")
+            raw_suffix = action_data.get("raw_suffix")
+            if not cl_name or not raw_suffix:
+                continue
+            rows.append(
+                UnreadCompletionIndexRowWire(
+                    id=notification_id,
+                    cl_name=cl_name,
+                    raw_suffix=raw_suffix,
+                    read=read,
+                    dismissed=bool(n.dismissed),
+                )
+            )
+    return rows
+
+
+def unread_completion_index_active_keys(
+    rows: list[UnreadCompletionIndexRowWire],
+) -> set[tuple[str, str | None]]:
+    """Return ``(cl_name, raw_suffix)`` keys for non-dismissed index rows.
+
+    A completion with no suffix contributes ``(cl_name, None)``, which
+    preserves the ``cl_name``-only fallback in
+    :func:`projection_has_active_completion`; settlement rows contribute
+    only their exact pair.
+    """
+    return {(row.cl_name, row.raw_suffix) for row in rows if not row.dismissed}
 
 
 def unread_notification_buckets(

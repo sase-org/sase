@@ -207,40 +207,36 @@ class AgentNotificationProviderMixin:
         self: Any,
         snapshot: object,
         *,
-        read_seq: int | None = None,
+        generation: int | None = None,
     ) -> bool:
         """Store the latest notification snapshot for hot-path readers.
 
-        The cache is monotonic in read-start sequence: a snapshot whose
-        read started before the cached one's is ignored so a stale poll
-        can never resurrect an acknowledged row. Snapshots without a
-        known sequence (locally derived ones) inherit the cached sequence
-        and are always accepted. Returns ``True`` when stored.
+        The cache is monotonic in store generation: a snapshot whose
+        generation is strictly less than the cached one is ignored so a
+        stale poll can never resurrect an acknowledged row. Snapshots
+        without a generation (test doubles, locally derived ones)
+        inherit the cached generation and are always accepted. Returns
+        ``True`` when stored.
         """
-        from ._pending_ack_fence import snapshot_read_seq
+        from ._pending_ack_fence import snapshot_generation
 
-        incoming_seq = read_seq
-        if incoming_seq is None:
-            incoming_seq = snapshot_read_seq(snapshot)
-        cached_seq = getattr(self, "_notification_snapshot_read_seq", None)
+        incoming = generation
+        if incoming is None:
+            incoming = snapshot_generation(snapshot)
         try:
-            cached_seq = int(cached_seq) if cached_seq is not None else None
+            incoming = int(incoming) if incoming is not None else None
         except (TypeError, ValueError):
-            cached_seq = None
-        if incoming_seq is not None:
-            try:
-                incoming_seq = int(incoming_seq)
-            except (TypeError, ValueError):
-                incoming_seq = None
-        if (
-            incoming_seq is not None
-            and cached_seq is not None
-            and incoming_seq < cached_seq
-        ):
+            incoming = None
+        cached = getattr(self, "_notification_snapshot_generation", None)
+        try:
+            cached = int(cached) if cached is not None else None
+        except (TypeError, ValueError):
+            cached = None
+        if incoming is not None and cached is not None and incoming < cached:
             return False
         self._notification_snapshot_cache = snapshot  # type: ignore[attr-defined]
-        self._notification_snapshot_read_seq = (  # type: ignore[attr-defined]
-            incoming_seq if incoming_seq is not None else cached_seq
+        self._notification_snapshot_generation = (  # type: ignore[attr-defined]
+            incoming if incoming is not None else cached
         )
         self._notification_snapshot_version = (  # type: ignore[attr-defined]
             getattr(self, "_notification_snapshot_version", 0) + 1
@@ -312,13 +308,10 @@ class AgentNotificationProviderMixin:
     ) -> Any:
         """Return the notification snapshot via the configured ACE provider.
 
-        The read-start sequence is captured before the disk parse and
-        carried on the snapshot so the cache and the pending-ack fence can
-        tell pre-write reads from post-write ones.
+        The snapshot carries the store generation its rows were observed
+        at, so the cache and the pending-ack fence can tell pre-write
+        observations from post-write ones.
         """
-        from ._pending_ack_fence import next_notif_read_seq, stamp_snapshot_read_seq
-
-        read_seq = next_notif_read_seq(self)
         result = _read_notification_snapshot_for_tui(
             include_dismissed=include_dismissed,
             expire_due_snoozes=expire_due_snoozes,
@@ -328,7 +321,7 @@ class AgentNotificationProviderMixin:
         self._notification_provider_snapshot = getattr(  # type: ignore[attr-defined]
             result.value, "shared_snapshot", None
         )
-        return stamp_snapshot_read_seq(result.value, read_seq)
+        return result.value
 
     def _read_notification_counts_from_provider(self: Any) -> Any:
         """Return count-only notification data via the configured ACE provider."""

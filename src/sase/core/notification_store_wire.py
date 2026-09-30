@@ -86,6 +86,7 @@ class NotificationStoreSnapshotWire:
     stats: _NotificationStoreStatsWire = field(
         default_factory=_NotificationStoreStatsWire
     )
+    generation: int = 0
 
 
 @dataclass(frozen=True)
@@ -186,6 +187,37 @@ class NotificationReconcileOutcomeWire:
     @property
     def changed(self) -> bool:
         return bool(self.created or self.updated or self.dismissed or self.resurfaced)
+
+
+@dataclass(frozen=True)
+class NotificationAckOutcomeWire:
+    """Ids one ``ack_agent_completions`` call newly dismissed, plus the
+    store generation after the call."""
+
+    schema_version: int
+    dismissed_ids: list[str] = field(default_factory=list)
+    generation: int = 0
+
+
+@dataclass(frozen=True)
+class UnreadCompletionIndexRowWire:
+    """One live completion or settlement row in the lean unread index."""
+
+    id: str
+    cl_name: str
+    raw_suffix: str | None = None
+    read: bool = False
+    dismissed: bool = False
+
+
+@dataclass(frozen=True)
+class UnreadCompletionIndexWire:
+    """Lean unread index: the store generation plus one row per live
+    completion and settlement row, dismissed rows included."""
+
+    schema_version: int
+    generation: int = 0
+    rows: list[UnreadCompletionIndexRowWire] = field(default_factory=list)
 
 
 def notification_store_wire_to_json_dict(record: Any) -> Any:
@@ -372,6 +404,7 @@ def notification_snapshot_from_dict(
         stats=_NotificationStoreStatsWire(
             **known_field_kwargs(_NotificationStoreStatsWire, data.get("stats") or {})
         ),
+        generation=int(data.get("generation") or 0),
     )
 
 
@@ -450,6 +483,55 @@ def notification_reconcile_outcome_from_dict(
     )
 
 
+def notification_ack_outcome_from_dict(
+    data: dict[str, Any],
+) -> NotificationAckOutcomeWire:
+    schema = int(data["schema_version"])
+    if schema != NOTIFICATION_STORE_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            f"notification store wire schema mismatch: got {schema}, "
+            f"expected {NOTIFICATION_STORE_WIRE_SCHEMA_VERSION}"
+        )
+    return NotificationAckOutcomeWire(
+        schema_version=schema,
+        dismissed_ids=[str(item) for item in data.get("dismissed_ids") or []],
+        generation=int(data.get("generation") or 0),
+    )
+
+
+def _unread_completion_index_row_from_dict(
+    data: dict[str, Any],
+) -> UnreadCompletionIndexRowWire:
+    agent = data.get("agent") or {}
+    raw_suffix = agent.get("raw_suffix")
+    return UnreadCompletionIndexRowWire(
+        id=str(data["id"]),
+        cl_name=str(agent.get("cl_name") or ""),
+        raw_suffix=None if raw_suffix is None else str(raw_suffix),
+        read=bool(data.get("read", False)),
+        dismissed=bool(data.get("dismissed", False)),
+    )
+
+
+def unread_completion_index_from_dict(
+    data: dict[str, Any],
+) -> UnreadCompletionIndexWire:
+    schema = int(data["schema_version"])
+    if schema != NOTIFICATION_STORE_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            f"notification store wire schema mismatch: got {schema}, "
+            f"expected {NOTIFICATION_STORE_WIRE_SCHEMA_VERSION}"
+        )
+    return UnreadCompletionIndexWire(
+        schema_version=schema,
+        generation=int(data.get("generation") or 0),
+        rows=[
+            _unread_completion_index_row_from_dict(item)
+            for item in data.get("rows") or []
+        ],
+    )
+
+
 def notification_upsert_outcome_from_dict(
     data: dict[str, Any],
 ) -> NotificationUpsertOutcomeWire:
@@ -477,6 +559,7 @@ def notification_upsert_outcome_from_dict(
 
 __all__ = [
     "NOTIFICATION_STORE_WIRE_SCHEMA_VERSION",
+    "NotificationAckOutcomeWire",
     "NotificationAgentKeyWire",
     "NotificationDeliveryWire",
     "NotificationPlusOneOutcomeWire",
@@ -492,6 +575,9 @@ __all__ = [
     "NotificationUpdateOutcomeWire",
     "NotificationUpsertOutcomeWire",
     "NotificationUpsertRequestWire",
+    "UnreadCompletionIndexRowWire",
+    "UnreadCompletionIndexWire",
+    "notification_ack_outcome_from_dict",
     "notification_deliveries_from_list",
     "notification_plus_one_outcome_from_dict",
     "notification_reconcile_outcome_from_dict",
@@ -500,4 +586,5 @@ __all__ = [
     "notification_store_wire_to_json_dict",
     "notification_update_outcome_from_dict",
     "notification_upsert_outcome_from_dict",
+    "unread_completion_index_from_dict",
 ]

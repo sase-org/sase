@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.notification_store_wire import (
+    NotificationAckOutcomeWire,
     NotificationDeliveryWire,
     NotificationPlusOneOutcomeWire,
     NotificationPlusOneRequestWire,
@@ -21,6 +22,8 @@ from sase.core.notification_store_wire import (
     NotificationUpdateOutcomeWire,
     NotificationUpsertOutcomeWire,
     NotificationUpsertRequestWire,
+    UnreadCompletionIndexWire,
+    notification_ack_outcome_from_dict,
     notification_deliveries_from_list,
     notification_plus_one_outcome_from_dict,
     notification_reconcile_outcome_from_dict,
@@ -29,6 +32,7 @@ from sase.core.notification_store_wire import (
     notification_tab_classification_from_dict,
     notification_update_outcome_from_dict,
     notification_upsert_outcome_from_dict,
+    unread_completion_index_from_dict,
 )
 from sase.core.rust import require_rust_binding
 from sase.notifications.models import Notification
@@ -40,6 +44,9 @@ _SNAPSHOT_CACHE_LOCK = threading.RLock()
 _SNAPSHOT_CACHE: dict[
     tuple[str, bool, bool], tuple[tuple[Any, ...], NotificationStoreSnapshotWire]
 ] = {}
+# Lean unread-index memo, keyed by path only: the index always covers every
+# live completion and settlement row, so there is no flag dimension.
+_INDEX_CACHE: dict[str, tuple[tuple[Any, ...], UnreadCompletionIndexWire]] = {}
 _SNAPSHOT_CACHE_GENERATION = 0
 
 
@@ -60,6 +67,7 @@ def invalidate_notification_snapshot_cache() -> None:
     global _SNAPSHOT_CACHE_GENERATION
     with _SNAPSHOT_CACHE_LOCK:
         _SNAPSHOT_CACHE.clear()
+        _INDEX_CACHE.clear()
         _SNAPSHOT_CACHE_GENERATION += 1
 
 
@@ -289,6 +297,57 @@ def reconcile_notification_rows(
     return notification_reconcile_outcome_from_dict(payload)
 
 
+def ack_agent_completions(
+    path: Path | str,
+    agents: Sequence[Any] | dict[str, Any],
+) -> NotificationAckOutcomeWire:
+    """Dismiss completion and settlement rows for ``agents`` through Rust.
+
+    Goes through ``_call_mutating_binding``, which already drops the
+    snapshot memo (including the memoized lean index). Returns the ids the
+    call newly dismissed and the store generation after the call.
+    """
+    if isinstance(agents, dict):
+        request = agents
+    else:
+        request = {"agents": notification_store_wire_to_json_dict(list(agents))}
+    payload = _call_mutating_binding(
+        "ack_agent_completions",
+        str(path),
+        notification_store_wire_to_json_dict(request),
+    )
+    return notification_ack_outcome_from_dict(payload)
+
+
+def read_unread_completion_index(
+    path: Path | str,
+) -> UnreadCompletionIndexWire:
+    """Read the lean unread completion index and its store generation.
+
+    A read through ``sase_core_rs``: one row per live completion and
+    settlement row, dismissed rows included. Memoized by path like
+    snapshots, including the "token changed during the read, so do not
+    cache" race.
+    """
+    live = _normalize_store_path(path)
+    key = str(live)
+    token = _change_token(live)
+    with _SNAPSHOT_CACHE_LOCK:
+        generation = _SNAPSHOT_CACHE_GENERATION
+        cached = _INDEX_CACHE.get(key)
+        if cached is not None and cached[0] == token:
+            return replace(cached[1], rows=list(cached[1].rows))
+
+    binding = require_rust_binding("read_unread_completion_index")
+    payload: dict[str, Any] = binding(str(path))
+    index = unread_completion_index_from_dict(payload)
+    new_token = _change_token(live)
+    with _SNAPSHOT_CACHE_LOCK:
+        if generation == _SNAPSHOT_CACHE_GENERATION and new_token == token:
+            _INDEX_CACHE[key] = (new_token, replace(index, rows=list(index.rows)))
+    return index
+
+
 def _normalize_store_path(path: Path | str) -> Path:
     live = Path(path).expanduser()
     try:
@@ -399,6 +458,7 @@ def _jsonl_row_count(path: Path) -> int:
 
 
 __all__ = [
+    "NotificationAckOutcomeWire",
     "NotificationDeliveryWire",
     "NotificationReconcileOutcomeWire",
     "NotificationReconcileRequestWire",
@@ -406,6 +466,8 @@ __all__ = [
     "NotificationStoreSnapshotWire",
     "NotificationTabClassificationWire",
     "NotificationUpdateOutcomeWire",
+    "UnreadCompletionIndexWire",
+    "ack_agent_completions",
     "append_notification",
     "append_notification_counts",
     "append_notification_plus_one",
@@ -416,6 +478,7 @@ __all__ = [
     "invalidate_notification_snapshot_cache",
     "read_current_notifications_snapshot",
     "read_notifications_snapshot",
+    "read_unread_completion_index",
     "reconcile_notification_rows",
     "resolve_notification_deliveries",
     "rewrite_notifications",

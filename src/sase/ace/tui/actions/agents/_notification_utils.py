@@ -59,6 +59,8 @@ from ._notification_matching import (
     notification_agent_session_root_suffix,
     notification_raw_suffix,
     pending_gate_notification_suffixes,
+    unread_completion_index_active_keys,
+    unread_completion_index_rows_from_notifications,
     unread_notification_buckets,
 )
 
@@ -108,5 +110,7 @@ __all__ = [
     "request_notification_agents_refresh",
     "resolve_notification_agent",
     "schedule_gate_decision_receipt_refresh",
+    "unread_completion_index_active_keys",
+    "unread_completion_index_rows_from_notifications",
     "unread_notification_buckets",
 ]

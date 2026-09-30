@@ -1,6 +1,7 @@
 """Folded-tree unread completed-agent jump navigation tests."""
 
 from __future__ import annotations
+from types import SimpleNamespace
 
 from datetime import datetime
 from typing import Any
@@ -18,10 +19,12 @@ from sase.ace.tui.models.fold_state import FoldStateManager
 
 
 @pytest.fixture(autouse=True)
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=0)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     return dismiss
@@ -339,7 +342,7 @@ def test_unread_jump_respects_active_search_filter() -> None:
 
 
 def test_unread_jump_stale_reveal_target_does_not_acknowledge(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     target = make_agent(
         name="research.done",
@@ -356,11 +359,11 @@ def test_unread_jump_stale_reveal_target_does_not_acknowledge(
     assert not app._jump_to_next_unread_done_agent()
 
     assert app.refilter_calls == 1
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_unread_jump_reveals_manual_target_without_acknowledging(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     target = make_agent(
         name="research.done",
@@ -379,7 +382,7 @@ def test_unread_jump_reveals_manual_target_without_acknowledging(
     assert app._agents[app.current_idx].identity == target.identity
     assert target.identity in app._unread_completed_agent_ids
     assert target.identity in app._manual_unread_agent_ids
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_unread_footer_and_jump_share_cached_clan_projection() -> None:

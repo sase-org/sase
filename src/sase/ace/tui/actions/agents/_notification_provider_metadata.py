@@ -106,6 +106,7 @@ def notification_snapshot_with_shared_metadata(
         expired_ids=snapshot.expired_ids,
         next_snooze_deadline=snapshot.next_snooze_deadline,
         shared_snapshot=shared_snapshot,
+        generation=getattr(snapshot, "generation", 0) or 0,
     )
 
 

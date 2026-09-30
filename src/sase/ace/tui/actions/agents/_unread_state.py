@@ -444,9 +444,9 @@ class AgentUnreadStateMixin:
         """Persist an optimistic read-side notification dismissal off-thread.
 
         The request joins the coalescing ack queue: one worker drains the
-        queue and issues one Rust call per batch. The worker computes the
-        cached snapshot's matching ids off-thread so completion never
-        reads the store on the UI thread.
+        queue and issues one ``ack_agent_completions`` Rust call per
+        batch. Completion removes the Rust-returned ids from the cached
+        snapshot by id set and never reads the store on the UI thread.
         """
         from dataclasses import replace
 
@@ -482,11 +482,13 @@ class AgentUnreadStateMixin:
         error: Exception | None,
         store_bytes: int | None = None,
         matched_ids: set[str] | None = None,
+        generation: int | None = None,
     ) -> None:
         """Reconcile the off-thread notification write outcome on the UI thread.
 
-        Never reads the store: the worker computed *matched_ids* off-thread
-        and the completion applies them to the cached snapshot by id set.
+        Never reads the store: the worker used the Rust-returned
+        *matched_ids* and *generation*, and the completion applies them to
+        the cached snapshot by id set.
         """
         from sase.ace.tui.util.trace import tui_trace
 
@@ -500,6 +502,7 @@ class AgentUnreadStateMixin:
                 dismissed_count=dismissed_count,
                 error=error,
                 matched_ids=matched_ids,
+                generation=generation,
             )
 
     def _apply_unread_notification_dismissal_outcome(
@@ -509,10 +512,11 @@ class AgentUnreadStateMixin:
         dismissed_count: int,
         error: Exception | None,
         matched_ids: set[str] | None = None,
+        generation: int | None = None,
     ) -> None:
         """Apply the off-thread notification write outcome on the UI thread.
 
-        Read-free: removes the worker-computed *matched_ids* from the cached
+        Read-free: removes the Rust-returned *matched_ids* from the cached
         snapshot by id set and schedules only the guarded async resync. The
         optimistic paint already went through the chrome helper; the resync's
         reconcile repaints through it as well.
@@ -529,11 +533,14 @@ class AgentUnreadStateMixin:
                 )
             return
 
-        # The write landed: stamp done_seq so only a read that began
-        # after this point retires the pending entries. Recorded per op
-        # when its batch lands, so each op in a failed batch still
-        # restores only its own still-owned identities.
-        mark_pending_ack_write_complete(self, request.op_id, request.identities)
+        # The write landed: record the ack's returned generation so only
+        # an applied observation at or past it retires the pending
+        # entries. Recorded per op when its batch lands, so each op in a
+        # failed batch still restores only its own still-owned
+        # identities. On exception no generation is recorded.
+        mark_pending_ack_write_complete(
+            self, request.op_id, request.identities, generation
+        )
         removed_count = self._remove_agent_completion_notifications_from_cache_by_ids(
             set(matched_ids) if matched_ids else set()
         )

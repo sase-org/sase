@@ -23,6 +23,9 @@ from sase.ace.tui.actions.agents._unread_state import (
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_nodes import agent_node_projection_index
 from sase.notifications import Notification
+from sase.ace.tui.actions.agents._notification_utils import (
+    unread_completion_index_rows_from_notifications as _rows,
+)
 
 from ._agent_unread_helpers import make_agent
 from ._leader_keymap_helpers import _FakeApp
@@ -93,7 +96,9 @@ def test_reconcile_span(_trace_file: Path) -> None:
     """Unread reconcile emits with roster/unread counters."""
     agent = make_agent(name="demo", status="DONE", raw_suffix="20260507090000")
     app = _SpanReconcileApp([agent])  # type: ignore[arg-type]
-    app._reconcile_unread_from_completion_notifications([_completion_notification()])
+    app._reconcile_unread_from_completion_notifications(
+        _rows([_completion_notification()])
+    )
     span = _one_span(_trace_file, "unread.reconcile")
     assert span["loaded_agents"] == 1
     assert span["unread"] == 1

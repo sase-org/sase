@@ -1,6 +1,7 @@
 """Panel-aware unread completed-agent jump navigation tests."""
 
 from __future__ import annotations
+from types import SimpleNamespace
 
 from datetime import datetime
 from unittest.mock import Mock
@@ -12,10 +13,12 @@ from ._agent_unread_navigation_helpers import UnreadJumpApp
 
 
 @pytest.fixture(autouse=True)
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=0)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     return dismiss
@@ -79,9 +82,11 @@ def test_jump_to_next_unread_done_agent_back_jump_restores_origin() -> None:
 
 
 def test_unread_jump_expands_collapsed_panel_and_selects_exact_row(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-acked"}, generation=7
+    )
     origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
     first_alpha = make_agent(
         name="first-alpha",
@@ -127,7 +132,7 @@ def test_unread_jump_expands_collapsed_panel_and_selects_exact_row(
     assert app.patch_calls == [target]
     assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
     assert app._entry_jump_agents_anchor_stack == [("agent", 0, None, "default")]
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": target.cl_name, "raw_suffix": target.raw_suffix}]
     )
     assert app.notification_count_refresh_calls == 0
@@ -135,7 +140,7 @@ def test_unread_jump_expands_collapsed_panel_and_selects_exact_row(
 
 
 def test_unread_jump_expands_manually_guarded_target_without_acknowledging(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
     target = make_agent(
@@ -165,7 +170,7 @@ def test_unread_jump_expands_manually_guarded_target_without_acknowledging(
     # then a highlight-only refresh with detail deferred.
     assert app.panel_rebuild_calls == [{"alpha"}]
     assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_unread_jump_history_survives_panel_repartition_back_and_forward() -> None:

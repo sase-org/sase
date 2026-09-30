@@ -1,6 +1,7 @@
 """Core unread completed-agent jump navigation tests."""
 
 from __future__ import annotations
+from types import SimpleNamespace
 
 from datetime import datetime
 from unittest.mock import Mock
@@ -12,10 +13,12 @@ from ._agent_unread_navigation_helpers import LeaderUnreadJumpApp, UnreadJumpApp
 
 
 @pytest.fixture(autouse=True)
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=0)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     return dismiss
@@ -72,9 +75,11 @@ def test_jump_to_next_unread_done_agent_uses_completion_recency_and_wraps() -> N
 
 
 def test_repeated_leader_j_walks_unread_done_agents_by_recency(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-acked"}, generation=7
+    )
     oldest = make_agent(
         name="oldest",
         status="DONE",
@@ -150,7 +155,7 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
         {"list_changed": False, "defer_detail": True},
     ]
     assert app.patch_calls == [newest, middle, oldest]
-    assert notification_dismiss.call_count == 3
+    assert ack_completions.call_count == 3
     assert app.notification_count_refresh_calls == 0
     assert app.scheduled_notification_resync_calls == 3
 
@@ -277,9 +282,11 @@ def test_jump_to_next_unread_done_agent_uses_start_time_when_stop_time_missing()
 
 
 def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-acked"}, generation=7
+    )
     done = make_agent(name="done", status="PLAN DONE")
     app = UnreadJumpApp([done])
     app._unread_completed_agent_ids.add(done.identity)
@@ -290,7 +297,7 @@ def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
     assert app.current_attempt_number is None
     assert app.patch_calls == [done]
     assert app.refresh_calls == []
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": done.cl_name, "raw_suffix": done.raw_suffix}]
     )
     assert app.notification_count_refresh_calls == 0

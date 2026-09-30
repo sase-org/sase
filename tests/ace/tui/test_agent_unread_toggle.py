@@ -14,13 +14,18 @@ from ._agent_unread_navigation_helpers import UnreadJumpApp
 from sase.ace.tui.actions.agents._unread_state import BulkUnreadToggleOutcome
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.notifications import Notification
+from sase.ace.tui.actions.agents._notification_utils import (
+    unread_completion_index_rows_from_notifications as _rows,
+)
 
 
 @pytest.fixture(autouse=True)
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=0)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     return dismiss
@@ -57,7 +62,7 @@ class _PendingUnreadStoreApp(UnreadJumpApp):
 
 
 def test_toggle_agent_unread_marks_selected_row_without_moving(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     agent = make_agent(status="RUNNING")
     app = UnreadJumpApp([agent])
@@ -69,13 +74,15 @@ def test_toggle_agent_unread_marks_selected_row_without_moving(
     assert app._manual_unread_agent_ids == {agent.identity}
     assert app.patch_calls == [agent]
     assert app.refresh_calls == []
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_toggle_agent_unread_again_marks_selected_row_read(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-acked"}, generation=7
+    )
     agent = make_agent(status="DONE")
     app = UnreadJumpApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -86,7 +93,7 @@ def test_toggle_agent_unread_again_marks_selected_row_read(
     assert app._unread_completed_agent_ids == set()
     assert app._manual_unread_agent_ids == set()
     assert app.patch_calls == [agent]
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
     # ack-pipeline: completion never reads the store on the UI thread; it
@@ -96,9 +103,11 @@ def test_toggle_agent_unread_again_marks_selected_row_read(
 
 
 def test_u_toggle_to_read_drops_matching_settlement_row_from_cache(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-settlement"}, generation=7
+    )
     agent = make_agent(status="DONE")
     app = UnreadJumpApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -123,15 +132,17 @@ def test_u_toggle_to_read_drops_matching_settlement_row_from_cache(
     assert app._unread_completed_agent_ids == set()
     assert app._manual_unread_agent_ids == set()
     assert app._notification_snapshot_cache.notifications == []
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
 
 
 def test_bulk_read_toggle_drops_matching_settlement_rows_from_cache(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-settlement"}, generation=7
+    )
     agent = make_agent(status="DONE")
     app = UnreadJumpApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -218,9 +229,11 @@ def test_navigation_back_to_armed_manual_unread_acknowledges_it() -> None:
 
 
 def test_acknowledge_agent_unread_patches_before_store_write(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-acked"}, generation=7
+    )
     agent = make_agent(status="DONE")
     app = _PendingUnreadStoreApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -229,14 +242,14 @@ def test_acknowledge_agent_unread_patches_before_store_write(
 
     assert agent.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [agent]
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
     assert app.notification_count_refresh_calls == 0
     assert app.scheduled_notification_resync_calls == 0
 
     [work] = app.worker_calls
     work()
 
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
     assert app.notification_count_refresh_calls == 0
@@ -244,9 +257,9 @@ def test_acknowledge_agent_unread_patches_before_store_write(
 
 
 def test_acknowledge_agent_unread_failure_restores_marker(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.side_effect = RuntimeError("store unavailable")
+    ack_completions.side_effect = RuntimeError("store unavailable")
     agent = make_agent(status="DONE")
     app = _PendingUnreadStoreApp([agent])
     app._unread_completed_agent_ids.add(agent.identity)
@@ -286,9 +299,11 @@ def test_keyboard_navigation_onto_clan_never_acknowledges_member() -> None:
 
 
 def test_agent_session_member_completion_notifications_project_to_one_node(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    notification_dismiss.return_value = 2
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"plan", "code"}, generation=7
+    )
     agent_session = make_agent(name="build", status="DONE", raw_suffix="session")
     agent_session.agent_name = "build"
     agent_session.agent_session = "build"
@@ -308,10 +323,12 @@ def test_agent_session_member_completion_notifications_project_to_one_node(
     app = UnreadJumpApp([agent_session, plan, code], current_idx=1)
 
     app._reconcile_unread_from_completion_notifications(
-        [
-            _completion_notification(plan, notification_id="plan"),
-            _completion_notification(code, notification_id="code"),
-        ]
+        _rows(
+            [
+                _completion_notification(plan, notification_id="plan"),
+                _completion_notification(code, notification_id="code"),
+            ]
+        )
     )
 
     assert app._unread_completed_agent_ids == {agent_session.identity}
@@ -322,7 +339,7 @@ def test_agent_session_member_completion_notifications_project_to_one_node(
 
     assert app.current_idx == 0
     assert app._unread_completed_agent_ids == set()
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [
             {"cl_name": agent_session.cl_name, "raw_suffix": agent_session.raw_suffix},
             {"cl_name": plan.cl_name, "raw_suffix": plan.raw_suffix},
@@ -388,7 +405,7 @@ def test_has_unread_completed_agent_includes_plan_done() -> None:
 
 
 def test_manual_unread_guards_per_row_dismissal(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     """A manually-unread row is never cleared or dismissed through the
     per-row helper. The user has to explicitly toggle the manual marker off
@@ -402,20 +419,24 @@ def test_manual_unread_guards_per_row_dismissal(
     assert not app._clear_agent_unread_and_dismiss_notification(agent)
     assert agent.identity in app._unread_completed_agent_ids
     assert agent.identity in app._manual_unread_agent_ids
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
     assert app.notification_count_refresh_calls == 0
 
     assert not app._acknowledge_agent_unread(agent)
     assert agent.identity in app._unread_completed_agent_ids
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_bulk_unread_toggle_marks_restores_and_marks_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    dismiss = Mock(return_value=2)
+    dismiss = Mock(
+        return_value=SimpleNamespace(
+            dismissed_ids={"n-first", "n-second"}, generation=7
+        )
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     first = make_agent(name="first", status="DONE", raw_suffix="first")
@@ -465,7 +486,7 @@ def test_bulk_unread_toggle_marks_restores_and_marks_again(
     assert app.patch_calls == [first, second]
     dismiss.assert_called_once()
 
-    app._reconcile_unread_from_completion_notifications([])
+    app._reconcile_unread_from_completion_notifications(_rows([]))
     assert first.identity in app._unread_completed_agent_ids
     assert second.identity in app._unread_completed_agent_ids
     assert running.identity not in app._unread_completed_agent_ids
@@ -487,7 +508,7 @@ def test_bulk_unread_toggle_noops_without_terminal_unread(
 ) -> None:
     dismiss = Mock(return_value=0)
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     running = make_agent(name="running", status="RUNNING", raw_suffix="running")
@@ -561,7 +582,7 @@ def test_bulk_unread_mark_rebuilds_no_display_and_invalidates_metrics() -> None:
 
 
 def test_manual_unread_add_invalidates_pending_bulk_read_undo(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     first = make_agent(name="first", status="DONE", raw_suffix="first")
     second = make_agent(name="second", status="DONE", raw_suffix="second")
@@ -584,4 +605,4 @@ def test_manual_unread_add_invalidates_pending_bulk_read_undo(
 
     assert result.outcome is BulkUnreadToggleOutcome.NOOP
     assert first.identity not in app._unread_completed_agent_ids
-    assert notification_dismiss.call_count == 2
+    assert ack_completions.call_count == 2

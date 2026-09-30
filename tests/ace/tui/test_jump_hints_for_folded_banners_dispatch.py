@@ -1,5 +1,6 @@
 """Dispatch and navigation-guard tests for folded-banner jump hints."""
 
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -8,10 +9,12 @@ from tests.ace.tui._jump_hints_for_folded_banners_helpers import _agent, _StubAp
 
 
 @pytest.fixture
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=0)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    dismiss = Mock(
+        return_value=SimpleNamespace(dismissed_ids=set(), generation=7),
+    )
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
+        "sase.notifications.ack_agent_completions",
         dismiss,
     )
     return dismiss
@@ -87,10 +90,12 @@ def test_jump_dispatch_agent_switches_focused_panel() -> None:
 
 
 def test_jump_dispatch_agent_acknowledges_unread_done_and_patches_row(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     """Jumping to an unread terminal agent clears the marker through row patching."""
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-acked"}, generation=7
+    )
     agents = [
         _agent(project="alpha", cl="a1", name="a1", raw_suffix="a1"),
         _agent(
@@ -112,7 +117,7 @@ def test_jump_dispatch_agent_acknowledges_unread_done_and_patches_row(
     assert app.current_idx == 1
     assert target.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [target]
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": target.cl_name, "raw_suffix": target.raw_suffix}]
     )
     assert app.notification_count_refresh_calls == 0
@@ -120,7 +125,7 @@ def test_jump_dispatch_agent_acknowledges_unread_done_and_patches_row(
 
 
 def test_jump_dispatch_manual_unread_target_stays_guarded(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     """A manually unread target is selected but not auto-acknowledged."""
     agents = [
@@ -146,14 +151,16 @@ def test_jump_dispatch_manual_unread_target_stays_guarded(
     assert target.identity in app._unread_completed_agent_ids
     assert target.identity in app._manual_unread_agent_ids
     assert app.patch_calls == []
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_jump_dispatch_arms_manual_unread_departure_before_return(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     """Leaving a manually unread row arms it so a later jump back can read it."""
-    notification_dismiss.return_value = 1
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-acked"}, generation=7
+    )
     agents = [
         _agent(
             project="alpha",
@@ -182,13 +189,13 @@ def test_jump_dispatch_arms_manual_unread_departure_before_return(
     assert app.current_idx == 0
     assert manual_agent.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [manual_agent]
-    notification_dismiss.assert_called_once_with(
+    ack_completions.assert_called_once_with(
         [{"cl_name": manual_agent.cl_name, "raw_suffix": manual_agent.raw_suffix}]
     )
 
 
 def test_jump_dispatch_banner_arms_manual_departure_without_acknowledging_agent(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     """Banner targets focus the banner and leave all agent unread markers intact."""
     agents = [
@@ -228,11 +235,11 @@ def test_jump_dispatch_banner_arms_manual_departure_without_acknowledging_agent(
     assert manual_agent.identity in app._unread_completed_agent_ids
     assert manual_agent.identity not in app._manual_unread_agent_ids
     assert app.patch_calls == []
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_jump_dispatch_panel_reanchors_without_acknowledging_hidden_agent(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     agents = [
         _agent(
@@ -270,7 +277,7 @@ def test_jump_dispatch_panel_reanchors_without_acknowledging_hidden_agent(
     assert source.identity not in app._manual_unread_agent_ids
     assert hidden.identity in app._unread_completed_agent_ids
     assert app.patch_calls == []
-    notification_dismiss.assert_not_called()
+    ack_completions.assert_not_called()
 
 
 def test_jump_mode_entry_guard_warns_without_entering() -> None:

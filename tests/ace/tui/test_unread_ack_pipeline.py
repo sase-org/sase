@@ -1,7 +1,8 @@
-"""Ack-pipeline tests (epic sase-1d7 phase ack-pipeline).
+"""Ack-pipeline tests (epic sase-1d7 phase core-unread-ack-index).
 
 Completion never reads the store on the UI thread, cache removal is by
-id set, and rapid acks coalesce into one Rust call per batch.
+the Rust-returned id set, and rapid acks coalesce into one Rust call per
+batch.
 """
 
 from __future__ import annotations
@@ -21,13 +22,13 @@ from ._agent_unread_navigation_helpers import UnreadJumpApp
 
 
 @pytest.fixture(autouse=True)
-def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    dismiss = Mock(return_value=1)
+def ack_completions(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    ack = Mock(return_value=SimpleNamespace(dismissed_ids=set(), generation=7))
     monkeypatch.setattr(
-        "sase.notifications.dismiss_agent_completion_notifications_matching_agents",
-        dismiss,
+        "sase.notifications.ack_agent_completions",
+        ack,
     )
-    return dismiss
+    return ack
 
 
 class _DeferredAckApp(UnreadJumpApp):
@@ -39,9 +40,7 @@ class _DeferredAckApp(UnreadJumpApp):
         self.thread_calls: list[Callable[[], None]] = []
         self.notifications: list[tuple[str, str | None]] = []
         self._notification_snapshot_cache = None
-        self._notification_snapshot_read_seq = None
         self._notification_snapshot_version = 0
-        self._notif_read_seq = 0
         self._pending_ack_op_seq = 0
         self._pending_ack_overlay: dict[Any, Any] = {}
 
@@ -71,7 +70,7 @@ def _completion_notification(agent: Any, *, notification_id: str) -> SimpleNames
 
 
 def test_ack_completion_never_reads_store_on_ui_thread(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Completion schedules only the guarded async resync, never a sync read."""
@@ -80,6 +79,9 @@ def test_ack_completion_never_reads_store_on_ui_thread(
     app._unread_completed_agent_ids.add(agent.identity)
     app._notification_snapshot_cache = SimpleNamespace(
         notifications=[_completion_notification(agent, notification_id="n-agent")]
+    )
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={"n-agent"}, generation=7
     )
 
     sync_reads: list[str] = []
@@ -98,18 +100,19 @@ def test_ack_completion_never_reads_store_on_ui_thread(
     assert len(app.worker_calls) == 1
     app.worker_calls[0]()
 
-    notification_dismiss.assert_called_once()
+    ack_completions.assert_called_once()
     assert sync_reads == []
     assert app.notification_count_refresh_calls == 0
     assert app.scheduled_notification_resync_calls == 1
     assert app._notification_snapshot_cache.notifications == []
+    assert app._pending_ack_overlay[agent.identity] == (1, 7)
     assert threading.current_thread() is threading.main_thread()
 
 
 def test_five_rapid_acks_coalesce_into_one_write(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
-    """Five acks queued before the drain runs issue at most two writes."""
+    """Five acks queued before the drain runs issue one Rust call."""
     agents = [
         make_agent(name=f"node-{i}", status="DONE", raw_suffix=f"rapid-{i}")
         for i in range(5)
@@ -117,6 +120,9 @@ def test_five_rapid_acks_coalesce_into_one_write(
     app = _DeferredAckApp(agents)
     for agent in agents:
         app._unread_completed_agent_ids.add(agent.identity)
+    ack_completions.return_value = SimpleNamespace(
+        dismissed_ids={f"n-rapid-{i}" for i in range(5)}, generation=7
+    )
 
     for agent in agents:
         assert app._acknowledge_agent_unread(agent)
@@ -128,14 +134,13 @@ def test_five_rapid_acks_coalesce_into_one_write(
     for work in list(app.worker_calls):
         work()
 
-    assert notification_dismiss.call_count <= 2
-    assert notification_dismiss.call_count == 1
+    assert ack_completions.call_count == 1
     assert app.notification_count_refresh_calls == 0
     assert app.scheduled_notification_resync_calls == 5
 
 
 def test_failed_batch_restores_only_owned_identities(
-    notification_dismiss: Mock,
+    ack_completions: Mock,
 ) -> None:
     """Each op in a failed batch restores only its still-owned identities."""
     agent = make_agent(status="DONE")
@@ -173,19 +178,19 @@ def test_failed_batch_restores_only_owned_identities(
     writer.enqueue_unread_ack(app, req2)
     assert len(app.worker_calls) == 1
 
-    notification_dismiss.side_effect = RuntimeError("store unavailable")
+    ack_completions.side_effect = RuntimeError("store unavailable")
     for work in list(app.worker_calls):
         work()
 
-    assert notification_dismiss.call_count == 1
+    assert ack_completions.call_count == 1
     # The first op owned nothing at failure time; only the second op's
     # identity restores, once.
     assert app._unread_completed_agent_ids == {agent.identity}
     assert len(app.notifications) == 2
 
 
-def test_cache_removal_is_by_id_not_keys_scan() -> None:
-    """Completion drops exactly the worker-computed ids, nothing more."""
+def test_cache_removal_is_by_returned_ids_not_keys_scan() -> None:
+    """Completion drops exactly the Rust-returned ids, nothing more."""
     agent = make_agent(status="DONE")
     app = _DeferredAckApp([agent])
     first = _completion_notification(agent, notification_id="n-first")
@@ -200,13 +205,15 @@ def test_cache_removal_is_by_id_not_keys_scan() -> None:
         restore_manual_ids=frozenset(),
         prior_pending_bulk_read_ids=None,
     )
-    # Both rows match the same key; the worker's id set names only one.
+    # Both rows match the same key; the ack names only one id, and an id
+    # the ack did not return stays cached.
     app._complete_unread_notification_dismissal(
         request,
         dismissed_count=1,
         error=None,
         store_bytes=None,
-        matched_ids={"n-first"},
+        matched_ids={"n-first", "n-gone"},
+        generation=7,
     )
 
     assert [n.id for n in app._notification_snapshot_cache.notifications] == [
