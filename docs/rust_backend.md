@@ -286,25 +286,65 @@ history, session, archive and draft; the project partition only boosts mass):
 
 Method: the sweep grid (`min_p` 0.40-0.85, `min_margin` 0.05-0.40, `min_support` 1-5)
 scores 400 points over the recorded per-position evidence without replaying. Balanced
-(`min_p=0.75, min_margin=0.20, min_support=2`) is the max-coverage point meeting
-overall >= 75% and novel
+(`min_p=0.75, min_margin=0.20, min_support=2`) is the max-coverage point meeting overall
+precision of at least 75% and novel precision of at least 65%; the margin is flat across
+0.05-0.40 there, so it keeps its previous value. Eager (`0.40/0.05/1`) is the
+max-coverage point meeting overall precision of at least 60%. Cautious (`0.60/0.40/5`)
+is the max-coverage point meeting overall precision of at least 85% with novel precision
+at least 5 points above balanced (77.6% vs a 70.1% bar); it is strictly tighter than
+balanced via `min_support` 5 > 2, and the 0.40 margin is load-bearing at `min_p` 0.60 —
+unlike the old `0.75/0.35/4`, which gated exactly the same positions as balanced because
+a 0.75 top-1 share leaves the runner-up at most 0.25. Coverage 18.1% vs 25.9% confirms
+the two presets now gate measurably different sets. Calibration outcome: headroom is
+thin everywhere that matters (balanced novel +0.1pp over its 65% bar, cautious overall
++0.0pp over 85%, eager overall +2.9pp over 60%), so re-run the tool before loosening any
+preset.
 
-> = 65%; the margin is flat across 0.05-0.40 there, so it keeps its previous value.
-> Eager (`0.40/0.05/1`) is the max-coverage point meeting overall >= 60%. Cautious
-> (`0.60/0.40/5`) is the max-coverage point meeting overall >= 85% with novel at least 5
-> points above balanced (77.6% vs 70.1% bar); it is strictly tighter than balanced via
-> `min_support` 5 > 2, and the 0.40 margin is load-bearing at `min_p` 0.60 — unlike the
-> old `0.75/0.35/4`, which gated exactly the same positions as balanced because a 0.75
-> top-1 share leaves the runner-up at most 0.25. Coverage 18.1% vs 25.9% confirms the
-> two presets now gate measurably different sets.
+#### Prediction cost
 
-Cost at the scored corpus: replay-scorer latency p50 ~1.2ms / p95 ~2.2ms, `approx_bytes`
-~56.8MB across 3,261 used rows and ~224k contexts. These numbers come from `replay.rs`'s
-own scorer, not production predict; the production predict/compile/memory budgets are
-tracked as `PROPOSED FOLLOW-UP` notes on phase `sase-1cj.12.3`. Calibration outcome:
-headroom is thin everywhere that matters (balanced novel +0.1pp over its 65% bar,
-cautious overall +0.0pp over 85%, eager overall +2.9pp over 60%), so re-run the tool
-before loosening any preset.
+The replay's own scorer reports latency p50 ~1.2ms / p95 ~2.2ms and `approx_bytes`
+~56.8MB across 3,261 used rows and ~224k contexts; those numbers come from `replay.rs`,
+not production predict. `tools/prompt_prediction_replay --bench` measures production
+instead: it compiles real history exactly as the TUI does, then times the production
+`PromptPredictionModel.predict` (default request: limit 5, max_words 4, draft on, text
+capped at 20k characters) over sampled word-boundary prefixes and `rank_prefix` over
+3-letter current-word prefixes, printing aggregates only. Latency includes the JSON
+binding round trip.
+
+2026-09-30 `--bench` on real history (installed wheel at pin `c3042fd`; 11,634 rows,
+3,264 used, 237k tokens, ~225k contexts, ~320k successor entries; three 300-sample runs
+plus one 1,000-sample run): compile ~890 ms (~273 ms per 1k used rows), `approx_bytes`
+~54.2 MB; non-blocked `predict` p50 ~0.9 ms / p95 ~1.8-2.2 ms / max ~4.4 ms (about two
+thirds of the 2/3-prompt prefixes block); `rank_prefix` p95 ~0.3 ms. The same bench on
+the pre-core-perf wheel measured `predict` p50 ~3.0 ms / p95 ~8.7 ms.
+
+Core-perf (phase `sase-1cj.12.3`) kept every result identical while cutting per-request
+work: packed copyable context keys (no `Vec` clone per pair or lookup), flat
+rank-ordered successor arrays (no per-context map), per-pass cached context totals,
+interned per-request draft counts, one fused score+gate pass over a memoized mass table,
+a sorted prefix index for `rank_prefix`, and pre-sized compile maps. The ignored release
+test `performance_budgets_on_representative_corpus` (~4k hub-and-tail rows from a Zipf
+vocabulary with varied lengths and project tags; 95% typical-length prefixes plus
+multi-KB drafts and 20k-character ceiling probes) pins the measured lossless floor
+(dev-update profile; release is faster): compile 500 ms per 1k, predict p95 2.5 ms,
+archive-composed p95 3.5 ms, corpus 80 MB.
+
+The core computes the gate and ghost before truncating the menu, and `limit` only drives
+the per-row continuation previews, so the TUI's ghost-only paths (arming after a word
+commit and auto mode) request zero menu rows; only an explicit Ctrl+T request that may
+open the menu asks for `NEXT_WORD_MENU_LIMIT` rows. `--bench` times that zero-row
+request on the same prefixes (`ghost_*` lines): identical ghosts and gates at p50 ~0.2
+ms / p95 ~0.6-0.75 ms / max ~1.0-1.6 ms across the same runs.
+
+The parent-plan budgets (predict p95 ≤ 0.5 ms local-only and ≤ 1 ms with the archive,
+compile ≤ 50 ms per 1k rows, local corpus ≤ 5 MB) are still not met losslessly. The
+remaining per-keystroke gap is the draft: every request re-counts the whole draft into
+per-order n-gram tables and offers every draft word as a scoring candidate. With no
+draft the zero-row request measures p95 ~0.44 ms, so the latency budget needs a
+result-identical draft-count redesign in the core. Compile needs tokenize/compile
+co-design (~1.5M pairs aggregate per full rebuild), and the evidence set itself floors
+above 5 MB losslessly. These stay open as tracked follow-up work on epic `sase-1cj`,
+never as silent evidence drops.
 
 #### Archive source (cross-machine prompt archive)
 
@@ -325,11 +365,11 @@ against local history paragraphs; fully duplicated documents are dropped.
 within-archive dupes, 7,393 history dupes, 4,819 documents kept (4,063 rows used after
 the core's generated filter), 1.09M whitespace tokens / 594k Rust tokens. The pruned
 archive corpus (`prune_singleton_contexts`, role `archive`, weight 0.25) compiles in
-~2.6s with `approx_bytes` ~28.8MB, under the 60MB budget (history corpus is ~27.7MB for
-comparison). The TUI builds it off-thread only after first paint
-(`_prompt_prediction_archive_primed`), on month-directory mtime/count token change, at
-most every 10 minutes; `ace.prompt_completion.next_word_sources` (default `[history]`)
-gates it, and disabling the source drops the corpus without a rebuild.
+~2.6s with `approx_bytes` ~28.8MB, under the 60MB budget (2026-09 layout; Prediction RSS
+below has the current-layout figures). The TUI builds it off-thread only after first
+paint (`_prompt_prediction_archive_primed`), on month-directory mtime/count token
+change, at most every 10 minutes; `ace.prompt_completion.next_word_sources` (default
+`[history]`) gates it, and disabling the source drops the corpus without a rebuild.
 
 Default decision: `tools/prompt_prediction_replay --sources history,archive` appends the
 archive rows with real epochs to the same prequential replay, so older archived prompts
@@ -339,29 +379,6 @@ upper bound on the production source (0.25, pruned). Archive joins the default o
 clear win: **+1 point or more novel top-3 at equal coverage with near-duplicate top-1
 dropping at most 1 point**; otherwise the default stays `[history]` and the archive is
 an opt-in (`next_word_sources: [history, archive]`).
-
-2026-09 history-only baseline for that comparison (11,506 rows; 4,276 typed, 1,710
-warmed, 2,557 scored, 188,239 positions; ungated top-1 50.8%, top-3 59.7%):
-
-| cohort         | positions | top-1 | top-3 | balanced cov | balanced prec |
-| -------------- | --------: | ----: | ----: | -----------: | ------------: |
-| novel          |    88,297 | 26.4% | 38.4% |        18.6% |         65.7% |
-| mid            |    22,987 | 48.4% | 58.8% |        33.5% |         86.0% |
-| near-duplicate |    76,955 | 79.5% | 84.4% |        56.4% |         99.0% |
-
-The `history,archive` replay (same flags plus `--sources history,archive`) produced no
-numbers: it did not finish within a 40-minute monitor budget on 2026-09-29 (empty JSON
-output, `replay_exit` never printed). The archive roughly doubles the scored rows (~4k
-extra rows at full weight with no singleton pruning), and the prequential replay cost
-scales with corpus size, so the upper-bound run costs far more than the ~5-minute
-history-only baseline. With no archive table to judge the +1pt rule against, there is no
-demonstrated win — and the research already found broader text buys little (~2 points at
-50x corpus size while lowering gated precision), a gain the production 0.25 pruned
-weight would dilute further.
-
-Verdict: the default stays `[history]`; the archive remains an opt-in
-(`next_word_sources: [history, archive]`). Re-run the `history,archive` replay before
-reconsidering — it needs a longer budget or a sampled row set, not a stronger claim.
 
 2026-09-30 sampled comparison (`--score-every 6`: every 6th post-warm row scored, every
 row still joining the corpus, same stride for both runs). History: 3,301 typed, 329
@@ -387,9 +404,9 @@ retains ~180MB over the row-loaded baseline (3,261 rows used, `approx_bytes` ~56
 compile ~0.9s) and the pruned archive corpus retains ~130MB more (4,126 rows used,
 `approx_bytes` ~27.0MB, compile ~2.5s) — roughly 3.6x `approx_bytes` resident, against
 the ≤ 60 MB budget. Resident HashMap capacity beyond the flat-array estimate is the
-likely gap. This is a `PROPOSED FOLLOW-UP` on phase `sase-1cj.12.4`: reaching the budget
-needs lossy pruning/quantization (a product decision) or allocator / layout work, not
-silent evidence drops.
+likely gap. This is tracked follow-up work on epic `sase-1cj`: reaching the budget needs
+lossy pruning/quantization (a product decision) or allocator / layout work, not silent
+evidence drops.
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace
 with a PyO3 crate at `crates/sase_core_py/`.

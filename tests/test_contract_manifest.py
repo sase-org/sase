@@ -247,8 +247,21 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # expanding contract membership. The whole 72-entry set measured 53.61 s under
 # the command above on this host (single run; 783 tests); the next candidate
 # should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 72
-_MEASURED_SERIAL_COST = "53.61 serial seconds across 72 entries"
+#
+# Re-curated to 73 on 2026-09-30 (sase-1cj.12 landing) for
+# `test_prompt_prediction_replay_sources.py`, the guard for the
+# `tools/prompt_prediction_replay` script (source selection, `--score-every`
+# sampling, and the `--bench` aggregates-only report). sase-1cj.10 gave it the
+# contract marker without refreshing this manifest, so the marker selection had
+# already drifted to 73 files. Like the other admitted `tools/` script guards,
+# the script is not a node in the import graph, so a change that touches only
+# it contributes no seeds and the contract set is the only scoped-selection
+# coverage. The file measured 3.04 s standalone (6 tests); the whole 73-entry
+# set measured 57.25 s under the command above on this host at load average
+# ~13-21 (single run; 792 tests). The next candidate should displace an entry
+# rather than add one.
+_MANIFEST_ENTRY_BUDGET = 73
+_MEASURED_SERIAL_COST = "57.25 serial seconds across 73 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

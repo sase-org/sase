@@ -7,7 +7,9 @@ position of each later row (or every K-th row with ``--score-every K``),
 then prints aggregate-only accuracy, coverage, precision,
 keystroke-savings, run-length, latency, and memory tables by cohort. No
 prompt text is printed. Use the tables to calibrate the confidence
-presets in ``sase_core::prompt_prediction``.
+presets in ``sase_core::prompt_prediction``. ``--bench`` instead compiles
+real history once and times production ``predict`` / ``rank_prefix`` over
+sampled prefixes, printing compile, corpus-size, and latency aggregates.
 """
 
 from __future__ import annotations
@@ -80,6 +82,21 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="score only every K-th post-warm row (default: 1, every row). "
         "Every row still joins the corpus, so the selection is deterministic; "
         "use the same K to compare history against history,archive.",
+    )
+    parser.add_argument(
+        "--bench",
+        action="store_true",
+        help="measure production predict/rank_prefix latency on real "
+        "history instead of running the prequential replay: compile real "
+        "history, then time the production model over sampled non-blocked "
+        "prefixes, both the default menu request and the TUI's zero-row "
+        "ghost-only request (aggregates only, never prompt text)",
+    )
+    parser.add_argument(
+        "--bench-samples",
+        type=int,
+        default=300,
+        help="prefixes to sample for --bench (default: 300)",
     )
     return parser.parse_args(argv)
 
@@ -235,8 +252,130 @@ def _print_tables(
         console.print(table)
 
 
+def _percentile(sorted_ms: list[float], pct: float) -> float:
+    if not sorted_ms:
+        return 0.0
+    index = min(int(len(sorted_ms) * pct / 100), len(sorted_ms) - 1)
+    return sorted_ms[index]
+
+
+def _run_bench(args: argparse.Namespace) -> int:
+    """Compile real history and time production predict/rank_prefix."""
+    from sase.core.prompt_prediction_facade import (
+        PromptPredictionCorpus,
+        PromptPredictionModel,
+    )
+    from sase.core.prompt_prediction_wire import (
+        PromptPredictionCorpusOptions,
+        PromptPredictionModelConfig,
+        PromptPredictionRequest,
+        PromptPrefixRankRequest,
+    )
+
+    resolver = build_prompt_prediction_project_resolver()
+    rows = build_prompt_prediction_rows(resolve_project=resolver.resolve)
+    excluded = sorted(load_deleted_prompt_words())
+    options = PromptPredictionCorpusOptions(
+        now_epoch=int(time.time()),
+        excluded_words=excluded,
+    )
+    started = time.perf_counter()
+    corpus = PromptPredictionCorpus.compile(rows, options)
+    compile_ms = (time.perf_counter() - started) * 1000.0
+    stats = corpus.stats()
+    model = PromptPredictionModel.compose(
+        [(corpus, "history", 1.0)], PromptPredictionModelConfig()
+    )
+    # Deterministic word-boundary prefixes across the history window.
+    typed = [row for row in rows if (row.origin or "") != "generated"]
+    want = max(1, args.bench_samples)
+    step = max(1, len(typed) // want)
+    predict_ms: list[float] = []
+    ghost_ms: list[float] = []
+    rank_ms: list[float] = []
+    blocked = 0
+    confident = 0
+    sampled = 0
+    truncated = 0
+    for row in typed[::step][:want]:
+        words = row.text.split()
+        if len(words) < 4:
+            continue
+        cut = max(1, len(words) * 2 // 3)
+        text = " ".join(words[:cut])
+        if len(text) > 20_000:
+            text = text[:20_000]
+            truncated += 1
+        request = PromptPredictionRequest(
+            text_before_cursor=text,
+            project=row.project,
+        )
+        sampled += 1
+        query_started = time.perf_counter()
+        result = model.predict(request)
+        elapsed_ms = (time.perf_counter() - query_started) * 1000.0
+        if result.blocked_reason is not None:
+            blocked += 1
+            continue
+        predict_ms.append(elapsed_ms)
+        if result.confident:
+            confident += 1
+        # The TUI's ghost-only paths request zero menu rows: same gate and
+        # ghost, no per-row continuation previews.
+        ghost_request = PromptPredictionRequest(
+            text_before_cursor=text,
+            project=row.project,
+            limit=0,
+        )
+        ghost_started = time.perf_counter()
+        model.predict(ghost_request)
+        ghost_ms.append((time.perf_counter() - ghost_started) * 1000.0)
+        # Rank the current word on every fourth sample: truncate the last
+        # word to a 3-letter prefix when it is long enough to complete.
+        if sampled % 4 == 0 and len(words[cut - 1]) >= 4:
+            last = words[cut - 1]
+            rank_request = PromptPrefixRankRequest(
+                text_before_word=" ".join(words[: cut - 1])
+                + (" " if cut > 1 else ""),
+                prefix=last[:3],
+                project=row.project,
+            )
+            rank_started = time.perf_counter()
+            model.rank_prefix(rank_request)
+            rank_ms.append((time.perf_counter() - rank_started) * 1000.0)
+    predict_ms.sort()
+    ghost_ms.sort()
+    rank_ms.sort()
+    per_1k = (
+        compile_ms / stats.rows_used * 1000.0 if stats.rows_used else 0.0
+    )
+    print(
+        "prompt prediction bench (production predict on real history)\n"
+        f"rows_total={len(rows)} rows_used={stats.rows_used} "
+        f"tokens={stats.tokens} contexts={stats.contexts} "
+        f"successor_entries={stats.successor_entries}\n"
+        f"compile_ms={compile_ms:.1f} per_1k_ms={per_1k:.1f} "
+        f"approx_mb={stats.approx_bytes / 1_048_576:.2f}\n"
+        f"sampled={sampled} blocked={blocked} "
+        f"confident={confident} truncated_20k={truncated}\n"
+        f"predict_p50_ms={_percentile(predict_ms, 50):.3f} "
+        f"predict_p95_ms={_percentile(predict_ms, 95):.3f} "
+        f"predict_max_ms={max(predict_ms, default=0.0):.3f}\n"
+        f"ghost_p50_ms={_percentile(ghost_ms, 50):.3f} "
+        f"ghost_p95_ms={_percentile(ghost_ms, 95):.3f} "
+        f"ghost_max_ms={max(ghost_ms, default=0.0):.3f}\n"
+        f"rank_prefix_n={len(rank_ms)} "
+        f"rank_p50_ms={_percentile(rank_ms, 50):.3f} "
+        f"rank_p95_ms={_percentile(rank_ms, 95):.3f} "
+        f"rank_max_ms={max(rank_ms, default=0.0):.3f}"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    if args.bench:
+        return _run_bench(args)
     names = _check_sources(args.sources)
     resolver = build_prompt_prediction_project_resolver()
     rows = build_prompt_prediction_rows(resolve_project=resolver.resolve)

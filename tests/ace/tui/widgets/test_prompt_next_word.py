@@ -17,6 +17,8 @@ from sase.core.prompt_prediction_facade import (
 from sase.core.prompt_prediction_wire import (
     PromptPredictionCorpusOptions,
     PromptPredictionModelConfig,
+    PromptPredictionRequest,
+    PromptPredictionResult,
     PromptPredictionRow,
 )
 
@@ -437,3 +439,46 @@ async def test_auto_second_space_shows_nothing() -> None:
         await pilot.pause()
         assert ta.text == "Can you help me,  "
         assert ta._next_word_ghost_visible() is False
+
+
+def _record_predict_limits(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    limits: list[int] = []
+    original = PromptPredictionModel.predict
+
+    def recording_predict(
+        self: PromptPredictionModel, request: PromptPredictionRequest
+    ) -> PromptPredictionResult:
+        limits.append(request.limit)
+        return original(self, request)
+
+    monkeypatch.setattr(PromptPredictionModel, "predict", recording_predict)
+    return limits
+
+
+async def test_arm_requests_no_menu_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    limits = _record_predict_limits(monkeypatch)
+    app = NextWordTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me")
+        ta.cursor_location = (0, len(ta.text))
+        ta._arm_next_word_chain()
+        await pilot.pause()
+        # The ghost and gate never read menu rows, so arming skips them.
+        assert ta.suggestion == " implement it"
+        assert limits and set(limits) == {0}
+
+
+async def test_auto_space_requests_no_menu_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    limits = _record_predict_limits(monkeypatch)
+    app = _auto_app()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me,")
+        ta.cursor_location = (0, len(ta.text))
+        await pilot.press("space")
+        await pilot.pause()
+        assert ta._next_word_ghost_visible() is True
+        assert limits and set(limits) == {0}

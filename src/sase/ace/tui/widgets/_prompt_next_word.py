@@ -32,6 +32,13 @@ from sase.ace.tui.widgets.next_word_menu import (
     next_word_fallback_at_word_end,
 )
 
+#: Menu rows requested by the ghost-only paths (arming and auto mode). The
+#: core computes the gate and ghost before truncating the menu, so zero rows
+#: keeps both identical while skipping every row's continuation preview,
+#: which cuts real-history predict p95 by about two thirds. Only the explicit
+#: menu requests ``NEXT_WORD_MENU_LIMIT`` rows.
+_NEXT_WORD_GHOST_LIMIT = 0
+
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
@@ -335,7 +342,10 @@ class PromptNextWordMixin(_MixinBase):
             text_before = text[:offset]
             separator = next_word_leading_separator(text_before)
             result = self._predict_next_words(
-                text_before, limit=5, max_words=max_words, confidence=confidence
+                text_before,
+                limit=_NEXT_WORD_GHOST_LIMIT,
+                max_words=max_words,
+                confidence=confidence,
             )
         except Exception:
             return
@@ -532,7 +542,10 @@ class PromptNextWordMixin(_MixinBase):
             text = self.text
             offset = self._absolute_offset(self.cursor_location)
             result = self._predict_next_words(
-                text[:offset], limit=5, max_words=max_words, confidence=confidence
+                text[:offset],
+                limit=_NEXT_WORD_GHOST_LIMIT,
+                max_words=max_words,
+                confidence=confidence,
             )
         except Exception:
             return
