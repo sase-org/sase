@@ -15,6 +15,7 @@ from ...models.agent_nodes import (
     is_agents_tab_agent_node,
 )
 from ...models.agent_status import is_unread_completed_status
+from ._unread_set_generation import bump_unread_set_generation
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -220,6 +221,7 @@ class AgentUnreadStateMixin:
         self._pending_bulk_read_armed_at = time.monotonic()
         unread_ids.difference_update(target_identities)
         self._manual_unread_ids().difference_update(target_identities)
+        bump_unread_set_generation(self, removed=target_identities)
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
@@ -287,6 +289,7 @@ class AgentUnreadStateMixin:
         restored_identities = {agent.identity for agent in target_agents}
         unread_ids.update(restored_identities)
         self._manual_unread_ids().update(restored_identities)
+        bump_unread_set_generation(self)
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
@@ -403,7 +406,9 @@ class AgentUnreadStateMixin:
         if isinstance(unread_ids, set):
             before = set(unread_ids)
             unread_ids.difference_update(identities)
-            changed_unread_state = changed_unread_state or unread_ids != before
+            if unread_ids != before:
+                changed_unread_state = True
+                bump_unread_set_generation(self, removed=identities)
 
         manual_ids = getattr(self, "_manual_unread_agent_ids", None)
         if isinstance(manual_ids, set):
@@ -573,6 +578,7 @@ class AgentUnreadStateMixin:
             self._unread_completed_agent_ids = unread_ids  # type: ignore[attr-defined]
         before_unread = set(unread_ids)
         unread_ids.update(request.identities)
+        bump_unread_set_generation(self)
 
         manual_ids = self._manual_unread_ids()
         manual_ids.update(request.restore_manual_ids)
@@ -614,6 +620,7 @@ class AgentUnreadStateMixin:
             return False
 
         unread_ids.discard(agent.identity)
+        bump_unread_set_generation(self, removed={agent.identity})
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
@@ -669,6 +676,7 @@ class AgentUnreadStateMixin:
             self._invalidate_bulk_read_undo()
             manual_ids.add(identity)
             unread_ids.add(identity)
+            bump_unread_set_generation(self)
             from ._pending_ack_fence import release_pending_ack_entries
 
             # An explicit manual mark overrides any in-flight ack for this

@@ -38,50 +38,18 @@ class AgentUnreadJumpCandidatesMixin:
     _unread_jump_candidates_cache: tuple[Any, Any] | None
 
     def _unread_timed_jump_candidates(self) -> list[TimedAgentJumpCandidate]:
-        """Return a cached unread candidate projection for footer/jump reuse."""
+        """Return a cached unread candidate projection for jump reuse.
+
+        Keyed by cheap generations (roster, unread-set, fold, tab,
+        committed query) so consecutive ``,j`` presses reuse the list
+        without the old O(N) status-tuple plus ``frozenset`` build.
+        """
+        from ._unread_set_generation import unread_jump_cache_key
+
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
         )
-        complete = getattr(self, "_agents_with_children", None) or self._agents
-        fold_manager = getattr(self, "_fold_manager", None)
-        fold_signature = (
-            tuple(
-                sorted(
-                    (key, level.value) for key, level in fold_manager.snapshot().items()
-                )
-            )
-            if fold_manager is not None
-            else ()
-        )
-        group_registry = getattr(self, "_group_fold_registry", None)
-        status_signature = tuple(
-            (
-                agent.identity,
-                agent.status,
-                agent.start_time,
-                agent.stop_time,
-                agent.tree_parent_key,
-            )
-            for agent in complete
-            if not agent.is_clan_container
-        )
-        from ._tab_scope import current_agent_tab_scope_token
-
-        cache_key = (
-            id(self._agents),
-            id(complete),
-            frozenset(unread_ids),
-            fold_signature,
-            id(group_registry),
-            getattr(group_registry, "version", 0),
-            getattr(self, "_grouping_mode", None),
-            bool(getattr(self, "_agent_panels_grouped", False)),
-            getattr(self, "_agent_search_query", "") or "",
-            id(getattr(self, "_agents_live_query_facade", None)),
-            id(getattr(self, "_agent_content_search_index", None)),
-            status_signature,
-            current_agent_tab_scope_token(self),
-        )
+        cache_key = unread_jump_cache_key(self)
         cached = getattr(self, "_unread_jump_candidates_cache", None)
         if cached is not None and cached[0] == cache_key:
             return cached[1]

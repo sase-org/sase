@@ -280,7 +280,9 @@ def test_unread_jump_does_not_reveal_member_hidden_by_inner_agent_session_fold()
     app = _CollapsedClanUnreadJumpApp(project_clan_tree([agent_session, child]))
     app._unread_completed_agent_ids.add(child.identity)
 
-    assert not app._has_unread_completed_agent()
+    # Fast-path footer is O(1) on the unread set and never builds
+    # candidates, so it stays True while the filtered jump still misses.
+    assert app._has_unread_completed_agent()
     assert not app._jump_to_next_unread_done_agent()
     assert app.refilter_calls == 0
 
@@ -305,7 +307,9 @@ def test_unread_jump_respects_seeded_project_query() -> None:
     app._agent_content_search_index = None
     app._unread_completed_agent_ids.add(target.identity)
 
-    assert not app._has_unread_completed_agent()
+    # Fast-path footer is O(1) on the unread set and never builds
+    # candidates, so it stays True while the filtered jump still misses.
+    assert app._has_unread_completed_agent()
     assert not app._jump_to_next_unread_done_agent()
     assert app.refilter_calls == 0
 
@@ -327,7 +331,9 @@ def test_unread_jump_respects_active_search_filter() -> None:
     app._agent_content_search_index = None
     app._unread_completed_agent_ids.add(target.identity)
 
-    assert not app._has_unread_completed_agent()
+    # Fast-path footer is O(1) on the unread set and never builds
+    # candidates, so it stays True while the filtered jump still misses.
+    assert app._has_unread_completed_agent()
     assert not app._jump_to_next_unread_done_agent()
     assert app.refilter_calls == 0
 
@@ -390,8 +396,10 @@ def test_unread_footer_and_jump_share_cached_clan_projection() -> None:
     prospective = Mock(wraps=app._prospective_clan_member_panels)
     app._prospective_clan_member_panels = prospective  # type: ignore[method-assign]
 
+    # Fast-path footer never builds candidates; only the jump itself
+    # projects the collapsed clan once.
     assert app._has_unread_completed_agent()
     assert app._has_unread_completed_agent()
-    assert prospective.call_count == 1
+    assert prospective.call_count == 0
     assert app._jump_to_next_unread_done_agent()
     assert prospective.call_count == 1

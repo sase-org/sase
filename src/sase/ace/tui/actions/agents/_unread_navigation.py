@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.status_buckets import is_pending_plan_review_status
 
@@ -48,13 +48,37 @@ class AgentUnreadNavigationMixin(
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
 
     def _has_unread_completed_agent(self) -> bool:
-        """Return True when an unread terminal row is currently jumpable."""
-        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
-            self, "_unread_completed_agent_ids", set()
-        )
-        if not unread_ids:
+        """Return True when the unread set is non-empty (O(1) probe).
+
+        Keyed by roster/unread generations; never builds jump
+        candidates so the footer stays off the jump path.
+        """
+        from ._unread_set_generation import cached_has_unread_probe
+
+        return cached_has_unread_probe(self)
+
+    def _refresh_revealed_unread_panel_only(self, panel_key: Any) -> bool:
+        """Rebuild only the revealed panel after an unread jump.
+
+        Syncs the panel group, then repaints just *panel_key* through
+        ``_refresh_affected_panel_widgets``. Returns True when the
+        targeted rebuild ran; False falls back to a full rebuild.
+        """
+        sync_group = getattr(self, "_sync_panel_group", None)
+        if callable(sync_group):
+            try:
+                sync_group()
+            except Exception:
+                pass
+        rebuild = getattr(self, "_refresh_affected_panel_widgets", None)
+        if not callable(rebuild):
             return False
-        return bool(self._unread_timed_jump_candidates())
+        try:
+            if panel_key is None:
+                return False
+            return bool(rebuild({panel_key}))
+        except Exception:
+            return False
 
     def _has_stopped_agent(self) -> bool:
         """Return True when a stopped agent row is currently loaded."""
@@ -74,9 +98,21 @@ class AgentUnreadNavigationMixin(
             panel_expanded: bool,
         ) -> None:
             if panel_expanded:
+                before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))
                 self._clear_agent_unread_and_dismiss_notification(agent)
+                panel_key = getattr(self, "_panel_group", None)
+                target_key = panel_key.focused_key if panel_key is not None else None
+                if not self._refresh_revealed_unread_panel_only(target_key):
+                    self._refresh_agents_display(  # type: ignore[attr-defined]
+                        list_changed=True, defer_detail=True
+                    )
+                    return
+                if set(getattr(self, "_unread_completed_agent_ids", set())) != (
+                    before_unread
+                ):
+                    self._repaint_changed_unread_rows(before_unread)
                 self._refresh_agents_display(  # type: ignore[attr-defined]
-                    list_changed=True, defer_detail=True
+                    list_changed=False, defer_detail=True
                 )
             elif needs_full_refresh:
                 before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))
@@ -224,9 +260,14 @@ class AgentUnreadNavigationMixin(
         if after_select is not None:
             after_select(target_agent, needs_full_refresh, panel_expanded)
         elif panel_expanded:
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True, defer_detail=True
-            )
+            if not self._refresh_revealed_unread_panel_only(target_panel_key):
+                self._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=True, defer_detail=True
+                )
+            else:
+                self._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=False, defer_detail=True
+                )
         elif needs_full_refresh:
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=False, defer_detail=True
@@ -295,9 +336,16 @@ class AgentUnreadNavigationMixin(
         if after_select is not None:
             after_select(target_agent, True, reveal.structural_changed)
         elif reveal.structural_changed:
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True, defer_detail=True
-            )
+            panel_group = getattr(self, "_panel_group", None)
+            reveal_key = panel_group.focused_key if panel_group is not None else None
+            if not self._refresh_revealed_unread_panel_only(reveal_key):
+                self._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=True, defer_detail=True
+                )
+            else:
+                self._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=False, defer_detail=True
+                )
         else:
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=False, defer_detail=True
@@ -404,10 +452,16 @@ class AgentUnreadNavigationMixin(
         if after_select is not None:
             after_select(target_agent, True, panel_expanded_after_refilter)
         elif panel_expanded_after_refilter:
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True,
-                defer_detail=True,
-            )
+            if not self._refresh_revealed_unread_panel_only(target_panel_key):
+                self._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=True,
+                    defer_detail=True,
+                )
+            else:
+                self._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=False,
+                    defer_detail=True,
+                )
         else:
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=False,

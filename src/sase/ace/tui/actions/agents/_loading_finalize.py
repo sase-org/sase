@@ -63,13 +63,18 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
     node_index = cached_agent_node_projection_index(app, loaded_agents)
     prior_unread_ids = set(unread_ids)
     prior_manual_ids = set(manual_ids)
-    unread_ids.clear()
-    unread_ids.update(
+    normalized_unread = set(
         normalize_agent_node_identities(
             prior_unread_ids,
             node_index,
         )
     )
+    if normalized_unread != prior_unread_ids:
+        unread_ids.clear()
+        unread_ids.update(normalized_unread)
+        from ._unread_set_generation import bump_unread_set_generation
+
+        bump_unread_set_generation(app)
     manual_ids.clear()
     manual_ids.update(
         normalize_agent_node_identities(

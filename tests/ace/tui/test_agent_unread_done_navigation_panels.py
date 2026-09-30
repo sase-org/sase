@@ -121,8 +121,11 @@ def test_unread_jump_expands_collapsed_panel_and_selects_exact_row(
     assert app._agents[app.current_idx] is target
     assert app.current_attempt_number is None
     assert target.identity not in app._unread_completed_agent_ids
-    assert app.patch_calls == []
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    # Reveal rebuilds only the target panel; chrome patches the acked row,
+    # then a highlight-only refresh paints selection with detail deferred.
+    assert app.panel_rebuild_calls == [{"alpha"}]
+    assert app.patch_calls == [target]
+    assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
     assert app._entry_jump_agents_anchor_stack == [("agent", 0, None, "default")]
     notification_dismiss.assert_called_once_with(
         [{"cl_name": target.cl_name, "raw_suffix": target.raw_suffix}]
@@ -158,7 +161,10 @@ def test_unread_jump_expands_manually_guarded_target_without_acknowledging(
     assert target.identity in app._unread_completed_agent_ids
     assert target.identity in app._manual_unread_agent_ids
     assert app.patch_calls == []
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    # Manual guard reveals without acking: only the target panel rebuilds,
+    # then a highlight-only refresh with detail deferred.
+    assert app.panel_rebuild_calls == [{"alpha"}]
+    assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
     notification_dismiss.assert_not_called()
 
 

@@ -153,8 +153,12 @@ class AgentNotificationUnreadMixin:
         # write (or its sequence is unknown), so re-confirming it must not
         # resurrect the row.
         next_unread.difference_update(pending_ids)
-        unread_ids.clear()
-        unread_ids.update(next_unread)
+        if set(unread_ids) != next_unread:
+            unread_ids.clear()
+            unread_ids.update(next_unread)
+            from ._unread_set_generation import bump_unread_set_generation
+
+            bump_unread_set_generation(self)
         # Only genuinely new unread invalidates the bulk-read undo: pending
         # identities can never appear above (they were just filtered), so a
         # reconcile that only re-confirms them keeps undo armed while a

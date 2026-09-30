@@ -142,7 +142,8 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
     ]
     assert app._unread_completed_agent_ids == set()
     assert app.notifications == ["No unread completed agents"]
-    assert app.current_tab_refresh_calls == 4
+    # Fast path: jumps paint their own highlight; no trailing tab refresh.
+    assert app.current_tab_refresh_calls == 0
     assert app.refresh_calls == [
         {"list_changed": False, "defer_detail": True},
         {"list_changed": False, "defer_detail": True},

@@ -423,6 +423,8 @@ def init_agent_state(self: Any) -> None:
     self._notification_poll_running = False
     self._notification_poll_pending = False
     self._unread_completed_agent_ids = set()
+    self._unread_set_generation = 0
+    self._has_unread_probe_cache = None
     self._manual_unread_agent_ids = set()
     self._pending_bulk_read_agent_ids = None
     self._pending_bulk_read_armed_at = None

@@ -219,6 +219,11 @@ class EventWidgetHandlersMixin(EventHandlersBase):
             unread_ids = getattr(self, "_unread_completed_agent_ids", None)
             if unread_ids is not None and target_agent.identity in unread_ids:
                 unread_ids.discard(target_agent.identity)
+                from sase.ace.tui.actions.agents._unread_set_generation import (
+                    bump_unread_set_generation,
+                )
+
+                bump_unread_set_generation(self, removed={target_agent.identity})
                 patched = False
                 patch_row = getattr(self, "_try_patch_agent_row", None)
                 if callable(patch_row):

@@ -254,8 +254,10 @@ class LeaderModeMixin:
                     hit = self._jump_to_next_unread_done_agent()  # type: ignore[attr-defined]
                 if not hit:
                     self.notify("No unread completed agents")  # type: ignore[attr-defined]
+                # The jump's own refresh paints highlight and chips
+                # immediately with detail behind the debouncer; no
+                # trailing tab refresh, and a miss only toasts.
             LeaderModeMixin._finish_leader_perf(self)
-            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["jump_to_next_stopped_agent"]:
@@ -266,8 +268,9 @@ class LeaderModeMixin:
                     hit = self._jump_to_next_stopped_agent()  # type: ignore[attr-defined]
                 if not hit:
                     self.notify("No stopped agents")  # type: ignore[attr-defined]
+                # Same fast path as ,j: the jump paints its own
+                # highlight; no trailing refresh on hit or miss.
             LeaderModeMixin._finish_leader_perf(self)
-            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["full_history_refresh"]:

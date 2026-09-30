@@ -281,11 +281,14 @@ def test_stopped_jump_expands_collapsed_panel_without_acknowledging_state() -> N
     assert app._unread_completed_agent_ids == unread_before
     assert app._manual_unread_agent_ids == manual_before
     assert app.patch_calls == []
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    # Reveal rebuilds only the target panel, then a highlight-only
+    # refresh with detail deferred.
+    assert app.panel_rebuild_calls == [{"alpha"}]
+    assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
 
     assert app._jump_to_next_stopped_agent()
     assert app.current_idx == 1
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
 
 
 def test_stopped_jump_from_collapsed_header_starts_at_newest_backing_row() -> None:
