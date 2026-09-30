@@ -1,11 +1,19 @@
-"""Jinja2 completion candidates for the prompt input bar."""
+"""Jinja2 completion candidates for the prompt input bar.
+
+Candidates come from the shared Rust engine (``sase-core``
+``editor::jinja``) through :mod:`sase.xprompt.jinja_assist`, so the menu
+offers exactly what the unknown-variable lint accepts. The engine ranks,
+fuzzy-matches, and documents every item; this module only rehydrates the
+items as :class:`CompletionCandidate` rows carrying display metadata.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.xprompt import jinja_inspect
+from sase.xprompt import jinja_assist
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +21,22 @@ class JinjaCompletionMetadata:
     """Display metadata for a Jinja2 completion candidate."""
 
     kind: str
+    source: str = "jinja"
+    type_label: str | None = None
+    signature: str | None = None
+    required: bool = False
+    default_display: str | None = None
+    choices: tuple[str, ...] = ()
+    availability: str = "available"
+    hint: str | None = None
+    legacy_for: str | None = None
+    closes: str | None = None
+    shadows: str | None = None
+    match_runs: tuple[tuple[int, int], ...] = ()
+    summary: str | None = None
+    slot: str = "variable"
+    namespace: str | None = None
+    scope_label: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,109 +48,106 @@ class JinjaCompletionResult:
     replacement_end: int
     candidates: list[CompletionCandidate]
     shared_extension: str
+    slot: str = "variable"
+    namespace: str | None = None
+    scope_label: str | None = None
+
+
+def jinja_scope_for_editor(editor: Any) -> jinja_assist.JinjaScope:
+    """Return the engine scope for a prompt text area's owner.
+
+    The scope is computed on the UI thread from the owning prompt bar's
+    frontmatter state; workers and pure paths that only have text fall
+    back to prompt scope without frontmatter.
+    """
+    bar = None
+    finder = getattr(editor, "_find_prompt_bar", None)
+    if callable(finder):
+        try:
+            bar = finder()
+        except Exception:
+            bar = None
+    scope_getter = getattr(bar, "jinja_scope_for_text_area", None)
+    if callable(scope_getter):
+        try:
+            return scope_getter(editor)
+        except Exception:
+            pass
+    return jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
+
+
+def jinja_scope_label_for_editor(editor: Any) -> str | None:
+    """Return the scope label (``#name``) for a prompt text area, if any."""
+    bar = None
+    finder = getattr(editor, "_find_prompt_bar", None)
+    if callable(finder):
+        try:
+            bar = finder()
+        except Exception:
+            bar = None
+    label_getter = getattr(bar, "jinja_scope_label_for_text_area", None)
+    if callable(label_getter):
+        try:
+            label = label_getter(editor)
+        except Exception:
+            return None
+        return str(label) if label else None
+    return None
 
 
 def build_jinja_completion_result(
     text: str,
     cursor_offset: int,
-) -> JinjaCompletionResult | None:
-    """Return Jinja2 completions at *cursor_offset*, if the cursor is in a tag."""
-    ctx = jinja_inspect.completion_context(text, cursor_offset)
-    if ctx is None:
-        return None
-
-    candidates = _candidates_for_prefix(
-        ctx.prefix,
-        tag_kind=ctx.tag_kind,
-        namespace=ctx.namespace,
-    )
-    if not candidates:
-        return JinjaCompletionResult(
-            prefix=ctx.prefix,
-            replacement_start=ctx.replacement_start,
-            replacement_end=ctx.replacement_end,
-            candidates=[],
-            shared_extension="",
-        )
-
-    shared_extension = _shared_extension(
-        [candidate.insertion for candidate in candidates],
-        ctx.prefix,
-    )
-    return JinjaCompletionResult(
-        prefix=ctx.prefix,
-        replacement_start=ctx.replacement_start,
-        replacement_end=ctx.replacement_end,
-        candidates=candidates,
-        shared_extension=shared_extension,
-    )
-
-
-def _candidates_for_prefix(
-    prefix: str,
+    scope: jinja_assist.JinjaScope | None = None,
     *,
-    tag_kind: str,
-    namespace: str | None,
-) -> list[CompletionCandidate]:
-    prefix_lower = prefix.lower()
-    if namespace is not None:
-        return _rows(
-            sorted(jinja_inspect.builtin_runtime_member_names(namespace)),
-            "variable",
-            prefix_lower,
-        )
+    scope_label: str | None = None,
+) -> JinjaCompletionResult | None:
+    """Return engine-backed Jinja2 completions at *cursor_offset*.
 
-    variables = sorted(
-        jinja_inspect.known_toplevel_context() | jinja_inspect.builtin_runtime_names()
+    Returns ``None`` when the cursor is outside any Jinja tag. An in-tag
+    position with no candidates (for example a ``none`` slot) still
+    returns a result with empty items so the Jinja branch claims the
+    cursor ahead of every other completion surface.
+    """
+    active_scope = scope or jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
+    completion = jinja_assist.jinja_completion(text, cursor_offset, active_scope)
+    if completion is None:
+        return None
+    candidates = [
+        CompletionCandidate(
+            display=item.name,
+            insertion=item.insertion,
+            is_dir=False,
+            name=item.name,
+            metadata=JinjaCompletionMetadata(
+                kind=item.kind,
+                source=item.source,
+                type_label=item.type_label,
+                signature=item.signature,
+                required=item.required,
+                default_display=item.default_display,
+                choices=item.choices,
+                availability=item.availability.state,
+                hint=item.availability.hint,
+                legacy_for=item.legacy_for,
+                closes=item.closes,
+                shadows=item.shadows,
+                match_runs=item.match_runs,
+                summary=item.summary,
+                slot=completion.slot,
+                namespace=completion.namespace,
+                scope_label=scope_label,
+            ),
+        )
+        for item in completion.items
+    ]
+    return JinjaCompletionResult(
+        prefix=completion.prefix,
+        replacement_start=completion.replacement_start,
+        replacement_end=completion.replacement_end,
+        candidates=candidates,
+        shared_extension=completion.shared_extension,
+        slot=completion.slot,
+        namespace=completion.namespace,
+        scope_label=scope_label,
     )
-    keywords = sorted(jinja_inspect.JINJA_KEYWORDS)
-    filters = list(jinja_inspect.jinja_filter_names())
-
-    rows: list[CompletionCandidate] = []
-    if tag_kind == "block":
-        rows.extend(_rows(keywords, "keyword", prefix_lower))
-        rows.extend(_rows(variables, "variable", prefix_lower))
-    else:
-        rows.extend(_rows(variables, "variable", prefix_lower))
-        rows.extend(_rows(filters, "filter", prefix_lower))
-        rows.extend(_rows(keywords, "keyword", prefix_lower))
-
-    return rows
-
-
-def _rows(
-    names: list[str],
-    kind: str,
-    prefix_lower: str,
-) -> list[CompletionCandidate]:
-    rows: list[CompletionCandidate] = []
-    for name in names:
-        if prefix_lower and not name.lower().startswith(prefix_lower):
-            continue
-        rows.append(
-            CompletionCandidate(
-                display=name,
-                insertion=name,
-                is_dir=False,
-                name=name,
-                metadata=JinjaCompletionMetadata(kind),
-            )
-        )
-    return rows
-
-
-def _shared_extension(insertions: list[str], prefix: str) -> str:
-    if len(insertions) <= 1:
-        return ""
-    shared = insertions[0]
-    for insertion in insertions[1:]:
-        max_len = min(len(shared), len(insertion))
-        idx = 0
-        while idx < max_len and shared[idx].lower() == insertion[idx].lower():
-            idx += 1
-        shared = shared[:idx]
-        if not shared:
-            return ""
-    if len(shared) <= len(prefix):
-        return ""
-    return shared[len(prefix) :]

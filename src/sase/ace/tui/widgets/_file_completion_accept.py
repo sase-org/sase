@@ -27,7 +27,11 @@ from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     HistoryWordCompletionPlaceholder,
 )
-from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.jinja_completion import (
+    build_jinja_completion_result,
+    jinja_scope_for_editor,
+    jinja_scope_label_for_editor,
+)
 from sase.ace.tui.widgets.model_alias_completion import (
     MODEL_ALIAS_COMPLETION_KIND,
 )
@@ -79,6 +83,8 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
             jinja_result = build_jinja_completion_result(
                 self.text,
                 self._absolute_offset(self.cursor_location),
+                jinja_scope_for_editor(self),
+                scope_label=jinja_scope_label_for_editor(self),
             )
             self._update_file_completion_panel(
                 "" if jinja_result is None else jinja_result.prefix
@@ -186,6 +192,8 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
             jinja_result = build_jinja_completion_result(
                 self.text,
                 self._absolute_offset(self.cursor_location),
+                jinja_scope_for_editor(self),
+                scope_label=jinja_scope_label_for_editor(self),
             )
             if jinja_result is None:
                 self._clear_file_completion()

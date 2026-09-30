@@ -31,6 +31,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     xprompt_assist_entry_from_local_xprompt,
 )
+from sase.xprompt.jinja_assist import JinjaScope
 from sase.xprompt.models import InputArg
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
@@ -144,6 +145,31 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             has_target=self._stack.binding is not None
             or (getattr(self, "_readonly_xprompt_target", None) is not None),
         )
+
+    def jinja_scope_for_text_area(self, text_area: object | None = None) -> JinjaScope:
+        """Return the Jinja engine scope for a prompt *text_area*.
+
+        A mini-xprompt pane uses ``xprompt`` scope with the pane's own
+        frontmatter; a stack bound to an xprompt target uses ``xprompt``
+        scope with the stack frontmatter; any other prompt-mode pane uses
+        ``prompt`` scope with the stack frontmatter. Feedback and approve
+        modes use ``prompt`` scope without frontmatter.
+        """
+        if getattr(self, "_mode", "prompt") != "prompt":
+            return JinjaScope(kind="prompt", frontmatter=None)
+        scope = self._frontmatter_scope(text_area)
+        raw = scope.raw or ""
+        if scope.has_target:
+            return JinjaScope(kind="xprompt", frontmatter=raw or None)
+        return JinjaScope(kind="prompt", frontmatter=raw or None)
+
+    def jinja_scope_label_for_text_area(
+        self, text_area: object | None = None
+    ) -> str | None:
+        """Return the scope label (``#name``) for a prompt *text_area*."""
+        if getattr(self, "_mode", "prompt") != "prompt":
+            return None
+        return self._frontmatter_scope(text_area).label
 
     def _set_frontmatter_scope_model(
         self,

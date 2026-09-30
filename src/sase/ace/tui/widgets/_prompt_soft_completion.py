@@ -10,6 +10,8 @@ from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
     extract_token_around_cursor,
 )
+from sase.ace.tui.widgets.jinja_completion import jinja_scope_for_editor
+from sase.xprompt.jinja_assist import JinjaScope
 from sase.ace.tui.widgets.prompt_completion import (
     DEFAULT_PROMPT_COMPLETION_SETTINGS,
     PromptCompletionSettings,
@@ -42,6 +44,7 @@ def _build_prompt_soft_completion_snapshot(
     cursor_offset: int,
     settings: PromptCompletionSettings,
     xprompt_entries: list[XPromptAssistEntry] | None,
+    jinja_scope: JinjaScope | None = None,
 ) -> PromptSoftCompletion | None:
     return build_prompt_soft_completion(
         text=text,
@@ -49,6 +52,7 @@ def _build_prompt_soft_completion_snapshot(
         settings=settings,
         xprompt_entries=xprompt_entries,
         base_dir=resolve_prompt_completion_base_dir(text),
+        jinja_scope=jinja_scope,
     )
 
 
@@ -302,6 +306,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             cursor_offset=cursor_offset,
             settings=settings,
             xprompt_entries=entries,
+            jinja_scope=jinja_scope_for_editor(self),
         )
 
     def _soft_completion_blocked(self) -> bool:

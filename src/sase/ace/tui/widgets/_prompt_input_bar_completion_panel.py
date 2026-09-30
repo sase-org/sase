@@ -34,10 +34,14 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
     completion_panel_title,
     finalizer_completion_subtitle,
     history_word_completion_subtitle,
+    jinja_completion_subtitle,
     model_completion_subtitle,
     placeholder_completion_subtitle,
     prompt_word_completion_subtitle,
     xprompt_arg_name_completion_subtitle,
+)
+from sase.ace.tui.widgets._prompt_input_bar_completion_rows_simple import (
+    jinja_row_styles,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -163,6 +167,10 @@ class PromptInputBarCompletionMixin(_MixinBase):
         panel_width = panel.size.width or max(0, self.size.width - 4)
         panel_inner_width = max(0, panel_width - 2)
         _clear_jinja_panel_classes(panel)
+        try:
+            app_theme = self.app.current_theme
+        except Exception:
+            app_theme = None
         content = build_completion_panel_content(
             kinds,
             visible,
@@ -175,6 +183,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
             inner_width=panel_inner_width,
             word_ranking_signals=word_ranking_signals,
             placeholder_ranking_signals=placeholder_ranking_signals,
+            jinja_styles=jinja_row_styles(app_theme),
         )
 
         panel.border_title = completion_panel_title(
@@ -233,6 +242,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
             )
         elif kinds.xprompt_arg_name:
             panel.border_subtitle = xprompt_arg_name_completion_subtitle(
+                rows,
+                selected_index,
+                max(0, panel.size.width - 2),
+            )
+        elif kinds.jinja:
+            panel.border_subtitle = jinja_completion_subtitle(
                 rows,
                 selected_index,
                 max(0, panel.size.width - 2),

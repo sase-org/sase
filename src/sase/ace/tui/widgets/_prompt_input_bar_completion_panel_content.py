@@ -17,6 +17,7 @@ from sase.ace.tui.widgets._next_word_rows import (
     next_word_label_width,
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
+    JinjaRowStyles,
     append_agent_completion_row,
     append_artifact_ref_completion_row,
     append_at_reference_group_rule,
@@ -37,6 +38,8 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     artifact_ref_kind_label_width,
     finalizer_completion_column_widths,
     history_word_label_width,
+    jinja_badge_width,
+    jinja_label_width,
     model_completion_column_widths,
     placeholder_label_width,
     vcs_project_label_width,
@@ -68,6 +71,8 @@ class _RowLayout:
     next_word: int
     placeholder: int
     xprompt_arg_name: int
+    jinja_name: int
+    jinja_badge: int
     tribe_colors: dict[str, str] | None
 
 
@@ -84,6 +89,7 @@ def build_completion_panel_content(
     inner_width: int,
     word_ranking_signals: bool = True,
     placeholder_ranking_signals: bool = True,
+    jinja_styles: JinjaRowStyles | None = None,
 ) -> Text:
     """Render the panel body for the *visible* slice of a completion menu.
 
@@ -133,6 +139,7 @@ def build_completion_panel_content(
             inner_width=inner_width,
             word_ranking_signals=word_ranking_signals,
             placeholder_ranking_signals=placeholder_ranking_signals,
+            jinja_styles=jinja_styles,
         )
 
         if i < len(visible) - 1:
@@ -177,6 +184,8 @@ def _row_layout(
         xprompt_arg_name=_max_label_width(
             visible, xprompt_arg_name_label_width, kinds.xprompt_arg_name
         ),
+        jinja_name=_max_label_width(visible, jinja_label_width, kinds.jinja),
+        jinja_badge=_max_label_width(visible, jinja_badge_width, kinds.jinja),
         tribe_colors=_tribe_colors(kinds, visible),
     )
 
@@ -221,6 +230,7 @@ def _append_candidate_row(
     inner_width: int,
     word_ranking_signals: bool = True,
     placeholder_ranking_signals: bool = True,
+    jinja_styles: JinjaRowStyles | None = None,
 ) -> None:
     """Append the provider-specific rendering of a single candidate."""
     if kinds.xprompt:
@@ -317,7 +327,15 @@ def _append_candidate_row(
             style="bold yellow" if is_selected else "yellow",
         )
     elif kinds.jinja:
-        append_jinja_completion_row(content, candidate, is_selected)
+        append_jinja_completion_row(
+            content,
+            candidate,
+            is_selected,
+            label_width=layout.jinja_name,
+            badge_width=layout.jinja_badge,
+            inner_width=inner_width,
+            styles=jinja_styles,
+        )
     elif kinds.placeholder:
         append_placeholder_completion_row(
             content,

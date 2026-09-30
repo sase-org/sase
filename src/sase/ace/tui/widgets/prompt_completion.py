@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.file_completion import (
     is_path_like_token,
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.xprompt.jinja_assist import JinjaScope
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     detect_xprompt_arg_completion_at_cursor,
@@ -239,14 +240,20 @@ def build_prompt_soft_completion(
     settings: PromptCompletionSettings,
     xprompt_entries: list[XPromptAssistEntry] | None,
     base_dir: str | None = None,
+    jinja_scope: JinjaScope | None = None,
 ) -> PromptSoftCompletion | None:
-    """Build the best warm soft completion at ``cursor_offset``."""
+    """Build the best warm soft completion at ``cursor_offset``.
+
+    The UI thread computes *jinja_scope* from the pane's frontmatter and
+    hands it in; the worker itself only has text, so a missing scope
+    degrades to prompt scope without frontmatter.
+    """
     if settings.auto != "soft":
         return None
     if cursor_offset < 0 or cursor_offset > len(text):
         return None
 
-    jinja_result = build_jinja_completion_result(text, cursor_offset)
+    jinja_result = build_jinja_completion_result(text, cursor_offset, jinja_scope)
     if jinja_result is not None:
         candidate = _first_candidate_that_changes(
             jinja_result.candidates,

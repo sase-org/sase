@@ -20,7 +20,11 @@ from sase.ace.tui.widgets.file_completion import (
     build_completion_candidates,
     is_path_like_token,
 )
-from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.jinja_completion import (
+    build_jinja_completion_result,
+    jinja_scope_for_editor,
+    jinja_scope_label_for_editor,
+)
 from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
 from sase.ace.tui.widgets.model_explicit_completion import (
     MODEL_EXPLICIT_COMPLETION_KIND,
@@ -153,6 +157,8 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             jinja_result = build_jinja_completion_result(
                 self.text,
                 self._absolute_offset(self.cursor_location),
+                jinja_scope_for_editor(self),
+                scope_label=jinja_scope_label_for_editor(self),
             )
             if jinja_result is None or not jinja_result.candidates:
                 self._clear_file_completion()
@@ -498,6 +504,20 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
 
     def _structured_completion_claims_cursor(self) -> bool:
         """Return whether an existing provider shadows prompt-word fallback."""
+        # Inside a Jinja tag the engine claims the cursor first, so ``{{ a < b``
+        # never reads as a placeholder and ``{%if`` never reads as a
+        # directive; the engine returns ``None`` outside tags.
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        if (
+            build_jinja_completion_result(
+                self.text,
+                cursor_offset,
+                jinja_scope_for_editor(self),
+                scope_label=jinja_scope_label_for_editor(self),
+            )
+            is not None
+        ):
+            return True
         # Precedence only asks "is there a placeholder context here", so a bare
         # ``<`` backed by saved tags still shadows the prompt-word fallback.
         if (
@@ -515,10 +535,6 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             return True
         artifact_ctx = self._get_artifact_ref_completion_context()
         if artifact_ctx is not None:
-            return True
-
-        cursor_offset = self._absolute_offset(self.cursor_location)
-        if build_jinja_completion_result(self.text, cursor_offset) is not None:
             return True
         if self._get_directive_arg_token_context() is not None:
             return True

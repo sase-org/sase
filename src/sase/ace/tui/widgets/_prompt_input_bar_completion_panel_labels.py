@@ -42,6 +42,7 @@ from sase.ace.tui.widgets.placeholder_completion import (
     PlaceholderCompletionMetadata,
     PlaceholderRankingMetadata,
 )
+from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptArgNameMetadata
 
 _PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
@@ -106,7 +107,7 @@ def completion_panel_title(
     if kinds.kind == "xprompt_arg_path":
         return "xprompt path"
     if kinds.jinja:
-        return "jinja"
+        return _jinja_panel_title(rows)
     if kinds.placeholder:
         return "placeholder"
     if kinds.prompt_word:
@@ -120,6 +121,70 @@ def completion_panel_title(
     if "/" in token:
         return token[: token.rindex("/") + 1]
     return token
+
+
+def _jinja_panel_title(rows: list[CompletionCandidate]) -> str:
+    """Return the slot-specific title for a Jinja2 menu, plus scope label."""
+    slot = "variable"
+    namespace: str | None = None
+    scope_label: str | None = None
+    for candidate in rows:
+        metadata = candidate.metadata
+        if isinstance(metadata, JinjaCompletionMetadata):
+            slot = metadata.slot
+            namespace = metadata.namespace
+            scope_label = metadata.scope_label
+            break
+    if slot == "filter":
+        title = "| filters"
+    elif slot == "test":
+        title = "is tests"
+    elif slot == "statement":
+        title = "{% statements"
+    elif slot == "member":
+        title = f"{namespace}. members" if namespace else "members"
+    elif slot == "none":
+        title = "jinja"
+    else:
+        title = "{{ variables"
+    if scope_label:
+        title = f"{title} · {scope_label}"
+    return title
+
+
+def jinja_completion_subtitle(
+    rows: list[CompletionCandidate],
+    selected_index: int,
+    inner_width: int,
+) -> Text:
+    """Return the selected Jinja2 row's summary and details as a subtitle."""
+    if not 0 <= selected_index < len(rows):
+        return Text()
+    metadata = rows[selected_index].metadata
+    if not isinstance(metadata, JinjaCompletionMetadata):
+        return Text()
+    parts: list[str] = []
+    if metadata.summary:
+        parts.append(metadata.summary)
+    if metadata.source == "input":
+        if metadata.required:
+            parts.append("required")
+        elif metadata.default_display:
+            parts.append(f"Default: {metadata.default_display}")
+        if metadata.choices:
+            parts.append(f"Choices: {', '.join(metadata.choices)}")
+    if metadata.availability == "conditional" and metadata.hint:
+        parts.append(f"⚠ {metadata.hint}")
+    if metadata.legacy_for:
+        parts.append(f"legacy → {metadata.legacy_for}")
+    if metadata.closes:
+        parts.append(f"Closes {{% {metadata.closes} %}}")
+    subtitle = " · ".join(part for part in parts if part)
+    text = Text(subtitle, no_wrap=True, overflow="ellipsis")
+    if inner_width <= 0:
+        return text
+    text.truncate(inner_width, overflow="ellipsis")
+    return text
 
 
 def _at_reference_panel_title(

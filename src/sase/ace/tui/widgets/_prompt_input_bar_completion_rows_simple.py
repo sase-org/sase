@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from typing import Any
+
 from rich.cells import cell_len
 from rich.text import Text
 
+from sase.ace.tui.widgets._completion_match_highlight import append_highlighted
 from sase.ace.tui.widgets._ranking_signal_rows import (
     build_score_meter,
     format_reason_chip,
@@ -136,28 +140,200 @@ def append_xprompt_arg_name_completion_row(
     content.append(input_hint.description, style="dim")
 
 
-def append_jinja_completion_row(
-    content: Text,
-    candidate: CompletionCandidate,
-    is_selected: bool,
-) -> None:
-    """Append one Jinja2 completion row."""
+@dataclass(frozen=True, slots=True)
+class JinjaRowStyles:
+    """Theme-resolved styles for Jinja2 completion rows.
+
+    Built once on the UI thread from the app theme and passed down as
+    data, so the pure row renderer never touches the app. Name styles
+    mirror the roles in ``_jinja_highlight.py`` (variables render as the
+    editor will color them once inserted); each source badge chip gets a
+    distinct theme color, with conditional rows in the warning color.
+    """
+
+    variable: str = "bold cyan"
+    filter: str = "green"
+    keyword: str = "bold magenta"
+    badges: dict[str, str] = field(default_factory=dict)
+
+
+def jinja_row_styles(theme: Any | None) -> JinjaRowStyles:
+    """Resolve Jinja2 row styles from an app theme (or fallbacks)."""
+    if theme is None:
+        return JinjaRowStyles()
+    return JinjaRowStyles(
+        variable=_theme_style(theme, "secondary", "cyan", bold=True),
+        filter=_theme_style(theme, "success", "green"),
+        keyword=_theme_style(theme, "accent", "magenta", bold=True),
+        badges={
+            "input": _theme_color(theme, "secondary", "cyan"),
+            "local": _theme_color(theme, "primary", "blue"),
+            "loop": _theme_color(theme, "accent", "magenta"),
+            "sase": _theme_color(theme, "success", "green"),
+            "arg": _theme_color(theme, "secondary", "cyan"),
+            "skill": _theme_color(theme, "primary", "blue"),
+            "jinja": "dim",
+            "%repeat": _theme_color(theme, "warning", "yellow"),
+            "%wait": _theme_color(theme, "warning", "yellow"),
+            "legacy": _theme_color(theme, "warning", "yellow"),
+            "closes for": _theme_color(theme, "accent", "magenta"),
+        },
+    )
+
+
+def _theme_color(theme: Any, name: str, fallback: str) -> str:
+    """Return a theme color as a Rich style, or *fallback* when unusable."""
+    try:
+        value = str(getattr(theme, name, fallback) or fallback)
+    except Exception:
+        return fallback
+    return value if value.startswith("#") else fallback
+
+
+def _theme_style(theme: Any, name: str, fallback: str, *, bold: bool = False) -> str:
+    """Return a (possibly bold) theme color as a Rich style."""
+    color = _theme_color(theme, name, fallback)
+    return f"bold {color}" if bold else color
+
+
+def _jinja_badge_text(candidate: CompletionCandidate) -> str:
+    """Return the source badge chip text for one Jinja2 candidate."""
     metadata = (
         candidate.metadata
         if isinstance(candidate.metadata, JinjaCompletionMetadata)
         else None
     )
-    kind = metadata.kind if metadata is not None else "jinja"
-    style_by_kind = {
-        "variable": "cyan",
-        "keyword": "magenta",
-        "filter": "green",
-    }
-    style = style_by_kind.get(kind, "white")
+    if metadata is None:
+        return "jinja"
+    if metadata.legacy_for:
+        return "legacy"
+    if metadata.availability == "conditional":
+        hint = metadata.hint or ""
+        return "%wait" if "%wait" in hint else "%repeat"
+    if metadata.closes:
+        return "closes for"
+    if metadata.slot == "member" and metadata.namespace == "loop":
+        return "loop"
+    return {
+        "input": "input",
+        "local": "local",
+        "sase": "sase",
+        "positional": "arg",
+        "provider": "skill",
+        "jinja": "jinja",
+    }.get(metadata.source, "jinja")
+
+
+def jinja_label_width(candidate: CompletionCandidate) -> int:
+    """Visible width of the name column for one Jinja2 candidate."""
+    return cell_len(candidate.display)
+
+
+def jinja_badge_width(candidate: CompletionCandidate) -> int:
+    """Visible width of the badge chip column for one Jinja2 candidate."""
+    return cell_len(_jinja_badge_text(candidate))
+
+
+def append_jinja_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    is_selected: bool,
+    *,
+    label_width: int,
+    badge_width: int,
+    inner_width: int,
+    styles: JinjaRowStyles | None = None,
+) -> None:
+    """Append one engine-backed Jinja2 completion row.
+
+    The grid mirrors the xprompt arg-name menu: the name is styled as
+    the editor's Jinja highlighter will color that token kind once
+    inserted (with fuzzy match runs highlighted), then the type or
+    signature, a fixed-width source badge chip, the ``=default`` for
+    optional inputs, and a truncated dim description. Conditional and
+    legacy rows render dim.
+    """
+    palette = styles or JinjaRowStyles()
+    metadata = (
+        candidate.metadata
+        if isinstance(candidate.metadata, JinjaCompletionMetadata)
+        else None
+    )
+    kind = metadata.kind if metadata is not None else "variable"
+    if kind in ("variable", "member"):
+        name_style = palette.variable
+    elif kind in ("filter", "function", "test"):
+        name_style = palette.filter
+    else:
+        name_style = palette.keyword
+    dimmed = metadata is not None and (
+        metadata.availability == "conditional" or metadata.legacy_for is not None
+    )
     if is_selected:
-        style = f"bold {style}"
-    content.append(candidate.display, style=style)
-    content.append(f"  {kind}", style="dim")
+        name_style = f"bold {name_style}"
+    base_style = f"dim {name_style}" if dimmed else name_style
+    runs = metadata.match_runs if metadata is not None else ()
+    append_highlighted(
+        content,
+        candidate.display,
+        runs,
+        base_style=base_style,
+    )
+
+    available = max(0, inner_width - 2)
+    used = cell_len(candidate.display)
+    name_padding = max(0, label_width - used) + 2
+    type_text = ""
+    if metadata is not None:
+        type_text = metadata.signature or metadata.type_label or ""
+    type_cost = name_padding + cell_len(type_text)
+    if available and used + type_cost > available:
+        return
+    content.append(" " * name_padding)
+    if type_text:
+        content.append(type_text, style="dim")
+    used += type_cost
+
+    badge = _jinja_badge_text(candidate)
+    badge_style = palette.badges.get(badge, "dim")
+    if dimmed and badge_style != "dim":
+        badge_style = f"dim {badge_style}"
+    badge_cost = 2 + badge_width
+    if available and used + badge_cost > available:
+        return
+    content.append("  ")
+    content.append(badge, style=badge_style)
+    content.append(" " * max(0, badge_width - cell_len(badge)))
+    used += badge_cost
+
+    if (
+        metadata is not None
+        and metadata.source == "input"
+        and not metadata.required
+        and metadata.default_display
+    ):
+        suffix = f"={metadata.default_display}"
+        suffix_cost = 2 + cell_len(suffix)
+        if not available or used + suffix_cost <= available:
+            content.append("  ")
+            content.append(suffix, style=input_default_style())
+            used += suffix_cost
+
+    summary = metadata.summary if metadata is not None else None
+    if not summary:
+        return
+    description_cost = 2 + cell_len(summary)
+    if available and used + description_cost > available:
+        remaining = available - used
+        if remaining <= 2:
+            return
+        description = Text(summary, style="dim", no_wrap=True, overflow="ellipsis")
+        description.truncate(remaining - 2, overflow="ellipsis")
+        content.append("  ")
+        content.append_text(description)
+        return
+    content.append("  ")
+    content.append(summary, style="dim")
 
 
 def placeholder_label_width(candidate: CompletionCandidate) -> int:

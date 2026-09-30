@@ -22,7 +22,11 @@ from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     build_loading_history_words_placeholder,
 )
-from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.jinja_completion import (
+    build_jinja_completion_result,
+    jinja_scope_for_editor,
+    jinja_scope_label_for_editor,
+)
 from sase.ace.tui.widgets.placeholder_completion import (
     placeholder_lone_leading_match,
 )
@@ -81,6 +85,22 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         directly, so saved tags never suppress direct acceptance of a lone
         prompt-local match.
         """
+        # Inside a Jinja tag the engine owns completion: it returns
+        # ``Some`` (possibly with empty items for a ``none`` slot) for any
+        # in-tag cursor and ``None`` only outside tags, so checking first
+        # gives Jinja precedence over placeholders, VCS, directives,
+        # xprompt args, model shortcuts, ``@``, and ``#`` without changing
+        # behavior outside tags.
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        jinja_result = build_jinja_completion_result(
+            self.text,
+            cursor_offset,
+            jinja_scope_for_editor(self),
+            scope_label=jinja_scope_label_for_editor(self),
+        )
+        if jinja_result is not None:
+            return self._try_jinja_completion_tab(jinja_result)
+
         placeholder_result = self._placeholder_completion_at_cursor(
             include_common_when_prefix_empty=True,
         )
@@ -95,11 +115,6 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
             return True
         if self._try_vcs_ref_completion(force=True):
             return True
-
-        cursor_offset = self._absolute_offset(self.cursor_location)
-        jinja_result = build_jinja_completion_result(self.text, cursor_offset)
-        if jinja_result is not None:
-            return self._try_jinja_completion_tab(jinja_result)
 
         clause_ctx = self._directive_clause_at_cursor()
         if clause_ctx is not None and not clause_ctx[1].is_name:
@@ -391,6 +406,8 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
             refreshed = build_jinja_completion_result(
                 self.text,
                 self._absolute_offset(self.cursor_location),
+                jinja_scope_for_editor(self),
+                scope_label=jinja_scope_label_for_editor(self),
             )
             if refreshed is None or not refreshed.candidates:
                 self._clear_file_completion()
