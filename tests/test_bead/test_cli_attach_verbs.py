@@ -177,7 +177,7 @@ def test_plus_one_no_manifest_evidence_unchanged(
 def test_update_ingests_once_and_uniquifies_per_bead(
     project_dir: Path, work_dir: Path
 ) -> None:
-    from sase.bead.attachments import authoring
+    from sase.bead.attachments import _authoring_scan as authoring
 
     (work_dir / "a.png").write_bytes(PNG_HEAD + b"v1")
     first_id = _create_plan(project_dir)

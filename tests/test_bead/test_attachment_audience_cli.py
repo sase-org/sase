@@ -223,11 +223,11 @@ def test_remote_visibility_cache_ttls(
 
 
 def test_flag_off_writes_no_visibility(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sase.bead.attachments import _authoring_audience
     from sase.bead.attachments import audience as _audience
-    from sase.bead.attachments import authoring as _authoring
 
     monkeypatch.setattr(_audience, "audience_enabled", lambda: False)
-    assert _authoring._decide_visibilities({}, {}, {}) == {}
+    assert _authoring_audience.decide_visibilities({}, {}, {}) == {}
 
 
 def _blob(sha: str, head: bytes, object_path: str) -> object:
@@ -243,8 +243,8 @@ def test_agent_widening_refuses_before_mutation(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    from sase.bead.attachments import _authoring_audience
     from sase.bead.attachments import audience as _audience
-    from sase.bead.attachments import authoring as _authoring
 
     target = tmp_path / "note.txt"
     target.write_bytes(b"hello audience")
@@ -267,7 +267,7 @@ def test_agent_widening_refuses_before_mutation(
     )
     sha = "ab" * 32
     with pytest.raises(SystemExit):
-        _authoring._decide_visibilities(
+        _authoring_audience.decide_visibilities(
             {0: target},
             {target: _blob(sha, b"hello audience", str(target))},
             {0: "note.txt"},
@@ -322,8 +322,8 @@ def test_duplicate_digest_intent_stays_private(
 ) -> None:
     from types import SimpleNamespace
 
+    from sase.bead.attachments import _authoring_audience
     from sase.bead.attachments import audience as _audience
-    from sase.bead.attachments import authoring as _authoring
     from sase.bead.model import BeadNoteAttachment
 
     sha = "cd" * 32
@@ -356,7 +356,7 @@ def test_duplicate_digest_intent_stays_private(
         lambda facts: {"outcome": "public", "rule": "table", "reason": "ok"},
     )
     monkeypatch.setattr(_audience, "write_audience_metadata", lambda **kw: None)
-    vis = _authoring._decide_visibilities(
+    vis = _authoring_audience.decide_visibilities(
         {0: target},
         {target: _blob(sha, b"hello audience", str(target))},
         {0: "note.txt"},
