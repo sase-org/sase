@@ -52,6 +52,8 @@ class LspSession:
         model_catalog: Mapping[str, Any] | None = None,
         model_catalog_text: str | None = None,
         omit_model_catalog: bool = False,
+        uri: str | None = None,
+        language_id: str = "sase",
     ) -> None:
         self._tmp_path = tmp_path
         self._helper = helper
@@ -65,7 +67,8 @@ class LspSession:
         self._version = 0
         self._request_id = 10
         self._opened = False
-        self._uri = "file:///tmp/sase_directive_parity.md"
+        self._uri = uri or "file:///tmp/sase_directive_parity.md"
+        self._language_id = language_id
         self._buffered_messages: list[dict[str, Any]] = []
         self.initialize_result: dict[str, Any] = {}
 
@@ -348,7 +351,7 @@ class LspSession:
             params = {
                 "textDocument": {
                     "uri": self._uri,
-                    "languageId": "sase",
+                    "languageId": self._language_id,
                     "version": self._version,
                     "text": text,
                 }
