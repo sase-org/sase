@@ -250,6 +250,7 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
             "installed sase-research-artifacts plugin still uses retired "
             "%wait(priority=...) syntax"
         )
+    swarm_has_linker = "%id(linker" in research_swarm.content
 
     # Plan against an empty provider-disable state instead of the developer's
     # real ~/.sase: a genuine codex/claude disable would otherwise drop swarm
@@ -287,7 +288,7 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
         ),
         selected_project="sase",
     )
-    assert len(explicit_one_plan.units) == 4
+    assert len(explicit_one_plan.units) == (5 if swarm_has_linker else 4)
     for unit in explicit_one_plan.units:
         assert unit.payload.queue_weight == pytest.approx(0.25)
         assert unit.payload.queue_weight_explicit is True
@@ -308,9 +309,10 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
             selected_project="sase",
         )
 
+    capacity_kwargs = "linker=true" if swarm_has_linker else "image=true"
     capacity_plan = plan_typed_launch_units(
         expand_prompt_for_typed_launch(
-            "#research_swarm(prompt='weighted queue acceptance', image=true)"
+            f"#research_swarm(prompt='weighted queue acceptance', {capacity_kwargs})"
         ),
         selected_project="sase",
     )

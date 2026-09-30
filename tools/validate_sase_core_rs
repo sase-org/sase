@@ -1612,6 +1612,9 @@ def _validate_prompt_prediction_contract(module: ModuleType) -> bool:
             f"got {actual_version}, expected 1"
         )
         return False
+    # Six-row probe corpus mirroring sase-core's own binding test: the core
+    # confidence gate no longer reports confident=True for only three
+    # support rows, so the predict probe needs the fuller corpus.
     rows = [
         {
             "text": "help me implement the plan",
@@ -1630,6 +1633,27 @@ def _validate_prompt_prediction_contract(module: ModuleType) -> bool:
         {
             "text": "help me implement the docs",
             "epoch_seconds": 102,
+            "project": "sase",
+            "origin": "typed",
+            "cancelled": False,
+        },
+        {
+            "text": "help me implement the test",
+            "epoch_seconds": 104,
+            "project": "sase",
+            "origin": "typed",
+            "cancelled": False,
+        },
+        {
+            "text": "help me implement the code",
+            "epoch_seconds": 105,
+            "project": "sase",
+            "origin": "typed",
+            "cancelled": False,
+        },
+        {
+            "text": "can you help me review this",
+            "epoch_seconds": 103,
             "project": "sase",
             "origin": "typed",
             "cancelled": False,
@@ -1671,7 +1695,7 @@ def _validate_prompt_prediction_contract(module: ModuleType) -> bool:
         _error(f"prompt prediction probe failed: {exc}")
         return False
     valid = True
-    if not isinstance(stats, dict) or stats.get("rows_used") != 3:
+    if not isinstance(stats, dict) or stats.get("rows_used") != 6:
         _error(f"prompt prediction stats probe returned {stats!r}")
         valid = False
     if (
@@ -1701,8 +1725,8 @@ def _validate_prompt_prediction_contract(module: ModuleType) -> bool:
     if (
         not isinstance(replay, dict)
         or replay.get("schema_version") != 1
-        or replay.get("rows_total") != 3
-        or replay.get("rows_typed") != 3
+        or replay.get("rows_total") != 6
+        or replay.get("rows_typed") != 6
         or not replay.get("positions_total")
         or len(replay.get("cohorts", [])) != 3
         or not replay.get("sweep")

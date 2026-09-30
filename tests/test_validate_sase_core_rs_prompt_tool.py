@@ -175,7 +175,7 @@ def _prompt_prediction_module(**overrides: object) -> SimpleNamespace:
         def stats(self) -> dict[str, object]:
             return {
                 "schema_version": 1,
-                "rows_used": 3,
+                "rows_used": 6,
                 "rows_generated_skipped": 0,
                 "rows_duplicate_skipped": 0,
                 "tokens": 18,
@@ -224,8 +224,8 @@ def _prompt_prediction_module(**overrides: object) -> SimpleNamespace:
     def _replay(_rows: str, _options: str) -> dict[str, object]:
         return {
             "schema_version": 1,
-            "rows_total": 3,
-            "rows_typed": 3,
+            "rows_total": 6,
+            "rows_typed": 6,
             "rows_warmed": 1,
             "rows_scored": 2,
             "positions_total": 12,
@@ -243,7 +243,7 @@ def _prompt_prediction_module(**overrides: object) -> SimpleNamespace:
             "latency_us_p50": 20,
             "latency_us_p95": 60,
             "corpus_bytes": 512,
-            "corpus_rows_used": 3,
+            "corpus_rows_used": 6,
             "corpus_contexts": 10,
         }
 

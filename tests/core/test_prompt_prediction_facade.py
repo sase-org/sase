@@ -45,6 +45,18 @@ def _rows() -> list[PromptPredictionRow]:
             origin="typed",
         ),
         PromptPredictionRow(
+            text="help me implement the test",
+            epoch_seconds=104,
+            project="sase",
+            origin="typed",
+        ),
+        PromptPredictionRow(
+            text="help me implement the code",
+            epoch_seconds=105,
+            project="sase",
+            origin="typed",
+        ),
+        PromptPredictionRow(
             text="can you help me review this",
             epoch_seconds=103,
             project="sase",
@@ -75,7 +87,7 @@ def test_schema_versions_match_rust() -> None:
 def test_compile_stats(corpus: PromptPredictionCorpus) -> None:
     stats = corpus.stats()
     assert stats.schema_version == 1
-    assert stats.rows_used == 4
+    assert stats.rows_used == 6
     assert stats.rows_generated_skipped == 0
     assert len(corpus) > 0
 
