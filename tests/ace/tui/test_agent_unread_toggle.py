@@ -160,13 +160,17 @@ def test_bulk_read_toggle_drops_matching_settlement_rows_from_cache(
     assert app._notification_snapshot_cache.notifications == [other_suffix]
 
 
-def test_toggle_agent_unread_refreshes_when_patch_fails() -> None:
+def test_toggle_agent_unread_never_rebuilds_when_patch_fails() -> None:
     agent = make_agent(status="DONE")
     app = UnreadJumpApp([agent], patch_result=False)
 
     app._toggle_agent_unread()
 
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert agent.identity in app._unread_completed_agent_ids
+    assert app.refresh_calls == []
+    assert app.header_calls == 1
+    assert app.info_calls == 1
+    assert app.tribe_calls == 1
 
 
 def test_toggle_agent_unread_ignores_focused_banner() -> None:
@@ -530,7 +534,7 @@ def test_bulk_unread_restore_noops_and_consumes_when_no_identity_is_eligible() -
     assert app.patch_calls == []
 
 
-def test_bulk_unread_mark_uses_refresh_fallback_and_invalidates_metrics() -> None:
+def test_bulk_unread_mark_rebuilds_no_display_and_invalidates_metrics() -> None:
     first = make_agent(name="first", status="DONE", raw_suffix="first")
     second = make_agent(name="second", status="DONE", raw_suffix="second")
     app = UnreadJumpApp([first, second], patch_result=False)
@@ -541,7 +545,10 @@ def test_bulk_unread_mark_uses_refresh_fallback_and_invalidates_metrics() -> Non
 
     assert result.outcome is BulkUnreadToggleOutcome.MARKED_READ
     assert app._agent_info_metrics_cache is None
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert app.refresh_calls == []
+    assert app.header_calls == 1
+    assert app.info_calls == 1
+    assert app.tribe_calls == 1
 
 
 def test_manual_unread_add_invalidates_pending_bulk_read_undo(

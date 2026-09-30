@@ -121,25 +121,17 @@ class AgentUnreadStateMixin:
         self,
         before: set[tuple[AgentType, str, str | None]],
     ) -> bool:
-        """Use ancestor-aware repainting with a narrow compatibility fallback."""
-        patch_changes = getattr(self, "_patch_unread_completed_agent_changes", None)
-        if callable(patch_changes):
-            return bool(patch_changes(before))
+        """Paint an unread diff through the one batched chrome helper.
 
-        after: set[tuple[AgentType, str, str | None]] = getattr(
-            self, "_unread_completed_agent_ids", set()
-        )
-        changed = before ^ after
-        for agent in self._agents:
-            if agent.identity not in changed:
-                continue
-            if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
-                self._refresh_agents_display(  # type: ignore[attr-defined]
-                    list_changed=True,
-                    defer_detail=True,
-                )
-                return False
-        return True
+        Always ``True``: the helper skips collapsed panels, rebuilds at
+        most the failing visible row's panel, and never falls back to a
+        full display rebuild. This calls the helper directly (rather than
+        via ``_patch_unread_completed_agent_changes``) so every mixin
+        composition paints through the same path.
+        """
+        from ._unread_chrome import apply_unread_chrome
+
+        return apply_unread_chrome(self, before)
 
     def _has_bulk_read_undo_available(self) -> bool:
         """Return True when a session-local bulk-read undo is armed."""

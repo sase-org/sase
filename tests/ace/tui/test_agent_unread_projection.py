@@ -59,12 +59,12 @@ class _ProjectionApp(AgentsMixinCore):
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, object]] = []
 
-    def _try_patch_agent_row(self, agent: Agent) -> bool:
+    def _try_patch_agent_row(self, agent: Agent, **kwargs: object) -> bool:
         self.patch_calls.append(agent)
         return True
 
-    def _refresh_agents_display(self, **kwargs: object) -> None:
-        self.refresh_calls.append(kwargs)
+    def _refresh_agents_display(self, **refresh_kwargs: object) -> None:
+        self.refresh_calls.append(refresh_kwargs)
 
 
 def test__active_completion_agent_keys_picks_up_jump_to_agent() -> None:

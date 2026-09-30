@@ -152,7 +152,7 @@ class _E2EApp(TrackedProcRecorderMixin, AgentsMixinCore):
         self.refilter_calls += 1
         self._agents = list(self._agents_with_children)
 
-    def _try_patch_agent_row(self, agent: Agent) -> bool:
+    def _try_patch_agent_row(self, agent: Agent, **kwargs: object) -> bool:
         self.patch_calls.append(agent)
         return True
 

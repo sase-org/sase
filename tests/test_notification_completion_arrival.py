@@ -589,7 +589,7 @@ class TestPatchStatusChanged:
                 self.patch_calls: list[Agent] = []
                 self.refresh_calls: list[dict[str, object]] = []
 
-            def _try_patch_agent_row(self, agent: Agent) -> bool:
+            def _try_patch_agent_row(self, agent: Agent, **kwargs: object) -> bool:
                 self.patch_calls.append(agent)
                 return True
 
@@ -606,7 +606,7 @@ class TestPatchStatusChanged:
         assert app.patch_calls == [member]
         assert app.refresh_calls == []
 
-    def test_membership_change_falls_back_to_rebuild(self) -> None:
+    def test_membership_change_rebuilds_only_failing_panel(self) -> None:
         from sase.ace.tui.actions.agents._core import AgentsMixinCore
         from tests.ace.tui._agent_unread_helpers import make_agent
 
@@ -624,7 +624,7 @@ class TestPatchStatusChanged:
                 self._notification_snapshot_cache = None
                 self.patch_calls: list[Agent] = []
 
-            def _try_patch_agent_row(self, agent: Agent) -> bool:
+            def _try_patch_agent_row(self, agent: Agent, **kwargs: object) -> bool:
                 self.patch_calls.append(agent)
                 return False
 
@@ -637,8 +637,9 @@ class TestPatchStatusChanged:
         ok = app._patch_unread_completed_agent_changes(
             set(), status_changed={member.identity}
         )
-        assert ok is False
-        assert app.refresh_calls
+        assert ok is True
+        assert app.patch_calls == [member]
+        assert app.refresh_calls == []
 
 
 def test_completion_probe_uses_readonly_loader(

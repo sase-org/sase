@@ -379,8 +379,16 @@ class PanelPatchMixin:
         *,
         wait_dependency_counts: WaitDependencyStatusCounts | None = None,
         refresh_info: bool = True,
+        refresh_title: bool = True,
     ) -> bool:
-        """Patch a single agent's row in place when no group membership changed."""
+        """Patch a single agent's row in place when no group membership changed.
+
+        Rows resolve through an identity map instead of ``list.index`` so a
+        badge-only change to an equal-but-not-identical row object still
+        lands. Pass ``refresh_title=False`` (with ``refresh_info=False``)
+        when the caller refreshes each affected panel title once itself,
+        as the batched unread chrome helper does.
+        """
         from textual.css.query import NoMatches
 
         from ...widgets import AgentList
@@ -388,9 +396,12 @@ class PanelPatchMixin:
         if self.current_tab != "agents":
             return False
 
-        try:
-            agent_idx = self._agents.index(agent)
-        except ValueError:
+        agent_idx: int | None = None
+        for idx, existing in enumerate(self._agents):
+            if existing.identity == agent.identity:
+                agent_idx = idx
+                break
+        if agent_idx is None:
             self._record_display_patch_trace(
                 display_cost="row_patch",
                 fallback_reason="panel_membership_change",
@@ -512,17 +523,18 @@ class PanelPatchMixin:
             )
             return False
 
-        slot = panel_index.slice_for(agent_panel_key)
-        title_for_key = getattr(self, "_agent_panel_title_for_key", None)
-        if callable(title_for_key):
-            title = title_for_key(agent_panel_key, slot.agents)
-        else:
-            title = self._agent_panel_title(
-                agent_panel_key,
-                slot.agents,
-                merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
-            )
-        self._set_agent_panel_title(widget, title)
+        if refresh_title:
+            slot = panel_index.slice_for(agent_panel_key)
+            title_for_key = getattr(self, "_agent_panel_title_for_key", None)
+            if callable(title_for_key):
+                title = title_for_key(agent_panel_key, slot.agents)
+            else:
+                title = self._agent_panel_title(
+                    agent_panel_key,
+                    slot.agents,
+                    merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
+                )
+            self._set_agent_panel_title(widget, title)
         if refresh_info:
             self._update_agents_info_panel()  # type: ignore[attr-defined]
         self._record_display_patch_trace(display_cost="row_patch", count=1)

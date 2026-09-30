@@ -294,7 +294,7 @@ def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
     assert app.notification_count_refresh_calls == 1
 
 
-def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:
+def test_jump_to_next_unread_done_agent_rebuilds_no_display_on_patch_failure() -> None:
     done = make_agent(name="done", status="FAILED")
     app = UnreadJumpApp([done], patch_result=False)
     app._unread_completed_agent_ids.add(done.identity)
@@ -302,7 +302,7 @@ def test_jump_to_next_unread_done_agent_falls_back_to_full_refresh() -> None:
     assert app._jump_to_next_unread_done_agent()
 
     assert done.identity not in app._unread_completed_agent_ids
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert app.refresh_calls == []
 
 
 def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> None:

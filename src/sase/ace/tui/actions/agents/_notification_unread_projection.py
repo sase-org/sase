@@ -16,14 +16,7 @@ from ...models.agent_nodes import (
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
-    from ...models import Agent
     from ...models.agent import AgentType
-
-
-def _member_clan_key(agent: Agent) -> tuple[str, str | None] | None:
-    if not agent.agent_clan:
-        return None
-    return (agent.agent_clan, agent.agent_clan_generation)
 
 
 class AgentNotificationUnreadMixin:
@@ -38,103 +31,15 @@ class AgentNotificationUnreadMixin:
         status_changed: set[tuple[AgentType, str, str | None]]
         | tuple[tuple[AgentType, str, str | None], ...] = (),
     ) -> bool:
-        """Repaint changed real rows and any visible clan ancestors.
+        """Paint an unread diff through the one batched chrome helper.
 
-        Returns ``True`` when selective patches were sufficient (or no Agents
-        rows were active), and ``False`` after falling back to a list rebuild.
+        Always ``True``: collapsed panels are skipped, visible-row patch
+        failures rebuild only their panel, and header, info panel, tab
+        strip, and tribe summary refresh once each on the same paint.
         """
-        after: set[tuple[AgentType, str, str | None]] = getattr(
-            self, "_unread_completed_agent_ids", set()
-        )
-        changed = before ^ after
-        status_changed_set = set(status_changed or ())
-        if not changed and not status_changed_set:
-            return True
-        if getattr(self, "current_tab", None) != "agents":
-            return True
+        from ._unread_chrome import apply_unread_chrome
 
-        combined = set(changed) | status_changed_set
-        roster = loaded_real_agent_roster(self)
-        from ._roster_generation import cached_agent_node_projection_index
-
-        node_index = cached_agent_node_projection_index(self, roster)
-        roster_by_identity = {agent.identity: agent for agent in roster}
-        changed_members = [
-            roster_by_identity[identity]
-            for identity in combined
-            if identity in roster_by_identity
-        ]
-        changed_node_identities = {
-            projection.identity
-            for identity in combined
-            if (projection := node_index.owner_for_identity(identity)) is not None
-        }
-        affected_clans = {
-            clan_key
-            for member in changed_members
-            if (clan_key := _member_clan_key(member)) is not None
-        }
-
-        patch_agents: list[Agent] = []
-        patch_keys: set[object] = set()
-        for agent in getattr(self, "_agents", ()):
-            should_patch = (
-                agent.identity in combined or agent.identity in changed_node_identities
-            )
-            if agent.is_clan_container:
-                should_patch = (
-                    agent.agent_clan,
-                    agent.agent_clan_generation,
-                ) in affected_clans
-                patch_key: object = (
-                    "clan",
-                    agent.agent_clan,
-                    agent.agent_clan_generation,
-                )
-            else:
-                patch_key = ("agent", agent.identity)
-            if not should_patch or patch_key in patch_keys:
-                continue
-            patch_keys.add(patch_key)
-            patch_agents.append(agent)
-
-        needs_rebuild = False
-        try_patch = getattr(self, "_try_patch_agent_row", None)
-        for agent in patch_agents:
-            if not callable(try_patch) or not try_patch(agent):
-                needs_rebuild = True
-                break
-        if needs_rebuild:
-            refresh = getattr(self, "_refresh_agents_display", None)
-            if callable(refresh):
-                refresh(list_changed=True, defer_detail=True)
-                return False
-
-        refresh_titles = getattr(self, "_refresh_agent_panel_titles", None)
-        if callable(getattr(self, "query_one", None)) and callable(refresh_titles):
-            refresh_titles()
-        update_info = getattr(self, "_update_agents_info_panel", None)
-        if callable(getattr(self, "query_one", None)) and callable(update_info):
-            update_info()
-        refresh_summary = getattr(self, "_refresh_tribe_summary_only", None)
-        if callable(refresh_summary):
-            refresh_summary()
-
-        get_selected = getattr(self, "_get_selected_agent", None)
-        selected = get_selected() if callable(get_selected) else None
-        if (
-            selected is not None
-            and selected.is_clan_container
-            and (
-                selected.agent_clan,
-                selected.agent_clan_generation,
-            )
-            in affected_clans
-        ):
-            refresh_detail = getattr(self, "_apply_agent_detail_immediate", None)
-            if callable(getattr(self, "query_one", None)) and callable(refresh_detail):
-                refresh_detail()
-        return True
+        return apply_unread_chrome(self, before, status_changed=status_changed)
 
     def _reconcile_unread_from_cached_notifications(self: Any) -> None:
         """Apply cached completion notifications to loaded real-agent unread state."""

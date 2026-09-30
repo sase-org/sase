@@ -62,9 +62,15 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
         self._stops = stops
         self._patch_result = patch_result
         self.patch_calls: list[Agent] = []
+        self.patch_kwargs: list[dict[str, object]] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.debounced_refresh_calls = 0
         self.notification_count_refresh_calls = 0
+        self.header_calls = 0
+        self.info_calls = 0
+        self.tribe_calls = 0
+        self.panel_title_refresh_calls = 0
+        self.panel_rebuild_calls: list[set[object]] = []
 
     def _agents_visible_order(self) -> list[int]:
         if self._visible is not None:
@@ -82,8 +88,9 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
             merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
         )
 
-    def _try_patch_agent_row(self, agent: Agent) -> bool:
+    def _try_patch_agent_row(self, agent: Agent, **kwargs: object) -> bool:
         self.patch_calls.append(agent)
+        self.patch_kwargs.append(kwargs)
         return self._patch_result
 
     def _refresh_agents_display(self, **kwargs: Any) -> None:
@@ -96,6 +103,25 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
 
     def _refresh_notification_count(self) -> None:
         self.notification_count_refresh_calls += 1
+
+    def _update_agents_header(self) -> None:
+        self.header_calls += 1
+
+    def _update_agents_info_panel(self) -> None:
+        self.info_calls += 1
+
+    def _refresh_tribe_summary_only(self) -> bool:
+        self.tribe_calls += 1
+        return True
+
+    def _refresh_agent_panel_titles(self) -> None:
+        self.panel_title_refresh_calls += 1
+
+    def _refresh_affected_panel_widgets(
+        self, affected_keys: set[object], **_: Any
+    ) -> bool:
+        self.panel_rebuild_calls.append(set(affected_keys))
+        return True
 
 
 class LeaderUnreadJumpApp(
@@ -147,6 +173,7 @@ class LeaderUnreadJumpApp(
         self._agent_info_metrics_cache: tuple[Any, ...] | None = None
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self.patch_calls: list[Agent] = []
+        self.patch_kwargs: list[dict[str, object]] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.current_tab_refresh_calls = 0
         self.notification_count_refresh_calls = 0
@@ -162,8 +189,9 @@ class LeaderUnreadJumpApp(
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(self._agents, merge_tribe_panels=False)
 
-    def _try_patch_agent_row(self, agent: Agent) -> bool:
+    def _try_patch_agent_row(self, agent: Agent, **kwargs: object) -> bool:
         self.patch_calls.append(agent)
+        self.patch_kwargs.append(kwargs)
         return True
 
     def _refresh_agents_display(self, **kwargs: Any) -> None:

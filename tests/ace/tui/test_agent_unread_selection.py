@@ -75,7 +75,7 @@ class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(self._agents)
 
-    def _try_patch_agent_row(self, agent: Agent) -> bool:
+    def _try_patch_agent_row(self, agent: Agent, **kwargs: object) -> bool:
         self.patch_calls.append(agent)
         return self._patch_result
 
@@ -120,7 +120,7 @@ def test_agent_row_selection_clears_unread_and_patches_row() -> None:
     assert app.refresh_calls == []
 
 
-def test_agent_row_selection_refreshes_when_patch_cannot_land() -> None:
+def test_agent_row_selection_rebuilds_no_display_when_patch_cannot_land() -> None:
     agent = make_agent(status="DONE")
     app = _SelectionApp([agent], patch_result=False)
     app._unread_completed_agent_ids.add(agent.identity)
@@ -130,7 +130,7 @@ def test_agent_row_selection_refreshes_when_patch_cannot_land() -> None:
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
-    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert app.refresh_calls == []
 
 
 def test_same_index_agent_row_selection_clears_stale_banner_focus_unread() -> None:
