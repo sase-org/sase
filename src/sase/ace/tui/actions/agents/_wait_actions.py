@@ -270,6 +270,12 @@ class AgentWaitActionsMixin:
                 agent.wait_until = prior_wait_until
                 agent.wait_priority = prior_priority
                 agent.wait_priority_explicit = prior_priority_explicit
+                try:
+                    from ._roster_generation import notify_roster_status_mutation
+
+                    notify_roster_status_mutation(self)
+                except Exception:  # noqa: BLE001 - cache invalidation only.
+                    pass
                 self.notify(  # type: ignore[attr-defined]
                     f"Wait persist failed: {completion.message}",
                     severity="error",
@@ -320,6 +326,12 @@ class AgentWaitActionsMixin:
             if update_wait_priority:
                 agent.wait_priority = result.priority
                 agent.wait_priority_explicit = result.priority is not None
+            try:
+                from ._roster_generation import notify_roster_status_mutation
+
+                notify_roster_status_mutation(self)
+            except Exception:  # noqa: BLE001 - cache invalidation only.
+                pass
             wait_label_parts = [", ".join(wait_names)] if wait_names else []
             if wait_beads:
                 wait_label_parts.append("beads: " + ", ".join(wait_beads))
@@ -382,6 +394,12 @@ class AgentWaitActionsMixin:
             agent.wait_priority = None
             agent.wait_priority_explicit = False
             agent.slot_requested_at = None
+            try:
+                from ._roster_generation import notify_roster_status_mutation
+
+                notify_roster_status_mutation(self)
+            except Exception:  # noqa: BLE001 - cache invalidation only.
+                pass
             self.notify(f"Wait: {display_name}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 

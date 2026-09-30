@@ -141,6 +141,12 @@ class AgentListBase(OptionList, inherit_bindings=False):
         self._row_by_agent_idx: dict[int, int] = {}
         self._banner_row_by_key: dict[tuple[str, ...], int] = {}
         self._rendered_group_folds: frozenset[tuple[str, ...]] | None = None
+        # Runtime-tick suffix fast path (phase runtime-tick-caches): last
+        # rendered left/suffix parts keyed by agent identity so the 1 Hz tick
+        # can reuse the left Text and skip rows whose suffix text is
+        # unchanged without touching the full render cache.
+        self._row_last_left_by_identity: dict[Any, Any] = {}
+        self._row_last_suffix_plain_by_identity: dict[Any, str] = {}
 
     def update_list(
         self,

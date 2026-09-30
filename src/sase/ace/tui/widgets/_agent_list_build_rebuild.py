@@ -116,6 +116,8 @@ def build_list(
     agent_parts: dict[int, tuple[Any, Any, str]] = {}
     max_left = 0
     max_suffix = 0
+    last_left: dict[Any, Any] = {}
+    last_suffix_plain: dict[Any, str] = {}
     for i, agent in enumerate(agents):
         if i not in visible:
             continue
@@ -127,8 +129,15 @@ def build_list(
         agent_parts[i] = (left, suffix, option_id)
         widget._row_render_ctx[i] = ctx
         widget._row_tier_styles[i] = tier_styles
+        try:
+            last_left[agent.identity] = left
+            last_suffix_plain[agent.identity] = suffix.plain
+        except Exception:  # noqa: BLE001 - runtime fast-path bookkeeping only.
+            pass
         max_left = max(max_left, left.cell_len)
         max_suffix = max(max_suffix, suffix.cell_len)
+    widget._row_last_left_by_identity = last_left
+    widget._row_last_suffix_plain_by_identity = last_suffix_plain
 
     gap = 2 if max_suffix > 0 else 0
     target_width = max(_MIN_BANNER_WIDTH, max_left + gap + max_suffix)

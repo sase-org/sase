@@ -1,7 +1,8 @@
 """Aggregate runtime across a row's agent session/clan descendant rows."""
 
+from collections import OrderedDict
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.status_buckets import APPROVED_PLAN_STATUSES
 from sase.core.agent_runtime_facade import aggregate_clan_runtime
@@ -13,6 +14,9 @@ from ._agent_time_intervals import (
     row_runtime_terminal_time,
     should_display_runtime_suffix,
 )
+
+_AGGREGATE_WIRES_CACHE_MAX = 256
+_aggregate_wires_cache: OrderedDict[tuple[Any, ...], tuple[Any, ...]] = OrderedDict()
 
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
@@ -79,15 +83,106 @@ def runtime_child_rows(
     return tuple(rows)
 
 
-def _aggregate_runtime(
-    agent: "Agent", now: datetime, seen: set[int]
-) -> RuntimeInterval | None:
-    """Return the aggregate interval from direct runtime children."""
-    children = getattr(agent, "runtime_children", ())
-    if not children:
-        return None
+def _member_fingerprint(child: "Agent") -> tuple[Any, ...]:
+    """Return the wire-relevant inputs of one aggregate member row.
 
-    include_monitor_turns = aggregates_agent_session_turns(agent)
+    Raw values only (no isoformat): the cached wires are rebuilt exactly
+    when this tuple changes. Covers every field ``_build_member_wires``
+    reads, including the status-dependent terminal/pending-question inputs.
+    """
+    try:
+        plan_times = tuple(child.plan_times)
+    except Exception:  # noqa: BLE001 - defensive fingerprint only.
+        plan_times = ()
+    try:
+        feedback_times = tuple(child.feedback_times)
+    except Exception:  # noqa: BLE001 - defensive fingerprint only.
+        feedback_times = ()
+    try:
+        questions_times = tuple(child.questions_times)
+    except Exception:  # noqa: BLE001 - defensive fingerprint only.
+        questions_times = ()
+    try:
+        identity = child.identity
+    except Exception:  # noqa: BLE001 - defensive fingerprint only.
+        identity = None
+    return (
+        identity,
+        getattr(child, "run_start_time", None),
+        getattr(child, "start_time", None),
+        getattr(child, "stop_time", None),
+        plan_times,
+        feedback_times,
+        getattr(child, "status", None),
+        questions_times,
+        getattr(child, "question_response_path", None),
+        bool(getattr(child, "question_answered", False)),
+        bool(getattr(child, "runner_slot_yielded", False)),
+        bool(getattr(child, "is_monitor", False)),
+    )
+
+
+def _collect_aggregate_member_rows(
+    agent: "Agent",
+    include_monitor_turns: bool,
+    seen: set[int],
+) -> list["Agent"]:
+    """Collect member rows in the same order ``_aggregate_runtime`` wires them."""
+    members: list[Agent] = []
+
+    def collect(child: "Agent") -> None:
+        child_id = id(child)
+        if child_id in seen:
+            return
+        seen.add(child_id)
+        eligible = runtime_child_rows(
+            child, include_monitor_turns=include_monitor_turns
+        )
+        for grandchild in eligible:
+            collect(grandchild)
+        if getattr(child, "runtime_children", ()) and _represented_by_descendants(
+            child, eligible
+        ):
+            return
+        members.append(child)
+
+    for child in runtime_child_rows(agent, include_monitor_turns=include_monitor_turns):
+        collect(child)
+    if members and not any(not row.is_monitor for row in members):
+        if not agent.is_clan_container:
+            members.append(agent)
+    return members
+
+
+def _aggregate_cache_key(
+    agent: "Agent",
+    members: list["Agent"],
+) -> tuple[Any, ...]:
+    """Return the cache key for one container's now-independent wires.
+
+    Keyed by the container identity plus the member runtime inputs. The
+    roster generation is represented implicitly: any roster assignment or
+    in-place mutation that changes wire inputs changes the fingerprint (or
+    the container identity), so a stale generation can never hit. Unrelated
+    roster bumps with identical inputs correctly hit instead of rebuilding.
+    """
+    identity: Any
+    try:
+        identity = agent.identity
+    except Exception:  # noqa: BLE001 - defensive cache key only.
+        identity = id(agent)
+    return (
+        identity,
+        bool(getattr(agent, "is_clan_container", False)),
+        bool(getattr(agent, "is_agent_session_container_row", False)),
+        tuple(_member_fingerprint(row) for row in members),
+    )
+
+
+def _build_member_wires(
+    members: list["Agent"],
+) -> tuple[tuple[ClanRuntimeMemberWire, ...], tuple[datetime, ...], bool]:
+    """Build now-independent wires, terminal times, and monitor flag."""
     runtime_members: list[ClanRuntimeMemberWire] = []
     terminal_times: list[datetime] = []
     saw_non_monitor_member = False
@@ -99,8 +194,7 @@ def _aggregate_runtime(
             value = value.replace(tzinfo=UTC)
         return value.isoformat()
 
-    def append_member_wire(child: "Agent") -> None:
-        nonlocal saw_non_monitor_member
+    for child in members:
         if not child.is_monitor:
             saw_non_monitor_member = True
         terminal = row_runtime_terminal_time(child)
@@ -137,32 +231,43 @@ def _aggregate_runtime(
                 pending_question_submitted_at=timestamp(pending_question),
             )
         )
+    return tuple(runtime_members), tuple(terminal_times), saw_non_monitor_member
 
-    def append_runtime_member(child: "Agent") -> None:
-        child_id = id(child)
-        if child_id in seen:
-            return
-        seen.add(child_id)
-        eligible = runtime_child_rows(
-            child, include_monitor_turns=include_monitor_turns
-        )
-        for grandchild in eligible:
-            append_runtime_member(grandchild)
-        if getattr(child, "runtime_children", ()) and _represented_by_descendants(
-            child, eligible
-        ):
-            return
-        append_member_wire(child)
 
-    for child in runtime_child_rows(agent, include_monitor_turns=include_monitor_turns):
-        append_runtime_member(child)
+def _aggregate_runtime(
+    agent: "Agent", now: datetime, seen: set[int]
+) -> RuntimeInterval | None:
+    """Return the aggregate interval from direct runtime children.
 
-    if runtime_members and not saw_non_monitor_member and not agent.is_clan_container:
-        append_member_wire(agent)
-
-    if not runtime_members:
+    Caches the now-independent member wires per container identity plus
+    member runtime inputs (phase ``runtime-tick-caches``); only the
+    ``now``-dependent Rust aggregation runs per tick.
+    """
+    children = getattr(agent, "runtime_children", ())
+    if not children:
         return None
-    runtime = aggregate_clan_runtime(runtime_members, now=now)
+
+    include_monitor_turns = aggregates_agent_session_turns(agent)
+    members = _collect_aggregate_member_rows(agent, include_monitor_turns, seen)
+    if not members:
+        return None
+    key = _aggregate_cache_key(agent, members)
+    hit = _aggregate_wires_cache.get(key)
+    if hit is not None:
+        try:
+            _aggregate_wires_cache.move_to_end(key)
+        except Exception:  # noqa: BLE001 - LRU touch is best-effort.
+            pass
+        runtime_members, terminal_times, _saw = hit
+    else:
+        runtime_members, terminal_times, _saw = _build_member_wires(members)
+        _aggregate_wires_cache[key] = (runtime_members, terminal_times, _saw)
+        while len(_aggregate_wires_cache) > _AGGREGATE_WIRES_CACHE_MAX:
+            try:
+                _aggregate_wires_cache.popitem(last=False)
+            except KeyError:
+                break
+    runtime = aggregate_clan_runtime(list(runtime_members), now=now)
     return RuntimeInterval(
         elapsed_seconds=runtime.wall_clock_seconds,
         terminal_time=None if runtime.active else max(terminal_times, default=None),

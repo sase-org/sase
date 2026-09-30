@@ -90,6 +90,18 @@ async def _run_idle_scenario(
         projected = _install_idle_roster(app, agent_count)
         await pilot.pause(0.2)
         clan_containers = sum(1 for a in projected if a.is_clan_container)
+        try:
+            from sase.ace.tui.models.agent_time import row_runtime_or_wait_ticks
+        except Exception:  # noqa: BLE001 - bench-only predicate count.
+            row_runtime_or_wait_ticks = None  # type: ignore[assignment]
+        ticking_rows = 0
+        if row_runtime_or_wait_ticks is not None:
+            try:
+                ticking_rows = sum(
+                    1 for row in app._agents if row_runtime_or_wait_ticks(row)
+                )
+            except Exception:  # noqa: BLE001 - bench-only count.
+                ticking_rows = 0
 
         # Settle the Textual layout pass, then time the tick on the full
         # roster before any reprojection touches it.
@@ -131,6 +143,7 @@ async def _run_idle_scenario(
             "rows": len(projected),
             "visible_rows": visible_rows,
             "clan_containers": clan_containers,
+            "tick_ticking_rows": ticking_rows,
             "tick_patched_rows": min(tick_patched),
             "tick_patched_max": max(tick_patched),
             "tick_ms": _summarize_values(tick_samples),

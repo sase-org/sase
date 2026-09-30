@@ -351,10 +351,28 @@ def agent_status_buckets_for_app(app: object | None) -> dict[str, str] | None:
 def agent_wait_status_maps_for_app(
     app: object | None,
 ) -> AgentWaitStatusMaps | None:
-    """Return aggregate and clan-member wait statuses from one app snapshot."""
+    """Return aggregate and clan-member wait statuses from one app snapshot.
+
+    App-wide cached per roster generation plus the tribe-assignment
+    generation (phase ``runtime-tick-caches``): repeated tick callers share
+    one build per generation instead of rescanning the roster per clan
+    container. The worker-thread arrival path keeps calling
+    :func:`collect_agent_wait_status_maps` directly so worker hops never
+    share UI-thread cache entries.
+    """
     if app is None:
         return None
-
+    try:
+        from sase.ace.tui._agent_wait_cache import (
+            cached_agent_wait_status_maps_for_app as _cached,
+        )
+    except Exception:  # noqa: BLE001 - cache is an optimization only.
+        _cached = None  # type: ignore[assignment]
+    if _cached is not None:
+        try:
+            return _cached(app)
+        except Exception:  # noqa: BLE001 - fall back to a direct build.
+            pass
     for attr_name in ("_agents_with_children", "_agents"):
         try:
             agents = getattr(app, attr_name, None)

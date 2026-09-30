@@ -13,7 +13,12 @@ from ._agent_list_build_analysis import (
     resolve_row,
     visible_agent_indices,
 )
-from ._agent_list_build_patching import patch_row, try_insert_rows, try_remove_rows
+from ._agent_list_build_patching import (
+    patch_row,
+    patch_runtime_suffix_row,
+    try_insert_rows,
+    try_remove_rows,
+)
 from ._agent_list_build_rebuild import build_list
 
 __all__ = [
@@ -21,6 +26,7 @@ __all__ = [
     "compute_tier_styles",
     "compute_visible_parents",
     "patch_row",
+    "patch_runtime_suffix_row",
     "resolve_row",
     "try_insert_rows",
     "try_remove_rows",

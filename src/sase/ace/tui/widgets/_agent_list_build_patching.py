@@ -207,6 +207,17 @@ def try_remove_rows(
     widget._banner_row_by_key = new_banner_row_by_key
     widget._row_render_ctx = new_row_render_ctx
     widget._row_tier_styles = new_row_tier_styles
+    try:
+        last_left = getattr(widget, "_row_last_left_by_identity", None)
+        last_suffix = getattr(widget, "_row_last_suffix_plain_by_identity", None)
+        if isinstance(last_left, dict):
+            for identity in removed_identities:
+                last_left.pop(identity, None)
+        if isinstance(last_suffix, dict):
+            for identity in removed_identities:
+                last_suffix.pop(identity, None)
+    except Exception:  # noqa: BLE001 - bookkeeping only.
+        pass
 
     widget._rail_rows_changed()
 
@@ -308,6 +319,15 @@ def patch_row(
     ctx["is_selected"] = sel
     ctx["wait_dependency_counts"] = counts
     ctx["clan_unknown_wait_count"] = clan_unknown
+    try:
+        last_left = getattr(widget, "_row_last_left_by_identity", None)
+        last_suffix = getattr(widget, "_row_last_suffix_plain_by_identity", None)
+        if isinstance(last_left, dict):
+            last_left[agent.identity] = left
+        if isinstance(last_suffix, dict):
+            last_suffix[agent.identity] = suffix.plain
+    except Exception:  # noqa: BLE001 - runtime fast-path bookkeeping only.
+        pass
 
     widget._programmatic_update = True
     try:
@@ -321,6 +341,92 @@ def patch_row(
         return False
     finally:
         widget._programmatic_update = False
+    return True
+
+
+def patch_runtime_suffix_row(widget: Any, agent_idx: int, now: datetime) -> bool:
+    """Patch one ticking row's runtime suffix alone; return True when painted.
+
+    Change-only (phase ``runtime-tick-caches``): recomputes only the
+    right-side runtime suffix via :func:`build_runtime_suffix` and skips the
+    row when its plain text is unchanged. A changed suffix reuses the stored
+    left Text and assembles a new Option without invalidating the full row
+    render cache entry. Falls back to :func:`patch_row` when no baseline
+    exists, the width would grow past the cached target, or the stored left
+    is missing; a fallback failure returns False so the next full refresh
+    rebuilds the row.
+    """
+    if not (0 <= agent_idx < len(widget._agents)):
+        return False
+    ctx = widget._row_render_ctx.get(agent_idx)
+    if ctx is None:
+        return False
+    row = widget._row_by_agent_idx.get(agent_idx)
+    if row is None:
+        return False
+    agent = widget._agents[agent_idx]
+    try:
+        from ..models.agent_nodes import is_agents_tab_agent_node as _is_node
+    except Exception:  # noqa: BLE001 - display-only fallback.
+        _is_node = is_agents_tab_agent_node
+    try:
+        from ._agent_list_render_layout import build_runtime_suffix
+    except Exception:  # noqa: BLE001 - fallback covers render import issues.
+        return patch_row(widget, agent_idx, now=now)
+    try:
+        effective_unread: set[Any] = getattr(widget, "_unread_agents", set())
+        is_unread = agent.identity in effective_unread and _is_node(agent)
+        new_suffix = build_runtime_suffix(agent, now=now, is_unread=is_unread)
+    except Exception:  # noqa: BLE001 - suffix compute must not break the tick.
+        return False
+    try:
+        last_suffix = getattr(widget, "_row_last_suffix_plain_by_identity", {})
+        old_plain = last_suffix.get(agent.identity)
+    except Exception:  # noqa: BLE001 - defensive cache read only.
+        old_plain = None
+    if old_plain is None:
+        return patch_row(widget, agent_idx, now=now)
+    try:
+        new_plain = new_suffix.plain
+    except Exception:  # noqa: BLE001 - defensive text read only.
+        return patch_row(widget, agent_idx, now=now)
+    if new_plain == old_plain:
+        return False
+    try:
+        last_left = getattr(widget, "_row_last_left_by_identity", {})
+        left = last_left.get(agent.identity)
+    except Exception:  # noqa: BLE001 - defensive cache read only.
+        left = None
+    if left is None:
+        return patch_row(widget, agent_idx, now=now)
+    gap = 2 if new_suffix.cell_len else 0
+    try:
+        target_width = int(widget._target_width)
+    except Exception:  # noqa: BLE001 - defensive width read only.
+        return patch_row(widget, agent_idx, now=now)
+    if (
+        left.cell_len + gap + new_suffix.cell_len
+        > target_width + _LIVE_HINT_PATCH_SLACK
+    ):
+        return patch_row(widget, agent_idx, now=now)
+    try:
+        option_id = agent_option_id(agent_idx, agent)
+        new_option = assemble_padded_option(
+            left, new_suffix, width=target_width, option_id=option_id
+        )
+    except Exception:  # noqa: BLE001 - assembly must not break the tick.
+        return patch_row(widget, agent_idx, now=now)
+    widget._programmatic_update = True
+    try:
+        widget.replace_option_prompt_at_index(row, new_option.prompt)
+    except (AttributeError, IndexError):
+        return False
+    finally:
+        widget._programmatic_update = False
+    try:
+        last_suffix[agent.identity] = new_plain
+    except Exception:  # noqa: BLE001 - bookkeeping only.
+        pass
     return True
 
 

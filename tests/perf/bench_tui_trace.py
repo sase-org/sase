@@ -222,9 +222,9 @@ async def test_idle_tick_and_fleet_refresh(
     print(json.dumps(result, indent=2), file=sys.stderr)
     assert result["rows"] >= 200, f"idle roster too small: {result['rows']}"
     assert result["clan_containers"] > 0, "idle roster has no clan containers"
-    assert result["tick_patched_rows"] > 0, (
-        "idle tick patched no rows: the baseline would measure an early return, "
-        "not the runtime-row scan"
+    assert result.get("tick_ticking_rows", 0) > 0, (
+        "idle tick found no ticking rows: the baseline would measure an early "
+        "return, not the runtime-row scan"
     )
     for field in (
         "tick_ms",

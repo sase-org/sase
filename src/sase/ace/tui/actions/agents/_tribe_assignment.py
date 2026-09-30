@@ -325,6 +325,12 @@ class AgentTribeAssignmentMixin:
                         ):
                             continue
                         candidate.agent_tab = prior_tabs[candidate.identity]
+            try:
+                from ._roster_generation import notify_tribe_assignment_mutation
+
+                notify_tribe_assignment_mutation(self)
+            except Exception:  # noqa: BLE001 - cache invalidation only.
+                pass
 
         def _on_complete(
             completion: TrackedProcCompletion[object],
@@ -391,6 +397,13 @@ class AgentTribeAssignmentMixin:
                     candidate.clan_tribe = after
                     if candidate.is_clan_container:
                         candidate.tribe = after
+        if not tribe_keep:
+            try:
+                from ._roster_generation import bump_tribe_assignment_generation
+
+                bump_tribe_assignment_generation(self)
+            except Exception:  # noqa: BLE001 - cache invalidation only.
+                pass
 
         if move_tab and remote_affected and tab_targets:
             self.notify(  # type: ignore[attr-defined]

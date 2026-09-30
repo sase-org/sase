@@ -18,11 +18,12 @@ from textual.widgets.option_list import DuplicateID, Option
 from ..agent_completion import WaitDependencyStatusCounts
 from ..models.agent import Agent, AgentType, AttemptRecord
 from ..models.agent_groups import GroupingMode, GroupRow
-from ..models.agent_time import row_runtime_or_wait_ticks
+from ..models.agent_time import row_runtime_or_wait_ticks, wait_countdown_ticks
 from ._agent_list_base import AgentListBase
 from ._agent_list_build import (
     compute_tier_styles,
     patch_row,
+    patch_runtime_suffix_row,
     resolve_row,
     try_remove_rows,
 )
@@ -38,6 +39,35 @@ from ._agent_list_styling import BANNER_ROW
 from ..util.trace import tui_trace
 
 __all__ = ["AgentList"]
+
+
+def _row_has_live_tool_run(agent: Agent) -> bool:
+    """Return whether *agent* currently renders a live tool-run chip.
+
+    The chip paints on the left side, so such rows cannot use the
+    suffix-only fast path even when their runtime suffix is unchanged.
+    Pure side-cache lookup; never stats or opens files.
+    """
+    try:
+        from sase.ace.tui.tool_runs.attribution import (
+            row_identity_from_agent,
+            select_live_runs,
+        )
+        from sase.ace.tui.tool_runs.snapshot import (
+            get_snapshot,
+            tool_runs_disabled_reason,
+        )
+    except Exception:  # noqa: BLE001 - tool runs are optional for the tick.
+        return False
+    try:
+        if tool_runs_disabled_reason() is not None:
+            return False
+        snapshot = get_snapshot()
+        if snapshot is None or not snapshot.runs:
+            return False
+        return bool(select_live_runs(snapshot.runs, row_identity_from_agent(agent)))
+    except Exception:  # noqa: BLE001 - tick gating is best-effort.
+        return False
 
 
 class AgentList(AgentListRailMixin, AgentListBase):
@@ -90,6 +120,8 @@ class AgentList(AgentListRailMixin, AgentListBase):
             self._row_by_agent_attempt = {}
             self._row_by_agent_idx = {}
             self._banner_row_by_key = {}
+            self._row_last_left_by_identity = {}
+            self._row_last_suffix_plain_by_identity = {}
             self._rendered_group_folds = None
             self._target_width = 0
             self._max_left = 0
@@ -293,15 +325,31 @@ class AgentList(AgentListRailMixin, AgentListBase):
     def patch_active_runtime_rows(self, now: datetime) -> int:
         """Patch visible rows whose compact time text advances with time.
 
-        This is a cosmetic clock-tick path: failed row patches are ignored
-        because the next normal agent refresh will rebuild stale rows.
+        Change-only (phase ``runtime-tick-caches``): runtime-only rows go
+        through the suffix-only fast path, which skips rows whose rendered
+        runtime text is unchanged and reuses the stored left Text without
+        invalidating the full render cache. Rows with a ticking wait
+        countdown or a live tool-run chip paint the left side, so they keep
+        the full patch path. Failed patches are ignored because the next
+        normal refresh rebuilds stale rows.
         """
         patched = 0
         for local_idx, agent in enumerate(self._agents):
             if not self._runtime_suffix_ticks(agent):
                 continue
-            if self.patch_agent_row(local_idx, now=now):
-                patched += 1
+            try:
+                wait_ticks = bool(wait_countdown_ticks(agent))
+            except Exception:  # noqa: BLE001 - tick gating is best-effort.
+                wait_ticks = False
+            if wait_ticks or _row_has_live_tool_run(agent):
+                if self.patch_agent_row(local_idx, now=now):
+                    patched += 1
+                continue
+            try:
+                if patch_runtime_suffix_row(self, local_idx, now):
+                    patched += 1
+            except Exception:  # noqa: BLE001 - tick must never raise.
+                continue
         return patched
 
     @staticmethod

@@ -44,6 +44,7 @@ def init_agent_state(self: Any) -> None:
     # in-place status mutation. Initialised here; all later assignments
     # go through ``set_agents_roster``.
     self._agents_roster_generation = 0
+    self._agents_tribe_assignment_generation = 0
     self._agent_node_projection_index_cache = {}
     self._agents = []
     # Tab-independent committed query result plus the active-tab scope

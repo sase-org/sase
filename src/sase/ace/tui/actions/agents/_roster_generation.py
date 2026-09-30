@@ -37,6 +37,32 @@ def bump_roster_generation(app: Any) -> int:
     return generation
 
 
+def get_tribe_assignment_generation(app: Any) -> int:
+    """Return the app-wide tribe-assignment generation (0 when never bumped)."""
+    try:
+        return int(getattr(app, "_agents_tribe_assignment_generation", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def bump_tribe_assignment_generation(app: Any) -> int:
+    """Bump the tribe-assignment generation for wait-map cache invalidation.
+
+    Tribe (and clan-tribe) edits mutate wait-relevant fields in place without
+    replacing the roster lists, so the roster generation alone cannot see
+    them. The wait-status cache keys on both generations; the projection
+    index does not read tribes and is intentionally left intact.
+    """
+    generation = get_tribe_assignment_generation(app) + 1
+    app._agents_tribe_assignment_generation = generation
+    return generation
+
+
+def notify_tribe_assignment_mutation(app: Any) -> int:
+    """Record an in-place tribe/clan-tribe mutation on the live roster."""
+    return bump_tribe_assignment_generation(app)
+
+
 def notify_roster_status_mutation(app: Any) -> int:
     """Record an in-place agent status mutation on the live roster.
 
@@ -138,8 +164,11 @@ def cached_agent_node_projection_index(
 
 __all__ = [
     "bump_roster_generation",
+    "bump_tribe_assignment_generation",
     "cached_agent_node_projection_index",
     "get_roster_generation",
+    "get_tribe_assignment_generation",
     "notify_roster_status_mutation",
+    "notify_tribe_assignment_mutation",
     "set_agents_roster",
 ]
