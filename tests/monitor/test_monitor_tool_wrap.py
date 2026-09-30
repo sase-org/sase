@@ -335,7 +335,7 @@ def _start(
 ) -> MonitorRecord:
     from sase.monitor import store as store_module
 
-    import sase.monitor.start as start_module
+    import sase.monitor.start_launch as start_module
 
     monkeypatch.setattr(start_module, "get_monitor_tool_wrap", lambda: tool_wrap)
     write_project_file(

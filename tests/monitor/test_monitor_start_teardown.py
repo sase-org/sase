@@ -164,7 +164,7 @@ def test_start_monitor_submit_failure_does_not_arm_next_action_intent(
         raise ProcSubmitError("startup ack failed")
 
     monkeypatch.setattr(
-        "sase.monitor.start.submit_proc_request",
+        "sase.monitor.start_launch.submit_proc_request",
         fake_submit_proc_request,
     )
 

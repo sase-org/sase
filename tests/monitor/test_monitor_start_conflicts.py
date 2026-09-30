@@ -39,7 +39,7 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.monitor import store_lane as store_module
-    import sase.monitor.start as start_module
+    import sase.monitor.start_flow as start_module
 
     existing = MonitorRecord(
         monitor_id="aaa",
@@ -93,7 +93,7 @@ def test_start_monitor_rejects_same_command_with_changed_request(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.monitor import store_lane as store_module
-    import sase.monitor.start as start_module
+    import sase.monitor.start_flow as start_module
 
     existing = MonitorRecord(
         monitor_id="aaa",
@@ -203,7 +203,7 @@ def test_start_monitor_rejects_identical_replay_of_lost_monitor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.monitor import store_lane as store_module
-    import sase.monitor.start as start_module
+    import sase.monitor.start_flow as start_module
 
     existing = MonitorRecord(
         monitor_id="aaabbbcccddd",
@@ -255,7 +255,7 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.monitor import store_lane as store_module
-    import sase.monitor.start as start_module
+    import sase.monitor.start_flow as start_module
 
     existing = MonitorRecord(
         monitor_id="aaa",

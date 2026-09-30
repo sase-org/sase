@@ -247,7 +247,7 @@ def test_begin_tool_run_prefers_agent_name(
 
 
 def test_tool_run_agent_overlay() -> None:
-    from sase.monitor.start import _tool_run_agent_overlay
+    from sase.monitor.start_launch import _tool_run_agent_overlay
 
     assert _tool_run_agent_overlay("starter.agent") == {
         "SASE_TOOL_RUN_AGENT": "starter.agent"

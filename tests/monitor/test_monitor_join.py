@@ -403,7 +403,7 @@ def _fake_submit_factory(captured: list[Any]):  # type: ignore[no-untyped-def]
 
 def _mock_claim(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.monitor.start.claim_monitor_workspace",
+        "sase.monitor.start_launch.claim_monitor_workspace",
         lambda *args, **kwargs: SimpleNamespace(
             result=SimpleNamespace(success=True), starter_claim=None
         ),
@@ -421,7 +421,9 @@ def test_join_records_before_submit_and_skips_a_new_reservation(
     monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     run_id = _reserve_detached("--", "true", agent="acme")
     captured: list[Any] = []
-    monkeypatch.setattr(engine, "submit_proc_request", _fake_submit_factory(captured))
+    monkeypatch.setattr(
+        "sase.monitor.start_launch.submit_proc_request", _fake_submit_factory(captured)
+    )
     _mock_claim(monkeypatch)
     before = tool_run_list({"schema_version": 1, "limit": 100}).get("runs") or []
 
@@ -455,7 +457,9 @@ def test_join_duplicate_start_replays_without_resubmitting(
     monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     run_id = _reserve_detached("--", "true", agent="acme")
     captured: list[Any] = []
-    monkeypatch.setattr(engine, "submit_proc_request", _fake_submit_factory(captured))
+    monkeypatch.setattr(
+        "sase.monitor.start_launch.submit_proc_request", _fake_submit_factory(captured)
+    )
     _mock_claim(monkeypatch)
     # Continuation and policy resolution can legitimately re-fingerprint a
     # second identical construction; pin the identity like the ordinary
@@ -463,8 +467,7 @@ def test_join_duplicate_start_replays_without_resubmitting(
     # fake supervisor pid is dead by construction, so dead-supervisor
     # reconciliation is also held off: it owns ordinary liveness, not joins.
     monkeypatch.setattr(
-        engine,
-        "monitor_request_fingerprint",
+        "sase.monitor.start_flow.monitor_request_fingerprint",
         lambda request, *, lane, label: "sha256:join-match",
     )
     monkeypatch.setattr(
@@ -495,7 +498,7 @@ def test_join_submit_failure_releases_the_join_and_tears_down(
     def _boom(request: Any, *, after_spawn: Any, after_ack: Any) -> Any:
         raise ProcSubmitError("boom")
 
-    monkeypatch.setattr(engine, "submit_proc_request", _boom)
+    monkeypatch.setattr("sase.monitor.start_launch.submit_proc_request", _boom)
     with pytest.raises(MonitorError, match="boom"):
         engine.start_monitor(_join_request(run_id, tmp_path, monkeypatch))
     assert tool_run_show(run_id).get("run", {}).get("join") is None
@@ -525,7 +528,9 @@ def test_join_settle_race_tears_down_and_leaves_the_lane_clear(
     )
     _settle(run_id, state="succeeded", exit_code=0, terminal_cause="exited")
     captured: list[Any] = []
-    monkeypatch.setattr(engine, "submit_proc_request", _fake_submit_factory(captured))
+    monkeypatch.setattr(
+        "sase.monitor.start_launch.submit_proc_request", _fake_submit_factory(captured)
+    )
     _mock_claim(monkeypatch)
     with pytest.raises(MonitorError, match="already succeeded"):
         engine.start_monitor(request)
