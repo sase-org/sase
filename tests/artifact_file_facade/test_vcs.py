@@ -17,7 +17,10 @@ from sase.core.artifact_file_types import (
     ArtifactFile,
     ArtifactFileAssociation,
 )
-from sase.core.artifact_file_vcs import materialize_artifact_file
+from sase.core.artifact_file_vcs import (
+    ArtifactFileRepositoryResolver,
+    materialize_artifact_file,
+)
 
 from .helpers import agent_dir
 
@@ -163,3 +166,256 @@ def test_dedupe_tolerates_byte_free_row_with_incomplete_provenance() -> None:
 
     assert artifact_file_dedupe_key(malformed) == malformed.id
     assert dedupe_artifact_files([malformed]) == [malformed]
+
+
+def _init_repo(repo: Path) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+
+
+def _commit_file(repo: Path, relpath: str, content: bytes) -> str:
+    target = repo / relpath
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(content)
+    _git(repo, "add", relpath)
+    _git(repo, "commit", "-m", f"add {relpath}")
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def _isolate_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    cache_root = tmp_path / "artifacts"
+    monkeypatch.setattr(
+        "sase.core.artifact_file_vcs.default_artifact_files_root",
+        lambda: cache_root,
+    )
+    return cache_root
+
+
+def _owner_repo(repo: Path, name: str = "research") -> ArtifactRefRepository:
+    return ArtifactRefRepository(
+        name,
+        checkout_path=repo,
+        checkout_paths=(repo,),
+    )
+
+
+def test_materialize_prefers_owning_project_over_caller_repositories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_a = tmp_path / "repo-a"
+    repo_b = tmp_path / "repo-b"
+    _init_repo(repo_a)
+    _commit_file(repo_a, "other.txt", b"wrong project\n")
+    _init_repo(repo_b)
+    content = b"# owner project report\n"
+    sha = _commit_file(repo_b, "docs/report.md", content)
+    _isolate_cache(monkeypatch, tmp_path)
+
+    row = ArtifactFile(
+        id="default:vcs",
+        label="Report",
+        kind="markdown",
+        path=None,
+        sha256=hashlib.sha256(content).hexdigest(),
+        size_bytes=len(content),
+        mime_type="text/markdown",
+        vcs_repo="research",
+        vcs_sha=sha,
+        vcs_relpath="docs/report.md",
+        project="project-b",
+    )
+    caller_repositories = (_owner_repo(repo_a),)
+
+    def fake_owner_repositories(*, project: str | None, workspace_num: int):  # type: ignore[no-untyped-def]
+        assert project == "project-b"
+        return (_owner_repo(repo_b),)
+
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_repositories",
+        fake_owner_repositories,
+    )
+
+    resolved = materialize_artifact_file(row, repositories=caller_repositories)
+
+    assert resolved is not None
+    assert resolved.read_bytes() == content
+
+
+def test_materialize_falls_back_when_owner_project_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    content = b"# fallback report\n"
+    sha = _commit_file(repo, "docs/report.md", content)
+    _isolate_cache(monkeypatch, tmp_path)
+
+    row = ArtifactFile(
+        id="default:vcs",
+        label="Report",
+        kind="markdown",
+        path=None,
+        sha256=hashlib.sha256(content).hexdigest(),
+        size_bytes=len(content),
+        mime_type="text/markdown",
+        vcs_repo="research",
+        vcs_sha=sha,
+        vcs_relpath="docs/report.md",
+        project="missing-project",
+    )
+
+    from sase._repo_inventory_models import RepoInventoryProjectNotFoundError
+
+    def fake_missing(*, project: str | None, workspace_num: int):  # type: ignore[no-untyped-def]
+        raise RepoInventoryProjectNotFoundError(f"project {project!r} not found")
+
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_repositories",
+        fake_missing,
+    )
+
+    resolved = materialize_artifact_file(row, repositories=(_owner_repo(repo),))
+
+    assert resolved is not None
+    assert resolved.read_bytes() == content
+
+
+def test_materialize_falls_back_when_owner_has_no_matching_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    content = b"# caller report\n"
+    sha = _commit_file(repo, "docs/report.md", content)
+    _isolate_cache(monkeypatch, tmp_path)
+
+    row = ArtifactFile(
+        id="default:vcs",
+        label="Report",
+        kind="markdown",
+        path=None,
+        sha256=hashlib.sha256(content).hexdigest(),
+        size_bytes=len(content),
+        mime_type="text/markdown",
+        vcs_repo="research",
+        vcs_sha=sha,
+        vcs_relpath="docs/report.md",
+        project="project-b",
+    )
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_repositories",
+        lambda *, project, workspace_num: (_owner_repo(repo, name="other"),),
+    )
+
+    resolved = materialize_artifact_file(row, repositories=(_owner_repo(repo),))
+
+    assert resolved is not None
+    assert resolved.read_bytes() == content
+
+
+def test_materialize_consults_cache_with_no_resolvable_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    content = b"# cached report\n"
+    sha = _commit_file(repo, "docs/report.md", content)
+    _isolate_cache(monkeypatch, tmp_path)
+
+    row = ArtifactFile(
+        id="default:vcs",
+        label="Report",
+        kind="markdown",
+        path=None,
+        sha256=hashlib.sha256(content).hexdigest(),
+        size_bytes=len(content),
+        mime_type="text/markdown",
+        vcs_repo="research",
+        vcs_sha=sha,
+        vcs_relpath="docs/report.md",
+        project="project-b",
+    )
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_repositories",
+        lambda *, project, workspace_num: (),
+    )
+
+    first = materialize_artifact_file(row, repositories=(_owner_repo(repo),))
+    assert first is not None
+    assert first.read_bytes() == content
+
+    seen: dict[str, object] = {}
+    from sase.core import artifact_file_vcs as vcs_bridge
+
+    real_require = vcs_bridge.require_rust_binding
+
+    def spy_require(name: str):  # type: ignore[no-untyped-def]
+        binding = real_require(name)
+
+        def spy(payload: dict):  # type: ignore[no-untyped-def]
+            seen["checkout_paths"] = list(payload.get("checkout_paths", []))
+            return binding(payload)
+
+        return spy
+
+    monkeypatch.setattr("sase.core.artifact_file_vcs.require_rust_binding", spy_require)
+
+    second = materialize_artifact_file(row, repositories=())
+    assert second == first
+    assert second.read_bytes() == content
+    assert seen.get("checkout_paths") == []
+
+
+def test_resolver_memoizes_owner_lookup_and_skips_lazy_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    content = b"# memo report\n"
+    sha = _commit_file(repo, "docs/report.md", content)
+    _isolate_cache(monkeypatch, tmp_path)
+
+    def make_row() -> ArtifactFile:
+        return ArtifactFile(
+            id="default:vcs",
+            label="Report",
+            kind="markdown",
+            path=None,
+            sha256=hashlib.sha256(content).hexdigest(),
+            size_bytes=len(content),
+            mime_type="text/markdown",
+            vcs_repo="research",
+            vcs_sha=sha,
+            vcs_relpath="docs/report.md",
+            project="project-b",
+        )
+
+    calls: list[tuple[str | None, int]] = []
+
+    def counting_lookup(*, project: str | None, workspace_num: int):  # type: ignore[no-untyped-def]
+        calls.append((project, workspace_num))
+        return (_owner_repo(repo),)
+
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_repositories",
+        counting_lookup,
+    )
+
+    def fail_fallback():  # type: ignore[no-untyped-def]
+        raise AssertionError("lazy fallback must not be evaluated")
+
+    resolver = ArtifactFileRepositoryResolver(fallback=fail_fallback)
+    first = materialize_artifact_file(make_row(), resolver=resolver)
+    second = materialize_artifact_file(make_row(), resolver=resolver)
+
+    assert first is not None
+    assert second == first
+    assert len(calls) == 1
+    assert calls[0][0] == "project-b"

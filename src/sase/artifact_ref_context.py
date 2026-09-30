@@ -30,6 +30,45 @@ ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION = 1
 log = logging.getLogger(__name__)
 
 
+def artifact_ref_repositories(
+    *,
+    project: str | None,
+    workspace_num: int,
+) -> tuple[ArtifactRefRepository, ...] | None:
+    """Return repository rows for one project, or ``None`` on inventory failure.
+
+    ``project`` is passed straight to ``collect_repo_inventory`` (``None``
+    means every enabled project). ``None`` signals "project not found /
+    inventory failed" so VCS materialization can fall back to caller-supplied
+    repositories; an empty tuple is never returned for failure, only when the
+    inventory succeeds but records no repositories.
+    """
+
+    try:
+        inventory = collect_repo_inventory(project=project)
+    except Exception:
+        log.debug(
+            "Unable to collect artifact-reference repository inventory for project %r",
+            project,
+            exc_info=True,
+        )
+        return None
+    return tuple(
+        ArtifactRefRepository(
+            name=record.name,
+            aliases=tuple(
+                dict.fromkeys(
+                    value for value in (record.slug,) if value and value != record.name
+                )
+            ),
+            checkout_path=_repository_checkout_path(record, workspace_num),
+            checkout_paths=_repository_checkout_paths(record, workspace_num),
+            kind=record.kind,
+        )
+        for record in inventory.records
+    )
+
+
 def artifact_ref_context(
     workspace_dir: str | Path,
     workspace_num: int,
@@ -80,30 +119,12 @@ def artifact_ref_context(
             )
 
     project_filter = project or _workspace_project_ref(workspace)
-    try:
-        inventory = collect_repo_inventory(project=project_filter)
-    except Exception:
-        log.debug(
-            "Unable to collect artifact-reference repository inventory for project %r",
-            project_filter,
-            exc_info=True,
-        )
-        inventory = None
-    repository_records = () if inventory is None else inventory.records
-    repositories = tuple(
-        ArtifactRefRepository(
-            name=record.name,
-            aliases=tuple(
-                dict.fromkeys(
-                    value for value in (record.slug,) if value and value != record.name
-                )
-            ),
-            checkout_path=_repository_checkout_path(record, workspace_num),
-            checkout_paths=_repository_checkout_paths(record, workspace_num),
-            kind=record.kind,
-        )
-        for record in repository_records
+    repositories = artifact_ref_repositories(
+        project=project_filter,
+        workspace_num=workspace_num,
     )
+    if repositories is None:
+        repositories = ()
 
     try:
         project_records = list_project_records(
@@ -325,5 +346,6 @@ __all__ = [
     "ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION",
     "artifact_ref_context",
     "artifact_ref_lsp_catalog_payload",
+    "artifact_ref_repositories",
     "launch_artifact_ref_context",
 ]

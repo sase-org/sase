@@ -88,3 +88,141 @@ def test_picker_path_and_contents_materialize_vcs_row(
     assert copied_path is not None
     assert Path(copied_path.text).expanduser().read_text(encoding="utf-8") == content
     assert copied_contents == content
+
+
+def test_materialize_entries_prefers_owning_project_over_launch_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import hashlib
+    import subprocess
+    from types import SimpleNamespace as _SimpleNamespace
+
+    from sase.ace.tui.models.artifact_file_clipboard import (
+        materialize_artifact_file_entries,
+    )
+    from sase.artifact_ref_models import ArtifactRefRepository
+
+    def _git(repo: Path, *args: str) -> str:
+        completed = subprocess.run(
+            ["git", "-C", str(repo), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    wrong_repo = tmp_path / "wrong"
+    wrong_repo.mkdir()
+    _git(wrong_repo, "init")
+    _git(wrong_repo, "config", "user.email", "test@example.com")
+    _git(wrong_repo, "config", "user.name", "Test")
+    (wrong_repo / "other.txt").write_text("wrong", encoding="utf-8")
+    _git(wrong_repo, "add", "other.txt")
+    _git(wrong_repo, "commit", "-m", "wrong")
+
+    right_repo = tmp_path / "right"
+    right_repo.mkdir()
+    _git(right_repo, "init")
+    _git(right_repo, "config", "user.email", "test@example.com")
+    _git(right_repo, "config", "user.name", "Test")
+    content = "# owner report\n"
+    (right_repo / "docs").mkdir()
+    (right_repo / "docs" / "report.md").write_text(content, encoding="utf-8")
+    _git(right_repo, "add", "docs/report.md")
+    _git(right_repo, "commit", "-m", "right")
+    sha = _git(right_repo, "rev-parse", "HEAD")
+
+    monkeypatch.setattr(
+        "sase.core.artifact_file_vcs.default_artifact_files_root",
+        lambda: tmp_path / "artifacts",
+    )
+
+    wrong_context = _SimpleNamespace(
+        repositories=(
+            ArtifactRefRepository(
+                "research",
+                checkout_path=wrong_repo,
+                checkout_paths=(wrong_repo,),
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.launch_artifact_ref_context",
+        lambda **_kwargs: wrong_context,
+    )
+
+    def fake_owner(*, project, workspace_num):  # type: ignore[no-untyped-def]
+        assert project == "owner-project"
+        return (
+            ArtifactRefRepository(
+                "research",
+                checkout_path=right_repo,
+                checkout_paths=(right_repo,),
+            ),
+        )
+
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_repositories",
+        fake_owner,
+    )
+
+    row = ArtifactFile(
+        id="default:vcs",
+        label="Report",
+        kind="markdown",
+        path=None,
+        sha256=hashlib.sha256(content.encode()).hexdigest(),
+        size_bytes=len(content.encode()),
+        mime_type="text/markdown",
+        vcs_repo="research",
+        vcs_sha=sha,
+        vcs_relpath="docs/report.md",
+        project="owner-project",
+    )
+
+    (resolved,) = materialize_artifact_file_entries((row,))
+    assert Path(resolved.path or "").read_text(encoding="utf-8") == content
+
+
+def test_materialize_entries_oserror_includes_owning_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.models.artifact_file_clipboard import (
+        materialize_artifact_file_entries,
+    )
+    from types import SimpleNamespace as _SimpleNamespace
+
+    import pytest as _pytest
+
+    monkeypatch.setattr(
+        "sase.core.artifact_file_vcs.default_artifact_files_root",
+        lambda: tmp_path / "artifacts",
+    )
+    empty_context = _SimpleNamespace(repositories=())
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.launch_artifact_ref_context",
+        lambda **_kwargs: empty_context,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_repositories",
+        lambda *, project, workspace_num: (),
+    )
+
+    row = ArtifactFile(
+        id="default:vcs",
+        label="Report",
+        kind="markdown",
+        path=None,
+        sha256="a" * 64,
+        size_bytes=4,
+        mime_type="text/markdown",
+        vcs_repo="research",
+        vcs_sha="b" * 40,
+        vcs_relpath="docs/missing.md",
+        project="owner-project",
+    )
+
+    with _pytest.raises(OSError, match=r"\(project owner-project\)"):
+        materialize_artifact_file_entries((row,))

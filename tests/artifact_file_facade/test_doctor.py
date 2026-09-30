@@ -39,6 +39,7 @@ def _vcs_envelope(
     *,
     artifact_id: str,
     sha256: str,
+    project: str | None = None,
 ) -> dict:
     row = _envelope(
         None,
@@ -54,6 +55,8 @@ def _vcs_envelope(
         vcs_relpath="docs/report.txt",
     )
     row["artifact"]["label"] = "report.txt"
+    if project is not None:
+        row["artifact"]["project"] = project
     return row
 
 
@@ -196,7 +199,7 @@ def test_vcs_rows_are_healthy_and_verify_by_materialization(
     )
     monkeypatch.setattr(
         "sase.core.artifact_file_vcs.materialize_artifact_file",
-        lambda _row, *, repositories: materialized,
+        lambda _row, **_kwargs: materialized,
     )
 
     inspection = inspect_artifact_file_index(index_path)
@@ -223,7 +226,7 @@ def test_verify_reports_unresolvable_vcs_row(
     )
     monkeypatch.setattr(
         "sase.core.artifact_file_vcs.materialize_artifact_file",
-        lambda _row, *, repositories: None,
+        lambda _row, **_kwargs: None,
     )
 
     report = verify_artifact_file_index(index_path, repositories=())
@@ -245,3 +248,86 @@ def test_inspect_names_byte_free_row_with_partial_vcs_provenance(
     assert report.supported_rows == 0
     assert report.vcs_provenance_incomplete_ids == ("default:partial-vcs",)
     assert report.malformed_rows == 1
+
+
+def test_verify_resolves_vcs_row_against_owning_project(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import hashlib as _hashlib
+    import subprocess as _subprocess
+
+    from sase.artifact_ref_models import ArtifactRefRepository
+
+    def _git(repo: Path, *args: str) -> str:
+        completed = _subprocess.run(
+            ["git", "-C", str(repo), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    wrong_repo = tmp_path / "wrong"
+    wrong_repo.mkdir()
+    _git(wrong_repo, "init")
+    _git(wrong_repo, "config", "user.email", "test@example.com")
+    _git(wrong_repo, "config", "user.name", "Test")
+    (wrong_repo / "other.txt").write_text("wrong", encoding="utf-8")
+    _git(wrong_repo, "add", "other.txt")
+    _git(wrong_repo, "commit", "-m", "wrong")
+
+    right_repo = tmp_path / "right"
+    right_repo.mkdir()
+    _git(right_repo, "init")
+    _git(right_repo, "config", "user.email", "test@example.com")
+    _git(right_repo, "config", "user.name", "Test")
+    content = b"owner bytes\n"
+    (right_repo / "docs").mkdir()
+    (right_repo / "docs" / "report.txt").write_bytes(content)
+    _git(right_repo, "add", "docs/report.txt")
+    _git(right_repo, "commit", "-m", "right")
+    sha = _git(right_repo, "rev-parse", "HEAD")
+    digest = _hashlib.sha256(content).hexdigest()
+
+    monkeypatch.setattr(
+        "sase.core.artifact_file_vcs.default_artifact_files_root",
+        lambda: tmp_path / "artifacts",
+    )
+
+    def fake_owner(*, project, workspace_num):  # type: ignore[no-untyped-def]
+        assert project == "owner-project"
+        return (
+            ArtifactRefRepository(
+                "sase",
+                checkout_path=right_repo,
+                checkout_paths=(right_repo,),
+            ),
+        )
+
+    monkeypatch.setattr(
+        "sase.artifact_ref_context.artifact_ref_repositories",
+        fake_owner,
+    )
+
+    index_path = tmp_path / "index.jsonl"
+    envelope = _vcs_envelope(
+        artifact_id="default:owner-vcs",
+        sha256=digest,
+        project="owner-project",
+    )
+    envelope["artifact"]["vcs_sha"] = sha
+    _write_lines(index_path, [envelope])
+
+    wrong_repositories = (
+        ArtifactRefRepository(
+            "sase",
+            checkout_path=wrong_repo,
+            checkout_paths=(wrong_repo,),
+        ),
+    )
+
+    report = verify_artifact_file_index(index_path, repositories=wrong_repositories)
+
+    assert report.verified_ids == ("default:owner-vcs",)
+    assert report.unresolvable_vcs_ids == ()

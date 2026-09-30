@@ -204,21 +204,22 @@ def verify_artifact_file_index(
         missing_stored_path_ids: list[str] = []
         unresolvable_vcs_ids: list[str] = []
         mismatches: list[ArtifactFileDigestMismatch] = []
-        resolved_repositories = repositories
+        from sase.core.artifact_file_vcs import (
+            ArtifactFileRepositoryResolver,
+            materialize_artifact_file,
+        )
+
+        if repositories is None:
+            resolver = ArtifactFileRepositoryResolver(fallback=_default_repositories)
+        else:
+            resolver = ArtifactFileRepositoryResolver(fallback=repositories)
         for row in rows:
             if row.is_vcs_backed:
                 if row.sha256 is None:
                     missing_sha256_ids.append(row.id)
                     continue
-                if resolved_repositories is None:
-                    resolved_repositories = _default_repositories()
-                from sase.core.artifact_file_vcs import materialize_artifact_file
-
                 try:
-                    path = materialize_artifact_file(
-                        row,
-                        repositories=resolved_repositories,
-                    )
+                    path = materialize_artifact_file(row, resolver=resolver)
                 except (ImportError, OSError, RuntimeError, ValueError):
                     path = None
                 if path is None:

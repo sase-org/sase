@@ -201,11 +201,18 @@ def _materialized_path(row: ArtifactFile) -> Path | None:
         return Path(row.path).expanduser().resolve(strict=False)
     if not row.is_vcs_backed:
         return None
-    from sase.artifact_ref_context import launch_artifact_ref_context
-    from sase.core.artifact_file_vcs import materialize_artifact_file
+    from sase.core.artifact_file_vcs import (
+        ArtifactFileRepositoryResolver,
+        materialize_artifact_file,
+    )
 
-    context = launch_artifact_ref_context(is_home_mode=False)
-    return materialize_artifact_file(row, repositories=context.repositories)
+    def _fallback_repositories():  # type: ignore[no-untyped-def]
+        from sase.artifact_ref_context import launch_artifact_ref_context
+
+        return launch_artifact_ref_context(is_home_mode=False).repositories
+
+    resolver = ArtifactFileRepositoryResolver(fallback=_fallback_repositories)
+    return materialize_artifact_file(row, resolver=resolver)
 
 
 def _stat(path: Path) -> stat_result | None:

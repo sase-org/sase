@@ -134,22 +134,32 @@ def materialize_artifact_file_entries(
 ) -> tuple[ArtifactFile, ...]:
     """Resolve rows through the shared launch repository context."""
 
-    from sase.artifact_ref_context import launch_artifact_ref_context
-    from sase.core.artifact_file_vcs import materialize_artifact_file
+    from sase.core.artifact_file_vcs import (
+        ArtifactFileRepositoryResolver,
+        materialize_artifact_file,
+    )
 
     accepted = tuple(entries)
     if all(entry.path for entry in accepted):
         return accepted
-    context = launch_artifact_ref_context(is_home_mode=False)
+
+    def _fallback_repositories():  # type: ignore[no-untyped-def]
+        from sase.artifact_ref_context import launch_artifact_ref_context
+
+        return launch_artifact_ref_context(is_home_mode=False).repositories
+
+    resolver = ArtifactFileRepositoryResolver(fallback=_fallback_repositories)
     materialized: list[ArtifactFile] = []
     for entry in accepted:
-        path = materialize_artifact_file(entry, repositories=context.repositories)
+        path = materialize_artifact_file(entry, resolver=resolver)
         if path is None:
             locator = (
                 f"{entry.vcs_repo}@{entry.vcs_sha}:{entry.vcs_relpath}"
                 if entry.is_vcs_backed
                 else entry.id
             )
+            if entry.is_vcs_backed and entry.project:
+                locator = f"{locator} (project {entry.project})"
             raise OSError(f"content unavailable for {locator}")
         materialized.append(replace(entry, path=str(path)))
     return tuple(materialized)
