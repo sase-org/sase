@@ -43,6 +43,7 @@ log = logging.getLogger(__name__)
 
 _STORE_COMMIT_PREFIX = "chore(attachments): store"
 _DELETE_COMMIT_PREFIX = "chore(attachments): delete"
+_WITHDRAW_COMMIT_PREFIX = "chore(attachments): withdraw"
 _PUSH_ATTEMPTS = 3
 _DEFAULT_BRANCH = "main"
 
@@ -699,6 +700,50 @@ class GitAttachmentStore:
                 self._rebase_local_onto_remote(branch, ref)
             raise BlobStoreError(
                 f"could not push attachment delete of {sha256[:16]}… "
+                f"after {_PUSH_ATTEMPTS} attempts",
+                transient=True,
+            )
+
+    def withdraw(self, sha256: str) -> None:
+        """Remove digest *sha256* from the public tree without a tombstone.
+
+        Unpublish narrows the descriptor to private while the private copy
+        stays readable, so unlike purge this writes no tombstone that would
+        hide the private copy. A no-op when the object is already absent.
+        """
+
+        validate_sha256(sha256)
+        branch = self._branch()
+        ref = f"refs/heads/{branch}"
+        with _writer_lock(self._repo):
+            for _attempt in range(_PUSH_ATTEMPTS):
+                base = self._cached_tip(branch)
+                if base is None:
+                    return
+                if self._layout == "public":
+                    candidates = self._public_candidates(base, sha256)
+                    if not candidates:
+                        return
+                    relpath = candidates[0]
+                else:
+                    relpath = _object_relpath(sha256)
+                if self._entry(base, relpath) is None:
+                    return
+                new_tree = build_tree_without(self._repo, base, relpath)
+                if new_tree == self._tree_of(base):
+                    return
+                commit = commit_tree(
+                    self._repo,
+                    new_tree,
+                    ["-p", base],
+                    f"{_WITHDRAW_COMMIT_PREFIX} {sha256}",
+                )
+                update_ref(self._repo, ref, commit)
+                if sync_ref(self._repo, ref, self._fetch_timeout):
+                    return
+                self._rebase_local_onto_remote(branch, ref)
+            raise BlobStoreError(
+                f"could not push attachment withdraw of {sha256[:16]}… "
                 f"after {_PUSH_ATTEMPTS} attempts",
                 transient=True,
             )

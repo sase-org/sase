@@ -200,17 +200,20 @@ def register_bead_attachment_parser(
     """Register ``sase bead attachment``."""
     parser = subparsers.add_parser(
         "attachment",
-        help="List, open, push, purge, prune, or resolve attachment snapshots",
+        help="List, open, path, prune, publish, purge, push, or unpublish attachment snapshots",
         description=(
             "List content-addressed attachment snapshots on a bead, open one "
             "in the terminal viewer, print the absolute local view path "
-            "for one attachment, push queued uploads to the shared store, "
-            "purge one attachment behind tombstones, or prune the local "
-            "cache. Invoking 'sase bead attachment' without a subcommand "
-            "delegates to 'sase bead attachment list'. List and open never "
-            "fetch; path always fetches from the shared store when needed, "
-            "even above the auto-fetch cap. Push drains the upload outbox "
-            "and never authors notes."
+            "for one attachment, publish one note attachment to the public "
+            "store, unpublish one note attachment back to private, push "
+            "queued uploads to the shared store, purge one attachment behind "
+            "tombstones, or prune the local cache. Invoking "
+            "'sase bead attachment' without a subcommand delegates to "
+            "'sase bead attachment list'. List and open never fetch; path "
+            "always fetches from the shared store when needed, even above "
+            "the auto-fetch cap. Push drains the upload outbox and never "
+            "authors notes. Publish and unpublish edit manifests through "
+            "NoteEdited with the note text unchanged."
         ),
         epilog=(
             "Examples:\n"
@@ -218,10 +221,13 @@ def register_bead_attachment_parser(
             "  sase bead attachment list sase-ab --json\n"
             "  sase bead attachment open sase-ab shot.png\n"
             "  sase bead attachment path sase-ab shot.png\n"
+            "  sase bead attachment publish sase-ab shot.png\n"
+            "  sase bead attachment publish sase-ab shot.png -y\n"
             "  sase bead attachment push\n"
             "  sase bead attachment push sase-ab\n"
             "  sase bead attachment purge sase-ab shot.png -r 'contains a secret'\n"
-            "  sase bead attachment prune"
+            "  sase bead attachment prune\n"
+            "  sase bead attachment unpublish sase-ab shot.png -y"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -344,6 +350,49 @@ def register_bead_attachment_parser(
         dest="yes",
         action="store_true",
         help="Evict the planned objects instead of a dry run",
+    )
+    publish_parser = attachment_subparsers.add_parser(
+        "publish",
+        help="Publish one note attachment to the public store",
+        description=(
+            "Widen one note attachment to public: rescan with the current "
+            "scanner rules, upload the bytes to the public attachments "
+            "sidecar, and append NoteEdited with visibility public and the "
+            "note text unchanged. Human-only: refused inside an agent run "
+            "except as an approved gate option. Note attachments only; +1 "
+            "evidence is refused."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    publish_parser.add_argument("id", help="Full or shorthand issue ID")
+    publish_parser.add_argument("name", help="Attachment name to publish")
+    publish_parser.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help="Publish without an interactive confirmation",
+    )
+    unpublish_parser = attachment_subparsers.add_parser(
+        "unpublish",
+        help="Unpublish one note attachment back to private",
+        description=(
+            "Narrow one note attachment to private: ensure a private copy "
+            "exists, remove the object from the public tree with a withdraw "
+            "commit (no tombstone), and append NoteEdited with visibility "
+            "private and the note text unchanged. Narrowing, so agents may "
+            "run it. Note attachments only; +1 evidence is refused."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    unpublish_parser.add_argument("id", help="Full or shorthand issue ID")
+    unpublish_parser.add_argument("name", help="Attachment name to unpublish")
+    unpublish_parser.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help="Unpublish without an interactive confirmation",
     )
 
 

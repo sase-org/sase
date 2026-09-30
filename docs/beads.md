@@ -893,9 +893,11 @@ sase bead attach <id> <file|->... [-a/--author NAME] [-n/--note TEXT] [-N/--name
 sase bead attachment list [<id>] [-j/--json]
 sase bead attachment open <id> [<name>]
 sase bead attachment path <id> <name>
+sase bead attachment publish <id> <name> [-y/--yes]
 sase bead attachment push [<id>]
 sase bead attachment purge <id> <name> -r WHY [-y/--yes]
 sase bead attachment prune [-y/--yes]
+sase bead attachment unpublish <id> <name> [-y/--yes]
 ```
 
 #### Storage tiers and privacy
@@ -940,6 +942,25 @@ private and `-W/--public` to request public (a human confirms on a TTY, or passe
 `-y/--yes`). Agents can only narrow; only humans widen. Files over
 `bead.attachments.public_max_bytes` (default 25 MiB) never go public. Private protects
 bytes, not names or prose: filenames and note text stay as public as the bead itself.
+
+`sase bead attachment publish <id> <name> [-y/--yes]` widens one note attachment to
+public. It is human-only: inside an agent run it is refused unless it runs as an
+approved gate option (the `/sase_gate` path that offers the publish command). It fetches
+the bytes, rescans with the current scanner rules, refuses a private bead store,
+over-cap sizes, and stored `sensitive_path` or known-secret-value metadata, previews
+exactly what becomes public, warns that publication is irreversible, uploads to the
+public `<project>--attachments` sidecar, and appends `NoteEdited` with
+`visibility: public` and the note text unchanged. `+1` evidence is refused: its manifest
+is immutable.
+
+`sase bead attachment unpublish <id> <name> [-y/--yes]` narrows one note attachment to
+private, so agents may run it. It ensures a private copy exists (uploading to the
+private store, or keeping the bytes local with a `⚠ only on <origin>` warning), removes
+the object from the public tree with a `chore(attachments): withdraw <sha>` commit (no
+tombstone, so the private copy stays readable), and appends `NoteEdited` with
+`visibility: private`. It prints the caveat that forks, clones, caches, and GitHub's
+retention of unreachable objects persist, plus the `git filter-repo` runbook for the
+attachments repo only.
 
 #### Viewing
 

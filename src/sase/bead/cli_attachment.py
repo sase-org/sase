@@ -44,6 +44,14 @@ def _dispatch_bead_attachment(args: argparse.Namespace, action: str | None) -> N
         _handle_bead_attachment_list(args)
     elif action == "push":
         _handle_bead_attachment_push(args)
+    elif action == "publish":
+        from sase.bead.cli_attachment_publish import handle_bead_attachment_publish
+
+        handle_bead_attachment_publish(args)
+    elif action == "unpublish":
+        from sase.bead.cli_attachment_publish import handle_bead_attachment_unpublish
+
+        handle_bead_attachment_unpublish(args)
     elif action == "purge":
         from sase.bead.cli_attachment_lifecycle import handle_bead_attachment_purge
 

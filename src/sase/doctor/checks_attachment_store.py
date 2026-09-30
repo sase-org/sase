@@ -221,6 +221,96 @@ def _check_attachment_store(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
+def _private_remote_url(clone: object) -> str | None:
+    """Return the configured origin URL for a private clone, if any."""
+    from pathlib import Path
+
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            cwd=Path(str(clone)),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    url = (result.stdout or "").strip()
+    return url or None
+
+
+def _private_store_anonymously_readable(private_clone: object | None) -> bool:
+    """Return whether the private store remote answers an anonymous probe."""
+    if private_clone is None:
+        return False
+    url = _private_remote_url(private_clone)
+    if not url:
+        return False
+    try:
+        from sase.bead.attachments.remote_visibility import resolve_remote_visibility
+
+        return resolve_remote_visibility(url) == "public"
+    except Exception:
+        return False
+
+
+def _push_access_error(clone: object, branch: str) -> str | None:
+    """Return a no-push-access detail, or None when a dry-run push succeeds.
+
+    Never raises: timeouts and unexpected git failures are treated as
+    unknown (no finding) so offline machines do not go red.
+    """
+    from pathlib import Path
+
+    try:
+        from sase.sdd._git import network_git_timeout
+
+        push_timeout = network_git_timeout()
+    except Exception:
+        push_timeout = 60.0
+    try:
+        probed = subprocess.run(
+            ["git", "push", "--dry-run", "origin", branch],
+            cwd=Path(str(clone)),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=push_timeout,
+        )
+    except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired):
+        return None
+    if probed.returncode == 0:
+        return None
+    detail = ((probed.stderr or probed.stdout) or "unknown git error").strip()
+    lowered = detail.lower()
+    auth_markers = (
+        "authentication failed",
+        "permission denied",
+        "repository not found",
+        "could not read username",
+        "401",
+        "403",
+        "404",
+    )
+    if any(marker in lowered for marker in auth_markers):
+        first = detail.splitlines()[0] if detail else "push denied"
+        return first
+    return None
+
+
+def _store_growth_details() -> list[str]:
+    """Return logical/physical byte lines per reachable shared store."""
+    try:
+        from sase.bead.attachment_doctor import _store_growth_lines
+
+        return list(_store_growth_lines())
+    except Exception:
+        return []
+
+
 def _check_git_store_and_outbox(context: DoctorContext) -> DiagnosticCheck:
     """Warn about an unreachable store or a backed-up upload outbox."""
     from sase.sdd._store_types import (
@@ -318,6 +408,36 @@ def _check_git_store_and_outbox(context: DoctorContext) -> DiagnosticCheck:
             "the upload outbox could not be read",
             f"attachment-upload-outbox.json read failed: {exc}",
         )
+    private_clone_for_probe = (
+        None
+        if clone is None or public_clone is not None and clone is public_clone
+        else clone
+    )
+    try:
+        from sase.sdd._store_types import ATTACHMENTS_PRIVATE_SIDECAR_ROLE as _priv
+
+        _real_private = _clone_for_key(project_key, _priv)
+    except Exception:
+        _real_private = None
+    if _private_store_anonymously_readable(_real_private):
+        return DiagnosticCheck(
+            id=_CHECK_ID,
+            group="project",
+            status="ERROR",
+            title=_TITLE,
+            summary=(
+                f"attachments-private store for {project_key} is anonymously "
+                "readable; private bytes are exposed"
+            ),
+            details=[
+                "the private attachments remote answers an unauthenticated "
+                "read probe; rotate any exposed bytes and restrict the remote "
+                "visibility before using it for private attachments.",
+            ],
+        )
+    growth = _store_growth_details()
+    push_detail = _push_access_error(clone, branch)
+    _ = private_clone_for_probe
     if queued:
         pending = [e for e in queued if getattr(e, "state", "pending") != "blocked"]
         blocked = [e for e in queued if getattr(e, "state", "pending") == "blocked"]
@@ -326,7 +446,15 @@ def _check_git_store_and_outbox(context: DoctorContext) -> DiagnosticCheck:
                 f"attachments-private store for {project_key} is reachable; "
                 f"{len(blocked)} blocked upload(s) held "
                 "(secret-scanning rejection; see outbox)",
-                f"{len(blocked)} blocked entries in attachment-upload-outbox.json",
+                *(
+                    [f"{len(blocked)} blocked entries in attachment-upload-outbox.json"]
+                    + growth
+                    + (
+                        [f"no push access to the attachment store: {push_detail}"]
+                        if push_detail
+                        else []
+                    )
+                ),
             )
         count = len(pending) if pending else len(queued)
         noun = "upload" if count == 1 else "uploads"
@@ -337,7 +465,21 @@ def _check_git_store_and_outbox(context: DoctorContext) -> DiagnosticCheck:
             f"attachments-private store for {project_key} is reachable; "
             f"{count} queued {noun} waiting "
             "(sase bead attachment push drains them)",
-            detail,
+            *(
+                [detail]
+                + growth
+                + (
+                    [f"no push access to the attachment store: {push_detail}"]
+                    if push_detail
+                    else []
+                )
+            ),
+        )
+    if push_detail:
+        return _warn(
+            f"attachments-private store for {project_key} is reachable; "
+            "writers have no push access",
+            *([f"no push access to the attachment store: {push_detail}"] + growth),
         )
     return DiagnosticCheck(
         id=_CHECK_ID,
@@ -348,6 +490,7 @@ def _check_git_store_and_outbox(context: DoctorContext) -> DiagnosticCheck:
             f"attachments-private store for {project_key} is reachable "
             "and the upload outbox is empty"
         ),
+        details=growth,
     )
 
 

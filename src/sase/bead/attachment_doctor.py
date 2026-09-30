@@ -47,6 +47,256 @@ class _AttachmentHealthReport:
     pending_upload: int = 0
     local_only: int = 0
     outbox_unreadable: bool = False
+    rescan_hits: list[str] = field(default_factory=list)
+    store_growth: list[str] = field(default_factory=list)
+
+
+def _current_scanner_rules_version() -> int:
+    """Return the core scanner rules version, failing open to 1."""
+    try:
+        from sase.bead.attachments import audience as _audience
+
+        return int(_audience._scanner_rules_version())
+    except Exception:
+        return 1
+
+
+def _read_audience_metadata_dict(digest: str) -> dict[str, object] | None:
+    """Return the local audience metadata for *digest*, if recorded."""
+    try:
+        import json as _json
+
+        from sase.bead.attachments import audience as _audience
+
+        raw = _audience.audience_metadata_path(digest).read_text(encoding="utf-8")
+        data = _json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _public_note_targets(
+    issues: list[Any],
+) -> dict[str, list[tuple[str, str, int]]]:
+    """Map each public note digest to ``(issue_id, name, size)`` targets."""
+    targets: dict[str, list[tuple[str, str, int]]] = {}
+    for issue in issues:
+        issue_id = str(getattr(issue, "id", "") or "")
+        for note in getattr(issue, "notes", ()) or ():
+            for attachment in getattr(note, "attachments", ()) or ():
+                try:
+                    effective = attachment.effective_visibility()
+                except Exception:
+                    effective = "private"
+                if effective != "public":
+                    continue
+                digest = str(getattr(attachment, "sha256", "") or "")
+                if not digest:
+                    continue
+                name = str(getattr(attachment, "name", "") or "")
+                try:
+                    size = int(getattr(attachment, "size_bytes", 0) or 0)
+                except Exception:
+                    size = 0
+                targets.setdefault(digest, []).append((issue_id, name, size))
+    return targets
+
+
+def find_stale_scanner_hits(
+    issues: list[Any] | None = None,
+) -> list[str]:
+    """Rescan cached public objects recorded under older scanner rules.
+
+    Only public note descriptors whose local audience metadata records a
+    ``scanner_rules_version`` older than the current one are rescanned, and
+    only when the bytes are cached locally. A hit never unpublishes
+    automatically; the finding names the ``unpublish`` command.
+    """
+    from sase.bead.attachments.store import LocalAttachmentStore
+
+    if issues is None:
+        try:
+            from sase.bead.cli_common import get_read_view
+            from sase.bead.model import Status as _Status
+
+            with get_read_view() as _view:
+                issues = list(
+                    _view.list_issues(
+                        statuses=[
+                            _Status.OPEN,
+                            _Status.CLAIMED,
+                            _Status.READY,
+                            _Status.SNOOZED,
+                            _Status.IN_PROGRESS,
+                            _Status.CLOSED,
+                        ],
+                    )
+                )
+        except Exception:
+            return []
+    current = _current_scanner_rules_version()
+    targets = _public_note_targets(list(issues))
+    if not targets:
+        return []
+    local = LocalAttachmentStore()
+    findings: list[str] = []
+    for digest in sorted(targets):
+        metadata = _read_audience_metadata_dict(digest)
+        if metadata is None:
+            continue
+        try:
+            recorded_raw = metadata.get("scanner_rules_version", current)
+            assert isinstance(recorded_raw, (int, str))
+            recorded = int(recorded_raw)
+        except Exception:
+            continue
+        if recorded >= current:
+            continue
+        try:
+            if not local.has(digest) or not local.verify(digest):
+                continue
+        except Exception:
+            continue
+        scan: dict[str, Any] | None = None
+        try:
+            from sase.bead.attachments import audience as _audience
+            from sase.bead.config import get_attachment_public_max_bytes
+
+            scan = _audience.scan_cas_object(
+                local.object_path(digest),
+                max_bytes=get_attachment_public_max_bytes(),
+            )
+        except Exception:
+            continue
+        if scan is None or str(scan.get("outcome") or "") != "hit":
+            continue
+        hit = scan.get("hit") if isinstance(scan.get("hit"), dict) else {}
+        kind = str((hit or {}).get("kind") or "credential")
+        rule_id = str((hit or {}).get("rule_id") or kind)
+        issue_id, name, _size = targets[digest][0]
+        findings.append(
+            f"rotate the credential first, then sase bead attachment "
+            f"unpublish {issue_id} {name} "
+            f"(sha256:{digest[:12]}… rescanned hit {kind}/{rule_id} under "
+            f"rules v{current}, recorded v{recorded})"
+        )
+    return findings
+
+
+def _store_growth_lines() -> list[str]:
+    """Report logical and physical bytes per reachable shared store."""
+    try:
+        from sase.bead.attachments.upload import discover_stores
+
+        stores = discover_stores(None)
+    except Exception:
+        return []
+    if not stores:
+        return []
+    lines: list[str] = []
+    for tier in ("public", "git", "large"):
+        store = stores.get(tier)
+        if store is None:
+            continue
+        logical = _logical_bytes_for_store(store)
+        physical = _physical_bytes_for_store(store)
+        guidance = ""
+        size_for_guidance = physical if physical is not None else logical
+        if size_for_guidance is not None and size_for_guidance >= 1073741824:
+            guidance = (
+                " — approaching GitHub's 1–5 GB repo guidance; "
+                "rotate or prune before pushing more"
+            )
+        if physical is not None:
+            lines.append(
+                f"{tier} store {store.describe()}: logical "
+                f"{_format_bytes(logical)}, physical {_format_bytes(physical)}"
+                f"{guidance}"
+            )
+        else:
+            lines.append(
+                f"{tier} store {store.describe()}: logical "
+                f"{_format_bytes(logical)}{guidance}"
+            )
+    return lines
+
+
+def _logical_bytes_for_store(store: Any) -> int | None:
+    """Sum referenced sizes confirmed present in *store*."""
+    try:
+        from sase.bead.cli_common import get_read_view
+        from sase.bead.model import Status as _Status
+
+        with get_read_view() as view:
+            issues = view.list_issues(
+                statuses=[
+                    _Status.OPEN,
+                    _Status.CLAIMED,
+                    _Status.READY,
+                    _Status.SNOOZED,
+                    _Status.IN_PROGRESS,
+                    _Status.CLOSED,
+                ],
+            )
+    except Exception:
+        return None
+    total = 0
+    seen: set[str] = set()
+    for issue in issues or ():
+        for source in list(getattr(issue, "notes", ()) or ()) + list(
+            getattr(issue, "plus_one_evidence", ()) or ()
+        ):
+            for attachment in getattr(source, "attachments", ()) or ():
+                digest = str(getattr(attachment, "sha256", "") or "")
+                if not digest or digest in seen:
+                    continue
+                try:
+                    present = bool(store.has(digest))
+                except Exception:
+                    continue
+                if not present:
+                    continue
+                seen.add(digest)
+                try:
+                    total += int(getattr(attachment, "size_bytes", 0) or 0)
+                except Exception:
+                    continue
+    return total
+
+
+def _physical_bytes_for_store(store: Any) -> int | None:
+    """Return the on-disk bytes of a git store clone, if discoverable."""
+    try:
+        from pathlib import Path as _Path
+
+        repo = getattr(store, "_repo", None)
+        if repo is None:
+            return None
+        root = _Path(str(repo))
+        if not root.is_dir():
+            return None
+        total = 0
+        for path in root.rglob("*"):
+            try:
+                if path.is_file() and not path.is_symlink():
+                    total += path.stat().st_size
+            except OSError:
+                continue
+        return total
+    except Exception:
+        return None
+
+
+def _format_bytes(value: int | None) -> str:
+    """Format an optional byte count for doctor output."""
+    if value is None:
+        return "unknown size"
+    try:
+        from sase.bead.attachments.fetch import format_attachment_size
+
+        return format_attachment_size(int(value))
+    except Exception:
+        return f"{value} bytes"
 
 
 def _manifest_mismatches(issues: list[Any]) -> list[str]:
@@ -100,6 +350,7 @@ def inspect_attachment_health() -> _AttachmentHealthReport:
         return report
     if inventory.references:
         report.has_attachments = True
+    all_issues: list[Any] | None = None
     try:
         from sase.bead.cli_common import get_read_view as _get_view
         from sase.bead.model import Status as _Status
@@ -115,7 +366,8 @@ def inspect_attachment_health() -> _AttachmentHealthReport:
                     _Status.CLOSED,
                 ],
             )
-        report.mismatches = _manifest_mismatches(list(_issues))
+        all_issues = list(_issues)
+        report.mismatches = _manifest_mismatches(all_issues)
     except Exception as exc:
         log.debug("attachment doctor mismatch scan skipped: %s", exc)
     if report.mismatches:
@@ -196,6 +448,19 @@ def inspect_attachment_health() -> _AttachmentHealthReport:
         log.debug("attachment doctor orphan scan skipped: %s", exc)
     if report.orphans:
         report.healthy = False
+    try:
+        report.rescan_hits = find_stale_scanner_hits(all_issues)
+    except Exception as exc:
+        log.debug("attachment doctor rescan skipped: %s", exc)
+        report.rescan_hits = []
+    if report.rescan_hits:
+        report.healthy = False
+        report.has_attachments = True
+    try:
+        report.store_growth = _store_growth_lines()
+    except Exception as exc:
+        log.debug("attachment doctor growth scan skipped: %s", exc)
+        report.store_growth = []
     return report
 
 
@@ -215,6 +480,8 @@ def render_attachment_health_messages(report: _AttachmentHealthReport) -> list[s
         and not report.pending_upload
         and not report.tombstoned
         and not report.local_only
+        and not report.rescan_hits
+        and not report.store_growth
     ):
         return []
     summary = (
@@ -222,10 +489,13 @@ def render_attachment_health_messages(report: _AttachmentHealthReport) -> list[s
         f"{len(report.dangling)} dangling, {len(report.corrupt)} corrupt, "
         f"{len(report.orphans)} orphan(s), {report.pending_upload} pending "
         f"upload(s), {report.local_only} local-only, "
-        f"{len(report.tombstoned)} tombstoned"
+        f"{len(report.tombstoned)} tombstoned, "
+        f"{len(report.rescan_hits)} stale-scan hit(s)"
     )
     if report.healthy and not _needs_repair(report):
-        return [summary]
+        base = [summary]
+        base.extend(f"  {line}" for line in report.store_growth)
+        return base
     messages = [summary + f" (repair with: {_REPAIR_HINT})"]
     for line in report.mismatches:
         messages.append(f"  token/manifest mismatch: {line}")
@@ -243,6 +513,10 @@ def render_attachment_health_messages(report: _AttachmentHealthReport) -> list[s
         messages.append(f"  {report.local_only} local-only object(s)")
     if report.outbox_unreadable:
         messages.append("  attachment outbox is unreadable")
+    for hit in report.rescan_hits:
+        messages.append(f"  stale scanner rules hit: {hit}")
+    for line in report.store_growth:
+        messages.append(f"  {line}")
     return messages
 
 
@@ -310,6 +584,7 @@ def repair_attachment_health(report: _AttachmentHealthReport) -> list[str]:
 
 __all__ = [
     "_AttachmentHealthReport",
+    "find_stale_scanner_hits",
     "inspect_attachment_health",
     "_manifest_mismatches",
     "preview_attachment_repairs",
