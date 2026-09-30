@@ -275,6 +275,63 @@ objects and incomplete fingerprints are reported as uncomparable, never guessed.
 report informs a later reuse decision; it never changes what `run` executes and never
 claims the current tree is covered.
 
+## Stats
+
+`sase tool stats [-a/--all] [-d/--days N] [-j/--json] [-t/--tool TOOL]` turns the ledger
+into routine readouts: per tool, stage, route, and provider p50/p90, the outcome and
+censoring mix, ceiling kills and wasted hours, repeats and duplicates, a daily trend, a
+chronological backtest, and host pressure. The default scope is the current catalog
+project over 7 days; `-a` includes every project, `-t` filters to one tool and prints
+its detail sections, and `-d` must be 1–180. Exit codes: 0 when reported (an empty
+window prints `no recorded runs`), 1 on a store or binding failure, 2 on usage errors.
+`-j` prints the core result plus a top-level `host`, sorted and indented with
+`schema_version: 1`.
+
+The report is read-only and machine-local: it reconciles unsettled runs first, then
+opens the ledger without migrating or writing. Compare machines by running `stats` on
+each host (`ssh <host> sase tool stats -j`), never by merging ledgers.
+
+Definitions, in plain words:
+
+- The **bare-settled cohort** is `succeeded`/`failed` runs with a known duration and no
+  extra args. Percentiles use nearest rank; a missing value renders as an em dash, never
+  as zero.
+- **Routes** are `escalated` (a join record, or an inline-then-escalate run whose
+  recorded ceiling budget is smaller than its duration), `detached` (a hand-off run with
+  a starter), `handoff` (without a starter), `owned` (a foreground run inside a monitor
+  or proc), and `inline` (everything else). `handoff + owned + escalated` is
+  monitor-owned.
+- A **ceiling kill** is an `inline`, `signaled` run by a named agent that died inside
+  85%–100% (+60 s grace) of its recorded ceiling, or inside 530–550 s without recorded
+  context (the legacy signature). **Waste** buckets are exclusive: killed at ceiling,
+  timeout, stopped, lost, interrupted, then any other signal.
+- **Repeats** are exact-state repetition: same project, tool, definition, extra args,
+  and complete fingerprint, ordered by creation. A repeat after a signaled, interrupted,
+  or lost run counts separately, as does a run that started before an earlier same-key
+  run ended (a concurrent duplicate). The content-equivalent E4b measurement stays
+  `sase tool receipts`.
+- **Trend** buckets runs per local day, empty days included. The **backtest** is a
+  baseline, not a forecaster: each in-window element with at least 20 earlier elements
+  is checked against the p10–p90 band of the 60 most recent priors, and the report
+  states coverage against the ≥80% target and median width against the ≤3× target.
+  Conditioning on selection size or continuation mode belongs to the parked forecast
+  work; this is the baseline such a forecast must beat.
+- **Pressure** buckets host samples in 30 s windows and reports busy buckets (2+
+  distinct runs), the share of buckets with memory PSI above 10, and p90 PSI and
+  load-per-CPU. OOM kills are not observable from the ledger.
+
+Stage detail reaches back over the `detail_days` retention horizon; older windows lose
+stage rows while run summaries survive to `summary_days`.
+
+Each held reconsider condition from the tool-routing research has a stats field:
+
+| Condition  | Stats field                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| Rest of E6 | Per-stage backtest coverage and width                                                        |
+| E7         | `pressure.busy_memory_over_threshold_share`, concurrent-duplicate hours, token-wait timeouts |
+| E8         | Run counts from each host (`ssh <host> sase tool stats -j`)                                  |
+| E4b        | `sase tool receipts`, not this report                                                        |
+
 ## Failure semantics
 
 The child's exit code is returned, or `128+signal`; catalog and usage errors return `2`.

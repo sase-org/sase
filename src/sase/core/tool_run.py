@@ -491,6 +491,23 @@ def tool_run_receipts_report(
     )
 
 
+def tool_run_stats_report(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Return the read-only ToolRun stats report over the runs table."""
+
+    return dict(
+        require_rust_binding("tool_run_stats_report")(
+            store_path or str(tool_run_store_path()),
+            {"schema_version": 1, **dict(request)},
+            busy_timeout_ms,
+        )
+    )
+
+
 def tool_run_record_demand(
     request: Mapping[str, Any],
     *,
@@ -635,6 +652,7 @@ __all__ = [
     "tool_run_receipt_settle",
     "tool_run_receipts_report",
     "tool_run_record_demand",
+    "tool_run_stats_report",
     "tool_run_request_stop",
     "tool_run_retention_apply",
     "tool_run_retention_preview",

@@ -141,6 +141,19 @@ def handle_tool_command(args: argparse.Namespace) -> None:
                 )
             )
         )
+    if subcommand == "stats":
+        from sase.tool.stats_report import ToolStatsCliRequest, handle_stats
+
+        sys.exit(
+            handle_stats(
+                ToolStatsCliRequest(
+                    include_all=bool(getattr(args, "tool_stats_all", False)),
+                    days=int(getattr(args, "tool_stats_days", 7)),
+                    json=bool(getattr(args, "tool_stats_json", False)),
+                    tool=getattr(args, "tool_stats_tool", None),
+                )
+            )
+        )
     if subcommand == "stop":
         sys.exit(
             handle_stop(
@@ -162,7 +175,7 @@ def handle_tool_command(args: argparse.Namespace) -> None:
             )
         )
     print(
-        "Usage: sase tool {failures,list,receipt,receipts,run,runs,show,stop,wait}",
+        "Usage: sase tool {failures,list,receipt,receipts,run,runs,show,stats,stop,wait}",
         file=sys.stderr,
     )
     sys.exit(2)

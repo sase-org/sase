@@ -34,7 +34,7 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
     tool_subparsers = tool_parser.add_subparsers(
         dest="tool_subcommand",
         help="Tool subcommands",
-        metavar="{failures,list,receipt,receipts,run,runs,show,stop,wait}",
+        metavar="{failures,list,receipt,receipts,run,runs,show,stats,stop,wait}",
     )
 
     failures_parser = tool_subparsers.add_parser(
@@ -487,6 +487,58 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         "tool_show_run_id",
         metavar="RUN",
         help="Exact tool run id",
+    )
+
+    stats_parser = tool_subparsers.add_parser(
+        "stats",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Report ToolRun durations, waste, repeats, and pressure",
+        description=(
+            "Report read-only ToolRun stats over the machine-local ledger: "
+            "per tool, stage, route, and provider p50/p90, outcome and "
+            "censoring mix, ceiling kills and wasted hours, repeats and "
+            "duplicates, a daily trend, a chronological backtest, and host "
+            "pressure. The backtest measures the simplest empirical-quantile "
+            "baseline, not a forecaster. An empty report prints "
+            "`no recorded runs` and exits 0."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase tool stats\n"
+            "  sase tool stats -t check -d 7\n"
+            "  sase tool stats -a -j"
+        ),
+    )
+    stats_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        dest="tool_stats_all",
+        help="Include runs from every project",
+    )
+    stats_parser.add_argument(
+        "-d",
+        "--days",
+        type=int,
+        default=7,
+        metavar="N",
+        dest="tool_stats_days",
+        help="Look back N days (default: 7, max: 180)",
+    )
+    stats_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        dest="tool_stats_json",
+        help="Emit a versioned machine-readable JSON object",
+    )
+    stats_parser.add_argument(
+        "-t",
+        "--tool",
+        default=None,
+        metavar="TOOL",
+        dest="tool_stats_tool",
+        help="Filter to one named tool",
     )
 
     stop_parser = tool_subparsers.add_parser(

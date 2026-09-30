@@ -15,7 +15,7 @@ def test_tool_modules_do_not_import_the_provider_stack() -> None:
     code = (
         "import sys\n"
         "import sase.tool.executor, sase.tool.query, sase.tool.observe\n"
-        "import sase.tool.demand\n"
+        "import sase.tool.demand, sase.tool.stats_report\n"
         f"heavy = sorted(m for m in sys.modules if m.startswith({HEAVY_PREFIXES!r}))\n"
         "print(heavy)\n"
         "sys.exit(1 if heavy else 0)\n"
