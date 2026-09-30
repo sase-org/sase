@@ -49,6 +49,7 @@ from sase.finalizers.commit_dispatch_support import (
 from sase.finalizers.commit_revision_pin import (
     maybe_write_revision_pin as _maybe_write_revision_pin,
     order_pinned_siblings_first as _order_pinned_siblings_first,
+    pinned_sibling_bead_action as _pinned_sibling_bead_action,
     revision_pins_for_project as _revision_pins_for_project,
     without_pin_protected as _without_pin_protected,
 )
@@ -273,6 +274,9 @@ def dispatch_commit_decisions(
 
         message = str(decision.get("message", "")).strip()
         bead_action = _decision_bead_action(decision)
+        # Pinned siblings land first with -B keep; only the main stitch
+        # applies the declared close, after the pin follows.
+        bead_action = _pinned_sibling_bead_action(repo, bead_action, revision_pins)
         assigned_bead_id = _context_assigned_bead_id(context)
         attempt_fields = stitch_attempt_input_fields(
             repo,

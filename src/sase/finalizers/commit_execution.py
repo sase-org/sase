@@ -259,6 +259,7 @@ def execute_commit_finalizer(
         current_result=current_result,
         repository_decision_id=repository_decision_id,
         peek_attempt=peek_attempt,
+        project_dir=project_dir,
     )
     resumed_attempt_id = None
     if checkpoint_recovery is not None:
@@ -335,6 +336,7 @@ def execute_commit_finalizer(
             resume_runner=resume,
             ledger=ledger,
             current_result=current_result,
+            project_dir=project_dir,
         )
         if resume_attempts:
             resumed_attempt_id = unpushed_attempt_id

@@ -25,6 +25,10 @@ from sase.finalizers.commit_repair import (
     stitch_bounds_failure_message,
     stitch_failure_message,
 )
+from sase.finalizers.commit_revision_pin import (
+    pinned_sibling_bead_action as _pinned_sibling_bead_action,
+    revision_pins_for_project as _revision_pins_for_project,
+)
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
     ResumeRunner,
@@ -98,6 +102,7 @@ def resume_unpushed_already_clean_repos(
     resume_runner: ResumeRunner,
     ledger: InstanceLedger | None,
     current_result: InvokeResult,
+    project_dir: str | None = None,
 ) -> tuple[int | None, list[FinalizerAttemptWire], list[FinalizerOutcomeEvidenceWire]]:
     markers = load_commit_results(artifacts)
     work = [
@@ -111,11 +116,17 @@ def resume_unpushed_already_clean_repos(
     attempt_id = _consume_unpushed_resume_attempt(ledger, instance_id, current_result)
     attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
     evidence: list[FinalizerOutcomeEvidenceWire] = []
+    try:
+        revision_pins = _revision_pins_for_project(project_dir) if project_dir else {}
+    except Exception:  # noqa: BLE001 - pin config must never fail resume
+        revision_pins = {}
 
     for repo, marker in work:
         bead_action = _decision_bead_action(
             decisions.get(_repository_decision_id(repo), {})
         )
+        # Pinned siblings resume with -B keep; only the main stitch may close.
+        bead_action = _pinned_sibling_bead_action(repo, bead_action, revision_pins)
         evidence.append(
             FinalizerOutcomeEvidenceWire(
                 kind="unpushed_commit_resume",

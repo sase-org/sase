@@ -84,6 +84,24 @@ def revision_pins_for_project(
     return pins
 
 
+def pinned_sibling_bead_action(
+    repo: DirtyRepo,
+    bead_action: str | None,
+    revision_pins: Mapping[str, str],
+) -> str | None:
+    """Downgrade a revision-pinned sibling's bead action to ``keep``.
+
+    Only the primary repository may close the assigned bead, and the
+    sibling bead-action policy rejects a missing action, so a pinned
+    sibling that carries any declared action lands with ``-B keep``.
+    A decision without an action (no assigned bead) stays ``None``.
+    """
+
+    if bead_action is not None and repo.kind != "main" and repo.name in revision_pins:
+        return "keep"
+    return bead_action
+
+
 def _repo_id(repo: DirtyRepo) -> str:
     from sase.finalizers.commit_declaration import repository_decision_id
 
@@ -389,6 +407,7 @@ __all__ = [
     "maybe_write_revision_pin",
     "order_pinned_siblings_first",
     "order_with_project_pins",
+    "pinned_sibling_bead_action",
     "revision_pins_for_project",
     "without_pin_protected",
 ]

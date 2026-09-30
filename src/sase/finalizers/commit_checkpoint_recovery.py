@@ -20,6 +20,10 @@ from sase.finalizers.commit_repair import (
     record_stitch_artifacts,
     stitch_bounds_failure_message,
 )
+from sase.finalizers.commit_revision_pin import (
+    pinned_sibling_bead_action as _pinned_sibling_bead_action,
+    revision_pins_for_project as _revision_pins_for_project,
+)
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
     ResumeRunner,
@@ -53,6 +57,7 @@ def resume_owned_pending_checkpoint(
     current_result: InvokeResult,
     repository_decision_id: Any,
     peek_attempt: Any,
+    project_dir: str | None = None,
 ) -> (
     tuple[int | None, list[FinalizerAttemptWire], list[FinalizerOutcomeEvidenceWire]]
     | None
@@ -135,11 +140,19 @@ def resume_owned_pending_checkpoint(
             for item in diagnostics
         ],
     ]
+    try:
+        revision_pins = _revision_pins_for_project(project_dir) if project_dir else {}
+    except Exception:  # noqa: BLE001 - pin config must never fail recovery
+        revision_pins = {}
+    # Pinned siblings resume with -B keep; only the main stitch may close.
+    resume_bead_action = _pinned_sibling_bead_action(
+        matching, _decision_bead_action(decision_payload), revision_pins
+    )
     resumed = _call_resume_runner(
         resume_runner,
         matching,
         context,
-        bead_action=_decision_bead_action(decision_payload),
+        bead_action=resume_bead_action,
         instance_id=instance_id,
         attempt=attempt_id,
         label=f"{matching.name}-checkpoint-resume",
@@ -155,7 +168,7 @@ def resume_owned_pending_checkpoint(
             "repo_path": matching.path,
             "operation_id": getattr(checkpoint, "operation_id", None),
             "commit_sha": getattr(checkpoint, "commit_sha", None),
-            "bead_action": _decision_bead_action(decision_payload),
+            "bead_action": resume_bead_action,
             "assigned_bead_id": _context_assigned_bead_id(context),
         },
     )
