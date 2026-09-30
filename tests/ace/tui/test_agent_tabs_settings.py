@@ -55,7 +55,10 @@ def _install_view_config(
     machines: tuple[MachineRecord, ...] = (),
     *,
     token: tuple[Any, ...] = ("config", 1),
+    local_name: str = "",
 ) -> None:
+    import sase.config as config_mod
+
     monkeypatch.setattr(
         settings, "load_merged_config", lambda: {"ace": {"agent_tabs": ace_tabs}}
     )
@@ -63,6 +66,7 @@ def _install_view_config(
         settings, "load_dispatch_config", lambda config: _dispatch(*machines)
     )
     monkeypatch.setattr(settings, "current_config_token", lambda: token)
+    monkeypatch.setattr(config_mod, "get_local_machine_name", lambda: local_name)
 
 
 def test_defaults() -> None:
@@ -260,3 +264,46 @@ def test_launch_from_view_enabled_falls_back_on_bad_config(
 ) -> None:
     monkeypatch.setattr(settings, "load_merged_config", lambda: None)
     assert settings.launch_from_view_enabled() is True
+
+
+def test_view_config_resolves_local_machine_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_view_config(monkeypatch, {}, (), token=("t", 1), local_name="athena")
+    view = agent_tabs_view_config()
+    assert view.local_machine_name == "athena"
+    assert settings.local_machine_tab_name(view) == "athena"
+
+
+def test_view_config_token_changes_with_local_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_view_config(monkeypatch, {}, (), token=("t", 1), local_name="athena")
+    first = agent_tabs_view_config()
+    _install_view_config(monkeypatch, {}, (), token=("t", 2), local_name="apollo")
+    second = agent_tabs_view_config()
+    assert first.token != second.token
+    assert "athena" in first.token
+    assert "apollo" in second.token
+    assert second.local_machine_name == "apollo"
+
+
+def test_view_config_local_name_falls_back_on_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.config as config_mod
+
+    monkeypatch.setattr(
+        settings, "load_merged_config", lambda: {"ace": {"agent_tabs": {}}}
+    )
+    monkeypatch.setattr(settings, "load_dispatch_config", lambda config: _dispatch())
+    monkeypatch.setattr(settings, "current_config_token", lambda: ("t", 9))
+
+    def _boom() -> str:
+        raise RuntimeError("no identity")
+
+    monkeypatch.setattr(config_mod, "get_local_machine_name", _boom)
+    view = agent_tabs_view_config()
+    assert view.local_machine_name == ""
+    assert settings.local_machine_tab_name(view) == "local"
+    assert settings.local_machine_tab_name(None) == "local"

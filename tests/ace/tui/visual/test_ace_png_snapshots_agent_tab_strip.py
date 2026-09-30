@@ -66,6 +66,7 @@ def _install_tab_view(
     *,
     machine_mode: bool = False,
     machine_order: tuple[tuple[str, str], ...] = (),
+    local_machine_name: str = "",
 ) -> None:
     """Pin the tab view config and style inputs for one golden."""
     view = AgentTabsViewConfig(
@@ -73,7 +74,8 @@ def _install_tab_view(
         machine_order=machine_order,
         pinned_by_alias={alias: iid for iid, alias in machine_order},
         named_order={},
-        token=(machine_mode, tuple(machine_order)),
+        local_machine_name=local_machine_name,
+        token=(machine_mode, tuple(machine_order), local_machine_name),
     )
     styles = AgentTabStyleInputs(machine_mode=machine_mode)
     monkeypatch.setattr(settings_mod, "agent_tabs_view_config", lambda: view)
@@ -273,6 +275,7 @@ async def test_agents_tab_strip_feed_unavailable_png_snapshot(
         monkeypatch,
         machine_mode=True,
         machine_order=(("install-apollo", "apollo"),),
+        local_machine_name="athena",
     )
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
@@ -344,10 +347,11 @@ async def test_agents_tab_strip_machine_mode_png_snapshot(
         monkeypatch,
         machine_mode=True,
         machine_order=(("install-apollo", "apollo"), ("install-mac", "mac")),
+        local_machine_name="athena",
     )
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
-        for token in ("⌨", "local", "apollo", "mac", "sase", "┊"):
+        for token in ("⌂", "athena", "⌨", "apollo", "mac", "sase", "┊"):
             await wait_for_svg_contains(page, token)
         ace_png_visual.assert_page_png(
             page,
@@ -376,10 +380,11 @@ async def test_agents_tab_strip_named_vs_machine_alias_png_snapshot(
         monkeypatch,
         machine_mode=True,
         machine_order=(("install-apollo", "apollo"),),
+        local_machine_name="athena",
     )
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
-        for token in ("⌨", "apollo"):
+        for token in ("⌂", "athena", "⌨", "apollo"):
             await wait_for_svg_contains(page, token)
         ace_png_visual.assert_page_png(
             page,
@@ -408,6 +413,7 @@ async def test_agents_tab_strip_stale_host_png_snapshot(
         monkeypatch,
         machine_mode=True,
         machine_order=(("install-apollo", "apollo"),),
+        local_machine_name="athena",
     )
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
@@ -432,7 +438,7 @@ async def test_agents_tab_strip_by_machine_on_machine_tab_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The default tab is the ⌨ local machine tab in machine mode: its lone
+    # The default tab is the ⌂ athena machine tab in machine mode: its lone
     # `local` L0 banner is redundant with the strip, so only the Running
     # status subgroup renders.
     patch_startup_loaders(
@@ -442,7 +448,7 @@ async def test_agents_tab_strip_by_machine_on_machine_tab_png_snapshot(
             _agent("two", tab="sase"),
         ],
     )
-    _install_tab_view(monkeypatch, machine_mode=True)
+    _install_tab_view(monkeypatch, machine_mode=True, local_machine_name="athena")
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
         await page.press("o", "m")
@@ -469,7 +475,7 @@ async def test_agents_tab_strip_by_machine_on_named_tab_png_snapshot(
             _agent("two", tab="sase"),
         ],
     )
-    _install_tab_view(monkeypatch, machine_mode=True)
+    _install_tab_view(monkeypatch, machine_mode=True, local_machine_name="athena")
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
         assert page.app._switch_agents_tab(_SASE, reason="visual") is True

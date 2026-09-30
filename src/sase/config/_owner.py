@@ -46,6 +46,25 @@ def get_machine_name() -> str | None:
     return owner.machine_name if owner is not None else None
 
 
+def get_local_machine_name() -> str | None:
+    """Return this machine's configured name for local-tab labeling.
+
+    The complete owner's ``machine_name`` wins; otherwise the valid
+    machine-name selector (``snapshot.selector``), else None. Both are
+    read from the token-cached owner snapshot, so this is free of I/O
+    on render paths.
+    """
+    snapshot = _snapshot()
+    if snapshot.owner is not None:
+        name = snapshot.owner.machine_name
+        if isinstance(name, str) and name.strip():
+            return name
+    selector = snapshot.selector
+    if isinstance(selector, str) and is_valid_machine_name(selector):
+        return selector
+    return None
+
+
 def require_machine_name() -> str:
     """Compatibility projection requiring a complete configured owner."""
     return require_agent_owner_identity().machine_name

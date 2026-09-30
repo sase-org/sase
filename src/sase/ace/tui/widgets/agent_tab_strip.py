@@ -14,6 +14,8 @@ from ._agent_tab_strip_model import (
     ATTENTION_STYLES,
     INVALID_LABEL_STYLE,
     KIND_DIVIDER,
+    LOCAL_MACHINE_GLYPH,
+    LOCAL_MACHINE_STYLE,
     MACHINE_GLYPH,
     MACHINE_GLYPH_STYLE,
     MAIN_LABEL_STYLE,
@@ -31,7 +33,9 @@ from ._agent_tab_strip_model import (
     agent_tab_accent_for_name,
     agent_tab_chip_for_key,
     agent_tab_empty_state,
+    agent_tab_glyph_style,
     agent_tab_label_style,
+    local_machine_tab_label,
 )
 from ._agent_tab_strip_strip import AgentTabStrip
 
@@ -43,6 +47,8 @@ __all__ = [
     "ATTENTION_STYLES",
     "INVALID_LABEL_STYLE",
     "KIND_DIVIDER",
+    "LOCAL_MACHINE_GLYPH",
+    "LOCAL_MACHINE_STYLE",
     "MACHINE_GLYPH",
     "MACHINE_GLYPH_STYLE",
     "MAIN_LABEL_STYLE",
@@ -61,5 +67,7 @@ __all__ = [
     "agent_tab_accent_for_name",
     "agent_tab_chip_for_key",
     "agent_tab_empty_state",
+    "agent_tab_glyph_style",
     "agent_tab_label_style",
+    "local_machine_tab_label",
 ]

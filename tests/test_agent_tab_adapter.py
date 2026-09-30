@@ -136,7 +136,7 @@ def test_machine_mode_splits_local_and_remote() -> None:
         AgentTabKey.machine("install-apollo"),
     )
     labels = {entry.key: entry.label for entry in catalog.entries}
-    assert labels[AgentTabKey.default()] == "⌨ local"
+    assert labels[AgentTabKey.default()] == "⌂ local"
     assert labels[AgentTabKey.machine("install-apollo")] == "⌨ apollo"
 
 
@@ -196,3 +196,69 @@ def test_one_binding_call_per_roster(monkeypatch: pytest.MonkeyPatch) -> None:
         {"agent_tab": "sase", "owner": {"kind": "local"}},
     ]
     assert set(calls[0][1]) == {"machine_mode", "machine_order", "named_order"}
+
+
+def test_local_alias_names_default_tab() -> None:
+    catalog = build_agent_tab_catalog(
+        [_local(), _remote("apollo", "install-apollo")],
+        machine_mode=True,
+        machine_order=[("install-apollo", "apollo")],
+        named_order={},
+        local_alias="athena",
+    )
+    labels = {entry.key: entry.label for entry in catalog.entries}
+    assert labels[AgentTabKey.default()] == "⌂ athena"
+
+
+def test_local_alias_blank_is_omitted(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[list, dict]] = []
+    real = adapter.require_rust_binding("build_agent_tab_catalog")
+
+    def _counting(roots: list, options: dict) -> dict:
+        calls.append((roots, options))
+        return real(roots, options)
+
+    monkeypatch.setattr(adapter, "require_rust_binding", lambda name: _counting)
+    for blank in (None, "", "   "):
+        calls.clear()
+        catalog = build_agent_tab_catalog(
+            [_local()],
+            machine_mode=True,
+            machine_order=[],
+            named_order={},
+            local_alias=blank,
+        )
+        assert "local_alias" not in calls[0][1]
+        assert catalog.entries[0].label == "⌂ local"
+
+
+def test_local_alias_passthrough_strips(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[list, dict]] = []
+    real = adapter.require_rust_binding("build_agent_tab_catalog")
+
+    def _counting(roots: list, options: dict) -> dict:
+        calls.append((roots, options))
+        return real(roots, options)
+
+    monkeypatch.setattr(adapter, "require_rust_binding", lambda name: _counting)
+    build_agent_tab_catalog(
+        [_local()],
+        machine_mode=True,
+        machine_order=[],
+        named_order={},
+        local_alias="  athena  ",
+    )
+    assert calls[0][1]["local_alias"] == "athena"
+
+
+def test_remote_alias_matching_local_name_disambiguates() -> None:
+    catalog = build_agent_tab_catalog(
+        [_local(), _remote("Athena", "install-1")],
+        machine_mode=True,
+        machine_order=[],
+        named_order={},
+        local_alias="athena",
+    )
+    labels = {entry.key: entry.label for entry in catalog.entries}
+    assert labels[AgentTabKey.default()] == "⌂ athena"
+    assert labels[AgentTabKey.machine("install-1")] == "⌨ Athena·remote"

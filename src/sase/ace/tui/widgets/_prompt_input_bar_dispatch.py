@@ -488,8 +488,22 @@ class PromptInputBarDispatchMixin(_MixinBase):
         except Exception:  # noqa: BLE001 - no chip without view state.
             machine_alias = None
         if machine_alias:
+            try:
+                from sase.ace.tui.agent_tabs_settings import (
+                    agent_tabs_view_config,
+                    local_machine_tab_name,
+                )
+                from sase.ace.tui.widgets.agent_tab_strip import (
+                    local_machine_tab_label,
+                )
+
+                local_label = local_machine_tab_label(
+                    local_machine_tab_name(agent_tabs_view_config())
+                )
+            except Exception:  # noqa: BLE001 - fall back to the unnamed label.
+                local_label = "⌂ local"
             segment = Text()
-            segment.append("runs on ⌨ local", style="dim")
+            segment.append(f"runs on {local_label}", style="dim")
             segment.append(f"  gD launch on {machine_alias}", style="dim")
             return segment, "ok"
         return None, "ok"
@@ -516,11 +530,23 @@ class PromptInputBarDispatchMixin(_MixinBase):
         segment.append(name, style=f"bold {accent}")
         if inherited:
             segment.append("  from view", style="dim")
-        aliases = getattr(self, "_dispatch_target_rows", None)
-        if isinstance(aliases, dict) and name.casefold() in {
-            str(alias).casefold() for alias in aliases
-        }:
-            segment.append("  named tab wins over ⌨ machine", style="dim")
+        try:
+            from sase.ace.tui.agent_tabs_settings import (
+                agent_tabs_view_config,
+                local_machine_tab_name,
+            )
+
+            local_name = local_machine_tab_name(agent_tabs_view_config())
+        except Exception:  # noqa: BLE001 - no local-name chip without view state.
+            local_name = "local"
+        if name.casefold() == local_name.casefold():
+            segment.append(f"  named tab wins over ⌂ {local_name}", style="dim")
+        else:
+            aliases = getattr(self, "_dispatch_target_rows", None)
+            if isinstance(aliases, dict) and name.casefold() in {
+                str(alias).casefold() for alias in aliases
+            }:
+                segment.append("  named tab wins over ⌨ machine", style="dim")
         segment.append("  Ctrl+G b change · %tab:main for default", style="dim")
         return segment
 

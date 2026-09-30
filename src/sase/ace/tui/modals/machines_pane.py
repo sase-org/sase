@@ -256,7 +256,7 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
     def _machine_tab_key(self, row: MachineRow) -> Any | None:
         """Return the agent-tab key for *row*, or None to keep filtering.
 
-        The local row is the default tab (``⌨ local`` in machine mode).
+        The local row is the default tab (``⌂ <name>`` in machine mode).
         A remote row resolves through its pinned installation id, falling
         back to the tab view's alias pinning after a rename. Origins with
         no known installation id keep the ``machine:`` filter behavior:
@@ -308,9 +308,19 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
                 return False
             app.current_tab = "agents"
             switched = bool(switch(key, reason="machines_pane"))
-            label = row.alias if row.kind != "here" else "local"
             if switched:
-                self.notify(f"Showing ⌨ {label} tab")
+                if row.kind == "here":
+                    try:
+                        from sase.ace.tui.widgets.agent_tab_strip import (
+                            local_machine_tab_label,
+                        )
+
+                        local_label = local_machine_tab_label(row.alias)
+                    except Exception:  # noqa: BLE001 - fall back to plain text.
+                        local_label = f"⌂ {row.alias or 'local'}"
+                    self.notify(f"Showing {local_label} tab")
+                else:
+                    self.notify(f"Showing ⌨ {row.alias} tab")
             return True
         except Exception:  # noqa: BLE001 - tab selection is best-effort.
             return False

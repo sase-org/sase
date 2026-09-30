@@ -83,6 +83,41 @@ def test_picker_row_shows_glyph_count_and_attention() -> None:
     assert row.plain == "sase  12  S1  U2"
 
 
+def test_picker_row_renders_local_glyph_once_with_suffix() -> None:
+    entry = AgentTabCatalogEntry(DEFAULT_AGENT_TAB_KEY, "default", "⌂ athena", 179)
+    descriptor = AgentTabDescriptor(
+        key=DEFAULT_AGENT_TAB_KEY,
+        label="athena",
+        glyph="⌂",
+        accent="#00D7AF",
+        count=179,
+        machine_alias="athena",
+        is_default=True,
+        is_local_machine=True,
+    )
+    row = picker_row_text(entry, descriptor)
+    assert row.plain == "⌂ athena  179  this machine"
+    assert row.plain.count("⌂") == 1
+
+
+def test_picker_row_renders_remote_glyph_once() -> None:
+    from sase.core.agent_tab import AgentTabKey
+
+    key = AgentTabKey.machine("iid-apollo")
+    entry = AgentTabCatalogEntry(key, "machine", "⌨ apollo", 79)
+    descriptor = AgentTabDescriptor(
+        key=key,
+        label="apollo",
+        glyph="⌨",
+        accent="#5FD7FF",
+        count=79,
+        machine_alias="apollo",
+    )
+    row = picker_row_text(entry, descriptor)
+    assert row.plain == "⌨ apollo  79"
+    assert row.plain.count("⌨") == 1
+
+
 def test_picker_modal_constructs_with_entries_only() -> None:
     entries = (
         AgentTabCatalogEntry(DEFAULT_AGENT_TAB_KEY, "default", "main", 2),

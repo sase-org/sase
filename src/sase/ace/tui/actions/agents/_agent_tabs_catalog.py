@@ -21,6 +21,18 @@ def _fallback_label(key: AgentTabKey) -> str:
         return key.value or "tab"
     if key.kind == "machine":
         return f"\u2328 {key.value}"
+    try:
+        from ...agent_tabs_settings import (
+            agent_tabs_view_config,
+            local_machine_tab_name,
+        )
+        from ...widgets.agent_tab_strip import local_machine_tab_label
+
+        view = agent_tabs_view_config()
+        if getattr(view, "machine_mode", False):
+            return local_machine_tab_label(local_machine_tab_name(view))
+    except Exception:  # noqa: BLE001 - fall back to the non-machine label.
+        pass
     return "main"
 
 
@@ -241,14 +253,18 @@ def agent_tab_health_for_owner(
         key = entry.key
         if not isinstance(key, AgentTabKey):
             continue
-        if key.kind == "machine":
-            candidates = [alias_by_id.get(key.value, "")]
-        elif key.kind == "default" and view.machine_mode:
-            candidates = []
-        else:
+        # The local tab has no remote feed, so a host issue or diagnostic
+        # whose alias matches the local name can never paint it.
+        if key.kind != "machine":
             continue
+        candidates = [alias_by_id.get(key.value, "")]
         try:
-            bare = (entry.label or "").removeprefix("\u2328 ").strip()
+            bare = (
+                (entry.label or "")
+                .removeprefix("\u2328 ")
+                .removeprefix("\u2302 ")
+                .strip()
+            )
         except Exception:
             bare = ""
         if bare:

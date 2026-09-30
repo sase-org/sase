@@ -16,6 +16,7 @@ from sase.palette_hash import hash_palette_index
 from sase.project_accents import PROJECT_ACCENTS, project_accent
 
 MACHINE_GLYPH = "\u2328"
+LOCAL_MACHINE_GLYPH = "\u2302"
 ARRIVAL_DOT = "\u2022"
 ACTIVE_PILL_LEFT = "\u2590"
 ACTIVE_PILL_RIGHT = "\u258c"
@@ -25,6 +26,7 @@ OVERFLOW_PREV_ID = "__overflow_prev__"
 OVERFLOW_NEXT_ID = "__overflow_next__"
 
 MACHINE_GLYPH_STYLE = "#5FD7FF"
+LOCAL_MACHINE_STYLE = "#00D7AF"
 MAIN_LABEL_STYLE = "#AFAFAF"
 NEUTRAL_COUNT_STYLE = "#AFAFAF"
 SEPARATOR_STYLE = "#444444"
@@ -61,6 +63,7 @@ class AgentTabDescriptor:
     jump_hint: str | None = None
     machine_alias: str = ""
     is_default: bool = False
+    is_local_machine: bool = False
 
 
 def agent_tab_accent_for_name(
@@ -111,6 +114,8 @@ def agent_tab_chip_for_key(
 
 def agent_tab_label_style(descriptor: AgentTabDescriptor) -> str:
     """Return the label style for *descriptor* honoring machine health."""
+    if getattr(descriptor, "is_local_machine", False):
+        return LOCAL_MACHINE_STYLE
     if descriptor.is_default:
         return MAIN_LABEL_STYLE
     if descriptor.glyph == MACHINE_GLYPH:
@@ -120,6 +125,19 @@ def agent_tab_label_style(descriptor: AgentTabDescriptor) -> str:
             return STALE_LABEL_STYLE
         return descriptor.accent or MACHINE_GLYPH_STYLE
     return descriptor.accent or MAIN_LABEL_STYLE
+
+
+def agent_tab_glyph_style(descriptor: AgentTabDescriptor) -> str:
+    """Return the glyph style for *descriptor*."""
+    if getattr(descriptor, "is_local_machine", False):
+        return f"bold {LOCAL_MACHINE_STYLE}"
+    return MACHINE_GLYPH_STYLE
+
+
+def local_machine_tab_label(name: object) -> str:
+    """Return the local machine tab label for *name* (""-safe)."""
+    cleaned = name.strip() if isinstance(name, str) else ""
+    return f"{LOCAL_MACHINE_GLYPH} {cleaned or 'local'}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +191,8 @@ __all__ = [
     "ATTENTION_STYLES",
     "INVALID_LABEL_STYLE",
     "KIND_DIVIDER",
+    "LOCAL_MACHINE_GLYPH",
+    "LOCAL_MACHINE_STYLE",
     "MACHINE_GLYPH",
     "MACHINE_GLYPH_STYLE",
     "MAIN_LABEL_STYLE",
@@ -190,5 +210,7 @@ __all__ = [
     "agent_tab_accent_for_name",
     "agent_tab_chip_for_key",
     "agent_tab_empty_state",
+    "agent_tab_glyph_style",
     "agent_tab_label_style",
+    "local_machine_tab_label",
 ]

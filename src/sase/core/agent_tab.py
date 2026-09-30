@@ -146,16 +146,18 @@ def build_agent_tab_catalog(
     machine_mode: bool,
     machine_order: Iterable[tuple[str, str]],
     named_order: Mapping[str, int],
+    local_alias: str | None = None,
 ) -> _AgentTabCatalog:
     """Build the ordered tab catalog for one roster with a single binding call.
 
     *roots* are wire dicts shaped ``{"agent_tab": str|None, "owner": {...}}``;
     *machine_order* holds ``(pinned_installation_id, alias)`` pairs;
-    *named_order* maps canonical tab names to sort positions.
+    *named_order* maps canonical tab names to sort positions; *local_alias*
+    names this machine's tab in machine mode (blank values are omitted).
     """
     binding = require_rust_binding("build_agent_tab_catalog")
     root_list = list(roots)
-    options = {
+    options: dict[str, Any] = {
         "machine_mode": bool(machine_mode),
         "machine_order": [
             {"installation_id": installation_id, "alias": alias}
@@ -163,6 +165,8 @@ def build_agent_tab_catalog(
         ],
         "named_order": dict(named_order),
     }
+    if isinstance(local_alias, str) and local_alias.strip():
+        options["local_alias"] = local_alias.strip()
     result: Any = binding(root_list, options)
     if not isinstance(result, dict):
         raise TypeError("sase_core_rs returned non-dict tab catalog")

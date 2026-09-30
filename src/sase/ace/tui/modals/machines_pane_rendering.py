@@ -24,11 +24,11 @@ _OBSERVED_WIDTH = 19
 
 def local_machine_label() -> str:
     try:
-        snapshot = get_agent_owner_config_snapshot()
-        if snapshot.owner is not None:
-            return snapshot.owner.machine_name
-        if snapshot.selector:
-            return snapshot.selector
+        from sase.config import get_local_machine_name
+
+        name = get_local_machine_name()
+        if isinstance(name, str) and name.strip():
+            return name
     except Exception:
         pass
     return platform.node() or "local"

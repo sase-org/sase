@@ -1308,20 +1308,23 @@ The Agents tab shows one agent tab at a time instead of the whole roster. A tab 
 presentation-only placement: it never changes where an agent runs, its identity, clan,
 session, or tribe. Tabs come from each root's recorded tab (see
 [Tab Directive](xprompt.md#tab-directive)): `%tab:<name>` authors a named tab, and roots
-without one land on the default tab. The default tab is labeled `main`, or `⌨ local` in
-machine mode (`ace.agent_tabs.machine_tabs`: `on`, or `auto` when dispatch machines are
-configured). In machine mode each remote machine gets its own `⌨ <alias>` tab;
-`%tab:apollo` is still an ordinary named tab, distinct from `⌨ apollo`. A remote alias
-literally named `local` renders as `⌨ local·remote`.
+without one land on the default tab. The default tab is labeled `main`, or
+`⌂ <machine name>` in machine mode (`ace.agent_tabs.machine_tabs`: `on`, or `auto` when
+dispatch machines are configured), where `<machine name>` is the viewer's
+`id.machine_name` (`⌂ local` when unset). In machine mode each remote machine gets its
+own `⌨ <alias>` tab; `%tab:apollo` is still an ordinary named tab, distinct from
+`⌨ apollo`. A remote alias literally named `local`, or equal to the local machine name
+(case-insensitive), renders as `⌨ <alias>·remote`.
 
 A tab exists while at least one visible root resolves to it, and the strip beside the
 fleet status appears once two or more tabs exist (with a single tab the Agents tab looks
 exactly as before). The active tab shows as a pill; inactive tabs show their label,
 count, and only the non-zero attention tokens (`S`/`F`/`U`). Machine tabs carry a `⌨`
 glyph whose label turns amber when its host is stale and red when it is invalid or
-offline. An arrival dot (`•`) marks an inactive tab that gained a new root since you
-last visited it. At narrow widths the strip compacts and then windows around the active
-tab with `‹N` / `N›` overflow chips that open the tab picker.
+offline. The local machine tab carries a teal `⌂` home glyph instead. An arrival dot
+(`•`) marks an inactive tab that gained a new root since you last visited it. At narrow
+widths the strip compacts and then windows around the active tab with `‹N` / `N›`
+overflow chips that open the tab picker.
 
 `]` / `[` cycle tabs (wrapping, including overflow tabs). The palette entry
 `Agents: go to tab…`, the `'` jump hints on strip chips, and clicking a chip or overflow

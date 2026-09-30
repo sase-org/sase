@@ -24,8 +24,8 @@ from ._agent_tab_strip_model import (
     ARRIVAL_DOT,
     ATTENTION_STYLES,
     KIND_DIVIDER,
+    LOCAL_MACHINE_STYLE,
     MACHINE_GLYPH,
-    MACHINE_GLYPH_STYLE,
     MAIN_LABEL_STYLE,
     NEUTRAL_COUNT_STYLE,
     OVERFLOW_NEXT_ID,
@@ -33,6 +33,7 @@ from ._agent_tab_strip_model import (
     SEPARATOR_STYLE,
     TAB_SEPARATOR,
     AgentTabDescriptor,
+    agent_tab_glyph_style,
     agent_tab_label_style,
 )
 from ._agent_tab_strip_overflow import (
@@ -51,6 +52,8 @@ def _agent_tab_tooltip(descriptor: AgentTabDescriptor) -> str:
     names its off-tab agents without losing its counts.
     """
     parts = [descriptor.label]
+    if getattr(descriptor, "is_local_machine", False):
+        parts.append("this machine")
     if descriptor.machine_alias and descriptor.machine_alias != descriptor.label:
         parts.append(f"({descriptor.machine_alias})")
     parts.append(f"{descriptor.count} agents")
@@ -131,7 +134,9 @@ class AgentTabStrip(PanelTabStrip):
         body style.
         """
         label_style = agent_tab_label_style(descriptor)
-        glyph_style = MACHINE_GLYPH_STYLE if descriptor.glyph else label_style
+        glyph_style = (
+            agent_tab_glyph_style(descriptor) if descriptor.glyph else label_style
+        )
         count_text = (
             f"{descriptor.count}+" if descriptor.incomplete else str(descriptor.count)
         )
@@ -318,9 +323,12 @@ class AgentTabStrip(PanelTabStrip):
             if descriptor.jump_hint:
                 append(f"[{descriptor.jump_hint}] ", "bold #FFFF00")
             if is_active:
-                accent = descriptor.accent or MAIN_LABEL_STYLE
-                if descriptor.is_default:
+                if getattr(descriptor, "is_local_machine", False):
+                    accent = LOCAL_MACHINE_STYLE
+                elif descriptor.is_default:
                     accent = MAIN_LABEL_STYLE
+                else:
+                    accent = descriptor.accent or MAIN_LABEL_STYLE
                 append(ACTIVE_PILL_LEFT, accent)
                 self._append_chip_fragments(
                     append,

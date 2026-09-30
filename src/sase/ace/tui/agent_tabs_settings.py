@@ -124,13 +124,23 @@ class AgentTabsViewConfig:
     Never computed from fleet refresh results: ``machine_mode`` and
     ``machine_order`` come from the dispatch machine records, and
     ``named_order`` comes from ``ace.agent_tabs`` styling.
+    ``local_machine_name`` is this machine's configured name ("" when
+    unset); it only reaches render paths through this cached view.
     """
 
     machine_mode: bool = False
     machine_order: tuple[tuple[str, str], ...] = ()
     pinned_by_alias: Mapping[str, str] = field(default_factory=dict)
     named_order: Mapping[str, int] = field(default_factory=dict)
+    local_machine_name: str = ""
     token: tuple[Any, ...] = ()
+
+
+def local_machine_tab_name(view: AgentTabsViewConfig | None) -> str:
+    """Return the local machine tab's bare name (""-safe, "local" fallback)."""
+    name = getattr(view, "local_machine_name", "") or ""
+    cleaned = name.strip() if isinstance(name, str) else ""
+    return cleaned or "local"
 
 
 @lru_cache(maxsize=1)
@@ -171,16 +181,26 @@ def _agent_tabs_view_config_for_token(
         for name, style in settings.tabs.items()
         if style.order is not None
     }
+    try:
+        from sase.config import get_local_machine_name
+
+        local_machine_name = get_local_machine_name() or ""
+    except Exception:  # noqa: BLE001 - fail open to the unnamed local tab.
+        local_machine_name = ""
+    if not isinstance(local_machine_name, str):
+        local_machine_name = ""
     token = (
         machine_mode,
         tuple(machine_order),
         tuple(sorted(named_order.items())),
+        local_machine_name,
     )
     return AgentTabsViewConfig(
         machine_mode=machine_mode,
         machine_order=tuple(machine_order),
         pinned_by_alias=pinned_by_alias,
         named_order=named_order,
+        local_machine_name=local_machine_name,
         token=token,
     )
 
@@ -217,5 +237,6 @@ __all__ = [
     "AgentTabsViewConfig",
     "agent_tabs_view_config",
     "launch_from_view_enabled",
+    "local_machine_tab_name",
     "parse_agent_tabs_settings",
 ]

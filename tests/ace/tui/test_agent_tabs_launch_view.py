@@ -44,22 +44,65 @@ def test_view_inherited_tab_name_respects_config_off(
     assert view_inherited_tab_name(_view(AgentTabKey.named("blog"))) is None
 
 
-def test_active_machine_tab_alias() -> None:
+def test_active_machine_tab_alias(monkeypatch) -> None:
+    from sase.ace.tui import agent_tabs_settings as settings_mod
+    from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
+
     key = AgentTabKey.machine("iid-apollo")
     app = _view(key)
     app._agent_tab_index = SimpleNamespace(
         catalog=(
-            AgentTabCatalogEntry(AgentTabKey.default(), "default", "⌨ local", 1),
+            AgentTabCatalogEntry(AgentTabKey.default(), "default", "⌂ athena", 1),
             AgentTabCatalogEntry(key, "machine", "⌨ apollo", 2),
         )
     )
     app._agent_tab_latched_key = None
+    monkeypatch.setattr(
+        settings_mod,
+        "agent_tabs_view_config",
+        lambda: AgentTabsViewConfig(
+            machine_mode=True,
+            machine_order=(("iid-apollo", "apollo"),),
+            pinned_by_alias={"apollo": "iid-apollo"},
+            named_order={},
+            local_machine_name="athena",
+            token=("launch-view-test",),
+        ),
+    )
     assert active_machine_tab_alias(app) == "apollo"
 
 
 def test_active_machine_tab_alias_opt_outs() -> None:
     assert active_machine_tab_alias(_view(AgentTabKey.default())) is None
     assert active_machine_tab_alias(_view(AgentTabKey.named("apollo"))) is None
+
+
+def test_active_machine_tab_alias_strips_remote_suffix(monkeypatch) -> None:
+    from sase.ace.tui import agent_tabs_settings as settings_mod
+    from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
+
+    key = AgentTabKey.machine("iid-athena")
+    app = _view(key)
+    app._agent_tab_index = SimpleNamespace(
+        catalog=(
+            AgentTabCatalogEntry(AgentTabKey.default(), "default", "⌂ athena", 1),
+            AgentTabCatalogEntry(key, "machine", "⌨ Athena·remote", 2),
+        )
+    )
+    app._agent_tab_latched_key = None
+    monkeypatch.setattr(
+        settings_mod,
+        "agent_tabs_view_config",
+        lambda: AgentTabsViewConfig(
+            machine_mode=True,
+            machine_order=(),
+            pinned_by_alias={},
+            named_order={},
+            local_machine_name="athena",
+            token=("launch-view-test",),
+        ),
+    )
+    assert active_machine_tab_alias(app) == "Athena"
 
 
 def test_apply_launch_view_tab_inserts_from_named_view() -> None:

@@ -114,7 +114,23 @@ async def test_default_active_tab_hides_chip(
 
 async def test_remote_machine_tab_shows_runs_on_note(
     no_catalog_worker: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.ace.tui import agent_tabs_settings as settings_mod
+    from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
+
+    monkeypatch.setattr(
+        settings_mod,
+        "agent_tabs_view_config",
+        lambda: AgentTabsViewConfig(
+            machine_mode=True,
+            machine_order=(("iid-apollo", "apollo"),),
+            pinned_by_alias={"apollo": "iid-apollo"},
+            named_order={},
+            local_machine_name="athena",
+            token=("prompt-context-test",),
+        ),
+    )
     app = DispatchPickerFocusApp("#gh:sase")
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
@@ -123,7 +139,7 @@ async def test_remote_machine_tab_shows_runs_on_note(
         app._active_agent_tab = key
         app._agent_tab_index = SimpleNamespace(
             catalog=(
-                AgentTabCatalogEntry(AgentTabKey.default(), "default", "⌨ local", 1),
+                AgentTabCatalogEntry(AgentTabKey.default(), "default", "⌂ athena", 1),
                 AgentTabCatalogEntry(key, "machine", "⌨ apollo", 2),
             )
         )
@@ -137,8 +153,8 @@ async def test_remote_machine_tab_shows_runs_on_note(
         assert not panel.has_class("hidden")
         rendered = renderable_to_text(panel.render())
         assert rendered is not None
-        assert "runs on" in rendered
-        assert "apollo" in rendered
+        assert "runs on ⌂ athena" in rendered
+        assert "gD launch on apollo" in rendered
 
 
 def test_tab_matching_machine_alias_notes_named_win() -> None:
@@ -153,3 +169,33 @@ def test_tab_matching_machine_alias_notes_named_win() -> None:
         mixin, "apollo", inherited=False
     )
     assert "named tab wins" in segment.plain
+
+
+def test_tab_matching_local_name_notes_local_win(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A named tab equal to the local machine name names the home tab."""
+    from sase.ace.tui import agent_tabs_settings as settings_mod
+    from sase.ace.tui.agent_tabs_settings import AgentTabsViewConfig
+    from sase.ace.tui.widgets._prompt_input_bar_dispatch import (
+        PromptInputBarDispatchMixin,
+    )
+
+    monkeypatch.setattr(
+        settings_mod,
+        "agent_tabs_view_config",
+        lambda: AgentTabsViewConfig(
+            machine_mode=True,
+            machine_order=(),
+            pinned_by_alias={},
+            named_order={},
+            local_machine_name="athena",
+            token=("prompt-context-test",),
+        ),
+    )
+    mixin = PromptInputBarDispatchMixin.__new__(PromptInputBarDispatchMixin)
+    mixin._dispatch_target_rows = {}
+    segment = PromptInputBarDispatchMixin._named_tab_segment(
+        mixin, "Athena", inherited=False
+    )
+    assert "named tab wins over ⌂ athena" in segment.plain

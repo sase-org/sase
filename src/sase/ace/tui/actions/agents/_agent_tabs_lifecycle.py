@@ -256,13 +256,26 @@ class AgentTabsLifecycleMixin:
         order_ids = {pinned for pinned, _alias in (view.machine_order or ())}
         if view.machine_mode and active.value in order_ids:
             return None
+        try:
+            from ...agent_tabs_settings import local_machine_tab_name
+            from ...widgets.agent_tab_strip import local_machine_tab_label
+
+            local_name = local_machine_tab_name(view)
+            default_fallback = (
+                local_machine_tab_label(local_name) if view.machine_mode else "main"
+            )
+        except Exception:  # noqa: BLE001 - fall back to the legacy labels.
+            local_name = "local"
+            default_fallback = "main"
         label = self._agent_tab_known_labels.get(active)  # type: ignore[attr-defined]
         if not label and machine_alias:
-            label = (
-                "\u2328 local\u00b7remote"
-                if machine_alias.casefold() == "local"
-                else f"\u2328 {machine_alias}"
-            )
+            if (
+                machine_alias.casefold() == "local"
+                or machine_alias.casefold() == local_name.casefold()
+            ):
+                label = f"\u2328 {machine_alias}\u00b7remote"
+            else:
+                label = f"\u2328 {machine_alias}"
         if not label:
             label = "\u2328 machine"
         default_label = next(
@@ -273,7 +286,7 @@ class AgentTabsLifecycleMixin:
                 )
                 if entry.key == DEFAULT_AGENT_TAB_KEY
             ),
-            "\u2328 local" if view.machine_mode else "main",
+            default_fallback,
         )
         notify = getattr(self, "notify", None)
         if callable(notify):

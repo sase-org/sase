@@ -42,13 +42,23 @@ def active_machine_tab_alias(app: Any) -> str | None:
     """Return the active remote machine tab's alias, or None.
 
     None when the active scope is not a remote machine tab (named,
-    default, unresolved, All-tabs, or the ``local`` tab).
-    The alias comes from the catalog label (``"⌨ <alias>"``); the key
-    only carries the installation id.
+    default, unresolved, All-tabs, or the local tab). The alias comes
+    from the configured machine order by installation id; the catalog
+    label (with a trailing ``·remote`` stripped) is only a fallback, so
+    the result never carries the disambiguation suffix.
     """
     active = getattr(app, "_active_agent_tab", None)
     if not isinstance(active, AgentTabKey) or active.kind != "machine":
         return None
+    try:
+        from sase.ace.tui.agent_tabs_settings import agent_tabs_view_config
+
+        view = agent_tabs_view_config()
+        for pinned, alias in view.machine_order or ():
+            if pinned == active.value and isinstance(alias, str) and alias:
+                return alias
+    except Exception:  # noqa: BLE001 - fall back to the catalog label.
+        pass
     from sase.ace.tui.actions.agents._agent_tabs_catalog import (
         catalog_view_for_owner,
     )
@@ -58,7 +68,9 @@ def active_machine_tab_alias(app: Any) -> str | None:
             label = entry.label or ""
             if label.startswith("⌨ "):
                 alias = label[2:].strip()
-                if alias and alias != "local":
+                if alias.endswith("·remote"):
+                    alias = alias[: -len("·remote")].strip()
+                if alias:
                     return alias
             return None
     return None

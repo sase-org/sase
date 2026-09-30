@@ -190,6 +190,7 @@ def build_agent_tab_index(
         machine_mode=view_config.machine_mode,
         machine_order=view_config.machine_order,
         named_order=dict(view_config.named_order) if view_config.named_order else {},
+        local_alias=getattr(view_config, "local_machine_name", "") or None,
     )
     key_by_root_id = {
         id(root): key for root, key in zip(roots, catalog.keys, strict=True)

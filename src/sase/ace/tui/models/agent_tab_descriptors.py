@@ -17,25 +17,43 @@ from typing import Any
 from sase.core.agent_tab import AgentTabKey
 
 from sase.ace.tui.widgets.agent_tab_strip import (
+    LOCAL_MACHINE_GLYPH,
     MACHINE_GLYPH,
     AgentTabDescriptor,
     agent_tab_accent_for_name,
 )
 
 _MACHINE_GLYPH_PREFIX = f"{MACHINE_GLYPH} "
+_LOCAL_MACHINE_GLYPH_PREFIX = f"{LOCAL_MACHINE_GLYPH} "
+
+
+def _strip_tab_glyph_prefix(label: str) -> str:
+    """Strip one leading ``⌨ `` or ``⌂ `` glyph prefix from *label*."""
+    if label.startswith(_MACHINE_GLYPH_PREFIX):
+        return label[len(_MACHINE_GLYPH_PREFIX) :]
+    if label.startswith(_LOCAL_MACHINE_GLYPH_PREFIX):
+        return label[len(_LOCAL_MACHINE_GLYPH_PREFIX) :]
+    return label
 
 
 def _split_machine_label(catalog_label: str) -> tuple[str, str]:
     """Split a catalog label into ``(glyph, label)``.
 
-    Machine tabs (and the default tab in machine mode) arrive from the
-    catalog as ``"⌨ <alias>"``; named tabs and the non-machine default
-    carry no glyph.
+    Machine tabs arrive from the catalog as ``"⌨ <alias>"`` and the
+    default tab in machine mode as ``"⌂ <name>"``; named tabs and the
+    non-machine default carry no glyph.
     """
     if catalog_label.startswith(_MACHINE_GLYPH_PREFIX):
         return MACHINE_GLYPH, catalog_label[len(_MACHINE_GLYPH_PREFIX) :]
     if catalog_label == MACHINE_GLYPH:
         return MACHINE_GLYPH, ""
+    if catalog_label.startswith(_LOCAL_MACHINE_GLYPH_PREFIX):
+        return (
+            LOCAL_MACHINE_GLYPH,
+            catalog_label[len(_LOCAL_MACHINE_GLYPH_PREFIX) :],
+        )
+    if catalog_label == LOCAL_MACHINE_GLYPH:
+        return LOCAL_MACHINE_GLYPH, ""
     return "", catalog_label
 
 
@@ -97,10 +115,11 @@ def project_agent_tab_descriptors(
         is_default = key.kind == "default" or (
             isinstance(key, AgentTabKey) and key == _default_key()
         )
+        is_local_machine = bool(is_default and machine_mode)
         if key.kind == "machine" or key.kind == "unresolved_machine":
             glyph = glyph or MACHINE_GLYPH
-        elif is_default and machine_mode:
-            glyph = glyph or MACHINE_GLYPH
+        elif is_local_machine:
+            glyph = glyph or LOCAL_MACHINE_GLYPH
         if key.kind == "named":
             name = key.value
             accent = agent_tab_accent_for_name(
@@ -109,6 +128,10 @@ def project_agent_tab_descriptors(
                 enabled_projects=enabled_projects,
             )
             glyph = icons.get(name, "") or glyph
+        elif is_local_machine:
+            from sase.ace.tui.widgets.agent_tab_strip import LOCAL_MACHINE_STYLE
+
+            accent = LOCAL_MACHINE_STYLE
         elif is_default:
             from sase.ace.tui.widgets.agent_tab_strip import MAIN_LABEL_STYLE
 
@@ -141,7 +164,9 @@ def project_agent_tab_descriptors(
         if extra:
             description = f"{description} · {extra}" if description else str(extra)
         machine_alias = ""
-        if glyph == MACHINE_GLYPH:
+        if glyph == MACHINE_GLYPH or (
+            glyph == LOCAL_MACHINE_GLYPH and is_local_machine
+        ):
             machine_alias = label
         descriptors.append(
             AgentTabDescriptor(
@@ -160,6 +185,7 @@ def project_agent_tab_descriptors(
                 jump_hint=hints.get(key),
                 machine_alias=machine_alias,
                 is_default=is_default,
+                is_local_machine=is_local_machine,
             )
         )
     return tuple(descriptors)
@@ -200,13 +226,13 @@ def machine_off_tab_extras(
         label_by_key[key] = entry.label or ""
         if key.kind == "machine":
             buckets[key] = ("id", key.value)
-            words[key] = (entry.label or "").removeprefix("⌨ ").strip() or key.value
+            words[key] = _strip_tab_glyph_prefix(entry.label or "").strip() or key.value
         elif key.kind == "unresolved_machine":
             buckets[key] = ("alias", key.value)
-            words[key] = (entry.label or "").removeprefix("⌨ ").strip() or key.value
+            words[key] = _strip_tab_glyph_prefix(entry.label or "").strip() or key.value
         elif key.kind == "default" and machine_mode:
             buckets[key] = ("local", "")
-            words[key] = "local"
+            words[key] = _strip_tab_glyph_prefix(entry.label or "").strip() or "local"
     if not buckets:
         return {}
     owned_off_tab: dict[AgentTabKey, dict[AgentTabKey, int]] = {}
@@ -270,6 +296,7 @@ def descriptor_signature(
                 desc.has_arrival,
                 desc.jump_hint,
                 desc.description,
+                desc.is_local_machine,
             )
             for desc in descriptors
         ),

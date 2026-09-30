@@ -40,6 +40,8 @@ def _picker_row_text(
     count = entry.root_count
     stopped = failed = unread = 0
     machine = ""
+    is_local = False
+    label_text = entry.label or "tab"
     if descriptor is not None:
         try:
             accent = agent_tab_label_style(descriptor)
@@ -51,11 +53,16 @@ def _picker_row_text(
                 descriptor.unread,
             )
             machine = descriptor.machine_alias or ""
+            is_local = bool(getattr(descriptor, "is_local_machine", False))
+            # Descriptors carry the bare label; the catalog label already
+            # includes the glyph, so prefer the bare form to render it once.
+            if descriptor.label:
+                label_text = descriptor.label
         except Exception:  # noqa: BLE001 - degrade to the catalog row.
             pass
     if glyph:
         text.append(f"{glyph} ", style=accent)
-    text.append(entry.label or "tab", style=accent)
+    text.append(label_text, style=accent)
     text.append(f"  {count}", style="#AFAFAF")
     if stopped:
         text.append(f"  S{stopped}", style="bold #FFAF00")
@@ -63,9 +70,16 @@ def _picker_row_text(
         text.append(f"  F{failed}", style="bold #FF5F5F")
     if unread:
         text.append(f"  U{unread}", style="bold #1a1a1a on #FFD700")
-    if machine and machine.casefold() != (entry.label or "").casefold():
+    if is_local:
+        text.append("  this machine", style="dim")
+    elif machine and machine.casefold() != label_text.casefold():
         text.append(f"  ⌨ {machine}", style="#5FD7FF")
-    elif entry.kind in ("machine", "unresolved_machine") and not glyph:
+    elif (
+        entry.kind in ("machine", "unresolved_machine")
+        and not glyph
+        and "⌨" not in label_text
+        and "⌂" not in label_text
+    ):
         text.append("  ⌨", style="#5FD7FF")
     return text
 

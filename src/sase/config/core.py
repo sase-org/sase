@@ -27,6 +27,7 @@ from typing import Any
 from sase.config._owner import (
     discover_machine_names,
     get_agent_owner_identity,
+    get_local_machine_name,
     get_machine_name,
     require_agent_owner_identity,
     require_machine_name,
