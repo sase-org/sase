@@ -326,14 +326,23 @@ def _mask_inert_regions(text: str) -> str:
 
 
 def _alt_jinja_overlap_ranges(text: str) -> list[tuple[int, int]]:
-    """Mask false ``{%`` markers formed by adjacent ``%{`` and ``%id``."""
+    """Mask false ``{%`` markers formed by alternation openers.
+
+    Covers adjacent ``%{``/``%id`` pairs (``%{%``) as well as a ``%{``, ``%(``
+    or ``%alt(`` right after a literal ``{`` (``{%{``, ``{%(``, ``{%alt(``),
+    mirroring the ``next_jinja_tag`` carve-outs in the Rust core.
+    """
     ranges: list[tuple[int, int]] = []
-    if "%{%" not in text:
+    if "%{%" not in text and "{%" not in text:
         return ranges
     for match in _ALT_DIRECTIVE_RE.finditer(text):
         open_pos = match.end() - 1
         if text[open_pos] == "{" and text[open_pos + 1 : open_pos + 2] == "%":
             ranges.append((open_pos, open_pos + 2))
+    for match in re.finditer(r"\{%", text):
+        after = text[match.end() :]
+        if after.startswith("{") or after.startswith("(") or after.startswith("alt("):
+            ranges.append((match.start(), match.end()))
     return ranges
 
 

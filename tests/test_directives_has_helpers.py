@@ -448,3 +448,12 @@ def test_has_directive_helpers_still_detect_top_level_directives(
 ) -> None:
     """The protected scan keeps normal top-level directive behavior."""
     assert predicate(f"{directive}\nDo work") is True
+
+
+def test_alt_directive_re_finds_adjacent_openers() -> None:
+    from sase.xprompt._directive_alt import _ALT_DIRECTIVE_RE
+
+    matches = list(_ALT_DIRECTIVE_RE.finditer("%{%(a,b) | c}"))
+
+    assert [match.group(1) for match in matches] == ["%{", "%("]
+    assert list(_ALT_DIRECTIVE_RE.finditer("x%(a,b)")) == []

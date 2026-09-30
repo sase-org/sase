@@ -91,6 +91,22 @@ def test_diagnose_is_clean_for_glued_alt_directive() -> None:
     assert diagnostics.ok is True
 
 
+def test_diagnose_is_clean_for_opener_after_literal_brace() -> None:
+    for text in ("{%{a | b}", "{%(a,b)", "x {%{a | b} y"):
+        diagnostics = jinja_inspect.diagnose(text)
+
+        assert diagnostics.has_jinja is False, text
+        assert diagnostics.ok is True, text
+    assert jinja_inspect.has_jinja("{%{a | b}") is False
+
+
+def test_diagnose_still_reports_unclosed_jinja_tag() -> None:
+    diagnostics = jinja_inspect.diagnose("{% if x %}")
+
+    assert diagnostics.has_jinja is True
+    assert diagnostics.ok is False
+
+
 def test_diagnose_reports_line_and_span_for_invalid_template() -> None:
     text = "first line\nHello {{ name }"
 

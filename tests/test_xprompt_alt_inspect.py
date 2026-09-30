@@ -93,11 +93,9 @@ def test_tokenize_brace_form_opens_anywhere_outside_literal_zones() -> None:
         "word%{s}",
     ):
         assert any(s.kind == "delimiter" for s in alt_inspect.tokenize(text)), text
-    # Start of line, after whitespace, brackets/quotes, and directive-value
-    # colon stay valid. ("{" is excluded: the core scanner currently misses an
-    # opener immediately preceded by "{" while launch still fans out; tracked
-    # as a PROPOSED FOLLOW-UP on the phase bead.)
-    for prefix in ("", " ", "(", "[", '"', "'", ":"):
+    # Start of line, after whitespace, brackets/quotes (including a literal
+    # "{"), and directive-value colon stay valid.
+    for prefix in ("", " ", "(", "[", "{", '"', "'", ":"):
         text = f"{prefix}%{{a | b}}"
         assert any(s.kind == "delimiter" for s in alt_inspect.tokenize(text))
 
@@ -257,11 +255,38 @@ def test_tokenize_mid_word_unclosed_opener_is_error() -> None:
     assert text[spans[0].start : spans[0].end] == "%{"
 
 
+def test_tokenize_opener_after_literal_brace() -> None:
+    text = "{%{a | b}"
+    spans = alt_inspect.tokenize(text)
+
+    delimiters = [s for s in spans if s.kind == "delimiter"]
+    assert [(s.start, s.end) for s in delimiters] == [(1, 3), (8, 9)]
+    separators = [s for s in spans if s.kind == "separator"]
+    assert [(s.start, s.end) for s in separators] == [(5, 6)]
+
+
+def test_tokenize_nested_paren_after_brace_opener() -> None:
+    text = "%{%(a,b) | c}"
+    spans = alt_inspect.tokenize(text)
+
+    delimiters = [text[s.start : s.end] for s in spans if s.kind == "delimiter"]
+    assert delimiters == ["%{", "%(", ")", "}"]
+    separators = [text[s.start : s.end] for s in spans if s.kind == "separator"]
+    assert separators == [",", "|"]
+
+
 def test_groups_returns_top_level_brace_groups_with_branches() -> None:
     (group,) = alt_inspect.groups("foo%{bar | baz}qux")
 
     assert (group.start, group.end) == (3, 15)
     assert group.branches == ("bar ", " baz")
+
+
+def test_groups_opener_after_literal_brace() -> None:
+    (group,) = alt_inspect.groups("{%{a | b}")
+
+    assert (group.start, group.end) == (1, 9)
+    assert group.branches == ("a ", " b")
 
 
 def test_groups_skips_nested_paren_and_unclosed() -> None:

@@ -3108,7 +3108,8 @@ before the `%{` to keep them references.
 
 One ambiguity to know: a literal `%` immediately followed by a Jinja `{%` tag
 (`100%{% if x %}`) now reads as an alternation opener. Write `100% {% if x %}` or use
-inline code instead.
+inline code instead. Conversely, a `%{`, `%(` or `%alt(` right after a literal `{`
+(`{%{a | b}`) is an alternation, not a Jinja tag. It launches `{a` / `{b`.
 
 The long form `%alt(...)` and the legacy `%(...)` shorthand remain accepted; both use
 parentheses with comma-separated branches:

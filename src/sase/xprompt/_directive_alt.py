@@ -42,14 +42,13 @@ if TYPE_CHECKING:
 
 # Pattern to match ``%{`` anywhere plus ``%alt(`` / ``%(`` at a
 # directive-valid position, including directive value fan-out after a colon.
-# Group 1 covers the marker in both cases: the bare ``%{`` for the brace form,
-# or the boundary prefix plus the paren marker for the paren forms. Either way
-# ``match.end() - 1`` is the ``(`` or ``{`` that opens the alt body (the brace
-# branch consumes no prefix, so adjacent ``%{a|b}%{c|d}`` openers all match).
-# Do not use ``match.start(1)`` as the marker start for the paren forms — it
-# includes the prefix character. Mirrors ``alt_directive_re`` in the Rust core.
+# Group 1 is the bare marker for both forms: the paren branch uses a
+# zero-width lookbehind so it consumes no prefix character, letting adjacent
+# openers such as ``%{%(a,b)|c}`` all match. ``match.end() - 1`` is the ``(``
+# or ``{`` that opens the alt body. Mirrors ``alt_directive_starts`` in the
+# Rust core.
 _ALT_DIRECTIVE_RE = re.compile(
-    r"((?:^|[\s(\[{\"':])%(?:alt)?\(|%\{)",
+    r"(%\{|(?:^|(?<=[\s(\[{\"':]))%(?:alt)?\()",
     re.MULTILINE,
 )
 
