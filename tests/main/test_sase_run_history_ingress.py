@@ -33,11 +33,14 @@ def _run_launch_query(
     monkeypatch: pytest.MonkeyPatch,
     prompt: str,
     launch_mock: MagicMock,
+    *,
+    payload_extra: dict | None = None,
 ) -> None:
     """Run ``launch_query`` end to end with launch and emit mocked."""
     from sase.main.query_handler import _launch as launch_mod
 
-    request = DurableOperationRequest(operation=RUN_LAUNCH, payload={"prompt": prompt})
+    payload = {"prompt": prompt, **(payload_extra or {})}
+    request = DurableOperationRequest(operation=RUN_LAUNCH, payload=payload)
     emit = MagicMock()
     monkeypatch.setattr("sase.ops.cli.load_request", lambda _name: request)
     monkeypatch.setattr(
@@ -57,7 +60,9 @@ def _recording_launch(query: str, **kwargs: object) -> list[object]:
     """Stand in for the launcher that still performs the real history write."""
     from sase.history.prompt import add_or_update_prompt
 
-    add_or_update_prompt(query, origin=kwargs.get("origin"))  # type: ignore[arg-type]
+    recorded = kwargs.get("history_text") or query
+    assert isinstance(recorded, str)
+    add_or_update_prompt(recorded, origin=kwargs.get("origin"))  # type: ignore[arg-type]
     return [SimpleNamespace(pid=1)]
 
 
@@ -294,3 +299,178 @@ def test_remote_dispatch_failure_records_cancelled_root(
     assert entry.text == "please dispatch this prompt remotely now"
     assert entry.cancelled is True
     assert stashed == ["please dispatch this prompt remotely now"]
+
+
+def test_run_forwards_payload_history_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A submitter rewrite (TUI provider guard) records the original text."""
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch,
+            "remodeled member text launched here instead",
+            launch_mock,
+            payload_extra={
+                "history_text": "please handle the original submission text now"
+            },
+        )
+
+    assert (
+        launch_mock.call_args.kwargs.get("history_text")
+        == "please handle the original submission text now"
+    )
+    assert launch_mock.call_args.kwargs.get("origin") == "typed"
+    (entry,) = _load(history_file)
+    assert entry.text == "please handle the original submission text now"
+    assert entry.origin == "typed"
+
+
+def test_run_ignores_empty_payload_history_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty payload history_text falls back to the query."""
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch,
+            "please record this terminal launch prompt now",
+            launch_mock,
+            payload_extra={"history_text": "  "},
+        )
+
+    assert launch_mock.call_args.kwargs.get("history_text") is None
+    (entry,) = _load(history_file)
+    assert entry.text == "please record this terminal launch prompt now"
+
+
+def test_force_reuse_records_pre_rewrite_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Force-reuse passes the pre-rewrite query as history_text."""
+    from sase.agent.force_reuse_launch import ForceReuseLaunchPlan
+
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    plan = ForceReuseLaunchPlan(
+        rewritten_prompt="rewritten reuse text launched here instead",
+        owner_names=["worker"],
+        segment_envs=[None],
+    )
+    monkeypatch.setattr(
+        "sase.agent.force_reuse_launch.plan_force_reuse_launch", lambda _q: plan
+    )
+    monkeypatch.setattr(
+        "sase.agent.force_reuse_launch.apply_force_reuse_launch", lambda _p: None
+    )
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch,
+            "please reuse the worker name for this launch now",
+            launch_mock,
+            payload_extra={"allow_force_reuse": True},
+        )
+
+    assert (
+        launch_mock.call_args.kwargs.get("history_text")
+        == "please reuse the worker name for this launch now"
+    )
+    (entry,) = _load(history_file)
+    assert entry.text == "please reuse the worker name for this launch now"
+    assert entry.origin == "typed"
+
+
+def test_payload_history_origin_generated_downgrades(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """history_origin=generated overrides a plain-terminal ingress to nothing."""
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch,
+            "please record this terminal launch prompt now",
+            launch_mock,
+            payload_extra={"history_origin": "generated"},
+        )
+
+    assert launch_mock.call_args.kwargs.get("origin") == "generated"
+    assert _load(history_file) == []
+
+
+def test_payload_history_origin_unknown_value_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unknown history_origin value leaves the ingress origin alone."""
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch,
+            "please record this terminal launch prompt now",
+            launch_mock,
+            payload_extra={"history_origin": "bogus"},
+        )
+
+    assert launch_mock.call_args.kwargs.get("origin") == "typed"
+    (entry,) = _load(history_file)
+    assert entry.text == "please record this terminal launch prompt now"
+    assert entry.origin == "typed"
+
+
+def test_payload_history_origin_typed_does_not_upgrade_monitor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """history_origin=typed never upgrades automation back to human history."""
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    monkeypatch.setenv("SASE_MONITOR_ID", "monitor-1")
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch,
+            "please record this terminal launch prompt now",
+            launch_mock,
+            payload_extra={"history_origin": "typed"},
+        )
+
+    assert launch_mock.call_args.kwargs.get("origin") == "generated"
+    assert _load(history_file) == []
+
+
+def test_launch_units_payload_reaches_launcher_without_history_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """launch_units flow to the launcher; no payload text means no override."""
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch,
+            "please handle the release checklist across units now",
+            launch_mock,
+            payload_extra={
+                "launch_units": [
+                    {
+                        "prompt": "first unit prompt text here",
+                        "template_group": None,
+                        "swarm_xprompts": [],
+                    }
+                ]
+            },
+        )
+
+    assert launch_mock.call_args.kwargs.get("history_text") is None
+    assert launch_mock.call_args.kwargs.get("origin") == "typed"
+    (unit,) = launch_mock.call_args.kwargs.get("launch_units")
+    assert unit.prompt == "first unit prompt text here"
+    (entry,) = _load(history_file)
+    assert entry.text == "please handle the release checklist across units now"

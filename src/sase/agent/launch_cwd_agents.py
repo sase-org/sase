@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
+from sase.agent.launch_cwd_common import LaunchHistoryRecorder
 from sase.agent.launch_cwd_fanout import (
     launch_alt_branch_if_applicable,
     launch_multi_prompt_branch,
@@ -35,6 +36,7 @@ def launch_agents_from_cwd_impl(
     | None = None,
     launch_units: Sequence[LaunchUnitInput] | None = None,
     origin: PromptOrigin | None = None,
+    history_text: str | None = None,
 ) -> list[AgentLaunchResult]:
     """Resolve project context from CWD and launch one or more background agents.
 
@@ -49,6 +51,9 @@ def launch_agents_from_cwd_impl(
         timestamp: Optional preallocated launch timestamp for fan-out callers.
         launch_units: Optional ACE-resolved expanded units. When supplied,
             these replace ``parse_multi_prompt`` + xprompt-swarm expansion.
+        history_text: Optional ingress-owned canonical text the human
+            submitted. When given, history records it instead of *query*,
+            so swarm/force-reuse rewrites record what was submitted.
 
     Returns:
         AgentLaunchResult records for every spawned slot.
@@ -67,17 +72,32 @@ def launch_agents_from_cwd_impl(
         origin, launch_envs=(extra_env, *(segment_extra_env or ()))
     )
 
-    def record_failed_launch_prompt(text: str) -> None:
-        from sase.history.prompt import (
-            record_failed_launch_prompt as record_interactive_failed_launch,
-        )
-
-        record_interactive_failed_launch(text, origin=effective_origin)
-
     from sase.agent.names import ensure_historical_auto_name_migration
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     ensure_historical_auto_name_migration()
+    # The recorded text resolves once here: an explicit ingress-owned text
+    # wins, otherwise the submitted query. Either is canonicalized like the
+    # query so dedup and the `project:` filter keep working.
+    recorded_text: str | None
+    if history_text:
+        try:
+            recorded_text = canonicalize_project_aliases_in_prompt(history_text)
+        except Exception:
+            recorded_text = history_text
+    else:
+        recorded_text = None
+
+    def record_pre_expansion_failure(text: str) -> None:
+        from sase.history.prompt import (
+            record_failed_launch_prompt as record_interactive_failed_launch,
+        )
+
+        record_interactive_failed_launch(
+            recorded_text if recorded_text is not None else text,
+            origin=effective_origin,
+        )
+
     if "+" in query:
         # Validate tags against the raw prompt before canonicalization
         # expands resolved tags into `#<workflow>:<key>` refs (which would
@@ -92,7 +112,7 @@ def launch_agents_from_cwd_impl(
 
             _validate_tags(query)
         except _ProjectTagError:
-            record_failed_launch_prompt(query)
+            record_pre_expansion_failure(query)
             raise
         except Exception:  # noqa: BLE001 - cold catalog fails open here.
             pass
@@ -102,9 +122,11 @@ def launch_agents_from_cwd_impl(
         # An alias-map conflict here escapes before the validation/spawn
         # branches below can record the failure; preserve the original
         # submitted query so it stays recoverable from the stash.
-        record_failed_launch_prompt(query)
+        record_pre_expansion_failure(query)
         raise
     submitted_query = query
+    if recorded_text is None:
+        recorded_text = submitted_query
     # Lineage inheritance (R2): agent-initiated direct launches stamp the
     # inherited tab here. Idempotent with the LaunchApproval stamping, which
     # runs first when approval gates the launch.
@@ -144,23 +166,41 @@ def launch_agents_from_cwd_impl(
         segment_extra_env=segment_extra_env,
     )
 
+    # One recorder per launch: every guard and branch records the resolved
+    # submitted text, so fan-out records the invocation once instead of each
+    # slot's rewritten text. A bare swarm trigger is short, so fan-out
+    # through `---` segments, swarm expansion, or ACE units keeps the
+    # short-text allowance the multi-prompt branch uses today; other launches
+    # keep the five-word threshold.
+    from sase.agent.multi_prompt import is_multi_prompt as _is_multi_prompt
+
+    recorder = LaunchHistoryRecorder(
+        text=recorded_text,
+        origin=effective_origin,
+        allow_short=(
+            len(expanded.segments) > 1
+            or launch_units is not None
+            or any(expanded.swarm_xprompts)
+            or _is_multi_prompt(recorded_text)
+        ),
+    )
+
     guard_hard_disabled_launch_units(
         submitted_query,
         expanded_segments=expanded.segments,
         template_groups=expanded.template_groups,
         swarm_xprompts=expanded.swarm_xprompts,
-        record_failed_launch_prompt=record_failed_launch_prompt,
+        recorder=recorder,
     )
     guard_project_tags_for_launch_units(
-        submitted_query,
         expanded_segments=expanded.segments,
-        record_failed_launch_prompt=record_failed_launch_prompt,
+        recorder=recorder,
     )
     if not (extra_env or {}).get("SASE_LAUNCH_DISPATCH_FINGERPRINT"):
         guard_typed_directives_require_admission(
             submitted_query,
             expanded.segments,
-            record_failed_launch_prompt=record_failed_launch_prompt,
+            recorder=recorder,
         )
 
     from sase.agent.agent_name_keys import resolve_agent_name_key_markers
@@ -182,8 +222,7 @@ def launch_agents_from_cwd_impl(
             segment_template_groups=expanded.template_groups,
             segment_swarm_xprompts=expanded.swarm_xprompts,
             submitted_query=submitted_query,
-            record_failed_launch_prompt=record_failed_launch_prompt,
-            origin=effective_origin,
+            recorder=recorder,
         )
 
     from sase.agent.launch_projects import (
@@ -220,8 +259,7 @@ def launch_agents_from_cwd_impl(
         recursive_launch=(
             recursive_launch_agents_from_cwd or launch_agents_from_cwd_impl
         ),
-        record_failed_launch_prompt=record_failed_launch_prompt,
-        origin=effective_origin,
+        recorder=recorder,
     )
     if repeat_results is not None:
         return repeat_results
@@ -234,8 +272,7 @@ def launch_agents_from_cwd_impl(
         project_name=project_name,
         is_home_mode=is_home_mode,
         extra_env=extra_env,
-        record_failed_launch_prompt=record_failed_launch_prompt,
-        origin=effective_origin,
+        recorder=recorder,
     )
     if alt_results is not None:
         return alt_results
@@ -248,6 +285,5 @@ def launch_agents_from_cwd_impl(
         workspace_num=workspace_num,
         extra_env=extra_env,
         timestamp=timestamp,
-        record_failed_launch_prompt=record_failed_launch_prompt,
-        origin=effective_origin,
+        recorder=recorder,
     )

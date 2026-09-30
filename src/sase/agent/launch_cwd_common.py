@@ -4,10 +4,44 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.launch_validation import internal_agent_name_bypass_enabled
 from sase.core.paths import sase_projects_dir
+
+if TYPE_CHECKING:
+    from sase.history.prompt_store import PromptOrigin
+
+
+@dataclass(frozen=True)
+class LaunchHistoryRecorder:
+    """One launch's ingress-owned history text plus its write-time origin.
+
+    Every branch of a launch records through this recorder, so a submission
+    that fans out (swarm members, ``%r:N`` slots, ``---`` segments,
+    ``launch_units``) records the canonical submitted text exactly once
+    instead of each branch recording its own rewritten text.
+    """
+
+    text: str
+    origin: PromptOrigin | None
+    allow_short: bool = False
+
+    def record_submitted(self) -> None:
+        """Record the submitted text as a successful launch."""
+        from sase.history.prompt import add_or_update_prompt
+
+        add_or_update_prompt(
+            self.text, allow_short=self.allow_short, origin=self.origin
+        )
+
+    def record_failed(self) -> None:
+        """Record the submitted text as a failed launch (recoverable)."""
+        from sase.history.prompt import (
+            record_failed_launch_prompt as record_interactive_failed_launch,
+        )
+
+        record_interactive_failed_launch(self.text, origin=self.origin)
 
 
 @dataclass(frozen=True)

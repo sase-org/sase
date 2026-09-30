@@ -11,11 +11,13 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
-from sase.agent.launch_cwd_common import internal_agent_name_bypass_for_launch
+from sase.agent.launch_cwd_common import (
+    LaunchHistoryRecorder,
+    internal_agent_name_bypass_for_launch,
+)
 from sase.agent.launch_types import AgentLaunchResult
 
 if TYPE_CHECKING:
-    from sase.history.prompt_store import PromptOrigin
     from sase.xprompt.models import XPrompt
 
 
@@ -31,8 +33,7 @@ def launch_multi_prompt_branch(
     segment_template_groups: Sequence[str | None],
     segment_swarm_xprompts: Sequence[tuple[str, ...]],
     submitted_query: str,
-    record_failed_launch_prompt: Callable[[str], None],
-    origin: PromptOrigin | None = None,
+    recorder: LaunchHistoryRecorder,
 ) -> list[AgentLaunchResult]:
     """Launch one agent per ``---`` segment."""
     from sase.agent.launch_projects import (
@@ -80,16 +81,13 @@ def launch_multi_prompt_branch(
         AgentNameReuseConfirmationRequiredError,
         AgentNameSyntaxError,
     ):
-        record_failed_launch_prompt(submitted_query)
+        recorder.record_failed()
         raise
 
-    from sase.history.prompt import add_or_update_prompt
-
-    add_or_update_prompt(
-        submitted_query,
-        allow_short=True,
-        origin=origin,
-    )
+    # The recorder holds the submitted invocation (not the expanded slots),
+    # so a swarm records its trigger once; a user-authored `---`
+    # multi-prompt still gains its own segment rows from the recorded text.
+    recorder.record_submitted()
     try:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
@@ -113,7 +111,7 @@ def launch_multi_prompt_branch(
             multi_agent_prompt_text=submitted_query,
         )
     except Exception:
-        record_failed_launch_prompt(submitted_query)
+        recorder.record_failed()
         raise
     return results
 
@@ -123,8 +121,7 @@ def launch_repeat_branch_if_applicable(
     *,
     extra_env: dict[str, str] | None,
     recursive_launch: Callable[..., list[AgentLaunchResult]],
-    record_failed_launch_prompt: Callable[[str], None],
-    origin: PromptOrigin | None = None,
+    recorder: LaunchHistoryRecorder,
 ) -> list[AgentLaunchResult] | None:
     """Spawn N independent agents when ``%r:N`` is present, else ``None``."""
     from sase.agent.repeat_launcher import (
@@ -161,6 +158,10 @@ def launch_repeat_branch_if_applicable(
             ),
         )
 
+        # The parent records once after validation; slots recurse as
+        # generated, so `%id:<base>.k` / `%wait:` rows are never written.
+        recorder.record_submitted()
+
         def _spawn_repeat_slot(spec: RepeatAgentSpec) -> None:
             assert spec.timestamp is not None
             slot_env = {
@@ -177,14 +178,14 @@ def launch_repeat_branch_if_applicable(
                     spec.prompt,
                     extra_env=slot_env,
                     timestamp=spec.timestamp,
-                    origin=origin,
+                    origin="generated",
                 )
             )
 
         for spec in repeat_specs:
             _spawn_repeat_slot(spec)
     except Exception:
-        record_failed_launch_prompt(query)
+        recorder.record_failed()
         raise
     return slot_results
 
@@ -197,8 +198,7 @@ def launch_alt_branch_if_applicable(
     project_name: str,
     is_home_mode: bool,
     extra_env: dict[str, str] | None,
-    record_failed_launch_prompt: Callable[[str], None],
-    origin: PromptOrigin | None = None,
+    recorder: LaunchHistoryRecorder,
 ) -> list[AgentLaunchResult] | None:
     """Launch one agent per ``%{a | b}`` alt-split slot, else ``None``."""
     from sase.xprompt.directives import plan_prompt_fanout_variants
@@ -249,12 +249,10 @@ def launch_alt_branch_if_applicable(
             ),
         )
     except RuntimeError:
-        record_failed_launch_prompt(query)
+        recorder.record_failed()
         raise
 
-    from sase.history.prompt import add_or_update_prompt
-
-    add_or_update_prompt(query, origin=origin)
+    recorder.record_submitted()
     try:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
@@ -274,6 +272,6 @@ def launch_alt_branch_if_applicable(
             default_bare_segments_to_home=True,
         )
     except Exception:
-        record_failed_launch_prompt(query)
+        recorder.record_failed()
         raise
     return results

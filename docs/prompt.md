@@ -36,13 +36,19 @@ written before origins existed carry no `origin`, and legacy `generated` rows re
 until they are pruned. When the same text is recorded twice, the merge keeps the newest
 timestamps but never downgrades: `typed` beats `generated` beats no origin, just like a
 successful launch is never downgraded to cancelled. The next-word prediction corpus
-excludes `generated` rows. Readers aggregate and deduplicate records across shards, so
-reusing the same prompt in a later month still shows one newest entry even if older
-shard copies remain on disk. New launch recordings only touch the current-month shard.
-Maintenance commands such as `delete` and `prune` remove every stored copy of the
-selected exact prompt text. Replay commands (`run`, `edit`, `select`) route through the
-same launch machinery as `sase run`, so multi-prompt, multi-model, and xprompt behavior
-stay identical.
+excludes `generated` rows. The recorded text is the canonical submitted text: the prompt
+after project-alias and project-tag canonicalization, but before any swarm, repeat, alt,
+admission, provider-guard, or force-reuse rewriting. One submission records one row, no
+matter how many agents it fans out to — a swarm records its `#research_swarm(…)`
+invocation rather than its members, `%r:N` records the parent rather than its
+`%id:<base>.k` slots, and a force-reused launch records the pre-rewrite prompt. A
+user-authored `---` multi-prompt still records the whole text plus each long-enough
+segment. Readers aggregate and deduplicate records across shards, so reusing the same
+prompt in a later month still shows one newest entry even if older shard copies remain
+on disk. New launch recordings only touch the current-month shard. Maintenance commands
+such as `delete` and `prune` remove every stored copy of the selected exact prompt text.
+Replay commands (`run`, `edit`, `select`) route through the same launch machinery as
+`sase run`, so multi-prompt, multi-model, and xprompt behavior stay identical.
 
 ## Selectors
 

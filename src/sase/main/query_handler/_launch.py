@@ -29,6 +29,49 @@ def _sase_run_ingress_origin() -> PromptOrigin:
     return "typed"
 
 
+def _payload_history_text(payload: Mapping[str, Any]) -> str | None:
+    """Return the submitter's canonical text from a ``sase run`` payload.
+
+    Only a non-empty string counts: it is the pre-rewrite text when the
+    submitter rewrote the prompt before ``sase run`` (the TUI provider
+    guard). Anything else means the launcher records the query itself.
+    """
+    value = payload.get("history_text")
+    if isinstance(value, str) and value.strip():
+        return value
+    return None
+
+
+def _payload_history_origin(
+    payload: Mapping[str, Any], ingress_origin: PromptOrigin
+) -> PromptOrigin:
+    """Downgrade the ingress origin from a ``sase run`` payload, if asked.
+
+    Only ``"generated"`` is honored, and it overrides the ingress origin;
+    every other value (including ``"typed"``) is ignored so a payload can
+    never upgrade automation back to human history.
+    """
+    if payload.get("history_origin") == "generated":
+        return "generated"
+    return ingress_origin
+
+
+def _expand_history_text_best_effort(history_text: str) -> str:
+    """Expand project tags in history text, keeping the literal on error."""
+    if "+" not in history_text:
+        return history_text
+    try:
+        from sase.project_tags import (
+            expand_project_tags,
+            validate_project_tags_for_launch,
+        )
+
+        validate_project_tags_for_launch(history_text)
+        return expand_project_tags(history_text)
+    except Exception:  # noqa: BLE001 - tags stay literal when catalog is cold.
+        return history_text
+
+
 def launch_query(query: str) -> None:
     """Launch *query* as detached background agent process(es).
 
@@ -47,6 +90,10 @@ def launch_query(query: str) -> None:
         query = payload["prompt"]
     allow_force_reuse = bool(payload.get("allow_force_reuse"))
     ingress_origin = _sase_run_ingress_origin()
+    # The payload origin is downgrade-only; the payload text is the
+    # submitter's canonical text when it rewrote the prompt before `sase run`.
+    resolved_origin = _payload_history_origin(payload, ingress_origin)
+    history_text = _payload_history_text(payload)
     from sase.agent.prompt_inputs import missing_required_input_names
 
     missing_inputs = missing_required_input_names(query)
@@ -118,14 +165,21 @@ def launch_query(query: str) -> None:
 
         # The forwarded prompt is recorded verbatim: remote dispatch sends it
         # before project-tag expansion, which happens on the target machine.
-        record_failed_launch_prompt(query, origin=ingress_origin)
+        record_failed_launch_prompt(
+            history_text if history_text is not None else query,
+            origin=resolved_origin,
+        )
         _emit_failed_launch_result(str(exc))
         sys.exit(1)
     if dispatch_result is not None:
         from sase.history.prompt import add_or_update_prompt
         from sase.ops.commands.run import emit_run_launch_result
 
-        add_or_update_prompt(query, allow_short=True, origin=ingress_origin)
+        add_or_update_prompt(
+            history_text if history_text is not None else query,
+            allow_short=True,
+            origin=resolved_origin,
+        )
         print(dispatch_result.message)
         emit_run_launch_result(
             success=True,
@@ -150,7 +204,10 @@ def launch_query(query: str) -> None:
             validate_project_tags_for_launch(query)
         except ProjectTagError as exc:
             message = str(exc)
-            record_failed_launch_prompt(query, origin=ingress_origin)
+            record_failed_launch_prompt(
+                history_text if history_text is not None else query,
+                origin=resolved_origin,
+            )
             print(f"Error: {message}", file=sys.stderr)
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
@@ -158,12 +215,20 @@ def launch_query(query: str) -> None:
             query = expand_project_tags(query)
         except ProjectTagError as exc:
             message = str(exc)
-            record_failed_launch_prompt(query, origin=ingress_origin)
+            record_failed_launch_prompt(
+                history_text if history_text is not None else query,
+                origin=resolved_origin,
+            )
             print(f"Error: {message}", file=sys.stderr)
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
         except Exception:  # noqa: BLE001 - tags stay literal when catalog is cold.
             pass
+
+    # The payload text gets the same project-tag expansion the query gets;
+    # best-effort, so a cold catalog keeps the literal text.
+    if history_text is not None:
+        history_text = _expand_history_text_best_effort(history_text)
 
     # The launcher sees the force-reuse rewritten prompt below; history keeps
     # what the human submitted (after project-tag expansion).
@@ -182,7 +247,10 @@ def launch_query(query: str) -> None:
             force_reuse_plan = plan_force_reuse_launch(query)
         except Exception as exc:
             message = str(exc)
-            record_failed_launch_prompt(query, origin=ingress_origin)
+            record_failed_launch_prompt(
+                history_text if history_text is not None else query,
+                origin=resolved_origin,
+            )
             print(f"Error: {message}", file=sys.stderr)
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
@@ -191,7 +259,10 @@ def launch_query(query: str) -> None:
                 apply_force_reuse_launch(force_reuse_plan)
             except Exception as exc:
                 message = f"Agent name reuse failed: {exc}"
-                record_failed_launch_prompt(query, origin=ingress_origin)
+                record_failed_launch_prompt(
+                    history_text if history_text is not None else query,
+                    origin=resolved_origin,
+                )
                 print(f"Error: {message}", file=sys.stderr)
                 emit_run_launch_result(success=False, message=message)
                 sys.exit(1)
@@ -205,8 +276,8 @@ def launch_query(query: str) -> None:
             payload=payload,
             allow_force_reuse=allow_force_reuse,
             unresolved_names=tuple(unresolved_names),
-            history_query=history_query,
-            history_origin=ingress_origin,
+            history_query=(history_text if history_text is not None else history_query),
+            history_origin=resolved_origin,
         )
 
     launch_units = None
@@ -225,20 +296,32 @@ def launch_query(query: str) -> None:
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
 
+    # The launcher records the submitter's canonical text: the payload text
+    # when the submitter rewrote the prompt first, else the pre-rewrite
+    # query when force-reuse rewrote it, else the query itself.
+    launch_history_text = history_text
+    if launch_history_text is None and force_reuse_applied:
+        launch_history_text = history_query
     try:
         if launch_units is not None:
             results = launch_agents_from_cwd(
                 query,
                 segment_extra_env=segment_extra_env,
                 launch_units=launch_units,
-                origin=ingress_origin,
+                origin=resolved_origin,
+                history_text=launch_history_text,
             )
         elif segment_extra_env is not None:
             results = launch_agents_from_cwd(
-                query, segment_extra_env=segment_extra_env, origin=ingress_origin
+                query,
+                segment_extra_env=segment_extra_env,
+                origin=resolved_origin,
+                history_text=launch_history_text,
             )
         else:
-            results = launch_agents_from_cwd(query, origin=ingress_origin)
+            results = launch_agents_from_cwd(
+                query, origin=resolved_origin, history_text=launch_history_text
+            )
     except RuntimeError as e:
         from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
 

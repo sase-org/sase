@@ -359,15 +359,17 @@ def _guard(
     segments: list[str], submitted: str = "submitted"
 ) -> tuple[MagicMock, BaseException | None]:
     """Run the unit guard, returning the failed-prompt mock and the error."""
+    from sase.agent.launch_cwd_common import LaunchHistoryRecorder
     from sase.agent.launch_cwd_guards import guard_project_tags_for_launch_units
 
     record_failed = MagicMock()
+    recorder = LaunchHistoryRecorder(text=submitted, origin=None)
     try:
-        guard_project_tags_for_launch_units(
-            submitted,
-            expanded_segments=segments,
-            record_failed_launch_prompt=record_failed,
-        )
+        with patch("sase.history.prompt.record_failed_launch_prompt", record_failed):
+            guard_project_tags_for_launch_units(
+                expanded_segments=segments,
+                recorder=recorder,
+            )
     except ProjectTagError as exc:
         return record_failed, exc
     return record_failed, None
@@ -396,7 +398,7 @@ def test_unit_guard_rejects_two_workspace_targets(
 
     assert isinstance(error, ProjectTagError)
     assert "Only one workspace target" in str(error)
-    record_failed.assert_called_once_with("+sase +bob do x")
+    record_failed.assert_called_once_with("+sase +bob do x", origin=None)
 
 
 def test_unit_guard_rejects_disabled_tag(
@@ -487,27 +489,29 @@ def test_unit_guard_covers_swarm_expanded_segments(
         ]
     assert segments == ["+sase do A", "+bob do B"]
 
+    from sase.agent.launch_cwd_common import LaunchHistoryRecorder
     from sase.agent.launch_cwd_guards import guard_project_tags_for_launch_units
 
     record_failed = MagicMock()
-    guard_project_tags_for_launch_units(
-        "#crew",
-        expanded_segments=segments,
-        record_failed_launch_prompt=record_failed,
-    )
-    record_failed.assert_not_called()
-
-    bad_swarm = {"crew": xp("crew", "+sase +bob do A\n---\n+bob do B")}
-    with patch_catalog(bad_swarm):
-        bad_segments = [
-            record.prompt for record in expand_xprompt_swarms_with_metadata(["#crew"])
-        ]
-    with pytest.raises(ProjectTagError, match="Only one workspace target"):
+    recorder = LaunchHistoryRecorder(text="#crew", origin=None)
+    with patch("sase.history.prompt.record_failed_launch_prompt", record_failed):
         guard_project_tags_for_launch_units(
-            "#crew",
-            expanded_segments=bad_segments,
-            record_failed_launch_prompt=record_failed,
+            expanded_segments=segments,
+            recorder=recorder,
         )
+        record_failed.assert_not_called()
+
+        bad_swarm = {"crew": xp("crew", "+sase +bob do A\n---\n+bob do B")}
+        with patch_catalog(bad_swarm):
+            bad_segments = [
+                record.prompt
+                for record in expand_xprompt_swarms_with_metadata(["#crew"])
+            ]
+        with pytest.raises(ProjectTagError, match="Only one workspace target"):
+            guard_project_tags_for_launch_units(
+                expanded_segments=bad_segments,
+                recorder=recorder,
+            )
 
 
 # --- LaunchApproval preview --------------------------------------------------

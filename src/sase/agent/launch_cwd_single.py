@@ -3,19 +3,15 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 from sase.agent.launch_cwd_common import (
+    LaunchHistoryRecorder,
     internal_agent_name_bypass_for_launch,
     plan_single_agent_name,
     resolve_known_project_vcs_launch_ref,
 )
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.paths import sase_projects_dir
-
-if TYPE_CHECKING:
-    from sase.history.prompt_store import PromptOrigin
 
 
 def launch_single_agent(
@@ -27,14 +23,16 @@ def launch_single_agent(
     workspace_num: int | None,
     extra_env: dict[str, str] | None,
     timestamp: str | None,
-    record_failed_launch_prompt: Callable[[str], None],
-    origin: PromptOrigin | None = None,
+    recorder: LaunchHistoryRecorder,
 ) -> list[AgentLaunchResult]:
-    """Resolve the VCS/workspace context for one prompt and spawn it."""
+    """Resolve the VCS/workspace context for one prompt and spawn it.
+
+    History records the recorder's submitted invocation text, which may
+    differ from *query* when a swarm expanded to this single slot.
+    """
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
         resolve_ref_from_prompt,
     )
-    from sase.history.prompt import add_or_update_prompt
     from sase.workspace_provider import get_workflow_names
     from sase.xprompt.directives import has_deferred_start_directive
 
@@ -135,11 +133,13 @@ def launch_single_agent(
             ),
         )
     except RuntimeError:
-        record_failed_launch_prompt(query)
+        recorder.record_failed()
         raise
 
     # --- Save prompt to history ---
-    add_or_update_prompt(query, origin=origin)
+    # Records the submitted invocation, not the expanded single slot: a
+    # swarm that reduces to one slot must not record that member's text.
+    recorder.record_submitted()
 
     from sase.agent.launch_executor import LaunchExecutionContext, execute_launch_plan
     from sase.core.agent_launch_facade import plan_fake_fanout
@@ -177,6 +177,6 @@ def launch_single_agent(
     except Exception:
         if name_allocator is not None:
             name_allocator.release_uncommitted_template_reservations()
-        record_failed_launch_prompt(query)
+        recorder.record_failed()
         raise
     return execution.results

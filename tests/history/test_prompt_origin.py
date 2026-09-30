@@ -307,8 +307,9 @@ def test_segments_inherit_origin(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_single_agent_launch_threads_origin(monkeypatch) -> None:
-    """The single-agent launch path forwards origin to history."""
+    """The single-agent launch path records the recorder's text and origin."""
     from sase.agent import launch_cwd_single
+    from sase.agent.launch_cwd_common import LaunchHistoryRecorder
 
     monkeypatch.delenv("SASE_AGENT", raising=False)
     monkeypatch.setattr("sase.workspace_provider.get_workflow_names", lambda: set())
@@ -334,16 +335,18 @@ def test_single_agent_launch_threads_origin(monkeypatch) -> None:
     monkeypatch.setattr("sase.history.prompt.add_or_update_prompt", _capture)
 
     launch_cwd_single.launch_single_agent(
-        "please do something useful right now",
+        "expanded single member text here",
         project_file="home.sase",
         project_name="home",
         is_home_mode=True,
         workspace_num=0,
         extra_env=None,
         timestamp="260929_071614",
-        record_failed_launch_prompt=lambda text: None,
-        origin="typed",
+        recorder=LaunchHistoryRecorder(
+            text="please do something useful right now", origin="typed"
+        ),
     )
+    assert seen["text"] == "please do something useful right now"
     assert seen["origin"] == "typed"
 
 
