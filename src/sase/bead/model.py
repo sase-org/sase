@@ -115,8 +115,8 @@ class BeadNoteAttachment:
     resolved at render time from the local content-addressed store.
     ``image`` is ``(width, height)`` pixels, present only when the ingest
     probe returned dimensions. ``visibility`` is ``"public"`` or
-    ``"private"`` when written under the ``public_bead_attachments`` beta
-    flag, and ``None`` for pre-visibility descriptors (effective private).
+    ``"private"`` on current descriptors, and ``None`` for pre-visibility
+    descriptors (effective private).
     """
 
     name: str

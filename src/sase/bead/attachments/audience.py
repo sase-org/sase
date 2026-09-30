@@ -16,17 +16,6 @@ from pathlib import Path
 from typing import Any
 
 
-def audience_enabled() -> bool:
-    """Return whether the ``public_bead_attachments`` beta flag is on."""
-    try:
-        from sase.feature_flags import current_flags
-        from sase.feature_flags.registry import FeatureFlag
-
-        return bool(current_flags().enabled(FeatureFlag.public_bead_attachments))
-    except Exception:
-        return False
-
-
 def requested_from_flags(
     *,
     private: bool = False,
@@ -77,16 +66,6 @@ def validate_audience_flags(
     if not has_attachments and (private or public):
         return ["hint: audience flags ignored (no attachments in this invocation)"]
     return []
-
-
-def refuse_public_when_flag_off() -> None:
-    """Refuse ``-W`` with an enable hint when the beta flag is off."""
-    print(
-        "Error: -W/--public needs the public_bead_attachments beta flag "
-        "(sase flag enable public_bead_attachments).",
-        file=sys.stderr,
-    )
-    sys.exit(1)
 
 
 def gather_audience_facts(
@@ -446,7 +425,6 @@ def refuse_agent_widening(filename: str, reason: str, digest: str) -> None:
 
 
 __all__ = [
-    "audience_enabled",
     "audience_metadata_path",
     "confirm_widening",
     "decide_audience",
@@ -454,7 +432,6 @@ __all__ = [
     "gather_audience_facts",
     "read_audience_reason",
     "refuse_agent_widening",
-    "refuse_public_when_flag_off",
     "requested_from_flags",
     "scan_cas_object",
     "validate_audience_flags",

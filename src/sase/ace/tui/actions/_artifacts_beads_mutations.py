@@ -94,12 +94,9 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
 
         The toggle key itself lives in the app keymap registry
         (``beads_toggle_note_audience``); the modal only needs the display
-        hint. The toggle hides with the ``public_bead_attachments`` beta
-        flag off, keeping today's behavior unchanged.
+        hint. The toggle is always shown.
         """
-        from sase.bead.attachments import audience as _audience
-
-        show_toggle = _audience.audience_enabled()
+        show_toggle = True
         hint = "Ctrl+T"
         try:
             registry = getattr(self, "_keymap_registry", None)

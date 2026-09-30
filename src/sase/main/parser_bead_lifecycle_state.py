@@ -99,7 +99,7 @@ def register_bead_close_parser(
         "--public",
         dest="public",
         action="store_true",
-        help=("Request public attachments (beta; needs confirmation)"),
+        help=("Request public attachments (needs confirmation)"),
     )
     parser.add_argument(
         "-y",
@@ -427,7 +427,7 @@ def register_bead_update_parser(
         "--public",
         dest="public",
         action="store_true",
-        help=("Request public attachments (beta; needs confirmation)"),
+        help=("Request public attachments (needs confirmation)"),
     )
     parser.add_argument(
         "-y",

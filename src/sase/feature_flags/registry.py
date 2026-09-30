@@ -32,7 +32,6 @@ class FeatureFlag(StrEnum):
     monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
-    public_bead_attachments = "public_bead_attachments"
     queue_capacity_budget = "queue_capacity_budget"
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
@@ -203,16 +202,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="beta",
         description="Beta gate for typed launch units, %if, and %proc.",
         bead="sase-s7",
-    ),
-    FeatureFlag.public_bead_attachments: FeatureFlagDefinition(
-        key=FeatureFlag.public_bead_attachments,
-        kind="beta",
-        description=(
-            "Bead note attachments get a SASE audience decision; public "
-            "ones route to the public attachments sidecar, and -W/--public "
-            "is accepted."
-        ),
-        bead="sase-1dg",
     ),
 }
 

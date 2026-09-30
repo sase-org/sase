@@ -43,10 +43,7 @@ def finish_wire(
     if origin:
         wire["origin"] = origin
     if visibility in ("public", "private"):
-        from sase.bead.attachments import audience as _audience
-
-        if _audience.audience_enabled():
-            wire["visibility"] = visibility
+        wire["visibility"] = visibility
     size = _format_size(size_bytes)
     descriptor = wire["mime_type"]
     if dims is not None:

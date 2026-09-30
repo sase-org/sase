@@ -514,7 +514,6 @@ def test_public_sidecar_prompt_defaults_yes_and_names_public(
         "sase.sdd._sidecar_init.preflight_sidecars",
         lambda *_args: {"attachments": _preflight("attachments", visibility="public")},
     )
-    monkeypatch.setattr("sase.bead.attachments.audience.audience_enabled", lambda: True)
     monkeypatch.setattr(
         "sase.bead.attachments.remote_visibility.resolve_remote_visibility",
         lambda _url: "public",
@@ -566,7 +565,6 @@ def test_public_sidecar_refused_when_beads_private(
         "sase.sdd._sidecar_init.preflight_sidecars",
         lambda *_args: {"attachments": _preflight("attachments", visibility="public")},
     )
-    monkeypatch.setattr("sase.bead.attachments.audience.audience_enabled", lambda: True)
     monkeypatch.setattr(
         "sase.bead.attachments.remote_visibility.resolve_remote_visibility",
         lambda _url: "private",
@@ -585,22 +583,3 @@ def test_public_sidecar_refused_when_beads_private(
     assert run_repo_init(args) == 0
     stderr = capsys.readouterr().err
     assert "repos.sidecar.builtin.beads.visibility: private" in stderr
-
-
-def test_public_sidecar_flag_off_offers_nothing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from sase.main._repo_init_config import configured_sidecar_specs
-
-    _mark_managed_project(tmp_path)
-    monkeypatch.setattr(
-        "sase.bead.attachments.audience.audience_enabled", lambda: False
-    )
-    # configured_sidecar_specs filters the public role when the flag is off;
-    # the confirm path also refuses without prompting.
-    from sase.main._repo_init_sidecars import _confirm_sidecar_creation
-
-    preflight = _preflight("attachments", visibility="public")
-    args = _args(tmp_path)
-    args._init_stdin = _Tty()
-    assert _confirm_sidecar_creation(args, "attachments", preflight) is False

@@ -323,8 +323,6 @@ def _audience_from_args(args: object) -> tuple[str, bool]:
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     local_only = bool(getattr(args, "local_only", False))
     confirmed = bool(getattr(args, "yes", False))
-    if public and not _audience.audience_enabled():
-        _audience.refuse_public_when_flag_off()
     _audience.validate_audience_flags(
         private=private,
         public=public,

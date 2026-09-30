@@ -31,8 +31,6 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
     confirmed = bool(getattr(args, "yes", False))
     from sase.bead.attachments import audience as _audience
 
-    if public and not _audience.audience_enabled():
-        _audience.refuse_public_when_flag_off()
     _audience.validate_audience_flags(
         private=private,
         public=public,

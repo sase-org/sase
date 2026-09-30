@@ -5,8 +5,7 @@ event untouched: a tombstone goes to each configured shared store, the local
 object and its views are deleted, and a local tombstone is recorded, so
 notes render ``(purged)`` and fetches refuse the digest. ``prune`` evicts
 cached objects confirmed present in a shared store, oldest first, to fit
-under the local cache budget. Neither command authors notes or checks the
-beta flag.
+under the local cache budget. Neither command authors notes.
 """
 
 from __future__ import annotations

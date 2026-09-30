@@ -1,8 +1,7 @@
-"""Audience CLI: beta flag, config, validation, fast path, and provenance.
+"""Audience CLI: config, validation, fast path, and provenance.
 
 Synthetic inputs only; no network. The core decision table itself lives in
-sase-core and is covered there; these tests cover the Python wiring both
-with the flag on and off.
+sase-core and is covered there; these tests cover the Python wiring.
 """
 
 from __future__ import annotations
@@ -222,14 +221,6 @@ def test_remote_visibility_cache_ttls(
     assert rv.resolve_remote_visibility("not a remote :::") == "unknown"
 
 
-def test_flag_off_writes_no_visibility(monkeypatch: pytest.MonkeyPatch) -> None:
-    from sase.bead.attachments import _authoring_audience
-    from sase.bead.attachments import audience as _audience
-
-    monkeypatch.setattr(_audience, "audience_enabled", lambda: False)
-    assert _authoring_audience.decide_visibilities({}, {}, {}) == {}
-
-
 def _blob(sha: str, head: bytes, object_path: str) -> object:
     from types import SimpleNamespace
 
@@ -248,7 +239,6 @@ def test_agent_widening_refuses_before_mutation(
 
     target = tmp_path / "note.txt"
     target.write_bytes(b"hello audience")
-    monkeypatch.setattr(_audience, "audience_enabled", lambda: True)
     monkeypatch.setattr(_audience, "scan_cas_object", lambda *a, **k: None)
     monkeypatch.setattr(
         _audience,
@@ -348,7 +338,6 @@ def test_duplicate_digest_intent_stays_private(
     # when the same bytes are already stored privately.
     target = tmp_path / "note.txt"
     target.write_bytes(b"hello audience")
-    monkeypatch.setattr(_audience, "audience_enabled", lambda: True)
     monkeypatch.setattr(_audience, "scan_cas_object", lambda *a, **k: None)
     monkeypatch.setattr(
         _audience,
@@ -377,7 +366,6 @@ def test_stdin_wire_runs_decision_and_scan_flow(
     from sase.bead.attachments import authoring as _authoring
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-    monkeypatch.setattr(_audience, "audience_enabled", lambda: True)
     data = b"stdin attachment bytes"
     digest = hashlib.sha256(data).hexdigest()
     obj = tmp_path / "cas-object"

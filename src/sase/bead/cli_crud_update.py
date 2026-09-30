@@ -153,8 +153,6 @@ def handle_bead_update(args: argparse.Namespace) -> None:
     _private = bool(getattr(args, "private", False))
     _public = bool(getattr(args, "public", False))
     _confirmed = bool(getattr(args, "yes", False))
-    if _public and not _audience.audience_enabled():
-        _audience.refuse_public_when_flag_off()
     _audience.validate_audience_flags(
         private=_private,
         public=_public,

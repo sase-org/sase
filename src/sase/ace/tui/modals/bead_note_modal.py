@@ -301,8 +301,7 @@ class BeadNoteModal(ModalScreen[BeadNoteResult | None]):
             audience_requested if audience_requested in AUDIENCE_MODES else "auto"
         )
         self.toggle_key_hint = toggle_key_hint or "Ctrl+T"
-        # The beta flag gates the toggle: with the flag off the modal keeps
-        # today's behavior (automatic decision, no visibility written).
+        # The add-note modal always offers the audience toggle.
         self.show_audience_toggle = bool(show_audience_toggle)
 
     def compose(self) -> ComposeResult:

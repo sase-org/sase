@@ -933,15 +933,32 @@ sync, or worker launch. `bead.attachments.require_upload: true` uploads before t
 instead and aborts with nothing written when the upload fails. An explicit
 `-L/--local-only` still keeps the bytes local in that mode.
 
-#### Attachment visibility (beta)
+#### Attachment visibility
 
-Behind the `public_bead_attachments` beta flag, every attachment gets a SASE audience
-decision: `🌐 public` means readable by anyone who can read the bead store, and
-`🔒 private` stays on the private attachments sidecar. Use `-K/--private` to force
-private and `-W/--public` to request public (a human confirms on a TTY, or passes
-`-y/--yes`). Agents can only narrow; only humans widen. Files over
+Every attachment gets a SASE audience decision: `🌐 public` means readable by anyone who
+can read the bead store — treat it as irreversible publication — and `🔒 private` stays
+on the private attachments sidecar. Use `-K/--private` to force private and
+`-W/--public` to request public (a human confirms on a TTY, or passes `-y/--yes`).
+Agents can only narrow; only humans widen. Files over
 `bead.attachments.public_max_bytes` (default 25 MiB) never go public. Private protects
 bytes, not names or prose: filenames and note text stay as public as the bead itself.
+
+SASE decides in the Rust core from an ordered rule table, and uncertainty resolves to
+private. In order: a private bead store forces private; sensitive paths and known-secret
+values never go public; an explicit `-K`, `-W`, or `-L` is honored subject to the
+widening rules below; files over the public cap stay private; secret-scan hits, private
+provenance (owner-only files, ignored files, private or unknown remotes, personal and
+config zones), opaque types, and unverified media stay private; tracked files already
+public on a public remote, and scan-clean workspace text or self-produced media, go
+public; everything else — including stdin — stays private.
+
+Widening a policy-private result with `-W/--public` refuses for agents (the error names
+the exact `sase bead attachment publish` command to offer through `/sase_gate`), asks a
+human to confirm on a TTY (`-y` skips the prompt), and always refuses sensitive paths,
+known-secret values, over-cap sizes, and private bead stores.
+
+Old readers treat every attachment as private: a pre-visibility descriptor (no
+`visibility` field) is always private, which is safe for mixed fleets.
 
 `sase bead attachment publish <id> <name> [-y/--yes]` widens one note attachment to
 public. It is human-only: inside an agent run it is refused unless it runs as an

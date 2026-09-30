@@ -632,6 +632,8 @@ Quick Start:
   sase bead epic-symbols [<id>]                  List Justfile --epic-symbol entries
   sase bead close <id> --note "verified"         Close with completion evidence
   sase bead attach <id> ./shot.png -n "trace"    Attach a file snapshot (bytes kept on every machine)
+  Attachments get an automatic audience: clean workspace files go public, the rest stays
+  private. Pass -K for secrets; never pass -W as an agent — offer publish via /sase_gate
   sase bead rm <id> [<id2> ...]                 Remove issues (and children)
   sase bead dep add <issue> <depends-on>         Add dependency
   sase bead dep list [<id>]                      Inspect dependency provenance

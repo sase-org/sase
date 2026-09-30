@@ -291,15 +291,6 @@ def _confirm_attachments_sidecar_creation(
     args: argparse.Namespace,
     preflight: SddSidecarPreflight,
 ) -> bool:
-    try:
-        from sase.bead.attachments.audience import audience_enabled as _audience_on
-
-        _enabled = bool(_audience_on())
-    except Exception:
-        _enabled = False
-
-    if not _enabled:
-        return False
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     resource = f"{preflight.provider} attachments sidecar repository"
     if not stdin.isatty():

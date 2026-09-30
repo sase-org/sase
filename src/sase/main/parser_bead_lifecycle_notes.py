@@ -84,7 +84,7 @@ def register_bead_plus_one_parser(
         "--public",
         dest="public",
         action="store_true",
-        help=("Request public attachments (beta; needs confirmation)"),
+        help=("Request public attachments (needs confirmation)"),
     )
     parser.add_argument(
         "-y",
@@ -122,7 +122,16 @@ def register_bead_attach_parser(
             "  sase bead attach sase-ab ./shot.png\n"
             '  sase bead attach sase-ab -n "Crash trace" ./trace.json\n'
             "  sase bead attach sase-ab -N trace.json - < /tmp/trace.json\n"
-            "  sase bead attach sase-ab ./a.png ./b.png"
+            "  sase bead attach sase-ab ./a.png ./b.png\n"
+            "Visibility (agents): attachments get an automatic audience "
+            "decision — clean workspace files go public, everything "
+            "uncertain stays private. Pass -K/--private for secrets, env "
+            "dumps, owner-only files, personal or config files, and media "
+            "not produced in this run. Filenames and note prose stay as "
+            "public as the bead even when bytes stay private, so prefer "
+            "short excerpts over raw dumps. Never pass -W/--public as an "
+            "agent; offer `sase bead attachment publish <id> <name>` to "
+            "the user through /sase_gate instead."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -183,7 +192,7 @@ def register_bead_attach_parser(
         "--public",
         dest="public",
         action="store_true",
-        help="Request public attachments (beta; needs confirmation)",
+        help="Request public attachments (needs confirmation)",
     )
     parser.add_argument(
         "-y",
@@ -292,8 +301,8 @@ def register_bead_attachment_parser(
             "Drain the project attachment-upload outbox through the shared "
             "git store, then promote local-only objects that the store now "
             "accepts. With an ID, drain only digests referenced by that "
-            "bead; without one, drain the project outbox. Available with "
-            "the flag off; it never authors notes."
+            "bead; without one, drain the project outbox. "
+            "It never authors notes."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -311,8 +320,8 @@ def register_bead_attachment_parser(
             "shared store, the local object and its views are deleted, and "
             "a local tombstone is recorded. Notes keep their text and "
             "render (purged); fetches refuse the digest. Prints the manual "
-            "history-erasure procedure; it is never automated. Available "
-            "with the flag off; it never authors notes."
+            "history-erasure procedure; it is never automated. "
+            "It never authors notes."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -340,7 +349,7 @@ def register_bead_attachment_parser(
             "oldest views first, to fit under "
             "bead.attachments.local_cache_max_bytes. A dry-run plan prints "
             "by default; -y applies it. Pending-upload and local-only "
-            "objects are never evicted. Available with the flag off."
+            "objects are never evicted."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -401,7 +410,20 @@ def register_bead_note_parser(
 ) -> None:
     """Register ``sase bead note``."""
     parser = subparsers.add_parser(
-        "note", help="Append, edit, or retract an attributed note entry"
+        "note",
+        help="Append, edit, or retract an attributed note entry",
+        epilog=(
+            "Visibility (agents): @<path> attachments get an automatic "
+            "audience decision — clean workspace files go public, "
+            "everything uncertain stays private. Pass -K/--private for "
+            "secrets, env dumps, owner-only files, personal or config "
+            "files, and media not produced in this run. Filenames and note "
+            "prose stay as public as the bead even when bytes stay "
+            "private, so prefer short excerpts over raw dumps. Never pass "
+            "-W/--public as an agent; offer `sase bead attachment publish "
+            "<id> <name>` to the user through /sase_gate instead."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("id", help="Full or shorthand issue ID")
     parser.add_argument(
@@ -454,7 +476,7 @@ def register_bead_note_parser(
         "--public",
         dest="public",
         action="store_true",
-        help=("Request public attachments (beta; needs confirmation)"),
+        help=("Request public attachments (needs confirmation)"),
     )
     parser.add_argument(
         "-y",

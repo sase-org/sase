@@ -664,7 +664,12 @@ opt-out. Declining continues initialization without that sidecar. The clone is a
 partial repository at `~/.sase/projects/<project_key>/repos/attachments-private`. It has
 no worktree and no README, so initialization prints the clone path itself. A
 `visibility: public` override resolves to `private` for remote creation. Check an
-existing remote's visibility before storing attachments there. Disabling either
+existing remote's visibility before storing attachments there. On projects with a public
+beads sidecar, initialization also offers to create the public `<project>--attachments`
+sidecar that holds public attachment bytes; the prompt names its PUBLIC visibility and
+refuses when the beads sidecar is not public. Declining leaves public uploads queued
+with `⇡ pending upload` until the store exists, and
+`repos.sidecar.builtin.attachments.disabled: true` opts out. Disabling either
 attachments role later hides it even when a clone already exists; use `-L/--local-only`
 for a particular attachment. See [Attachments](beads.md#attachments).
 
