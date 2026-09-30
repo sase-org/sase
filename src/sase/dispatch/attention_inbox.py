@@ -48,6 +48,15 @@ REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY = "remote_attention_auto_dismiss
 _FLEET_SCHEMA_VERSION = 1
 _INBOX_PAGE_LIMIT = 100
 
+# Inventory-entry payload keys that change on every poll without carrying new
+# reviewable content. `observed_at_unix` is stamped locally per poll in
+# `_coerce_pending_entry`; the remote-attention modal uses it only for a
+# display-only age label (and as a fetch hint), so a slightly stale value is
+# acceptable. The rest of the entry payload (kind, title, summary, options,
+# revision, ...) was inspected and carries no other per-poll noise such as
+# cache ages — if the remote schema gains one, add its key here.
+_VOLATILE_REMOTE_ATTENTION_ENTRY_KEYS = frozenset({"observed_at_unix"})
+
 
 @dataclass(frozen=True)
 class _AttentionInboxReconcileOutcome:
@@ -150,7 +159,12 @@ def reconcile_remote_attention_inbox(
         for row in rows
         if row.sender == REMOTE_ATTENTION_NOTIFICATION_SENDER and row.dedup_key
     }
-    output = list(rows)
+    # Delta write: only rows this call created, refreshed, or auto-dismissed
+    # are handed back to the store. The Rust rewrite is a merge — rows absent
+    # from its input are preserved — so every untouched row (including
+    # completion notifications another writer dismissed between our load and
+    # write) survives with its on-disk state.
+    changed_rows: list[Notification] = []
     created = 0
     updated = 0
     pending_dedup_keys = {entry.dedup_key for entry in entries}
@@ -160,42 +174,51 @@ def reconcile_remote_attention_inbox(
         notification = _notification_for_entry(entry, now_unix=now)
         existing = rows_by_dedup.get(entry.dedup_key)
         if existing is None:
-            output.append(notification)
+            changed_rows.append(notification)
             rows_by_dedup[entry.dedup_key] = notification
             created += 1
             continue
         refreshed = _refresh_existing_notification(existing, notification)
         if refreshed != existing:
-            _replace_notification(output, existing.id, refreshed)
+            if _differs_only_in_volatile_entry_fields(existing, refreshed):
+                continue
+            changed_rows.append(refreshed)
             rows_by_dedup[entry.dedup_key] = refreshed
             updated += 1
 
     dismissed = 0
-    for index, row in enumerate(tuple(output)):
-        if row.sender != REMOTE_ATTENTION_NOTIFICATION_SENDER:
+    for row in rows:
+        current = rows_by_dedup.get(row.dedup_key, row) if row.dedup_key else row
+        if current.sender != REMOTE_ATTENTION_NOTIFICATION_SENDER:
             continue
-        if row.dedup_key in pending_dedup_keys:
+        if current.dedup_key in pending_dedup_keys:
             continue
-        row_identity = _notification_identity(row)
+        row_identity = _notification_identity(current)
         if row_identity is None:
             continue
         origin, request_id, _revision = row_identity
         if (origin, request_id) in pending_base_keys:
-            if not row.dismissed:
-                output[index] = dataclasses.replace(
-                    row,
+            if not current.dismissed:
+                auto_dismissed = dataclasses.replace(
+                    current,
                     dismissed=True,
-                    action_data=_with_auto_dismissed_marker(row),
+                    action_data=_with_auto_dismissed_marker(current),
                 )
+                changed_rows.append(auto_dismissed)
+                if current.dedup_key:
+                    rows_by_dedup[current.dedup_key] = auto_dismissed
                 dismissed += 1
             continue
-        if _covered_by_settling_host(row, covered_hosts):
-            if not row.dismissed:
-                output[index] = dataclasses.replace(
-                    row,
+        if _covered_by_settling_host(current, covered_hosts):
+            if not current.dismissed:
+                auto_dismissed = dataclasses.replace(
+                    current,
                     dismissed=True,
-                    action_data=_with_auto_dismissed_marker(row),
+                    action_data=_with_auto_dismissed_marker(current),
                 )
+                changed_rows.append(auto_dismissed)
+                if current.dedup_key:
+                    rows_by_dedup[current.dedup_key] = auto_dismissed
                 dismissed += 1
 
     outcome = _AttentionInboxReconcileOutcome(
@@ -205,7 +228,11 @@ def reconcile_remote_attention_inbox(
         dismissed=dismissed,
     )
     if outcome.changed:
-        rewrite_notifications(output)
+        # Residual risk (closed by `core-reconcile-upsert`): this merge still
+        # lets a row this poll refreshed clobber a concurrent user dismissal
+        # of that same row — the on-disk row is overwritten by id. Rows this
+        # poll did not touch cannot be clobbered.
+        rewrite_notifications(changed_rows)
     return outcome
 
 
@@ -422,15 +449,55 @@ def _with_auto_dismissed_marker(row: Notification) -> dict[str, Any]:
     }
 
 
-def _replace_notification(
-    rows: list[Notification],
-    notification_id: str,
-    replacement: Notification,
-) -> None:
-    for index, row in enumerate(rows):
-        if row.id == notification_id:
-            rows[index] = replacement
-            return
+def _differs_only_in_volatile_entry_fields(
+    existing: Notification,
+    refreshed: Notification,
+) -> bool:
+    """Check whether a refresh changed only per-poll volatile entry fields.
+
+    Compares the decoded ``remote_attention_entry_json`` payloads after
+    removing :data:`_VOLATILE_REMOTE_ATTENTION_ENTRY_KEYS`; every other
+    notification field must already match. Callers keep ``existing`` untouched
+    (not written, not counted) when this returns True.
+    """
+    if dataclasses.replace(existing, action_data={}) != dataclasses.replace(
+        refreshed, action_data={}
+    ):
+        return False
+    existing_data = existing.action_data or {}
+    refreshed_data = refreshed.action_data or {}
+    if set(existing_data) != set(refreshed_data):
+        return False
+    for key, existing_value in existing_data.items():
+        refreshed_value = refreshed_data[key]
+        if key == REMOTE_ATTENTION_ENTRY_ACTION_DATA_KEY:
+            if not _entry_json_equal_ignoring_volatile(existing_value, refreshed_value):
+                return False
+        elif existing_value != refreshed_value:
+            return False
+    return True
+
+
+def _entry_json_equal_ignoring_volatile(first: object, second: object) -> bool:
+    if not isinstance(first, str) or not isinstance(second, str):
+        return first == second
+    try:
+        first_entry = json.loads(first)
+        second_entry = json.loads(second)
+    except json.JSONDecodeError:
+        return first == second
+    if isinstance(first_entry, dict) and isinstance(second_entry, dict):
+        first_entry = {
+            key: value
+            for key, value in first_entry.items()
+            if key not in _VOLATILE_REMOTE_ATTENTION_ENTRY_KEYS
+        }
+        second_entry = {
+            key: value
+            for key, value in second_entry.items()
+            if key not in _VOLATILE_REMOTE_ATTENTION_ENTRY_KEYS
+        }
+    return first_entry == second_entry
 
 
 def _notification_identity(

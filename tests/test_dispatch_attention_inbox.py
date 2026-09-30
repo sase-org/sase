@@ -432,6 +432,83 @@ def test_fetch_attention_inventory_skips_facade_without_configured_machines(
     assert result["hosts"] == []
 
 
+def test_reconcile_delta_write_preserves_concurrent_completion_dismissal(
+    notification_store_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del notification_store_file
+    from sase.notifications import store as notification_store
+    from sase.notifications.models import Notification
+
+    completion = Notification(
+        id="completion-00000001",
+        timestamp="2026-09-30T00:00:00+00:00",
+        sender="agent-completion",
+        notes=["agent finished"],
+    )
+    notification_store.append_notification(completion)
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    real_load = notification_store.load_notifications
+
+    def _interleaving_load(*, include_dismissed: bool = False):  # type: ignore[no-untyped-def]
+        snapshot = real_load(include_dismissed=include_dismissed)
+        notification_store.mark_dismissed(completion.id)
+        return snapshot
+
+    monkeypatch.setattr(attention_inbox, "load_notifications", _interleaving_load)
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=2)]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    assert outcome.created == 1
+    [dismissed] = [
+        row
+        for row in notification_store.load_notifications(include_dismissed=True)
+        if row.id == completion.id
+    ]
+    assert dismissed.dismissed is True
+
+
+def test_consecutive_polls_differing_only_in_observed_at_skip_rewrite(
+    notification_store_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del notification_store_file
+
+    rewrite_calls: list[list[Any]] = []
+    real_rewrite = attention_inbox.rewrite_notifications
+
+    def _spying_rewrite(rows):  # type: ignore[no-untyped-def]
+        rewrite_calls.append(list(rows))
+        return real_rewrite(rows)
+
+    monkeypatch.setattr(attention_inbox, "rewrite_notifications", _spying_rewrite)
+
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry()]),
+        now_unix=_OBSERVED_AT,
+    )
+    assert len(rewrite_calls) == 1
+    assert len(rewrite_calls[0]) == 1
+
+    second = _response([_entry()])
+    second["hosts"][0]["payload"]["observed_at_unix"] = _OBSERVED_AT + 60.0
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        second,
+        now_unix=_OBSERVED_AT + 60.0,
+    )
+
+    assert outcome.updated == 0
+    assert outcome.changed is False
+    assert len(rewrite_calls) == 1
+
+
 def test_remote_attention_payload_is_string_encoded(
     notification_store_file: Path,
 ) -> None:
