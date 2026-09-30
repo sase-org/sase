@@ -478,7 +478,7 @@ def test_executor_records_samples_and_show_lists_them(
 
     _home(monkeypatch, tmp_path)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("sase.tool.executor.LoadSampler", FastSampler)
+    monkeypatch.setattr("sase.tool.executor_run.LoadSampler", FastSampler)
     # Outlive several sample intervals: the start sample waits behind the
     # spawn-time observe write, so a child only ~2.5 intervals long can end
     # before any periodic sample on a loaded host.

@@ -418,7 +418,7 @@ def test_finish_diagnostics_persist_spawn_and_truncation(
     write_facts = log_write_diagnostics(stdout_sink, stderr_sink)
     assert any("stdout" in item for item in write_facts)
     monkeypatch.setattr(
-        "sase.tool.executor.log_policy",
+        "sase.tool.executor_run.log_policy",
         lambda: {"run_log_max_bytes": 10, "event_max_bytes": 1024 * 1024},
     )
     code = _run(
