@@ -424,9 +424,9 @@ def test_the_agent_session_banner_blocks_the_insert_below_the_type_gate(
     # arrival still declines — the banner-topology check underneath refuses
     # the new banner row. Removing the type gate alone would not reach the
     # insert.
-    import sase.ace.tui.widgets._agent_list_build_patching as patching
+    import sase.ace.tui.widgets._agent_list_build_insert as insert
 
-    monkeypatch.setattr(patching, "_is_plain_leaf_row", lambda _agent: True)
+    monkeypatch.setattr(insert, "_is_plain_leaf_row", lambda _agent: True)
     base = _base()
 
     _declines(
