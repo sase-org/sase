@@ -145,6 +145,7 @@ class PromptTextAreaKeyHandlingMixin(
         def _try_advance_tabstop(self) -> bool: ...
         def _try_retreat_tabstop(self) -> bool: ...
         def _try_auto_placeholder_completion(self) -> bool: ...
+        def _try_auto_jinja_completion(self) -> bool: ...
         def _try_expand_snippet(self) -> bool: ...
         def _try_auto_prompt_reference_completion(self) -> bool: ...
         def _try_file_completion_tab(self) -> bool: ...
@@ -200,6 +201,16 @@ class PromptTextAreaKeyHandlingMixin(
         character: str | None,
     ) -> None:
         settings = self._prompt_completion_settings()
+        if (
+            self._vim_mode == "insert"
+            and not self._file_completion_active
+            and settings.auto_jinja_menu
+            and _is_auto_xprompt_menu_character(character)
+            and self._try_auto_jinja_completion()
+        ):
+            self._refresh_xprompt_arg_hint_from_cursor()
+            self._on_prompt_completion_context_changed()
+            return
         if (
             self._vim_mode == "insert"
             and not self._file_completion_active

@@ -48,6 +48,7 @@ class PromptCompletionSettings:
     auto_xprompt_menu: bool = True
     auto_directive_menu: bool = True
     auto_artifact_menu: bool = True
+    auto_jinja_menu: bool = True
     max_auto_rows: int = 1
     history_word_count: int = 10000
     common_placeholder_count: int = 100
@@ -136,6 +137,12 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
             DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_artifact_menu,
         )
     )
+    auto_jinja_menu = bool(
+        raw.get(
+            "auto_jinja_menu",
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.auto_jinja_menu,
+        )
+    )
     max_auto_rows = max(
         1,
         _parse_non_negative_int(
@@ -218,6 +225,7 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         auto_xprompt_menu=auto_xprompt_menu,
         auto_directive_menu=auto_directive_menu,
         auto_artifact_menu=auto_artifact_menu,
+        auto_jinja_menu=auto_jinja_menu,
         max_auto_rows=max_auto_rows,
         history_word_count=history_word_count,
         common_placeholder_count=common_placeholder_count,

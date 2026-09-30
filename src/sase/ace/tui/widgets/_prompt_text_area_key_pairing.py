@@ -25,6 +25,10 @@ from sase.ace.tui.widgets._paired_text_editing import (
     plan_pair_close_skip,
     plan_pair_insert,
 )
+from sase.ace.tui.widgets.jinja_completion import (
+    build_jinja_completion_result,
+    jinja_scope_for_editor,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -56,6 +60,7 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
             self,
             character: str | None,
         ) -> None: ...
+        def _try_auto_jinja_completion(self) -> bool: ...
         def _replace_via_keyboard(
             self,
             insert: str,
@@ -100,6 +105,8 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
             self._clear_file_completion()
             self._clear_xprompt_arg_hint()
             self._on_prompt_completion_context_changed()
+            if event.character in ("{", "%"):
+                self._try_auto_jinja_completion()
             return True
 
         # Literal first ``{`` with nothing (or whitespace) following it.
@@ -117,6 +124,8 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
         self._on_prompt_completion_context_changed()
+        if event.character in ("{", "%"):
+            self._try_auto_jinja_completion()
         return True
 
     def _try_prompt_text_pair_edit(self, event: Key) -> bool:
@@ -139,6 +148,19 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         text = self.text
         offset = self._absolute_offset(self.cursor_location)
         if char == "|":
+            if (
+                build_jinja_completion_result(
+                    text,
+                    offset,
+                    jinja_scope_for_editor(self),
+                )
+                is not None
+            ):
+                # Inside a Jinja tag ``|`` starts a filter, so it inserts
+                # literally; the key-tail auto-opens the filter menu. The
+                # ``%{a | b}`` alternation carve-out keeps that shape outside
+                # tags, where the engine returns ``None``.
+                return False
             plan = plan_alt_separator(text, offset)
         elif char == "(":
             plan = plan_argument_double_colon_to_parentheses_edit(

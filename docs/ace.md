@@ -7414,6 +7414,21 @@ token under the cursor:
   nothing resolves, the row falls back to a snippet of the session's launch prompt and
   the subtitle falls back to member names; completion is never blocked either way.
   Numeric inputs keep the type hint visible but do not invent values.
+- **Jinja completion**: When the cursor is inside a Jinja `{{ }}` or `{% %}` tag, the
+  Jinja menu owns completion ahead of every other surface: variables at expression
+  positions, filters after `|`, tests after `is`, members after `<namespace>.`, and
+  statement keywords (closers for open blocks first) at the head of `{% %}`. Rows show
+  the name, type or signature, source badge (`input`, `local`, `sase`, `jinja`,
+  `%repeat` / `%wait` for conditional names, `legacy`, `closes for`), and description;
+  the border title names the slot (`{{ variables`, `| filters`, `is tests`,
+  `{% statements`, or `<namespace> members`) plus the scope label when the pane is
+  xprompt-bound. The menu opens automatically while typing inside a tag — right after
+  `{{` / `{%` auto-pair, on `|` and `.`, and on identifier characters — unless
+  `ace.prompt_completion.auto_jinja_menu` is off; manual `Ctrl+T` still works when off.
+  A `|` inside a tag always inserts literally as a filter pipe and never triggers
+  `%{...}` alternation normalization. String literals and new-name positions
+  (`{% set x`, `{% for x`) offer no menu, and the open menu suppresses the Jinja
+  diagnostics panel so a momentarily empty `{{ }}` never flashes red.
 - **Directive completion**: When the cursor is on a `%`-prefixed directive token (e.g.,
   `%m`), completion lists user-facing prompt directives and accepts aliases into their
   canonical forms. For example, `%m` completes to `%model` and `%w` completes to

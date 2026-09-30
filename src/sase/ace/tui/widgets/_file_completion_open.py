@@ -20,6 +20,11 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
 from sase.ace.tui.widgets.file_completion import (
     build_file_history_completion_candidates,
 )
+from sase.ace.tui.widgets.jinja_completion import (
+    build_jinja_completion_result,
+    jinja_scope_for_editor,
+    jinja_scope_label_for_editor,
+)
 from sase.ace.tui.widgets.model_alias_completion import (
     MODEL_ALIAS_COMPLETION_KIND,
 )
@@ -221,6 +226,38 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
         self._update_file_completion_panel(trigger.query)
+        return True
+
+    def _try_auto_jinja_completion(self) -> bool:
+        """Open the Jinja menu while typing inside a tag when enabled.
+
+        Returns ``True`` whenever the cursor is inside a Jinja tag, even
+        when the slot offers no candidates: an in-tag ``none`` slot claims
+        the cursor with no menu so lower-priority surfaces (placeholder,
+        directive, ``@``, ``#``) never take over tag contents. Returns
+        ``False`` only outside tags, outside prompt mode, or when
+        ``auto_jinja_menu`` is off.
+        """
+        bar = self._find_prompt_bar()
+        if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
+            return False
+        if not self._prompt_completion_settings().auto_jinja_menu:
+            return False
+        result = build_jinja_completion_result(
+            self.text,
+            self._absolute_offset(self.cursor_location),
+            jinja_scope_for_editor(self),
+            scope_label=jinja_scope_label_for_editor(self),
+        )
+        if result is None:
+            return False
+        if not result.candidates:
+            return True
+        self._completion_kind = "jinja"
+        self._file_completion_active = True
+        self._file_completion_candidates = result.candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(result.prefix)
         return True
 
     def _try_auto_prompt_reference_completion(self) -> bool:

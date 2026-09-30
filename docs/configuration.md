@@ -1623,6 +1623,7 @@ ace:
     auto_xprompt_menu: true
     auto_directive_menu: true
     auto_artifact_menu: true
+    auto_jinja_menu: true
     max_auto_rows: 1
     history_word_count: 10000
     common_placeholder_count: 100
@@ -1645,6 +1646,7 @@ ace:
 | `auto_xprompt_menu`           | bool        | `true`      | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.                                                       |
 | `auto_directive_menu`         | bool        | `true`      | Automatically open directive completion while typing `%` tokens, fixed values such as `%model:`, `=alias`, and `==model` shortcuts.                                     |
 | `auto_artifact_menu`          | bool        | `true`      | Automatically open the grouped `@` reference menu from bare `@`, narrowed path/kind queries, or `@kind:` payloads.                                                      |
+| `auto_jinja_menu`             | bool        | `true`      | Automatically open the Jinja variable completion menu while typing inside a `{{ }}` or `{% %}` tag. Manual `Ctrl+T` still works when off.                               |
 | `max_auto_rows`               | int         | `1`         | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                                                                              |
 | `history_word_count`          | int         | `10000`     | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.                                                           |
 | `common_placeholder_count`    | int         | `100`       | Maximum saved `<placeholder>` tags retained and offered after prompt-local placeholder matches; `0` disables them.                                                      |

@@ -2196,6 +2196,11 @@
               "description": "Whether matching @kind and @kind:payload tokens automatically open artifact-reference completion while typing",
               "default": true
             },
+            "auto_jinja_menu": {
+              "type": "boolean",
+              "description": "Whether typing inside a Jinja {{ }} or {% %} tag automatically opens the Jinja variable completion menu",
+              "default": true
+            },
             "max_auto_rows": {
               "type": "integer",
               "description": "Maximum automatic completion rows reserved for future popup modes",

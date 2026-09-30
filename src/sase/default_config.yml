@@ -516,6 +516,7 @@ ace:
     # Also controls automatic =alias and ==model shortcut menus; manual Ctrl+T still works.
     auto_directive_menu: true
     auto_artifact_menu: true
+    auto_jinja_menu: true
     max_auto_rows: 1
     history_word_count: 10000
     common_placeholder_count: 100
