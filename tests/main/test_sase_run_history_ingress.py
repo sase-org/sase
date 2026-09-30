@@ -27,6 +27,7 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SASE_AGENT", raising=False)
     monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
     monkeypatch.delenv("SASE_GATE_COMMAND", raising=False)
+    monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
 
 
 def _run_launch_query(
@@ -94,6 +95,14 @@ def test_ingress_origin_is_generated_under_automation_markers(
     monkeypatch.setenv("SASE_MONITOR_ID", "")
     assert _sase_run_ingress_origin() == "typed"
 
+    _clean_env(monkeypatch)
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", "toolrun-1")
+    assert _sase_run_ingress_origin() == "generated"
+
+    _clean_env(monkeypatch)
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", "")
+    assert _sase_run_ingress_origin() == "typed"
+
 
 def test_plain_terminal_run_records_a_typed_row(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -140,6 +149,61 @@ def test_gate_command_run_records_nothing(
     with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
         _run_launch_query(
             monkeypatch, "please record this terminal launch prompt now", launch_mock
+        )
+
+    assert launch_mock.call_args.kwargs.get("origin") == "generated"
+    assert _load(history_file) == []
+
+
+def test_toolrun_nested_run_records_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A nested ToolRun child (SASE_AGENT cleared, marker set) records no row."""
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", "toolrun-1")
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch, "please record this terminal launch prompt now", launch_mock
+        )
+
+    assert launch_mock.call_args.kwargs.get("origin") == "generated"
+    assert _load(history_file) == []
+
+
+def test_toolrun_blank_marker_records_typed_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blank ToolRun marker does not suppress human history."""
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", "")
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch, "please record this terminal launch prompt now", launch_mock
+        )
+
+    assert launch_mock.call_args.kwargs.get("origin") == "typed"
+    (entry,) = _load(history_file)
+    assert entry.origin == "typed"
+
+
+def test_payload_history_origin_typed_does_not_upgrade_toolrun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """history_origin=typed never upgrades a nested ToolRun back to history."""
+    history_file = _history_file(tmp_path)
+    _clean_env(monkeypatch)
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", "toolrun-1")
+    launch_mock = MagicMock(side_effect=_recording_launch)
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        _run_launch_query(
+            monkeypatch,
+            "please record this terminal launch prompt now",
+            launch_mock,
+            payload_extra={"history_origin": "typed"},
         )
 
     assert launch_mock.call_args.kwargs.get("origin") == "generated"

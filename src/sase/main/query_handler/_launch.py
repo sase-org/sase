@@ -12,19 +12,27 @@ from sase.history.prompt_store import PromptOrigin
 #: Process marker set on every monitor-supervised command.
 MONITOR_ID_ENV = "SASE_MONITOR_ID"
 
+#: Marker set on every ToolRun child command. Mirrors
+#: ``sase.tool.executor_process.TOOL_RUN_ID_ENV`` locally to avoid an import cycle.
+TOOL_RUN_ID_ENV = "SASE_TOOL_RUN_ID"
+
 
 def _sase_run_ingress_origin() -> PromptOrigin:
     """Return the history origin for one ``sase run`` ingress launch.
 
-    Monitor commands and gate commands reach ``sase run`` as automation, so
-    they classify as ``generated`` (which the history writers drop). Every
-    other terminal invocation classifies as ``typed``.
+    Monitor commands, gate commands, and nested ToolRun child commands reach
+    ``sase run`` as automation, so they classify as ``generated`` (which the
+    history writers drop). Every other terminal invocation classifies as
+    ``typed``. A blank ToolRun marker counts as absent so it never suppresses
+    human history.
     """
     from sase.notification_gates.command_runner import GATE_COMMAND_ENV
 
     if os.environ.get(MONITOR_ID_ENV):
         return "generated"
     if os.environ.get(GATE_COMMAND_ENV):
+        return "generated"
+    if os.environ.get(TOOL_RUN_ID_ENV):
         return "generated"
     return "typed"
 
