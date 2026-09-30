@@ -26,7 +26,7 @@ from sase.notification_gates.presentation import (
     GATE_TITLE_ACTION_DATA_KEY,
 )
 from sase.notifications.models import Notification, normalize_notification_tags
-from sase.notifications.store import load_notifications, rewrite_notifications
+from sase.notifications.store import load_notifications, reconcile_notification_rows
 
 from .federation import (
     FEDERATION_IPC_SCHEMA_VERSION,
@@ -160,13 +160,13 @@ def reconcile_remote_attention_inbox(
         if row.sender == REMOTE_ATTENTION_NOTIFICATION_SENDER and row.dedup_key
     }
     # Delta write: only rows this call created, refreshed, or auto-dismissed
-    # are handed back to the store. The Rust rewrite is a merge — rows absent
-    # from its input are preserved — so every untouched row (including
-    # completion notifications another writer dismissed between our load and
-    # write) survives with its on-disk state.
+    # are handed to the field-scoped core write. Rows absent from its input
+    # are untouched, so every other row (including completion notifications
+    # another writer dismissed between our load and write) survives with its
+    # on-disk state. `_refresh_existing_notification` below is change
+    # detection only; the core re-applies the same owned-field semantics
+    # against the freshly re-read on-disk row under the store lock.
     changed_rows: list[Notification] = []
-    created = 0
-    updated = 0
     pending_dedup_keys = {entry.dedup_key for entry in entries}
     pending_base_keys = {entry.base_key for entry in entries}
 
@@ -176,7 +176,6 @@ def reconcile_remote_attention_inbox(
         if existing is None:
             changed_rows.append(notification)
             rows_by_dedup[entry.dedup_key] = notification
-            created += 1
             continue
         refreshed = _refresh_existing_notification(existing, notification)
         if refreshed != existing:
@@ -184,9 +183,7 @@ def reconcile_remote_attention_inbox(
                 continue
             changed_rows.append(refreshed)
             rows_by_dedup[entry.dedup_key] = refreshed
-            updated += 1
 
-    dismissed = 0
     for row in rows:
         current = rows_by_dedup.get(row.dedup_key, row) if row.dedup_key else row
         if current.sender != REMOTE_ATTENTION_NOTIFICATION_SENDER:
@@ -207,7 +204,6 @@ def reconcile_remote_attention_inbox(
                 changed_rows.append(auto_dismissed)
                 if current.dedup_key:
                     rows_by_dedup[current.dedup_key] = auto_dismissed
-                dismissed += 1
             continue
         if _covered_by_settling_host(current, covered_hosts):
             if not current.dismissed:
@@ -219,21 +215,26 @@ def reconcile_remote_attention_inbox(
                 changed_rows.append(auto_dismissed)
                 if current.dedup_key:
                     rows_by_dedup[current.dedup_key] = auto_dismissed
-                dismissed += 1
 
-    outcome = _AttentionInboxReconcileOutcome(
-        pending=len(entries),
-        created=created,
-        updated=updated,
-        dismissed=dismissed,
+    if not changed_rows:
+        return _AttentionInboxReconcileOutcome(pending=len(entries))
+    # Atomic field-scoped write: Rust re-reads the store under its exclusive
+    # lock and refreshes only these rows' owned fields, so a dismissal
+    # committed between our load above and this write survives. The counts
+    # below are authoritative — a row we refreshed but a concurrent writer
+    # already settled may come back as untouched rather than updated.
+    core_outcome = reconcile_notification_rows(
+        changed_rows,
+        reversible_dismiss_marker_key=REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY,
     )
-    if outcome.changed:
-        # Residual risk (closed by `core-reconcile-upsert`): this merge still
-        # lets a row this poll refreshed clobber a concurrent user dismissal
-        # of that same row — the on-disk row is overwritten by id. Rows this
-        # poll did not touch cannot be clobbered.
-        rewrite_notifications(changed_rows)
-    return outcome
+    return _AttentionInboxReconcileOutcome(
+        pending=len(entries),
+        created=core_outcome.created,
+        # A resurface is an update from this caller's perspective; folding it
+        # in keeps `changed` semantics unchanged for the TUI caller.
+        updated=core_outcome.updated + core_outcome.resurfaced,
+        dismissed=core_outcome.dismissed,
+    )
 
 
 def remote_attention_from_notification(

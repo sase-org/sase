@@ -167,6 +167,27 @@ class NotificationUpsertOutcomeWire:
     notification: Notification | None = None
 
 
+@dataclass(frozen=True)
+class NotificationReconcileRequestWire:
+    """Field-scoped reconcile write accepted by ``reconcile_notification_rows``."""
+
+    notifications: tuple[Notification, ...] = ()
+    reversible_dismiss_marker_key: str | None = None
+
+
+@dataclass(frozen=True)
+class NotificationReconcileOutcomeWire:
+    schema_version: int
+    created: int = 0
+    updated: int = 0
+    dismissed: int = 0
+    resurfaced: int = 0
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.created or self.updated or self.dismissed or self.resurfaced)
+
+
 def notification_store_wire_to_json_dict(record: Any) -> Any:
     """Project notification wire records to the dict shape expected by Rust."""
     if isinstance(record, (list, tuple)):
@@ -198,6 +219,17 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
             if value is None or value == ():
                 continue
             payload[key] = notification_store_wire_to_json_dict(value)
+        return payload
+    if isinstance(record, NotificationReconcileRequestWire):
+        payload = {
+            "notifications": notification_store_wire_to_json_dict(
+                list(record.notifications)
+            )
+        }
+        if record.reversible_dismiss_marker_key is not None:
+            payload["reversible_dismiss_marker_key"] = (
+                record.reversible_dismiss_marker_key
+            )
         return payload
     if hasattr(record, "__dataclass_fields__"):
         return asdict(record)
@@ -400,6 +432,24 @@ def notification_plus_one_outcome_from_dict(
     )
 
 
+def notification_reconcile_outcome_from_dict(
+    data: dict[str, Any],
+) -> NotificationReconcileOutcomeWire:
+    schema = int(data["schema_version"])
+    if schema != NOTIFICATION_STORE_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            f"notification store wire schema mismatch: got {schema}, "
+            f"expected {NOTIFICATION_STORE_WIRE_SCHEMA_VERSION}"
+        )
+    return NotificationReconcileOutcomeWire(
+        schema_version=schema,
+        created=int(data.get("created", 0)),
+        updated=int(data.get("updated", 0)),
+        dismissed=int(data.get("dismissed", 0)),
+        resurfaced=int(data.get("resurfaced", 0)),
+    )
+
+
 def notification_upsert_outcome_from_dict(
     data: dict[str, Any],
 ) -> NotificationUpsertOutcomeWire:
@@ -431,6 +481,8 @@ __all__ = [
     "NotificationDeliveryWire",
     "NotificationPlusOneOutcomeWire",
     "NotificationPlusOneRequestWire",
+    "NotificationReconcileOutcomeWire",
+    "NotificationReconcileRequestWire",
     "NotificationSoundWire",
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
@@ -442,6 +494,7 @@ __all__ = [
     "NotificationUpsertRequestWire",
     "notification_deliveries_from_list",
     "notification_plus_one_outcome_from_dict",
+    "notification_reconcile_outcome_from_dict",
     "notification_snapshot_from_dict",
     "notification_tab_classification_from_dict",
     "notification_store_wire_to_json_dict",

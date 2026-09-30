@@ -13,6 +13,8 @@ from sase.core.notification_store_wire import (
     NotificationDeliveryWire,
     NotificationPlusOneOutcomeWire,
     NotificationPlusOneRequestWire,
+    NotificationReconcileOutcomeWire,
+    NotificationReconcileRequestWire,
     NotificationStateUpdateWire,
     NotificationStoreSnapshotWire,
     NotificationTabClassificationWire,
@@ -21,6 +23,7 @@ from sase.core.notification_store_wire import (
     NotificationUpsertRequestWire,
     notification_deliveries_from_list,
     notification_plus_one_outcome_from_dict,
+    notification_reconcile_outcome_from_dict,
     notification_snapshot_from_dict,
     notification_store_wire_to_json_dict,
     notification_tab_classification_from_dict,
@@ -267,6 +270,25 @@ def upsert_notification(
     return notification_upsert_outcome_from_dict(payload)
 
 
+def reconcile_notification_rows(
+    path: Path | str,
+    request: NotificationReconcileRequestWire | dict[str, Any],
+) -> NotificationReconcileOutcomeWire:
+    """Apply one inventory owner's field-scoped reconcile write through Rust.
+
+    Only the rows in ``request`` are created or refreshed against the
+    on-disk state re-read under the store lock; every other row — including
+    dismissals committed after the caller's snapshot read — survives
+    untouched.
+    """
+    payload = _call_mutating_binding(
+        "reconcile_notification_rows",
+        str(path),
+        notification_store_wire_to_json_dict(request),
+    )
+    return notification_reconcile_outcome_from_dict(payload)
+
+
 def _normalize_store_path(path: Path | str) -> Path:
     live = Path(path).expanduser()
     try:
@@ -378,6 +400,8 @@ def _jsonl_row_count(path: Path) -> int:
 
 __all__ = [
     "NotificationDeliveryWire",
+    "NotificationReconcileOutcomeWire",
+    "NotificationReconcileRequestWire",
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
     "NotificationTabClassificationWire",
@@ -392,6 +416,7 @@ __all__ = [
     "invalidate_notification_snapshot_cache",
     "read_current_notifications_snapshot",
     "read_notifications_snapshot",
+    "reconcile_notification_rows",
     "resolve_notification_deliveries",
     "rewrite_notifications",
     "rewrite_notifications_counts",

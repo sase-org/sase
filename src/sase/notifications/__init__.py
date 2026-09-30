@@ -66,6 +66,7 @@ from sase.notifications.store import (
     mark_undismissed,
     read_notification_snapshot,
     read_current_notification_snapshot,
+    reconcile_notification_rows,
     rewrite_notifications,
 )
 
@@ -114,6 +115,7 @@ __all__ = [
     "notification_info_to_json",
     "read_notification_snapshot",
     "read_current_notification_snapshot",
+    "reconcile_notification_rows",
     "question_answer_state",
     "resolve_notification_ref",
     "remove_transport_action",

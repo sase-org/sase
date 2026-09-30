@@ -401,3 +401,49 @@ class TestDismissAgentCompletionNotificationsMatchingAgents:
         assert by_id["err"].dismissed is True
         assert by_id["plan"].dismissed is False
         assert by_id["question"].dismissed is False
+
+    def test_empty_raw_suffix_matches_on_cl_name_only(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.ace.tui.actions.agents._notification_matching import (
+            agent_completion_notification_matches_agent,
+        )
+
+        append_notification(
+            make_notification(
+                id="empty-suffix",
+                sender="user-agent",
+                action="JumpToAgent",
+                action_data={"cl_name": "cl", "raw_suffix": ""},
+            )
+        )
+        append_notification(
+            make_notification(
+                id="other-cl",
+                sender="user-agent",
+                action="JumpToAgent",
+                action_data={"cl_name": "other", "raw_suffix": ""},
+            )
+        )
+
+        # The Python cache-removal predicate matches on cl_name alone.
+        [cached] = [
+            n
+            for n in load_notifications(include_dismissed=True)
+            if n.id == "empty-suffix"
+        ]
+        assert (
+            agent_completion_notification_matches_agent(
+                cached, cl_name="cl", raw_suffix="20260430120000"
+            )
+            is True
+        )
+
+        count = dismiss_agent_completion_notifications_matching_agents(
+            [{"cl_name": "cl", "raw_suffix": "20260430120000"}]
+        )
+
+        by_id = {n.id: n for n in load_notifications(include_dismissed=True)}
+        assert count == 1
+        assert by_id["empty-suffix"].dismissed is True
+        assert by_id["other-cl"].dismissed is False

@@ -310,10 +310,50 @@ def read_current_notification_snapshot(
 
 
 def rewrite_notifications(notifications: list[Notification]) -> None:
-    """Rewrite the entire notifications file through the Rust store."""
+    """Rewrite the entire notifications file through the Rust store.
+
+    WARNING: never use this for read-modify-write reconciliation. The
+    caller's rows win on id collision, so any dismissal committed between
+    the load and this write is silently undone. Reconciliation paths must
+    use :func:`reconcile_notification_rows`, which re-reads under the store
+    lock and refreshes only the rows it owns. This helper remains for
+    migrations, tests, and other whole-store rewrites only.
+    """
     _ensure_notifications_dir()
     _rust_rewrite_notifications(_notifications_path(), notifications)
     _invalidate_load_cache()
+
+
+def reconcile_notification_rows(
+    notifications: list[Notification],
+    *,
+    reversible_dismiss_marker_key: str | None = None,
+) -> Any:
+    """Create or refresh only ``notifications`` through the Rust store.
+
+    The Rust core re-reads the file under its exclusive lock and copies
+    just the reconciler-owned fields from each input row, so dismissals
+    committed by other writers after the caller's snapshot read survive.
+    ``reversible_dismiss_marker_key`` names the ``action_data`` key whose
+    ``"true"`` value marks a dismissal this caller owns (and may resurface
+    or re-apply); without it every dismissal stays as it is on disk.
+    Returns the core outcome with created/updated/dismissed/resurfaced
+    counts.
+    """
+    from sase.core import notification_store_facade
+    from sase.core.notification_store_wire import NotificationReconcileRequestWire
+
+    _ensure_notifications_dir()
+    request = NotificationReconcileRequestWire(
+        notifications=tuple(notifications),
+        reversible_dismiss_marker_key=reversible_dismiss_marker_key,
+    )
+    outcome = notification_store_facade.reconcile_notification_rows(
+        _notifications_path(), request
+    )
+    if outcome.changed:
+        _invalidate_load_cache()
+    return outcome
 
 
 def compact_notification_store() -> Any:

@@ -481,21 +481,23 @@ def test_consecutive_polls_differing_only_in_observed_at_skip_rewrite(
 ) -> None:
     del notification_store_file
 
-    rewrite_calls: list[list[Any]] = []
-    real_rewrite = attention_inbox.rewrite_notifications
+    reconcile_calls: list[list[Any]] = []
+    real_reconcile = attention_inbox.reconcile_notification_rows
 
-    def _spying_rewrite(rows):  # type: ignore[no-untyped-def]
-        rewrite_calls.append(list(rows))
-        return real_rewrite(rows)
+    def _spying_reconcile(rows, **kwargs):  # type: ignore[no-untyped-def]
+        reconcile_calls.append(list(rows))
+        return real_reconcile(rows, **kwargs)
 
-    monkeypatch.setattr(attention_inbox, "rewrite_notifications", _spying_rewrite)
+    monkeypatch.setattr(
+        attention_inbox, "reconcile_notification_rows", _spying_reconcile
+    )
 
     attention_inbox.reconcile_remote_attention_inbox(
         _response([_entry()]),
         now_unix=_OBSERVED_AT,
     )
-    assert len(rewrite_calls) == 1
-    assert len(rewrite_calls[0]) == 1
+    assert len(reconcile_calls) == 1
+    assert len(reconcile_calls[0]) == 1
 
     second = _response([_entry()])
     second["hosts"][0]["payload"]["observed_at_unix"] = _OBSERVED_AT + 60.0
@@ -506,7 +508,55 @@ def test_consecutive_polls_differing_only_in_observed_at_skip_rewrite(
 
     assert outcome.updated == 0
     assert outcome.changed is False
-    assert len(rewrite_calls) == 1
+    assert len(reconcile_calls) == 1
+
+
+def test_reconcile_atomic_write_preserves_concurrent_remote_row_dismissal(
+    notification_store_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del notification_store_file
+    from sase.notifications import store as notification_store
+
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
+    )
+    [seeded] = [
+        row
+        for row in notification_store.load_notifications(include_dismissed=True)
+        if row.sender == attention_inbox.REMOTE_ATTENTION_NOTIFICATION_SENDER
+    ]
+
+    real_load = notification_store.load_notifications
+
+    def _interleaving_load(*, include_dismissed: bool = False):  # type: ignore[no-untyped-def]
+        snapshot = real_load(include_dismissed=include_dismissed)
+        notification_store.mark_dismissed(seeded.id)
+        return snapshot
+
+    monkeypatch.setattr(attention_inbox, "load_notifications", _interleaving_load)
+
+    refreshed_entry = _entry(revision=1)
+    refreshed_entry["title"] = "Approve deploy v2"
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([refreshed_entry]),
+        now_unix=_OBSERVED_AT + 60.0,
+    )
+
+    assert outcome.updated == 1
+    [dismissed] = [
+        row
+        for row in notification_store.load_notifications(include_dismissed=True)
+        if row.id == seeded.id
+    ]
+    assert dismissed.dismissed is True
+    assert (
+        dismissed.action_data.get(
+            attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY
+        )
+        is None
+    )
 
 
 def test_remote_attention_payload_is_string_encoded(
