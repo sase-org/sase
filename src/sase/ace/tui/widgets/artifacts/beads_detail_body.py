@@ -82,7 +82,7 @@ def plus_one_evidence_markdown(issue: Issue) -> list[str]:
             lines.append("> **Attachments:**")
             for attachment in attachments:
                 lines.append(
-                    f"> - {attachment_descriptor(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, sha256=attachment.sha256)}"
+                    f"> - {attachment_descriptor(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, sha256=attachment.sha256, visibility=getattr(attachment, 'visibility', None))}"
                 )
         if evidence.refs:
             lines.append(">")
@@ -122,7 +122,7 @@ def note_markdown(issue: Issue) -> list[str]:
             lines.append("**Attachments:**")
             for attachment in attachments:
                 lines.append(
-                    f"- {attachment_descriptor(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, sha256=attachment.sha256)}"
+                    f"- {attachment_descriptor(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, sha256=attachment.sha256, visibility=getattr(attachment, 'visibility', None))}"
                 )
         else:
             lines.append(note.text)

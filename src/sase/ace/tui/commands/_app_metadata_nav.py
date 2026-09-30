@@ -288,6 +288,13 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("beads_cycle_status", "Beads: cycle status", "Proposals & Sync", CL_ONLY, ()),
     ("beads_edit", "Beads: edit", "Proposals & Sync", CL_ONLY, ()),
     ("beads_add_note", "Beads: add note", "Proposals & Sync", CL_ONLY, ()),
+    (
+        "beads_toggle_note_audience",
+        "Beads: toggle note audience",
+        "Proposals & Sync",
+        CL_ONLY,
+        (),
+    ),
     ("beads_create", "Beads: create task", "Proposals & Sync", CL_ONLY, ()),
     ("beads_close", "Beads: close or reopen", "Proposals & Sync", CL_ONLY, ()),
     ("beads_snooze", "Beads: snooze task", "Proposals & Sync", CL_ONLY, ()),

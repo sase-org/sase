@@ -248,7 +248,35 @@ class _BeadNoteTextArea(TextArea):
             self._attachment_hint(message)
 
 
-class BeadNoteModal(ModalScreen[str | None]):
+AUDIENCE_MODES: tuple[str, ...] = ("auto", "private", "public")
+"""Cycle order for the add-note audience toggle (auto → private → public)."""
+
+
+class BeadNoteResult:
+    """Dismissal payload for the add-note modal: text plus audience request."""
+
+    def __init__(self, text: str, audience_requested: str = "auto") -> None:
+        self.text = text
+        self.audience_requested = (
+            audience_requested if audience_requested in AUDIENCE_MODES else "auto"
+        )
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, BeadNoteResult):
+            return (
+                self.text == other.text
+                and self.audience_requested == other.audience_requested
+            )
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return (
+            f"BeadNoteResult(text={self.text!r}, "
+            f"audience_requested={self.audience_requested!r})"
+        )
+
+
+class BeadNoteModal(ModalScreen[BeadNoteResult | None]):
     """Collect one non-empty note without exposing replacement semantics."""
 
     BINDINGS = [("escape", "cancel", "Cancel"), ("ctrl+s", "save", "Add note")]
@@ -259,12 +287,23 @@ class BeadNoteModal(ModalScreen[str | None]):
         initial_value: str = "",
         error: str | None = None,
         cwd: Path | str | None = None,
+        *,
+        audience_requested: str = "auto",
+        toggle_key_hint: str = "Ctrl+T",
+        show_audience_toggle: bool = True,
     ) -> None:
         super().__init__()
         self.bead_id = bead_id
         self.initial_value = initial_value
         self.initial_error = error
         self.cwd = cwd
+        self.audience_requested = (
+            audience_requested if audience_requested in AUDIENCE_MODES else "auto"
+        )
+        self.toggle_key_hint = toggle_key_hint or "Ctrl+T"
+        # The beta flag gates the toggle: with the flag off the modal keeps
+        # today's behavior (automatic decision, no visibility written).
+        self.show_audience_toggle = bool(show_audience_toggle)
 
     def compose(self) -> ComposeResult:
         with Container(id="bead-note-container", classes="bead-modal-container small"):
@@ -276,9 +315,13 @@ class BeadNoteModal(ModalScreen[str | None]):
                 hint=self._on_completion_hint,
             )
             yield Label(
-                "@<path> attaches a file snapshot · Tab completes paths · "
-                "paste a file path to attach it · @@ for a literal @",
+                self._hint_text(),
                 id="bead-note-hint",
+                classes="bead-modal-hint",
+            )
+            yield Label(
+                self._audience_text(),
+                id="bead-note-audience",
                 classes="bead-modal-hint",
             )
             yield Label(
@@ -290,9 +333,49 @@ class BeadNoteModal(ModalScreen[str | None]):
                 yield Button("Add note  Ctrl+S", id="bead-note-save", variant="primary")
                 yield Button("Cancel  Esc", id="bead-note-cancel")
 
+    def _hint_text(self) -> str:
+        base = (
+            "@<path> attaches a file snapshot · Tab completes paths · "
+            "paste a file path to attach it · @@ for a literal @"
+        )
+        if self.show_audience_toggle:
+            return f"{base} · {self.toggle_key_hint} toggles audience"
+        return base
+
+    def _audience_text(self) -> str:
+        if not self.show_audience_toggle:
+            return ""
+        if self.audience_requested == "private":
+            return "Attachments: 🔒 private (narrows freely)"
+        if self.audience_requested == "public":
+            return "Attachments: 🌐 public (confirms on save)"
+        return "Attachments: automatic (SASE decides)"
+
+    def _refresh_audience_label(self) -> None:
+        try:
+            label = self.query_one("#bead-note-audience", Label)
+        except Exception:
+            return
+        label.update(self._audience_text())
+        label.display = self.show_audience_toggle
+
+    def toggle_audience(self) -> str:
+        """Cycle auto → private → public; a no-op with the toggle hidden."""
+        if not self.show_audience_toggle:
+            return self.audience_requested
+        order = list(AUDIENCE_MODES)
+        try:
+            next_mode = order[(order.index(self.audience_requested) + 1) % len(order)]
+        except ValueError:
+            next_mode = "auto"
+        self.audience_requested = next_mode
+        self._refresh_audience_label()
+        return next_mode
+
     def on_mount(self) -> None:
         error_label = self.query_one("#bead-note-error", Label)
         error_label.display = bool(self.initial_error)
+        self._refresh_audience_label()
         self.query_one("#bead-note-text", _BeadNoteTextArea).focus()
 
     def _on_completion_hint(self, message: str) -> None:
@@ -303,10 +386,7 @@ class BeadNoteModal(ModalScreen[str | None]):
         if message:
             hint.update(message)
         else:
-            hint.update(
-                "@<path> attaches a file snapshot · Tab completes paths · "
-                "paste a file path to attach it · @@ for a literal @"
-            )
+            hint.update(self._hint_text())
 
     def show_error(self, message: str) -> None:
         """Show an inline authoring diagnostic; the typed text is kept."""
@@ -330,14 +410,16 @@ class BeadNoteModal(ModalScreen[str | None]):
         if not note:
             self.notify("Note cannot be empty", severity="error")
             return
-        self.dismiss(note)
+        self.dismiss(BeadNoteResult(note, self.audience_requested))
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
 
 __all__ = [
+    "AUDIENCE_MODES",
     "BeadNoteModal",
+    "BeadNoteResult",
     "_BeadNoteTextArea",
     "_attachment_trigger_at",
     "_complete_attachment_prefix",

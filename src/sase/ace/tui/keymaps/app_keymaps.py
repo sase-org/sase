@@ -85,6 +85,7 @@ class AppKeymaps:
     beads_cycle_status: str
     beads_edit: str
     beads_add_note: str
+    beads_toggle_note_audience: str
     beads_create: str
     beads_close: str
     beads_snooze: str

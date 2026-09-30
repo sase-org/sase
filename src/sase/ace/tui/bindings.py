@@ -176,6 +176,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("s", "beads_cycle_status", "Cycle Bead Status", show=False),
     Binding("e", "beads_edit", "Edit Bead", show=False),
     Binding("N", "beads_add_note", "Add Bead Note", show=False),
+    Binding("ctrl+t", "beads_toggle_note_audience", "Toggle Note Audience", show=False),
     Binding("n", "beads_create", "Create Task Bead", show=False),
     Binding("c", "beads_close", "Close / Reopen Bead", show=False),
     Binding("z", "beads_snooze", "Snooze Bead", show=False),

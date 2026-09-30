@@ -791,6 +791,7 @@ ace:
       beads_cycle_status: "s"
       beads_edit: "e"
       beads_add_note: "N"
+      beads_toggle_note_audience: "ctrl+t"
       beads_create: "n"
       beads_close: "c"
       beads_snooze: "z"

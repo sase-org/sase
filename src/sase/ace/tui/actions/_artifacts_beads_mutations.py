@@ -89,12 +89,65 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
 
         self.push_screen(BeadEditorModal(row.issue), dismissed)  # type: ignore[attr-defined]
 
+    def _bead_note_audience_options(self) -> tuple[str, bool]:
+        """Return ``(toggle_hint, show_toggle)`` for the add-note modal.
+
+        The toggle key itself lives in the app keymap registry
+        (``beads_toggle_note_audience``); the modal only needs the display
+        hint. The toggle hides with the ``public_bead_attachments`` beta
+        flag off, keeping today's behavior unchanged.
+        """
+        from sase.bead.attachments import audience as _audience
+
+        show_toggle = _audience.audience_enabled()
+        hint = "Ctrl+T"
+        try:
+            registry = getattr(self, "_keymap_registry", None)
+            configured = getattr(
+                getattr(registry, "app", None),
+                "beads_toggle_note_audience",
+                None,
+            )
+            if isinstance(configured, str) and configured and configured != "unbound":
+                try:
+                    from sase.ace.tui.keymaps.display import key_display_name
+
+                    hint = key_display_name(configured)
+                except Exception:
+                    hint = configured
+        except Exception:
+            pass
+        return (hint, show_toggle)
+
+    def action_beads_toggle_note_audience(self) -> None:
+        """Cycle the open add-note modal's audience request.
+
+        The app-level ``beads_toggle_note_audience`` binding stays active
+        while the modal is open (the note editor only consumes Tab), so one
+        configurable key drives the modal toggle. Narrowing to private is
+        free; widening to public confirms on save and stays private for
+        non-widenable policy outcomes.
+        """
+        from ..modals.bead_note_modal import BeadNoteModal
+
+        try:
+            current = self.screen  # type: ignore[attr-defined]
+        except Exception:
+            return
+        if isinstance(current, BeadNoteModal):
+            current.toggle_audience()
+        else:
+            self.notify(  # type: ignore[attr-defined]
+                "Open a bead note (N) first to toggle attachment audience",
+                severity="information",
+            )
+
     def action_beads_add_note(self) -> None:
         selected = self._selected_bead()
         if selected is None:
             return
         pane, row = selected
-        from ..modals.bead_note_modal import BeadNoteModal
+        from ..modals.bead_note_modal import BeadNoteModal, BeadNoteResult
 
         snapshot = pane.snapshot
         workspace = (
@@ -103,6 +156,7 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
         cwd = Path(workspace) if workspace else Path.cwd()
         bead_id = row.issue.id
         project = row.project
+        toggle_hint, show_toggle = self._bead_note_audience_options()
 
         def submit_authored(
             stored_text: str,
@@ -127,9 +181,12 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 success_message=f"Added note to {bead_id}",
                 mutation=mutate,
                 commit_operation="note",
+                attachment_wires=(manifest or None),
+                attachment_echo_rows=echo_rows,
             )
-            # Success toast mirrors the CLI write echo; the typed text was
-            # already dismissed, so this is the only confirmation.
+            # Success toast mirrors the CLI write echo, including each
+            # attachment's audience and its local reason; the typed text
+            # was already dismissed, so this is the only confirmation.
             if echo_rows:
                 self.notify(  # type: ignore[attr-defined]
                     f"Added note to {bead_id}\n" + "\n".join(echo_rows),
@@ -141,7 +198,28 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                     severity="information",
                 )
 
-        def show_inline_error(typed: str, message: str) -> None:
+        def open_note_modal(
+            typed: str,
+            message: str | None,
+            requested: str,
+            callback: Any,
+        ) -> None:
+            self.push_screen(  # type: ignore[attr-defined]
+                BeadNoteModal(
+                    bead_id,
+                    initial_value=typed,
+                    error=message,
+                    cwd=cwd,
+                    audience_requested=requested,
+                    toggle_key_hint=toggle_hint,
+                    show_audience_toggle=show_toggle,
+                ),
+                callback,
+            )
+
+        def show_inline_error(
+            typed: str, message: str, requested: str = "auto"
+        ) -> None:
             """Re-open the modal with the typed text and caret diagnostics.
 
             Runs on the UI thread via ``call_from_thread``. The typed text
@@ -149,17 +227,15 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
             toast so the failure is visible even if the modal is missed).
             """
             self.notify(message, severity="error")  # type: ignore[attr-defined]
-            self.push_screen(  # type: ignore[attr-defined]
-                BeadNoteModal(bead_id, initial_value=typed, error=message, cwd=cwd),
-                dismissed,
-            )
+            open_note_modal(typed, message, requested, dismissed)
 
-        def author_off_thread(typed: str) -> None:
+        def author_off_thread(typed: str, requested: str, confirmed: bool) -> None:
             """Run the authoring service off the event loop.
 
-            Ingest hashes file bytes on disk; it must never run on the
-            pump. Raw ``@path`` text is never appended: failures re-open
-            the modal, successes submit the composed text and manifest.
+            Ingest hashes file bytes on disk and the audience decision
+            probes provenance; neither must run on the pump. Raw ``@path``
+            text is never appended: failures re-open the modal, successes
+            submit the composed text and manifest.
             """
             from sase.bead.attachments.authoring import (
                 NoteAttachmentAuthoringError,
@@ -171,10 +247,12 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                     typed,
                     notes=row.issue.notes,
                     cwd=cwd,
+                    audience_requested=requested,
+                    audience_confirmed=confirmed,
                 )
             except NoteAttachmentAuthoringError as exc:
                 self.call_from_thread(  # type: ignore[attr-defined]
-                    show_inline_error, typed, str(exc)
+                    show_inline_error, typed, str(exc), requested
                 )
                 return
             self.call_from_thread(  # type: ignore[attr-defined]
@@ -184,20 +262,46 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 list(authored.echo_rows),
             )
 
-        def dismissed(note: str | None) -> None:
-            if note is None:
-                return
+        def run_author_worker(typed: str, requested: str, confirmed: bool) -> None:
             self.run_worker(  # type: ignore[attr-defined]
-                lambda: author_off_thread(note),
+                lambda: author_off_thread(typed, requested, confirmed),
                 thread=True,
                 group=f"beads-note-author:{project}:{bead_id}",
                 exclusive=True,
                 exit_on_error=False,
             )
 
-        self.push_screen(  # type: ignore[attr-defined]
-            BeadNoteModal(bead_id, cwd=cwd), dismissed
-        )
+        def dismissed(result: BeadNoteResult | None) -> None:
+            if result is None:
+                return
+            requested = result.audience_requested if show_toggle else "auto"
+            if requested == "public":
+                # Widening needs an explicit confirmation; non-widenable
+                # policy outcomes still refuse inside authoring and
+                # re-open the modal with the reason.
+                from ..modals.confirm_action_modal import ConfirmActionModal
+
+                def confirmed(value: bool) -> None:
+                    if not value:
+                        open_note_modal(result.text, None, requested, dismissed)
+                        return
+                    run_author_worker(result.text, "public", True)
+
+                self.push_screen(  # type: ignore[attr-defined]
+                    ConfirmActionModal(
+                        "Publish attachments",
+                        "Publish new attachments publicly where policy allows? "
+                        "Policy-blocked files stay private, and publication "
+                        "is irreversible.",
+                        subject=f"{bead_id}",
+                        confirm_label="Publish",
+                    ),
+                    confirmed,
+                )
+                return
+            run_author_worker(result.text, requested, False)
+
+        open_note_modal("", None, "auto", dismissed)
 
     def action_beads_snooze(self) -> None:
         selected = self._selected_bead()

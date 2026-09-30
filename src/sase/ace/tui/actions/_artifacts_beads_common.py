@@ -15,6 +15,90 @@ from ..widgets.artifacts.beads_pane import ArtifactsBeadsPane
 
 T = TypeVar("T")
 
+#: Placements whose wires register a post-commit upload through the shared
+#: outbox helper. ``public`` is included alongside the CLI's set so a
+#: pure-public note still queues instead of stranding bytes locally.
+_QUEUEABLE_PLACEMENTS = frozenset({"git", "large", "mixed", "public", "public_pending"})
+
+
+class _NoteUploadPlan:
+    """Placement outcome for one TUI-authored note's attachment wires."""
+
+    def __init__(
+        self,
+        placement: str = "skip",
+        stores: Any = None,
+        project_key: str | None = None,
+        require_upload: bool = False,
+    ) -> None:
+        self.placement = placement
+        self.stores = stores if stores is not None else {}
+        self.project_key = project_key
+        self.require_upload = require_upload
+
+
+def plan_note_attachment_upload(
+    wires: list[dict[str, Any]],
+    echo_rows: list[str] | None,
+    *,
+    project_key: str,
+) -> _NoteUploadPlan:
+    """Run the pre-write half of the upload protocol for a TUI note.
+
+    Returns a ``skip`` plan when there is nothing to queue. Uses the same
+    :func:`pre_write_upload` helper as the CLI note verbs so TUI-authored
+    attachments drain through the bead sync worker instead of staying
+    local to this machine.
+    """
+    if not wires or echo_rows is None:
+        return _NoteUploadPlan()
+    from types import SimpleNamespace
+
+    from sase.bead.attachments.upload import pre_write_upload
+
+    bead_context = SimpleNamespace(project_key=project_key)
+    placement, stores, resolved_key, require_upload = pre_write_upload(
+        wires,
+        echo_rows,
+        local_only=False,
+        bead_context=bead_context,
+    )
+    return _NoteUploadPlan(
+        placement=placement,
+        stores=stores,
+        project_key=resolved_key,
+        require_upload=require_upload,
+    )
+
+
+def queue_note_attachment_upload(
+    store_mutation: Any,
+    wires: list[dict[str, Any]],
+    echo_rows: list[str] | None,
+    plan: _NoteUploadPlan,
+) -> None:
+    """Register the post-write half of the upload protocol for a TUI note.
+
+    A no-op unless :func:`plan_note_attachment_upload` chose a queueable
+    placement. The bead store's own ``run_pending_uploads`` hook drains or
+    queues the registered rows after commit, exactly as for CLI writes.
+    """
+    if not wires or echo_rows is None:
+        return
+    if plan.placement not in _QUEUEABLE_PLACEMENTS:
+        return
+    from sase.bead.attachments.upload import post_write_queue
+
+    post_write_queue(
+        store_mutation,
+        wires,
+        echo_rows,
+        placement=plan.placement,
+        stores=plan.stores,
+        project_key=plan.project_key,
+        require_upload=plan.require_upload,
+    )
+
 
 class ArtifactsBeadsCommonMixin:
     """Selection and tracked-task helpers shared by bead action groups."""
@@ -51,6 +135,8 @@ class ArtifactsBeadsCommonMixin:
         mutation: Callable[[Any], T],
         commit_operation: str,
         settle_triage_reason: str | None = None,
+        attachment_wires: list[dict[str, Any]] | None = None,
+        attachment_echo_rows: list[str] | None = None,
     ) -> None:
         snapshot = pane.snapshot
         workspace = (
@@ -73,7 +159,19 @@ class ArtifactsBeadsCommonMixin:
             with bead_store_mutation(
                 auto_commit_bead_store, cwd=Path(workspace)
             ) as store_mutation:
+                queued_wires = list(attachment_wires or [])
+                queue_state = plan_note_attachment_upload(
+                    queued_wires,
+                    attachment_echo_rows,
+                    project_key=row.project,
+                )
                 payload = mutation(store_mutation.project)
+                queue_note_attachment_upload(
+                    store_mutation,
+                    queued_wires,
+                    attachment_echo_rows,
+                    queue_state,
+                )
                 outcome = store_mutation.project.last_mutation_outcome
                 if commit_operation == "close":
                     commit_message = close_mutation_commit_message(

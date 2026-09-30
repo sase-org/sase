@@ -93,6 +93,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("beads_cycle_status", "Cycle Bead Status", False),
     ("beads_edit", "Edit Bead", False),
     ("beads_add_note", "Add Bead Note", False),
+    ("beads_toggle_note_audience", "Toggle Note Audience", False),
     ("beads_create", "Create Task Bead", False),
     ("beads_close", "Close / Reopen Bead", False),
     ("beads_snooze", "Snooze Bead", False),

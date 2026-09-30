@@ -171,6 +171,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 (d(a.beads_cycle_status), "Cycle selected bead status"),
                 (d(a.beads_edit), "Edit selected bead"),
                 (d(a.beads_add_note), "Append a bead note"),
+                (d(a.beads_toggle_note_audience), "Toggle note audience in note modal"),
                 (d(a.beads_create), "Create bead"),
                 (d(a.beads_close), "Close / reopen bead"),
                 (d(a.beads_snooze), "Snooze / re-snooze task bead"),

@@ -25,6 +25,7 @@ BEADS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "beads_cycle_status",
         "beads_edit",
         "beads_add_note",
+        "beads_toggle_note_audience",
         "beads_create",
         "beads_close",
         "beads_snooze",

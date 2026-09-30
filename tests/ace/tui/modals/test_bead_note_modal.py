@@ -7,7 +7,9 @@ from pathlib import Path
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.modals.bead_note_modal import (
+    AUDIENCE_MODES,
     BeadNoteModal,
+    BeadNoteResult,
     _attachment_trigger_at,
     _complete_attachment_prefix,
     _format_pasted_path_for_note,
@@ -83,7 +85,7 @@ class _TestApp(App[None]):
 
 
 async def test_modal_shows_inline_error_and_keeps_text() -> None:
-    dismissed: list[str | None] = []
+    dismissed: list[BeadNoteResult | None] = []
     async with _TestApp().run_test(size=(100, 40)) as pilot:
         modal = BeadNoteModal(
             "sase-1ck.8",
@@ -99,4 +101,67 @@ async def test_modal_shows_inline_error_and_keeps_text() -> None:
         modal.action_save()
         await pilot.pause()
 
-        assert dismissed == ["see @./missing.png"]
+        assert len(dismissed) == 1
+        result = dismissed[0]
+        assert isinstance(result, BeadNoteResult)
+        assert result.text == "see @./missing.png"
+        assert result.audience_requested == "auto"
+
+
+def test_audience_toggle_cycles_auto_private_public() -> None:
+    modal = BeadNoteModal("sase-1d5.7")
+    assert modal.audience_requested == "auto"
+    assert modal.toggle_audience() == "private"
+    assert modal.toggle_audience() == "public"
+    assert modal.toggle_audience() == "auto"
+    assert AUDIENCE_MODES == ("auto", "private", "public")
+
+
+def test_audience_toggle_hidden_is_noop() -> None:
+    modal = BeadNoteModal("sase-1d5.7", show_audience_toggle=False)
+    assert modal.toggle_audience() == "auto"
+    assert modal.audience_requested == "auto"
+
+
+def test_invalid_audience_requested_defaults_to_auto() -> None:
+    assert BeadNoteResult("hi", "everyone").audience_requested == "auto"
+    assert BeadNoteModal(
+        "sase-1d5.7", audience_requested="wide"
+    ).audience_requested == ("auto")
+
+
+async def test_modal_save_carries_toggled_audience() -> None:
+    dismissed: list[BeadNoteResult | None] = []
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        modal = BeadNoteModal("sase-1d5.7", initial_value="note text")
+        pilot.app.push_screen(modal, callback=dismissed.append)
+        await pilot.pause()
+
+        modal.toggle_audience()
+        modal.action_save()
+        await pilot.pause()
+
+        assert len(dismissed) == 1
+        result = dismissed[0]
+        assert isinstance(result, BeadNoteResult)
+        assert result.text == "note text"
+        assert result.audience_requested == "private"
+
+
+async def test_modal_hides_audience_row_when_flag_off() -> None:
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        modal = BeadNoteModal("sase-1d5.7", show_audience_toggle=False)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        audience = modal.query_one("#bead-note-audience")
+        assert not audience.display
+        assert "toggles audience" not in modal._hint_text()
+        assert modal._audience_text() == ""
+
+
+def test_toggle_note_audience_key_has_default() -> None:
+    from sase.ace.tui.keymaps import load_builtin_app_defaults, load_keymap_registry
+
+    assert load_builtin_app_defaults()["beads_toggle_note_audience"] == "ctrl+t"
+    assert load_keymap_registry({}).app.beads_toggle_note_audience == "ctrl+t"
