@@ -11,7 +11,6 @@ from sase.ace.tui.widgets._jinja_highlight import _MAX_OVERLAY_LINES
 from sase.ace.tui.widgets._vim_search import find_search_matches
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.xprompt import jinja_inspect
 
 from ._completion_helpers import CompletionTestApp
 
@@ -143,7 +142,6 @@ async def test_rapid_reyank_replaces_flash_and_ignores_stale_timer(
 async def test_yank_overlay_coexists_with_search_and_jinja(
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)

@@ -110,6 +110,16 @@ def test_infer_invalid_jinja_returns_none() -> None:
     assert infer_local_xprompt_inputs("Broken {{ unclosed ") is None
 
 
+def test_infer_runtime_builtins_are_not_inputs() -> None:
+    # Run builtins, conditionals, and positionals render from the agent run,
+    # so they are never inferred as helper inputs.
+    conversion = infer_local_xprompt_inputs(
+        "{{ wait.chats }} {{ patch_name }} {{ n }} {{ _1 }} for {{ topic }}"
+    )
+    assert conversion is not None
+    assert [arg.name for arg in conversion.inputs] == ["topic"]
+
+
 # -- skeleton generation ----------------------------------------------------
 
 

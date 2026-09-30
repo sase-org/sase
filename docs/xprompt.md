@@ -1000,6 +1000,14 @@ Hello, {{ user }}.
 | `{{ wait_chats }}`                  | Legacy alias for `wait.chats`; still omitted when no chat paths exist                                      |
 | `{{ agents["build"].path }}`        | Output variables loaded from `%wait:build` when that agent used `sase var set path=...`                    |
 | `{{ agents["p--plan"].plan_file }}` | Proposed plan path of a submitted planner row, synthesized from `%wait:p--plan` (no `sase var set` needed) |
+| `{{ patch_name }}`                  | Name of the patch the agent run works on                                                                   |
+| `{{ cl_name }}`                     | Legacy alias of `patch_name`                                                                               |
+| `{{ workspace_num }}`               | 1-based number of the workspace directory assigned to the agent run                                        |
+| `{{ n }}` / `{{ N }}`               | Current [%repeat](#repeat-directive) iteration (1-based) and total iteration count                         |
+| `{{ provider_name }}`               | Name of the LLM provider rendering a skill file (skill frontmatter only)                                   |
+| `{{ provider_tool_name }}`          | Display name of the provider tool rendering a skill file (skill frontmatter only)                          |
+| `{{ provider_native_ask_tool }}`    | Name of the provider's native ask-user-question tool (skill frontmatter only)                              |
+| `{{ range(...) }}`                  | Jinja globals: `range`, `dict`, `lipsum`, `cycler`, `joiner`, `namespace`                                  |
 
 Named arguments and positional-to-name mappings take priority; if an xprompt is called
 within a workflow step, the workflow's execution scope is also available (xprompt args
@@ -1010,6 +1018,15 @@ prompt. `wait.artifacts` is evaluated on first access and returns plain dictiona
 with metadata such as `wait_name`, `agent_name`, `ref`, `kind`, `label`, `path`,
 `source_path`, and nullable VCS provenance fields. Read artifact contents explicitly
 with `sase artifact read <ref> "<reason>"` when the prompt needs bytes.
+
+Availability: conditional names render only when their precondition holds — `n`/`N` need
+[%repeat](#repeat-directive), `agents`/`wait_chats` need `%wait`, and the `provider_*`
+names need truthy `skill` frontmatter in xprompt scope. A prompt that declares its own
+`input:` frontmatter renders before any agent run exists, so the run-time names above
+(`wait`, `patch_name`, `workspace_num`, `cl_name`, `n`, `N`, `agents`, `wait_chats`) are
+unavailable there. Typing `{{` in the prompt input or an editor with the xprompt LSP
+offers exactly the names that render in the current scope; see
+[Editor LSP](#editor-lsp).
 
 ### Filters
 

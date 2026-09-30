@@ -133,7 +133,8 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
         has_jinja = bool(getattr(diagnostics, "has_jinja", False))
         ok = bool(getattr(diagnostics, "ok", True))
         unknown = tuple(getattr(diagnostics, "unknown_variables", ()) or ())
-        if has_jinja and (not ok or unknown):
+        unavailable = tuple(getattr(diagnostics, "unavailable_variables", ()) or ())
+        if has_jinja and (not ok or unknown or unavailable):
             self.show_jinja_diagnostics(diagnostics)
 
     @staticmethod

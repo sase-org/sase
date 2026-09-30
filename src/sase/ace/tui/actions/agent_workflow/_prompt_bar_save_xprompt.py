@@ -8,7 +8,8 @@ from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.widgets._local_xprompt_conversion import (
     convert_placeholders_to_inputs,
 )
-from sase.xprompt.jinja_inspect import inspect_template
+from sase.xprompt.jinja_assist import JinjaScope
+from sase.xprompt.jinja_inspect import undeclared_variables
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat, SkillPlacementError
 
@@ -72,7 +73,12 @@ class PromptBarSaveXpromptMixin(
             return
 
         existing = {arg.name for arg in frontmatter.inputs}
-        existing.update(inspect_template(body).unknown_variables)
+        unknown = undeclared_variables(
+            body, JinjaScope(kind="xprompt", frontmatter=None)
+        )
+        # Engine scope variables (``wait``, ``patch_name``, ``n``, ...) are
+        # render-time builtins and must never become inferred inputs.
+        existing.update(unknown or ())
         conversion = convert_placeholders_to_inputs(body, existing=existing)
         for arg in conversion.inputs:
             frontmatter.set_input(arg)

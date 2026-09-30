@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.xprompt import jinja_inspect
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -130,7 +129,6 @@ async def test_prompt_jinja_valid_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
@@ -153,7 +151,6 @@ async def test_prompt_jinja_invalid_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)

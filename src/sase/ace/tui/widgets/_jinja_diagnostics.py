@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any
 
-from sase.xprompt import jinja_inspect
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.xprompt import jinja_assist, jinja_inspect
+
+_POSITIONAL_RE = re.compile(r"_[0-9]+")
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -80,10 +82,7 @@ class JinjaDiagnosticsMixin(_MixinBase):
         ):
             return
 
-        diagnostics = jinja_inspect.inspect_template(
-            text,
-            known=_known_jinja_names_for_prompt(self._find_prompt_bar(), text, self),
-        )
+        diagnostics = _inspect_with_engine_scope(self._find_prompt_bar(), text, self)
         self._apply_jinja_diagnostics(diagnostics)
 
     def _apply_jinja_diagnostics(
@@ -93,6 +92,9 @@ class JinjaDiagnosticsMixin(_MixinBase):
         self._jinja_diagnostics = diagnostics
         self._jinja_error_span = diagnostics.span if not diagnostics.ok else None
         unknowns = set(diagnostics.unknown_variables)
+        unknowns.update(
+            unavailable.name for unavailable in diagnostics.unavailable_variables
+        )
         if unknowns:
             self._jinja_unknown_spans = tuple(
                 (span.start, span.end)
@@ -118,7 +120,11 @@ class JinjaDiagnosticsMixin(_MixinBase):
             if callable(hide):
                 hide()
             return
-        if diagnostics.ok and not diagnostics.unknown_variables:
+        if (
+            diagnostics.ok
+            and not diagnostics.unknown_variables
+            and not diagnostics.unavailable_variables
+        ):
             if callable(hide):
                 hide()
             return
@@ -133,7 +139,7 @@ class JinjaDiagnosticsMixin(_MixinBase):
         if not diagnostics.ok:
             line = diagnostics.lineno or 1
             return f"[bold {theme.warning}]⟨jinja ! L{line}⟩[/]"
-        if diagnostics.unknown_variables:
+        if diagnostics.unknown_variables or diagnostics.unavailable_variables:
             return f"[bold {theme.warning}]⟨jinja ! var⟩[/]"
         return f"[bold {theme.success}]⟨jinja ✓⟩[/]"
 
@@ -146,49 +152,68 @@ class JinjaDiagnosticsMixin(_MixinBase):
         self._refresh_jinja_overlay()
 
 
-def _known_jinja_names_for_prompt(
-    bar: Any, text: str, text_area: object | None = None
-) -> set[str]:
-    known = jinja_inspect.known_toplevel_context()
-    known.update(jinja_inspect.builtin_runtime_names())
-    known.update(_stack_frontmatter_input_names(bar, text_area))
-    known.update(_inline_frontmatter_input_names(text))
-    return known
-
-
-def _stack_frontmatter_input_names(
+def jinja_scope_for_text_area(
     bar: Any, text_area: object | None = None
-) -> set[str]:
-    getter = getattr(bar, "frontmatter_model_for_text_area", None)
-    if callable(getter):
+) -> jinja_assist.JinjaScope:
+    """Return the engine scope for a prompt *text_area*.
+
+    A mini-xprompt pane uses ``xprompt`` scope with the pane's own
+    frontmatter; a stack bound to an xprompt target uses ``xprompt`` scope
+    with the stack frontmatter; any other prompt-mode pane uses ``prompt``
+    scope with the stack frontmatter. Non-prompt modes (feedback and any
+    future approve mode) use ``prompt`` scope without frontmatter.
+    """
+    if getattr(bar, "_mode", "prompt") != "prompt":
+        return jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
+    scope_getter = getattr(bar, "_frontmatter_scope", None)
+    if callable(scope_getter):
         try:
-            return _frontmatter_input_names(getter(text_area))
-        except (TypeError, ValueError):
-            return set()
-    stack = getattr(bar, "_stack", None)
-    if stack is None:
-        return set()
-    try:
-        model = stack.frontmatter_model
-    except (AttributeError, TypeError, ValueError):
-        return set()
-    return _frontmatter_input_names(model)
+            scope = scope_getter(text_area)
+        except (AttributeError, TypeError, ValueError):
+            pass
+        else:
+            raw = getattr(scope, "raw", "") or ""
+            if getattr(scope, "has_target", False):
+                return jinja_assist.JinjaScope(kind="xprompt", frontmatter=raw or None)
+            return jinja_assist.JinjaScope(kind="prompt", frontmatter=raw or None)
+    return jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
 
 
-def _inline_frontmatter_input_names(text: str) -> set[str]:
-    if not text.startswith("---"):
-        return set()
-    try:
-        model = PromptFrontmatter.parse(text)
-    except (TypeError, ValueError):
-        return set()
-    return _frontmatter_input_names(model)
+def _inspect_with_engine_scope(
+    bar: Any, text: str, text_area: object | None = None
+) -> jinja_inspect.JinjaDiagnostics:
+    """Lint *text* against the engine's scope variables for its pane.
 
-
-def _frontmatter_input_names(model: Any) -> set[str]:
-    names: set[str] = set()
-    for arg in getattr(model, "inputs", ()):
-        name = getattr(arg, "name", None)
-        if isinstance(name, str) and name:
-            names.add(name)
-    return names
+    Truly unknown names land in ``unknown_variables``; names the engine
+    reports as unavailable in this scope land in
+    ``unavailable_variables`` with the engine's reason instead of being
+    called unknown. In ``xprompt`` scope any ``_<digits>`` name is known.
+    """
+    scope = jinja_scope_for_text_area(bar, text_area)
+    scope_vars = jinja_assist.jinja_scope_variables(text, scope)
+    diagnostics = jinja_inspect.diagnose(text)
+    if not diagnostics.has_jinja or not diagnostics.ok:
+        return diagnostics
+    known = set(scope_vars.known)
+    undeclared = set(jinja_inspect.unknown_variables(text, known))
+    unavailable_names = {unavailable.name for unavailable in scope_vars.unavailable}
+    unknown = sorted(undeclared - unavailable_names)
+    if scope_vars.positional_pattern:
+        unknown = [name for name in unknown if _POSITIONAL_RE.fullmatch(name) is None]
+    unavailable = tuple(
+        unavailable
+        for unavailable in scope_vars.unavailable
+        if unavailable.name in undeclared
+    )
+    if not unknown and not unavailable:
+        return diagnostics
+    return jinja_inspect.JinjaDiagnostics(
+        has_jinja=diagnostics.has_jinja,
+        ok=diagnostics.ok,
+        message=diagnostics.message,
+        lineno=diagnostics.lineno,
+        col=diagnostics.col,
+        span=diagnostics.span,
+        unknown_variables=tuple(unknown),
+        unavailable_variables=unavailable,
+    )

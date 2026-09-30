@@ -11,8 +11,9 @@ without a running Textual app.
 Name validation reuses the launch path's underscore-scoping rule (via
 :func:`parse_local_xprompt_entries`) so a helper saved here behaves identically
 to one authored in raw YAML, the Frontmatter Panel, or an xprompt ``.md`` file.
-Input inference reuses :func:`sase.xprompt.jinja_inspect.inspect_template` so
-known top-level globals (``root`` and friends) are never mistaken for inputs.
+Input inference reuses :func:`sase.xprompt.jinja_inspect.undeclared_variables`
+so engine scope variables (``root``, run builtins, and friends) are never
+mistaken for inputs.
 """
 
 from __future__ import annotations
@@ -28,7 +29,8 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     xprompt_assist_entry_from_local_xprompt,
 )
 from sase.config.core import load_merged_config
-from sase.xprompt.jinja_inspect import inspect_template
+from sase.xprompt.jinja_assist import JinjaScope
+from sase.xprompt.jinja_inspect import undeclared_variables
 from sase.xprompt.loader_parsing import (
     LocalXPromptNameError,
     parse_local_xprompt_entries,
@@ -160,27 +162,28 @@ def infer_local_xprompt_inputs(body: str) -> _PlaceholderArgConversion | None:
     """Rewrite placeholders and infer every required input for a local xprompt.
 
     Returns one ``TEXT`` :class:`InputArg` per undeclared variable (no default,
-    so each is required), with known top-level globals filtered out by
-    :func:`inspect_template`.  Placeholder-derived inputs follow those Jinja
-    inputs, preserving document order within each group.  A placeholder whose
-    generated name is already an undeclared Jinja variable reuses that input.
-    Disabling ``ace.prompt_inputs.xprompt_placeholder_args`` skips only the
-    placeholder rewrite; Jinja-variable input inference is unchanged.
+    so each is required), with engine scope variables filtered out by
+    :func:`undeclared_variables`, so builtins such as ``wait``,
+    ``patch_name``, and ``n`` never become inferred inputs. Placeholder-derived
+    inputs follow those Jinja inputs, preserving document order within each
+    group. A placeholder whose generated name is already an undeclared Jinja
+    variable reuses that input. Disabling
+    ``ace.prompt_inputs.xprompt_placeholder_args`` skips only the placeholder
+    rewrite; Jinja-variable input inference is unchanged.
 
     Returns ``None`` when *body* contains invalid Jinja syntax: the caller leaves
     the pane unchanged and notifies rather than minting a helper with unreliable
     inputs.
     """
-    diagnostics = inspect_template(body)
-    if diagnostics.has_jinja and not diagnostics.ok:
+    unknown = undeclared_variables(body, JinjaScope(kind="xprompt", frontmatter=None))
+    if unknown is None:
         return None
     jinja_inputs = [
-        InputArg(name=variable, type=InputType.TEXT)
-        for variable in diagnostics.unknown_variables
+        InputArg(name=variable, type=InputType.TEXT) for variable in unknown
     ]
     converted = convert_placeholders_to_inputs(
         body,
-        existing=diagnostics.unknown_variables,
+        existing=unknown,
     )
     return _PlaceholderArgConversion(
         body=converted.body,

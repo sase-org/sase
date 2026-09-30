@@ -10,7 +10,10 @@ from jinja2 import TemplateSyntaxError, meta
 
 from ._directive_alt import _ALT_DIRECTIVE_RE
 from ._literal_zones import code_literal_ranges, literal_zone_ranges
-from ._jinja import BUILTIN_RUNTIME_NAMES, RESERVED_GLOBAL_NAMES, get_jinja_env
+from ._jinja import get_jinja_env
+from .jinja_assist import JinjaScope, JinjaUnavailableVariable, jinja_scope_variables
+
+_POSITIONAL_RE = re.compile(r"_[0-9]+")
 
 JinjaSpanKind = Literal[
     "delimiter",
@@ -94,6 +97,7 @@ class JinjaDiagnostics:
     col: int | None = None
     span: tuple[int, int] | None = None
     unknown_variables: tuple[str, ...] = ()
+    unavailable_variables: tuple[JinjaUnavailableVariable, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,11 +109,6 @@ class JinjaCompletionContext:
     prefix: str
     tag_kind: Literal["variable", "block"]
     namespace: str | None = None
-
-
-RUNTIME_NAMESPACE_MEMBERS: dict[str, frozenset[str]] = {
-    "wait": frozenset({"artifacts", "chats"}),
-}
 
 
 def has_jinja(text: str) -> bool:
@@ -215,12 +214,16 @@ def inspect_template(
     *,
     known: set[str] | None = None,
 ) -> JinjaDiagnostics:
-    """Return parse diagnostics plus unknown-variable lint for *text*."""
+    """Return parse diagnostics plus unknown-variable lint for *text*.
+
+    When *known* is omitted, the engine's prompt-scope known set is used,
+    so the default lint accepts exactly what the completion menu offers.
+    """
     diagnostics = diagnose(text)
     if not diagnostics.has_jinja or not diagnostics.ok:
         return diagnostics
 
-    known_vars = known_toplevel_context() if known is None else known
+    known_vars = _default_known_context() if known is None else known
     unknown = tuple(sorted(unknown_variables(text, known_vars)))
     if not unknown:
         return diagnostics
@@ -248,19 +251,85 @@ def unknown_variables(text: str, known: set[str]) -> list[str]:
     return sorted(meta.find_undeclared_variables(ast) - set(known))
 
 
+def undeclared_variables(
+    text: str,
+    scope: JinjaScope,
+) -> tuple[str, ...] | None:
+    """Return template variables needing caller-supplied values in *scope*.
+
+    Engine-known names (available or conditional) and unavailable names
+    are excluded, so builtins such as ``wait``, ``patch_name``, and ``n``
+    never surface here; in ``xprompt`` scope any ``_<digits>`` name is
+    known as well. Returns ``None`` when *text* has invalid Jinja syntax.
+    """
+    diagnostics = diagnose(text)
+    if diagnostics.has_jinja and not diagnostics.ok:
+        return None
+    scope_vars = jinja_scope_variables(text, scope)
+    known = set(scope_vars.known) | {
+        unavailable.name for unavailable in scope_vars.unavailable
+    }
+    return tuple(
+        name
+        for name in unknown_variables(text, known)
+        if not (
+            scope_vars.positional_pattern and _POSITIONAL_RE.fullmatch(name) is not None
+        )
+    )
+
+
+def _default_known_context() -> set[str]:
+    """Return the engine's prompt-scope known set for top-level linting."""
+    return set(
+        jinja_scope_variables("", JinjaScope(kind="prompt", frontmatter=None)).known
+    )
+
+
 def known_toplevel_context() -> set[str]:
-    """Return reserved names accepted by top-level prompt tooling."""
-    return set(RESERVED_GLOBAL_NAMES)
+    """Return catalog variables defined in every scope.
+
+    Thin wrapper over :func:`sase.xprompt.jinja_assist.jinja_catalog`
+    kept for the TUI Jinja menu until it moves to the engine; prefer
+    :func:`sase.xprompt.jinja_assist.jinja_scope_variables` for linting.
+    """
+    from .jinja_assist import jinja_catalog
+
+    return {
+        variable.name
+        for variable in jinja_catalog().variables
+        if variable.availability_rule == "always"
+    }
 
 
 def builtin_runtime_names() -> set[str]:
-    """Return agent-run built-in names accepted by prompt diagnostics."""
-    return set(BUILTIN_RUNTIME_NAMES)
+    """Return agent-run built-in names from the Rust catalog.
+
+    Thin wrapper over :func:`sase.xprompt.jinja_assist.jinja_catalog`
+    kept for the TUI Jinja menu until it moves to the engine. Unlike the
+    old static mirror, this includes every catalog ``run`` variable (such
+    as ``patch_name``) so the menu and the lint cannot drift apart.
+    """
+    from .jinja_assist import jinja_catalog
+
+    return {
+        variable.name
+        for variable in jinja_catalog().variables
+        if variable.availability_rule in ("run", "run_needs_repeat", "run_needs_wait")
+    }
 
 
 def builtin_runtime_member_names(namespace: str) -> set[str]:
-    """Return known static member names for an agent-run runtime namespace."""
-    return set(RUNTIME_NAMESPACE_MEMBERS.get(namespace, frozenset()))
+    """Return known member names for a runtime namespace from the catalog.
+
+    Thin wrapper over :func:`sase.xprompt.jinja_assist.jinja_catalog`
+    kept for the TUI Jinja menu until it moves to the engine.
+    """
+    from .jinja_assist import jinja_catalog
+
+    for variable in jinja_catalog().variables:
+        if variable.name == namespace:
+            return {member.name for member in variable.members}
+    return set()
 
 
 def jinja_filter_names() -> tuple[str, ...]:

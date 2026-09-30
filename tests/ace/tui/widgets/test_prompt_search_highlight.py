@@ -5,7 +5,6 @@ from __future__ import annotations
 from sase.ace.tui.widgets._jinja_highlight import _MAX_OVERLAY_LINES
 from sase.ace.tui.widgets._vim_search import SearchSelection, find_search_matches
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt import jinja_inspect
 
 from ._completion_helpers import CompletionTestApp
 
@@ -14,10 +13,7 @@ def _highlight_names(ta: PromptTextArea) -> list[str]:
     return [name for row in ta._highlights.values() for *_range, name in row]
 
 
-async def test_search_highlight_overlay_coexists_with_jinja(
-    monkeypatch,
-) -> None:
-    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
+async def test_search_highlight_overlay_coexists_with_jinja() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)

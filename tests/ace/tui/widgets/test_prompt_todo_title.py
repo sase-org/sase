@@ -11,7 +11,6 @@ from textual.theme import Theme
 from sase.ace.tui.models.agent_status import RUNNING_COLOR
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding
-from sase.xprompt import jinja_inspect
 
 from ._prompt_input_bar_stack_helpers import _PromptBarApp, _XPromptMarkdownApp
 
@@ -178,10 +177,8 @@ async def test_todo_title_updates_through_history_and_editor_rebuilds() -> None:
 
 
 async def test_todo_title_keeps_binding_mode_agent_and_jinja_adornments(
-    monkeypatch,
     tmp_path,
 ) -> None:
-    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
     source = tmp_path / "review.md"
     source.write_text("TODO: saved", encoding="utf-8")
     app = _PromptBarApp("TODO: upper\n---\nTODO: {{ root }}")

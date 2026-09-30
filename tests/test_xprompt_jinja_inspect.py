@@ -11,6 +11,7 @@ def test_builtin_runtime_names_contains_agent_run_context() -> None:
 
     assert names >= {
         "cl_name",
+        "patch_name",
         "workspace_num",
         "n",
         "N",

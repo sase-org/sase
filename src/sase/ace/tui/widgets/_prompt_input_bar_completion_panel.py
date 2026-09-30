@@ -480,6 +480,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self.hide_soft_completion()
         content = Text()
         unknown = tuple(getattr(diagnostics, "unknown_variables", ()) or ())
+        unavailable = tuple(getattr(diagnostics, "unavailable_variables", ()) or ())
         ok = bool(getattr(diagnostics, "ok", True))
         if not ok:
             line = getattr(diagnostics, "lineno", None) or 1
@@ -488,10 +489,19 @@ class PromptInputBarCompletionMixin(_MixinBase):
             content.append(str(message), style="red")
             panel.add_class("jinja-error")
             panel.remove_class("jinja-warning")
-        elif unknown:
-            label = "variable" if len(unknown) == 1 else "variables"
-            content.append(f"unknown {label}: ", style="bold yellow")
-            content.append(", ".join(unknown), style="yellow")
+        elif unknown or unavailable:
+            if unknown:
+                label = "variable" if len(unknown) == 1 else "variables"
+                content.append(f"unknown {label}: ", style="bold yellow")
+                content.append(", ".join(unknown), style="yellow")
+            for index, item in enumerate(unavailable):
+                name = getattr(item, "name", "?")
+                reason = getattr(item, "reason", "")
+                if unknown or index > 0:
+                    content.append("; ", style="yellow")
+                content.append(f"{name}", style="bold yellow")
+                if reason:
+                    content.append(f": {reason}", style="yellow")
             panel.add_class("jinja-warning")
             panel.remove_class("jinja-error")
         else:

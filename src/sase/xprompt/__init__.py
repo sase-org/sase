@@ -46,6 +46,7 @@ from .jinja_inspect import (
     known_toplevel_context,
     matching_delimiter_spans,
     tokenize,
+    undeclared_variables,
     unknown_variables,
 )
 from .loader import (
@@ -134,6 +135,7 @@ __all__ = [
     "known_toplevel_context",
     "matching_delimiter_spans",
     "tokenize",
+    "undeclared_variables",
     "unknown_variables",
     # Output validation
     "OutputValidationError",
