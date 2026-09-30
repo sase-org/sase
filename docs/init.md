@@ -631,8 +631,9 @@ For each enabled sidecar, provider discovery runs before materialization. A miss
 remote gets its own default-no prompt naming the visibility, provider, full repository
 name, and host. Only `y` or `yes` authorizes creation; `--yes`, blank answers, EOF,
 interruption, and non-interactive stdin cannot authorize it. The configured `repo:` pin
-and `visibility:` are passed to the provider, and initialization fails closed if the
-provider cannot honor the requested visibility.
+and `visibility:` are passed to the provider. For a missing remote, initialization fails
+closed if the provider would create it with a different visibility; it does not verify
+an existing remote's visibility.
 
 When non-interactive bare `sase init --yes` discovers a missing sidecar remote, it
 writes the project wiring, reports the missing repository, and leaves creation for a
@@ -661,8 +662,11 @@ own default-no prompt. The prompt says the repository holds private bead attachm
 bytes and names `repos.sidecar.builtin.attachments-private.disabled: true` as the
 opt-out. Declining continues initialization without that sidecar. The clone is a bare
 partial repository at `~/.sase/projects/<project_key>/repos/attachments-private`. It has
-no worktree and no README, so initialization prints the clone path itself. Visibility
-stays private even if config asks for `public`. See [Attachments](beads.md#attachments).
+no worktree and no README, so initialization prints the clone path itself. A
+`visibility: public` override resolves to `private` for remote creation. Check an
+existing remote's visibility before storing attachments there. Disabling the role later
+does not stop attachment commands from using an existing local clone; use
+`-L/--local-only` for a particular attachment. See [Attachments](beads.md#attachments).
 
 `plans`, `beads`, `agents`, and the default `research` presentation preset receive
 illustrated README guides and directory-map assets. `attachments-private` does not.

@@ -906,13 +906,16 @@ are as public as the bead itself. Bytes live in a local content-addressed cache 
 then in shared stores picked deterministically by size:
 
 - The **git tier** holds objects up to `bead.attachments.git_max_bytes` (default 50 MiB)
-  in a private `<project>--attachments-private` sidecar repo, one per project. The local
-  copy is a bare partial clone at
-  `~/.sase/projects/<project_key>/repos/attachments-private`. Private means private: the
-  remote is non-public, the role is hidden from agent instructions, and descriptors
-  never contain paths or machine-local ids. `sase repo init` asks before creating a
-  missing remote; decline, or set
-  `repos.sidecar.builtin.attachments-private.disabled: true`, to keep objects local. See
+  in a `<project>--attachments-private` sidecar repo, one per project. Its local copy is
+  a bare partial clone at `~/.sase/projects/<project_key>/repos/attachments-private`.
+  SASE requests private visibility when creating the remote, but does not check the
+  visibility of an existing remote; verify that before using it for attachment bytes.
+  The role is hidden from agent instructions, and descriptors contain no local file
+  paths. `sase repo init` asks before creating a missing remote. Declining does not
+  create a git store on that machine;
+  `repos.sidecar.builtin.attachments-private.disabled: true` prevents sidecar setup, but
+  does not disable uploads through a clone that already exists. Use `-L/--local-only`
+  for an individual attachment that must stay on this machine. See
   [Repository initialization](init.md#repository-initialization).
 - The optional **rclone large tier** (`bead.attachments.large_store`) takes larger
   objects; see below.
@@ -924,7 +927,8 @@ Uploads never run under the bead lock: the event is appended first, then bytes u
 pre-publication, so other machines never see a note before its bytes. A failed upload
 lands in a durable outbox, badged `⇡ pending upload`, and drains on the next push, bead
 sync, or worker launch. `bead.attachments.require_upload: true` uploads before the event
-instead and aborts with nothing written when the upload fails.
+instead and aborts with nothing written when the upload fails. An explicit
+`-L/--local-only` still keeps the bytes local in that mode.
 
 #### Viewing
 
@@ -1014,7 +1018,8 @@ sidecar cannot be fetched or the upload outbox still has queued uploads
 (`sase bead attachment push` drains them). When a large tier is configured, the same
 check warns if `rclone` is missing or that remote is unreachable. No current project
 skips the check. No attachments-private clone and no large tier also skips it, and
-attachments then stay on this machine.
+attachments then stay on this machine unless `bead.attachments.require_upload: true`
+rejects the write.
 
 Text viewing rules: prose replaces each `@attachment:<name>` token with `[name]`
 (filenames stripped of control and bidi characters). The note label gains `📎 N` when

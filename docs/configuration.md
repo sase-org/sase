@@ -2760,18 +2760,20 @@ visible to users as a `sidecar` row in `sase repo list`, and `sase repo path age
 `~/.sase/projects/<project_key>/repos/agents`. The derived or pinned repository slug is
 also accepted by those commands.
 
-`attachments-private` is hidden the same way. Managed projects receive an implicit
-private `<project>--attachments-private` entry unless configuration already names that
-role or `default_linked_repos` is false. Its clone is a bare partial repository
+`attachments-private` is also hidden from agent instructions. Managed projects receive
+an implicit private `<project>--attachments-private` entry unless configuration names
+that role or `default_linked_repos` is false. Its clone is a bare partial repository
 (`git clone --bare --filter=blob:none`) at
 `~/.sase/projects/<project_key>/repos/attachments-private`, with no worktree and no
 README. `sase repo list` shows the role, and `sase repo path attachments-private` prints
-that path. `auto_clone: true` does not put a copy in a workspace's `sase/repos/` tree,
-and the role is omitted from generated agent instructions. Resolved visibility is always
-`private`: a `visibility: public` override is rewritten to `private` and does not create
-a public remote. Opt out with
-`repos.sidecar.builtin.attachments-private.disabled: true`. Attachment commands use this
-store for objects up to `bead.attachments.git_max_bytes`; see
+that path. `auto_clone: true` does not put a copy in a workspace's `sase/repos/` tree.
+Resolved visibility is always `private`: a `visibility: public` override is rewritten to
+`private`, and preflight rejects a provider that would create the remote with another
+visibility. SASE does not verify the visibility of a remote that already exists. Opt out
+of sidecar setup with `repos.sidecar.builtin.attachments-private.disabled: true`.
+Attachment commands still use an existing local clone even when that role is disabled;
+`-L/--local-only` keeps an individual attachment on this machine. When available, the
+git store takes objects up to `bead.attachments.git_max_bytes`; see
 [Attachments](beads.md#attachments).
 
 The `beads` role does not default to `auto_clone: true`: the beads sidecar materializes
@@ -2856,7 +2858,7 @@ repos:
 | Field                                         | Type           | Default                                                            | Description                                                                                                                                                                                                                                                              |
 | --------------------------------------------- | -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `github_orgs`                                 | string or list | -                                                                  | GitHub user/org namespaces available to provider completion and PR workflows.                                                                                                                                                                                            |
-| `default_linked_repos`                        | boolean        | `true`                                                             | Inject managed-project `--plans`, `--beads`, and hidden `--agents` sidecars.                                                                                                                                                                                             |
+| `default_linked_repos`                        | boolean        | `true`                                                             | Inject managed-project `--plans`, `--beads`, and hidden `--agents` and `--attachments-private` sidecars.                                                                                                                                                                 |
 | `repos.linked[].auto_clone`                   | boolean        | `false`                                                            | Materialize and prepare the repository automatically before each agent launch.                                                                                                                                                                                           |
 | `repos.linked[].name`                         | string         | required                                                           | Stable alias used in generated environment variable names and memory summaries.                                                                                                                                                                                          |
 | `repos.linked[].path`                         | string         | required                                                           | Primary checkout path. Relative paths resolve from the project's primary workspace.                                                                                                                                                                                      |
@@ -2868,7 +2870,7 @@ repos:
 | `repos.sidecar.*.<role>.description`          | string         | -                                                                  | Purpose shown in inventory; required in generated instructions for lazy entries.                                                                                                                                                                                         |
 | `repos.sidecar.*.<role>.auto_clone`           | boolean        | `false`                                                            | Materialize before agent launch; intrinsically ignored for the hidden `agents` and `attachments-private` roles.                                                                                                                                                          |
 | `repos.sidecar.*.<role>.auto_sync`            | boolean        | `false`                                                            | Fetch/fast-forward the primary clone when clean; intrinsically ignored for the hidden `agents` and `attachments-private` roles.                                                                                                                                          |
-| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                                                           | Remote visibility; project-local `private` overrides the `agents` default. `attachments-private` is always `private`.                                                                                                                                                    |
+| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                                                           | Requested visibility for remote creation; project-local `private` overrides the `agents` default. `attachments-private` resolves to `private`.                                                                                                                           |
 | `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                                                            | Disable the entry and suppress matching implicit sidecars, including `agents`.                                                                                                                                                                                           |
 | `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent                                            | Installed artifact-reference provider, qualified `<plugin>@<id>`, to use as the base policy.                                                                                                                                                                             |
 | `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)                                     | Prompt kind exposed as `@<kind>:<path>`.                                                                                                                                                                                                                                 |
@@ -5034,10 +5036,10 @@ registered is removed the next time an installing process reconciles
 `SASE_AGENT_FAMILY_ATTACH`. `legacy_sase_shell_syntax` accepts
 `sase gate create --shell`, `--shell-status`, `--shell-stop-status`, and
 `--next-fork shell`; a gate spec's `"shell"` block, `"fork": "shell"`, and
-`"continuation_mode": "gate_shell"`; `sase proc list` / `sase proc run --shell`; and
-`gate.shell.reclaim_grace_seconds`. Combining a retired spelling with its replacement in
-one command or spec is an error either way. Write the session and turn spellings in new
-prompts and config.
+`"continuation_mode": "gate_shell"`; `--shell` on `sase proc list` or `sase proc run`
+(replaced by `--name`); and `gate.shell.reclaim_grace_seconds`. Supplying both names for
+the same option or block is an error in either flag state. Write the session and turn
+spellings in new prompts and config, and use `--name` for proc commands.
 
 Run `sase flag list` for the live registry with effective and saved state.
 

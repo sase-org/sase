@@ -1648,12 +1648,14 @@ For a custom handoff, pass `--turn` to `sase gate create`. `--next` supplies the
 answered-branch prompt; `--next-fork session|turn|none`, `--next-model`, and repeatable
 `--next-output none|results|tail|file` control its context, model, and output channels.
 While `legacy_sase_shell_syntax` is on (the default), the retired shell spellings still
-alias these turn spellings: `--shell`, `--shell-status`, `--shell-stop-status`, and
-`--next-fork shell` on `sase gate create`; a gate spec's `"shell"` block,
-`"fork": "shell"`, and `"continuation_mode": "gate_shell"`; and `sase proc list` /
-`sase proc run --shell`. New commands should use the turn spellings. Turning the flag
-off rejects those new uses. Stored records still read. A shell spelling and its turn
-replacement together are an error. See [feature_flags](configuration.md#feature_flags).
+work: `--shell`, `--shell-status`, `--shell-stop-status`, and `--next-fork shell` on
+`sase gate create`; a gate spec's `"shell"` block, `"fork": "shell"`, and
+`"continuation_mode": "gate_shell"`; and `--shell` on `sase proc list` or
+`sase proc run` (where `--name` replaces it). Use the turn spellings for gates and
+`--name` for proc commands. Turning the flag off rejects new uses of the retired
+spellings. Stored records still read. Supplying both names for the same option or block
+is an error. See [feature_flags](configuration.md#feature_flags).
+
 Branch policy in the specification may override or suppress that default. A turn block
 without an explicit `continuation_mode` records the derived `gate_turn` mode; pairing a
 turn block with an explicit `"none"` is rejected, because `"none"` would discard the

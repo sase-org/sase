@@ -382,8 +382,9 @@ The names you'll keep bumping into, in one place:
   [sase's TUI](ace.md).
 - **[Beads](beads.md)** — dependency-aware, git-portable plan, phase, and standalone
   task work units. A note can attach a content-addressed snapshot of a file with
-  `@<path>`, or with `sase bead attach`, and that snapshot renders on every machine that
-  can reach the attachment store. See [Attachments](beads.md#attachments).
+  `@<path>`, or with `sase bead attach`. When it reaches a shared store, other machines
+  can fetch it; local-only snapshots stay on the originating machine. See
+  [Attachments](beads.md#attachments).
 - **[Memory Webs / Glossary](memory.md#memory-webs)** — per-project definitions of the
   terms your team keeps reusing, authored as strand files under `sase/memory/glossary/`.
   Agents fetch one on demand with `sase memory read glossary:<term> -r "<why>"` instead
