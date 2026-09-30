@@ -84,11 +84,16 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
         if callable(schedule_refresh):
             schedule_refresh()
     else:
+        from ._pending_ack_fence import snapshot_read_seq
+
         reconcile = getattr(
             app, "_reconcile_unread_from_completion_notifications", None
         )
         if callable(reconcile):
-            reconcile(snapshot.notifications)
+            reconcile(
+                snapshot.notifications,
+                snapshot_seq=snapshot_read_seq(snapshot),
+            )
 
     app._agent_display_status_by_identity = {  # type: ignore[attr-defined]
         agent.identity: agent.status for agent in loaded_agents

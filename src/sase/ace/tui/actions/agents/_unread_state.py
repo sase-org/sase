@@ -47,6 +47,7 @@ class _UnreadNotificationDismissal:
     identities: frozenset[tuple[AgentType, str, str | None]]
     restore_manual_ids: frozenset[tuple[AgentType, str, str | None]]
     prior_pending_bulk_read_ids: frozenset[tuple[AgentType, str, str | None]] | None
+    op_id: int = 0
 
 
 class AgentUnreadStateMixin:
@@ -220,6 +221,13 @@ class AgentUnreadStateMixin:
         if not restore_ids:
             return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
+        from ._pending_ack_fence import release_pending_ack_entries
+
+        # The user overrode the in-flight acks: release their fence entries
+        # so the next reconcile projects the restored rows from the store
+        # instead of holding them read.
+        release_pending_ack_entries(self, restore_ids)
+
         roster = getattr(self, "_agents_with_children", None) or self._agents
         target_agents = [
             agent
@@ -389,6 +397,16 @@ class AgentUnreadStateMixin:
         request: _UnreadNotificationDismissal,
     ) -> None:
         """Persist an optimistic read-side notification dismissal off-thread."""
+        from dataclasses import replace
+
+        from ._pending_ack_fence import register_pending_ack
+
+        # Register before scheduling: every reconcile path treats these
+        # identities as read until a post-write snapshot retires them.
+        request = replace(
+            request,
+            op_id=register_pending_ack(self, request.identities),
+        )
 
         def work() -> None:
             dismissed_count = 0
@@ -477,6 +495,8 @@ class AgentUnreadStateMixin:
         error: Exception | None,
     ) -> None:
         """Apply the off-thread notification write outcome on the UI thread."""
+        from ._pending_ack_fence import mark_pending_ack_write_complete
+
         if error is not None:
             self._restore_unread_notification_dismissal(request)
             notify = getattr(self, "notify", None)
@@ -487,6 +507,9 @@ class AgentUnreadStateMixin:
                 )
             return
 
+        # The write landed: stamp done_seq so only a read that began
+        # after this point retires the pending entries.
+        mark_pending_ack_write_complete(self, request.op_id, request.identities)
         removed_count = self._remove_agent_completion_notifications_from_cache(
             list(request.agents)
         )
@@ -499,7 +522,29 @@ class AgentUnreadStateMixin:
         self,
         request: _UnreadNotificationDismissal,
     ) -> None:
-        """Restore optimistic unread state after a store-write failure."""
+        """Restore optimistic unread state after a store-write failure.
+
+        Only identities this op still owns are restored: a later op on the
+        same identity overwrote the pending entry and takes ownership, so an
+        earlier failure must not clobber its optimistic state.
+        """
+        from dataclasses import replace
+
+        from ._pending_ack_fence import (
+            owned_pending_ack_identities,
+            release_pending_ack_entries,
+        )
+
+        owned = owned_pending_ack_identities(self, request.op_id, request.identities)
+        release_pending_ack_entries(self, owned)
+        if not owned:
+            return
+        fully_owned = owned == set(request.identities)
+        request = replace(
+            request,
+            identities=frozenset(owned),
+            restore_manual_ids=request.restore_manual_ids & owned,
+        )
         unread_ids = getattr(self, "_unread_completed_agent_ids", None)
         if unread_ids is None:
             unread_ids = set()
@@ -511,7 +556,7 @@ class AgentUnreadStateMixin:
         manual_ids.update(request.restore_manual_ids)
 
         current_pending = getattr(self, "_pending_bulk_read_agent_ids", None)
-        if current_pending == set(request.identities):
+        if fully_owned and current_pending == set(request.identities):
             self._pending_bulk_read_agent_ids = (
                 set(request.prior_pending_bulk_read_ids)
                 if request.prior_pending_bulk_read_ids is not None
@@ -597,6 +642,11 @@ class AgentUnreadStateMixin:
             self._invalidate_bulk_read_undo()
             manual_ids.add(identity)
             unread_ids.add(identity)
+            from ._pending_ack_fence import release_pending_ack_entries
+
+            # An explicit manual mark overrides any in-flight ack for this
+            # row so a pre-write snapshot cannot clear it again.
+            release_pending_ack_entries(self, {identity})
             if hasattr(self, "_agent_info_metrics_cache"):
                 self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 

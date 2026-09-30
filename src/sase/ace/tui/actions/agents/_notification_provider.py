@@ -203,9 +203,45 @@ def _read_notification_pending_actions_for_tui(
 class AgentNotificationProviderMixin:
     """Provider-backed notification read methods."""
 
-    def _set_notification_snapshot_cache(self: Any, snapshot: object) -> None:
-        """Store the latest notification snapshot for hot-path readers."""
+    def _set_notification_snapshot_cache(
+        self: Any,
+        snapshot: object,
+        *,
+        read_seq: int | None = None,
+    ) -> bool:
+        """Store the latest notification snapshot for hot-path readers.
+
+        The cache is monotonic in read-start sequence: a snapshot whose
+        read started before the cached one's is ignored so a stale poll
+        can never resurrect an acknowledged row. Snapshots without a
+        known sequence (locally derived ones) inherit the cached sequence
+        and are always accepted. Returns ``True`` when stored.
+        """
+        from ._pending_ack_fence import snapshot_read_seq
+
+        incoming_seq = read_seq
+        if incoming_seq is None:
+            incoming_seq = snapshot_read_seq(snapshot)
+        cached_seq = getattr(self, "_notification_snapshot_read_seq", None)
+        try:
+            cached_seq = int(cached_seq) if cached_seq is not None else None
+        except (TypeError, ValueError):
+            cached_seq = None
+        if incoming_seq is not None:
+            try:
+                incoming_seq = int(incoming_seq)
+            except (TypeError, ValueError):
+                incoming_seq = None
+        if (
+            incoming_seq is not None
+            and cached_seq is not None
+            and incoming_seq < cached_seq
+        ):
+            return False
         self._notification_snapshot_cache = snapshot  # type: ignore[attr-defined]
+        self._notification_snapshot_read_seq = (  # type: ignore[attr-defined]
+            incoming_seq if incoming_seq is not None else cached_seq
+        )
         self._notification_snapshot_version = (  # type: ignore[attr-defined]
             getattr(self, "_notification_snapshot_version", 0) + 1
         )
@@ -216,6 +252,7 @@ class AgentNotificationProviderMixin:
         )
         if callable(sync_deadline):
             sync_deadline(snapshot)
+        return True
 
     async def _read_notification_snapshot_guarded(
         self: Any,
@@ -273,7 +310,15 @@ class AgentNotificationProviderMixin:
         include_dismissed: bool = False,
         expire_due_snoozes: bool = False,
     ) -> Any:
-        """Return the notification snapshot via the configured ACE provider."""
+        """Return the notification snapshot via the configured ACE provider.
+
+        The read-start sequence is captured before the disk parse and
+        carried on the snapshot so the cache and the pending-ack fence can
+        tell pre-write reads from post-write ones.
+        """
+        from ._pending_ack_fence import next_notif_read_seq, stamp_snapshot_read_seq
+
+        read_seq = next_notif_read_seq(self)
         result = _read_notification_snapshot_for_tui(
             include_dismissed=include_dismissed,
             expire_due_snoozes=expire_due_snoozes,
@@ -283,7 +328,7 @@ class AgentNotificationProviderMixin:
         self._notification_provider_snapshot = getattr(  # type: ignore[attr-defined]
             result.value, "shared_snapshot", None
         )
-        return result.value
+        return stamp_snapshot_read_seq(result.value, read_seq)
 
     def _read_notification_counts_from_provider(self: Any) -> Any:
         """Return count-only notification data via the configured ACE provider."""

@@ -138,16 +138,23 @@ class AgentNotificationUnreadMixin:
 
     def _reconcile_unread_from_cached_notifications(self: Any) -> None:
         """Apply cached completion notifications to loaded real-agent unread state."""
+        from ._pending_ack_fence import snapshot_read_seq
+
         snapshot = getattr(self, "_notification_snapshot_cache", None)
         if snapshot is None:
             return
         before = set(getattr(self, "_unread_completed_agent_ids", set()))
-        self._reconcile_unread_from_completion_notifications(snapshot.notifications)
+        self._reconcile_unread_from_completion_notifications(
+            snapshot.notifications,
+            snapshot_seq=snapshot_read_seq(snapshot),
+        )
         self._patch_unread_completed_agent_changes(before)
 
     def _reconcile_unread_from_completion_notifications(
         self: Any,
         notifications: list[Notification],
+        *,
+        snapshot_seq: int | None = None,
     ) -> None:
         """Project active completion notifications onto agent-row unread state.
 
@@ -157,6 +164,10 @@ class AgentNotificationUnreadMixin:
           mark the row unread.
         - If no matching notification exists, clear the row's unread marker
           unless it was manually marked unread via ``U``.
+
+        Identities held in the pending-ack overlay stay read until a
+        post-write snapshot retires them; *snapshot_seq* is the applying
+        snapshot's read-start sequence (``None`` when unknown).
         """
         from sase.ace.tui.util.trace import tui_trace
 
@@ -165,16 +176,30 @@ class AgentNotificationUnreadMixin:
             notifications=len(notifications),
         ) as _trace_extra:
             result = self._apply_reconciled_unread_from_completion_notifications(
-                notifications
+                notifications,
+                snapshot_seq=snapshot_seq,
             )
             _trace_extra.update(result)
 
     def _apply_reconciled_unread_from_completion_notifications(
         self: Any,
         notifications: list[Notification],
+        *,
+        snapshot_seq: int | None = None,
     ) -> dict[str, object]:
         """Apply the unread projection; return trace counters for the span."""
         from ._core import is_unread_completed_status
+        from ._pending_ack_fence import (
+            pending_ack_identities,
+            retire_pending_ack_entries,
+        )
+
+        # Retire first: an entry survives only while no applied read began
+        # after its write landed, so a genuinely new completion for a
+        # retired identity resurfaces here (at most one poll later).
+        if snapshot_seq is not None:
+            retire_pending_ack_entries(self, snapshot_seq)
+        pending_ids = pending_ack_identities(self)
 
         active_keys = active_row_owned_notification_keys(notifications)
 
@@ -219,9 +244,18 @@ class AgentNotificationUnreadMixin:
             )
             if has_notification:
                 next_unread.add(agent.identity)
+        # In-flight acks stay read: the applying snapshot predates their
+        # write (or its sequence is unknown), so re-confirming it must not
+        # resurrect the row.
+        next_unread.difference_update(pending_ids)
         unread_ids.clear()
         unread_ids.update(next_unread)
-        if unread_ids - before:
+        # Only genuinely new unread invalidates the bulk-read undo: pending
+        # identities can never appear above (they were just filtered), so a
+        # reconcile that only re-confirms them keeps undo armed while a
+        # genuinely new identity still invalidates it.
+        genuinely_new = (unread_ids - before) - pending_ids
+        if genuinely_new:
             invalidate_bulk_undo = getattr(self, "_invalidate_bulk_read_undo", None)
             if callable(invalidate_bulk_undo):
                 invalidate_bulk_undo()
@@ -231,4 +265,5 @@ class AgentNotificationUnreadMixin:
             "loaded_agents": len(roster),
             "unread": len(next_unread),
             "changed": len(unread_ids ^ before),
+            "pending": len(pending_ids),
         }
