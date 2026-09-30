@@ -97,9 +97,9 @@ def public_prober(monkeypatch: pytest.MonkeyPatch):
 
 def _clear_fetch_cache() -> None:
     try:
-        from sase.bead.attachments.git_store import store as _store_mod
+        from sase.bead.attachments.git_store import reads as _reads_mod
 
-        _store_mod._FETCHED_REPOS.clear()
+        _reads_mod._FETCHED_REPOS.clear()
     except Exception:
         pass
     try:
