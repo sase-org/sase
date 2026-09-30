@@ -179,3 +179,29 @@ async def test_next_word_menu_narrow_png_snapshot(
             "next_word_menu_narrow_70x24",
             title="ACE prompt input — narrow next-word menu",
         )
+
+
+async def test_next_word_auto_space_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await _mount_prompt_bar(page, "Can you help me ")
+        ta = bar.active_text_area()
+        ta.cursor_location = (0, len(ta.text))
+        ta.suggestion = "implement"
+        bar.show_next_word_hint(NEXT_WORD_GHOST_HINT)
+        await wait_for_svg_contains(page, "mplement")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "next_word_auto_space_120x40",
+            title="ACE prompt input — next-word auto ghost after space",
+        )

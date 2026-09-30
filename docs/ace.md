@@ -7631,30 +7631,7 @@ token under the cursor:
   with no signal column, or `word_ranking_signals: false` to keep smart ranking but hide
   the meter, chip, and legend.
 
-- **Next-word prediction**: After every prompt-local or history-word commit, `Ctrl+T`
-  arms a next-word chain. Confident guesses from your own typed prompt history appear as
-  dim inline ghost text with a `[^T] word  [^F] all` border hint. `Ctrl+T` (or `Alt+F`)
-  takes one ghost word; `Ctrl+F`, `Right`, or `Ctrl+L` takes the whole ghost; each
-  accept predicts again without flicker. Typing characters that continue the ghost
-  consumes them. A different character, Backspace, a cursor move, undo, or redo clears
-  the visible ghost. The chain stays armed only while the text and cursor are still
-  exactly where it was armed, so after that clear `Ctrl+T` uses ordinary completion, or
-  the end-of-word request when the cursor is still at the end of a prose word. When the
-  chain is armed but no ghost can be shown (uncertain gate, mid-line cursor, or no
-  width), `Ctrl+T` opens a `next word ⇢ "…"` menu naming the evidence context instead:
-  each row shows the word, a violet confidence meter, and a dim `⇢ continuation`
-  preview, and accepting a row inserts it with its separator and continues the chain.
-  `Ctrl+T` at the end of a prose word with no current-word completion runs the same
-  explicit request, and an armed chain with nothing to offer shows `no next-word guess`
-  (or `warming next words…` while the model warms, and never a menu inside structural
-  syntax). Ghosts show only at end of line, capped at
-  `ace.prompt_completion.next_word_max_words`, and never from a unigram. `Ctrl+D` on a
-  highlighted next-word row forgets it through the history-word deletions store. Set
-  `ace.prompt_completion.next_word: auto` to also show the gated ghost right after a
-  typed space that ends a prose word at end of line (after `, ` a ghost may appear;
-  after `. ` never, because the context is `<s>` only), or `off` to disable the chain.
-  Principles: `Ctrl+T` never inserts an unseen guess, always moves forward, and stays
-  silent when unsure.
+- **Next-word prediction**: See [Next-word prediction](#next-word-prediction) below.
 
 | Key                 | Action                                                                                               |
 | ------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -7667,6 +7644,33 @@ token under the cursor:
 | `Enter`             | Submit the prompt as typed; never accept a candidate                                                 |
 | `Ctrl+D`            | Delete a highlighted recent file, saved placeholder, history word, or predicted next word            |
 | `Escape`            | Cancel completion                                                                                    |
+
+#### Next-word prediction
+
+After every prompt-local or history-word commit, `Ctrl+T` arms a next-word chain.
+Confident guesses from your own typed prompt history appear as dim inline ghost text
+with a `[^T] word  [^F] all` border hint. The `Ctrl+T` ladder is: first press arms the
+chain and shows the ghost, next `Ctrl+T` (or `Alt+F`) takes one ghost word, `Ctrl+F`,
+`Right`, or `Ctrl+L` takes the whole ghost, and each accept predicts again without
+flicker. Typing characters that continue the ghost consumes them; a different character,
+Backspace, a cursor move, undo, or redo clears the visible ghost. The chain stays armed
+only while the text and cursor are still exactly where it was armed, so after that clear
+`Ctrl+T` uses ordinary completion, or the end-of-word request when the cursor is still
+at the end of a prose word. When the chain is armed but no ghost can be shown (uncertain
+gate, mid-line cursor, or no width), `Ctrl+T` opens a `next word ⇢ "…"` menu naming the
+evidence context instead: each row shows the word, a violet confidence meter, and a dim
+`⇢ continuation` preview, and accepting a row inserts it with its separator and
+continues the chain. `Ctrl+T` at the end of a prose word with no current-word completion
+runs the same explicit request, and an armed chain with nothing to offer shows
+`no next-word guess` (or `warming next words…` while the model warms, and never a menu
+inside structural syntax). Ghosts show only at end of line, capped at
+`ace.prompt_completion.next_word_max_words`, and never from a unigram. `Ctrl+D` on a
+highlighted next-word row forgets it through the history-word deletions store. Set
+`ace.prompt_completion.next_word: auto` to also show the gated ghost right after a typed
+space that ends a prose word at end of line (after `, ` a ghost may appear; after `. `
+never, because the context is `<s>` only), or `off` to disable the chain. Principles:
+`Ctrl+T` never inserts an unseen guess, always moves forward, and stays silent when
+unsure.
 
 Press `Ctrl+R` to open the recursive fuzzy file finder. With a token such as `src/alp`,
 `src/` becomes the search root and `alp` pre-seeds the fuzzy query; with no token, the

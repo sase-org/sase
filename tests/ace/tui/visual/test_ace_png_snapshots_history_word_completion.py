@@ -36,6 +36,10 @@ def _candidate(
     relation: float = 0.0,
     recency: float = 0.0,
     frequency: float = 0.0,
+    context: float = 0.0,
+    context_order: int = 0,
+    context_support: int = 0,
+    context_words: str = "",
 ) -> CompletionCandidate:
     return CompletionCandidate(
         display=word,
@@ -51,6 +55,10 @@ def _candidate(
             relation=relation,
             recency=recency,
             frequency=frequency,
+            context=context,
+            context_order=context_order,
+            context_support=context_support,
+            context_words=context_words,
         ),
     )
 
@@ -134,4 +142,74 @@ async def test_history_word_completion_panel_png_snapshot(
             page,
             "history_word_completion_panel_120x40",
             title="ACE prompt input — prompt-history word completion",
+        )
+
+
+async def test_history_word_context_ranking_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        StartupHistoryWordsMixin,
+        "warm_history_prompt_words",
+        lambda _self: None,
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await _mount_prompt_bar(page)
+        bar.show_file_completions(
+            "rev",
+            [
+                _candidate(
+                    "review",
+                    reason="context",
+                    related_to="help",
+                    use_count=12,
+                    age_seconds=18000,
+                    score=0.62,
+                    relation=0.20,
+                    recency=0.05,
+                    frequency=0.05,
+                    context=0.32,
+                    context_order=2,
+                    context_support=5,
+                    context_words="help me",
+                ),
+                _candidate(
+                    "revision",
+                    reason="recency",
+                    use_count=6,
+                    age_seconds=600,
+                    score=0.38,
+                    relation=0.05,
+                    recency=0.28,
+                    frequency=0.05,
+                ),
+                _candidate(
+                    "revalidate",
+                    reason="frequency",
+                    use_count=83,
+                    age_seconds=90000,
+                    score=0.20,
+                    relation=0.0,
+                    recency=0.02,
+                    frequency=0.18,
+                ),
+            ],
+            selected_index=0,
+            completion_kind=HISTORY_WORD_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "history words")
+        await wait_for_svg_contains(page, "review")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "history_word_context_ranking_panel_120x40",
+            title="ACE prompt input — history-word context ranking",
         )
