@@ -5766,11 +5766,6 @@
           "default": true,
           "deprecated": true
         },
-        "tool_run_escalation": {
-          "type": "boolean",
-          "description": "An agent's `sase tool run` under a provider ceiling starts the run detached, waits within the ceiling budget, and escalates to `sase monitor start -J` instead of being killed; `--detach`, `-J/--join`, and ceiling-bounded `sase tool wait`/`show -F` are available.",
-          "default": false
-        },
         "typed_launch_units": {
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",

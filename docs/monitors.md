@@ -161,10 +161,10 @@ start a new monitor.
 
 ### Joining a detached ToolRun
 
-(Behind the `tool_run_escalation` beta flag, agents only.)
-`sase monitor start -J/--join RUN` adopts an existing starter-scoped detached ToolRun —
-the kind `sase tool run -d` starts — instead of starting a command. The run keeps one id
-end to end, and its executing proc stays the owner; the monitor only follows it:
+(Agents only.) `sase monitor start -J/--join RUN` adopts an existing starter-scoped
+detached ToolRun — the kind `sase tool run -d` starts — instead of starting a command.
+The run keeps one id end to end, and its executing proc stays the owner; the monitor
+only follows it:
 
 ```bash
 sase monitor start -J 0f1a2b3c -p verify -n 'finish check'

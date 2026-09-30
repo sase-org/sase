@@ -361,6 +361,10 @@ def test_muse_sync_directive_prefixes_the_prompt() -> None:
     assert "`shell` tool runs each command synchronously" in first
     assert "10 minutes" in first
     assert "timeout 540" in first
+    assert "`sase tool run` is the exception" in first
+    assert "never wrap it in `timeout`" in first
+    assert "sase monitor start -J ..." in first
+    assert "that is not `sase tool run`" in first
     assert "Never end your turn to wait." in first
 
 

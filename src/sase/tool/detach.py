@@ -1,9 +1,8 @@
 """Agent-only ``sase tool run -d/--detach`` over a plain durable proc.
 
 A detached run is a normal hand-off run that also carries a ``starter``
-record naming the agent runner that started it. It stays behind the
-``tool_run_escalation`` beta flag; the later ``--join``, bounded-wait, and
-automatic phases gate on :func:`escalation_enabled` too.
+record naming the agent runner that started it. It stops when the starting
+agent's turn ends unless a monitor joins it.
 """
 
 from __future__ import annotations
@@ -32,17 +31,6 @@ _STARTER_FAILURE_DETAILS = {
     PID_MISSING: "the agent runner pid is missing",
     IDENTITY_UNREADABLE: "the agent runner identity is unreadable",
 }
-
-
-def escalation_enabled() -> bool:
-    """Return whether the ``tool_run_escalation`` beta flag is on."""
-
-    try:
-        from sase.feature_flags import FeatureFlag, current_flags
-
-        return current_flags().enabled(FeatureFlag.tool_run_escalation)
-    except Exception:  # noqa: BLE001 - an unreadable flag state fails closed.
-        return False
 
 
 def enclosing_owner() -> tuple[str, str] | None:
@@ -114,13 +102,6 @@ def execute_detached(
     having started nothing. Usage and refusal exits ``2``.
     """
 
-    if not escalation_enabled():
-        print(
-            "sase tool run -d/--detach is not enabled "
-            "(tool_run_escalation beta flag is off)",
-            file=sys.stderr,
-        )
-        return 2
     if request.keep_going and request.fail_fast:
         print(
             "-k/--keep-going and -x/--fail-fast cannot be used together",
@@ -267,7 +248,6 @@ def execute_detached(
 
 __all__ = [
     "enclosing_owner",
-    "escalation_enabled",
     "execute_detached",
     "parent_run",
 ]

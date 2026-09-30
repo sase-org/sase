@@ -1,13 +1,13 @@
 """Inline-then-escalate: an agent's plain ``sase tool run`` escalates.
 
-When the ``tool_run_escalation`` flag is on and the provider reports a sync
-wait budget, an agent's plain ``sase tool run`` (no ``-H``, no ``--detach``,
-no live owner, no parent run) starts the run detached through the shared
-hand-off submission and follows it inline. A run that settles inside the
-budget renders the inline-identical result; at the budget or on a signal the
-follower prints the shared escalation block and exits without stopping the
-run. Anything that cannot start falls back to today's inline run by
-returning ``None``; a launched run is never rerun.
+When the provider reports a sync wait budget, an agent's plain
+``sase tool run`` (no ``-H``, no ``--detach``, no live owner, no parent
+run) starts the run detached through the shared hand-off submission and
+follows it inline. A run that settles inside the budget renders the
+inline-identical result; at the budget or on a signal the follower prints
+the shared escalation block and exits without stopping the run. Anything
+that cannot start falls back to today's inline run by returning ``None``;
+a launched run is never rerun.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.tool.detach import enclosing_owner, escalation_enabled, parent_run
+from sase.tool.detach import enclosing_owner, parent_run
 from sase.tool.follow_run import follow_run
 from sase.tool.starter import resolve_starter
 
@@ -58,8 +58,6 @@ def try_inline_escalation(
     """
 
     if request.hand_off or request.detach:
-        return None
-    if not escalation_enabled():
         return None
     if not (os.environ.get("SASE_AGENT") or "").strip():
         return None

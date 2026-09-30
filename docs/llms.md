@@ -791,10 +791,13 @@ Muse's synchronous ceiling goes to a SASE monitor, chosen before the command sta
   the ceiling and the up-front routing rules: final verification prefers prepared
   monitor completion (`/sase_final`), commands that can take longer than 10 minutes go
   to `/sase_monitor` with `--next` before they start, and everything else runs inline,
-  with commands of uncertain length wrapped as `timeout 540 <cmd> > <log> 2>&1; ...` so
-  a slow run still leaves evidence. With the flag off, the directive instead forbids
-  ending the turn or declaring while a backgrounded command is still running, because
-  SASE stops the Muse process about two minutes after the final declaration.
+  with commands of uncertain length other than `sase tool run` wrapped as
+  `timeout 540 <cmd> > <log> 2>&1; ...` so a slow run still leaves evidence.
+  `sase tool run` is the exception: it returns before the ceiling on its own and is
+  never wrapped in `timeout`; when it escalates, the agent runs the printed
+  `sase monitor start -J ...` join next. With the flag off, the directive instead
+  forbids ending the turn or declaring while a backgrounded command is still running,
+  because SASE stops the Muse process about two minutes after the final declaration.
 - **Why managed `bash` is not used.** The managed tool backgrounds long commands and can
   wake the model after its turn ends. That wake is invisible to SASE: it never appears
   in the `--json` stream SASE reads, and it dies with the provider process.

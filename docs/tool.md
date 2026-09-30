@@ -287,7 +287,17 @@ Thin ledgers deliberately produce mostly UNKNOWN items until independent evidenc
 accumulated. Classification uses the stored rule version and evidence, with the
 `min_witnesses` and `touched_requires_clean_witness` knobs recorded alongside it.
 
-## Inline routing
+## Inline-then-escalate
+
+Every agent `sase tool run` starts inline from the agent's point of view, and a run
+still going near the caller's synchronous ceiling moves into a monitor under the same
+ToolRun id without being cancelled or rerun. A `short` tool such as `check` settles
+inline inside the budget. A run that outlasts the budget prints one shared escalation
+block and exits `124` while the run keeps going; the agent runs the printed
+`sase monitor start -J ...` join next and ends the turn. The explicit legs behind that
+block — `sase tool run -d`, the ceiling-bounded `sase tool wait` / `sase tool show -F`,
+and `sase monitor start -J` — are documented under "Hand-off and lifecycle control"
+below and share the run's id end to end.
 
 `sase tool run` refuses an inline run before starting anything (exit `2`) when all four
 conditions hold: the caller is a SASE agent (`SASE_AGENT` is set), a valid provider
@@ -300,11 +310,9 @@ prepared-completion variant (`-f <ref>`) with the `verification.command` argv to
 first. No ToolRun row is written and no child starts.
 
 The class is a floor, not a forecast, so on a correctly declared catalog the refusal can
-only fire where the ceiling would have killed the run anyway. `short` tools such as
-`check` always run inline and gain no hand-offs; their over-ceiling tail is reactive
-escalation's problem (`sase-17g`), which reads the same ceiling variable. There is no
-bypass flag: running inline past the ceiling is killed anyway, and a monitor always
-works. A misdeclared class is fixed in the project-owned catalog, and with no `long` or
+only fire where the ceiling would have killed the run anyway. There is no bypass flag:
+running inline past the ceiling is killed anyway, and a monitor always works. A
+misdeclared class is fixed in the project-owned catalog, and with no `long` or
 `unbounded` declaration nothing is ever refused (rollback is the catalog itself).
 Humans, CI, monitors, and procs never evaluate the check, and ad-hoc runs are never
 refused.
@@ -331,16 +339,15 @@ Agents hand off through `sase monitor start` (which reserves the run and prints 
 before the turn ends); `sase tool run -H` refuses inside an agent or a live owner with
 the exact monitor form to use instead (exit `2`). An agent's inline run of a catalog
 tool declared `long` or `unbounded` is likewise refused before starting when its class
-floor meets the provider's synchronous ceiling (see "Inline routing" above).
+floor meets the provider's synchronous ceiling (see "Inline-then-escalate" above).
 
 ### Detached runs
 
-`sase tool run -d/--detach` (behind the `tool_run_escalation` beta flag, agents only)
-starts a normal hand-off run that also carries a `starter` record naming the agent
-runner that started it (`SASE_AGENT_NAME` plus the runner PID from
-`$SASE_ARTIFACTS_DIR/agent_meta.json`, paired with boot/start-time identity so a reused
-PID never counts as proof). Detached output mirrors `-H` and adds the starter lifetime
-plus the join hint; `-q` prints only the run id:
+`sase tool run -d/--detach` (agents only) starts a normal hand-off run that also carries
+a `starter` record naming the agent runner that started it (`SASE_AGENT_NAME` plus the
+runner PID from `$SASE_ARTIFACTS_DIR/agent_meta.json`, paired with boot/start-time
+identity so a reused PID never counts as proof). Detached output mirrors `-H` and adds
+the starter lifetime plus the join hint; `-q` prints only the run id:
 
 ```bash
 sase tool run -d check     # agent-only; stopped when the turn ends unless joined
@@ -360,30 +367,29 @@ result inline or the joined monitor's follow-up does.
 
 Recording is **fail-closed** like `-H`: if the starter cannot be resolved, the
 reservation cannot be committed, or the proc cannot start, nothing starts (exit `1`).
-Usage and refusals exit `2`: the flag off, a human caller (use `-H` instead), a live
-owner or parent run, `-H` together with `-d`, and `-v`/`-T`. `-k`/`-x` are allowed and
-travel as the envelope continuation mode, and `long` tools are accepted detached since a
-join can finish them.
+Usage and refusals exit `2`: a human caller (use `-H` instead), a live owner or parent
+run, `-H` together with `-d`, and `-v`/`-T`. `-k`/`-x` are allowed and travel as the
+envelope continuation mode, and `long` tools are accepted detached since a join can
+finish them.
 
 ### Inline-then-escalate
 
-(Behind the `tool_run_escalation` beta flag, agents only.) A plain `sase tool run` from
-an agent with a sync budget and no live owner or parent run starts the run detached
-(same reservation, starter, and continuation envelope as `-d`) and follows it inline:
-compact mode follows with inline-identical stage lines and footer, `-v` streams the proc
-log. The run's exit is returned when it settles inside the budget. At the budget the
-follower prints the shared escalation block and exits `124` without stopping the run;
-`SIGTERM`, `SIGINT`, and `SIGHUP` do the same and exit `143`, `130`, and `129`. If
-detach cannot start, one `sase: inline escalation unavailable (<why>); running inline`
-warning is printed and the command runs inline under a new id. The automatic path does
-not inherit stdin; the inline path (including that fallback) does.
+(Agents only.) A plain `sase tool run` from an agent with a sync budget and no live
+owner or parent run starts the run detached (same reservation, starter, and continuation
+envelope as `-d`) and follows it inline: compact mode follows with inline-identical
+stage lines and footer, `-v` streams the proc log. The run's exit is returned when it
+settles inside the budget. At the budget the follower prints the shared escalation block
+and exits `124` without stopping the run; `SIGTERM`, `SIGINT`, and `SIGHUP` do the same
+and exit `143`, `130`, and `129`. If detach cannot start, one
+`sase: inline escalation unavailable (<why>); running inline` warning is printed and the
+command runs inline under a new id. The automatic path does not inherit stdin; the
+inline path (including that fallback) does.
 
 ### Ceiling-bounded wait
 
-(Behind the `tool_run_escalation` beta flag, agents only.) An agent's `sase tool wait`
-and `sase tool show -F` never block past the caller's synchronous ceiling: the wait
-budget is computed by the Rust core from the hard ceiling
-(`SASE_PROVIDER_SYNC_CEILING_SECONDS`) and the soft ceiling
+(Agents only.) An agent's `sase tool wait` and `sase tool show -F` never block past the
+caller's synchronous ceiling: the wait budget is computed by the Rust core from the hard
+ceiling (`SASE_PROVIDER_SYNC_CEILING_SECONDS`) and the soft ceiling
 (`SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS`) as the smaller of the budgets that are
 present — the hard budget is the ceiling minus a margin of 15% clamped to 90–300 s (but
 never below half the ceiling), the soft budget is the soft ceiling itself, and a tie
@@ -396,19 +402,17 @@ form, and the turn-end stop rule. A run that is not joinable (not detached, anot
 agent's run, or joined elsewhere) prints only the still-running line plus the re-wait
 form — never a join command that would be refused. `wait -j` adds an `escalation` object
 (`budget_seconds`, `source`, `joinable`, `join_command`) at the deadline;
-`schema_version` stays 1. Humans are never bounded, and with the flag off both commands
-keep today's unbounded behaviour.
+`schema_version` stays 1. Humans are never bounded.
 
 ### Monitor joins
 
-(Behind the `tool_run_escalation` beta flag, agents only.)
-`sase monitor start -J/--join RUN` hands an existing detached run to a monitor under the
-same ToolRun id — the join form the escalation block prints. The joining caller must be
-the agent that started the run, and `-J` refuses a command remainder, `-c`, `-f` (use
-`-n` for a follow-up), and `-a` with exit `2`, as do a caller outside an agent, a run
-with no starter scope, and another agent's run. Settled, stop-requested, and
-joined-elsewhere races exit `1` with the state and a `sase tool show` pointer. With the
-flag off `-J` is refused as not enabled.
+(Agents only.) `sase monitor start -J/--join RUN` hands an existing detached run to a
+monitor under the same ToolRun id — the join form the escalation block prints. The
+joining caller must be the agent that started the run, and `-J` refuses a command
+remainder, `-c`, `-f` (use `-n` for a follow-up), and `-a` with exit `2`, as do a caller
+outside an agent, a run with no starter scope, and another agent's run. Settled,
+stop-requested, and joined-elsewhere races exit `1` with the state and a
+`sase tool show` pointer.
 
 The join is recorded atomically after the monitor member exists and before its proc
 submits (a refusal tears the member down; a submit failure releases the join), and no

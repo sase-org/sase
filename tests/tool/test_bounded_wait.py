@@ -12,7 +12,6 @@ import pytest
 from sase.config.core import clear_config_cache
 from sase.core.process_identity import process_identity_token
 from sase.core.tool_run import tool_run_begin, tool_run_claim, tool_run_finish
-from sase.feature_flags import override_flags
 from sase.tool.argv import resolve_run_argv
 from sase.tool.control import ToolWaitCliRequest, handle_wait
 from sase.tool.handoff import reserve_handoff_run
@@ -134,26 +133,23 @@ def _finish(run_id: str) -> None:
     )
 
 
-def test_sync_wait_budget_needs_agent_flag_and_ceilings(
+def test_sync_wait_budget_needs_agent_and_ceilings(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "600")
     assert sync_wait_budget() is None  # no agent
     _agent(monkeypatch)
-    with override_flags(tool_run_escalation=False):
-        assert sync_wait_budget() is None  # flag off
-    with override_flags(tool_run_escalation=True):
-        monkeypatch.delenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", raising=False)
-        monkeypatch.delenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", raising=False)
-        assert sync_wait_budget() is None  # ceilings unset
-        monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "600")
-        assert sync_wait_budget() == {
-            "budget_seconds": 510,
-            "source": "hard",
-            "ceiling_seconds": 600,
-            "margin_seconds": 90,
-        }
+    monkeypatch.delenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", raising=False)
+    monkeypatch.delenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", raising=False)
+    assert sync_wait_budget() is None  # ceilings unset
+    monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "600")
+    assert sync_wait_budget() == {
+        "budget_seconds": 510,
+        "source": "hard",
+        "ceiling_seconds": 600,
+        "margin_seconds": 90,
+    }
 
 
 def test_sync_wait_budget_soft_and_tie(
@@ -161,23 +157,22 @@ def test_sync_wait_budget_soft_and_tie(
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
     _agent(monkeypatch)
-    with override_flags(tool_run_escalation=True):
-        monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "1200")
-        assert sync_wait_budget() == {
-            "budget_seconds": 1200,
-            "source": "soft",
-            "soft_ceiling_seconds": 1200,
-        }
-        monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "600")
-        soft_wins = sync_wait_budget()
-        assert soft_wins is not None
-        assert soft_wins["budget_seconds"] == 510
-        assert soft_wins["source"] == "hard"
-        monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "100")
-        soft = sync_wait_budget()
-        assert soft is not None
-        assert soft["budget_seconds"] == 100
-        assert soft["source"] == "soft"
+    monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "1200")
+    assert sync_wait_budget() == {
+        "budget_seconds": 1200,
+        "source": "soft",
+        "soft_ceiling_seconds": 1200,
+    }
+    monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "600")
+    soft_wins = sync_wait_budget()
+    assert soft_wins is not None
+    assert soft_wins["budget_seconds"] == 510
+    assert soft_wins["source"] == "hard"
+    monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "100")
+    soft = sync_wait_budget()
+    assert soft is not None
+    assert soft["budget_seconds"] == 100
+    assert soft["source"] == "soft"
 
 
 def test_wait_budget_without_timeout_exits_124_with_join_block(
@@ -187,10 +182,9 @@ def test_wait_budget_without_timeout_exits_124_with_join_block(
     _agent(monkeypatch)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "2")
     run_id = _begin_detached_running()
-    with override_flags(tool_run_escalation=True):
-        started = time.monotonic()
-        code = handle_wait(ToolWaitCliRequest(run_id=run_id))
-        elapsed = time.monotonic() - started
+    started = time.monotonic()
+    code = handle_wait(ToolWaitCliRequest(run_id=run_id))
+    elapsed = time.monotonic() - started
     assert code == 124
     assert elapsed < 20  # the 1s budget bounds the wait, not the default
     err = capsys.readouterr().err
@@ -209,10 +203,9 @@ def test_wait_clamps_explicit_timeout_to_budget(
     _agent(monkeypatch)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "2")
     run_id = _begin_detached_running()
-    with override_flags(tool_run_escalation=True):
-        started = time.monotonic()
-        code = handle_wait(ToolWaitCliRequest(run_id=run_id, timeout_raw="90s"))
-        elapsed = time.monotonic() - started
+    started = time.monotonic()
+    code = handle_wait(ToolWaitCliRequest(run_id=run_id, timeout_raw="90s"))
+    elapsed = time.monotonic() - started
     assert code == 124
     assert elapsed < 20  # clamped to the 1s budget, not 90s
     err = capsys.readouterr().err
@@ -227,8 +220,7 @@ def test_wait_soft_budget_wording(
     _agent(monkeypatch)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "1")
     run_id = _begin_detached_running()
-    with override_flags(tool_run_escalation=True):
-        code = handle_wait(ToolWaitCliRequest(run_id=run_id))
+    code = handle_wait(ToolWaitCliRequest(run_id=run_id))
     assert code == 124
     err = capsys.readouterr().err
     assert "soft ceiling" in err
@@ -242,8 +234,7 @@ def test_wait_non_joinable_prints_no_join_command(
     _agent(monkeypatch, name="agent-1")
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "2")
     run_id = _begin_detached_running(name="agent-2")  # another agent's run
-    with override_flags(tool_run_escalation=True):
-        code = handle_wait(ToolWaitCliRequest(run_id=run_id))
+    code = handle_wait(ToolWaitCliRequest(run_id=run_id))
     assert code == 124
     err = capsys.readouterr().err
     assert "is still running" in err
@@ -258,8 +249,7 @@ def test_wait_json_escalation_object(
     _agent(monkeypatch)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "2")
     run_id = _begin_detached_running()
-    with override_flags(tool_run_escalation=True):
-        code = handle_wait(ToolWaitCliRequest(run_id=run_id, json=True))
+    code = handle_wait(ToolWaitCliRequest(run_id=run_id, json=True))
     assert code == 124
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
@@ -273,28 +263,13 @@ def test_wait_json_escalation_object(
     assert "is still running" in captured.err
 
 
-def test_wait_flag_off_keeps_unbounded_behaviour(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _clean_env(monkeypatch, tmp_path)
-    _agent(monkeypatch)
-    monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "2")
-    run_id = _begin_detached_running()
-    with override_flags(tool_run_escalation=False):
-        code = handle_wait(ToolWaitCliRequest(run_id=run_id, timeout_raw="1"))
-    assert code == 124
-    err = capsys.readouterr().err
-    assert err.strip() == f"tool run {run_id} is still running"
-
-
 def test_wait_human_never_bounded(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "2")
     run_id = _begin_foreground_running()
-    with override_flags(tool_run_escalation=True):
-        code = handle_wait(ToolWaitCliRequest(run_id=run_id, timeout_raw="1"))
+    code = handle_wait(ToolWaitCliRequest(run_id=run_id, timeout_raw="1"))
     assert code == 124
     err = capsys.readouterr().err
     assert err.strip() == f"tool run {run_id} is still running"
@@ -307,10 +282,9 @@ def test_show_follow_budget_exits_124_with_block(
     _agent(monkeypatch)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "2")
     run_id = _begin_detached_running()
-    with override_flags(tool_run_escalation=True):
-        code = handle_show(
-            ToolShowCliRequest(run_id=run_id, json=False, logs=False, follow=True)
-        )
+    code = handle_show(
+        ToolShowCliRequest(run_id=run_id, json=False, logs=False, follow=True)
+    )
     assert code == 124
     err = capsys.readouterr().err
     assert "is still running" in err
@@ -324,10 +298,9 @@ def test_show_follow_without_budget_parity_on_settled_run(
     _clean_env(monkeypatch, tmp_path)
     run_id = _begin_foreground_running()
     _finish(run_id)
-    with override_flags(tool_run_escalation=True):
-        code = handle_show(
-            ToolShowCliRequest(run_id=run_id, json=False, logs=False, follow=True)
-        )
+    code = handle_show(
+        ToolShowCliRequest(run_id=run_id, json=False, logs=False, follow=True)
+    )
     assert code == 0
     assert run_id in capsys.readouterr().out
 

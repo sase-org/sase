@@ -337,16 +337,6 @@ def _validate_join_start(
                 "the join runs on the calling agent's lane"
             ),
         )
-    from sase.tool.detach import escalation_enabled
-
-    if not escalation_enabled():
-        return JoinRefusal(
-            exit_code=2,
-            message=(
-                "sase monitor start -J is not enabled "
-                "(tool_run_escalation beta flag is off)"
-            ),
-        )
     return inspect_join_target(run_id, caller)
 
 

@@ -17,7 +17,6 @@ from sase.core.tool_run import (
     tool_run_request_stop,
     tool_run_show,
 )
-from sase.feature_flags import override_flags
 from sase.monitor.models import MonitorRecord
 from sase.monitor.request import StartMonitorRequest
 from sase.running_field import WorkspaceClaim
@@ -113,8 +112,7 @@ def _settle(
 def test_join_requires_an_agent(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    with override_flags(tool_run_escalation=True):
-        assert dispatch(["monitor", "start", "-J", "abc123", "-p", "verify"]) == 2
+    assert dispatch(["monitor", "start", "-J", "abc123", "-p", "verify"]) == 2
     assert "only available inside an agent" in capsys.readouterr().err
 
 
@@ -122,10 +120,9 @@ def test_join_rejects_a_command_remainder(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _agent(monkeypatch)
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(
-            ["monitor", "start", "-J", "abc123", "-p", "verify", "--", "just", "check"]
-        )
+    code = dispatch(
+        ["monitor", "start", "-J", "abc123", "-p", "verify", "--", "just", "check"]
+    )
     assert code == 2
     assert "command remainder" in capsys.readouterr().err
 
@@ -134,10 +131,7 @@ def test_join_rejects_hidden_command_alias(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _agent(monkeypatch)
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(
-            ["monitor", "start", "-J", "abc123", "-p", "verify", "-c", "true"]
-        )
+    code = dispatch(["monitor", "start", "-J", "abc123", "-p", "verify", "-c", "true"])
     assert code == 2
     assert "-c/--command" in capsys.readouterr().err
 
@@ -146,10 +140,7 @@ def test_join_rejects_completion_and_points_at_next(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _agent(monkeypatch)
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(
-            ["monitor", "start", "-J", "abc123", "-p", "verify", "-f", "ref-1"]
-        )
+    code = dispatch(["monitor", "start", "-J", "abc123", "-p", "verify", "-f", "ref-1"])
     assert code == 2
     err = capsys.readouterr().err
     assert "-f/--completion" in err
@@ -160,22 +151,9 @@ def test_join_rejects_an_explicit_agent(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _agent(monkeypatch)
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(
-            ["monitor", "start", "-J", "abc123", "-p", "verify", "-a", "other"]
-        )
+    code = dispatch(["monitor", "start", "-J", "abc123", "-p", "verify", "-a", "other"])
     assert code == 2
     assert "-a/--agent" in capsys.readouterr().err
-
-
-def test_join_flag_off_is_refused(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _agent(monkeypatch)
-    with override_flags(tool_run_escalation=False):
-        code = dispatch(["monitor", "start", "-J", "abc123", "-p", "verify"])
-    assert code == 2
-    assert "not enabled" in capsys.readouterr().err
 
 
 def test_join_unknown_run_is_refused(
@@ -183,8 +161,7 @@ def test_join_unknown_run_is_refused(
 ) -> None:
     _agent(monkeypatch)
     _reserve_detached("--", "true")
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(["monitor", "start", "-J", "deadbeef" * 4, "-p", "verify"])
+    code = dispatch(["monitor", "start", "-J", "deadbeef" * 4, "-p", "verify"])
     assert code == 2
     assert "was not found" in capsys.readouterr().err
 
@@ -198,8 +175,7 @@ def test_join_non_detached_run_is_refused(
         resolved, owner_kind="proc", owner_id="proc-plain", agent="agent-1"
     )
     assert reservation.reserved
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(["monitor", "start", "-J", reservation.run_id, "-p", "verify"])
+    code = dispatch(["monitor", "start", "-J", reservation.run_id, "-p", "verify"])
     assert code == 2
     assert "not a detached run" in capsys.readouterr().err
 
@@ -209,8 +185,7 @@ def test_join_other_agents_run_is_refused(
 ) -> None:
     _agent(monkeypatch, "agent-1")
     run_id = _reserve_detached("--", "true", agent="agent-2")
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
+    code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
     assert code == 2
     assert "belongs to agent" in capsys.readouterr().err
 
@@ -222,8 +197,7 @@ def test_join_settled_run_is_refused_with_state_and_pointer(
     _agent(monkeypatch)
     run_id = _reserve_detached("--", "true")
     _settle(run_id, state="succeeded", exit_code=0, terminal_cause="exited")
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
+    code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
     assert code == 1
     err = capsys.readouterr().err
     assert "already succeeded" in err
@@ -243,8 +217,7 @@ def test_join_stop_requested_run_is_refused(
             "reason": "stop",
         }
     )
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
+    code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
     assert code == 1
     err = capsys.readouterr().err
     assert "stop request" in err
@@ -266,8 +239,7 @@ def test_join_joined_elsewhere_is_refused(
         }
     )
     assert joined.get("outcome") == "joined"
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
+    code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
     assert code == 1
     err = capsys.readouterr().err
     assert "already joined" in err
@@ -342,8 +314,7 @@ def test_join_start_builds_a_join_request_and_reports_joined(
     monkeypatch.setattr(
         handler, "maybe_handoff_monitor_from_agent", lambda _record: False
     )
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
+    code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify"])
     assert code == 0
     request = captured["request"]
     assert request.join_run_id == run_id
@@ -367,8 +338,7 @@ def test_join_start_json_reports_tool_run_joined(
     monkeypatch.setattr(
         handler, "maybe_handoff_monitor_from_agent", lambda _record: False
     )
-    with override_flags(tool_run_escalation=True):
-        code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify", "--json"])
+    code = dispatch(["monitor", "start", "-J", run_id, "-p", "verify", "--json"])
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["monitor"]["tool_run_joined"] is True

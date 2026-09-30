@@ -7984,7 +7984,7 @@
           {
             "aliases": [],
             "default_child": "list",
-            "description_digest": "135f9ba46f1be77e",
+            "description_digest": "8963837a1d97430e",
             "hidden": false,
             "mutex_groups": [],
             "name": "attachment",
@@ -8246,6 +8246,79 @@
               {
                 "aliases": [],
                 "default_child": null,
+                "description_digest": "f77a8faab3c400d8",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "publish",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "yes",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-y",
+                      "--yes"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "attachment",
+                  "publish"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "id",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "id",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  },
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "name",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
                 "description_digest": "64bec54d66f5c25e",
                 "hidden": false,
                 "mutex_groups": [],
@@ -8371,6 +8444,79 @@
                     "metavar": "id",
                     "nargs": "?",
                     "required": false,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "e5640e6e2c6fac0a",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "unpublish",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "yes",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-y",
+                      "--yes"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "attachment",
+                  "unpublish"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "id",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "id",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  },
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "name",
+                    "nargs": null,
+                    "required": true,
                     "value_hint": "text"
                   }
                 ],

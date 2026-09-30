@@ -26,6 +26,7 @@ LIVE_CASES = [
     "dod-14-live-handoff-crash",
     "dod-14-live-handoff-delivery",
     "dod-14-live-monitor-handoff",
+    "dod-17-live-escalate-join",
 ]
 # The script imports these siblings by module name; `tools/pyscripts-260801` also
 # requires each helper to be referenced from a tracked file outside `tools/`.

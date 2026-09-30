@@ -37,7 +37,6 @@ class FeatureFlag(StrEnum):
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
-    tool_run_escalation = "tool_run_escalation"
     typed_launch_units = "typed_launch_units"
 
 
@@ -198,17 +197,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "caps with lenient old-reader skip for the omitted-files shape."
         ),
         bead="sase-11p",
-    ),
-    FeatureFlag.tool_run_escalation: FeatureFlagDefinition(
-        key=FeatureFlag.tool_run_escalation,
-        kind="beta",
-        description=(
-            "An agent's `sase tool run` under a provider ceiling starts "
-            "the run detached, waits within the ceiling budget, and escalates to "
-            "`sase monitor start -J` instead of being killed; `--detach`, `-J/--join`, and "
-            "ceiling-bounded `sase tool wait`/`show -F` are available."
-        ),
-        bead="sase-1dc",
     ),
     FeatureFlag.typed_launch_units: FeatureFlagDefinition(
         key=FeatureFlag.typed_launch_units,

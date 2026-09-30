@@ -21,6 +21,15 @@ from _smoke_tool_runs_lib import (
 OVERHEAD_PAIRS = 7
 OVERHEAD_TARGET_SECONDS = 0.5
 FIXTURE_AGENT = "fixture-agent"
+_FIXTURE_AGENT_STAMP = "20260920120000"
+
+
+def fixture_agent_artifacts(env: dict[str, str], project: Path) -> Path:
+    """Return the fixture agent's artifacts dir inside an ``_owner_world``."""
+
+    stamp = _FIXTURE_AGENT_STAMP
+    project_dir = Path(env["SASE_HOME"]) / "projects" / project.name
+    return project_dir / "artifacts" / "ace-run" / stamp[:6] / stamp[6:8] / stamp
 
 
 def enclosing_owner(h: Harness) -> dict[str, Any]:
@@ -136,8 +145,7 @@ def _owner_world(h: Harness, name: str) -> tuple[dict[str, str], Path]:
     env = h.world(name)
     project = h.project()
     project_dir = Path(env["SASE_HOME"]) / "projects" / project.name
-    stamp = "20260920120000"
-    artifacts = project_dir / "artifacts" / "ace-run" / stamp[:6] / stamp[6:8] / stamp
+    artifacts = fixture_agent_artifacts(env, project)
     artifacts.mkdir(parents=True)
     (artifacts / "agent_meta.json").write_text(
         json.dumps({"name": FIXTURE_AGENT, "model": "test"}), encoding="utf-8"

@@ -188,23 +188,15 @@ def sync_wait_budget(
 
     Reads the hard and soft ceiling variables with the same positive-integer
     rule as the inline refusal, then asks Rust for the budget. Returns
-    ``None`` without ``SASE_AGENT``, with the escalation flag off, when
-    neither ceiling is present, or when the core reports no budget. A
-    missing or raising binding warns once and fails open to today's
-    unbounded behaviour.
+    ``None`` without ``SASE_AGENT``, when neither ceiling is present, or
+    when the core reports no budget. A missing or raising binding warns
+    once and fails open to today's unbounded behaviour.
     """
 
     import os
 
     environ = os.environ if env is None else env
     if not str(environ.get("SASE_AGENT") or "").strip():
-        return None
-    try:
-        from sase.tool.detach import escalation_enabled
-
-        if not escalation_enabled():
-            return None
-    except Exception:  # noqa: BLE001 - an unreadable flag state fails open.
         return None
     ceiling = _read_ceiling_value(environ, _CEILING_ENV)
     soft_ceiling = _read_ceiling_value(environ, _SOFT_CEILING_ENV)

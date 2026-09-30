@@ -14,7 +14,6 @@ import yaml
 from sase.config.core import clear_config_cache
 from sase.core.process_identity import process_identity_token
 from sase.core.tool_run import tool_run_list, tool_run_show
-from sase.feature_flags import override_flags
 from sase.tool.argv import resolve_run_argv
 from sase.tool.control import ToolWaitCliRequest, handle_wait
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
@@ -105,8 +104,7 @@ def test_fast_success_matches_inline(
     _agent_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
     argv = ("--", "sh", "-c", "printf out")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request(*argv))
+    code = execute_tool_run(_request(*argv))
     assert code == 0
     captured = capsys.readouterr()
     run_id = _first_run_id_line(captured.err)
@@ -120,10 +118,6 @@ def test_fast_success_matches_inline(
     for proc in read_procs(tag=f"tool-run:{run_id}"):
         wait_for_proc(proc.proc_id, timeout=30)
 
-    with override_flags(tool_run_escalation=False):
-        assert execute_tool_run(_request(*argv)) == code
-    capsys.readouterr()
-
 
 def test_fast_failure_matches_inline_with_tail(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -134,8 +128,7 @@ def test_fast_failure_matches_inline_with_tail(
     _agent_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
     argv = ("--", "sh", "-c", "printf 'line1\\nline2\\nline3\\n'; exit 3")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request(*argv))
+    code = execute_tool_run(_request(*argv))
     assert code == 3
     captured = capsys.readouterr()
     run_id = _first_run_id_line(captured.err)
@@ -146,10 +139,6 @@ def test_fast_failure_matches_inline_with_tail(
     for proc in read_procs(tag=f"tool-run:{run_id}"):
         wait_for_proc(proc.proc_id, timeout=30)
 
-    with override_flags(tool_run_escalation=False):
-        assert execute_tool_run(_request(*argv)) == code
-    capsys.readouterr()
-
 
 def test_verbose_streams_child_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -159,8 +148,7 @@ def test_verbose_streams_child_output(
     _clean_env(monkeypatch, tmp_path)
     _agent_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request("--", "sh", "-c", "printf out", verbose=True))
+    code = execute_tool_run(_request("--", "sh", "-c", "printf out", verbose=True))
     assert code == 0
     captured = capsys.readouterr()
     # The streamed record is the proc log, which also carries the worker's
@@ -180,8 +168,7 @@ def test_slow_command_escalates_and_wait_returns_exit(
     _clean_env(monkeypatch, tmp_path)
     _agent_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request("--", "sh", "-c", "sleep 14; exit 3"))
+    code = execute_tool_run(_request("--", "sh", "-c", "sleep 14; exit 3"))
     assert code == 124
     captured = capsys.readouterr()
     run_id = _first_run_id_line(captured.err)
@@ -193,8 +180,7 @@ def test_slow_command_escalates_and_wait_returns_exit(
     assert tool_run_show(run_id)["run"]["state"] in ("created", "running")
 
     monkeypatch.delenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS")
-    with override_flags(tool_run_escalation=True):
-        assert handle_wait(ToolWaitCliRequest(run_id=run_id)) == 3
+    assert handle_wait(ToolWaitCliRequest(run_id=run_id)) == 3
     capsys.readouterr()
     assert len(_rows()) == 1
     for proc in read_procs(tag=f"tool-run:{run_id}"):
@@ -234,9 +220,8 @@ def test_sigterm_leaves_run_running(
 
     killer = threading.Thread(target=_kill_after_launch, daemon=True)
     try:
-        with override_flags(tool_run_escalation=True):
-            killer.start()
-            code = execute_tool_run(_request("--", "sh", "-c", "sleep 60"))
+        killer.start()
+        code = execute_tool_run(_request("--", "sh", "-c", "sleep 60"))
     finally:
         stop_fired.set()
         killer.join(timeout=10)
@@ -317,8 +302,7 @@ def test_continuation_flags_travel_in_envelope(
         keep_going=(flag == "keep_going"),
         fail_fast=(flag == "fail_fast"),
     )
-    with override_flags(tool_run_escalation=True):
-        assert execute_tool_run(request) == 0
+    assert execute_tool_run(request) == 0
     assert seen.get("continuation_mode") == expected
     assert seen.get("detached") is True
     assert "inline escalation unavailable" in capsys.readouterr().err
@@ -351,8 +335,7 @@ def test_agent_default_continuation_is_known(
         )
 
     monkeypatch.setattr(handoff_launch, "submit_handoff_run", _fake_submit)
-    with override_flags(tool_run_escalation=True):
-        assert execute_tool_run(_request("staged")) == 0
+    assert execute_tool_run(_request("staged")) == 0
     assert seen.get("continuation_mode") == "known"
     capsys.readouterr()
 
@@ -364,8 +347,7 @@ def test_unresolvable_starter_falls_back_inline(
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request("--", "printf", "hi"))
+    code = execute_tool_run(_request("--", "printf", "hi"))
     assert code == 0
     captured = capsys.readouterr()
     assert captured.out == ""
@@ -393,8 +375,7 @@ def test_submit_error_falls_back_inline_with_launch_failed_row(
         raise RuntimeError("proc submit boom")
 
     monkeypatch.setattr(sase.procs, "submit_proc_request", _boom)
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request("--", "printf", "hi"))
+    code = execute_tool_run(_request("--", "printf", "hi"))
     assert code == 0
     captured = capsys.readouterr()
     assert captured.out == ""
@@ -411,30 +392,12 @@ def test_submit_error_falls_back_inline_with_launch_failed_row(
     assert stdout_log.read_bytes() == b"hi"
 
 
-def test_flag_off_stays_inline(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _clean_env(monkeypatch, tmp_path)
-    _agent_env(monkeypatch, tmp_path)
-    monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
-    with override_flags(tool_run_escalation=False):
-        code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
-    assert code == 4
-    captured = capsys.readouterr()
-    assert "inline escalation unavailable" not in captured.err
-    rows = _rows()
-    assert len(rows) == 1
-    assert rows[0].get("launch_mode") != "handoff"
-    assert rows[0].get("starter") is None
-
-
 def test_no_agent_stays_inline(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
+    code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
     assert code == 4
     captured = capsys.readouterr()
     assert "inline escalation unavailable" not in captured.err
@@ -446,8 +409,7 @@ def test_no_ceiling_stays_inline(
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
     _agent_env(monkeypatch, tmp_path)
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
+    code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
     assert code == 4
     captured = capsys.readouterr()
     assert "inline escalation unavailable" not in captured.err
@@ -463,8 +425,7 @@ def test_live_monitor_stays_inline(
     _agent_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
     monkeypatch.setenv("SASE_MONITOR_ID", "mon-live")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
+    code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
     assert code == 4
     captured = capsys.readouterr()
     assert "inline escalation unavailable" not in captured.err
@@ -485,8 +446,7 @@ def test_parent_run_stays_inline(
     )
     assert reservation.reserved
     monkeypatch.setenv("SASE_TOOL_RUN_ID", reservation.run_id)
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
+    code = execute_tool_run(_request("--", "sh", "-c", "exit 4"))
     assert code == 4
     captured = capsys.readouterr()
     assert "inline escalation unavailable" not in captured.err
@@ -520,8 +480,7 @@ def test_long_tool_refusal_stays_in_front(
     )
     clear_config_cache()
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "600")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_request("slow"))
+    code = execute_tool_run(_request("slow"))
     assert code == 2
     captured = capsys.readouterr()
     assert "refused before starting slow" in captured.err

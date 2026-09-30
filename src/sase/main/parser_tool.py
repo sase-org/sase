@@ -217,16 +217,16 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
             "`-H` hands the run off to a durable proc and returns at once "
             "with the run id. With `-H`, `-q` prints only the run id, while "
             "`-v` and `-T` are usage errors. `-d` starts a starter-scoped "
-            "detached run for the calling agent instead (agents only, "
-            "behind the tool_run_escalation beta flag); it stops when the "
-            "agent's turn ends unless a monitor joins it. An agent's inline run of a "
+            "detached run for the calling agent instead (agents only); "
+            "it stops when the agent's turn ends unless a monitor joins "
+            "it. An agent's inline run of a "
             "catalog tool declared `long` or `unbounded` is refused before "
             "starting (exit `2`) when its class floor meets the provider's "
             "synchronous ceiling, with the monitor command to use instead. "
             "Exit codes: 0 accepted, "
             "1 not started, 2 usage or refusal.\n\n"
-            "With the tool_run_escalation beta flag on, an agent call with a "
-            "sync budget and no live owner or parent run starts a plain "
+            "An agent call with a sync budget and no live owner or parent "
+            "run starts a plain "
             "`sase tool run` detached and follows it: the run's exit is "
             "returned when it lands inside the budget; at the budget the "
             "escalation block is printed and the follower exits `124` "
@@ -283,7 +283,7 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="detach",
         help=(
             "Start a starter-scoped detached run as this agent and return "
-            "at once (agents only, behind the tool_run_escalation beta flag)"
+            "at once (agents only)"
         ),
     )
     continuation_mode = run_parser.add_mutually_exclusive_group()

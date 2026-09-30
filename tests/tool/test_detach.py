@@ -14,7 +14,6 @@ import yaml
 
 from sase.config.core import clear_config_cache
 from sase.core.tool_run import tool_run_claim, tool_run_list, tool_run_show
-from sase.feature_flags import override_flags
 from sase.tool.argv import resolve_run_argv
 from sase.tool.detach_cleanup import stop_unjoined_detached_runs
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
@@ -106,24 +105,11 @@ def _rows() -> list:
     return list(listed.get("runs") or [])
 
 
-def test_detach_flag_off_refused(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _clean_env(monkeypatch, tmp_path)
-    _agent_env(monkeypatch, tmp_path)
-    with override_flags(tool_run_escalation=False):
-        code = execute_tool_run(_detach_request("--", "printf", "hi"))
-    assert code == 2
-    assert "not enabled" in capsys.readouterr().err
-    assert _rows() == []
-
-
 def test_detach_refuses_human_with_handoff_alternative(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_detach_request("--", "printf", "hi"))
+    code = execute_tool_run(_detach_request("--", "printf", "hi"))
     assert code == 2
     captured = capsys.readouterr()
     assert "sase tool run -H" in captured.err
@@ -135,22 +121,17 @@ def test_detach_refuses_hand_off_together_verbose_and_tail(
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
     _agent_env(monkeypatch, tmp_path)
-    with override_flags(tool_run_escalation=True):
-        assert (
-            execute_tool_run(_detach_request("--", "printf", "hi", hand_off=True)) == 2
+    assert execute_tool_run(_detach_request("--", "printf", "hi", hand_off=True)) == 2
+    capsys.readouterr()
+    assert execute_tool_run(_detach_request("--", "printf", "hi", verbose=True)) == 2
+    assert "verbose" in capsys.readouterr().err
+    assert (
+        execute_tool_run(
+            _detach_request("--", "printf", "hi", tail_lines_explicit=True)
         )
-        capsys.readouterr()
-        assert (
-            execute_tool_run(_detach_request("--", "printf", "hi", verbose=True)) == 2
-        )
-        assert "verbose" in capsys.readouterr().err
-        assert (
-            execute_tool_run(
-                _detach_request("--", "printf", "hi", tail_lines_explicit=True)
-            )
-            == 2
-        )
-        assert "tail-lines" in capsys.readouterr().err
+        == 2
+    )
+    assert "tail-lines" in capsys.readouterr().err
     assert _rows() == []
 
 
@@ -166,8 +147,7 @@ def test_detach_refuses_inside_live_owner_and_parent_run(
             status="running", origin="cli", proc_id=proc_id
         ),
     )
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_detach_request("--", "printf", "hi"))
+    code = execute_tool_run(_detach_request("--", "printf", "hi"))
     assert code == 2
     assert "proc-live" in capsys.readouterr().err
     monkeypatch.delenv("SASE_PROC_ID")
@@ -176,8 +156,7 @@ def test_detach_refuses_inside_live_owner_and_parent_run(
     reservation = reserve_handoff_run(resolved, owner_kind="proc", owner_id="proc-1")
     assert reservation.reserved
     monkeypatch.setenv("SASE_TOOL_RUN_ID", reservation.run_id)
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_detach_request("--", "printf", "hi"))
+    code = execute_tool_run(_detach_request("--", "printf", "hi"))
     assert code == 2
     assert "parent tool run" in capsys.readouterr().err
 
@@ -188,8 +167,7 @@ def test_detach_unresolvable_starter_is_fail_closed(
     _clean_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_detach_request("--", "printf", "hi"))
+    code = execute_tool_run(_detach_request("--", "printf", "hi"))
     assert code == 1
     captured = capsys.readouterr()
     assert (
@@ -222,8 +200,7 @@ def test_detach_accepts_long_tool_skipping_inline_refusal(
     )
     clear_config_cache()
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "600")
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_detach_request("slow"))
+    code = execute_tool_run(_detach_request("slow"))
     assert code == 0
     captured = capsys.readouterr()
     run_id = next(
@@ -250,8 +227,7 @@ def test_detach_quiet_prints_only_run_id(
 
     _clean_env(monkeypatch, tmp_path)
     _agent_env(monkeypatch, tmp_path)
-    with override_flags(tool_run_escalation=True):
-        code = execute_tool_run(_detach_request("--", "printf", "hi", quiet=True))
+    code = execute_tool_run(_detach_request("--", "printf", "hi", quiet=True))
     assert code == 0
     captured = capsys.readouterr()
     assert len(captured.out.strip().splitlines()) == 1
@@ -362,8 +338,7 @@ def test_watchdog_stops_unjoined_run_when_starter_dies(
     _clean_env(monkeypatch, tmp_path)
     sleeper = _sleeper_agent_env(monkeypatch, tmp_path, "agent-1")
     try:
-        with override_flags(tool_run_escalation=True):
-            code = execute_tool_run(_detach_request("--", "sh", "-c", "sleep 30"))
+        code = execute_tool_run(_detach_request("--", "sh", "-c", "sleep 30"))
         assert code == 0
         run_id = next(
             line.split("sase tool run ")[1].strip().split()[0]
@@ -397,8 +372,7 @@ def test_watchdog_reports_ended_join_monitor(
     _clean_env(monkeypatch, tmp_path)
     sleeper = _sleeper_agent_env(monkeypatch, tmp_path, "agent-1")
     try:
-        with override_flags(tool_run_escalation=True):
-            code = execute_tool_run(_detach_request("--", "sh", "-c", "sleep 30"))
+        code = execute_tool_run(_detach_request("--", "sh", "-c", "sleep 30"))
         assert code == 0
         run_id = next(
             line.split("sase tool run ")[1].strip().split()[0]

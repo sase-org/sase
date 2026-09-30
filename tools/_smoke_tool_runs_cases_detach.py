@@ -3,8 +3,7 @@
 Each case drives the real ``sase`` CLI against an isolated ``SASE_HOME``.
 The starter is a sacrificial ``sleep`` process named in a temporary
 ``agent_meta.json``; fault injection happens only at the filesystem/process
-boundary. The ``tool_run_escalation`` beta flag is enabled per-case through
-``SASE_FEATURE_FLAGS`` so the default-off gate stays covered too.
+boundary.
 
 Matrix mapping:
 
@@ -20,9 +19,11 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import _smoke_tool_runs_cases_owners as owners
 from _smoke_tool_runs_lib import (
     Harness,
     case,
+    not_run,
     wait_for,
 )
 
@@ -30,7 +31,7 @@ from _smoke_tool_runs_lib import (
 def _agent_env(
     h: Harness, world: dict[str, str], name: str
 ) -> tuple[dict[str, str], subprocess.Popen[str]]:
-    """Agent env with a sacrificial sleeper as the runner PID plus the beta flag."""
+    """Agent env with a sacrificial sleeper as the runner PID."""
 
     artifacts = Path(world["SASE_HOME"]).parent / f"artifacts-{name}"
     artifacts.mkdir(parents=True, exist_ok=True)
@@ -48,7 +49,6 @@ def _agent_env(
         SASE_AGENT="1",
         SASE_AGENT_NAME=name,
         SASE_ARTIFACTS_DIR=str(artifacts),
-        SASE_FEATURE_FLAGS='{"tool_run_escalation":true}',
     )
     return env, sleeper
 
@@ -149,15 +149,7 @@ def detach_refusals(h: Harness) -> dict[str, Any]:
     env = h.world("detach-refusals")
     agent_env, sleeper = _agent_env(h, env, "smoke-agent")
     try:
-        flag_off = h.run(
-            ["tool", "run", "-d", "--", "printf", "hi"],
-            env=dict(agent_env, SASE_FEATURE_FLAGS='{"tool_run_escalation":false}'),
-        )
-        # The flag gate fires first: every other refusal needs the flag on.
-        human = h.run(
-            ["tool", "run", "-d", "--", "printf", "hi"],
-            env=dict(env, SASE_FEATURE_FLAGS='{"tool_run_escalation":true}'),
-        )
+        human = h.run(["tool", "run", "-d", "--", "printf", "hi"], env=env)
         verbose = h.run(
             ["tool", "run", "-d", "-v", "--", "printf", "hi"], env=agent_env
         )
@@ -171,9 +163,7 @@ def detach_refusals(h: Harness) -> dict[str, Any]:
         )
         rows = h.runs(env=env)
         ok = (
-            flag_off.returncode == 2
-            and "not enabled" in flag_off.stderr
-            and human.returncode == 2
+            human.returncode == 2
             and "sase tool run -H" in human.stderr
             and verbose.returncode == 2
             and tail.returncode == 2
@@ -186,7 +176,6 @@ def detach_refusals(h: Harness) -> dict[str, Any]:
             "dod-17-detach-refusals",
             ok,
             dod=["DoD-17"],
-            flag_off_exit=flag_off.returncode,
             human_exit=human.returncode,
             verbose_exit=verbose.returncode,
             tail_exit=tail.returncode,
@@ -262,11 +251,7 @@ def detach_join(h: Harness) -> dict[str, Any]:
             env=agent_env,
         )
         run_id = _run_id_from_ack(proc.stdout)
-        join_env = dict(
-            env,
-            SASE_MONITOR_ID="mon-smoke-join",
-            SASE_FEATURE_FLAGS='{"tool_run_escalation":true}',
-        )
+        join_env = dict(env, SASE_MONITOR_ID="mon-smoke-join")
         joined = h.run(["tool", "_join", run_id], env=join_env, cwd=h.tmp, timeout=60.0)
         final = _terminal(h, env, run_id) if run_id else {}
         h.note(run_id, "detached run joined and settled with its own exit")
@@ -289,6 +274,142 @@ def detach_join(h: Harness) -> dict[str, Any]:
             final_state=final.get("state"),
             final_exit=final.get("exit_code"),
             join_id=(final.get("join") or {}).get("id"),
+        )
+    finally:
+        try:
+            sleeper.kill()
+        except OSError:
+            pass
+
+
+def live_escalate_join(h: Harness) -> dict[str, Any]:
+    """Escalate-then-join over a real monitor: one id from detach to settlement.
+
+    A detached run from a simulated agent is joined by a real
+    ``sase monitor start -J`` whose runner kill targets the sacrificial
+    starter process group. The run keeps one id end to end and the monitor
+    mirrors the run's exit code.
+    """
+
+    if not h.live:
+        return not_run(
+            "dod-17-live-escalate-join",
+            "live cases were not requested; pass --live",
+            dod=["DoD-17"],
+        )
+    env, project = owners._owner_world(h, "escalate-join")
+    # The join runs on the calling agent's lane, so the caller is the fixture
+    # agent; its runner pid is a sacrificial sleeper so the monitor start's
+    # runner kill targets that process group, never the harness.
+    artifacts = owners.fixture_agent_artifacts(env, project)
+    sleeper = subprocess.Popen(
+        ["sleep", "300"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(
+            {"pid": sleeper.pid, "name": owners.FIXTURE_AGENT, "model": "test"}
+        ),
+        encoding="utf-8",
+    )
+    agent_env = dict(
+        env,
+        SASE_AGENT="1",
+        SASE_AGENT_NAME=owners.FIXTURE_AGENT,
+        SASE_ARTIFACTS_DIR=str(artifacts),
+    )
+    try:
+        proc = h.run(
+            [
+                "tool",
+                "run",
+                "-d",
+                "--",
+                "sh",
+                "-c",
+                "sleep 25; echo escalate-live; exit 3",
+            ],
+            env=agent_env,
+            cwd=project,
+        )
+        run_id = _run_id_from_ack(proc.stdout)
+        if proc.returncode != 0 or not run_id:
+            return case(
+                "dod-17-live-escalate-join",
+                False,
+                dod=["DoD-17"],
+                run_ids=[run_id],
+                detach_exit=proc.returncode,
+                detach_error=(proc.stderr or proc.stdout)[-400:],
+            )
+        joined = h.run(
+            [
+                "monitor",
+                "start",
+                "-J",
+                run_id,
+                "-p",
+                "verify",
+                "-r",
+                "finish escalated run (joined run)",
+                "-n",
+                "read the joined run with sase tool show",
+                "-j",
+            ],
+            env=agent_env,
+            cwd=project,
+            timeout=120.0,
+        )
+        try:
+            envelope = json.loads(joined.stdout)
+        except json.JSONDecodeError:
+            envelope = {}
+        monitor_id = str(owners._find_key(envelope, "monitor_id") or "")
+        settled = bool(monitor_id) and wait_for(
+            lambda: bool(
+                owners._monitor_record(h, env, monitor_id, project).get("is_terminal")
+            ),
+            timeout=90.0,
+            step=0.5,
+        )
+        try:
+            sleeper.wait(timeout=10)
+            runner_killed = True
+        except subprocess.TimeoutExpired:
+            runner_killed = False
+        final = _terminal(h, env, run_id) if run_id else {}
+        rows = h.runs(env=env, cwd=h.tmp)
+        h.note(
+            run_id,
+            "escalated run joined by a live monitor; one id end to end",
+            owner=f"monitor:{monitor_id}",
+            kind="live",
+        )
+        ok = (
+            joined.returncode == 0
+            and bool(monitor_id)
+            and settled
+            and runner_killed
+            and final.get("state") == "failed"
+            and final.get("exit_code") == 3
+            and (final.get("join") or {}).get("id") == monitor_id
+            and [row.get("run_id") for row in rows] == [run_id]
+        )
+        return case(
+            "dod-17-live-escalate-join",
+            ok,
+            dod=["DoD-17"],
+            run_ids=[run_id],
+            monitor_id=monitor_id,
+            join_exit=joined.returncode,
+            monitor_settled=settled,
+            runner_killed=runner_killed,
+            final_state=final.get("state"),
+            final_exit=final.get("exit_code"),
+            join_id=(final.get("join") or {}).get("id"),
+            rows=len(rows),
         )
     finally:
         try:

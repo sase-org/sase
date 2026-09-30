@@ -10,7 +10,6 @@ import pytest
 
 from sase.config.core import clear_config_cache
 from sase.core.tool_run import tool_run_join, tool_run_show
-from sase.feature_flags import override_flags
 from sase.tool.argv import resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest
 from sase.tool.executor_recording import finish_tool_run
@@ -209,47 +208,46 @@ def test_join_streams_pre_join_output_and_reports_success(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
-    with override_flags(tool_run_escalation=True):
-        monkeypatch.setenv("SASE_AGENT", "1")
-        monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")
-        artifacts = tmp_path / "artifacts"
-        artifacts.mkdir(exist_ok=True)
-        from sase.core.process_identity import process_identity_token
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir(exist_ok=True)
+    from sase.core.process_identity import process_identity_token
 
-        runner_pid = os.getpid()
-        (artifacts / "agent_meta.json").write_text(
-            json.dumps(
-                {
-                    "pid": runner_pid,
-                    "process_identity": process_identity_token(runner_pid),
-                    "name": "agent-1",
-                }
-            ),
-            encoding="utf-8",
-        )
-        monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
-        from sase.tool.detach import execute_detached
+    runner_pid = os.getpid()
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "pid": runner_pid,
+                "process_identity": process_identity_token(runner_pid),
+                "name": "agent-1",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+    from sase.tool.detach import execute_detached
 
-        detach_code = execute_detached(
-            ToolRunCliRequest(
-                quiet=False,
-                verbose=False,
-                tail_lines=200,
-                words=("--", "sh", "-c", "echo pre-join-output; exit 0"),
-                hand_off=False,
-                detach=True,
-                tail_lines_explicit=False,
-                keep_going=False,
-                fail_fast=False,
-            )
+    detach_code = execute_detached(
+        ToolRunCliRequest(
+            quiet=False,
+            verbose=False,
+            tail_lines=200,
+            words=("--", "sh", "-c", "echo pre-join-output; exit 0"),
+            hand_off=False,
+            detach=True,
+            tail_lines_explicit=False,
+            keep_going=False,
+            fail_fast=False,
         )
-        assert detach_code == 0
-        out = capsys.readouterr().out
-        run_id = next(
-            line.split("sase tool run ")[1].strip().split()[0]
-            for line in out.splitlines()
-            if line.startswith("sase tool run ")
-        )
+    )
+    assert detach_code == 0
+    out = capsys.readouterr().out
+    run_id = next(
+        line.split("sase tool run ")[1].strip().split()[0]
+        for line in out.splitlines()
+        if line.startswith("sase tool run ")
+    )
     joined = tool_run_join(
         {
             "schema_version": 1,
