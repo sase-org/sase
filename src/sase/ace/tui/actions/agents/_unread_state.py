@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 import logging
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 from ...models.agent_nodes import (
@@ -47,6 +48,7 @@ class _UnreadNotificationDismissal:
     identities: frozenset[tuple[AgentType, str, str | None]]
     restore_manual_ids: frozenset[tuple[AgentType, str, str | None]]
     prior_pending_bulk_read_ids: frozenset[tuple[AgentType, str, str | None]] | None
+    prior_pending_bulk_read_armed_at: float | None = None
     op_id: int = 0
 
 
@@ -57,6 +59,7 @@ class AgentUnreadStateMixin:
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _pending_bulk_read_agent_ids: set[tuple[AgentType, str, str | None]] | None
+    _pending_bulk_read_armed_at: float | None
     _agent_info_metrics_cache: tuple[Any, ...] | None
 
     def _notification_key_dicts_from_keys(
@@ -134,33 +137,65 @@ class AgentUnreadStateMixin:
         return apply_unread_chrome(self, before)
 
     def _has_bulk_read_undo_available(self) -> bool:
-        """Return True when a session-local bulk-read undo is armed."""
-        return bool(getattr(self, "_pending_bulk_read_agent_ids", None))
+        """Return True when a session-local bulk-read undo is armed.
+
+        The undo is explicit and time-bound: outside the
+        ``BULK_READ_UNDO_WINDOW_SECONDS`` window after the mark it reads
+        as unavailable (the stale snapshot expires on the next toggle).
+        """
+        if not getattr(self, "_pending_bulk_read_agent_ids", None):
+            return False
+        from ._unread_bulk_scope import bulk_read_undo_window_open
+
+        return bulk_read_undo_window_open(
+            getattr(self, "_pending_bulk_read_armed_at", None)
+        )
 
     def _invalidate_bulk_read_undo(self) -> None:
         """Clear any pending bulk-read undo snapshot."""
         if getattr(self, "_pending_bulk_read_agent_ids", None) is not None:
             self._pending_bulk_read_agent_ids = None
+        if getattr(self, "_pending_bulk_read_armed_at", None) is not None:
+            self._pending_bulk_read_armed_at = None
+
+    def _bulk_read_undo_window_open(self) -> bool:
+        """Return True when the armed bulk-read undo is still in its window."""
+        if not getattr(self, "_pending_bulk_read_agent_ids", None):
+            return False
+        from ._unread_bulk_scope import bulk_read_undo_window_open
+
+        return bulk_read_undo_window_open(
+            getattr(self, "_pending_bulk_read_armed_at", None)
+        )
+
+    def _expire_bulk_read_undo(self) -> None:
+        """Drop a bulk-read undo snapshot whose window has closed."""
+        if not self._bulk_read_undo_window_open():
+            self._invalidate_bulk_read_undo()
 
     def _toggle_all_unread_done_agents_read(self) -> _BulkUnreadToggleResult:
-        """Mark the current terminal unread batch read, or restore the last batch."""
-        unread_ids = getattr(self, "_unread_completed_agent_ids", None)
-        roster = getattr(self, "_agents_with_children", None) or self._agents
-        if unread_ids:
-            target_agents = [
-                agent
-                for agent in roster
-                if is_agents_tab_agent_node(agent)
-                and agent.identity in unread_ids
-                and is_unread_completed_status(agent.status)
-            ]
-            if target_agents:
-                return self._mark_current_unread_done_agents_read(target_agents)
+        """Mark every loaded unread batch read, or undo the last mark in-window.
 
-        pending_ids = getattr(self, "_pending_bulk_read_agent_ids", None)
-        if pending_ids is not None:
-            return self._restore_bulk_read_undo(pending_ids)
+        "All" is every loaded unread terminal agent node across all Agents
+        tabs, including collapsed clans and tribes and off-tab query rows
+        (see :mod:`._unread_bulk_scope`); collecting targets never expands
+        a panel. With nothing unread, ``,u`` restores the same identities
+        only inside the undo window; afterwards it is a plain NOOP.
+        """
+        from ._unread_bulk_scope import bulk_unread_ack_targets
 
+        target_agents = bulk_unread_ack_targets(self)
+        if target_agents:
+            return self._mark_current_unread_done_agents_read(target_agents)
+
+        if self._bulk_read_undo_window_open():
+            pending_ids = getattr(self, "_pending_bulk_read_agent_ids", None)
+            if pending_ids is not None:
+                return self._restore_bulk_read_undo(pending_ids)
+
+        # A stale undo snapshot expires the instant the window closes so a
+        # later mark can never resurrect it.
+        self._expire_bulk_read_undo()
         return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
     def _mark_all_unread_done_agents_read(self) -> _BulkUnreadToggleResult:
@@ -179,8 +214,10 @@ class AgentUnreadStateMixin:
         before_unread = set(unread_ids)
         before_manual = set(self._manual_unread_ids())
         before_pending = getattr(self, "_pending_bulk_read_agent_ids", None)
+        before_pending_armed_at = getattr(self, "_pending_bulk_read_armed_at", None)
         target_identities = {agent.identity for agent in target_agents}
         self._pending_bulk_read_agent_ids = set(target_identities)
+        self._pending_bulk_read_armed_at = time.monotonic()
         unread_ids.difference_update(target_identities)
         self._manual_unread_ids().difference_update(target_identities)
         if hasattr(self, "_agent_info_metrics_cache"):
@@ -195,6 +232,7 @@ class AgentUnreadStateMixin:
                 prior_pending_bulk_read_ids=(
                     frozenset(before_pending) if before_pending is not None else None
                 ),
+                prior_pending_bulk_read_armed_at=before_pending_armed_at,
             )
         )
         self._repaint_changed_unread_rows(before_unread)
@@ -210,6 +248,7 @@ class AgentUnreadStateMixin:
         """Restore still-loaded terminal identities from a bulk-read snapshot."""
         restore_ids = set(pending_ids)
         self._pending_bulk_read_agent_ids = None
+        self._pending_bulk_read_armed_at = None
         if not restore_ids:
             return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
@@ -220,13 +259,22 @@ class AgentUnreadStateMixin:
         # instead of holding them read.
         release_pending_ack_entries(self, restore_ids)
 
-        roster = getattr(self, "_agents_with_children", None) or self._agents
+        from ._unread_bulk_scope import (
+            bulk_ack_roster_universe,
+            is_bulk_ack_unread_target,
+        )
+
+        # The mark just removed these identities from the unread set, so
+        # probe the shared predicate with them present: restore covers
+        # still-loaded terminal rows across all tabs, never expanding panels.
+        probe_ids = (
+            getattr(self, "_unread_completed_agent_ids", set()) or set()
+        ) | restore_ids
         target_agents = [
             agent
-            for agent in roster
-            if is_agents_tab_agent_node(agent)
-            and agent.identity in restore_ids
-            and is_unread_completed_status(agent.status)
+            for agent in bulk_ack_roster_universe(self)
+            if agent.identity in restore_ids
+            and is_bulk_ack_unread_target(agent, probe_ids)
         ]
         if not target_agents:
             return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
@@ -554,6 +602,11 @@ class AgentUnreadStateMixin:
                 if request.prior_pending_bulk_read_ids is not None
                 else None
             )  # type: ignore[attr-defined]
+            self._pending_bulk_read_armed_at = (
+                request.prior_pending_bulk_read_armed_at
+                if request.prior_pending_bulk_read_ids is not None
+                else None
+            )
 
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]

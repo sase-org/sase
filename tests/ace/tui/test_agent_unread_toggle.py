@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import time
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -509,6 +510,7 @@ def test_bulk_unread_restore_skips_missing_and_nonterminal_identities() -> None:
         missing.identity,
         running.identity,
     }
+    app._pending_bulk_read_armed_at = time.monotonic()
 
     result = app._toggle_all_unread_done_agents_read()
 
@@ -524,6 +526,7 @@ def test_bulk_unread_restore_noops_and_consumes_when_no_identity_is_eligible() -
     running = make_agent(name="running", status="RUNNING", raw_suffix="running")
     app = UnreadJumpApp([running])
     app._pending_bulk_read_agent_ids = {running.identity}
+    app._pending_bulk_read_armed_at = time.monotonic()
 
     result = app._toggle_all_unread_done_agents_read()
 

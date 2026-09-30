@@ -277,7 +277,10 @@ def test_mark_all_unread_done_agents_read_leader_command_mentions_undo() -> None
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.mark_all_unread_done_agents_read")
 
-    assert spec.label == "Mark all unread completed agents read or undo"
+    assert (
+        spec.label
+        == "Mark all unread completed agents read (repeat within 10s to undo)"
+    )
     assert spec.key_display == ",u"
     assert spec.tabs == ("agents",)
     assert spec.executor.kind == "leader_mode_key"

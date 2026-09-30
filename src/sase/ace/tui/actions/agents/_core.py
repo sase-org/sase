@@ -141,6 +141,7 @@ class AgentsMixinCore(
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _pending_bulk_read_agent_ids: set[tuple[AgentType, str, str | None]] | None
+    _pending_bulk_read_armed_at: float | None
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
     _recent_dismissed_agent_groups: list[SavedAgentGroupWire]

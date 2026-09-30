@@ -420,6 +420,7 @@ def init_agent_state(self: Any) -> None:
     self._unread_completed_agent_ids = set()
     self._manual_unread_agent_ids = set()
     self._pending_bulk_read_agent_ids = None
+    self._pending_bulk_read_armed_at = None
     self._agent_display_status_by_identity = {}
     self._dismissed_agents = load_dismissed_agents()
     # Session-local removals always outrank a subsequently observed live

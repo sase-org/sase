@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ..agents._unread_bulk_scope import BULK_READ_UNDO_WINDOW_SECONDS
 from ..agents._unread_state import BulkUnreadToggleOutcome
 from ..refresh_panel import FULL_HISTORY_MIGRATION_BANNER, refresh_panel_enabled
 from ._types import TabName
@@ -109,6 +110,24 @@ class LeaderModeMixin:
             loaded_agents=loaded,
             unread=unread_count,
         )
+
+    @staticmethod
+    def _bulk_ack_chord(app: object) -> str:
+        """Render the configured bulk-ack leader chord (for example ``,u``).
+
+        The undo toast names the configured keys rather than a hardcoded
+        ``,u`` so remapped keymaps still read correctly; falls back to
+        ``,u`` when the registry is unavailable.
+        """
+        try:
+            from ...keymaps.display import leader_key_display
+
+            registry = getattr(app, "_keymap_registry", None)
+            if registry is not None:
+                return leader_key_display(registry, "mark_all_unread_done_agents_read")
+        except Exception:
+            pass
+        return ",u"
 
     @staticmethod
     def _leader_bulk_ack_span(app: object) -> Any:
@@ -273,7 +292,10 @@ class LeaderModeMixin:
                     result = self._toggle_all_unread_done_agents_read()  # type: ignore[attr-defined]
                 if result.outcome is BulkUnreadToggleOutcome.MARKED_READ:
                     self.notify(  # type: ignore[attr-defined]
-                        f"Marked {result.count} completed agents read"
+                        "Marked "
+                        f"{result.count} completed agents read · press "
+                        f"{LeaderModeMixin._bulk_ack_chord(self)} within "
+                        f"{BULK_READ_UNDO_WINDOW_SECONDS:.0f}s to undo"
                     )
                 elif result.outcome is BulkUnreadToggleOutcome.RESTORED_UNREAD:
                     self.notify(  # type: ignore[attr-defined]

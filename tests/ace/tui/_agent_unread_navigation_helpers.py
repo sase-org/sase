@@ -56,6 +56,7 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
         self._pending_bulk_read_agent_ids: (
             set[tuple[AgentType, str, str | None]] | None
         ) = None
+        self._pending_bulk_read_armed_at: float | None = None
         self._agent_info_metrics_cache: tuple[Any, ...] | None = None
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self._visible = visible
@@ -170,6 +171,7 @@ class LeaderUnreadJumpApp(
         self._pending_bulk_read_agent_ids: (
             set[tuple[AgentType, str, str | None]] | None
         ) = None
+        self._pending_bulk_read_armed_at: float | None = None
         self._agent_info_metrics_cache: tuple[Any, ...] | None = None
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self.patch_calls: list[Agent] = []

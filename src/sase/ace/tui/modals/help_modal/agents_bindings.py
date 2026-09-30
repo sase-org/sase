@@ -391,7 +391,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 *leader_full_history_help_rows(km, refresh_action="agents_refresh"),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'mark_all_unread_done_agents_read'))}",
-                    "Mark all unread done agents read / undo",
+                    "Mark all unread done agents read (repeat within 10s to undo)",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'kill_and_edit'))}",

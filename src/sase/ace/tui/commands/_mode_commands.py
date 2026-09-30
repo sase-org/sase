@@ -63,7 +63,7 @@ _LEADER_LABELS: dict[str, str] = {
     "jump_to_next_unread_done_agent": "Jump to next unread completed agent",
     "jump_to_next_stopped_agent": "Jump to next stopped agent",
     "full_history_refresh": "Refresh Agents from full history",
-    "mark_all_unread_done_agents_read": "Mark all unread completed agents read or undo",
+    "mark_all_unread_done_agents_read": "Mark all unread completed agents read (repeat within 10s to undo)",
     "kill_and_edit": "Kill agent and edit",
     "kill_and_edit_last": "Kill last launched agent and edit",
     "clear_comments": "Clear Patch comments",

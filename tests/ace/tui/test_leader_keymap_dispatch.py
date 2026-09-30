@@ -472,7 +472,9 @@ def test_leader_u_marks_all_unread_done_agents_read_on_agents_tab() -> None:
     assert handled is True
     assert app._leader_mode_active is False
     assert app.mark_all_unread_count == 1
-    assert app.notifications == ["Marked 2 completed agents read"]
+    assert app.notifications == [
+        "Marked 2 completed agents read · press ,u within 10s to undo"
+    ]
     assert app.refresh_count == 0
 
 
@@ -518,7 +520,7 @@ def test_leader_u_records_and_repeat_invokes_bulk_toggle_again() -> None:
     assert app.mark_all_unread_count == 2
     assert app._last_leader_key == "u"
     assert app.notifications == [
-        "Marked 2 completed agents read",
+        "Marked 2 completed agents read · press ,u within 10s to undo",
         "Restored 2 completed agents unread",
     ]
     assert app.refresh_count == 0

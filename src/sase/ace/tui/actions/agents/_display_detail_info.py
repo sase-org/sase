@@ -40,7 +40,19 @@ class AgentInfoDisplayMixin:
             self._update_agents_info_panel_impl()
 
     def _agent_info_metrics(self) -> tuple[int, int, int, int, int, int, int, int, int]:
-        """Return cached sase-agent status and headline counts."""
+        """Return cached sase-agent status and headline counts.
+
+        The unread slot shares the bulk-ack predicate (see
+        ``._unread_bulk_scope``): every loaded unread terminal agent node
+        across all Agents tabs, including collapsed clans and tribes and
+        off-tab query rows, so the ``,u`` toast count always equals the
+        header count. The remaining slots stay scoped to the active tab.
+        """
+        from ._unread_bulk_scope import (
+            bulk_ack_roster_universe,
+            is_bulk_ack_unread_target,
+        )
+
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
@@ -52,7 +64,14 @@ class AgentInfoDisplayMixin:
                 *panel_index.hidden_starting_indices,
             )
         )
-        cache_key = (id(self._agents), frozenset(unread_ids), status_key)
+        bulk_universe = bulk_ack_roster_universe(self)
+        bulk_key = tuple((agent.identity, agent.status) for agent in bulk_universe)
+        cache_key = (
+            id(self._agents),
+            frozenset(unread_ids),
+            status_key,
+            bulk_key,
+        )
         cached = getattr(self, "_agent_info_metrics_cache", None)
         if cached is not None and cached[0] == cache_key:
             return cached[1]  # type: ignore[return-value]
@@ -70,10 +89,13 @@ class AgentInfoDisplayMixin:
             visible_top_level_agents,
             unread_ids,
         )
+        unread_count = sum(
+            1 for agent in bulk_universe if is_bulk_ack_unread_target(agent, unread_ids)
+        )
         starting_count = len(hidden_starting_agents)
         lane_total = projected.total + starting_count
         metrics = (
-            projected.unread,
+            unread_count,
             projected.stopped,
             projected.running,
             projected.waiting,
