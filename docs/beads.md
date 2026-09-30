@@ -906,9 +906,14 @@ are as public as the bead itself. Bytes live in a local content-addressed cache 
 then in shared stores picked deterministically by size:
 
 - The **git tier** holds objects up to `bead.attachments.git_max_bytes` (default 50 MiB)
-  in a private `<project>--attachments-private` sidecar repo, one per project. Private
-  means private: the sidecar is a separate non-public repo, and descriptors never
-  contain paths or machine-local ids.
+  in a private `<project>--attachments-private` sidecar repo, one per project. The local
+  copy is a bare partial clone at
+  `~/.sase/projects/<project_key>/repos/attachments-private`. Private means private: the
+  remote is non-public, the role is hidden from agent instructions, and descriptors
+  never contain paths or machine-local ids. `sase repo init` asks before creating a
+  missing remote; decline, or set
+  `repos.sidecar.builtin.attachments-private.disabled: true`, to keep objects local. See
+  [Repository initialization](init.md#repository-initialization).
 - The optional **rclone large tier** (`bead.attachments.large_store`) takes larger
   objects; see below.
 - `-L/--local-only` keeps an object on this machine only, badged `⚠ only on <machine>`.
@@ -977,20 +982,20 @@ Remote setup is per machine, in that machine's `rclone.conf` (`RCLONE_CONFIG` ov
 the path when set):
 
 ```ini
-# Recommended: SFTP to athena over the tailnet (private, free, unlimited).
-[athena-sftp]
+# Example: SFTP to a machine you control (private to that host).
+[attachments-sftp]
 type = sftp
-host = athena
-user = bryan
+host = attachments.example
+user = sase
 key_file = ~/.ssh/id_ed25519
 shell_type = unix
 ```
 
 ```yaml
-# Project config (checked in): points at the athena remote.
+# Project config (checked in): points at that remote.
 bead:
   attachments:
-    large_store: { remote: "athena-sftp:attachments", max_bytes: 2147483648 }
+    large_store: { remote: "attachments-sftp:attachments", max_bytes: 2147483648 }
 ```
 
 ```ini
@@ -1004,7 +1009,12 @@ endpoint = https://<account-id>.r2.cloudflarestorage.com
 ```
 
 A local directory path also works as the remote (the acceptance tests use one).
-`sase doctor` reports a missing `rclone` binary and an unreachable large remote.
+`sase doctor -C project.attachment_store` (alias `attachments.store`) warns when the git
+sidecar cannot be fetched or the upload outbox still has queued uploads
+(`sase bead attachment push` drains them). When a large tier is configured, the same
+check warns if `rclone` is missing or that remote is unreachable. No current project
+skips the check. No attachments-private clone and no large tier also skips it, and
+attachments then stay on this machine.
 
 Text viewing rules: prose replaces each `@attachment:<name>` token with `[name]`
 (filenames stripped of control and bidi characters). The note label gains `📎 N` when

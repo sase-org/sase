@@ -185,8 +185,13 @@ sase xprompt catalog --out /tmp/out # Write the PDF to the specified directory
 
 The command collects all visible xprompt templates, renders each into an HTML section,
 and produces a single PDF using the bundled `catalog_template.html.j2` and
-`catalog_style.css`. The mobile/helper structured catalog uses the same collection and
-classification code, but returns JSON metadata instead of requiring a PDF renderer.
+`catalog_style.css`. The mobile helper's structured catalog uses the same collection and
+classification, and returns JSON metadata instead of requiring a PDF renderer. That JSON
+omits string input defaults: `default_display` is null for strings, including an empty
+string, and also null when the default itself is null. Numbers and booleans are still
+shown (`3`, `true`, `false`). `required` is true only when the input declares no
+default. `sase xprompt show` still prints string defaults, and sase's TUI argument
+assist may show them locally. The mobile catalog does not.
 
 ## Editor LSP
 

@@ -45,15 +45,17 @@ For compatibility, the record contains a role-keyed `sidecars` map and resolved 
 That record—not clone or remote existence—is the layout authority. Legacy records
 continue to use the single-root layout unchanged.
 
-Three role names are reserved: `plans` is the canonical plan corpus, `beads` is the bead
-event store, and `agents` is hidden machine-level agent data plus the canonical prompt
-and prompt-artifact archive. Every other enabled `repos.sidecar` role is a document
-sidecar: a month-sharded Markdown corpus labeled by its role name. A document role such
-as `designs` receives its own clone and store root, `sase repo path` resolution, doctor
-checks, commit routing, agent environment variable, plan-search kind, and sase's TUI
-Plans kind. `research` is only the document role seeded by default; it has no
-storage-level privilege. The shipped `research` README and directory map remain an
-optional presentation preset, while other document roles receive the generic README.
+Four role names are reserved: `plans` is the canonical plan corpus, `beads` is the bead
+event store, `agents` is hidden machine-level agent data plus the canonical prompt and
+prompt-artifact archive, and `attachments-private` is the hidden bare store for bead
+attachment bytes. `beads`, `agents`, and `attachments-private` are never document roles.
+Every other enabled `repos.sidecar` role is a document sidecar: a month-sharded Markdown
+corpus labeled by its role name. A document role such as `designs` receives its own
+clone and store root, `sase repo path` resolution, doctor checks, commit routing, agent
+environment variable, plan-search kind, and sase's TUI Plans kind. `research` is only
+the document role seeded by default; it has no storage-level privilege. The shipped
+`research` README and directory map remain an optional presentation preset, while other
+document roles receive the generic README.
 
 The record also carries an **optional** `beads` sidecar, and its presence selects the
 schema version:
@@ -79,12 +81,13 @@ keeps bead state at its **repository root**—`config.json`, `metadata.json`,
 `issues.jsonl`, and `events/`—plus generated bead pages under `pages/`, so its clone
 root is itself the bead directory. Kind resolution is therefore:
 
-| Kind              | Resolved path                                                      |
-| ----------------- | ------------------------------------------------------------------ |
-| `plans`           | `<workspace>/sase/repos/plans`                                     |
-| `agents`          | `~/.sase/projects/<project-key>/repos/agents`                      |
-| `<document-role>` | `<workspace>/sase/repos/<document-role>`                           |
-| `beads`           | `<workspace>/sase/repos/beads` (schema 2: `.../repos/plans/beads`) |
+| Kind                  | Resolved path                                                           |
+| --------------------- | ----------------------------------------------------------------------- |
+| `plans`               | `<workspace>/sase/repos/plans`                                          |
+| `agents`              | `~/.sase/projects/<project-key>/repos/agents`                           |
+| `attachments-private` | `~/.sase/projects/<project-key>/repos/attachments-private` (bare clone) |
+| `<document-role>`     | `<workspace>/sase/repos/<document-role>`                                |
+| `beads`               | `<workspace>/sase/repos/beads` (schema 2: `.../repos/plans/beads`)      |
 
 Once a project is migrated, the plans clone no longer owns bead state; its bead history
 stays behind only as an archive. Because the cooperative write lock and

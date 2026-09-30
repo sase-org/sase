@@ -815,12 +815,13 @@ settlement and recovery behavior.
    the primary's pin file (only when the primary decision is `commit`, the SHA is
    reachable from the sibling's remote default branch, the current pin is an ancestor of
    the SHA, and the file does not already hold it) and records `revision_pin` evidence;
-   a skipped pin records the skip reason as a diagnostic and never fails the run. The
-   primary stitch then commits the pin change together with the agent's work under the
-   agent's message, applying `bead_action` only on the primary stitch. The pin path is
-   host-authored for protection and resume checks, and rewriting it is idempotent. A
-   concurrent pin change on origin during the primary sync uses the existing
-   conflict-repair flow.
+   a skipped pin records the skip reason as a diagnostic and never fails the run. A pin
+   path that leaves the checkout through a symlink is one of those skips
+   (`pin-escapes-checkout`); the host does not follow the link. The primary stitch then
+   commits the pin change together with the agent's work under the agent's message,
+   applying `bead_action` only on the primary stitch. The pin path is host-authored for
+   protection and resume checks, and rewriting it is idempotent. A concurrent pin change
+   on origin during the primary sync uses the existing conflict-repair flow.
 
    The host binds every stitch it runs — new stitches, checkpoint resumes, and the
    post-repair follow-up — to the bead captured in the accepted context. It sets

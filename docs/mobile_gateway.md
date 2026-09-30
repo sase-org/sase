@@ -699,10 +699,15 @@ curl -sS "$BASE_URL/api/v1/xprompts/catalog?project=sase&include_pdf=true" \
 Each xprompt catalog entry includes the display-only `input_signature` plus mobile
 editor metadata: `insertion`, `reference_prefix`, `kind`, `definition_path` when a real
 source file can be resolved, and an `inputs` array of
-`{name, type, required, default_display, position}` records. Android should insert
-`insertion` when present, fall back to `#<name>` for older gateways, and use `inputs`
-only for prompt-adjacent argument hints. The raw launch prompt remains authoritative and
-is sent unchanged.
+`{name, type, required, default_display, position, repeatable, description}` records.
+`repeatable` is a boolean and `description` is a string or null. String defaults are not
+included: `default_display` is null for every string default, including `""`, and is
+also null when the declared default is null. Numbers and booleans still appear as
+`default_display` (`3`, `true`, `false`). `required` is true only when the input has no
+default at all, so a null `default_display` does not by itself mean the argument is
+required. Android should insert `insertion` when present, fall back to `#<name>` for
+older gateways, and use `inputs` only for prompt-adjacent argument hints. The raw launch
+prompt remains authoritative and is sent unchanged.
 
 List active (`open`, `claimed`, `ready`, or `in_progress`) beads in a project and
 inspect one bead:

@@ -7586,11 +7586,12 @@ token under the cursor:
   applies to the complete candidate rather than the typed prefix. This provider scans
   only the current prompt pane and takes precedence over history words when it has an
   eligible match. Candidates are ordered nearest-first: the word you just wrote is the
-  one you are most likely repeating. When the next-word model is warm, candidates it
-  predicts for the words before the cursor sort first instead, each marked with a violet
-  `⇢ <context>` chip naming the evidence context; the border subtitle then carries the
-  matching `⇢ context` legend entry. A cold or disabled model leaves nearest-first order
-  untouched.
+  one you are most likely repeating. When the next-word model is warm, `word_ranking` is
+  `smart` (the default), and `next_word` is not `off`, candidates it predicts for the
+  words before the cursor sort first instead, each marked with a violet `⇢ <context>`
+  chip naming the evidence context; the border subtitle then carries the matching
+  `⇢ context` legend entry. A cold model, a session-disabled model,
+  `word_ranking: recent`, or `next_word: off` leaves nearest-first order untouched.
 - **History-word completion**: When prompt-local words have no match, `Ctrl+T` filters
   recently used words derived from recorded prompt history using that same
   left-of-cursor prefix; any suffix under the cursor is never consulted to include or
@@ -7619,28 +7620,33 @@ token under the cursor:
   plus a dominant-reason chip — `⇄ <word>` for the context word it relates to, `◷ <age>`
   for recency, or `✦ <count>×` for frequency — and the panel's border subtitle carries a
   matching `⇄ related · ◷ recent · ✦ frequent` color legend. When the next-word model is
-  warm, rows it predicts for the words before the cursor sort first with a fourth,
-  violet meter share and a `⇢ <context>` chip naming the sequence evidence, and the
-  legend gains a matching `⇢ context` entry. The meter and chip are dropped (leaving the
-  word alone) on panels too narrow to fit them, and the legend falls back to the plain
-  `[^T] accept  [^D] delete` hint under the same width pressure. Set
-  `word_ranking: recent` to restore the previous most-recent-use ordering with no signal
-  column, or `word_ranking_signals: false` to keep smart ranking but hide the meter,
-  chip, and legend.
+  warm and `word_ranking` is `smart`, rows it predicts for the words before the cursor
+  sort first with a fourth, violet meter share and a `⇢ <context>` chip naming the
+  sequence evidence, and the legend gains a matching `⇢ context` entry.
+  `word_ranking: recent` and `next_word: off` leave that promotion off. The meter and
+  chip are dropped (leaving the word alone) on panels too narrow to fit them, and the
+  legend falls back to the plain `[^T] accept  [^D] delete` hint under the same width
+  pressure. Set `word_ranking: recent` to restore the previous most-recent-use ordering
+  with no signal column, or `word_ranking_signals: false` to keep smart ranking but hide
+  the meter, chip, and legend.
 
 - **Next-word prediction**: After every prompt-local or history-word commit, `Ctrl+T`
   arms a next-word chain. Confident guesses from your own typed prompt history appear as
   dim inline ghost text with a `[^T] word  [^F] all` border hint. `Ctrl+T` (or `Alt+F`)
   takes one ghost word; `Ctrl+F`, `Right`, or `Ctrl+L` takes the whole ghost; each
-  accept predicts again without flicker. Typing that matches the ghost consumes it, any
-  other key clears it. When the chain is armed but no ghost can be shown (uncertain
-  gate, mid-line cursor, or no width), `Ctrl+T` opens a `next word ⇢ "…"` menu naming
-  the evidence context instead: each row shows the word, a violet confidence meter, and
-  a dim `⇢ continuation` preview, and accepting a row inserts it with its separator and
-  continues the chain. `Ctrl+T` at the end of a prose word with no current-word
-  completion runs the same explicit request, and an armed chain with nothing to offer
-  shows `no next-word guess` (or `warming next words…` while the model warms, and never
-  a menu inside structural syntax). Ghosts show only at end of line, capped at
+  accept predicts again without flicker. Typing characters that continue the ghost
+  consumes them. A different character, Backspace, a cursor move, undo, or redo clears
+  the visible ghost. The chain stays armed only while the text and cursor are still
+  exactly where it was armed, so after that clear `Ctrl+T` uses ordinary completion, or
+  the end-of-word request when the cursor is still at the end of a prose word. When the
+  chain is armed but no ghost can be shown (uncertain gate, mid-line cursor, or no
+  width), `Ctrl+T` opens a `next word ⇢ "…"` menu naming the evidence context instead:
+  each row shows the word, a violet confidence meter, and a dim `⇢ continuation`
+  preview, and accepting a row inserts it with its separator and continues the chain.
+  `Ctrl+T` at the end of a prose word with no current-word completion runs the same
+  explicit request, and an armed chain with nothing to offer shows `no next-word guess`
+  (or `warming next words…` while the model warms, and never a menu inside structural
+  syntax). Ghosts show only at end of line, capped at
   `ace.prompt_completion.next_word_max_words`, and never from a unigram. `Ctrl+D` on a
   highlighted next-word row forgets it through the history-word deletions store. Set
   `ace.prompt_completion.next_word: auto` to also show the gated ghost right after a
@@ -8998,7 +9004,17 @@ shown (`★ current`, `★ last used`, `★ configured`, `★ default`). `j`/`k`
 
 Hotkeys are mnemonic and scope-first: `p` is the project destination and `h` is the home
 destination in both pickers. In the mini-xprompt picker the Shift variant picks the
-config file of the same scope:
+config file of the same scope.
+
+If the prompt pane that opened the picker is gone before you choose — closed, or no
+longer in the stack — the picker closes and sase's TUI warns
+`Prompt pane is no longer available - snippet discarded` or
+`Prompt pane is no longer available - mini-xprompt discarded`. A destination load that
+fails stays on the picker and replaces the list with one red error row. For a snippet
+that row and the error toast both read `Failed to prepare snippet pane: …`. For a
+mini-xprompt the row reads `Failed to load destinations: …` and the error toast reads
+`Failed to prepare mini-xprompt pane: …`. Cancel still returns to the origin pane when
+that pane is still there.
 
 | Picker  | Key   | Destination                                            |
 | ------- | ----- | ------------------------------------------------------ |

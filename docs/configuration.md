@@ -1664,12 +1664,15 @@ sase's TUI considers the prompt-history fallback. Candidates from history retain
 original spelling and, under the default `word_ranking: smart`, are ordered by a
 weighted composite of how strongly each word relates to the words already in the prompt
 (`0.50`), how recently it was used (`0.30`), and how often it was used (`0.20`). Setting
-`word_ranking: recent` restores plain most-recently-used order. The warm cache holds the
-prompt-word index off-thread and is rebuilt when history shards or the shared minimum
-change, while `Ctrl+D` deletions apply at query time without a rebuild. Setting
-`history_word_count: 0` disables only the history fallback; eligible prompt-local words
-remain available. See the History-word completion bullet in `docs/ace.md` for the score
-meter, reason chip, and legend that `word_ranking_signals` controls.
+`word_ranking: recent` restores plain most-recently-used order. A warm next-word model
+promotes current-word matches ahead of that order only while `word_ranking` is `smart`
+and `next_word` is not `off`. `recent` leaves the menu on its non-prediction order. The
+warm cache holds the prompt-word index off-thread and is rebuilt when history shards or
+the shared minimum change, while `Ctrl+D` deletions apply at query time without a
+rebuild. Setting `history_word_count: 0` disables only the history fallback; eligible
+prompt-local words remain available. See the History-word completion bullet in
+`docs/ace.md` for the score meter, reason chip, and legend that `word_ranking_signals`
+controls.
 
 Common placeholders are stored at `sase_home()/prompt_placeholders.json` and are learned
 from complete raw `<foobar>` tags outside literal zones in submitted, failed-launch, and
@@ -2716,13 +2719,14 @@ See [Ownership Boundary](workspace.md#ownership-boundary) for the underlying
 primary/leased distinction and how sync is scheduled.
 
 `repos.sidecar` is a two-bucket mapping keyed by role: `builtin` holds overrides of the
-reserved `plans`, `beads`, and `agents` roles, and `custom` holds user-declared document
-sidecars such as `research`. The map key _is_ the role, so an entry never carries a
-`name` field and a role cannot be declared twice in one bucket. Because both buckets are
-mappings, a later config layer merges into an inherited entry per key — a project-local
-`custom: {research: {disabled: true}}` opts out of a global `research` sidecar. The
-former list form (a sequence of entries each carrying `name`) is no longer accepted and
-is ignored; run `sase doctor` to see which bucket each stale entry belongs in.
+reserved `plans`, `beads`, `agents`, and `attachments-private` roles, and `custom` holds
+user-declared document sidecars such as `research`. The map key _is_ the role, so an
+entry never carries a `name` field and a role cannot be declared twice in one bucket.
+Because both buckets are mappings, a later config layer merges into an inherited entry
+per key — a project-local `custom: {research: {disabled: true}}` opts out of a global
+`research` sidecar. The former list form (a sequence of entries each carrying `name`) is
+no longer accepted and is ignored; run `sase doctor` to see which bucket each stale
+entry belongs in.
 
 Sidecar entries use their role key as the primary CLI lookup key. Ordinary roles use
 `sase/repos/<role>` as their workspace clone directory. Their repository defaults to
@@ -2736,11 +2740,13 @@ agents when to open them with `/sase_repo`. Set `disabled: true` in a later conf
 to suppress a matching global entry or implicit fallback; disabled and auto-cloned
 sidecars are omitted from generated instructions.
 
-The roles `plans`, `beads`, and `agents` are reserved and are configured under
-`repos.sidecar.builtin`. `plans` owns canonical plans, `beads` owns the event store, and
-`agents` is the hidden machine-level publication store plus the canonical prompt and
-prompt-artifact archive. Every other enabled role lives under `repos.sidecar.custom` and
-is a document sidecar: a `<YYYYMM>/*.md` corpus whose kind label is the role name.
+The roles `plans`, `beads`, `agents`, and `attachments-private` are reserved and are
+configured under `repos.sidecar.builtin`. `plans` owns canonical plans, `beads` owns the
+event store, `agents` is the hidden machine-level publication store plus the canonical
+prompt and prompt-artifact archive, and `attachments-private` is the hidden bare store
+for bead attachment bytes. Every other enabled role lives under `repos.sidecar.custom`
+and is a document sidecar: a `<YYYYMM>/*.md` corpus whose kind label is the role name.
+`attachments-private` is not a document role, so it cannot be declared under `custom`.
 Document roles receive clone/store resolution, `sase repo path <role>`, doctor
 validation, commit routing, `SASE_SDD_<ROLE>_DIR`, plan-search visibility, and an sase's
 TUI Plans kind. `research` is simply the default-seeded document role; only its
@@ -2753,6 +2759,20 @@ visible to users as a `sidecar` row in `sase repo list`, and `sase repo path age
 `sase repo open agents -r "<reason>"` explicitly accesses the one machine-level clone at
 `~/.sase/projects/<project_key>/repos/agents`. The derived or pinned repository slug is
 also accepted by those commands.
+
+`attachments-private` is hidden the same way. Managed projects receive an implicit
+private `<project>--attachments-private` entry unless configuration already names that
+role or `default_linked_repos` is false. Its clone is a bare partial repository
+(`git clone --bare --filter=blob:none`) at
+`~/.sase/projects/<project_key>/repos/attachments-private`, with no worktree and no
+README. `sase repo list` shows the role, and `sase repo path attachments-private` prints
+that path. `auto_clone: true` does not put a copy in a workspace's `sase/repos/` tree,
+and the role is omitted from generated agent instructions. Resolved visibility is always
+`private`: a `visibility: public` override is rewritten to `private` and does not create
+a public remote. Opt out with
+`repos.sidecar.builtin.attachments-private.disabled: true`. Attachment commands use this
+store for objects up to `bead.attachments.git_max_bytes`; see
+[Attachments](beads.md#attachments).
 
 The `beads` role does not default to `auto_clone: true`: the beads sidecar materializes
 on demand, in `sase bead` and in the agent-launch bead claim, instead of during
@@ -2774,13 +2794,15 @@ materialization before Git runs. Rerun `sase repo init` to persist the migrated 
 it is not required to make a launch safe.
 
 Managed projects (`is_sase_managed: true`) receive deterministic `<project>--plans`
-(`auto_clone: true`), `<project>--beads` (`auto_clone: false`), and `<project>--agents`
-(`auto_clone: false`, public visibility) entries when no matching explicit sidecar is
-configured. Research is config-declared per project and defaults to
-`<owner>/<project>--research`; `sase repo init` writes the plans and research entries. A
-project-local `agents` entry replaces the implicit entry: use `disabled: true` to opt
-out or `visibility: private` to retain it with a private remote policy. Project-local
-`default_linked_repos: false` suppresses both implicit managed-project entries.
+(`auto_clone: true`), `<project>--beads` (`auto_clone: false`), `<project>--agents`
+(`auto_clone: false`, public visibility), and private `<project>--attachments-private`
+entries when no matching explicit sidecar is configured. Research is config-declared per
+project and defaults to `<owner>/<project>--research`; `sase repo init` writes the plans
+and research entries. A project-local `agents` or `attachments-private` entry replaces
+that implicit entry. For `agents`, use `disabled: true` to opt out or
+`visibility: private` to retain a private remote. For `attachments-private`, use
+`disabled: true` to opt out; visibility stays private. Project-local
+`default_linked_repos: false` suppresses those implicit managed-project entries.
 `sase repo init` can create and seed the agents remote only after its separate
 default-no consent prompt. Successful agent commit/PR workflows publish the committing
 hood, while `sase agent sync` publishes every locally commit-eligible hood through the
@@ -2793,10 +2815,16 @@ both aliases when the same name is defined.
 
 A linked entry may declare `revision_pin`, a pin file relative to the primary checkout
 root that holds that repo's pushed SHA (for example `sase-core-revision.txt`). The path
-must be relative and stay inside the checkout. When one accepted declaration commits
+must be relative and stay inside the checkout. Absolute paths, `~`, drive-letter paths,
+and `..` that would leave the checkout are rejected when the config is read. A relative
+path that still leaves through a symlinked parent directory or a symlinked pin file is
+not followed: `sase doctor` reports that escape, and the commit finalizer skips the pin
+write with `pin-escapes-checkout`. `sase doctor` also flags a pin file that is missing
+or does not hold a 40-character hex SHA. It resolves the pin from the current working
+directory, so run it from the primary checkout. When one accepted declaration commits
 both the primary and a pinned sibling, the host commits the sibling first and writes its
-pushed SHA into the pin file before the primary commit; `sase doctor` flags a declared
-pin file that is missing or does not hold a 40-character hex SHA.
+pushed SHA into the pin file before the primary commit. A skipped pin records the reason
+and does not fail the run.
 
 ```yaml
 github_orgs:
@@ -2825,32 +2853,32 @@ repos:
             globs: ["reports/**/*.md", "!drafts/**"]
 ```
 
-| Field                                         | Type           | Default                                                            | Description                                                                                                                                                                                                                         |
-| --------------------------------------------- | -------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `github_orgs`                                 | string or list | -                                                                  | GitHub user/org namespaces available to provider completion and PR workflows.                                                                                                                                                       |
-| `default_linked_repos`                        | boolean        | `true`                                                             | Inject managed-project `--plans`, `--beads`, and hidden `--agents` sidecars.                                                                                                                                                        |
-| `repos.linked[].auto_clone`                   | boolean        | `false`                                                            | Materialize and prepare the repository automatically before each agent launch.                                                                                                                                                      |
-| `repos.linked[].name`                         | string         | required                                                           | Stable alias used in generated environment variable names and memory summaries.                                                                                                                                                     |
-| `repos.linked[].path`                         | string         | required                                                           | Primary checkout path. Relative paths resolve from the project's primary workspace.                                                                                                                                                 |
-| `repos.linked[].description`                  | string         | required                                                           | Human-readable purpose used when generating agent memory for the linked repository.                                                                                                                                                 |
-| `repos.linked[].revision_pin`                 | string         | -                                                                  | Pin file relative to the primary checkout root holding this repo's pushed SHA. The commit finalizer commits the pinned sibling first and writes its SHA into the pin file before the primary commit. Must stay inside the checkout. |
-| `repos.sidecar.builtin.<role>`                | object         | -                                                                  | Override for a reserved role; the key must be `plans`, `beads`, or `agents`.                                                                                                                                                        |
-| `repos.sidecar.custom.<role>`                 | object         | -                                                                  | User-declared document sidecar; the key is the role and must not be a reserved one.                                                                                                                                                 |
-| `repos.sidecar.*.<role>.repo`                 | string         | derived                                                            | Optional bare slug or `owner/repo` pin.                                                                                                                                                                                             |
-| `repos.sidecar.*.<role>.description`          | string         | -                                                                  | Purpose shown in inventory; required in generated instructions for lazy entries.                                                                                                                                                    |
-| `repos.sidecar.*.<role>.auto_clone`           | boolean        | `false`                                                            | Materialize before agent launch; intrinsically ignored for `agents`.                                                                                                                                                                |
-| `repos.sidecar.*.<role>.auto_sync`            | boolean        | `false`                                                            | Fetch/fast-forward the primary clone when clean; intrinsically ignored for `agents`.                                                                                                                                                |
-| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                                                           | Remote visibility; project-local `private` overrides the `agents` default.                                                                                                                                                          |
-| `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                                                            | Disable the entry and suppress matching implicit sidecars, including `agents`.                                                                                                                                                      |
-| `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent                                            | Installed artifact-reference provider, qualified `<plugin>@<id>`, to use as the base policy.                                                                                                                                        |
-| `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)                                     | Prompt kind exposed as `@<kind>:<path>`.                                                                                                                                                                                            |
-| `repos.sidecar.*.<role>.ref.icon`             | string         | role/provider dependent                                            | Artifacts tab mark shown beside the pane label.                                                                                                                                                                                     |
-| `repos.sidecar.*.<role>.ref.expansion_format` | string         | `the {repo_relative_path} file in the {sidecar_role} sidecar repo` | Provider expansion format; see [Expansion](artifact_references.md#expansion).                                                                                                                                                       |
-| `repos.sidecar.*.<role>.ref.properties`       | object         | `{}`                                                               | Typed metadata fields extracted by the provider.                                                                                                                                                                                    |
-| `repos.sidecar.*.<role>.ref.detail`           | object         | `{}`                                                               | Metadata fields shown by completion and detail surfaces.                                                                                                                                                                            |
-| `repos.sidecar.*.<role>.ref.identity`         | object         | `{}`                                                               | Optional provider identity rule.                                                                                                                                                                                                    |
-| `repos.sidecar.*.<role>.ref.inventory.globs`  | list[string]   | `["**/*.md"]` for document sidecars                                | Repo-relative POSIX includes and `!` exclusions.                                                                                                                                                                                    |
-| `repos.sidecar.*.<role>.ref.publication`      | object         | VCS permalink / Markdown references                                | Publication link and reverse-reference policy.                                                                                                                                                                                      |
+| Field                                         | Type           | Default                                                            | Description                                                                                                                                                                                                                                                              |
+| --------------------------------------------- | -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `github_orgs`                                 | string or list | -                                                                  | GitHub user/org namespaces available to provider completion and PR workflows.                                                                                                                                                                                            |
+| `default_linked_repos`                        | boolean        | `true`                                                             | Inject managed-project `--plans`, `--beads`, and hidden `--agents` sidecars.                                                                                                                                                                                             |
+| `repos.linked[].auto_clone`                   | boolean        | `false`                                                            | Materialize and prepare the repository automatically before each agent launch.                                                                                                                                                                                           |
+| `repos.linked[].name`                         | string         | required                                                           | Stable alias used in generated environment variable names and memory summaries.                                                                                                                                                                                          |
+| `repos.linked[].path`                         | string         | required                                                           | Primary checkout path. Relative paths resolve from the project's primary workspace.                                                                                                                                                                                      |
+| `repos.linked[].description`                  | string         | required                                                           | Human-readable purpose used when generating agent memory for the linked repository.                                                                                                                                                                                      |
+| `repos.linked[].revision_pin`                 | string         | -                                                                  | Pin file relative to the primary checkout root holding this repo's pushed SHA. The commit finalizer commits the pinned sibling first and writes its SHA into the pin file before the primary commit. The path must stay inside the checkout, including through symlinks. |
+| `repos.sidecar.builtin.<role>`                | object         | -                                                                  | Override for a reserved role; the key must be `plans`, `beads`, `agents`, or `attachments-private`.                                                                                                                                                                      |
+| `repos.sidecar.custom.<role>`                 | object         | -                                                                  | User-declared document sidecar; the key is the role and must not be a reserved one.                                                                                                                                                                                      |
+| `repos.sidecar.*.<role>.repo`                 | string         | derived                                                            | Optional bare slug or `owner/repo` pin.                                                                                                                                                                                                                                  |
+| `repos.sidecar.*.<role>.description`          | string         | -                                                                  | Purpose shown in inventory; required in generated instructions for lazy entries.                                                                                                                                                                                         |
+| `repos.sidecar.*.<role>.auto_clone`           | boolean        | `false`                                                            | Materialize before agent launch; intrinsically ignored for the hidden `agents` and `attachments-private` roles.                                                                                                                                                          |
+| `repos.sidecar.*.<role>.auto_sync`            | boolean        | `false`                                                            | Fetch/fast-forward the primary clone when clean; intrinsically ignored for the hidden `agents` and `attachments-private` roles.                                                                                                                                          |
+| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                                                           | Remote visibility; project-local `private` overrides the `agents` default. `attachments-private` is always `private`.                                                                                                                                                    |
+| `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                                                            | Disable the entry and suppress matching implicit sidecars, including `agents`.                                                                                                                                                                                           |
+| `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent                                            | Installed artifact-reference provider, qualified `<plugin>@<id>`, to use as the base policy.                                                                                                                                                                             |
+| `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)                                     | Prompt kind exposed as `@<kind>:<path>`.                                                                                                                                                                                                                                 |
+| `repos.sidecar.*.<role>.ref.icon`             | string         | role/provider dependent                                            | Artifacts tab mark shown beside the pane label.                                                                                                                                                                                                                          |
+| `repos.sidecar.*.<role>.ref.expansion_format` | string         | `the {repo_relative_path} file in the {sidecar_role} sidecar repo` | Provider expansion format; see [Expansion](artifact_references.md#expansion).                                                                                                                                                                                            |
+| `repos.sidecar.*.<role>.ref.properties`       | object         | `{}`                                                               | Typed metadata fields extracted by the provider.                                                                                                                                                                                                                         |
+| `repos.sidecar.*.<role>.ref.detail`           | object         | `{}`                                                               | Metadata fields shown by completion and detail surfaces.                                                                                                                                                                                                                 |
+| `repos.sidecar.*.<role>.ref.identity`         | object         | `{}`                                                               | Optional provider identity rule.                                                                                                                                                                                                                                         |
+| `repos.sidecar.*.<role>.ref.inventory.globs`  | list[string]   | `["**/*.md"]` for document sidecars                                | Repo-relative POSIX includes and `!` exclusions.                                                                                                                                                                                                                         |
+| `repos.sidecar.*.<role>.ref.publication`      | object         | VCS permalink / Markdown references                                | Publication link and reverse-reference policy.                                                                                                                                                                                                                           |
 
 Every enabled document sidecar exposes one compact `@<kind>:<path>` reference. Plans use
 the built-in `plan` provider, and `sase repo init` records `ref: {use: builtin@plan}`.
@@ -4050,7 +4078,9 @@ gate:
 
 Within the grace window, reclaim cancels an expired gate and settles its turn as a
 normal `timeout`; once the window has passed, a still-pending turn settles as `lost`
-instead. A missing, negative, or non-integer value falls back to `3600`.
+instead. A missing, negative, or non-integer value falls back to `3600`. While
+`legacy_sase_shell_syntax` is enabled, `gate.shell.reclaim_grace_seconds` is accepted as
+this same setting. Setting both keys is an error; use only `gate.turn`.
 
 Source: `src/sase/default_config.yml`, `src/sase/gate_turn/reclaim.py`
 
@@ -4973,24 +5003,41 @@ unknown keys at runtime.
 and keep a fallback path reachable until the flag is removed. The schema marks sunset
 flags deprecated. The currently registered flags are:
 
-| Flag                           | Kind    | Default | Controls                                                                                                                                                                 |
-| ------------------------------ | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ace_refresh_tokens`           | sunset  | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                                         |
-| `admin_center_flags`           | sunset  | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                                    |
-| `agent_decks`                  | retired | —       | The Agents tab always shows agent data decks and cards now; the beta flag is removed. See [Agent data decks and cards](ace.md#agent-data-decks-and-cards).               |
-| `agent_sudo_requests`          | beta    | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                      |
-| `agent_tabs`                   | retired | —       | The Agents tab always shows agent tabs with a tab strip, `[/]` tab cycling, and cross-tab navigation now; the beta flag is removed. See [Agent Tabs](ace.md#agent-tabs). |
-| `agents_unified_query`         | sunset  | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                               |
-| `axe_routine_job_contract`     | sunset  | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                                    |
-| `bgcmd_legacy_slots`           | sunset  | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                                           |
-| `monitor_continuation_records` | sunset  | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                  |
-| `muse_synchronous_shell`       | sunset  | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                            |
-| `provider_drain`               | beta    | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`).                                                          |
-| `queue_capacity_budget`        | sunset  | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                                                |
-| `ref_sync_gesture`             | sunset  | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                                |
-| `refresh_panel`                | sunset  | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                               |
-| `slim_agents_manifest`         | sunset  | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                      |
-| `typed_launch_units`           | beta    | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                                                   |
+| Flag                           | Kind   | Default | Controls                                                                                                                                                                                |
+| ------------------------------ | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ace_refresh_tokens`           | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                                                        |
+| `admin_center_flags`           | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                                                   |
+| `agent_sudo_requests`          | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                                     |
+| `agents_unified_query`         | sunset | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                                              |
+| `axe_routine_job_contract`     | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                                                   |
+| `bgcmd_legacy_slots`           | sunset | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                                                          |
+| `legacy_agent_family_syntax`   | sunset | `true`  | Retired agent-family spellings still alias agent-session spellings. Off rejects new uses; stored records still read. See [Agent sessions](agent_sessions.md#sequential-agent-sessions). |
+| `legacy_sase_shell_syntax`     | sunset | `true`  | Retired sase-shell spellings still alias sase-turn spellings. Off rejects new uses; stored records still read. See [Gate turns](notifications.md#gate-turns-and-continuation).          |
+| `monitor_continuation_records` | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                                 |
+| `muse_synchronous_shell`       | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                                           |
+| `provider_drain`               | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`).                                                                         |
+| `queue_capacity_budget`        | sunset | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                                                               |
+| `ref_sync_gesture`             | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                                               |
+| `refresh_panel`                | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                                              |
+| `slim_agents_manifest`         | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                                     |
+| `typed_launch_units`           | beta   | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                                                                  |
+
+`agent_decks` and `agent_tabs` are no longer registered. The Agents tab always shows
+[data decks and cards](ace.md#agent-data-decks-and-cards) and
+[agent tabs](ace.md#agent-tabs). A saved preference for a flag that is no longer
+registered is removed the next time an installing process reconciles
+`feature_flags.json`.
+
+`legacy_agent_family_syntax` accepts, while it stays on, `%id(..., family=...)` as
+`session=`, the agent queries `family:` and `kind:family` as `session:` and
+`kind:session`, `--next-fork family`, a gate `"fork": "family"`, and
+`SASE_AGENT_FAMILY_ATTACH`. `legacy_sase_shell_syntax` accepts
+`sase gate create --shell`, `--shell-status`, `--shell-stop-status`, and
+`--next-fork shell`; a gate spec's `"shell"` block, `"fork": "shell"`, and
+`"continuation_mode": "gate_shell"`; `sase proc list` / `sase proc run --shell`; and
+`gate.shell.reclaim_grace_seconds`. Combining a retired spelling with its replacement in
+one command or spec is an error either way. Write the session and turn spellings in new
+prompts and config.
 
 Run `sase flag list` for the live registry with effective and saved state.
 
