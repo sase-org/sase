@@ -23,7 +23,7 @@ PUBLIC_BADGE = "🌐"
 PRIVATE_BADGE = "🔒"
 
 
-def audience_badge(visibility: str | None) -> str:
+def _audience_badge(visibility: str | None) -> str:
     """Return ``🌐`` for explicit public, else ``🔒`` (private or absent)."""
     return PUBLIC_BADGE if visibility == "public" else PRIVATE_BADGE
 
@@ -118,7 +118,7 @@ def attachment_descriptor(
     if dims is not None:
         parts.append(dims)
     parts.extend([size, f"sha256:{sha256[:12]}"])
-    return f"{audience_badge(visibility)} " + " \u00b7 ".join(parts)
+    return f"{_audience_badge(visibility)} " + " \u00b7 ".join(parts)
 
 
 def attachment_availability(
@@ -397,7 +397,6 @@ __all__ = [
     "attachment_page_line",
     "attachment_status_lines",
     "attachment_view_path",
-    "audience_badge",
     "compact_attachment_suffix",
     "dispatch_fetch_hint",
     "extract_attachment_tokens",

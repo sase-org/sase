@@ -56,7 +56,7 @@ def _current_scanner_rules_version() -> int:
     try:
         from sase.bead.attachments import audience as _audience
 
-        return int(_audience._scanner_rules_version())
+        return int(_audience.scanner_rules_version())
     except Exception:
         return 1
 
@@ -102,7 +102,7 @@ def _public_note_targets(
     return targets
 
 
-def find_stale_scanner_hits(
+def _find_stale_scanner_hits(
     issues: list[Any] | None = None,
 ) -> list[str]:
     """Rescan cached public objects recorded under older scanner rules.
@@ -183,7 +183,7 @@ def find_stale_scanner_hits(
     return findings
 
 
-def _store_growth_lines() -> list[str]:
+def store_growth_lines() -> list[str]:
     """Report logical and physical bytes per reachable shared store."""
     try:
         from sase.bead.attachments.upload import discover_stores
@@ -449,7 +449,7 @@ def inspect_attachment_health() -> _AttachmentHealthReport:
     if report.orphans:
         report.healthy = False
     try:
-        report.rescan_hits = find_stale_scanner_hits(all_issues)
+        report.rescan_hits = _find_stale_scanner_hits(all_issues)
     except Exception as exc:
         log.debug("attachment doctor rescan skipped: %s", exc)
         report.rescan_hits = []
@@ -457,7 +457,7 @@ def inspect_attachment_health() -> _AttachmentHealthReport:
         report.healthy = False
         report.has_attachments = True
     try:
-        report.store_growth = _store_growth_lines()
+        report.store_growth = store_growth_lines()
     except Exception as exc:
         log.debug("attachment doctor growth scan skipped: %s", exc)
         report.store_growth = []
@@ -584,7 +584,6 @@ def repair_attachment_health(report: _AttachmentHealthReport) -> list[str]:
 
 __all__ = [
     "_AttachmentHealthReport",
-    "find_stale_scanner_hits",
     "inspect_attachment_health",
     "_manifest_mismatches",
     "preview_attachment_repairs",

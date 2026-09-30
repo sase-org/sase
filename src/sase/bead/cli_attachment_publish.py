@@ -33,7 +33,7 @@ _NON_WIDENABLE_METADATA_RULES = ("sensitive_path",)
 _WITHDRAW_COMMIT_PREFIX = "chore(attachments): withdraw"
 
 
-def is_gate_option_command(env: dict[str, str] | None = None) -> bool:
+def _is_gate_option_command(env: dict[str, str] | None = None) -> bool:
     """Return whether this process runs as an approved gate option command.
 
     Owned gate commands (see ``sase.notification_gates.command_runner``)
@@ -191,7 +191,7 @@ def handle_bead_attachment_publish(args: argparse.Namespace) -> None:
         print("Error: attachment name cannot be empty.", file=sys.stderr)
         sys.exit(1)
     actor = current_actor()
-    if actor == "agent" and not is_gate_option_command():
+    if actor == "agent" and not _is_gate_option_command():
         print(
             "Error: sase bead attachment publish is human-only; agents cannot "
             "widen an attachment audience. Offer it to the user with /sase_gate.",
@@ -490,5 +490,4 @@ __all__ = [
     "current_actor",
     "handle_bead_attachment_publish",
     "handle_bead_attachment_unpublish",
-    "is_gate_option_command",
 ]

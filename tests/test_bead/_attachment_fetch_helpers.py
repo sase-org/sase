@@ -111,7 +111,9 @@ def note_with_file(
     project_dir: Path, work_dir: Path, issue_id: str, filename: str, data: bytes
 ) -> str:
     (work_dir / filename).write_bytes(data)
-    out, err, code = run_cli(["note", issue_id, f"see @./{filename}"])
+    # -K pins the private audience: these tests exercise the private store,
+    # while a clean workspace file would otherwise resolve public.
+    out, err, code = run_cli(["note", issue_id, "-K", f"see @./{filename}"])
     assert code == 0, err
     with BeadProject(project_dir) as project:
         note = project.show(issue_id).notes[-1]

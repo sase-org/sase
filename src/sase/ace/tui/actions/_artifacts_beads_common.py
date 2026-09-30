@@ -37,7 +37,7 @@ class _NoteUploadPlan:
         self.require_upload = require_upload
 
 
-def plan_note_attachment_upload(
+def _plan_note_attachment_upload(
     wires: list[dict[str, Any]],
     echo_rows: list[str] | None,
     *,
@@ -71,7 +71,7 @@ def plan_note_attachment_upload(
     )
 
 
-def queue_note_attachment_upload(
+def _queue_note_attachment_upload(
     store_mutation: Any,
     wires: list[dict[str, Any]],
     echo_rows: list[str] | None,
@@ -79,7 +79,7 @@ def queue_note_attachment_upload(
 ) -> None:
     """Register the post-write half of the upload protocol for a TUI note.
 
-    A no-op unless :func:`plan_note_attachment_upload` chose a queueable
+    A no-op unless :func:`_plan_note_attachment_upload` chose a queueable
     placement. The bead store's own ``run_pending_uploads`` hook drains or
     queues the registered rows after commit, exactly as for CLI writes.
     """
@@ -160,13 +160,13 @@ class ArtifactsBeadsCommonMixin:
                 auto_commit_bead_store, cwd=Path(workspace)
             ) as store_mutation:
                 queued_wires = list(attachment_wires or [])
-                queue_state = plan_note_attachment_upload(
+                queue_state = _plan_note_attachment_upload(
                     queued_wires,
                     attachment_echo_rows,
                     project_key=row.project,
                 )
                 payload = mutation(store_mutation.project)
-                queue_note_attachment_upload(
+                _queue_note_attachment_upload(
                     store_mutation,
                     queued_wires,
                     attachment_echo_rows,

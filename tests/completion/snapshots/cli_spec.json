@@ -7523,7 +7523,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "e7d529535308de9c",
+            "description_digest": "8c59e512c7a9943d",
             "hidden": false,
             "mutex_groups": [],
             "name": "+1",
@@ -7800,7 +7800,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "8e52257bce063811",
+            "description_digest": "e6c6a874a75107a6",
             "hidden": false,
             "mutex_groups": [],
             "name": "attach",
@@ -8566,7 +8566,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "0abe05f18d07cce2",
+            "description_digest": "8695eae1c5749f80",
             "hidden": false,
             "mutex_groups": [],
             "name": "close",
@@ -10081,7 +10081,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "f071327d3b6b769e",
+            "description_digest": "f9b06f6f3cad2df5",
             "hidden": false,
             "mutex_groups": [
               [
@@ -12016,7 +12016,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "e29c4590ca78839a",
+            "description_digest": "53ed8df65f813318",
             "hidden": false,
             "mutex_groups": [
               [

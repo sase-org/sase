@@ -290,7 +290,7 @@ def scan_cas_object(
         return None
 
 
-def _scanner_rules_version() -> int:
+def scanner_rules_version() -> int:
     """Return the core scanner rules version, or 1 when unavailable."""
     try:
         from sase.core.rust import require_rust_binding
@@ -324,7 +324,7 @@ def write_audience_metadata(
             "rule": rule,
             "reason": reason,
             "explicit": explicit,
-            "scanner_rules_version": _scanner_rules_version(),
+            "scanner_rules_version": scanner_rules_version(),
             "decided_at": datetime.now(UTC).isoformat(),
         }
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

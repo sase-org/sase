@@ -11,8 +11,8 @@ from typing import Any
 
 from sase.ace.tui.actions._artifacts_beads_common import (
     _NoteUploadPlan,
-    plan_note_attachment_upload,
-    queue_note_attachment_upload,
+    _plan_note_attachment_upload,
+    _queue_note_attachment_upload,
 )
 
 
@@ -38,10 +38,10 @@ def test_empty_wires_plan_skips_and_queues_nothing(
         "sase.bead.attachments.upload.post_write_queue",
         lambda *args, **kwargs: calls.append("post"),
     )
-    plan = plan_note_attachment_upload([], ["attached log.txt"], project_key="sase")
+    plan = _plan_note_attachment_upload([], ["attached log.txt"], project_key="sase")
     assert plan.placement == "skip"
-    queue_note_attachment_upload(object(), [], ["attached log.txt"], plan)
-    queue_note_attachment_upload(object(), [_wire()], None, plan)
+    _queue_note_attachment_upload(object(), [], ["attached log.txt"], plan)
+    _queue_note_attachment_upload(object(), [_wire()], None, plan)
     assert calls == []
 
 
@@ -63,7 +63,7 @@ def test_plan_carries_project_key_to_pre_write(
 
     monkeypatch.setattr("sase.bead.attachments.upload.pre_write_upload", fake_pre)
     echo = ["attached log.txt"]
-    plan = plan_note_attachment_upload([_wire()], echo, project_key="sase")
+    plan = _plan_note_attachment_upload([_wire()], echo, project_key="sase")
     assert plan.placement == "public"
     assert plan.project_key == "sase"
     assert seen == {"project_key": "sase", "local_only": False}
@@ -84,7 +84,7 @@ def test_queueable_placements_register_post_write(
         echo = ["attached log.txt"]
         wires = [_wire()]
         mutation = object()
-        queue_note_attachment_upload(
+        _queue_note_attachment_upload(
             mutation,
             wires,
             echo,
@@ -112,7 +112,7 @@ def test_non_queueable_placements_skip_post_write(
         lambda *args, **kwargs: calls.append("post"),
     )
     for placement in ("skip", "local_only", "no_store", "uploaded"):
-        queue_note_attachment_upload(
+        _queue_note_attachment_upload(
             object(),
             [_wire()],
             ["attached log.txt"],

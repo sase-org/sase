@@ -28,8 +28,8 @@ def test_gate_marker_allows_agent_publish_past_human_check(
 ) -> None:
     from sase.bead import cli_attachment_publish as _publish
 
-    assert _publish.is_gate_option_command({"SASE_GATE_COMMAND": "1"}) is True
-    assert _publish.is_gate_option_command({}) is False
+    assert _publish._is_gate_option_command({"SASE_GATE_COMMAND": "1"}) is True
+    assert _publish._is_gate_option_command({}) is False
     # An agent run without the marker is refused before any bead work.
     monkeypatch.setenv("SASE_AGENT_NAME", "test.agent")
     monkeypatch.delenv("SASE_GATE_COMMAND", raising=False)
@@ -281,7 +281,7 @@ def test_stale_rules_rescan_reports_unpublish_command(
             "hit": {"kind": "credential_pattern", "rule_id": "test-rule", "line": 1},
         },
     )
-    hits = _doctor.find_stale_scanner_hits([issue_obj])
+    hits = _doctor._find_stale_scanner_hits([issue_obj])
     assert len(hits) == 1
     assert hits[0].startswith("rotate the credential first")
     assert f"sase bead attachment unpublish {bead_id} note.bin" in hits[0]
@@ -299,7 +299,7 @@ def test_stale_rules_rescan_reports_unpublish_command(
         + "\n",
         encoding="utf-8",
     )
-    assert _doctor.find_stale_scanner_hits([issue_obj]) == []
+    assert _doctor._find_stale_scanner_hits([issue_obj]) == []
 
 
 def test_publish_confirmation_needs_tty_or_yes() -> None:

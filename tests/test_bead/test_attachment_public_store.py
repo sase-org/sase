@@ -490,16 +490,47 @@ def test_ensure_discovered_copies_stores(tmp_path: Path) -> None:
 def test_disabled_role_hidden_even_with_clone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, remote: Path
 ) -> None:
+    from types import SimpleNamespace
+
     home = _use_home(monkeypatch, tmp_path, "sase-home-a")
     _plant_clone(home, remote, "attachments")
     _clear_fetch_cache()
+    context = SimpleNamespace(project_key="test-project")
+    from sase.bead.attachments.upload import discover_public_store
+
+    monkeypatch.setattr(
+        "sase.bead.attachments.upload.discovery._sidecar_entry_for_role",
+        lambda role: {"role": role},
+    )
+    assert discover_public_store(context) is not None
     monkeypatch.setattr(
         "sase.bead.attachments.upload.discovery._sidecar_entry_for_role",
         lambda role: {"role": role, "disabled": True},
     )
-    from sase.bead.attachments.upload import discover_public_store
+    assert discover_public_store(context) is None
 
-    assert discover_public_store(None) is None
+
+def test_disabled_private_role_hidden_even_with_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, private_remote: Path
+) -> None:
+    """A disabled attachments-private role never uploads through its clone."""
+    from types import SimpleNamespace
+
+    from sase.bead.attachments.upload import discover_shared_store
+
+    home = _use_home(monkeypatch, tmp_path, "sase-home-a")
+    _plant_clone(home, private_remote, "attachments-private")
+    context = SimpleNamespace(project_key="test-project")
+    monkeypatch.setattr(
+        "sase.bead.attachments.upload.discovery._sidecar_entry_for_role",
+        lambda role: {"role": role},
+    )
+    assert discover_shared_store(context) is not None
+    monkeypatch.setattr(
+        "sase.bead.attachments.upload.discovery._sidecar_entry_for_role",
+        lambda role: {"role": role, "disabled": True},
+    )
+    assert discover_shared_store(context) is None
 
 
 def test_secret_scan_rejection_blocks_and_narrows(

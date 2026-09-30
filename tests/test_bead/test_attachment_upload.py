@@ -133,7 +133,8 @@ def test_oversize_fails_without_local_only(
     issue_id = _create_plan(project_dir)
     monkeypatch.setattr("sase.bead.config.get_attachment_git_max_bytes", lambda: 10)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
-    _out, err, code = _run(["note", issue_id, "see @./big.bin"])
+    # -K pins the private tiers; a public decision would cap at public_max_bytes.
+    _out, err, code = _run(["note", issue_id, "-K", "see @./big.bin"])
     assert code != 0
     assert "-L" in err
     assert list(_show(project_dir, issue_id).notes) == []

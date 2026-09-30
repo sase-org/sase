@@ -382,6 +382,7 @@ def test_configured_sidecar_specs_suppress_disabled_agents(
         "plans",
         "research",
         "beads",
+        "attachments",
         "attachments-private",
     }
 

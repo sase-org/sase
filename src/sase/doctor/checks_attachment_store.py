@@ -304,9 +304,9 @@ def _push_access_error(clone: object, branch: str) -> str | None:
 def _store_growth_details() -> list[str]:
     """Return logical/physical byte lines per reachable shared store."""
     try:
-        from sase.bead.attachment_doctor import _store_growth_lines
+        from sase.bead.attachment_doctor import store_growth_lines
 
-        return list(_store_growth_lines())
+        return list(store_growth_lines())
     except Exception:
         return []
 
