@@ -42,6 +42,7 @@ def test_tool_help_advertises_implemented_verbs() -> None:
 
     assert list(subcommands.choices) == [
         "_adopt",
+        "_join",
         "_triage-stage",
         "failures",
         "list",
@@ -59,6 +60,7 @@ def test_tool_help_advertises_implemented_verbs() -> None:
     )
     assert "_adopt" not in usage_line
     assert "_triage-stage" not in usage_line
+    assert "_join" not in usage_line
     assert "-j, --json" in flat_help(subcommands.choices["list"].format_help())
 
 
@@ -67,6 +69,13 @@ def test_tool_adopt_is_hidden_but_reachable() -> None:
     args = create_parser().parse_args(["tool", "_adopt", "abc123"])
     assert args.tool_subcommand == "_adopt"
     assert args.adopt_run_id == "abc123"
+
+
+def test_tool_join_is_hidden_but_reachable() -> None:
+    """``_join`` parses even though it is suppressed from help."""
+    args = create_parser().parse_args(["tool", "_join", "abc123"])
+    assert args.tool_subcommand == "_join"
+    assert args.join_run_id == "abc123"
 
 
 def test_tool_triage_stage_is_hidden_but_reachable() -> None:

@@ -89,6 +89,7 @@ GROUPS: tuple[Group, ...] = (
     (("dod-17-detach-refusals",), detach.detach_refusals),
     (("dod-17-detach-starter-death",), detach.detach_starter_death),
     (("dod-17-inline-escalation",), detach.inline_escalation),
+    (("dod-17-detach-join",), detach.detach_join),
     (("dod-14-live-handoff-stop",), handoff.live_stop),
     (("dod-14-live-handoff-viewers",), handoff.live_viewers),
     (("dod-14-live-handoff-crash",), handoff.live_crash),

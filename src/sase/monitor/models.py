@@ -137,6 +137,7 @@ class MonitorRecord:
     host_completion_message: str | None = None
     host_completion_reason: str | None = None
     tool_run_id: str | None = None
+    tool_run_joined: bool = False
 
     @property
     def status_bucket(self) -> str:
@@ -297,6 +298,9 @@ class MonitorRecord:
             host_completion_reason=host_completion_reason,
             tool_run_id=(
                 meta_monitor.tool_run_id if meta_monitor is not None else None
+            ),
+            tool_run_joined=bool(
+                meta_monitor is not None and meta_monitor.tool_run_joined
             ),
         )
 

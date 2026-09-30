@@ -319,6 +319,17 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         help=argparse.SUPPRESS,
     )
 
+    join_parser = tool_subparsers.add_parser(
+        "_join",
+        help=argparse.SUPPRESS,
+        description="Follow a detached ToolRun into a monitor log (internal).",
+    )
+    join_parser.add_argument(
+        "join_run_id",
+        metavar="RUN",
+        help=argparse.SUPPRESS,
+    )
+
     triage_stage_parser = tool_subparsers.add_parser(
         "_triage-stage",
         help=argparse.SUPPRESS,

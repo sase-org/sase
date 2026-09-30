@@ -59,6 +59,9 @@ def test_monitor_start_help_documents_positional_command_and_optional_policy() -
     assert "(default: 1h)" in start_help
     assert "(default: 'run command')" in start_help
     assert "sase monitor start -p verify -- just check-full" in start_help
+    assert_metavar_option_documented(start_help, "-J", "--join", "RUN")
+    assert "cannot be used with a command" in start_help
+    assert "sase monitor start -J 0f1a2b3c" in start_help
     assert_metavar_option_documented(start_help, "-f", "--completion", "REF")
     assert_metavar_option_documented(start_help, "-o", "--next-output", "MODE")
     assert_metavar_option_documented(start_help, "-p", "--profile", "NAME")
@@ -194,6 +197,7 @@ def test_monitor_short_options_have_the_documented_long_aliases() -> None:
         ("-f", "--completion"),
         ("-C", "--cwd"),
         ("-i", "--idle-timeout"),
+        ("-J", "--join"),
         ("-L", "--label"),
         ("-m", "--model"),
         ("-n", "--next"),

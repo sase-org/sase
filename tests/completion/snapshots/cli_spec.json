@@ -23025,7 +23025,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "1d531583ff900da0",
+            "description_digest": "f588f6ad09d658e2",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -23140,6 +23140,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": "duration"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "join",
+                "hidden": false,
+                "kind": null,
+                "metavar": "RUN",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-J",
+                  "--join"
+                ],
+                "takes_value": true,
+                "value_hint": null
               },
               {
                 "choices": null,

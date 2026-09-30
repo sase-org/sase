@@ -274,6 +274,20 @@ def _route_owner_stop(run: dict[str, Any]) -> int | None:
     """Stop through the run's owner. Returns an exit code, or None to report."""
 
     run_id = str(run.get("run_id") or "")
+    join = run.get("join")
+    if (
+        isinstance(join, dict)
+        and str(join.get("kind") or "") == "monitor"
+        and str(join.get("id") or "")
+    ):
+        from sase.tool.detach_cleanup import joined_monitor_active
+
+        if joined_monitor_active(run) is not None:
+            # A run joined by an active monitor stops through the monitor:
+            # the follow-up is suppressed and the join worker stops the run
+            # through its proc owner. A terminal joining monitor falls
+            # through to the existing proc-owner path below.
+            return _stop_monitor_owner(run_id, str(join.get("id")))
     owner_kind = str(run.get("owner_kind") or "")
     owner_id = str(run.get("owner_id") or "")
     parent_id = str(run.get("parent_run_id") or "")

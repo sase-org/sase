@@ -25,6 +25,7 @@ from sase.monitor import (
     start_monitor,
     will_handoff_monitor_to_agent_runner,
 )
+from sase.monitor.join import JoinRefusal, JoinTarget
 from sase.monitor.outcome_policy import load_outcome_policy_file
 from sase.monitor.profiles import resolve_monitor_profile
 from sase.monitor.start import (
@@ -56,16 +57,33 @@ _MODEL_WITHOUT_NEXT = (
 
 def handle_monitor_start(args: argparse.Namespace) -> int:
     """Start a command as a monitor agent-session member."""
-    command = start_command(args)
-    if not command:
-        print(
-            "sase monitor start: command is required "
-            "(pass `-- COMMAND` or the hidden `-c/--command` alias)",
-            file=sys.stderr,
-        )
-        return 2
+    from sase.monitor.join import default_join_label, default_join_reason
+
+    join_run = optional_text(getattr(args, "join", None))
+    join_target: JoinTarget | None = None
+    if join_run:
+        validated = _validate_join_start(args, join_run)
+        if isinstance(validated, JoinRefusal):
+            print(validated.message, file=sys.stderr)
+            return validated.exit_code
+        join_target = validated
+        command = join_target.command
+    else:
+        command = start_command(args)
+        if not command:
+            print(
+                "sase monitor start: command is required "
+                "(pass `-- COMMAND` or the hidden `-c/--command` alias)",
+                file=sys.stderr,
+            )
+            return 2
     _warn_on_redundant_shell_wrapper(command)
-    reason = (getattr(args, "reason", None) or DEFAULT_REASON).strip()
+    default_reason = (
+        default_join_reason(join_target.run)
+        if join_target is not None
+        else DEFAULT_REASON
+    )
+    reason = (getattr(args, "reason", None) or default_reason).strip()
     if not reason:
         print("sase monitor start: -r/--reason must not be empty", file=sys.stderr)
         return 2
@@ -196,6 +214,9 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         )
         return 2
 
+    default_label_text = (
+        default_join_label(join_target.run) if join_target is not None else None
+    )
     request = StartMonitorRequest(
         command=command,
         reason=reason,
@@ -203,7 +224,8 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         cwd=str(cwd),
         project_name=project_name,
         lane=explicit_agent,
-        label=getattr(args, "label", None),
+        label=getattr(args, "label", None) or default_label_text,
+        join_run_id=join_target.run_id if join_target is not None else None,
         next_action=next_action,
         next_model=next_model,
         start_status=start_status,
@@ -241,7 +263,8 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         print(f"Started monitor {short_id} ({record.monitor_id})")
         print(f"  member: {record.member_agent_name}")
         if record.tool_run_id:
-            print(f"  tool run: {record.tool_run_id}")
+            joined_mark = " (joined)" if record.tool_run_joined else ""
+            print(f"  tool run: {record.tool_run_id}{joined_mark}")
         print(f"  timeout: {timeout_label}")
         if idle_timeout_label is not None:
             print(f"  idle timeout: {idle_timeout_label}")
@@ -259,6 +282,72 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
         raise
     return 0
+
+
+def _validate_join_start(
+    args: argparse.Namespace, run_id: str
+) -> JoinTarget | JoinRefusal:
+    """Validate a ``-J/--join RUN`` start before any slow work.
+
+    Refusals print nothing here; the caller prints the message and returns
+    the refusal's exit code. Option conflicts and shape problems exit
+    ``2``; settled, stopped, and joined-elsewhere races exit ``1``.
+    """
+
+    from sase.monitor.join import inspect_join_target, join_caller_agent
+
+    caller = join_caller_agent()
+    if caller is None:
+        return JoinRefusal(
+            exit_code=2,
+            message=(
+                "sase monitor start -J is only available inside an agent "
+                "(SASE_AGENT/SASE_AGENT_NAME is not set)"
+            ),
+        )
+    if optional_text(getattr(args, "monitor_command", None)):
+        return JoinRefusal(
+            exit_code=2,
+            message=(
+                "sase monitor start -J cannot be used with -c/--command; "
+                "the joined run already defines the command"
+            ),
+        )
+    if start_command(args):
+        return JoinRefusal(
+            exit_code=2,
+            message=(
+                "sase monitor start -J cannot be used with a command remainder; "
+                "the joined run already defines the command"
+            ),
+        )
+    if optional_text(getattr(args, "completion", None)):
+        return JoinRefusal(
+            exit_code=2,
+            message=(
+                "sase monitor start -J cannot be used with -f/--completion; "
+                "pass -n/--next to request a follow-up instead"
+            ),
+        )
+    if optional_text(getattr(args, "agent", None)):
+        return JoinRefusal(
+            exit_code=2,
+            message=(
+                "sase monitor start -J cannot be used with -a/--agent; "
+                "the join runs on the calling agent's lane"
+            ),
+        )
+    from sase.tool.detach import escalation_enabled
+
+    if not escalation_enabled():
+        return JoinRefusal(
+            exit_code=2,
+            message=(
+                "sase monitor start -J is not enabled "
+                "(tool_run_escalation beta flag is off)"
+            ),
+        )
+    return inspect_join_target(run_id, caller)
 
 
 def _warn_on_redundant_shell_wrapper(command: str) -> None:

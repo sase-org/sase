@@ -228,6 +228,7 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "host_completion_message": record.host_completion_message,
         "host_completion_reason": record.host_completion_reason,
         "tool_run_id": record.tool_run_id,
+        "tool_run_joined": record.tool_run_joined,
         "result": _result_object(record),
         "evidence": _evidence_object(record),
         "continuation": _continuation_object(record),
@@ -436,10 +437,14 @@ def monitor_detail(record: MonitorRecord) -> Panel:
     if record.completion_ref:
         rows.append(("Completion", Text(record.completion_ref)))
     if record.tool_run_id:
+        joined_mark = " (joined)" if record.tool_run_joined else ""
         rows.append(
             (
                 "Tool run",
-                Text(f"{record.tool_run_id}  (sase tool show {record.tool_run_id})"),
+                Text(
+                    f"{record.tool_run_id}{joined_mark}  "
+                    f"(sase tool show {record.tool_run_id})"
+                ),
             )
         )
     if record.host_completion_status:

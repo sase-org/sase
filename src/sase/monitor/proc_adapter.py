@@ -275,7 +275,12 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
     transfer_from_pid = _transfer_pid(state)
 
     tool_run_id = meta.get("monitor_tool_run_id")
-    if isinstance(tool_run_id, str) and tool_run_id:
+    # A joined run is owned by its executing detached proc, never by this
+    # monitor: settling it as monitor-owned would steal the owner's
+    # reconcile. The join worker and the starter watchdog converge on its
+    # settlement instead.
+    joined = meta.get("monitor_tool_run_joined") is True
+    if isinstance(tool_run_id, str) and tool_run_id and not joined:
         # Reconcile before the follow-up decision so a resumed settlement
         # also settles a hand-off run whose worker died. Never notifies and
         # never touches the continuation.

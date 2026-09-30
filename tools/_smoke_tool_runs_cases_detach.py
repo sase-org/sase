@@ -251,6 +251,52 @@ def inline_escalation(h: Harness) -> dict[str, Any]:
             pass
 
 
+def detach_join(h: Harness) -> dict[str, Any]:
+    """Joining a detached run streams it and settles with the run's exit."""
+
+    env = h.world("detach-join")
+    agent_env, sleeper = _agent_env(h, env, "smoke-agent")
+    try:
+        proc = h.run(
+            ["tool", "run", "-d", "--", "sh", "-c", "echo join-smoke; exit 3"],
+            env=agent_env,
+        )
+        run_id = _run_id_from_ack(proc.stdout)
+        join_env = dict(
+            env,
+            SASE_MONITOR_ID="mon-smoke-join",
+            SASE_FEATURE_FLAGS='{"tool_run_escalation":true}',
+        )
+        joined = h.run(["tool", "_join", run_id], env=join_env, cwd=h.tmp, timeout=60.0)
+        final = _terminal(h, env, run_id) if run_id else {}
+        h.note(run_id, "detached run joined and settled with its own exit")
+        ok = (
+            proc.returncode == 0
+            and bool(run_id)
+            and joined.returncode == 3
+            and "join-smoke" in joined.stdout
+            and "failed/3" in joined.stderr
+            and final.get("state") == "failed"
+            and final.get("exit_code") == 3
+            and (final.get("join") or {}).get("id") == "mon-smoke-join"
+        )
+        return case(
+            "dod-17-detach-join",
+            ok,
+            dod=["DoD-17"],
+            run_ids=[run_id],
+            join_exit=joined.returncode,
+            final_state=final.get("state"),
+            final_exit=final.get("exit_code"),
+            join_id=(final.get("join") or {}).get("id"),
+        )
+    finally:
+        try:
+            sleeper.kill()
+        except OSError:
+            pass
+
+
 def detach_starter_death(h: Harness) -> dict[str, Any]:
     """Killing the starter stops the unjoined run with the exact reason."""
 

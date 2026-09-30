@@ -49,6 +49,10 @@ def handle_tool_command(args: argparse.Namespace) -> None:
         from sase.tool.adopt import execute_adopted_run
 
         sys.exit(execute_adopted_run(str(getattr(args, "adopt_run_id", "") or "")))
+    if subcommand == "_join":
+        from sase.tool.join_worker import execute_join_run
+
+        sys.exit(execute_join_run(str(getattr(args, "join_run_id", "") or "")))
     if subcommand == "_triage-stage":
         from sase.tool.triage_stage import execute_triage_stage
 

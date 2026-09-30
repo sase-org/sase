@@ -154,10 +154,39 @@ behind. A claim left by the same agent whose process has died is taken over inst
 Only one monitor may be running per agent at a time. Repeating the same full request
 returns the existing running record; changing the command, cwd, reason, label, timeout,
 idle timeout, next action, model, status labels, tail lines, profile, checkpoint,
-policy, completion intent, or output policy is rejected until the active monitor
-settles. A `lost` monitor is never implicitly replayed: repeating the identical request
-is refused with a pointer to `sase monitor show`, while a different request may start a
-new monitor.
+policy, completion intent, output policy, or joined run is rejected until the active
+monitor settles. A `lost` monitor is never implicitly replayed: repeating the identical
+request is refused with a pointer to `sase monitor show`, while a different request may
+start a new monitor.
+
+### Joining a detached ToolRun
+
+(Behind the `tool_run_escalation` beta flag, agents only.)
+`sase monitor start -J/--join RUN` adopts an existing starter-scoped detached ToolRun —
+the kind `sase tool run -d` starts — instead of starting a command. The run keeps one id
+end to end, and its executing proc stays the owner; the monitor only follows it:
+
+```bash
+sase monitor start -J 0f1a2b3c -p verify -n 'finish check'
+```
+
+The display command replays the original `sase tool run` words (ad-hoc argv included),
+the default label is `tool:<name> (joined)`, and the default reason is
+`finish <tool> (joined run)`. `-J` cannot be combined with a command remainder, `-c`,
+`-f` (pass `-n` for a follow-up instead), or `-a`: the join always runs on the calling
+agent's lane. The caller must be the agent that started the run; anything else — outside
+an agent, a run with no starter scope, or another agent's run — is refused with exit
+`2`. A run that already settled, has a stop request, or is joined elsewhere is refused
+with exit `1`, showing the state and a `sase tool show RUN` pointer. No monitor starts
+on any refusal.
+
+The join records atomically after the monitor member exists and before its proc submits;
+a refused or failed start tears the member down (releasing the join) and runs nothing.
+The monitor proc follows the run into the monitor log without a deadline, then renders a
+compact summary with the triage footer and exits with the run's mapped code. `stop`,
+timeout, and a lost joiner converge through the detached-run watchdog with the
+`stop_requested` reason preserved, and `sase tool stop RUN` on a joined run stops the
+active joining monitor (suppressing its follow-up) rather than the run's proc.
 
 ### Tool-run wrapping
 

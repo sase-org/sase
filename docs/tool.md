@@ -399,6 +399,34 @@ form — never a join command that would be refused. `wait -j` adds an `escalati
 `schema_version` stays 1. Humans are never bounded, and with the flag off both commands
 keep today's unbounded behaviour.
 
+### Monitor joins
+
+(Behind the `tool_run_escalation` beta flag, agents only.)
+`sase monitor start -J/--join RUN` hands an existing detached run to a monitor under the
+same ToolRun id — the join form the escalation block prints. The joining caller must be
+the agent that started the run, and `-J` refuses a command remainder, `-c`, `-f` (use
+`-n` for a follow-up), and `-a` with exit `2`, as do a caller outside an agent, a run
+with no starter scope, and another agent's run. Settled, stop-requested, and
+joined-elsewhere races exit `1` with the state and a `sase tool show` pointer. With the
+flag off `-J` is refused as not enabled.
+
+The join is recorded atomically after the monitor member exists and before its proc
+submits (a refusal tears the member down; a submit failure releases the join), and no
+wrapper resolution or new ToolRun reservation happens for joins. The monitor proc runs
+the hidden `sase tool _join RUN` worker: it reasserts the join as an idempotent replay,
+streams the run's output and stage lines into the monitor log without a deadline, then
+renders a compact summary with the existing triage footer and mirrors the run's mapped
+exit code (recorded code, `128+signal`, `143` for a requested stop with no code, else
+`1`). On SIGTERM/SIGINT it requests a stop through the proc owner with a reason naming
+the joining monitor (naming the timeout when the monitor's termination intent says
+timeout), waits at most 15 seconds, and exits `143`/`130`. The joined run is never
+settled as monitor-owned: its executing proc stays the owner, and `sase monitor show`
+renders the scope and join as before. `sase tool stop` on a run joined by an active
+monitor stops that monitor — suppressing its follow-up while the join worker stops the
+run; with a terminal joining monitor the existing proc-owner path applies. Monitor stop,
+timeout, and a lost joiner converge with the detached-run watchdog, preserving the
+`stop_requested` settlement reason.
+
 Recording failures behave differently by leg. Explicit `-H` is **fail-closed**: if the
 reservation cannot be committed, nothing starts (exit `1`, "nothing was started").
 Foreground `sase tool run` stays **fail-open** as above. A monitor start's reservation

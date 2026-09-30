@@ -65,6 +65,7 @@ class StartMonitorRequest:
     parent_node_ids: tuple[str, ...] = ()
     starter_run_id: str | None = None
     queue_weight_override: float | None = None
+    join_run_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -98,6 +99,7 @@ def monitor_request_fingerprint(
         "completion_ref": request.completion_ref or None,
         "cwd": request.cwd,
         "idle_timeout_seconds": request.idle_timeout_seconds,
+        "join_run_id": request.join_run_id or None,
         "inherit_lane_workspace_claim": request.inherit_lane_workspace_claim,
         "label": label,
         "lane": lane,

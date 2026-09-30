@@ -157,6 +157,122 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         return _start_monitor_locked(request, identity, timer)
 
 
+def _record_monitor_join(
+    run_id: str,
+    monitor_id: str,
+    *,
+    artifacts_dir: str,
+    bound_completion_ref: str | None,
+) -> None:
+    """Record the Rust join for a ``-J/--join`` start, or tear down and raise.
+
+    Runs inside the lane start lock, after the member exists and before the
+    proc submits, so the join and the member appear atomically. A refusal
+    rolls the member back (plus any bound prepared completion) and raises
+    :class:`MonitorError` with the run's state and a ``sase tool show``
+    pointer; the handler maps it to exit ``1`` with no monitor started.
+    """
+
+    from sase.core.tool_run import tool_run_join
+
+    from .join import show_pointer
+
+    caller = (os.environ.get("SASE_AGENT_NAME") or "").strip()
+    join_request: dict[str, Any] = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "joiner_kind": "monitor",
+        "joiner_id": monitor_id,
+        "requested_by": caller or "sase",
+    }
+    if caller:
+        join_request["agent"] = caller
+    try:
+        result = tool_run_join(join_request)
+    except Exception as exc:  # noqa: BLE001 - a failed join starts no monitor.
+        _teardown_refused_join(
+            artifacts_dir, bound_completion_ref, monitor_id, str(exc)
+        )
+        raise MonitorError(
+            f"could not join tool run {run_id} ({exc}); "
+            f"no monitor started ({show_pointer(run_id)})"
+        ) from exc
+    if not isinstance(result, dict) or result.get("outcome") != "joined":
+        refusal = (
+            str(result.get("refusal") or "refused")
+            if isinstance(result, dict)
+            else "refused"
+        )
+        run = result.get("run") if isinstance(result, dict) else None
+        message = _join_refusal_message(run_id, refusal, run)
+        _teardown_refused_join(artifacts_dir, bound_completion_ref, monitor_id, message)
+        raise MonitorError(message)
+
+
+def _join_refusal_message(run_id: str, refusal: str, run: Any) -> str:
+    """Render a join refusal with state and a ``sase tool show`` pointer."""
+
+    from .join import show_pointer
+
+    pointer = show_pointer(run_id)
+    state = str(run.get("state") or "") if isinstance(run, dict) else ""
+    if refusal == "settled":
+        return (
+            f"tool run {run_id} is already {state or 'settled'}; "
+            f"nothing to join ({pointer})"
+        )
+    if refusal == "stop_requested":
+        return (
+            f"tool run {run_id} already has a stop request; nothing to join ({pointer})"
+        )
+    if refusal == "joined_elsewhere":
+        join = run.get("join") if isinstance(run, dict) else None
+        other = ""
+        if isinstance(join, dict) and str(join.get("id") or ""):
+            other = f" by {join.get('kind')} {join.get('id')}"
+        return (
+            f"tool run {run_id} is already joined{other}; nothing to join ({pointer})"
+        )
+    return f"tool run {run_id} cannot be joined ({refusal}); no monitor started ({pointer})"
+
+
+def _teardown_refused_join(
+    artifacts_dir: str,
+    bound_completion_ref: str | None,
+    monitor_id: str,
+    message: str,
+) -> None:
+    """Roll back the member (and any bound completion) for a refused join."""
+
+    if bound_completion_ref is not None:
+        from sase.finalizers.prepare import rollback_prepared_completion
+
+        rollback_prepared_completion(
+            bound_completion_ref,
+            monitor_id=monitor_id,
+            artifacts_dir=store_lane.caller_artifacts_dir(),
+        )
+    teardown_failed_member(artifacts_dir, message)
+
+
+def _release_monitor_join(run_id: str, monitor_id: str) -> None:
+    """Release a recorded join after a failed submit; best effort."""
+
+    from sase.core.tool_run import tool_run_release_join
+
+    try:
+        tool_run_release_join(
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "joiner_kind": "monitor",
+                "joiner_id": monitor_id,
+            }
+        )
+    except Exception:  # noqa: BLE001 - the teardown below reports the failure.
+        pass
+
+
 def _start_monitor_locked(
     request: StartMonitorRequest, identity: StartIdentity, timer: StartTimer
 ) -> MonitorRecord:
@@ -360,64 +476,87 @@ def _start_monitor_locked(
                 f"could not claim workspace for monitor: {claim_error}"
             )
 
-    proc_argv, unwrapped_reason = resolve_monitor_tool_wrap(
-        request.command,
-        request.execution_argv,
-        request.profile,
-        request.cwd,
-        get_monitor_tool_wrap(),
-    )
-    if unwrapped_reason is not None:
-        # The proc supervisor appends, so a pre-submit line stays first and
-        # the log explains why this monitor runs raw.
-        append_monitor_log_bytes(
-            log_path, format_unwrapped_log_line(unwrapped_reason).encode("utf-8")
-        )
     tool_run_id: str | None = None
+    tool_run_joined = False
     proc_tags: list[str] = []
     proc_env_overlay: dict[str, str] = {}
-    from sase.tool.handoff import (
-        owner_tags,
-        worker_argv,
-        worker_env_overlay,
-    )
+    join_recorded = False
+    if request.join_run_id is not None:
+        # Join: no wrapper resolution and no new ToolRun reservation. The
+        # proc follows the existing detached run, and the Rust join is
+        # recorded atomically after the member exists, before proc submit.
+        from sase.tool.handoff import worker_env_overlay
+        from sase.tool.join_worker import join_worker_argv
 
-    from .tool_handoff import (
-        format_reservation_fallback_line,
-        maybe_reserve_monitor_tool_run,
-    )
-
-    words = monitor_tool_run_words(
-        request.command,
-        request.execution_argv,
-        proc_argv,
-        unwrapped_reason,
-    )
-    handoff = maybe_reserve_monitor_tool_run(
-        words,
-        cwd=request.cwd,
-        monitor_id=monitor_id,
-        starter_agent=lane_start.starter_agent,
-    )
-    if handoff.attempted:
-        reservation = handoff.reservation
-        if reservation is not None and reservation.reserved:
-            # Adopted: the proc runs the claiming worker, never the
-            # E1.5 argv, so one semantic run is never recorded twice.
-            tool_run_id = reservation.run_id
-            proc_argv = worker_argv(tool_run_id)
-            proc_tags = list(owner_tags(tool_run_id))
-            proc_env_overlay = dict(worker_env_overlay())
-            update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
-        else:
-            # Fail-open: keep the E1.5 argv and name the fallback.
-            reason = (
-                reservation.error if reservation is not None else None
-            ) or "unknown error"
+        tool_run_id = request.join_run_id
+        tool_run_joined = True
+        proc_argv = join_worker_argv(tool_run_id)
+        proc_env_overlay = dict(worker_env_overlay())
+        update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
+        update_meta_field(artifacts_dir, "monitor_tool_run_joined", True)
+        _record_monitor_join(
+            tool_run_id,
+            monitor_id,
+            artifacts_dir=artifacts_dir,
+            bound_completion_ref=bound_completion_ref,
+        )
+        join_recorded = True
+    else:
+        proc_argv, unwrapped_reason = resolve_monitor_tool_wrap(
+            request.command,
+            request.execution_argv,
+            request.profile,
+            request.cwd,
+            get_monitor_tool_wrap(),
+        )
+        if unwrapped_reason is not None:
+            # The proc supervisor appends, so a pre-submit line stays first and
+            # the log explains why this monitor runs raw.
             append_monitor_log_bytes(
-                log_path,
-                format_reservation_fallback_line(reason).encode("utf-8"),
+                log_path, format_unwrapped_log_line(unwrapped_reason).encode("utf-8")
             )
+        from sase.tool.handoff import (
+            owner_tags,
+            worker_argv,
+            worker_env_overlay,
+        )
+
+        from .tool_handoff import (
+            format_reservation_fallback_line,
+            maybe_reserve_monitor_tool_run,
+        )
+
+        words = monitor_tool_run_words(
+            request.command,
+            request.execution_argv,
+            proc_argv,
+            unwrapped_reason,
+        )
+        handoff = maybe_reserve_monitor_tool_run(
+            words,
+            cwd=request.cwd,
+            monitor_id=monitor_id,
+            starter_agent=lane_start.starter_agent,
+        )
+        if handoff.attempted:
+            reservation = handoff.reservation
+            if reservation is not None and reservation.reserved:
+                # Adopted: the proc runs the claiming worker, never the
+                # E1.5 argv, so one semantic run is never recorded twice.
+                tool_run_id = reservation.run_id
+                proc_argv = worker_argv(tool_run_id)
+                proc_tags = list(owner_tags(tool_run_id))
+                proc_env_overlay = dict(worker_env_overlay())
+                update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
+            else:
+                # Fail-open: keep the E1.5 argv and name the fallback.
+                reason = (
+                    reservation.error if reservation is not None else None
+                ) or "unknown error"
+                append_monitor_log_bytes(
+                    log_path,
+                    format_reservation_fallback_line(reason).encode("utf-8"),
+                )
     timer.mark("tool_reservation")
     try:
         proc = submit_proc_request(
@@ -468,7 +607,11 @@ def _start_monitor_locked(
             after_ack=after_ack,
         )
     except ProcSubmitError as exc:
-        if tool_run_id is not None:
+        if join_recorded and tool_run_id is not None:
+            # The joiner never started: release the join so the detached
+            # run is not pinned to a monitor that does not exist.
+            _release_monitor_join(tool_run_id, monitor_id)
+        elif tool_run_id is not None:
             # The owner never started: the reserved run explains itself
             # instead of lingering in `created`.
             from sase.tool.handoff import settle_launch_failure
@@ -528,6 +671,7 @@ def _start_monitor_locked(
         request_fingerprint=request_fingerprint,
         output_path=str(log_path),
         tool_run_id=tool_run_id,
+        tool_run_joined=tool_run_joined,
     )
     persist_monitor_start_intent_after_ack(
         request,

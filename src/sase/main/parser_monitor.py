@@ -223,6 +223,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
             "deploy succeeded' -- ./deploy.sh\n"
             "  sase monitor start -p verify -n 'fix failures' "
             "-m '@small' -- just check-full\n"
+            "  sase monitor start -J 0f1a2b3c -p verify -n 'finish check'\n"
             "  sase monitor start -p verify --json -- just check-full"
         ),
     )
@@ -277,6 +278,16 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         help=(
             "Optional no-output timeout; kills commands that stop producing "
             "bytes for this long, while quiet commands remain supported when omitted"
+        ),
+    )
+    start_parser.add_argument(
+        "-J",
+        "--join",
+        default=None,
+        metavar="RUN",
+        help=(
+            "Join a starter-scoped detached ToolRun instead of starting a "
+            "command; cannot be used with a command, -c, -f, or -a"
         ),
     )
     start_parser.add_argument(
