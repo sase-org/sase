@@ -41,7 +41,6 @@ from sase.bead.attachments.tombstones import (
 from sase.bead.model import BeadNote, BeadNoteAttachment, Issue, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.bead_pages.rendering_identity import render_attachments
-from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 
 PNG_HEAD = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
@@ -89,7 +88,6 @@ def _attach(
     out, err, code = io.StringIO(), io.StringIO(), 0
     try:
         with (
-            override_flags(bead_note_attachments=True),
             redirect_stdout(out),
             redirect_stderr(err),
         ):

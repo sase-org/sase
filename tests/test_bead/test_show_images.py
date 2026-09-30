@@ -12,7 +12,6 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
-from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 
 PNG_HEAD = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
@@ -44,10 +43,9 @@ def _attach(
     (project_dir / filename).write_bytes(data)
     with BeadProject(project_dir) as project:
         issue_id = project.create("Show images target", IssueType.PLAN).id
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(
-            ["note", issue_id, "-a", "amy", note, f"@./{filename}", "here"]
-        )
+    out, err, code = _run(
+        ["note", issue_id, "-a", "amy", note, f"@./{filename}", "here"]
+    )
     assert code == 0, err
     with BeadProject(project_dir) as project:
         sha = project.show(issue_id).notes[0].attachments[0].sha256
@@ -178,22 +176,21 @@ def test_pager_targets_and_media_order(
     Image.new("RGB", (16, 16), (10, 10, 200)).save(second)
     with BeadProject(project_dir) as project:
         issue_id = project.create("Pager targets", IssueType.PLAN).id
-    with override_flags(bead_note_attachments=True):
-        assert _run(["note", issue_id, "-a", "amy", "see", "@./first.png"])[2] == 0
-        (project_dir / "second.png").write_bytes(second.read_bytes())
-        from sase.bead.cli_attach import handle_bead_attach
+    assert _run(["note", issue_id, "-a", "amy", "see", "@./first.png"])[2] == 0
+    (project_dir / "second.png").write_bytes(second.read_bytes())
+    from sase.bead.cli_attach import handle_bead_attach
 
-        args = create_parser().parse_args(
-            ["bead", "attach", issue_id, "./second.png", "-a", "amy"]
-        )
-        out, err = io.StringIO(), io.StringIO()
-        from contextlib import redirect_stderr as _re, redirect_stdout as _ro
+    args = create_parser().parse_args(
+        ["bead", "attach", issue_id, "./second.png", "-a", "amy"]
+    )
+    out, err = io.StringIO(), io.StringIO()
+    from contextlib import redirect_stderr as _re, redirect_stdout as _ro
 
-        with _ro(out), _re(err):
-            try:
-                handle_bead_attach(args)
-            except SystemExit as exc:
-                assert int(exc.code or 0) == 0, err.getvalue()
+    with _ro(out), _re(err):
+        try:
+            handle_bead_attach(args)
+        except SystemExit as exc:
+            assert int(exc.code or 0) == 0, err.getvalue()
     with BeadProject(project_dir) as project:
         issue = project.show(issue_id)
     body = "see [first.png] and [second.png]\n       first.png · image\n       second.png · image\n"
@@ -226,10 +223,9 @@ def test_pager_resolution_per_file_class(
     (project_dir / "blob.bin").write_bytes(bytes(range(256)) * 4)
     with BeadProject(project_dir) as project:
         issue_id = project.create("Resolve classes", IssueType.PLAN).id
-    with override_flags(bead_note_attachments=True):
-        assert _run(["note", issue_id, "-a", "amy", "img", "@./pic.png"])[2] == 0
-        assert _run(["note", issue_id, "-a", "amy", "txt", "@./note.txt"])[2] == 0
-        assert _run(["note", issue_id, "-a", "amy", "bin", "@./blob.bin"])[2] == 0
+    assert _run(["note", issue_id, "-a", "amy", "img", "@./pic.png"])[2] == 0
+    assert _run(["note", issue_id, "-a", "amy", "txt", "@./note.txt"])[2] == 0
+    assert _run(["note", issue_id, "-a", "amy", "bin", "@./blob.bin"])[2] == 0
     image_resolution = resolve_link(f"attachment:{issue_id}/pic.png")
     assert image_resolution.target is not None
     assert image_resolution.target.kind.value == "media"
@@ -257,9 +253,8 @@ def test_cli_open_and_artifact_refs(
     (project_dir / "log.txt").write_text("line one\nline two\n", encoding="utf-8")
     with BeadProject(project_dir) as project:
         issue_id = project.create("Open target", IssueType.PLAN).id
-    with override_flags(bead_note_attachments=True):
-        assert _run(["note", issue_id, "-a", "amy", "see", "@./shot.png"])[2] == 0
-        assert _run(["note", issue_id, "-a", "amy", "log", "@./log.txt"])[2] == 0
+    assert _run(["note", issue_id, "-a", "amy", "see", "@./shot.png"])[2] == 0
+    assert _run(["note", issue_id, "-a", "amy", "log", "@./log.txt"])[2] == 0
 
     seen: list[object] = []
     import sase.ace.tui.graphics as _graphics
@@ -366,24 +361,6 @@ def test_no_escapes_or_bytes_in_read_json_piped(
     )
     assert code == 0, err
     assert "\x1b" not in out and "pixels" not in out
-
-
-def test_rendering_identical_across_beta_flag(
-    project_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
-    monkeypatch.chdir(project_dir)
-    issue_id, _sha = _attach(project_dir, "shot.png", PNG_HEAD + b"flag-pixels")
-    with override_flags(bead_note_attachments=True):
-        on_out, _, on_code = _run(
-            ["show", issue_id, "--no-links", "--pager", "never", "--color", "never"]
-        )
-    with override_flags(bead_note_attachments=False):
-        off_out, _, off_code = _run(
-            ["show", issue_id, "--no-links", "--pager", "never", "--color", "never"]
-        )
-    assert on_code == 0 and off_code == 0
-    assert on_out == off_out
 
 
 def test_parser_help_covers_images_and_open() -> None:

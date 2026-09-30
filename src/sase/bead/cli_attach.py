@@ -13,7 +13,6 @@ from sase.bead.cli_common import (
     resolve_bead_operation_context,
 )
 from sase.bead.cli_crud_common import (
-    note_attachments_enabled,
     print_attachment_echo_rows,
     resolve_mutation_author,
 )
@@ -28,13 +27,6 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     local_only = bool(getattr(args, "local_only", False))
 
-    if not note_attachments_enabled():
-        print(
-            "Error: sase bead attach requires the bead_note_attachments beta "
-            "flag — enable it with `sase flag enable bead_note_attachments`.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
     if "-" in files and name is None:
         print(
             "Error: -N/--name is required when attaching from stdin (-).",
@@ -98,7 +90,6 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
                     echo_rows,
                     local_only=local_only,
                     bead_context=bead_context,
-                    attachments_on=True,
                 )
                 placement_wires = list(manifest)
             issue = mutation.project.append_note(
@@ -121,7 +112,6 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
                 stores=placement_store,
                 project_key=placement_key,
                 require_upload=placement_require,
-                attachments_on=True,
             )
         mutation.commit(require_mutation_commit_message("attach", [issue.id]))
 

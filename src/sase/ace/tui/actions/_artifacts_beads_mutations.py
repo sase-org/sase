@@ -104,32 +104,12 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
         bead_id = row.issue.id
         project = row.project
 
-        def submit_direct(typed: str) -> None:
-            """Append *typed* verbatim (flag off): no authoring, no echo."""
-
-            def mutate(project: Any) -> Issue:
-                return project.append_note(
-                    bead_id,
-                    typed,
-                    author=bead_note_author(project),
-                )
-
-            self._submit_bead_mutation(
-                pane,
-                row,
-                operation="note",
-                display_name=f"Add note · {bead_id}",
-                success_message=f"Added note to {bead_id}",
-                mutation=mutate,
-                commit_operation="note",
-            )
-
         def submit_authored(
             stored_text: str,
             manifest: list[dict[str, Any]] | None,
             echo_rows: list[str],
         ) -> None:
-            """Append authoring output from the worker thread (flag on)."""
+            """Append authoring output from the worker thread."""
 
             def mutate(project: Any) -> Issue:
                 return project.append_note(
@@ -175,7 +155,7 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
             )
 
         def author_off_thread(typed: str) -> None:
-            """Run the authoring service off the event loop (flag on).
+            """Run the authoring service off the event loop.
 
             Ingest hashes file bytes on disk; it must never run on the
             pump. Raw ``@path`` text is never appended: failures re-open
@@ -206,12 +186,6 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
 
         def dismissed(note: str | None) -> None:
             if note is None:
-                return
-            from sase.feature_flags.registry import FeatureFlag
-            from sase.feature_flags.snapshot import current_flags
-
-            if not current_flags().enabled(FeatureFlag.bead_note_attachments):
-                submit_direct(note)
                 return
             self.run_worker(  # type: ignore[attr-defined]
                 lambda: author_off_thread(note),

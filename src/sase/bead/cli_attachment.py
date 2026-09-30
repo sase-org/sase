@@ -365,8 +365,8 @@ def _handle_bead_attachment_push(args: argparse.Namespace) -> None:
 
     With an ID, drain only digests referenced by that bead; without one,
     drain the project outbox. Every configured tier drains (git, then the
-    rclone large tier) with live TTY progress per object. Available with
-    the flag off; it never authors notes.
+    rclone large tier) with live TTY progress per object. It never authors
+    notes.
     """
     from sase.bead.attachments.background import drain_project_outbox
     from sase.bead.attachments.upload import (

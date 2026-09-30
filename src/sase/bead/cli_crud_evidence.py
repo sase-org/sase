@@ -17,7 +17,6 @@ from sase.bead.cli_common import (
     resolve_bead_operation_context,
 )
 from sase.bead.cli_crud_common import (
-    note_attachments_enabled as _note_attachments_enabled,
     print_attachment_echo_rows,
     resolve_mutation_author,
 )
@@ -25,7 +24,6 @@ from sase.bead.model import Status
 from sase.bead.mutation_commit import require_mutation_commit_message
 from sase.cli_file_values import (
     CliFileValueError,
-    read_at_path_value,
     read_note_text_value,
 )
 
@@ -46,13 +44,9 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
     """Record independently attributed evidence on an existing task bead."""
     verified_after_close = bool(getattr(args, "verified_after_close", False))
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
-    attachments_on = _note_attachments_enabled()
-    local_only = bool(getattr(args, "local_only", False)) and attachments_on
+    local_only = bool(getattr(args, "local_only", False))
     try:
-        if attachments_on:
-            note = read_note_text_value(args.note, target="--note", bead_id=args.id)
-        else:
-            note = read_at_path_value(args.note, target="--note")
+        note = read_note_text_value(args.note, target="--note", bead_id=args.id)
     except CliFileValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -71,33 +65,31 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
         try:
             stored_note = note
             note_attachments: list[dict[str, Any]] | None = None
-            if attachments_on:
-                authored = _author_note_text(
-                    mutation,
-                    issue_id,
-                    note,
-                    edit_ordinal=None,
-                    allow_sensitive=allow_sensitive,
-                )
-                stored_note = authored.stored_text
-                note_attachments = authored.attachments or None
-                echo_rows = authored.echo_rows
-                if note_attachments:
-                    from sase.bead.attachments.upload import pre_write_upload
+            authored = _author_note_text(
+                mutation,
+                issue_id,
+                note,
+                edit_ordinal=None,
+                allow_sensitive=allow_sensitive,
+            )
+            stored_note = authored.stored_text
+            note_attachments = authored.attachments or None
+            echo_rows = authored.echo_rows
+            if note_attachments:
+                from sase.bead.attachments.upload import pre_write_upload
 
-                    (
-                        placement,
-                        placement_store,
-                        placement_key,
-                        placement_require,
-                    ) = pre_write_upload(
-                        note_attachments,
-                        echo_rows,
-                        local_only=local_only,
-                        bead_context=bead_context,
-                        attachments_on=attachments_on,
-                    )
-                    placement_wires = list(note_attachments)
+                (
+                    placement,
+                    placement_store,
+                    placement_key,
+                    placement_require,
+                ) = pre_write_upload(
+                    note_attachments,
+                    echo_rows,
+                    local_only=local_only,
+                    bead_context=bead_context,
+                )
+                placement_wires = list(note_attachments)
             reporter = getattr(args, "author", None)
             if reporter is None:
                 reporter = resolve_mutation_author(mutation.project)
@@ -147,7 +139,6 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
                 stores=placement_store,
                 project_key=placement_key,
                 require_upload=placement_require,
-                attachments_on=attachments_on,
             )
         if changed:
             mutation.commit(require_mutation_commit_message("+1", [issue.id]))
@@ -191,8 +182,7 @@ def handle_bead_note(args: argparse.Namespace) -> None:
     edit_ordinal = getattr(args, "edit", None)
     remove_ordinal = getattr(args, "remove", None)
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
-    attachments_on = _note_attachments_enabled()
-    local_only = bool(getattr(args, "local_only", False)) and attachments_on
+    local_only = bool(getattr(args, "local_only", False))
     text = args.text
 
     if edit_ordinal is not None and not text:
@@ -208,12 +198,9 @@ def handle_bead_note(args: argparse.Namespace) -> None:
     if isinstance(text, list) and text:
         try:
             if len(text) == 1:
-                if attachments_on:
-                    text = read_note_text_value(
-                        text[0], target="note text", bead_id=args.id
-                    )
-                else:
-                    text = read_at_path_value(text[0], target="note text")
+                text = read_note_text_value(
+                    text[0], target="note text", bead_id=args.id
+                )
             else:
                 text = " ".join(text)
         except CliFileValueError as exc:
@@ -238,7 +225,7 @@ def handle_bead_note(args: argparse.Namespace) -> None:
                 author = resolve_mutation_author(mutation.project)
             stored_text = str(text)
             manifest: list[dict[str, Any]] | None = None
-            if attachments_on and remove_ordinal is None:
+            if remove_ordinal is None:
                 authored = _author_note_text(
                     mutation,
                     issue_id,
@@ -262,7 +249,6 @@ def handle_bead_note(args: argparse.Namespace) -> None:
                         echo_rows,
                         local_only=local_only,
                         bead_context=bead_context,
-                        attachments_on=attachments_on,
                     )
                     placement_wires = list(manifest)
             if edit_ordinal is not None:
@@ -304,7 +290,6 @@ def handle_bead_note(args: argparse.Namespace) -> None:
                 stores=placement_store,
                 project_key=placement_key,
                 require_upload=placement_require,
-                attachments_on=attachments_on,
             )
         mutation.commit(require_mutation_commit_message(operation, [issue.id]))
 

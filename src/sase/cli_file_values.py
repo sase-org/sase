@@ -50,11 +50,10 @@ def read_at_path_value(raw: str, *, target: str) -> str:
 
 
 def read_note_text_value(raw: str, *, target: str, bead_id: str) -> str:
-    """Resolve one bead-note text value, honoring the attachments beta flag.
+    """Resolve one bead-note text value.
 
-    With the flag off this is today's :func:`read_at_path_value`. With the
-    flag on, only a whole-argument ``@<path>`` still reads note text from a
-    file (UTF-8, at most :data:`NOTE_TEXT_VALUE_MAX_BYTES` bytes); inline
+    Only a whole-argument ``@<path>`` still reads note text from a file
+    (UTF-8, at most :data:`NOTE_TEXT_VALUE_MAX_BYTES` bytes); inline
     ``@<path>`` references are left for the attachment authoring service,
     ``@@`` stays untouched so the scanner collapses the escape once, and a
     bare ``@`` stays literal. A binary or oversized file fails with a
@@ -62,11 +61,6 @@ def read_note_text_value(raw: str, *, target: str, bead_id: str) -> str:
     ``"… @<path>"`` form. On a TTY, a dim stderr line confirms the read.
     """
 
-    from sase.feature_flags.registry import FeatureFlag
-    from sase.feature_flags.snapshot import current_flags
-
-    if not current_flags().enabled(FeatureFlag.bead_note_attachments):
-        return read_at_path_value(raw, target=target)
     if not raw.startswith(AT_PATH_PREFIX):
         return raw
     if raw.startswith(AT_PATH_PREFIX * 2):

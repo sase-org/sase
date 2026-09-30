@@ -63,20 +63,14 @@ def register_bead_plus_one_parser(
         "--allow-sensitive",
         dest="allow_sensitive",
         action="store_true",
-        help=(
-            "Attach files from sensitive paths (with the "
-            "bead_note_attachments beta flag on)"
-        ),
+        help=("Attach files from sensitive paths"),
     )
     parser.add_argument(
         "-L",
         "--local-only",
         dest="local_only",
         action="store_true",
-        help=(
-            "Keep new attachments on this machine without uploading "
-            "(with the bead_note_attachments beta flag on)"
-        ),
+        help=("Keep new attachments on this machine without uploading"),
     )
     parser.add_argument(
         "--verified-after-close",
@@ -99,7 +93,7 @@ def register_bead_attach_parser(
         description=(
             "Attach snapshots of files to a bead as a new attributed note. "
             "The bead keeps the exact bytes on every machine, even after the "
-            "file is gone. Requires the bead_note_attachments beta flag. "
+            "file is gone. "
             "Use - to read one attachment from stdin (with -N/--name)."
         ),
         epilog=(
@@ -324,8 +318,8 @@ def register_bead_note_parser(
         nargs="*",
         help=(
             "Note text to append. Inside note text, @<path> attaches a "
-            "snapshot of that file (with the bead_note_attachments beta "
-            "flag on; the bead keeps the exact bytes on every machine). "
+            "snapshot of that file "
+            "(the bead keeps the exact bytes on every machine). "
             "Accepted forms: @./shot.png, @~/logs/crash.log, "
             '@/tmp/trace.json, @docs/plan.md, @"name with spaces.png", '
             "or a bare @name.ext for a known file type. Write @@ where you "
@@ -348,20 +342,14 @@ def register_bead_note_parser(
         "--allow-sensitive",
         dest="allow_sensitive",
         action="store_true",
-        help=(
-            "Attach files from sensitive paths (with the "
-            "bead_note_attachments beta flag on)"
-        ),
+        help=("Attach files from sensitive paths"),
     )
     parser.add_argument(
         "-L",
         "--local-only",
         dest="local_only",
         action="store_true",
-        help=(
-            "Keep new attachments on this machine without uploading "
-            "(with the bead_note_attachments beta flag on)"
-        ),
+        help=("Keep new attachments on this machine without uploading"),
     )
     edit_group = parser.add_mutually_exclusive_group()
     edit_group.add_argument(

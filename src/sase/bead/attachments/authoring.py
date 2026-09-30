@@ -1,4 +1,4 @@
-"""Shared authoring service for bead note attachments (beta).
+"""Shared authoring service for bead note attachments.
 
 One pipeline, used by the CLI note verbs and the TUI add-note modal::
 
@@ -11,8 +11,7 @@ One pipeline, used by the CLI note verbs and the TUI add-note modal::
 
 It returns the stored text, the wire manifest, echo rows, and the names the
 edit detached. Nothing is written to the bead store: callers pass the
-manifest into the mutation only after this returns. Import this module only
-when the ``bead_note_attachments`` flag is on.
+manifest into the mutation only after this returns.
 """
 
 from __future__ import annotations

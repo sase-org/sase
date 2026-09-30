@@ -631,6 +631,7 @@ Quick Start:
   sase bead snooze <id> --cancel                 Wake a snoozed task now
   sase bead epic-symbols [<id>]                  List Justfile --epic-symbol entries
   sase bead close <id> --note "verified"         Close with completion evidence
+  sase bead attach <id> ./shot.png -n "trace"    Attach a file snapshot (bytes kept on every machine)
   sase bead rm <id> [<id2> ...]                 Remove issues (and children)
   sase bead dep add <issue> <depends-on>         Add dependency
   sase bead dep list [<id>]                      Inspect dependency provenance

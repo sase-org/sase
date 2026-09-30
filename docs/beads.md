@@ -27,7 +27,7 @@ DAG.
   - [Discovered Follow-Up Capture and Triage](#discovered-follow-up-capture-and-triage)
   - [External Issue Mirroring](#external-issue-mirroring)
   - [Artifact References](#artifact-references)
-  - [Attachments (beta)](#attachments-beta)
+  - [Attachments](#attachments)
   - [Creation Reason](#creation-reason)
   - [Creation Time Presentation](#creation-time-presentation)
 - [Storage](#storage)
@@ -851,13 +851,11 @@ sase artifact link add bead:<task-id> related bead:<other-bead-id> "<why>"
 
 Use `sase bead dep add` only when the relationship blocks work scheduling.
 
-### Attachments (beta)
+### Attachments
 
-With the `bead_note_attachments` beta flag on, inline `@<path>` references in bead note
-text attach content-addressed file snapshots, and `sase bead attach` is available. With
-the flag off, note text keeps today's behavior (only a whole-argument `@<path>` reads
-text from a file) and `sase bead attach` refuses with an enable hint. Rendering is never
-flag-gated: a note written with the flag on renders on a machine where the flag is off.
+Inline `@<path>` references in bead note text attach content-addressed file snapshots,
+and `sase bead attach` attaches files without prose. Rendering needs no opt-in: a note
+written with attachments renders on every machine.
 
 > **`@` in bead notes.** Inside note text, `@<path>` attaches a snapshot of that file.
 > The bead keeps the exact bytes on every machine, even after the file is gone. Accepted
@@ -884,22 +882,74 @@ devices, and sockets are refused. Every problem is collected and nothing is writ
 | Path-shaped   | `@/…`, `@~/…`, `@./…`, `@../…`. Also a token containing `/` whose segments match `[A-Za-z0-9._+~-]+`. Also a bare `stem.ext` where `ext` is in the curated core extension table. Trailing `. , ; : ! ? ) ] } >` are trimmed. |
 | Anything else | Literal (`@large`, `@dataclass`, `@pytest.mark.asyncio`, bare `@`).                                                                                                                                                          |
 
-This epic ships these commands; there is no shared store yet:
+Every note-bearing verb accepts attachments:
 
 ```bash
-sase bead note <id> <text> [-S/--allow-sensitive]
-sase bead close <id> -n <text> [-S/--allow-sensitive]
-sase bead update <id> -n <text> [-S/--allow-sensitive]
-sase bead +1 <id> -n <text> [-S/--allow-sensitive]
-sase bead attach <id> <file|->... [-a/--author NAME] [-n/--note TEXT] [-N/--name NAME] [-S/--allow-sensitive]
+sase bead note <id> <text> [-S/--allow-sensitive] [-L/--local-only]
+sase bead close <id> -n <text> [-S/--allow-sensitive] [-L/--local-only]
+sase bead update <id> -n <text> [-S/--allow-sensitive] [-L/--local-only]
+sase bead +1 <id> -n <text> [-S/--allow-sensitive] [-L/--local-only]
+sase bead attach <id> <file|->... [-a/--author NAME] [-n/--note TEXT] [-N/--name NAME] [-S/--allow-sensitive] [-L/--local-only]
 sase bead attachment list [<id>] [-j/--json]
+sase bead attachment open <id> [<name>]
 sase bead attachment path <id> <name>
+sase bead attachment push [<id>]
+sase bead attachment purge <id> <name> -r WHY [-y/--yes]
+sase bead attachment prune [-y/--yes]
 ```
 
-Storage is local-only. Every successful echo says the bytes are local. Availability is
-only `cached` (object present in the local CAS, view materialized) or `unavailable` (no
-local object, prose still renders). Bytes never enter the bead store, and this work does
-not upload, fetch, or draw images.
+#### Storage tiers and privacy
+
+Bytes never enter the bead store: note events carry only location-free descriptors
+(`name`, `sha256`, `size_bytes`, `mime_type`, image dimensions, machine origin), which
+are as public as the bead itself. Bytes live in a local content-addressed cache first,
+then in shared stores picked deterministically by size:
+
+- The **git tier** holds objects up to `bead.attachments.git_max_bytes` (default 50 MiB)
+  in a private `<project>--attachments-private` sidecar repo, one per project. Private
+  means private: the sidecar is a separate non-public repo, and descriptors never
+  contain paths or machine-local ids.
+- The optional **rclone large tier** (`bead.attachments.large_store`) takes larger
+  objects; see below.
+- `-L/--local-only` keeps an object on this machine only, badged `⚠ only on <machine>`.
+  It is an explicit, visible choice, and `sase bead attachment push` promotes local-only
+  objects later without editing any note.
+
+Uploads never run under the bead lock: the event is appended first, then bytes upload
+pre-publication, so other machines never see a note before its bytes. A failed upload
+lands in a durable outbox, badged `⇡ pending upload`, and drains on the next push, bead
+sync, or worker launch. `bead.attachments.require_upload: true` uploads before the event
+instead and aborts with nothing written when the upload fails.
+
+#### Viewing
+
+`sase bead show` draws image previews on a TTY; `read`, JSON, and piped `show` never
+draw and print absolute, extension-preserving view paths instead. Previews degrade
+without ever failing the command: kitty inline pixels, then subpixel cell thumbnails (≤
+10 rows), then text cards (≤ 5 dim lines), then chips. Control the mode with
+`show -i/--images auto|cells|kitty|never` or the permanent `bead.show.images` config
+(default `auto`). `sase bead attachment open <id> [<name>]` opens one attachment in the
+terminal viewer (never fetches; with no name it opens the only viewable attachment).
+Attachment chips are labeled pager links into the existing viewer, and
+`attachment:<bead-id>/<name>` refs resolve wherever artifact refs do.
+
+#### Troubleshooting badges
+
+Prose always renders; a preview or fetch failure never fails `show`/`read`. Each
+attachment carries one availability badge: no badge means `cached`, `⇣ not downloaded`
+means above the `bead.attachments.auto_fetch_max_bytes` cap (25 MiB; `-d/--download`
+lifts it for one invocation, `attachment path` always fetches), `⇡ pending upload` means
+the bytes have not reached the shared store yet, `⚠ only on <machine>` means local-only,
+`✕ unavailable offline` means no reachable copy, `(purged)` means the bytes were purged
+behind a tombstone, and `‼ digest mismatch` means the cached bytes failed verification
+and were quarantined.
+
+#### Mixed-fleet upgrades
+
+Attachment manifests ride on optional event fields, so old readers ignore them: upgrade
+every machine to a build with the attachment wire before writing notes with attachments.
+Otherwise an older writer regenerates `issues.jsonl` without manifests (the event store
+stays authoritative); repair the projection with `sase bead doctor --fix-projection`.
 
 #### Large-object store (rclone)
 
@@ -1318,9 +1368,8 @@ proc it writes its typed result to the proc's result sidecar.
 ### `sase bead attach <id> <file|->...`
 
 Attach snapshots of files to a bead as a new attributed note. The bead keeps the exact
-bytes on every machine, even after the file is gone. Requires the
-`bead_note_attachments` beta flag. Use `-` to read one attachment from stdin (with
-`-N/--name`).
+bytes on every machine, even after the file is gone. Use `-` to read one attachment from
+stdin (with `-N/--name`).
 
 ```bash
 sase bead attach sase-ab ./shot.png
@@ -1339,12 +1388,12 @@ tokens.
 | `-N, --name NAME`       | Attachment name; valid only with one file, and required when the file is `-` (stdin)         |
 | `-S, --allow-sensitive` | Attach files from sensitive paths                                                            |
 
-### `sase bead attachment list [<id>]` / `sase bead attachment path <id> <name>`
+### `sase bead attachment list [<id>]` / `open` / `path` / `push`
 
-List content-addressed attachment snapshots, or print the absolute local view path for
-one attachment. With no child subcommand, `sase bead attachment` delegates to
-`sase bead attachment list`. Neither command fetches and neither checks the
-`bead_note_attachments` beta flag.
+List content-addressed attachment snapshots, open one in the terminal viewer, or print
+the absolute local view path for one attachment. With no child subcommand,
+`sase bead attachment` delegates to `sase bead attachment list`. List and open never
+fetch; path fetches from the shared store when needed, even above the auto-fetch cap.
 
 ```bash
 sase bead attachment list sase-ab
@@ -1355,6 +1404,15 @@ sase bead attachment path sase-ab shot.png
 `list` text output shows one descriptor per attachment plus the cached view path or an
 unavailable marker. `path` materializes the extension-preserving local view and prints
 its absolute path, or fails with a clear unavailable error when no local object exists.
+`open` opens one attachment in the terminal viewer (with no name, it opens the only
+viewable attachment or lists candidates). `push` drains the upload outbox and promotes
+local-only objects to the shared stores without authoring notes.
+
+```bash
+sase bead attachment open sase-ab shot.png
+sase bead attachment push
+sase bead attachment push sase-ab
+```
 
 | Subcommand | Flag         | Description                           |
 | ---------- | ------------ | ------------------------------------- |
@@ -1477,7 +1535,7 @@ batching bead mutations, then publish the batch with a later `sase bead sync`.
 | `-f, --force`           | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`                                   |
 | `-P, --no-push`         | Commit the close locally but skip the post-commit push                                                           |
 | `-n, --note`            | Append this attributed note to each listed issue before closing it. A value of `@<path>` is read from that file. |
-| `-S, --allow-sensitive` | Attach files from sensitive paths (with the `bead_note_attachments` beta flag on)                                |
+| `-S, --allow-sensitive` | Attach files from sensitive paths                                                                                |
 | `-p, --phases`          | Close numbered phases of one epic; accepts comma-separated numbers and ranges                                    |
 | `-r, --reason`          | Optional close reason text; required with `--force`. A value of `@<path>` is read from that file.                |
 | `-R, --resolution`      | `canceled`, `done`, or `superseded`; real closes default to `done`; repeat closes compare only when supplied     |
@@ -1858,7 +1916,7 @@ pages, `--field notes`), see `notes_text` under
 | Flag                    | Description                                                                            |
 | ----------------------- | -------------------------------------------------------------------------------------- |
 | `-a, --author`          | Author recorded on a new entry; defaults to current agent, then store owner            |
-| `-S, --allow-sensitive` | Attach files from sensitive paths (with the `bead_note_attachments` beta flag on)      |
+| `-S, --allow-sensitive` | Attach files from sensitive paths                                                      |
 | `-e, --edit`            | Rewrite note `#N` (mutually exclusive with `--remove`); `N` is the ordinal from `show` |
 | `-x, --remove`          | Retract note `#N` (mutually exclusive with `--edit`); `sase bead history` keeps it     |
 
@@ -2346,7 +2404,7 @@ unaffected — same syntax, output line, and commit message as before.
 | `-t, --title`              | Change title                                                                                                                                                 |
 | `-d, --description`        | Change description                                                                                                                                           |
 | `-n, --note`               | Append this attributed note to each listed issue. A value of `@<path>` is read from that file.                                                               |
-| `-S, --allow-sensitive`    | Attach files from sensitive paths (with the `bead_note_attachments` beta flag on)                                                                            |
+| `-S, --allow-sensitive`    | Attach files from sensitive paths                                                                                                                            |
 | `-D, --design`             | Change plan path                                                                                                                                             |
 | `-a, --assignee`           | Change assignee                                                                                                                                              |
 | `-x, --external-ref`       | Set the external issue identity (mutually exclusive with `-X`); see [`sase bead create`](#sase-bead-create) for accepted forms. Must be unique across beads. |

@@ -20,7 +20,6 @@ from sase.bead import cli as bead_cli
 from sase.bead.attachments.blob_store import BlobStoreError
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
-from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 
 _HANDLERS = {
@@ -119,8 +118,7 @@ def _note_with_file(
     project_dir: Path, work_dir: Path, issue_id: str, filename: str, data: bytes
 ) -> str:
     (work_dir / filename).write_bytes(data)
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(["note", issue_id, f"see @./{filename}"])
+    out, err, code = _run(["note", issue_id, f"see @./{filename}"])
     assert code == 0, err
     with BeadProject(project_dir) as project:
         note = project.show(issue_id).notes[-1]
@@ -618,36 +616,6 @@ def test_corrupt_remote_blob_reports_corrupt(
     from sase.bead.attachments.store import LocalAttachmentStore
 
     assert not LocalAttachmentStore().has(sha)
-
-
-def test_flag_off_read_renders_badges_and_fetches(
-    project_dir: Path,
-    work_dir: Path,
-    remote: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    home_a = tmp_path / "sase-home-a"
-    _plant_hidden_clone(home_a, remote)
-    data = b"pre-existing attachment bytes"
-    issue_id = _create_plan(project_dir)
-    _note_with_file(project_dir, work_dir, issue_id, "old.bin", data)
-
-    _use_home(monkeypatch, tmp_path, "sase-home-b")
-    _plant_hidden_clone(tmp_path / "sase-home-b", remote)
-    with override_flags(bead_note_attachments=False):
-        out, err, code = _read_full(issue_id)
-    assert code == 0, err
-    assert "ATTACHMENTS" in out
-    assert "old.bin" in out
-    assert "not downloaded" not in out
-    assert "unavailable offline" not in out
-
-    from sase.bead.attachment_presentation import attachment_view_path
-
-    view = attachment_view_path(hashlib.sha256(data).hexdigest(), "old.bin")
-    assert view is not None
-    assert Path(view).read_bytes() == data
 
 
 # -- doctor --------------------------------------------------------------

@@ -15,7 +15,6 @@ from sase.bead.cli_common import (
 )
 from sase.bead.cli_crud_common import (
     mutation_outcome_ids,
-    note_attachments_enabled as _note_attachments_enabled,
     print_attachment_echo_rows,
     resolve_mutation_author,
 )
@@ -143,9 +142,8 @@ def handle_bead_update(args: argparse.Namespace) -> None:
     if getattr(args, "notes", None) is not None:
         print(f"Error: {_NOTES_TOMBSTONE_MESSAGE}", file=sys.stderr)
         sys.exit(1)
-    attachments_on = _note_attachments_enabled()
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
-    local_only = bool(getattr(args, "local_only", False)) and attachments_on
+    local_only = bool(getattr(args, "local_only", False))
     try:
         description = (
             read_at_path_value(args.description, target="--description")
@@ -238,7 +236,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             # Author attachments before any mutation: an attachment problem
             # must leave the bead store unchanged, including field updates.
             authored_per_bead: list[tuple[str, AuthoredNoteAttachments]] | None = None
-            if note is not None and attachments_on:
+            if note is not None:
                 authored_per_bead = _author_update_notes(
                     proj,
                     issue_ids,
@@ -269,7 +267,6 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                         echo_rows,
                         local_only=local_only,
                         bead_context=bead_context,
-                        attachments_on=attachments_on,
                     )
                     placement_wires = list(union_wires)
             if fields:
@@ -320,7 +317,6 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                 stores=placement_store,
                 project_key=placement_key,
                 require_upload=placement_require,
-                attachments_on=attachments_on,
             )
         if changed_ids:
             mutation.commit(require_mutation_commit_message("update", changed_ids))

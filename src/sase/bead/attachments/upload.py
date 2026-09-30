@@ -670,7 +670,6 @@ def pre_write_upload(
     *,
     local_only: bool,
     bead_context: Any | None = None,
-    attachments_on: bool = True,
 ) -> tuple[str, dict[str, Any], str | None, bool]:
     """Decide placement and run the pre-write half of the upload protocol.
 
@@ -683,7 +682,7 @@ def pre_write_upload(
     """
     from sase.bead.config import get_attachment_require_upload
 
-    if not attachments_on or not wires:
+    if not wires:
         return ("skip", {}, None, False)
     drain_before_upload(bead_context)
     placement, stores, project_key = prepare_placement(
@@ -727,7 +726,6 @@ def post_write_queue(
     stores: dict[str, Any] | Any | None,
     project_key: str | None,
     require_upload: bool,
-    attachments_on: bool = True,
 ) -> None:
     """Register a post-commit upload when placement chose a shared store.
 
@@ -736,7 +734,7 @@ def post_write_queue(
     upload. *stores* is the tier-name mapping from :func:`pre_write_upload`
     (a single store still works for one-tier placements).
     """
-    if not attachments_on or not wires:
+    if not wires:
         return
     if placement not in ("git", "large", "mixed") or require_upload:
         return

@@ -19,7 +19,6 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
-from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 
 PNG_HEAD = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
@@ -80,12 +79,11 @@ def _show(project_dir: Path, issue_id: str):
         return project.show(issue_id)
 
 
-def test_close_note_attaches_when_on(project_dir: Path, work_dir: Path) -> None:
+def test_close_note_attaches(project_dir: Path, work_dir: Path) -> None:
     (work_dir / "shot.png").write_bytes(PNG_HEAD + b"pixels")
     issue_id = _create_plan(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(["close", issue_id, "-n", "verified @./shot.png"])
+    out, err, code = _run(["close", issue_id, "-n", "verified @./shot.png"])
 
     assert code == 0
     assert "Closed" in out
@@ -96,28 +94,12 @@ def test_close_note_attaches_when_on(project_dir: Path, work_dir: Path) -> None:
     assert closed.notes[0].attachments[0].name == "shot.png"
 
 
-def test_close_note_stays_literal_when_off(project_dir: Path, work_dir: Path) -> None:
-    (work_dir / "shot.png").write_bytes(PNG_HEAD)
-    issue_id = _create_plan(project_dir)
-
-    with override_flags(bead_note_attachments=False):
-        out, err, code = _run(["close", issue_id, "-n", "verified @./shot.png"])
-
-    assert code == 0
-    assert "Closed" in out
-    assert err == ""
-    closed = _show(project_dir, issue_id)
-    assert closed.notes[0].text == "verified @./shot.png"
-    assert closed.notes[0].attachments == ()
-
-
 def test_close_missing_attachment_writes_nothing(
     project_dir: Path, work_dir: Path
 ) -> None:
     issue_id = _create_plan(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        _, err, code = _run(["close", issue_id, "-n", "verified @./gone.png"])
+    _, err, code = _run(["close", issue_id, "-n", "verified @./gone.png"])
 
     assert code == 1
     assert "nothing was written" in err
@@ -129,10 +111,9 @@ def test_plus_one_note_attachments_persist(project_dir: Path, work_dir: Path) ->
     (work_dir / "shot.png").write_bytes(data)
     issue_id = _create_task(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(
-            ["+1", issue_id, "-a", "reporter.agent", "-n", "repro @./shot.png"]
-        )
+    out, err, code = _run(
+        ["+1", issue_id, "-a", "reporter.agent", "-n", "repro @./shot.png"]
+    )
 
     assert code == 0
     assert "+1 recorded" in out
@@ -159,14 +140,11 @@ def test_plus_one_note_attachments_on_snooze_wake(
 ) -> None:
     (work_dir / "shot.png").write_bytes(PNG_HEAD + b"pixels")
     issue_id = _create_task(project_dir)
-    with override_flags(bead_note_attachments=True):
-        # Far-future wake: the bead-test clock is pinned in the past.
-        assert (
-            _run(["snooze", issue_id, "-u", "2030-01-01T00:00:00Z", "-p", "1"])[2] == 0
-        )
-        out, err, code = _run(
-            ["+1", issue_id, "-a", "reporter.agent", "-n", "repro @./shot.png"]
-        )
+    # Far-future wake: the bead-test clock is pinned in the past.
+    assert _run(["snooze", issue_id, "-u", "2030-01-01T00:00:00Z", "-p", "1"])[2] == 0
+    out, err, code = _run(
+        ["+1", issue_id, "-a", "reporter.agent", "-n", "repro @./shot.png"]
+    )
 
     assert code == 0, err
     assert "+1 recorded" in out
@@ -187,34 +165,13 @@ def test_plus_one_no_manifest_evidence_unchanged(
 ) -> None:
     issue_id = _create_task(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        out, _, code = _run(
-            ["+1", issue_id, "-a", "reporter.agent", "-n", "plain repro"]
-        )
+    out, _, code = _run(["+1", issue_id, "-a", "reporter.agent", "-n", "plain repro"])
 
     assert code == 0
     assert "+1 recorded" in out
     task = _show(project_dir, issue_id)
     assert task.plus_one_evidence[0].note == "plain repro"
     assert task.plus_one_evidence[0].attachments == ()
-
-
-def test_plus_one_note_stays_literal_when_off(
-    project_dir: Path, work_dir: Path
-) -> None:
-    (work_dir / "shot.png").write_bytes(PNG_HEAD)
-    issue_id = _create_task(project_dir)
-
-    with override_flags(bead_note_attachments=False):
-        out, err, code = _run(
-            ["+1", issue_id, "-a", "reporter.agent", "-n", "repro @./shot.png"]
-        )
-
-    assert code == 0
-    assert "+1 recorded" in out
-    assert err == ""
-    task = _show(project_dir, issue_id)
-    assert task.plus_one_evidence[0].note == "repro @./shot.png"
 
 
 def test_update_ingests_once_and_uniquifies_per_bead(
@@ -225,8 +182,7 @@ def test_update_ingests_once_and_uniquifies_per_bead(
     (work_dir / "a.png").write_bytes(PNG_HEAD + b"v1")
     first_id = _create_plan(project_dir)
     second_id = _create_plan(project_dir)
-    with override_flags(bead_note_attachments=True):
-        assert _run(["note", first_id, "-a", "amy", "first", "@./a.png"])[2] == 0
+    assert _run(["note", first_id, "-a", "amy", "first", "@./a.png"])[2] == 0
     (work_dir / "a.png").write_bytes(PNG_HEAD + b"v2-changed")
 
     real_ingest = authoring.ingest_path
@@ -236,10 +192,7 @@ def test_update_ingests_once_and_uniquifies_per_bead(
         calls.append(str(path))
         return real_ingest(path, *args, **kwargs)
 
-    with (
-        override_flags(bead_note_attachments=True),
-        patch.object(authoring, "ingest_path", _counting),
-    ):
+    with patch.object(authoring, "ingest_path", _counting):
         out, err, code = _run(["update", first_id, second_id, "-n", "see @./a.png"])
 
     assert code == 0
@@ -261,10 +214,7 @@ def test_update_note_and_fields_apply_together(
     (work_dir / "a.png").write_bytes(PNG_HEAD)
     issue_id = _create_plan(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        _, _, code = _run(
-            ["update", issue_id, "-s", "in_progress", "-n", "see @./a.png"]
-        )
+    _, _, code = _run(["update", issue_id, "-s", "in_progress", "-n", "see @./a.png"])
 
     assert code == 0
     updated = _show(project_dir, issue_id)
@@ -275,10 +225,9 @@ def test_update_note_and_fields_apply_together(
 def test_update_failed_note_writes_nothing(project_dir: Path, work_dir: Path) -> None:
     issue_id = _create_plan(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        _, err, code = _run(
-            ["update", issue_id, "-s", "in_progress", "-n", "see @./gone.png"]
-        )
+    _, err, code = _run(
+        ["update", issue_id, "-s", "in_progress", "-n", "see @./gone.png"]
+    )
 
     assert code == 1
     assert "nothing was written" in err
@@ -292,10 +241,9 @@ def test_attach_single_file_with_prose(project_dir: Path, work_dir: Path) -> Non
     (work_dir / "shot.png").write_bytes(data)
     issue_id = _create_plan(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(
-            ["attach", issue_id, "./shot.png", "-a", "amy", "-n", "Crash shot"]
-        )
+    out, err, code = _run(
+        ["attach", issue_id, "./shot.png", "-a", "amy", "-n", "Crash shot"]
+    )
 
     assert code == 0
     assert f"Attached: {issue_id}" in out
@@ -312,8 +260,7 @@ def test_attach_name_option_renames_single_file(
     (work_dir / "shot.png").write_bytes(PNG_HEAD)
     issue_id = _create_plan(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        _, err, code = _run(["attach", issue_id, "./shot.png", "-N", "login.png"])
+    _, err, code = _run(["attach", issue_id, "./shot.png", "-N", "login.png"])
 
     assert code == 0
     assert "attached login.png" in err
@@ -329,8 +276,7 @@ def test_attach_name_option_rejects_multiple_files(
     (work_dir / "b.png").write_bytes(PNG_HEAD + b"b")
     issue_id = _create_plan(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        _, err, code = _run(["attach", issue_id, "./a.png", "./b.png", "-N", "one.png"])
+    _, err, code = _run(["attach", issue_id, "./a.png", "./b.png", "-N", "one.png"])
 
     assert code == 1
     assert "-N/--name takes exactly one file" in err
@@ -341,8 +287,7 @@ def test_attach_failed_file_writes_no_note(project_dir: Path, work_dir: Path) ->
     (work_dir / "good.png").write_bytes(PNG_HEAD)
     issue_id = _create_plan(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        _, err, code = _run(["attach", issue_id, "./good.png", "./gone.png"])
+    _, err, code = _run(["attach", issue_id, "./good.png", "./gone.png"])
 
     assert code == 1
     assert "nothing was written" in err
@@ -356,8 +301,7 @@ def test_attach_stdin_requires_name_round_trips_bytes(
 
     issue_id = _create_plan(project_dir)
 
-    with override_flags(bead_note_attachments=True):
-        _, err, code = _run(["attach", issue_id, "-"])
+    _, err, code = _run(["attach", issue_id, "-"])
 
     assert code == 1
     assert "-N/--name is required" in err
@@ -366,8 +310,7 @@ def test_attach_stdin_requires_name_round_trips_bytes(
     data = b'{"trace": true}\n'
     stdin = io.TextIOWrapper(io.BytesIO(data), encoding="utf-8")
     monkeypatch.setattr(sys, "stdin", stdin)
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(["attach", issue_id, "-", "-N", "trace.json"])
+    out, err, code = _run(["attach", issue_id, "-", "-N", "trace.json"])
 
     assert code == 0
     assert f"Attached: {issue_id}" in out
@@ -382,37 +325,19 @@ def test_attach_stdin_requires_name_round_trips_bytes(
     assert LocalAttachmentStore().object_path(digest).read_bytes() == data
 
 
-def test_attach_flag_off_refuses_with_hint(project_dir: Path, work_dir: Path) -> None:
-    (work_dir / "shot.png").write_bytes(PNG_HEAD)
-    issue_id = _create_plan(project_dir)
-
-    with override_flags(bead_note_attachments=False):
-        _, err, code = _run(["attach", issue_id, "./shot.png"])
-
-    assert code == 1
-    assert "sase flag enable bead_note_attachments" in err
-    assert _show(project_dir, issue_id).notes == []
-
-
-def test_fast_path_plus_one_with_embedded_at_stays_in_python_when_on() -> None:
+def test_fast_path_plus_one_with_embedded_at_stays_in_python() -> None:
     from sase.main import bead_fast_path
 
     argv = ["+1", "sase-1", "-n", "see @./shot.png here"]
-    with (
-        override_flags(bead_note_attachments=True),
-        patch.object(bead_fast_path, "execute_bead_cli") as execute,
-    ):
+    with patch.object(bead_fast_path, "execute_bead_cli") as execute:
         assert bead_fast_path.try_handle_bead_fast_path(argv) is None
         execute.assert_not_called()
 
 
-def test_fast_path_plus_one_without_at_keeps_fast_path_when_on() -> None:
+def test_fast_path_plus_one_without_at_keeps_fast_path() -> None:
     from sase.main import bead_fast_path
 
     argv = ["+1", "sase-1", "-n", "plain evidence"]
-    with (
-        override_flags(bead_note_attachments=True),
-        patch.object(bead_fast_path, "execute_bead_cli", return_value=7) as execute,
-    ):
+    with patch.object(bead_fast_path, "execute_bead_cli", return_value=7) as execute:
         assert bead_fast_path.try_handle_bead_fast_path(argv) == 7
         execute.assert_called_once()

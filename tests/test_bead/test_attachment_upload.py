@@ -17,7 +17,6 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
-from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 
 PNG_HEAD = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
@@ -109,24 +108,10 @@ def remote(tmp_path: Path) -> Path:
     return path
 
 
-def test_flag_off_keeps_text_writes_no_outbox(
-    project_dir: Path, work_dir: Path
-) -> None:
-    (work_dir / "shot.png").write_bytes(PNG_HEAD)
-    issue_id = _create_plan(project_dir)
-    with override_flags(bead_note_attachments=False):
-        out, err, code = _run(["note", issue_id, "see @./shot.png"])
-    assert code == 0
-    assert "Noted" in out
-    assert _show(project_dir, issue_id).notes[0].text == "see @./shot.png"
-    assert _outbox_entries() == []
-
-
 def test_no_store_echo_stays_local(project_dir: Path, work_dir: Path) -> None:
     (work_dir / "shot.png").write_bytes(PNG_HEAD + b"pixels")
     issue_id = _create_plan(project_dir)
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(["note", issue_id, "see @./shot.png"])
+    out, err, code = _run(["note", issue_id, "see @./shot.png"])
     assert code == 0
     assert "stayed local on this machine" in err
     assert "(private)" not in err
@@ -148,8 +133,7 @@ def test_oversize_fails_without_local_only(
     issue_id = _create_plan(project_dir)
     monkeypatch.setattr("sase.bead.config.get_attachment_git_max_bytes", lambda: 10)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
-    with override_flags(bead_note_attachments=True):
-        _out, err, code = _run(["note", issue_id, "see @./big.bin"])
+    _out, err, code = _run(["note", issue_id, "see @./big.bin"])
     assert code != 0
     assert "-L" in err
     assert list(_show(project_dir, issue_id).notes) == []
@@ -166,8 +150,7 @@ def test_oversize_local_only_writes_without_queue(
     (work_dir / "big.bin").write_bytes(b"x" * 64)
     issue_id = _create_plan(project_dir)
     monkeypatch.setattr("sase.bead.config.get_attachment_git_max_bytes", lambda: 10)
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(["note", issue_id, "-L", "see @./big.bin"])
+    out, err, code = _run(["note", issue_id, "-L", "see @./big.bin"])
     assert code == 0
     assert "stayed local on this machine" in err
     assert _outbox_entries() == []
@@ -197,14 +180,12 @@ def test_failed_put_queues_then_push_drains(
         return real_put(self, sha256, src, size_bytes, progress)
 
     monkeypatch.setattr(GitAttachmentStore, "put", flaky_put)
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(["note", issue_id, "see @./shot.png"])
+    out, err, code = _run(["note", issue_id, "see @./shot.png"])
     assert code == 0
     assert "pending upload" in err
     assert _show(project_dir, issue_id).notes[0].attachments
     assert len(_outbox_entries()) == 1
-    with override_flags(bead_note_attachments=True):
-        out, err, code = _run(["attachment", "push", issue_id])
+    out, err, code = _run(["attachment", "push", issue_id])
     assert code == 0
     assert "Pushed 1" in out
     assert _outbox_entries() == []
@@ -229,8 +210,7 @@ def test_require_upload_failure_writes_nothing(
         raise BlobStoreError("boom", transient=True)
 
     monkeypatch.setattr(GitAttachmentStore, "put", always_fail)
-    with override_flags(bead_note_attachments=True):
-        _out, _err, code = _run(["note", issue_id, "see @./shot.png"])
+    _out, _err, code = _run(["note", issue_id, "see @./shot.png"])
     assert code != 0
     assert list(_show(project_dir, issue_id).notes) == []
     assert _outbox_entries() == []

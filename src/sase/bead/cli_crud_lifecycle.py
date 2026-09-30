@@ -14,7 +14,6 @@ from sase.bead.cli_common import (
 )
 from sase.bead.cli_crud_common import (
     mutation_outcome_ids,
-    note_attachments_enabled as _note_attachments_enabled,
     print_attachment_echo_rows,
     resolve_mutation_author,
 )
@@ -168,16 +167,12 @@ def _author_close_note(
 
 
 def handle_bead_close(args: argparse.Namespace) -> None:
-    attachments_on = _note_attachments_enabled()
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
-    local_only = bool(getattr(args, "local_only", False)) and attachments_on
+    local_only = bool(getattr(args, "local_only", False))
     try:
         note = getattr(args, "note", None)
         if note is not None:
-            if attachments_on:
-                note = read_note_text_value(note, target="--note", bead_id=args.ids[0])
-            else:
-                note = read_at_path_value(note, target="--note")
+            note = read_note_text_value(note, target="--note", bead_id=args.ids[0])
         reason = getattr(args, "reason", None)
         if reason is not None:
             reason = read_at_path_value(reason, target="--reason")
@@ -207,7 +202,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
             )
             author = resolve_mutation_author(mutation.project)
             note_attachments: list[dict[str, Any]] | None = None
-            if note is not None and attachments_on:
+            if note is not None:
                 authored = _author_close_note(
                     mutation,
                     resolved_ids,
@@ -230,7 +225,6 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                         echo_rows,
                         local_only=local_only,
                         bead_context=bead_context,
-                        attachments_on=attachments_on,
                     )
                     placement_wires = list(note_attachments)
             closed = mutation.project.close(
@@ -269,7 +263,6 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                 stores=placement_store,
                 project_key=placement_key,
                 require_upload=placement_require,
-                attachments_on=attachments_on,
             )
         commit_message = close_mutation_commit_message(
             closed_ids=closed_ids,

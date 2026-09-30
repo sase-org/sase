@@ -44,9 +44,9 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
         return None
     if argv[0] == "update" and _update_uses_python_note_surface(argv):
         return None
-    # With the bead note attachments flag on, inline ``@<path>`` references
-    # anywhere in a ``note`` invocation are snapshots, not literal text, so
-    # they stay on the Python surface that runs the authoring service.
+    # Inline ``@<path>`` references anywhere in a ``note`` invocation are
+    # snapshots, not literal text, so they stay on the Python surface that
+    # runs the authoring service.
     if _note_argv_needs_python_attachment_surface(argv):
         return None
     # ``@<path>`` free-text expansion lives in the Python handlers. A Rust
@@ -423,19 +423,13 @@ def _argv_requests_at_path(argv: list[str]) -> bool:
 def _note_argv_needs_python_attachment_surface(argv: list[str]) -> bool:
     """Return whether a ``note`` or ``+1`` argv needs the authoring service.
 
-    With the bead note attachments flag on, ``@`` anywhere in the note text
-    (including the middle of an argument) may start a reference, so the
-    command stays on the Python surface. With the flag off, the existing
-    leading-``@`` rule applies. Never imports the attachments package.
+    ``@`` anywhere in the note text (including the middle of an argument)
+    may start a reference, so the command stays on the Python surface.
+    Never imports the attachments package.
     """
     if not argv or argv[0] not in {"note", "+1"}:
         return False
-    if not any("@" in arg for arg in argv[1:]):
-        return False
-    from sase.feature_flags.registry import FeatureFlag
-    from sase.feature_flags.snapshot import current_flags
-
-    return bool(current_flags().enabled(FeatureFlag.bead_note_attachments))
+    return any("@" in arg for arg in argv[1:])
 
 
 def _update_uses_python_note_surface(argv: list[str]) -> bool:
