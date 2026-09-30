@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import secrets
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -73,11 +74,15 @@ def reserve_handoff_run(
     owner_kind: str,
     owner_id: str,
     agent: str | None = None,
+    starter: Mapping[str, Any] | None = None,
+    continuation_mode: str | None = None,
 ) -> HandoffReservation:
     """Reserve a ``created`` hand-off run; never raises.
 
     *agent* overrides the environment-derived attribution, for a launcher
     that knows the durable agent name better than its own env does.
+    *starter* scopes the run to its starting agent runner (detached runs);
+    *continuation_mode* travels in the launch envelope for the worker.
     """
 
     run_id = secrets.token_hex(16)
@@ -105,7 +110,12 @@ def reserve_handoff_run(
         request["agent"] = agent.strip()
     request["commit_running"] = False
     request["launch_mode"] = "handoff"
-    request["launch"] = _envelope_from_resolved(resolved)
+    envelope = _envelope_from_resolved(resolved)
+    if continuation_mode in ("always", "never", "known"):
+        envelope["continuation_mode"] = continuation_mode
+    request["launch"] = envelope
+    if starter is not None:
+        request["starter"] = dict(starter)
     try:
         started = tool_run_begin(request)
     except Exception as exc:  # noqa: BLE001 - reservation is fail-closed.
@@ -154,10 +164,13 @@ def worker_env_overlay() -> dict[str, str]:
     return {"SASE_TOOL_RUN_ID": "", "SASE_TOOL_RUN_EVENTS": ""}
 
 
-def owner_tags(run_id: str) -> list[str]:
+def owner_tags(run_id: str, *, detached: bool = False) -> list[str]:
     """Return the proc tags linking one ToolRun to its owner proc."""
 
-    return ["tool-run", f"tool-run:{run_id}"]
+    tags = ["tool-run", f"tool-run:{run_id}"]
+    if detached:
+        tags.append("tool-run-detached")
+    return tags
 
 
 def owner_request_fingerprint(run_id: str) -> str:

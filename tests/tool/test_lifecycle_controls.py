@@ -120,6 +120,21 @@ def test_stop_unknown_run_exits_2(
     assert "not found" in capsys.readouterr().err
 
 
+def test_stop_run_through_owner_helper_reports_unknown_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sase.tool.control import stop_run_through_owner
+
+    _clean_env(monkeypatch, tmp_path)
+    result = stop_run_through_owner("0" * 32, requested_by="sase", reason="stop")
+    assert result.status == "not_found"
+    run_id = _begin_foreground()
+    _finish(run_id, "succeeded", 0)
+    settled = stop_run_through_owner(run_id, requested_by="sase", reason="stop")
+    assert settled.status == "already_settled"
+    assert settled.state == "succeeded"
+
+
 def test_stop_settled_run_reports_already(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

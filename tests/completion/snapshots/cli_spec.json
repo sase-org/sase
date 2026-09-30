@@ -36945,12 +36945,16 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "3b9386ed74a4dcdf",
+            "description_digest": "1d66a4bd06689359",
             "hidden": false,
             "mutex_groups": [
               [
                 "quiet",
                 "verbose"
+              ],
+              [
+                "hand_off",
+                "detach"
               ],
               [
                 "keep_going",
@@ -37035,6 +37039,22 @@
                 "strings": [
                   "-H",
                   "--hand-off"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "detach",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-d",
+                  "--detach"
                 ],
                 "takes_value": false,
                 "value_hint": null

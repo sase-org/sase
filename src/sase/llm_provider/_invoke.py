@@ -570,6 +570,15 @@ def invoke_agent(
 
     finally:
         if artifacts_dir:
+            # Eager leg of starter-scoped detached runs: stop this runner's
+            # unjoined detached runs before the turn ends. Best effort and
+            # never raises; actively joined runs are preserved.
+            try:
+                from sase.tool.detach_cleanup import stop_unjoined_detached_runs
+
+                stop_unjoined_detached_runs(artifacts_dir=artifacts_dir)
+            except Exception:  # noqa: BLE001 - cleanup never fails a turn.
+                pass
             if previous_finalizer_nonce is None:
                 os.environ.pop("SASE_FINAL_TURN_NONCE", None)
             else:

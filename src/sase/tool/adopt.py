@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import signal
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -115,6 +117,17 @@ def _claim_and_run(
 
     from sase.tool.executor import agent_default_continuation_mode
 
+    envelope_mode = (
+        launch.get("continuation_mode") if isinstance(launch, dict) else None
+    )
+    if envelope_mode in ("always", "never", "known"):
+        continuation_mode = envelope_mode
+    else:
+        continuation_mode = agent_default_continuation_mode(resolved, recorded_agent)
+    starter = run.get("starter") if isinstance(run, dict) else None
+    if isinstance(starter, dict) and starter:
+        _start_starter_watchdog(run_id, dict(starter))
+
     ctx = RecordedRunContext(
         run_id=run_id,
         recorded=True,
@@ -128,12 +141,87 @@ def _claim_and_run(
         stderr_path=None,
         stop_recorded=_stop_probe(run_id, owner_kind, owner_id, proc_id),
         timeout_recorded=_timeout_probe(proc_id),
-        continuation_mode=agent_default_continuation_mode(resolved, recorded_agent),
+        continuation_mode=continuation_mode,
     )
     code = run_recorded_body(ctx, signals)
     if owner_kind == "proc":
         _deliver_settlement(run_id)
     return code
+
+
+#: Seconds between starter-liveness polls for starter-scoped runs.
+_WATCHDOG_POLL_SECONDS = 5.0
+
+
+def _start_starter_watchdog(run_id: str, starter: dict[str, Any]) -> None:
+    """Watch a starter-scoped run's starter; stop the run when it is gone.
+
+    While the starter identity is live the run is left alone. Once the
+    starter is gone the run survives only while its join names an active
+    monitor; otherwise a stop is requested (``requested_by: sase``) and
+    routed through the same owner path ``sase tool stop`` uses. The thread
+    is a daemon and best effort: it never raises and never blocks exit.
+    """
+
+    thread = threading.Thread(
+        target=_watch_starter,
+        args=(run_id, starter),
+        name=f"sase-starter-watchdog-{run_id[:8]}",
+        daemon=True,
+    )
+    thread.start()
+
+
+def _watch_starter(run_id: str, starter: dict[str, Any]) -> None:
+    from sase.tool.starter import starter_alive
+
+    try:
+        while True:
+            try:
+                alive = starter_alive(starter)
+            except Exception:  # noqa: BLE001 - an unread check leaves the run alone.
+                alive = True
+            if alive:
+                time.sleep(_WATCHDOG_POLL_SECONDS)
+                continue
+            try:
+                shown = tool_run_show(run_id)
+            except Exception:  # noqa: BLE001 - an unreadable run ends the watch.
+                return
+            run = shown.get("run") if isinstance(shown, dict) else None
+            if not isinstance(run, dict):
+                return
+            if str(run.get("state") or "") not in ("created", "running"):
+                return
+            join_id = _active_join_monitor_id(run)
+            if join_id is not None:
+                # The starter is gone but a live monitor owns the follow-up:
+                # keep watching in case that monitor ends first.
+                time.sleep(_WATCHDOG_POLL_SECONDS)
+                continue
+            join = run.get("join") if isinstance(run.get("join"), dict) else None
+            if isinstance(join, dict) and str(join.get("id") or ""):
+                reason = f"joining monitor {join.get('id')} ended"
+            else:
+                agent = (
+                    str(starter.get("agent") or "").strip()
+                    or str(run.get("agent") or "").strip()
+                )
+                reason = f"starter agent {agent} ended without joining"
+            from sase.tool.control_stop import stop_run_through_owner
+
+            stop_run_through_owner(run_id, requested_by="sase", reason=reason)
+            return
+    except Exception:  # noqa: BLE001 - the watchdog never raises.
+        return
+
+
+def _active_join_monitor_id(run: dict[str, Any]) -> str | None:
+    """Return the joined monitor id when it names an active monitor."""
+
+    from sase.tool.detach_cleanup import joined_monitor_active
+
+    return joined_monitor_active(run)
 
 
 def _deliver_settlement(run_id: str) -> None:

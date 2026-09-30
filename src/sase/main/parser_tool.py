@@ -214,7 +214,10 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
             "stderr. The child has no output TTY; stdin is inherited.\n\n"
             "`-H` hands the run off to a durable proc and returns at once "
             "with the run id. With `-H`, `-q` prints only the run id, while "
-            "`-v` and `-T` are usage errors. An agent's inline run of a "
+            "`-v` and `-T` are usage errors. `-d` starts a starter-scoped "
+            "detached run for the calling agent instead (agents only, "
+            "behind the tool_run_escalation beta flag); it stops when the "
+            "agent's turn ends unless a monitor joins it. An agent's inline run of a "
             "catalog tool declared `long` or `unbounded` is refused before "
             "starting (exit `2`) when its class floor meets the provider's "
             "synchronous ceiling, with the monitor command to use instead. "
@@ -227,7 +230,8 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase tool run test -- tests/test_tool_handler.py\n"
             "  sase tool run -- printf out\n"
             "  sase tool run -q -T 5 -- false\n"
-            "  sase tool run -H check"
+            "  sase tool run -H check\n"
+            "  sase tool run -d check"
         ),
     )
     output_mode = run_parser.add_mutually_exclusive_group()
@@ -251,12 +255,23 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Force streaming passthrough of child stdout and stderr",
     )
-    run_parser.add_argument(
+    handoff_mode = run_parser.add_mutually_exclusive_group()
+    handoff_mode.add_argument(
         "-H",
         "--hand-off",
         action="store_true",
         dest="hand_off",
         help="Hand the run off to a durable proc and return at once",
+    )
+    handoff_mode.add_argument(
+        "-d",
+        "--detach",
+        action="store_true",
+        dest="detach",
+        help=(
+            "Start a starter-scoped detached run as this agent and return "
+            "at once (agents only, behind the tool_run_escalation beta flag)"
+        ),
     )
     continuation_mode = run_parser.add_mutually_exclusive_group()
     continuation_mode.add_argument(

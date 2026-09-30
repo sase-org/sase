@@ -99,6 +99,8 @@ def print_show(envelope: dict[str, Any]) -> None:
         f"LAUNCH    {run.get('launch_mode') or 'foreground'}",
         f"OWNER     {_format_owner(run)}",
         f"PARENT    {run.get('parent_run_id') or EMPTY}",
+        *([f"DETACHED  {_format_detached(run)}"] if _format_detached(run) else []),
+        *([f"JOINED    {_format_join(run)}"] if _format_join(run) else []),
         f"DURATION  {format_duration_ms(run.get('duration_ms') if type(run.get('duration_ms')) is int else None)}",
         f"EXIT      {run.get('exit_code') if run.get('exit_code') is not None else EMPTY}",
         f"SIGNAL    {run.get('signal') if run.get('signal') is not None else EMPTY}",
@@ -234,6 +236,50 @@ def _format_owner(run: dict[str, Any]) -> str:
     owner_id = run.get("owner_id")
     if kind and owner_id:
         return f"{kind}:{owner_id}"
+    return EMPTY
+
+
+def _format_detached(run: dict[str, Any]) -> str | None:
+    """Render the starter scope of a detached run; ``None`` when attached."""
+
+    starter = run.get("starter")
+    if not isinstance(starter, dict):
+        return None
+    agent = str(starter.get("agent") or "")
+    if not agent:
+        return None
+    return (
+        f"detached by agent {agent} (stopped when that agent's turn ends unless joined)"
+    )
+
+
+def _format_join(run: dict[str, Any]) -> str | None:
+    """Render the monitor join of a detached run; ``None`` when unjoined."""
+
+    join = run.get("join")
+    if not isinstance(join, dict):
+        return None
+    kind = str(join.get("kind") or "")
+    join_id = str(join.get("id") or "")
+    if not kind or not join_id:
+        return None
+    return f"joined by {kind} {join_id} at {_format_join_ts(join.get('joined_ts'))}"
+
+
+def _format_join_ts(value: object) -> str:
+    """Render a join timestamp as local ISO time, falling back to raw."""
+
+    if type(value) is int:
+        try:
+            from datetime import datetime
+
+            from sase.core.time import get_timezone
+
+            return datetime.fromtimestamp(value, get_timezone()).isoformat(
+                timespec="seconds"
+            )
+        except Exception:  # noqa: BLE001 - timestamps are best-effort display.
+            return str(value)
     return EMPTY
 
 

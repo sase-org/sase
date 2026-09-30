@@ -73,6 +73,7 @@ def handle_tool_command(args: argparse.Namespace) -> None:
                         for part in (getattr(args, "tool_run_words", None) or ())
                     ),
                     hand_off=bool(getattr(args, "hand_off", False)),
+                    detach=bool(getattr(args, "detach", False)),
                     tail_lines_explicit=tail_raw is not None,
                     keep_going=bool(getattr(args, "keep_going", False)),
                     fail_fast=bool(getattr(args, "fail_fast", False)),

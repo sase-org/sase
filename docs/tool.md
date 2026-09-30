@@ -333,6 +333,38 @@ the exact monitor form to use instead (exit `2`). An agent's inline run of a cat
 tool declared `long` or `unbounded` is likewise refused before starting when its class
 floor meets the provider's synchronous ceiling (see "Inline routing" above).
 
+### Detached runs
+
+`sase tool run -d/--detach` (behind the `tool_run_escalation` beta flag, agents only)
+starts a normal hand-off run that also carries a `starter` record naming the agent
+runner that started it (`SASE_AGENT_NAME` plus the runner PID from
+`$SASE_ARTIFACTS_DIR/agent_meta.json`, paired with boot/start-time identity so a reused
+PID never counts as proof). Detached output mirrors `-H` and adds the starter lifetime
+plus the join hint; `-q` prints only the run id:
+
+```bash
+sase tool run -d check     # agent-only; stopped when the turn ends unless joined
+```
+
+An unjoined detached run never outlives its starter. Eagerly, the end of the provider
+invocation that started it stops every unjoined run scoped to that runner (a monitor
+handoff records its join first, so an actively joined run is never touched). As a
+backstop, the adopting worker polls the starter about every five seconds once claimed:
+while the starter identity is live the run is left alone, and after the starter dies the
+run survives only while its join names an active monitor — otherwise it is stopped with
+`requested_by: sase` and a reason naming the case
+(`starter agent X ended without joining`, `joining monitor Y ended`). `sase tool show`
+renders the scope (`detached by agent X ...`) and the join (`joined by monitor Y at T`),
+and detached runs never raise the settlement notification: either the starter reads the
+result inline or the joined monitor's follow-up does.
+
+Recording is **fail-closed** like `-H`: if the starter cannot be resolved, the
+reservation cannot be committed, or the proc cannot start, nothing starts (exit `1`).
+Usage and refusals exit `2`: the flag off, a human caller (use `-H` instead), a live
+owner or parent run, `-H` together with `-d`, and `-v`/`-T`. `-k`/`-x` are allowed and
+travel as the envelope continuation mode, and `long` tools are accepted detached since a
+join can finish them.
+
 Recording failures behave differently by leg. Explicit `-H` is **fail-closed**: if the
 reservation cannot be committed, nothing starts (exit `1`, "nothing was started").
 Foreground `sase tool run` stays **fail-open** as above. A monitor start's reservation

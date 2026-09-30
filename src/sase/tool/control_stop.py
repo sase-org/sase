@@ -103,6 +103,70 @@ def _emit_stop_result(
     )
 
 
+@dataclass(frozen=True)
+class OwnerStopResult:
+    """Outcome of recording a stop request and routing it through the owner."""
+
+    status: str
+    state: str = ""
+    control_error: int | None = None
+    message: str = ""
+
+
+def stop_run_through_owner(
+    run_id: str, *, requested_by: str, reason: str
+) -> OwnerStopResult:
+    """Record a stop request for *run_id* and route it through its owner.
+
+    This is the shared owner path ``sase tool stop`` uses, extracted so the
+    detached-run watchdog and the end-of-invocation cleanup stop through the
+    same routing. Never raises: every failure mode is a ``status``.
+    """
+
+    run_id = run_id.strip()
+    if not run_id:
+        return OwnerStopResult(status="not_found", message="Usage: sase tool stop RUN")
+    try:
+        stop_result = tool_run_request_stop(
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "requested_by": requested_by,
+                "reason": reason,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 - unknown runs are not_found.
+        if "not found" in str(exc).lower() or "notfound" in type(exc).__name__.lower():
+            return OwnerStopResult(
+                status="not_found", message=f"tool run {run_id} was not found"
+            )
+        return OwnerStopResult(status="request_failed", message=str(exc))
+    outcome = str(stop_result.get("outcome") or "")
+    try:
+        run = load_run(run_id)
+    except UnknownRunError as exc:
+        return OwnerStopResult(status="not_found", message=str(exc))
+    except Exception as exc:  # noqa: BLE001 - an unreadable run cannot route.
+        return OwnerStopResult(status="request_failed", message=str(exc))
+    state = str(run.get("state") or "")
+    if state not in UNSETTLED_RUN_STATES:
+        return OwnerStopResult(status="already_settled", state=state)
+    if outcome == "already_settled":
+        try:
+            shown = load_run(run_id)
+        except Exception:  # noqa: BLE001 - report what was observed.
+            return OwnerStopResult(status="already_settled", state=state)
+        return OwnerStopResult(
+            status="already_settled", state=str(shown.get("state") or "")
+        )
+    control_error = _route_owner_stop(run)
+    if control_error is not None:
+        return OwnerStopResult(
+            status="owner_stop_failed", state=state, control_error=control_error
+        )
+    return OwnerStopResult(status="routed", state=state)
+
+
 def handle_stop(request: ToolStopCliRequest) -> int:
     """Record a durable stop request, then route through the run's owner."""
 
@@ -114,65 +178,37 @@ def handle_stop(request: ToolStopCliRequest) -> int:
             success=False, run_id="", outcome="usage", state="", message=message
         )
         return 2
-    try:
-        stop_result = tool_run_request_stop(
-            {
-                "schema_version": 1,
-                "run_id": run_id,
-                "requested_by": _requested_by(),
-                "reason": "stop",
-            }
+    result = stop_run_through_owner(run_id, requested_by=_requested_by(), reason="stop")
+    if result.status == "not_found":
+        message = result.message or f"tool run {run_id} was not found"
+        print(message, file=sys.stderr)
+        _emit_stop_result(
+            success=False,
+            run_id=run_id,
+            outcome="not_found",
+            state="",
+            message=message,
         )
-    except Exception as exc:  # noqa: BLE001 - unknown runs exit 2.
-        if "not found" in str(exc).lower() or "notfound" in type(exc).__name__.lower():
-            message = f"tool run {run_id} was not found"
-            print(message, file=sys.stderr)
-            _emit_stop_result(
-                success=False,
-                run_id=run_id,
-                outcome="not_found",
-                state="",
-                message=message,
-            )
-            return 2
-        message = f"sase tool stop {run_id}: {exc}"
+        return 2
+    if result.status == "request_failed":
+        message = f"sase tool stop {run_id}: {result.message}"
         print(message, file=sys.stderr)
         _emit_stop_result(
             success=False, run_id=run_id, outcome="error", state="", message=message
         )
         return 1
-    outcome = str(stop_result.get("outcome") or "")
-    try:
-        run = load_run(run_id)
-    except UnknownRunError as exc:
-        message = str(exc)
-        print(message, file=sys.stderr)
-        _emit_stop_result(
-            success=False, run_id=run_id, outcome="not_found", state="", message=message
-        )
-        return 2
-    state = str(run.get("state") or "")
-    if state not in UNSETTLED_RUN_STATES:
+    if result.status == "already_settled":
         return _report_stop_outcome(
-            request, run_id, f"already {state}", state, already=True
+            request, run_id, f"already {result.state}", result.state, already=True
         )
-    if outcome == "already_settled":
-        shown = load_run(run_id)
-        return _report_stop_outcome(
-            request,
-            run_id,
-            f"already {shown.get('state')}",
-            str(shown.get("state") or ""),
-            already=True,
-        )
-    control_error = _route_owner_stop(run)
-    if control_error is not None:
+    if result.status == "owner_stop_failed":
+        control_error = result.control_error if result.control_error is not None else 1
         message = f"sase tool stop {run_id} failed (exit {control_error})"
         _emit_stop_result(
             success=False,
             run_id=run_id,
             outcome="owner_stop_failed",
-            state=str(run.get("state") or ""),
+            state=result.state,
             message=message,
         )
         return control_error
@@ -434,6 +470,8 @@ def _signal_inline_wrapper(run: dict[str, Any]) -> int | None:
 
 
 __all__ = [
+    "OwnerStopResult",
     "ToolStopCliRequest",
     "handle_stop",
+    "stop_run_through_owner",
 ]

@@ -1,15 +1,134 @@
-"""Fail-closed ``sase tool run -H`` over a plain durable proc."""
+"""Fail-closed hand-off launches over a plain durable proc.
+
+``execute_handoff`` is the ``sase tool run -H`` leg. ``submit_handoff_run``
+is the shared proc-submission half used by ``-H``, ``-d/--detach``, and the
+later automatic path: reservation plus owner submission, with presentation
+left to the caller so ``-H`` output stays byte-identical.
+"""
 
 from __future__ import annotations
 
 import os
 import shlex
 import sys
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from sase.tool.argv import ToolRunUsageError, resolve_run_argv
+from sase.tool.argv import ResolvedToolArgv, ToolRunUsageError, resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest
+from sase.tool.handoff import HandoffReservation
 from sase.tool.routing import monitor_start_form
+
+
+@dataclass(frozen=True)
+class HandoffSubmitResult:
+    """Outcome of the shared reserve-and-submit half of a hand-off launch."""
+
+    reservation: HandoffReservation
+    proc_id: str
+    submit_error: str | None = None
+
+
+def describe_handoff_command(
+    resolved: ResolvedToolArgv,
+) -> tuple[str, list[str], str]:
+    """Return ``(label, command, tool_display)`` for a resolved hand-off."""
+
+    if resolved.tool_name:
+        label = f"tool:{resolved.tool_name}"
+        base_len = len(list(resolved.definition.get("argv") or ()))
+        redacted_extra = list(resolved.display_argv[base_len:])
+        command: list[str] = [
+            "sase",
+            "tool",
+            "run",
+            resolved.tool_name,
+            *redacted_extra,
+        ]
+        tool_display = resolved.tool_name
+    else:
+        label = "tool:ad-hoc"
+        command = ["sase", "tool", "run", "--", *list(resolved.display_argv)]
+        tool_display = "ad-hoc"
+    return label, command, tool_display
+
+
+def submit_handoff_run(
+    resolved: ResolvedToolArgv,
+    *,
+    launch_root: Path,
+    agent: str | None = None,
+    starter: Mapping[str, Any] | None = None,
+    continuation_mode: str | None = None,
+    detached: bool = False,
+) -> HandoffSubmitResult:
+    """Reserve a hand-off run and submit its adopting proc; never raises."""
+
+    from sase.procs import new_proc_id
+
+    from sase.tool.handoff import (
+        owner_request_fingerprint,
+        owner_tags,
+        reserve_handoff_run,
+        settle_launch_failure,
+        worker_argv,
+        worker_env_overlay,
+    )
+
+    proc_id = new_proc_id()
+    reservation = reserve_handoff_run(
+        resolved,
+        owner_kind="proc",
+        owner_id=proc_id,
+        agent=agent,
+        starter=starter,
+        continuation_mode=continuation_mode,
+    )
+    if not reservation.reserved:
+        return HandoffSubmitResult(reservation=reservation, proc_id=proc_id)
+    run_id = reservation.run_id
+    label, command, _ = describe_handoff_command(resolved)
+
+    from sase.procs import submit_proc_request
+    from sase.procs.request import ProcSubmitRequest
+    from sase.procs import infer_proc_attribution
+    from sase.sessions import SessionRefError, resolve_session_ref
+
+    project, workspace_num = infer_proc_attribution(launch_root, None)
+    try:
+        identity = resolve_session_ref(None)
+        session_id = identity.session_id if identity is not None else None
+    except SessionRefError:
+        session_id = None
+
+    try:
+        submit_proc_request(
+            ProcSubmitRequest(
+                argv=worker_argv(run_id),
+                command=command,
+                label=label,
+                cwd=launch_root,
+                origin="tool-run",
+                proc_id=proc_id,
+                project=project,
+                workspace_num=workspace_num,
+                session_id=session_id,
+                tags=owner_tags(run_id, detached=detached),
+                env=worker_env_overlay(),
+                request_fingerprint=owner_request_fingerprint(run_id),
+                followup={"kind": "tool-run", "run_id": run_id},
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - submit failure settles launch_failed.
+        settle_launch_failure(run_id, str(exc))
+        return HandoffSubmitResult(
+            reservation=reservation,
+            proc_id=proc_id,
+            submit_error=str(exc),
+        )
+    return HandoffSubmitResult(reservation=reservation, proc_id=proc_id)
 
 
 def execute_handoff(
@@ -85,19 +204,9 @@ def execute_handoff(
         print(str(exc), file=sys.stderr)
         return 2
 
-    from sase.procs import new_proc_id
-
-    from sase.tool.handoff import (
-        owner_request_fingerprint,
-        owner_tags,
-        reserve_handoff_run,
-        settle_launch_failure,
-        worker_argv,
-        worker_env_overlay,
-    )
-
-    proc_id = new_proc_id()
-    reservation = reserve_handoff_run(resolved, owner_kind="proc", owner_id=proc_id)
+    submitted = submit_handoff_run(resolved, launch_root=launch_root)
+    reservation = submitted.reservation
+    proc_id = submitted.proc_id
     if not reservation.reserved:
         reason = reservation.error or "reservation failed"
         foreground = f"sase tool run {quoted}".strip()
@@ -108,57 +217,12 @@ def execute_handoff(
         return 1
 
     run_id = reservation.run_id
-    if resolved.tool_name:
-        label = f"tool:{resolved.tool_name}"
-        base_len = len(list(resolved.definition.get("argv") or ()))
-        redacted_extra = list(resolved.display_argv[base_len:])
-        command: list[str] = [
-            "sase",
-            "tool",
-            "run",
-            resolved.tool_name,
-            *redacted_extra,
-        ]
-        tool_display = resolved.tool_name
-    else:
-        label = "tool:ad-hoc"
-        command = ["sase", "tool", "run", "--", *list(resolved.display_argv)]
-        tool_display = "ad-hoc"
+    _, _, tool_display = describe_handoff_command(resolved)
 
-    from sase.procs import submit_proc_request
-    from sase.procs.request import ProcSubmitRequest
-    from sase.procs import infer_proc_attribution
-    from sase.sessions import SessionRefError, resolve_session_ref
-
-    project, workspace_num = infer_proc_attribution(launch_root, None)
-    try:
-        identity = resolve_session_ref(None)
-        session_id = identity.session_id if identity is not None else None
-    except SessionRefError:
-        session_id = None
-
-    try:
-        submit_proc_request(
-            ProcSubmitRequest(
-                argv=worker_argv(run_id),
-                command=command,
-                label=label,
-                cwd=launch_root,
-                origin="tool-run",
-                proc_id=proc_id,
-                project=project,
-                workspace_num=workspace_num,
-                session_id=session_id,
-                tags=owner_tags(run_id),
-                env=worker_env_overlay(),
-                request_fingerprint=owner_request_fingerprint(run_id),
-                followup={"kind": "tool-run", "run_id": run_id},
-            )
-        )
-    except Exception as exc:  # noqa: BLE001 - submit failure settles launch_failed.
-        settle_launch_failure(run_id, str(exc))
+    if submitted.submit_error is not None:
         print(
-            f"sase tool run -H: could not start proc for {run_id} ({exc}); "
+            f"sase tool run -H: could not start proc for {run_id} "
+            f"({submitted.submit_error}); "
             "command was not run",
             file=sys.stderr,
         )
@@ -178,4 +242,9 @@ def execute_handoff(
     return 0
 
 
-__all__ = ["execute_handoff"]
+__all__ = [
+    "HandoffSubmitResult",
+    "describe_handoff_command",
+    "execute_handoff",
+    "submit_handoff_run",
+]

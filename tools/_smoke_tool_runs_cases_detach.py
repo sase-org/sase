@@ -1,0 +1,242 @@
+"""Harness cases: starter-scoped detached runs (DoD-17 hermetic).
+
+Each case drives the real ``sase`` CLI against an isolated ``SASE_HOME``.
+The starter is a sacrificial ``sleep`` process named in a temporary
+``agent_meta.json``; fault injection happens only at the filesystem/process
+boundary. The ``tool_run_escalation`` beta flag is enabled per-case through
+``SASE_FEATURE_FLAGS`` so the default-off gate stays covered too.
+
+Matrix mapping:
+
+- accepted ``-d`` is observable at once and settles ... ``dod-17-detach-accept``
+- ``-d`` misuse is refused before reserving ........... ``dod-17-detach-refusals``
+- starter death stops the unjoined run ................ ``dod-17-detach-starter-death``
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+from typing import Any
+
+from _smoke_tool_runs_lib import (
+    Harness,
+    case,
+    wait_for,
+)
+
+
+def _agent_env(
+    h: Harness, world: dict[str, str], name: str
+) -> tuple[dict[str, str], subprocess.Popen[str]]:
+    """Agent env with a sacrificial sleeper as the runner PID plus the beta flag."""
+
+    artifacts = Path(world["SASE_HOME"]).parent / f"artifacts-{name}"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    sleeper = subprocess.Popen(
+        ["sleep", "300"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"pid": sleeper.pid, "name": name}), encoding="utf-8"
+    )
+    env = dict(
+        world,
+        SASE_AGENT="1",
+        SASE_AGENT_NAME=name,
+        SASE_ARTIFACTS_DIR=str(artifacts),
+        SASE_FEATURE_FLAGS='{"tool_run_escalation":true}',
+    )
+    return env, sleeper
+
+
+def _run_id_from_ack(stdout: str) -> str:
+    for line in stdout.splitlines():
+        if line.startswith("sase tool run "):
+            return line.split()[-1]
+    return ""
+
+
+def _terminal(h: Harness, env: dict[str, str], run_id: str) -> dict[str, Any]:
+    return h.show(run_id, env=env).get("run") or {}
+
+
+def _wait_settled(
+    h: Harness, env: dict[str, str], run_id: str, timeout: float = 60.0
+) -> dict[str, Any]:
+    def settled() -> bool:
+        run = _terminal(h, env, run_id)
+        return run.get("state") not in ("", "created", "running")
+
+    wait_for(settled, timeout=timeout)
+    return _terminal(h, env, run_id)
+
+
+def detach_accept(h: Harness) -> dict[str, Any]:
+    """An accepted detach carries its starter and settles normally."""
+
+    env = h.world("detach-accept")
+    agent_env, sleeper = _agent_env(h, env, "smoke-agent")
+    try:
+        proc = h.run(
+            ["tool", "run", "-d", "--", "sh", "-c", "sleep 2; exit 3"],
+            env=agent_env,
+        )
+        run_id = _run_id_from_ack(proc.stdout)
+        early = _terminal(h, env, run_id) if run_id else {}
+        procs = (
+            json.loads(
+                h.run(["proc", "list", "-j"], env=env, cwd=h.tmp).stdout or "{}"
+            ).get("procs")
+            or []
+        )
+        owned = [p for p in procs if f"tool-run:{run_id}" in (p.get("tags") or [])]
+        tags = (owned[0].get("tags") or []) if owned else []
+        waited = h.run(["tool", "wait", run_id], env=env, cwd=h.tmp, timeout=60.0)
+        final = _terminal(h, env, run_id)
+        h.note(run_id, "accepted detach settles under its proc", owner="proc")
+        ok = (
+            proc.returncode == 0
+            and bool(run_id)
+            and "detached: stopped when this agent's turn ends" in proc.stdout
+            and f"sase monitor start -J {run_id}" in proc.stdout
+            and early.get("state") in ("created", "running")
+            and early.get("launch_mode") == "handoff"
+            and (early.get("starter") or {}).get("agent") == "smoke-agent"
+            and (early.get("starter") or {}).get("pid") == sleeper.pid
+            and early.get("join") is None
+            and len(owned) == 1
+            and "tool-run-detached" in tags
+            and waited.returncode == 3
+            and final.get("state") == "failed"
+            and final.get("exit_code") == 3
+        )
+        return case(
+            "dod-17-detach-accept",
+            ok,
+            dod=["DoD-17"],
+            run_ids=[run_id],
+            early_state=early.get("state"),
+            starter_agent=(early.get("starter") or {}).get("agent"),
+            detached_tag="tool-run-detached" in tags,
+            wait_exit=waited.returncode,
+            final_state=final.get("state"),
+            final_exit=final.get("exit_code"),
+        )
+    finally:
+        try:
+            sleeper.kill()
+        except OSError:
+            pass
+
+
+def detach_refusals(h: Harness) -> dict[str, Any]:
+    """``-d`` misuse is refused before anything is reserved."""
+
+    env = h.world("detach-refusals")
+    agent_env, sleeper = _agent_env(h, env, "smoke-agent")
+    try:
+        flag_off = h.run(
+            ["tool", "run", "-d", "--", "printf", "hi"],
+            env=dict(agent_env, SASE_FEATURE_FLAGS='{"tool_run_escalation":false}'),
+        )
+        # The flag gate fires first: every other refusal needs the flag on.
+        human = h.run(
+            ["tool", "run", "-d", "--", "printf", "hi"],
+            env=dict(
+                env, SASE_FEATURE_FLAGS='{"tool_run_escalation":true}'
+            ),
+        )
+        verbose = h.run(
+            ["tool", "run", "-d", "-v", "--", "printf", "hi"], env=agent_env
+        )
+        tail = h.run(
+            ["tool", "run", "-d", "-T", "5", "--", "printf", "hi"], env=agent_env
+        )
+        no_starter = dict(agent_env)
+        del no_starter["SASE_ARTIFACTS_DIR"]
+        unresolvable = h.run(
+            ["tool", "run", "-d", "--", "printf", "hi"], env=no_starter
+        )
+        rows = h.runs(env=env)
+        ok = (
+            flag_off.returncode == 2
+            and "not enabled" in flag_off.stderr
+            and human.returncode == 2
+            and "sase tool run -H" in human.stderr
+            and verbose.returncode == 2
+            and tail.returncode == 2
+            and unresolvable.returncode == 1
+            and "cannot identify the starting agent runner; nothing was started"
+            in unresolvable.stderr
+            and rows == []
+        )
+        return case(
+            "dod-17-detach-refusals",
+            ok,
+            dod=["DoD-17"],
+            flag_off_exit=flag_off.returncode,
+            human_exit=human.returncode,
+            verbose_exit=verbose.returncode,
+            tail_exit=tail.returncode,
+            unresolvable_exit=unresolvable.returncode,
+            rows=len(rows),
+        )
+    finally:
+        try:
+            sleeper.kill()
+        except OSError:
+            pass
+
+
+def detach_starter_death(h: Harness) -> dict[str, Any]:
+    """Killing the starter stops the unjoined run with the exact reason."""
+
+    env = h.world("detach-starter-death")
+    agent_env, sleeper = _agent_env(h, env, "smoke-agent")
+    proc = h.run(
+        ["tool", "run", "-d", "--", "sh", "-c", "sleep 60"],
+        env=agent_env,
+    )
+    run_id = _run_id_from_ack(proc.stdout)
+    assert proc.returncode == 0 and run_id, proc.stderr[-2000:]
+    sleeper.kill()
+    sleeper.wait(timeout=10)
+    final = _wait_settled(h, env, run_id, timeout=60.0)
+    stop = final.get("stop_request") or {}
+    notified = h.run(["notify", "list", "-j"], env=env, cwd=h.tmp)
+    try:
+        rows = json.loads(notified.stdout)
+    except json.JSONDecodeError:
+        rows = None
+    deliveries = (
+        sum(
+            1
+            for row in rows
+            if row.get("sender") == "tool-run"
+            and (row.get("action_data") or {}).get("run_id") == run_id
+        )
+        if isinstance(rows, list)
+        else -1
+    )
+    ok = (
+        final.get("state") == "signaled"
+        and final.get("terminal_cause") == "stop_requested"
+        and stop.get("requested_by") == "sase"
+        and stop.get("reason") == "starter agent smoke-agent ended without joining"
+        and deliveries == 0
+    )
+    return case(
+        "dod-17-detach-starter-death",
+        ok,
+        dod=["DoD-17"],
+        run_ids=[run_id],
+        final_state=final.get("state"),
+        terminal_cause=final.get("terminal_cause"),
+        requested_by=stop.get("requested_by"),
+        reason=stop.get("reason"),
+        deliveries=deliveries,
+    )

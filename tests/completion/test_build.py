@@ -88,7 +88,8 @@ def test_hidden_subcommands_are_absent() -> None:
 def test_mutex_groups_found() -> None:
     spec = build_spec()
     total = sum(len(command.mutex_groups) for command in _all_commands(spec.root))
-    assert total == 19
+    # 20 = 19 baseline + tool/run ['detach', 'hand_off'] from detach-run (sase-1cx.3).
+    assert total == 20
 
 
 def test_kind_resolution_precedence_on_real_tree() -> None:

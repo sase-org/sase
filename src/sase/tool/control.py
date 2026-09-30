@@ -23,8 +23,10 @@ from sase.tool.control_outputs import (
     output_paths_for_run as output_paths_for_run,
 )
 from sase.tool.control_stop import (
+    OwnerStopResult as OwnerStopResult,
     ToolStopCliRequest as ToolStopCliRequest,
     handle_stop as handle_stop,
+    stop_run_through_owner as stop_run_through_owner,
 )
 from sase.tool.control_wait import (
     ToolWaitCliRequest as ToolWaitCliRequest,
@@ -34,6 +36,7 @@ from sase.tool.control_wait import (
 
 
 __all__ = [
+    "OwnerStopResult",
     "UnknownRunError",
     "ToolStopCliRequest",
     "ToolWaitCliRequest",
@@ -41,5 +44,6 @@ __all__ = [
     "handle_wait",
     "monitor_output_path",
     "output_paths_for_run",
+    "stop_run_through_owner",
     "wait_for_settlement",
 ]

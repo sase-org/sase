@@ -76,6 +76,7 @@ class ToolRunCliRequest:
     tail_lines: int
     words: tuple[str, ...]
     hand_off: bool = False
+    detach: bool = False
     tail_lines_explicit: bool = False
     keep_going: bool = False
     fail_fast: bool = False
@@ -109,6 +110,16 @@ def execute_tool_run(request: ToolRunCliRequest) -> int:
             file=sys.stderr,
         )
         return 2
+    if request.hand_off and request.detach:
+        print(
+            "-H/--hand-off and -d/--detach cannot be used together",
+            file=sys.stderr,
+        )
+        return 2
+    if request.detach:
+        from sase.tool.detach import execute_detached
+
+        return execute_detached(request)
     if request.hand_off and (request.keep_going or request.fail_fast):
         print(
             "sase tool run -H cannot be used with -k/--keep-going or -x/--fail-fast",

@@ -31,6 +31,7 @@ LIVE_CASES = [
 # requires each helper to be referenced from a tracked file outside `tools/`.
 HARNESS_MODULES = (
     "_smoke_tool_runs_cases_basic.py",
+    "_smoke_tool_runs_cases_detach.py",
     "_smoke_tool_runs_cases_evidence.py",
     "_smoke_tool_runs_cases_handoff.py",
     "_smoke_tool_runs_cases_owners.py",
@@ -149,7 +150,7 @@ def test_tool_runs_harness_passes_every_hermetic_case() -> None:
     assert {statuses[case_id] for case_id in LIVE_CASES} == {"not-run"}
     assert statuses["dod-13-overhead"] == "not-run"
     dod = {item["id"]: item["status"] for item in report["dod"]}
-    assert all(dod[f"DoD-{n}"] == "pass" for n in (1, 2, 3, 4, 5, 6, 7, 9, 10, 14))
+    assert all(dod[f"DoD-{n}"] == "pass" for n in (1, 2, 3, 4, 5, 6, 7, 9, 10, 14, 17))
     assert dod["DoD-15"] == "not-run"
     assert dod["DoD-8"] == "not-run"
     assert report["failed"] == 0

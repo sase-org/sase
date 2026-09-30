@@ -33,6 +33,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import _smoke_tool_runs_cases_basic as basic  # noqa: E402
+import _smoke_tool_runs_cases_detach as detach  # noqa: E402
 import _smoke_tool_runs_cases_evidence as evidence  # noqa: E402
 import _smoke_tool_runs_cases_handoff as handoff  # noqa: E402
 import _smoke_tool_runs_cases_owners as owners  # noqa: E402
@@ -84,6 +85,9 @@ GROUPS: tuple[Group, ...] = (
         ("dod-14-handoff-frozen", "dod-14-handoff-owner-log-missing"),
         handoff.frozen_and_missing,
     ),
+    (("dod-17-detach-accept",), detach.detach_accept),
+    (("dod-17-detach-refusals",), detach.detach_refusals),
+    (("dod-17-detach-starter-death",), detach.detach_starter_death),
     (("dod-14-live-handoff-stop",), handoff.live_stop),
     (("dod-14-live-handoff-viewers",), handoff.live_viewers),
     (("dod-14-live-handoff-crash",), handoff.live_crash),

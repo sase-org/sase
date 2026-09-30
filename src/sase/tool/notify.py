@@ -44,6 +44,10 @@ def _load_run(run_id: str) -> dict[str, Any] | None:
 
 
 def _eligible(run: Mapping[str, Any]) -> bool:
+    # Detached runs never raise the settlement notification: either the
+    # starter reads the result inline or the joined monitor's follow-up does.
+    if run.get("starter") is not None:
+        return False
     return (
         bool(run.get("run_id"))
         and str(run.get("state") or "") not in _UNSETTLED_STATES

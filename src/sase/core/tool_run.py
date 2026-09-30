@@ -303,6 +303,50 @@ def tool_run_request_stop(
     )
 
 
+def tool_run_join(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Record a monitor join on a starter-scoped detached run."""
+
+    return dict(
+        require_rust_binding("tool_run_join")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
+def tool_run_release_join(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Release a monitor join when kind and id match; allowed in any state."""
+
+    return dict(
+        require_rust_binding("tool_run_release_join")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
+def tool_run_sync_wait_budget(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Budget a synchronous wait against hard and soft kill ceilings.
+
+    Rust owns the margin formula and constants; this facade passes the
+    validated positive-integer ceilings through unchanged.
+    """
+
+    return dict(require_rust_binding("tool_run_sync_wait_budget")(dict(request)))
+
+
 def tool_run_list(
     request: Mapping[str, Any] | None = None,
     *,
@@ -577,7 +621,10 @@ __all__ = [
     "tool_run_retention_apply",
     "tool_run_retention_preview",
     "tool_run_failures",
+    "tool_run_join",
+    "tool_run_release_join",
     "tool_run_show",
+    "tool_run_sync_wait_budget",
     "tool_run_store_path",
     "tool_run_store_stats",
     "tool_run_summary",

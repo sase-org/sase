@@ -278,6 +278,24 @@ def test_handoff_unwritable_store_is_fail_closed(
     assert captured_fg.out == "hi"
 
 
+def test_handoff_reservation_carries_no_starter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The shared launcher leaves `-H` runs attached: no starter, plain tags."""
+
+    _clean_env(monkeypatch, tmp_path)
+    resolved = resolve_run_argv(["--", "printf", "hi"])
+    reservation = reserve_handoff_run(resolved, owner_kind="proc", owner_id="proc-9")
+    assert reservation.reserved
+    shown = tool_run_show(reservation.run_id)["run"]
+    assert shown.get("starter") is None
+    assert shown.get("join") is None
+    assert owner_tags(reservation.run_id) == [
+        "tool-run",
+        f"tool-run:{reservation.run_id}",
+    ]
+
+
 def test_handoff_frozen_argv_survives_catalog_edit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
