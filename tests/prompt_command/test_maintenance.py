@@ -205,6 +205,70 @@ def test_prune_bad_date_exits_two(
     assert "YYYY-MM-DD" in capsys.readouterr().err
 
 
+def test_prune_legacy_without_generated_exits_two(
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(_entry("a stored prompt now", "260601_000000"))
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_prompt_prune(_prune_ns(legacy=True, dry_run=True))
+
+    assert exc_info.value.code == 2
+    assert "--legacy requires --generated" in capsys.readouterr().err
+    assert len(load_prompt_history()) == 1
+
+
+def test_prune_generated_dry_run_shows_tiers_and_samples(
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(
+        _entry("human prompt about auth flow", "260601_000000", origin="typed"),
+        _entry(
+            "%id(docs-agent, tribe=chop) review the docs now",
+            "260602_000000",
+            origin="generated",
+        ),
+        _entry(
+            "%clan(toobig-3j, tribe=chop) split this module now",
+            "260603_000000",
+        ),
+    )
+
+    handle_prompt_prune(_prune_ns(generated=True, legacy=True, dry_run=True))
+
+    out = capsys.readouterr().out
+    assert "explicit generated: 1" in out
+    assert "legacy heuristic: 1" in out
+    assert "[generated]" in out
+    assert "[legacy]" in out
+    assert "would remove 2" in out
+    # Dry-run never mutates.
+    assert len(load_prompt_history()) == 3
+
+
+def test_prune_generated_apply_prints_backup(
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _seed(
+        _entry("human prompt about auth flow", "260601_000000", origin="typed"),
+        _entry(
+            "%id(docs-agent, tribe=chop) review the docs now",
+            "260602_000000",
+            origin="generated",
+        ),
+    )
+
+    handle_prompt_prune(_prune_ns(generated=True, yes=True))
+
+    out = capsys.readouterr().out
+    assert "Pruned 1 of 2 prompts" in out
+    assert "Backup:" in out
+    assert [e.text for e in load_prompt_history()] == ["human prompt about auth flow"]
+
+
 def test_doctor_json_has_stable_shape(
     history_file: Path,
     capsys: pytest.CaptureFixture[str],
@@ -228,6 +292,10 @@ def test_doctor_json_has_stable_shape(
         "invalid_entries",
         "duplicate_ids",
         "legacy_field_entries",
+        "typed_origin_count",
+        "generated_origin_count",
+        "missing_origin_count",
+        "legacy_heuristic_count",
         "oversized",
         "short_recovery",
         "fzf_available",

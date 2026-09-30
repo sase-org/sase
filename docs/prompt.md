@@ -65,22 +65,22 @@ asks for a longer selector. Adding newer prompts never changes an existing promp
 
 ## Command Inventory
 
-| Command                     | Purpose                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------ |
-| `sase prompt list`          | List recent prompts as a Rich table (default) or stable JSON (`-j`).                 |
-| `sase prompt show`          | Print one prompt as raw text, Markdown, or JSON.                                     |
-| `sase prompt search`        | Find prompts matching a query across the canonical agents archive and local history. |
-| `sase prompt stats`         | Summarize the store: counts, size, length percentiles, largest prompts, top chips.   |
-| `sase prompt copy`          | Copy a prompt's exact text to the system clipboard.                                  |
-| `sase prompt run`           | Replay a stored prompt through the normal launch path.                               |
-| `sase prompt edit`          | Open a stored prompt in the editor, then launch the edited text.                     |
-| `sase prompt select`        | Pick a prompt with an `fzf` picker, then launch it.                                  |
-| `sase prompt doctor`        | Read-only health report for the store (parseability, duplicates, oversized, …).      |
-| `sase prompt delete`        | Remove exactly one prompt by selector.                                               |
-| `sase prompt prune`         | Remove prompts by objective criteria (`--keep`, `--before`, `--cancelled`).          |
-| `sase prompt save`          | Save a prompt as a reusable [xprompt](xprompt.md) markdown file.                     |
-| `sase prompt export`        | Export a prompt to stdout or a local file; `--sdd` is a retired compatibility flag.  |
-| `sase prompt stash-archive` | List, show, and restore drafts archived from Stash or Trash.                         |
+| Command                     | Purpose                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `sase prompt list`          | List recent prompts as a Rich table (default) or stable JSON (`-j`).                                   |
+| `sase prompt show`          | Print one prompt as raw text, Markdown, or JSON.                                                       |
+| `sase prompt search`        | Find prompts matching a query across the canonical agents archive and local history.                   |
+| `sase prompt stats`         | Summarize the store: counts, size, length percentiles, largest prompts, top chips.                     |
+| `sase prompt copy`          | Copy a prompt's exact text to the system clipboard.                                                    |
+| `sase prompt run`           | Replay a stored prompt through the normal launch path.                                                 |
+| `sase prompt edit`          | Open a stored prompt in the editor, then launch the edited text.                                       |
+| `sase prompt select`        | Pick a prompt with an `fzf` picker, then launch it.                                                    |
+| `sase prompt doctor`        | Read-only health report for the store (parseability, duplicates, oversized, …).                        |
+| `sase prompt delete`        | Remove exactly one prompt by selector.                                                                 |
+| `sase prompt prune`         | Remove prompts by objective criteria (`--keep`, `--before`, `--cancelled`, `--generated`, `--legacy`). |
+| `sase prompt save`          | Save a prompt as a reusable [xprompt](xprompt.md) markdown file.                                       |
+| `sase prompt export`        | Export a prompt to stdout or a local file; `--sdd` is a retired compatibility flag.                    |
+| `sase prompt stash-archive` | List, show, and restore drafts archived from Stash or Trash.                                           |
 
 `list`, `show`, `search`, `stats`, and `doctor` are read-only. `list`, `search` (default
 `compact` format), `stats`, and `doctor` never print full prompt text — they show
@@ -352,6 +352,23 @@ sase prompt prune -b 2026-01-01 --dry-run # preview removing entries older than 
 dry run never mutates the store, and neither `delete` nor `prune` will rewrite a corrupt
 or unreadable store.
 
+### One-time cleanup of machine rows
+
+Rows written before origins existed carry no `origin`, and legacy `generated` rows
+remain until they are pruned. `--generated` removes rows whose merged origin is
+`generated` (a `typed` copy anywhere protects every duplicate, because removal works by
+exact text). `--legacy` additionally removes origin-less rows the generated-text
+heuristic flags (routine tribe bindings, bead-work segments, deferred launches, and
+single-turn agent headers), and requires `--generated`. Both intersect with `--before`,
+`--cancelled`, and the `--keep` floor. Every apply first writes a timestamped
+`.json.bak` backup of the shard files (which never matches the `*.json` shard glob) and
+prints the backup path:
+
+```bash
+sase prompt prune --generated --legacy --dry-run  # preview counts per tier + samples
+sase prompt prune --generated --legacy --yes      # back up, then remove
+```
+
 ### Save a prompt as a reusable xprompt
 
 Bridge a useful one-off prompt into a durable [xprompt](xprompt.md) so you can trigger
@@ -405,9 +422,10 @@ one.
 
 `doctor` is a read-only diagnostic that never echoes full prompt text. It reports the
 shard directory path, aggregate store size, shard count, and parseability; entry and
-cancelled counts; invalid or duplicate entries; oversized prompts; prompts shorter than
-the five-word recording minimum that were saved through recovery paths; and whether
-`fzf` and a clipboard command are available:
+cancelled counts; origin counts (`typed` / `generated` / missing) plus how many
+origin-less rows the generated-text heuristic flags; invalid or duplicate entries;
+oversized prompts; prompts shorter than the five-word recording minimum that were saved
+through recovery paths; and whether `fzf` and a clipboard command are available:
 
 ```bash
 sase prompt doctor          # pretty report

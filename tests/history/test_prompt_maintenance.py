@@ -22,6 +22,7 @@ from sase.history.prompt import (
 )
 from sase.history.prompt_store import (
     PromptEntry,
+    PromptOrigin,
     load_prompt_history,
     save_prompt_history,
 )
@@ -64,6 +65,7 @@ def _entry(
     *,
     cancelled: bool = False,
     workspace: str = "",
+    origin: PromptOrigin | None = None,
 ) -> PromptEntry:
     return PromptEntry(
         text=text,
@@ -71,6 +73,7 @@ def _entry(
         last_used=last_used,
         cancelled=cancelled,
         workspace=workspace,
+        origin=origin,
     )
 
 
@@ -291,6 +294,123 @@ def test_prune_reports_per_predicate_counts(history_file: Path) -> None:
     assert {r.text for r in plan.removed} == {"old cancelled"}
 
 
+def test_prune_generated_selects_merged_origin(history_file: Path) -> None:
+    save_prompt_history(
+        [
+            _entry("human prompt about auth flow", "260601_000000", origin="typed"),
+            _entry(
+                "%id(docs-agent, tribe=chop) review the docs now",
+                "260602_000000",
+                origin="generated",
+            ),
+            _entry("human prompt without recorded origin", "260603_000000"),
+        ]
+    )
+
+    plan = prune_prompts(generated_only=True, dry_run=True)
+
+    assert plan.generated_only is True
+    assert {r.text for r in plan.removed} == {
+        "%id(docs-agent, tribe=chop) review the docs now"
+    }
+    assert plan.explicit_generated_count == 1
+    assert plan.legacy_heuristic_count == 0
+    assert len(plan.explicit_samples) == 1
+    assert plan.legacy_samples == ()
+
+
+def test_prune_typed_copy_protects_generated_duplicate_across_shards(
+    history_file: Path,
+) -> None:
+    shared = "shared prompt text recorded twice"
+    save_prompt_history(
+        [
+            _entry(shared, "260601_000000", origin="typed"),
+            _entry(shared, "260501_000000", origin="generated"),
+        ]
+    )
+    # Same text landed in two monthly shards; the merge lets typed win.
+    assert len(list(_history_dir(history_file).glob("*.json"))) == 2
+
+    plan = prune_prompts(generated_only=True, include_legacy=True, dry_run=True)
+
+    assert plan.removed == []
+    assert [e.text for e in load_prompt_history()] == [shared]
+
+
+def test_prune_legacy_requires_generated(history_file: Path) -> None:
+    save_prompt_history([_entry("a prompt", "260601_000000")])
+
+    with pytest.raises(ValueError, match="--legacy requires --generated"):
+        prune_prompts(include_legacy=True, dry_run=True)
+
+
+def test_prune_legacy_selects_heuristic_rows_and_never_typed(
+    history_file: Path,
+) -> None:
+    legacy_row = "%clan(toobig-3j, tribe=chop) split this module now"
+    typed_marker_row = "what does tribe=chop mean in routine output"
+    save_prompt_history(
+        [
+            _entry(legacy_row, "260601_000000"),
+            _entry("plain human prompt without markers", "260602_000000"),
+            _entry(typed_marker_row, "260603_000000", origin="typed"),
+        ]
+    )
+
+    without_legacy = prune_prompts(generated_only=True, dry_run=True)
+    assert without_legacy.removed == []
+
+    plan = prune_prompts(generated_only=True, include_legacy=True, dry_run=True)
+
+    assert {r.text for r in plan.removed} == {legacy_row}
+    assert plan.explicit_generated_count == 0
+    assert plan.legacy_heuristic_count == 1
+    assert plan.legacy_samples == (legacy_row,)
+    assert plan.explicit_samples == ()
+
+
+def test_prune_generated_dry_run_writes_nothing(history_file: Path) -> None:
+    save_prompt_history(
+        [
+            _entry(
+                "%id(docs-agent, tribe=chop) review the docs now",
+                "260601_000000",
+                origin="generated",
+            ),
+        ]
+    )
+    before = _snapshot_shards(history_file)
+
+    plan = prune_prompts(generated_only=True, include_legacy=True, dry_run=True)
+
+    assert plan.applied is False
+    assert len(plan.removed) == 1
+    assert _snapshot_shards(history_file) == before
+    assert list(_history_dir(history_file).glob("*.bak")) == []
+
+
+def test_prune_apply_writes_timestamped_backup(history_file: Path) -> None:
+    generated_row = "%id(docs-agent, tribe=chop) review the docs now"
+    save_prompt_history(
+        [
+            _entry("human prompt about auth flow", "260601_000000", origin="typed"),
+            _entry(generated_row, "260602_000000", origin="generated"),
+        ]
+    )
+
+    plan = prune_prompts(generated_only=True, dry_run=False)
+
+    assert plan.applied is True
+    assert len(plan.backup_paths) == 1
+    backup = Path(plan.backup_paths[0])
+    assert backup.suffix == ".bak"
+    assert backup.name.startswith("prune-")
+    assert generated_row in backup.read_text(encoding="utf-8")
+    # Backups never match the shard glob, so the store reloads pruned.
+    assert [e.text for e in load_prompt_history()] == ["human prompt about auth flow"]
+
+
 # ---------------------------------------------------------------------------
 # doctor
 # ---------------------------------------------------------------------------
@@ -319,6 +439,32 @@ def test_doctor_reports_counts_and_availability(history_file: Path) -> None:
     assert report.invalid_entries == 0
     assert report.fzf_available is True
     assert report.clipboard_available is True
+
+
+def test_doctor_reports_origin_counts(history_file: Path) -> None:
+    save_prompt_history(
+        [
+            _entry("human prompt about auth flow", "260601_000000", origin="typed"),
+            _entry(
+                "%id(docs-agent, tribe=chop) review the docs now",
+                "260602_000000",
+                origin="generated",
+            ),
+            _entry("human prompt without recorded origin", "260603_000000"),
+            _entry(
+                "%clan(toobig-3j, tribe=chop) split this module now",
+                "260604_000000",
+            ),
+        ]
+    )
+
+    report = compute_prompt_doctor()
+
+    assert report.total == 4
+    assert report.typed_origin_count == 1
+    assert report.generated_origin_count == 1
+    assert report.missing_origin_count == 2
+    assert report.legacy_heuristic_count == 1
 
 
 def test_doctor_flags_corrupt_store(history_file: Path) -> None:

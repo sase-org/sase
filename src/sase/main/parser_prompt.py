@@ -186,12 +186,30 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show what would be removed without mutating the store",
     )
     prune_parser.add_argument(
+        "-g",
+        "--generated",
+        action="store_true",
+        help=(
+            "Limit removal to machine-originated prompts (merged origin"
+            " generated; a typed copy anywhere protects every duplicate)"
+        ),
+    )
+    prune_parser.add_argument(
         "-k",
         "--keep",
         type=int,
         default=None,
         metavar="LIMIT",
         help="Keep the newest LIMIT prompts; older ones become removable",
+    )
+    prune_parser.add_argument(
+        "-l",
+        "--legacy",
+        action="store_true",
+        help=(
+            "Also remove origin-less prompts the generated-text heuristic"
+            " flags (requires --generated)"
+        ),
     )
     prune_parser.add_argument(
         "-y",

@@ -7523,7 +7523,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "716a1cffb0abfd5c",
+            "description_digest": "a68976c1d118550f",
             "hidden": false,
             "mutex_groups": [],
             "name": "+1",
@@ -7604,6 +7604,22 @@
                 "strings": [
                   "-S",
                   "--allow-sensitive"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "local_only",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-L",
+                  "--local-only"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -7736,7 +7752,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "f953c1123fa1327b",
+            "description_digest": "ccf3851744b26d57",
             "hidden": false,
             "mutex_groups": [],
             "name": "attach",
@@ -7820,6 +7836,22 @@
                 ],
                 "takes_value": false,
                 "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "local_only",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-L",
+                  "--local-only"
+                ],
+                "takes_value": false,
+                "value_hint": null
               }
             ],
             "path": [
@@ -7856,7 +7888,7 @@
           {
             "aliases": [],
             "default_child": "list",
-            "description_digest": "5ef092a76e46ad7b",
+            "description_digest": "135f9ba46f1be77e",
             "hidden": false,
             "mutex_groups": [],
             "name": "attachment",
@@ -7952,6 +7984,63 @@
               {
                 "aliases": [],
                 "default_child": null,
+                "description_digest": "11ef58826d0bb6ff",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "open",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "attachment",
+                  "open"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "id",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "id",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  },
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "name",
+                    "nargs": "?",
+                    "required": false,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
                 "description_digest": "1a3730b58f6bff6c",
                 "hidden": false,
                 "mutex_groups": [],
@@ -8005,6 +8094,194 @@
                 "stdin": false,
                 "subcommands": [],
                 "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "5091685755c35d4b",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "prune",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "yes",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-y",
+                      "--yes"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "attachment",
+                  "prune"
+                ],
+                "positionals": [],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": true
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "64bec54d66f5c25e",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "purge",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  },
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "reason",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": true,
+                    "strings": [
+                      "-r",
+                      "--reason"
+                    ],
+                    "takes_value": true,
+                    "value_hint": "text"
+                  },
+                  {
+                    "choices": null,
+                    "default": "False",
+                    "dest": "yes",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-y",
+                      "--yes"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "attachment",
+                  "purge"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "id",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "id",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  },
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "name",
+                    "nargs": null,
+                    "required": true,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "e2fcd64f52512122",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "push",
+                "options": [
+                  {
+                    "choices": null,
+                    "default": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "metavar": null,
+                    "repeatable": false,
+                    "required": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false,
+                    "value_hint": null
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "attachment",
+                  "push"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "id",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "id",
+                    "nargs": "?",
+                    "required": false,
+                    "value_hint": "text"
+                  }
+                ],
+                "run_policy": [],
+                "stdin": false,
+                "subcommands": [],
+                "writes": false
               }
             ],
             "writes": false
@@ -8047,7 +8324,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "7eb74d67393c5631",
+            "description_digest": "4b717811ee3c3cba",
             "hidden": false,
             "mutex_groups": [],
             "name": "close",
@@ -8128,6 +8405,22 @@
                 "strings": [
                   "-S",
                   "--allow-sensitive"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "local_only",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-L",
+                  "--local-only"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -8899,7 +9192,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "9f482599604308e7",
+            "description_digest": "8235cc3cf2429dd9",
             "hidden": false,
             "mutex_groups": [],
             "name": "doctor",
@@ -8980,6 +9273,22 @@
                 "strings": [
                   "-P",
                   "--fix-projection"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "fix_attachments",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-T",
+                  "--fix-attachments"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -9482,7 +9791,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "b9b2ae99a3f4c754",
+            "description_digest": "e57761564e6cf0d2",
             "hidden": false,
             "mutex_groups": [
               [
@@ -9536,6 +9845,22 @@
                 "strings": [
                   "-S",
                   "--allow-sensitive"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "local_only",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-L",
+                  "--local-only"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -9855,7 +10180,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "1c2345a7c84f5e90",
+            "description_digest": "23d1ed4180cbd38c",
             "hidden": false,
             "mutex_groups": [],
             "name": "read",
@@ -9894,6 +10219,22 @@
                   "--color"
                 ],
                 "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "download",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-d",
+                  "--download"
+                ],
+                "takes_value": false,
                 "value_hint": null
               },
               {
@@ -10586,7 +10927,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "1e2f7115989cfb83",
+            "description_digest": "a7739574388f963c",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -10628,6 +10969,22 @@
                 "value_hint": null
               },
               {
+                "choices": null,
+                "default": "False",
+                "dest": "download",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-d",
+                  "--download"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
                 "choices": [
                   "compact",
                   "json",
@@ -10643,6 +11000,27 @@
                 "strings": [
                   "-f",
                   "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "auto",
+                  "cells",
+                  "kitty",
+                  "never"
+                ],
+                "default": null,
+                "dest": "images",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-i",
+                  "--images"
                 ],
                 "takes_value": true,
                 "value_hint": null
@@ -11300,7 +11678,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "35ff2bdf4d3fa3dc",
+            "description_digest": "946545251a927e75",
             "hidden": false,
             "mutex_groups": [
               [
@@ -11465,6 +11843,22 @@
                 "strings": [
                   "-S",
                   "--allow-sensitive"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "local_only",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-L",
+                  "--local-only"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -29541,7 +29935,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "d421a1d36573fbc2",
+            "description_digest": "974b6378508c6530",
             "hidden": false,
             "mutex_groups": [],
             "name": "prune",
@@ -29612,6 +30006,22 @@
               },
               {
                 "choices": null,
+                "default": "False",
+                "dest": "generated",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-g",
+                  "--generated"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
                 "default": null,
                 "dest": "keep",
                 "hidden": false,
@@ -29625,6 +30035,22 @@
                 ],
                 "takes_value": true,
                 "value_hint": "int"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "legacy",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-l",
+                  "--legacy"
+                ],
+                "takes_value": false,
+                "value_hint": null
               },
               {
                 "choices": null,

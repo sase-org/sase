@@ -7,6 +7,8 @@ import shutil
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from sase.core.prompt_origin import prompt_looks_generated
+from sase.core.time import generate_timestamp
 from sase.history import prompt_catalog as catalog
 from sase.history import prompt_stats as stats
 from sase.history import prompt_store as store
@@ -16,6 +18,11 @@ from sase.history import prompt_store as store
 # output bounded and full-text-free on large stores.
 _DOCTOR_OVERSIZE_CHARS = 10_000
 _DOCTOR_LIST_LIMIT = 5
+
+# Preview samples per prune tier (explicit generated vs. legacy heuristic)
+# shown by ``sase prompt prune --dry-run``. Samples are truncated previews,
+# never full prompt text.
+_PRUNE_SAMPLE_LIMIT = 3
 
 
 class PromptStoreCorruptError(Exception):
@@ -129,6 +136,10 @@ class PromptHistoryDoctor:
     invalid_entries: int
     duplicate_ids: list[tuple[str, int]]
     legacy_field_entries: int
+    typed_origin_count: int
+    generated_origin_count: int
+    missing_origin_count: int
+    legacy_heuristic_count: int
     oversized: list[stats.PromptLargest]
     short_recovery: list[stats.PromptLargest]
     fzf_available: bool
@@ -177,6 +188,13 @@ def compute_prompt_doctor() -> PromptHistoryDoctor:
         1 for entry in entries if entry.workspace or entry.branch_or_workspace
     )
 
+    typed_origin_count = sum(1 for entry in entries if entry.origin == "typed")
+    generated_origin_count = sum(1 for entry in entries if entry.origin == "generated")
+    missing_origin_texts = [entry.text for entry in entries if entry.origin is None]
+    legacy_heuristic_count = sum(
+        1 for text in missing_origin_texts if prompt_looks_generated(text)
+    )
+
     oversized = [
         stats.PromptLargest(
             id=r.id,
@@ -208,6 +226,10 @@ def compute_prompt_doctor() -> PromptHistoryDoctor:
         invalid_entries=invalid_entries,
         duplicate_ids=duplicate_ids,
         legacy_field_entries=legacy_field_entries,
+        typed_origin_count=typed_origin_count,
+        generated_origin_count=generated_origin_count,
+        missing_origin_count=len(missing_origin_texts),
+        legacy_heuristic_count=legacy_heuristic_count,
         oversized=oversized,
         short_recovery=short_recovery,
         fzf_available=shutil.which("fzf") is not None,
@@ -282,6 +304,13 @@ class PrunePlan:
     beyond_keep_count: int
     older_than_count: int
     applied: bool
+    generated_only: bool = False
+    include_legacy: bool = False
+    explicit_generated_count: int = 0
+    legacy_heuristic_count: int = 0
+    explicit_samples: tuple[str, ...] = ()
+    legacy_samples: tuple[str, ...] = ()
+    backup_paths: tuple[str, ...] = ()
 
     @property
     def kept(self) -> int:
@@ -289,11 +318,56 @@ class PrunePlan:
         return self.total - len(self.removed)
 
 
+def _classify_prune_origin_tier(
+    entry: store.PromptEntry, *, include_legacy: bool
+) -> str | None:
+    """Return the prune tier for *entry*: ``"explicit"``, ``"legacy"``, or None.
+
+    ``"explicit"`` rows carry a merged ``generated`` origin, where the merge
+    already let a typed copy anywhere in the store win. ``"legacy"`` rows
+    carry no origin and match the generated-text heuristic. Anything else is
+    not origin-selected.
+    """
+    if entry.origin == "generated":
+        return "explicit"
+    if include_legacy and entry.origin is None and prompt_looks_generated(entry.text):
+        return "legacy"
+    return None
+
+
+def _backup_prune_shards() -> tuple[str, ...]:
+    """Copy every shard file to a timestamped ``.json.bak`` backup.
+
+    Backup names end in ``.bak`` so they never match the ``*.json`` shard
+    glob. A same-second repeat gets a numeric suffix instead of overwriting
+    the earlier backup. Failures raise :class:`PromptStoreWriteError`
+    before any row is removed.
+    """
+    history_dir = store.prompt_history_dir()
+    timestamp = generate_timestamp()
+    backups: list[str] = []
+    for path in sorted(store.iter_shard_paths_newest_first()):
+        stem = path.stem
+        backup = history_dir / f"prune-{timestamp}-{stem}.json.bak"
+        counter = 1
+        while backup.exists():
+            counter += 1
+            backup = history_dir / f"prune-{timestamp}-{stem}-{counter}.json.bak"
+        try:
+            shutil.copy2(path, backup)
+        except OSError as exc:
+            raise PromptStoreWriteError from exc
+        backups.append(str(backup))
+    return tuple(backups)
+
+
 def prune_prompts(
     *,
     keep: int | None = None,
     before: str | None = None,
     cancelled_only: bool = False,
+    generated_only: bool = False,
+    include_legacy: bool = False,
     dry_run: bool = False,
 ) -> PrunePlan:
     """Remove prompts matching every supplied predicate, conservatively.
@@ -303,14 +377,23 @@ def prune_prompts(
     entries (over the whole store) always survive, so ``before``/``cancelled``
     can only narrow the removal set, never delete a recent prompt. ``before`` is
     a parsed ``YYmmdd_HHMMSS`` cutoff (see :func:`parse_prune_date`).
+    ``generated_only`` selects rows whose merged origin is ``generated`` (a
+    typed copy anywhere protects every duplicate, since removal works by
+    exact text); ``include_legacy`` additionally selects origin-less rows
+    the generated-text heuristic flags, and requires ``generated_only``.
 
     Requires at least one predicate. ``dry_run`` computes the plan without
-    mutating. A corrupt store aborts with :class:`PromptStoreCorruptError`.
+    mutating. Every apply first writes a timestamped backup of the shard
+    files. A corrupt store aborts with :class:`PromptStoreCorruptError`.
     """
     if keep is not None and keep < 0:
         raise ValueError("keep must be greater than or equal to 0")
-    if keep is None and before is None and not cancelled_only:
-        raise ValueError("prune requires at least one of keep, before, cancelled_only")
+    if include_legacy and not generated_only:
+        raise ValueError("prune --legacy requires --generated")
+    if keep is None and before is None and not cancelled_only and not generated_only:
+        raise ValueError(
+            "prune requires at least one of keep, before, cancelled_only, generated"
+        )
 
     with store.locked_prompt_history():
         try:
@@ -344,14 +427,35 @@ def prune_prompts(
         )
 
         removable: list[int] = []
+        removable_tiers: list[str] = []
         for i in candidates:
             if keep is not None and i in newest_indices:
                 continue
             if before is not None and not (entries[i].last_used < before):
                 continue
+            if generated_only:
+                tier = _classify_prune_origin_tier(
+                    entries[i], include_legacy=include_legacy
+                )
+                if tier is None:
+                    continue
+                removable_tiers.append(tier)
             removable.append(i)
 
         removed = [catalog.record_from_entry(entries[i]) for i in removable]
+        tiers = (
+            list(zip(removable, removable_tiers, strict=True)) if generated_only else []
+        )
+        explicit_samples = tuple(
+            stats.short_preview(entries[i].text)
+            for i, tier in tiers
+            if tier == "explicit"
+        )[:_PRUNE_SAMPLE_LIMIT]
+        legacy_samples = tuple(
+            stats.short_preview(entries[i].text)
+            for i, tier in tiers
+            if tier == "legacy"
+        )[:_PRUNE_SAMPLE_LIMIT]
         plan = PrunePlan(
             total=total,
             removed=removed,
@@ -362,14 +466,25 @@ def prune_prompts(
             beyond_keep_count=beyond_keep_count,
             older_than_count=older_than_count,
             applied=False,
+            generated_only=generated_only,
+            include_legacy=include_legacy,
+            explicit_generated_count=sum(
+                1 for tier in removable_tiers if tier == "explicit"
+            ),
+            legacy_heuristic_count=sum(
+                1 for tier in removable_tiers if tier == "legacy"
+            ),
+            explicit_samples=explicit_samples,
+            legacy_samples=legacy_samples,
         )
 
         if dry_run or not removable:
             return plan
 
+        backup_paths = _backup_prune_shards()
         remove_texts = {entries[i].text for i in removable}
         try:
             _remove_prompt_texts_from_shards(remove_texts)
         except store.PromptHistoryLoadError as exc:
             raise PromptStoreCorruptError from exc
-        return replace(plan, applied=True)
+        return replace(plan, applied=True, backup_paths=backup_paths)

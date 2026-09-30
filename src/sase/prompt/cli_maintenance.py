@@ -105,13 +105,27 @@ def handle_prompt_prune(args: argparse.Namespace) -> None:
     keep: int | None = getattr(args, "keep", None)
     before_raw: str | None = getattr(args, "before", None)
     cancelled_only = bool(getattr(args, "cancelled", False))
+    generated_only = bool(getattr(args, "generated", False))
+    include_legacy = bool(getattr(args, "legacy", False))
     dry_run = bool(getattr(args, "dry_run", False))
     assume_yes = bool(getattr(args, "yes", False))
 
-    if keep is None and before_raw is None and not cancelled_only:
+    if include_legacy and not generated_only:
         print(
-            "sase prompt prune: specify at least one of --keep, --before, or"
-            " --cancelled.",
+            "sase prompt prune: --legacy requires --generated.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    if (
+        keep is None
+        and before_raw is None
+        and not cancelled_only
+        and not generated_only
+    ):
+        print(
+            "sase prompt prune: specify at least one of --keep, --before, --cancelled,"
+            " or --generated.",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -127,14 +141,24 @@ def handle_prompt_prune(args: argparse.Namespace) -> None:
     # Dry-run: compute and show the plan, never mutate, never confirm.
     if dry_run:
         plan = _compute_plan_or_exit(
-            keep=keep, before=before, cancelled_only=cancelled_only, dry_run=True
+            keep=keep,
+            before=before,
+            cancelled_only=cancelled_only,
+            generated_only=generated_only,
+            include_legacy=include_legacy,
+            dry_run=True,
         )
         _print_prune_plan(plan, applied=False)
         return
 
     if not assume_yes:
         preview = _compute_plan_or_exit(
-            keep=keep, before=before, cancelled_only=cancelled_only, dry_run=True
+            keep=keep,
+            before=before,
+            cancelled_only=cancelled_only,
+            generated_only=generated_only,
+            include_legacy=include_legacy,
+            dry_run=True,
         )
         if not preview.removed:
             _print_prune_plan(preview, applied=False)
@@ -154,7 +178,12 @@ def handle_prompt_prune(args: argparse.Namespace) -> None:
             sys.exit(1)
 
     plan = _compute_plan_or_exit(
-        keep=keep, before=before, cancelled_only=cancelled_only, dry_run=False
+        keep=keep,
+        before=before,
+        cancelled_only=cancelled_only,
+        generated_only=generated_only,
+        include_legacy=include_legacy,
+        dry_run=False,
     )
     _print_prune_plan(plan, applied=True)
 
@@ -164,6 +193,8 @@ def _compute_plan_or_exit(
     keep: int | None,
     before: str | None,
     cancelled_only: bool,
+    generated_only: bool,
+    include_legacy: bool,
     dry_run: bool,
 ) -> PrunePlan:
     try:
@@ -171,6 +202,8 @@ def _compute_plan_or_exit(
             keep=keep,
             before=before,
             cancelled_only=cancelled_only,
+            generated_only=generated_only,
+            include_legacy=include_legacy,
             dry_run=dry_run,
         )
     except ValueError as exc:
@@ -181,12 +214,27 @@ def _compute_plan_or_exit(
         sys.exit(1)
 
 
+def _print_prune_tiers(plan: PrunePlan) -> None:
+    """Print per-tier origin counts and truncated samples for a prune plan."""
+    print(f"  explicit generated: {plan.explicit_generated_count}")
+    if plan.include_legacy:
+        print(f"  legacy heuristic: {plan.legacy_heuristic_count}")
+    for sample in plan.explicit_samples:
+        print(f"    [generated] {sample}")
+    for sample in plan.legacy_samples:
+        print(f"    [legacy] {sample}")
+
+
 def _print_prune_plan(plan: PrunePlan, *, applied: bool) -> None:
     """Print the prune funnel and outcome in plain, pipe-friendly text."""
     if applied:
         print(
             f"Pruned {len(plan.removed)} of {plan.total} prompts, {plan.kept} remaining."
         )
+        if plan.generated_only:
+            _print_prune_tiers(plan)
+        for backup in plan.backup_paths:
+            print(f"Backup: {backup}")
         return
 
     if not plan.removed:
@@ -200,6 +248,8 @@ def _print_prune_plan(plan: PrunePlan, *, applied: bool) -> None:
         print(f"  beyond newest {plan.keep}: {plan.beyond_keep_count}")
     if plan.before is not None:
         print(f"  older than {plan.before}: {plan.older_than_count}")
+    if plan.generated_only:
+        _print_prune_tiers(plan)
     print(f"  -> would remove {len(plan.removed)}, keeping {plan.kept}")
 
 
@@ -233,6 +283,10 @@ def _doctor_to_json(report: PromptHistoryDoctor) -> dict[str, object]:
         "invalid_entries": report.invalid_entries,
         "duplicate_ids": [[pid, count] for pid, count in report.duplicate_ids],
         "legacy_field_entries": report.legacy_field_entries,
+        "typed_origin_count": report.typed_origin_count,
+        "generated_origin_count": report.generated_origin_count,
+        "missing_origin_count": report.missing_origin_count,
+        "legacy_heuristic_count": report.legacy_heuristic_count,
         "oversized": [_largest_to_json(item) for item in report.oversized],
         "short_recovery": [_largest_to_json(item) for item in report.short_recovery],
         "fzf_available": report.fzf_available,
@@ -280,6 +334,10 @@ def _print_doctor_pretty(report: PromptHistoryDoctor) -> None:
         ),
     )
     summary.add_row("legacy-field entries", str(report.legacy_field_entries))
+    summary.add_row("typed origin", str(report.typed_origin_count))
+    summary.add_row("generated origin", str(report.generated_origin_count))
+    summary.add_row("missing origin", str(report.missing_origin_count))
+    summary.add_row("legacy heuristic", str(report.legacy_heuristic_count))
     summary.add_row("fzf", _ok_bad(report.fzf_available, ok="available", bad="missing"))
     summary.add_row(
         "clipboard",

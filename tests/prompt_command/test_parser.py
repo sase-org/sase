@@ -74,13 +74,27 @@ def test_prompt_maintenance_subcommands_parse_with_short_flags() -> None:
     assert doctor_args.json is True
 
     prune_args = parser.parse_args(
-        ["prompt", "prune", "-b", "2026-01-01", "-c", "-d", "-k", "50", "-y"]
+        [
+            "prompt",
+            "prune",
+            "-b",
+            "2026-01-01",
+            "-c",
+            "-d",
+            "-g",
+            "-k",
+            "50",
+            "-l",
+            "-y",
+        ]
     )
     assert prune_args.prompt_subcommand == "prune"
     assert prune_args.before == "2026-01-01"
     assert prune_args.cancelled is True
     assert prune_args.dry_run is True
+    assert prune_args.generated is True
     assert prune_args.keep == 50
+    assert prune_args.legacy is True
     assert prune_args.yes is True
 
 

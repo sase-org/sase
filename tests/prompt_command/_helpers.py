@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 
-from sase.history.prompt_store import PromptEntry, save_prompt_history
+from sase.history.prompt_store import PromptEntry, PromptOrigin, save_prompt_history
 from sase.main.parser import create_parser
 
 
@@ -21,12 +21,14 @@ def _entry(
     last_used: str,
     *,
     cancelled: bool = False,
+    origin: PromptOrigin | None = None,
 ) -> PromptEntry:
     return PromptEntry(
         text=text,
         timestamp=last_used,
         last_used=last_used,
         cancelled=cancelled,
+        origin=origin,
     )
 
 
@@ -77,6 +79,8 @@ def _prune_ns(
     keep: int | None = None,
     before: str | None = None,
     cancelled: bool = False,
+    generated: bool = False,
+    legacy: bool = False,
     dry_run: bool = False,
     yes: bool = False,
 ) -> argparse.Namespace:
@@ -84,6 +88,8 @@ def _prune_ns(
         keep=keep,
         before=before,
         cancelled=cancelled,
+        generated=generated,
+        legacy=legacy,
         dry_run=dry_run,
         yes=yes,
     )
