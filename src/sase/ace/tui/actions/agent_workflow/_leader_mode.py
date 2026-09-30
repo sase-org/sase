@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..agents._unread_state import BulkUnreadToggleOutcome
 from ..refresh_panel import FULL_HISTORY_MIGRATION_BANNER, refresh_panel_enabled
@@ -65,6 +65,71 @@ class LeaderModeMixin:
         """Remember a matched raw leader subkey for future repeat dispatch."""
         if remember:
             self._last_leader_key = key
+
+    @staticmethod
+    def _begin_leader_perf(app: object, action: str) -> None:
+        """Start a key-to-paint sample for a leader key (``SASE_TUI_PERF=1``)."""
+        perf_begin = getattr(app, "_jk_perf_begin", None)
+        if callable(perf_begin):
+            perf_begin(action)
+
+    @staticmethod
+    def _finish_leader_perf(app: object) -> None:
+        """Schedule the key-to-paint paint marker for a leader key.
+
+        Jumps that move ``current_idx`` already schedule this through the
+        index watcher; the duplicate is a harmless no-op because the timer
+        holds a single in-flight sample. ``,u`` never moves the cursor, so
+        without this its sample would never close.
+        """
+        perf = getattr(app, "_jk_perf", None)
+        if perf is not None:
+            call_after_refresh = getattr(app, "call_after_refresh", None)
+            if callable(call_after_refresh):
+                call_after_refresh(perf.mark_painted)
+
+    @staticmethod
+    def _leader_unread_span(app: object, action: str) -> Any:
+        """Return the ``leader.unread_jump`` trace span for a jump key."""
+        from ...util.trace import tui_trace
+
+        unread_ids: Any = getattr(app, "_unread_completed_agent_ids", set())
+        agents = getattr(app, "_agents", [])
+        try:
+            unread_count = len(unread_ids)
+        except TypeError:
+            unread_count = -1
+        try:
+            loaded = len(agents)
+        except TypeError:
+            loaded = -1
+        return tui_trace(
+            "leader.unread_jump",
+            action=action,
+            loaded_agents=loaded,
+            unread=unread_count,
+        )
+
+    @staticmethod
+    def _leader_bulk_ack_span(app: object) -> Any:
+        """Return the ``leader.unread_bulk_ack`` trace span for ``,u``."""
+        from ...util.trace import tui_trace
+
+        unread_ids: Any = getattr(app, "_unread_completed_agent_ids", set())
+        agents = getattr(app, "_agents", [])
+        try:
+            unread_count = len(unread_ids)
+        except TypeError:
+            unread_count = -1
+        try:
+            loaded = len(agents)
+        except TypeError:
+            loaded = -1
+        return tui_trace(
+            "leader.unread_bulk_ack",
+            loaded_agents=loaded,
+            targets=unread_count,
+        )
 
     def _dispatch_leader_key(self, key: str, *, remember: bool) -> bool:
         """Dispatch a non-repeat leader subkey."""
@@ -164,17 +229,25 @@ class LeaderModeMixin:
 
         if key == leader_keys["jump_to_next_unread_done_agent"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            LeaderModeMixin._begin_leader_perf(self, ",j")
             if self.current_tab == "agents":
-                if not self._jump_to_next_unread_done_agent():  # type: ignore[attr-defined]
+                with LeaderModeMixin._leader_unread_span(self, ",j"):
+                    hit = self._jump_to_next_unread_done_agent()  # type: ignore[attr-defined]
+                if not hit:
                     self.notify("No unread completed agents")  # type: ignore[attr-defined]
+            LeaderModeMixin._finish_leader_perf(self)
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == leader_keys["jump_to_next_stopped_agent"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            LeaderModeMixin._begin_leader_perf(self, ",J")
             if self.current_tab == "agents":
-                if not self._jump_to_next_stopped_agent():  # type: ignore[attr-defined]
+                with LeaderModeMixin._leader_unread_span(self, ",J"):
+                    hit = self._jump_to_next_stopped_agent()  # type: ignore[attr-defined]
+                if not hit:
                     self.notify("No stopped agents")  # type: ignore[attr-defined]
+            LeaderModeMixin._finish_leader_perf(self)
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
@@ -194,8 +267,10 @@ class LeaderModeMixin:
 
         if key == leader_keys["mark_all_unread_done_agents_read"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            LeaderModeMixin._begin_leader_perf(self, ",u")
             if self.current_tab == "agents":
-                result = self._toggle_all_unread_done_agents_read()  # type: ignore[attr-defined]
+                with LeaderModeMixin._leader_bulk_ack_span(self):
+                    result = self._toggle_all_unread_done_agents_read()  # type: ignore[attr-defined]
                 if result.outcome is BulkUnreadToggleOutcome.MARKED_READ:
                     self.notify(  # type: ignore[attr-defined]
                         f"Marked {result.count} completed agents read"
@@ -207,6 +282,7 @@ class LeaderModeMixin:
                 else:
                     self.notify("No unread completed agents")  # type: ignore[attr-defined]
                     self._refresh_current_tab()  # type: ignore[attr-defined]
+                LeaderModeMixin._finish_leader_perf(self)
                 return True
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True

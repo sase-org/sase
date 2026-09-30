@@ -157,6 +157,22 @@ class AgentNotificationUnreadMixin:
         - If no matching notification exists, clear the row's unread marker
           unless it was manually marked unread via ``U``.
         """
+        from sase.ace.tui.util.trace import tui_trace
+
+        with tui_trace(
+            "unread.reconcile",
+            notifications=len(notifications),
+        ) as _trace_extra:
+            result = self._apply_reconciled_unread_from_completion_notifications(
+                notifications
+            )
+            _trace_extra.update(result)
+
+    def _apply_reconciled_unread_from_completion_notifications(
+        self: Any,
+        notifications: list[Notification],
+    ) -> dict[str, object]:
+        """Apply the unread projection; return trace counters for the span."""
         from ._core import is_unread_completed_status
 
         active_keys = active_row_owned_notification_keys(notifications)
@@ -208,3 +224,8 @@ class AgentNotificationUnreadMixin:
                 invalidate_bulk_undo()
         if unread_ids != before and hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
+        return {
+            "loaded_agents": len(roster),
+            "unread": len(next_unread),
+            "changed": len(unread_ids ^ before),
+        }

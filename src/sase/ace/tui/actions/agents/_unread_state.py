@@ -384,6 +384,7 @@ class AgentUnreadStateMixin:
         def work() -> None:
             dismissed_count = 0
             error: Exception | None = None
+            store_bytes: int | None = None
             try:
                 from sase.notifications import (
                     dismiss_agent_completion_notifications_matching_agents,
@@ -397,11 +398,20 @@ class AgentUnreadStateMixin:
             except Exception as exc:
                 error = exc
                 log.exception("Failed to dismiss acknowledged agent notification")
+            # Stat the store here on the worker thread: the UI-thread
+            # completion span reports this size without touching disk itself.
+            try:
+                from sase.notifications.store import notifications_file_path
+
+                store_bytes = notifications_file_path().stat().st_size
+            except OSError:
+                store_bytes = None
 
             complete = lambda: self._complete_unread_notification_dismissal(  # noqa: E731
                 request,
                 dismissed_count=dismissed_count,
                 error=error,
+                store_bytes=store_bytes,
             )
             call_from_thread = getattr(self, "call_from_thread", None)
             if callable(call_from_thread):
@@ -434,8 +444,30 @@ class AgentUnreadStateMixin:
         *,
         dismissed_count: int,
         error: Exception | None,
+        store_bytes: int | None = None,
     ) -> None:
         """Reconcile the off-thread notification write outcome on the UI thread."""
+        from sase.ace.tui.util.trace import tui_trace
+
+        with tui_trace(
+            "unread.ack_complete",
+            targets=len(request.identities),
+            store_bytes=store_bytes if store_bytes is not None else -1,
+        ):
+            self._apply_unread_notification_dismissal_outcome(
+                request,
+                dismissed_count=dismissed_count,
+                error=error,
+            )
+
+    def _apply_unread_notification_dismissal_outcome(
+        self,
+        request: _UnreadNotificationDismissal,
+        *,
+        dismissed_count: int,
+        error: Exception | None,
+    ) -> None:
+        """Apply the off-thread notification write outcome on the UI thread."""
         if error is not None:
             self._restore_unread_notification_dismissal(request)
             notify = getattr(self, "notify", None)

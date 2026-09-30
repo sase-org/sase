@@ -39,6 +39,7 @@ from .tui_trace.common import (
     _read_jsonl,
     _summarize_spans,
 )
+from .tui_trace.idle import _run_idle_scenario
 from .tui_trace.scenarios import (
     _run_full_baseline,
     _run_scenario,
@@ -204,6 +205,34 @@ async def test_view_hints_scenario(_trace_env: tuple[Path, Path, Path]) -> None:
         assert agent_session_counters["annotated_chars"] <= 200_000
         assert agent_session_counters["hints"] > 0
     print(json.dumps(result, indent=2), file=sys.stderr)
+
+
+async def test_idle_tick_and_fleet_refresh(
+    _trace_env: tuple[Path, Path, Path],
+) -> None:
+    """Time one 1 Hz tick and one fleet_refresh reprojection at ~200 agents.
+
+    The j/k benches skip both paths while navigating by design, so this
+    scenario calls them directly on a settled app. Prints the baseline the
+    ``runtime-tick-caches`` and ``fleet-signature-cheap`` phases compare
+    against; the generous ceiling only catches an order-of-magnitude
+    regression under host contention.
+    """
+    result = await _run_idle_scenario()
+    print(json.dumps(result, indent=2), file=sys.stderr)
+    assert result["rows"] >= 200, f"idle roster too small: {result['rows']}"
+    assert result["clan_containers"] > 0, "idle roster has no clan containers"
+    assert result["tick_patched_rows"] > 0, (
+        "idle tick patched no rows: the baseline would measure an early return, "
+        "not the runtime-row scan"
+    )
+    for field in (
+        "tick_ms",
+        "fleet_refresh_unchanged_ms",
+        "fleet_refresh_forced_ms",
+    ):
+        stats = result[field]
+        assert stats["p95_ms"] < 5000.0, f"idle {field} exceeded 5 s p95: {stats}"
 
 
 async def test_full_baseline(

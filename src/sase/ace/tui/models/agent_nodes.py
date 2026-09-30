@@ -155,7 +155,21 @@ def agent_node_projection_index(
     parent: a gate turn's launch monitor, or a session member's monitor, still
     reaches the session node through the intermediate turn.
     """
+    from sase.ace.tui.util.trace import tui_trace
+
     roster = tuple(agents)
+    with tui_trace(
+        "agent_nodes.projection_index", loaded_agents=len(roster)
+    ) as _trace_extra:
+        index = _build_agent_node_projection_index(roster)
+        _trace_extra["nodes"] = len(index.projections)
+    return index
+
+
+def _build_agent_node_projection_index(
+    roster: tuple[Agent, ...],
+) -> _AgentNodeProjectionIndex:
+    """Build the ownership index for an already-materialized roster."""
     node_agents: list[Agent] = []
     owned_by_node: dict[AgentIdentity, list[Agent]] = {}
     node_by_raw_suffix: dict[str, Agent] = {}

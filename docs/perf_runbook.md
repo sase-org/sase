@@ -805,6 +805,44 @@ Read the printed p50/p95/max tables per scenario. Every `next` and `prev` p95 mu
 the Agents remote-row key-to-paint path; any stall row means the event loop or Textual
 pump was blocked and must be investigated before landing.
 
+### Unread and idle baseline (epic sase-1d7)
+
+Use the committed unread benches when changing unread acknowledgment, unread navigation,
+the 1 Hz runtime tick, or fleet reprojection. They record the baseline the later epic
+phases compare against:
+
+```bash
+just test-slow tests/ace/tui/bench_tui_jk.py -k "unread_bulk_ack or unread_jump"
+just test-slow tests/perf/bench_tui_trace.py -k idle_tick_and_fleet_refresh
+```
+
+Both benches drive a screenshot-shaped roster (about 200 agents, clan containers, three
+tribes) with in-memory fixtures only: the notification dismiss write is stubbed, so no
+real notifications are touched. The unread bench covers `,u` and `,j` with the target
+visible, inside a collapsed panel, inside a collapsed clan, and on another Agents tab;
+the idle bench times one countdown tick (`_patch_agent_runtime_rows`) and one
+`fleet_refresh` reprojection (forced and unchanged variants) by direct call, because the
+tick and fleet apply are skipped while navigating and the j/k benches cannot see them.
+The committed ceilings are deliberately generous (order-of-magnitude regression only);
+compare the printed p50/p95/max tables against the bead-note baseline instead.
+
+The same spans can be captured live from a real session:
+
+```bash
+SASE_TUI_TRACE=1 SASE_TUI_PERF=1 sase tui
+# ... press ,u / ,j /,J on the Agents tab, then quit with q ...
+jq -c 'select(.span == "leader.unread_bulk_ack" or .span == "leader.unread_jump"
+  or .span == "unread.ack_complete" or .span == "unread.reconcile"
+  or .span == "agent_nodes.projection_index")' ~/.sase/perf/tui_trace.jsonl
+jq -c 'select(.action == ",u" or .action == ",j" or .action == ",J")' \
+  ~/.sase/perf/tui_jk.jsonl
+```
+
+Note: an off-tab `,j` that switches Agents tabs records its paint under the
+`agents_tab_switch` action, not `,j` — the switch starts its own sample. The
+`store_bytes` counter on `unread.ack_complete` is statted on the ack worker thread; the
+UI thread never stats the store itself.
+
 ## Freeze and hitch capture
 
 sase's TUI always-on watchdog writes event-loop and Textual message-pump diagnostics to

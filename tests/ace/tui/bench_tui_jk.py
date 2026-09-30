@@ -54,6 +54,10 @@ from tests.ace.tui.bench_tui_jk_panes import (
     test_bench_axe_jk as test_bench_axe_jk,
     test_bench_patches_jk as test_bench_patches_jk,
 )
+from tests.ace.tui.bench_tui_jk_unread import (
+    test_bench_unread_bulk_ack_branches as test_bench_unread_bulk_ack_branches,
+    test_bench_unread_jump_branches as test_bench_unread_jump_branches,
+)
 
 pytestmark = pytest.mark.slow
 
