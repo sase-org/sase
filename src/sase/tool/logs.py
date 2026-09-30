@@ -194,6 +194,19 @@ def record_truncation(
     return True
 
 
+def truncation_message_lines(diagnostics: object) -> list[str]:
+    """Return the stored ``truncation_diagnostics`` lines from *diagnostics*.
+
+    A ledger follower reuses the exact wording the live executor recorded
+    instead of minting a second copy.
+    """
+
+    if not isinstance(diagnostics, (list, tuple)):
+        return []
+    prefix = f"{_TRUNCATION_PREFIX}:"
+    return [str(item) for item in diagnostics if str(item).startswith(prefix)]
+
+
 def read_truncation_messages(events_path: object, run_id: str) -> list[str]:
     """Return the recorded dropped-byte messages for *run_id*, if any."""
 
@@ -518,4 +531,5 @@ __all__ = [
     "retained_log_rotated",
     "tool_run_log_tail",
     "truncation_diagnostics",
+    "truncation_message_lines",
 ]

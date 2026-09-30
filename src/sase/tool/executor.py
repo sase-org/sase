@@ -160,6 +160,19 @@ def execute_tool_run(request: ToolRunCliRequest) -> int:
     if refusal is not None:
         print(refusal, file=sys.stderr)
         return 2
+    # An agent with a sync budget escalates instead of running inline: the
+    # detached run is followed inside the budget, and a start failure falls
+    # through to the inline body below with a new id.
+    from sase.tool.inline_escalation import try_inline_escalation
+
+    escalated = try_inline_escalation(
+        request,
+        resolved=resolved,
+        continuation_mode=continuation_mode,
+        compact=compact,
+    )
+    if escalated is not None:
+        return escalated
     # The executor owns the run lifecycle, so it also reaps identity-matched
     # survivors of lost runs. Read-only store paths (``tool runs``/``show``)
     # reconcile without reaping and never signal.

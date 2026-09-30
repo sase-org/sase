@@ -365,6 +365,19 @@ owner or parent run, `-H` together with `-d`, and `-v`/`-T`. `-k`/`-x` are allow
 travel as the envelope continuation mode, and `long` tools are accepted detached since a
 join can finish them.
 
+### Inline-then-escalate
+
+(Behind the `tool_run_escalation` beta flag, agents only.) A plain `sase tool run` from
+an agent with a sync budget and no live owner or parent run starts the run detached
+(same reservation, starter, and continuation envelope as `-d`) and follows it inline:
+compact mode follows with inline-identical stage lines and footer, `-v` streams the proc
+log. The run's exit is returned when it settles inside the budget. At the budget the
+follower prints the shared escalation block and exits `124` without stopping the run;
+`SIGTERM`, `SIGINT`, and `SIGHUP` do the same and exit `143`, `130`, and `129`. If
+detach cannot start, one `sase: inline escalation unavailable (<why>); running inline`
+warning is printed and the command runs inline under a new id. The automatic path does
+not inherit stdin; the inline path (including that fallback) does.
+
 ### Ceiling-bounded wait
 
 (Behind the `tool_run_escalation` beta flag, agents only.) An agent's `sase tool wait`

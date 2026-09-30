@@ -60,6 +60,16 @@ def _run_id_from_ack(stdout: str) -> str:
     return ""
 
 
+def _run_id_from_streams(stdout: str, stderr: str) -> str:
+    """The inline-escalation follower prints its id line to stderr."""
+
+    for text in (stderr, stdout):
+        for line in text.splitlines():
+            if line.startswith("sase tool run "):
+                return line.split()[-1]
+    return ""
+
+
 def _terminal(h: Harness, env: dict[str, str], run_id: str) -> dict[str, Any]:
     return h.show(run_id, env=env).get("run") or {}
 
@@ -146,9 +156,7 @@ def detach_refusals(h: Harness) -> dict[str, Any]:
         # The flag gate fires first: every other refusal needs the flag on.
         human = h.run(
             ["tool", "run", "-d", "--", "printf", "hi"],
-            env=dict(
-                env, SASE_FEATURE_FLAGS='{"tool_run_escalation":true}'
-            ),
+            env=dict(env, SASE_FEATURE_FLAGS='{"tool_run_escalation":true}'),
         )
         verbose = h.run(
             ["tool", "run", "-d", "-v", "--", "printf", "hi"], env=agent_env
@@ -183,6 +191,57 @@ def detach_refusals(h: Harness) -> dict[str, Any]:
             verbose_exit=verbose.returncode,
             tail_exit=tail.returncode,
             unresolvable_exit=unresolvable.returncode,
+            rows=len(rows),
+        )
+    finally:
+        try:
+            sleeper.kill()
+        except OSError:
+            pass
+
+
+def inline_escalation(h: Harness) -> dict[str, Any]:
+    """A plain agent run with a soft budget follows, then escalates at 124."""
+
+    env = h.world("inline-escalation")
+    agent_env, sleeper = _agent_env(h, env, "smoke-agent")
+    budget_env = dict(agent_env, SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS="8")
+    try:
+        proc = h.run(
+            ["tool", "run", "--", "sh", "-c", "sleep 20; exit 3"],
+            env=budget_env,
+        )
+        run_id = _run_id_from_streams(proc.stdout, proc.stderr)
+        early = _terminal(h, env, run_id) if run_id else {}
+        waited = h.run(["tool", "wait", run_id], env=env, cwd=h.tmp, timeout=60.0)
+        final = _terminal(h, env, run_id)
+        rows = h.runs(env=env, cwd=h.tmp)
+        h.note(run_id, "plain agent run escalates at the budget", owner="proc")
+        ok = (
+            proc.returncode == 124
+            and bool(run_id)
+            and "was not stopped" in proc.stderr
+            and "SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS" in proc.stderr
+            and f"sase monitor start -J {run_id}" in proc.stderr
+            and f"sase tool wait {run_id}" in proc.stderr
+            and early.get("state") in ("created", "running")
+            and early.get("launch_mode") == "handoff"
+            and (early.get("starter") or {}).get("agent") == "smoke-agent"
+            and waited.returncode == 3
+            and final.get("state") == "failed"
+            and final.get("exit_code") == 3
+            and len(rows) == 1
+        )
+        return case(
+            "dod-17-inline-escalation",
+            ok,
+            dod=["DoD-17"],
+            run_ids=[run_id],
+            follower_exit=proc.returncode,
+            early_state=early.get("state"),
+            wait_exit=waited.returncode,
+            final_state=final.get("state"),
+            final_exit=final.get("exit_code"),
             rows=len(rows),
         )
     finally:

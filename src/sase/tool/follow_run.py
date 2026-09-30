@@ -43,6 +43,7 @@ def follow_run(
     *,
     deadline_s: float | None = None,
     stream_output: bool = True,
+    compact: bool = False,
     on_stage_line: Callable[[str], None] | None = None,
     stop_event: threading.Event | None = None,
 ) -> FollowOutcome:
@@ -50,10 +51,13 @@ def follow_run(
 
     With ``stream_output`` the output of record streams to stdout and stage
     lines go to *on_stage_line* (stderr by default), exactly as ``show -F``
-    does. With it off, the run is only polled. Returns a settled outcome
-    carrying the final envelope, a deadline outcome carrying the last-seen
-    envelope (possibly ``None``), or a stopped outcome for ``KeyboardInterrupt``
-    and a set *stop_event*. Raises :class:`UnknownRunError` for an unknown id.
+    does. With it off and ``compact`` off, the run is only polled. With it
+    off and ``compact`` on, the output of record stays silent but compact
+    stage-progress lines still go to *on_stage_line*, matching the inline
+    compact executor. Returns a settled outcome carrying the final envelope,
+    a deadline outcome carrying the last-seen envelope (possibly ``None``),
+    or a stopped outcome for ``KeyboardInterrupt`` and a set *stop_event*.
+    Raises :class:`UnknownRunError` for an unknown id.
     """
 
     if deadline_s is not None and deadline_s <= 0:
@@ -65,14 +69,17 @@ def follow_run(
     state: dict[str, Any] = {"ingestor": None}
     emit = on_stage_line or (lambda line: print(line, file=sys.stderr))
 
+    ingest_stages = stream_output or compact
+
     def _on_poll(envelope: dict[str, Any]) -> None:
-        if not stream_output:
+        if not stream_output and not compact:
             return
         run = envelope.get("run")
         if not isinstance(run, dict):
             return
-        _stream_output_paths(run, offsets)
-        fresh = _follow_ingestor(run)
+        if stream_output:
+            _stream_output_paths(run, offsets)
+        fresh = _follow_ingestor(run, compact=compact)
         if fresh is not None and (
             state["ingestor"] is None or fresh.path != state["ingestor"].path
         ):
@@ -81,7 +88,7 @@ def follow_run(
             for line in state["ingestor"].tick():
                 emit(line)
 
-    if stream_output:
+    if ingest_stages:
         try:
             from sase.core.tool_run import tool_run_show
 
@@ -89,9 +96,10 @@ def follow_run(
         except Exception:  # noqa: BLE001 - the poll loop reports unknown runs.
             first = None
         if isinstance(first, dict) and isinstance(first.get("run"), dict):
-            _stream_output_paths(first["run"], offsets)
-            _notice_unretained_output(first["run"], notified)
-            fresh = _follow_ingestor(first["run"])
+            if stream_output:
+                _stream_output_paths(first["run"], offsets)
+                _notice_unretained_output(first["run"], notified)
+            fresh = _follow_ingestor(first["run"], compact=compact)
             if fresh is not None:
                 state["ingestor"] = fresh
                 for line in fresh.tick():
@@ -151,7 +159,7 @@ def _last_envelope(run_id: str) -> dict[str, Any] | None:
     return envelope if isinstance(envelope, dict) else None
 
 
-def _follow_ingestor(run: object):  # type: ignore[no-untyped-def]
+def _follow_ingestor(run: object, *, compact: bool = False):  # type: ignore[no-untyped-def]
     if not isinstance(run, dict):
         return None
     logs = run.get("logs")
@@ -163,7 +171,9 @@ def _follow_ingestor(run: object):  # type: ignore[no-untyped-def]
         return None
     from sase.tool.stage_protocol import StageIngestor
 
-    return StageIngestor(path=path, run_id=str(run.get("run_id") or ""))
+    return StageIngestor(
+        path=path, run_id=str(run.get("run_id") or ""), compact=compact
+    )
 
 
 def _stream_output_paths(run: object, offsets: dict[str, int]) -> None:

@@ -154,7 +154,7 @@ class StageIngestor:
             if event_id and event_id in self.seen_event_ids:
                 continue
             try:
-                result = tool_run_append_event(
+                tool_run_append_event(
                     {"schema_version": SCHEMA_VERSION, "event": event}
                 )
             except Exception as exc:  # noqa: BLE001 - recording must fail open.
@@ -162,15 +162,16 @@ class StageIngestor:
                 continue
             if event_id:
                 self.seen_event_ids.add(event_id)
-            replayed = bool(result.get("replayed"))
             stage = event.get("stage")
             if isinstance(stage, dict):
                 self._project_stage(stage)
-                if (
-                    self.compact
-                    and not replayed
-                    and event.get("kind") == "stage_finished"
-                ):
+                # A follower ingests the same events.jsonl the adopt worker
+                # already ingested, so its appends report replayed. Emit the
+                # compact line the first time this ingestor sees a finished
+                # stage regardless; the announced set still de-duplicates
+                # (and the inline executor's flush reread is covered by both
+                # seen_event_ids and announced).
+                if self.compact and event.get("kind") == "stage_finished":
                     stage_id = str(stage.get("stage_id") or "")
                     if stage_id and stage_id not in self.announced:
                         compact_line = format_stage_progress(

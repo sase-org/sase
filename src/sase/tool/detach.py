@@ -45,7 +45,7 @@ def escalation_enabled() -> bool:
         return False
 
 
-def _enclosing_owner() -> tuple[str, str] | None:
+def enclosing_owner() -> tuple[str, str] | None:
     """Return ``(kind, id)`` for a live enclosing owner, else ``None``.
 
     Agents are a new ownership root, so this reads the raw environment
@@ -87,7 +87,7 @@ def _proc_has_settled(proc_id: str) -> bool:
     return proc is not None and proc.status in TERMINAL_PROC_STATUSES
 
 
-def _parent_run() -> str | None:
+def parent_run() -> str | None:
     """Return the enclosing parent run id, or ``None`` when there is none."""
 
     from sase.core.tool_run import tool_run_show
@@ -151,7 +151,7 @@ def execute_detached(
             file=sys.stderr,
         )
         return 2
-    owner = _enclosing_owner()
+    owner = enclosing_owner()
     if owner is not None:
         kind, owner_id = owner
         if kind == "proc":
@@ -174,7 +174,7 @@ def execute_detached(
             file=sys.stderr,
         )
         return 2
-    parent_id = _parent_run()
+    parent_id = parent_run()
     if parent_id is not None:
         print(
             f"sase tool run -d cannot be used inside parent tool run "
@@ -265,4 +265,9 @@ def execute_detached(
     return 0
 
 
-__all__ = ["escalation_enabled", "execute_detached"]
+__all__ = [
+    "enclosing_owner",
+    "escalation_enabled",
+    "execute_detached",
+    "parent_run",
+]
