@@ -908,14 +908,15 @@ then in shared stores picked deterministically by size:
 - The **git tier** holds objects up to `bead.attachments.git_max_bytes` (default 50 MiB)
   in a `<project>--attachments-private` sidecar repo, one per project. Its local copy is
   a bare partial clone at `~/.sase/projects/<project_key>/repos/attachments-private`.
-  SASE requests private visibility when creating the remote, but does not check the
-  visibility of an existing remote; verify that before using it for attachment bytes.
-  The role is hidden from agent instructions, and descriptors contain no local file
-  paths. `sase repo init` asks before creating a missing remote. Declining does not
-  create a git store on that machine;
-  `repos.sidecar.builtin.attachments-private.disabled: true` prevents sidecar setup, but
-  does not disable uploads through a clone that already exists. Use `-L/--local-only`
-  for an individual attachment that must stay on this machine. See
+  Public attachments live in a `<project>--attachments` sidecar repo with the same bare
+  layout at `~/.sase/projects/<project_key>/repos/attachments`. SASE requests private
+  visibility when creating the remote, but does not check the visibility of an existing
+  remote; verify that before using it for attachment bytes. The role is hidden from
+  agent instructions, and descriptors contain no local file paths. `sase repo init` asks
+  before creating a missing remote. Declining does not create a git store on that
+  machine; `repos.sidecar.builtin.attachments-private.disabled: true` prevents sidecar
+  setup and hides the role even when a clone already exists. Use `-L/--local-only` for
+  an individual attachment that must stay on this machine. See
   [Repository initialization](init.md#repository-initialization).
 - The optional **rclone large tier** (`bead.attachments.large_store`) takes larger
   objects; see below.

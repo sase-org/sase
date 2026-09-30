@@ -299,6 +299,7 @@ def render_bead_note_lines(
                     sha256=attachment.sha256,
                     size_bytes=attachment.size_bytes,
                     origin=getattr(attachment, "origin", None),
+                    visibility=getattr(attachment, "visibility", None),
                 ):
                     lines.append(f"         {status_line}")
             lines.extend(
@@ -379,6 +380,7 @@ def render_plus_one_evidence_lines(
                     sha256=attachment.sha256,
                     size_bytes=attachment.size_bytes,
                     origin=getattr(attachment, "origin", None),
+                    visibility=getattr(attachment, "visibility", None),
                 ):
                     lines.append(f"         {status_line}")
             lines.extend(

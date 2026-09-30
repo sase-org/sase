@@ -1,4 +1,4 @@
-"""Tests for the hidden ``agents`` sidecar role."""
+"""Tests for the hidden ``agents`` and ``attachments`` sidecar roles."""
 
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ import pytest
 from sase._linked_repo_config import (
     AGENTS_SIDECAR_ROLE,
     ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    ATTACHMENTS_SIDECAR_ROLE,
     DEFAULT_AGENTS_DESCRIPTION,
+    DEFAULT_ATTACHMENTS_DESCRIPTION,
     DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION,
     HIDDEN_SIDECAR_ROLES,
     inject_default_linked_repos,
@@ -39,7 +41,9 @@ def test_managed_project_injects_hidden_agents_sidecar_config(tmp_path: Path) ->
         for entry in entries
         if entry.get("_sase_sidecar_role") == AGENTS_SIDECAR_ROLE
     )
-    assert HIDDEN_SIDECAR_ROLES == frozenset({"agents", "attachments-private"})
+    assert HIDDEN_SIDECAR_ROLES == frozenset(
+        {"agents", "attachments", "attachments-private"}
+    )
     assert agents["name"] == "widget--agents"
     assert agents["description"] == DEFAULT_AGENTS_DESCRIPTION
     assert agents["auto_clone"] is False
@@ -64,6 +68,22 @@ def test_managed_project_injects_hidden_agents_sidecar_config(tmp_path: Path) ->
     assert attachments["_sase_sidecar_repo_ref"] == "acme/widget--attachments-private"
     assert attachments["_sase_sidecar_remote_url"] == (
         "git@github.com:acme/widget--attachments-private.git"
+    )
+
+    public = next(
+        entry
+        for entry in entries
+        if entry.get("_sase_sidecar_role") == ATTACHMENTS_SIDECAR_ROLE
+    )
+    assert public["name"] == "widget--attachments"
+    assert public["description"] == DEFAULT_ATTACHMENTS_DESCRIPTION
+    assert public["auto_clone"] is False
+    assert public["auto_sync"] is False
+    assert public["visibility"] == "public"
+    assert public["_sase_sidecar_slug"] == "widget--attachments"
+    assert public["_sase_sidecar_repo_ref"] == "acme/widget--attachments"
+    assert public["_sase_sidecar_remote_url"] == (
+        "git@github.com:acme/widget--attachments.git"
     )
 
     assert (
@@ -234,3 +254,75 @@ def test_hidden_sidecar_clone_dir_is_machine_and_project_scoped(
     ]:
         with pytest.raises(ValueError, match="safe path component"):
             hidden_sidecar_clone_dir(project_key, role)
+
+
+def test_public_attachments_injected_only_for_public_beads(tmp_path: Path) -> None:
+    from sase._linked_repo_config import inject_default_linked_repos
+
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    from tests._linked_repo_resolution_helpers import _set_github_origin
+
+    _set_github_origin(primary, "https://github.com/acme/widget.git")
+    # Private beads suppress the public attachments role.
+    config = {
+        "is_sase_managed": True,
+        "repos": {"sidecar": {"builtin": {"beads": {"visibility": "private"}}}},
+    }
+    from sase._linked_repo_config import merged_sidecar_entries_from_config
+
+    configured = merged_sidecar_entries_from_config(
+        config, primary_workspace_dir=str(primary)
+    )
+    entries = inject_default_linked_repos(
+        configured,
+        primary_workspace_dir=str(primary),
+        local_config=config,
+        config=config,
+    )
+    roles = {e.get("_sase_sidecar_role") for e in entries}
+    assert "attachments" not in roles
+
+    # Explicit disabled suppresses the injection the same way other hiddens work.
+    config_disabled = {
+        "is_sase_managed": True,
+        "repos": {"sidecar": {"builtin": {"attachments": {"disabled": True}}}},
+    }
+    configured_disabled = merged_sidecar_entries_from_config(
+        config_disabled, primary_workspace_dir=str(primary)
+    )
+    entries_disabled = inject_default_linked_repos(
+        configured_disabled,
+        primary_workspace_dir=str(primary),
+        local_config=config_disabled,
+        config=config_disabled,
+    )
+    roles_disabled = [
+        e for e in entries_disabled if e.get("_sase_sidecar_role") == "attachments"
+    ]
+    assert len(roles_disabled) == 1
+    assert roles_disabled[0].get("disabled") is True
+
+
+def test_attachments_visibility_is_forced_public(tmp_path: Path) -> None:
+    from sase._linked_repo_config import merged_sidecar_entries_from_config
+
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    from tests._linked_repo_resolution_helpers import _set_github_origin
+
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    config = {
+        "repos": {
+            "sidecar": {"builtin": {"attachments": {"visibility": "private"}}},
+        },
+    }
+    entries = merged_sidecar_entries_from_config(
+        config, primary_workspace_dir=str(primary)
+    )
+    by_role = {
+        entry.get("_sase_sidecar_role"): entry
+        for entry in entries
+        if entry.get("_sase_sidecar_role")
+    }
+    assert by_role["attachments"]["visibility"] == "public"

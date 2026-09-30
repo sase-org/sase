@@ -21,11 +21,22 @@ class BlobStoreError(Exception):
     ``transient=True`` means retrying later may succeed (network or remote
     unavailable); ``False`` means the request itself is bad (unknown digest,
     store misconfiguration) or the failure already proved durable.
+    ``missing=True`` marks a plain miss (object absent, no corruption);
+    ``secret_scan=True`` marks a permanent secret-scanning push rejection.
     """
 
-    def __init__(self, message: str, *, transient: bool = False) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        transient: bool = False,
+        missing: bool = False,
+        secret_scan: bool = False,
+    ) -> None:
         super().__init__(message)
         self.transient = transient
+        self.missing = missing
+        self.secret_scan = secret_scan
 
 
 @runtime_checkable

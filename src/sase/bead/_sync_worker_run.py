@@ -449,11 +449,7 @@ def _drain_attachment_outbox_best_effort(repo_root: Path) -> None:
     """
     try:
         from sase.bead.attachments.outbox import drain_outbox
-        from sase.bead.attachments.upload import (
-            clone_has_remote,
-            describe_label,
-            hidden_clone_path,
-        )
+        from sase.bead.attachments.upload import discover_stores
         from sase.bead.project_name import infer_project_name_from_cwd
 
         try:
@@ -462,35 +458,17 @@ def _drain_attachment_outbox_best_effort(repo_root: Path) -> None:
             project_key = None
         if not project_key:
             return
-        clone = hidden_clone_path(project_key)
-        if clone is None or not clone.is_dir():
-            return
-        if not (clone / "HEAD").is_file() or not (clone / "objects").is_dir():
-            return
-        if not clone_has_remote(clone):
-            return
         try:
-            from sase.bead.attachments.git_store import GitAttachmentStore
-
-            store = GitAttachmentStore(clone, describe_label(clone, project_key))
+            stores = discover_stores(None)
         except Exception:
-            store = None
-        if store is not None:
+            return
+        for key in ("public", "git", "large"):
+            store = stores.get(key)
+            if store is None:
+                continue
             drain_outbox(
                 project_key,
                 store,
-                time_bound_seconds=5.0,
-            )
-        try:
-            from sase.bead.attachments.upload import discover_large_store
-
-            large_store = discover_large_store(None)
-        except Exception:
-            large_store = None
-        if large_store is not None:
-            drain_outbox(
-                project_key,
-                large_store,
                 time_bound_seconds=5.0,
             )
     except Exception as exc:

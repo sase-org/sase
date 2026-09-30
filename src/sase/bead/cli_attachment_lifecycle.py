@@ -117,7 +117,7 @@ def handle_bead_attachment_purge(args: argparse.Namespace) -> None:
     payload = tombstone_bytes(digest, reason.strip())
     stores = _stores_for_purge(bead_context)
     store_results: list[str] = []
-    for tier in ("git", "large"):
+    for tier in ("public", "git", "large"):
         store = stores.get(tier)
         if store is None:
             continue
@@ -166,13 +166,36 @@ def handle_bead_attachment_purge(args: argparse.Namespace) -> None:
         f"{'local object removed; ' if local_removed else 'no local object; '}"
         f"{len(references)} note(s) now render (purged)."
     )
-    print(
-        "To also erase the bytes from the private repo history "
-        "(not automated):\n"
-        "  git clone --bare <attachments-private-remote> /tmp/attachments-scrub\n"
-        f"  git -C /tmp/attachments-scrub filter-repo --path files/objects/sha256/{digest[:2]}/{digest} --invert-paths --force\n"
-        "  git -C /tmp/attachments-scrub push --force --all"
-    )
+    is_public = bool(getattr(attachment, "visibility", None) == "public")
+    try:
+        from sase.core.rust import require_rust_binding
+
+        canonical = require_rust_binding("attachment_canonical_extension")
+        mime_value = str(getattr(attachment, "mime_type", "") or "")
+        ext = canonical(mime_value) if mime_value else None
+        object_path = (
+            f"files/objects/sha256/{digest[:2]}/{digest}.{ext}"
+            if isinstance(ext, str) and ext
+            else f"files/objects/sha256/{digest[:2]}/{digest}"
+        )
+    except Exception:
+        object_path = f"files/objects/sha256/{digest[:2]}/{digest}"
+    if is_public:
+        print(
+            "To also erase the bytes from the public repo history "
+            "(not automated):\n"
+            "  git clone --bare <attachments-remote> /tmp/attachments-scrub\n"
+            f"  git -C /tmp/attachments-scrub filter-repo --path {object_path} --invert-paths --force\n"
+            "  git -C /tmp/attachments-scrub push --force --all"
+        )
+    else:
+        print(
+            "To also erase the bytes from the private repo history "
+            "(not automated):\n"
+            "  git clone --bare <attachments-private-remote> /tmp/attachments-scrub\n"
+            f"  git -C /tmp/attachments-scrub filter-repo --path {object_path} --invert-paths --force\n"
+            "  git -C /tmp/attachments-scrub push --force --all"
+        )
 
 
 def handle_bead_attachment_prune(args: argparse.Namespace) -> None:

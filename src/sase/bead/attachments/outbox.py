@@ -1,9 +1,10 @@
-"""Durable outbox for private attachment uploads.
+"""Durable outbox for attachment uploads.
 
 Path ``<sase home>/projects/<key>/attachment-upload-outbox.json`` via
 :func:`sase_projects_dir`, so ``SASE_HOME`` is honored. Flock plus atomic
 replace, following ``agents_sync.publication_outbox_store``. Records are
-digest, size, store name (``git``), and origin machine. No filenames.
+digest, size, store name (``git``/``public``/``large``), origin machine,
+optional MIME type, and optional state. No filenames.
 """
 
 from __future__ import annotations
@@ -30,12 +31,14 @@ OUTBOX_SCHEMA_VERSION = 1
 
 @dataclass(frozen=True)
 class OutboxEntry:
-    """One queued upload: digest, size, store name, and origin machine."""
+    """One queued upload: digest, size, store name, origin, MIME, and state."""
 
     digest: str
     size_bytes: int
     store: str = "git"
     origin: str | None = None
+    mime_type: str | None = None
+    state: str = "pending"
 
     def to_json_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -45,6 +48,10 @@ class OutboxEntry:
         }
         if self.origin is not None:
             payload["origin"] = self.origin
+        if self.mime_type is not None:
+            payload["mime_type"] = self.mime_type
+        if self.state != "pending":
+            payload["state"] = self.state
         return payload
 
     @staticmethod
@@ -55,6 +62,8 @@ class OutboxEntry:
         size = value.get("size_bytes")
         store = value.get("store", "git")
         origin = value.get("origin")
+        mime_type = value.get("mime_type")
+        state = value.get("state", "pending")
         if not isinstance(digest, str) or not digest:
             raise ValueError("outbox entry digest must be a non-empty string")
         if isinstance(size, bool) or not isinstance(size, int) or size < 0:
@@ -63,11 +72,17 @@ class OutboxEntry:
             raise ValueError("outbox entry store must be a non-empty string")
         if origin is not None and not isinstance(origin, str):
             raise ValueError("outbox entry origin must be a string")
+        if mime_type is not None and not isinstance(mime_type, str):
+            raise ValueError("outbox entry mime_type must be a string")
+        if state not in ("pending", "blocked"):
+            state = "pending"
         return OutboxEntry(
             digest=digest,
             size_bytes=size,
             store=str(store),
             origin=origin,
+            mime_type=mime_type,
+            state=str(state),
         )
 
 
@@ -131,21 +146,57 @@ def read_outbox(project_key: str) -> list[OutboxEntry]:
 
 
 def enqueue_outbox(project_key: str, entries: list[OutboxEntry]) -> list[OutboxEntry]:
-    """Append entries whose digests are not already queued."""
+    """Append entries whose ``(digest, store)`` identity is not already queued.
+
+    A ``blocked`` row is never resurrected as ``pending``.
+    """
     if not entries:
         with _outbox_lock(project_key):
             return _read_locked(_outbox_path(project_key))
     with _outbox_lock(project_key):
         path = _outbox_path(project_key)
         current = _read_locked(path)
-        known = {entry.digest for entry in current}
+        known = {(entry.digest, entry.store) for entry in current}
+        blocked = {
+            (entry.digest, entry.store) for entry in current if entry.state == "blocked"
+        }
         merged = list(current)
         for entry in entries:
-            if entry.digest not in known:
-                merged.append(entry)
-                known.add(entry.digest)
+            identity = (entry.digest, entry.store)
+            if identity in known:
+                continue
+            if identity in blocked and entry.state != "blocked":
+                continue
+            merged.append(entry)
+            known.add(identity)
+            if entry.state == "blocked":
+                blocked.add(identity)
         _write_locked(path, merged)
         return merged
+
+
+def mark_outbox_blocked(project_key: str, digest: str, store: str) -> None:
+    """Mark one ``(digest, store)`` outbox entry ``blocked``."""
+    with _outbox_lock(project_key):
+        path = _outbox_path(project_key)
+        current = _read_locked(path)
+        changed = False
+        updated: list[OutboxEntry] = []
+        for entry in current:
+            if entry.digest == digest and entry.store == store:
+                if entry.state != "blocked":
+                    entry = OutboxEntry(
+                        digest=entry.digest,
+                        size_bytes=entry.size_bytes,
+                        store=entry.store,
+                        origin=entry.origin,
+                        mime_type=entry.mime_type,
+                        state="blocked",
+                    )
+                    changed = True
+            updated.append(entry)
+        if changed:
+            _write_locked(path, updated)
 
 
 def remove_outbox_digests(
@@ -162,6 +213,21 @@ def remove_outbox_digests(
         return remaining
 
 
+def _remove_outbox_entries(
+    project_key: str, identities: set[tuple[str, str]]
+) -> list[OutboxEntry]:
+    """Drop ``(digest, store)`` identities, returning the remainder."""
+    with _outbox_lock(project_key):
+        path = _outbox_path(project_key)
+        current = _read_locked(path)
+        remaining = [
+            entry for entry in current if (entry.digest, entry.store) not in identities
+        ]
+        if len(remaining) != len(current):
+            _write_locked(path, remaining)
+        return remaining
+
+
 def drain_outbox(
     project_key: str,
     store: Any,
@@ -171,9 +237,11 @@ def drain_outbox(
 ) -> tuple[int, int]:
     """Upload queued entries through *store*, returning (drained, remaining).
 
-    A drain failure is logged and never raises: the caller keeps publishing.
-    Entries whose local object is missing stay queued. The run stops when the
-    time bound expires; leftovers stay queued.
+    Only entries whose ``store`` equals ``store.name`` are attempted, and
+    ``blocked`` entries are skipped. A drain failure is logged and never
+    raises: the caller keeps publishing. Entries whose local object is
+    missing stay queued. The run stops when the time bound expires;
+    leftovers stay queued.
     """
     deadline = time.monotonic() + max(0.0, time_bound_seconds)
     try:
@@ -195,29 +263,54 @@ def drain_outbox(
     from sase.bead.attachments.store import LocalAttachmentStore
 
     local = LocalAttachmentStore()
-    drained: list[str] = []
+    drained: set[tuple[str, str]] = set()
     for entry in targets:
         if time.monotonic() >= deadline:
             break
         if getattr(store, "name", "git") != entry.store:
+            continue
+        if entry.state == "blocked":
             continue
         src = local.object_path(entry.digest)
         if not src.is_file():
             continue
         try:
             put = store.put
-            put(entry.digest, src, entry.size_bytes)
+            try:
+                put(
+                    entry.digest,
+                    src,
+                    entry.size_bytes,
+                    mime_type=entry.mime_type,
+                )
+            except TypeError:
+                put(entry.digest, src, entry.size_bytes)
         except Exception as exc:
+            if getattr(exc, "secret_scan", False):
+                try:
+                    from sase.bead.attachments.upload.secret_scan import (
+                        handle_secret_scan_rejection,
+                    )
+                except Exception:
+                    handle_secret_scan_rejection = None  # type: ignore[assignment]
+                if handle_secret_scan_rejection is not None:
+                    try:
+                        handle_secret_scan_rejection(
+                            project_key, entry, store, str(exc)
+                        )
+                    except Exception:
+                        pass
+                continue
             log.warning(
                 "attachment outbox upload of %s… failed: %s",
                 entry.digest[:12],
                 exc,
             )
             continue
-        drained.append(entry.digest)
+        drained.add((entry.digest, entry.store))
     if drained:
         try:
-            remaining = remove_outbox_digests(project_key, drained)
+            remaining = _remove_outbox_entries(project_key, drained)
             return (len(drained), len(remaining))
         except (OSError, ValueError) as exc:
             log.warning("attachment outbox drain cleanup failed: %s", exc)
@@ -231,6 +324,7 @@ __all__ = [
     "OutboxEntry",
     "drain_outbox",
     "enqueue_outbox",
+    "mark_outbox_blocked",
     "_outbox_path",
     "read_outbox",
     "remove_outbox_digests",

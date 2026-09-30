@@ -489,3 +489,118 @@ def test_existing_sidecar_initializes_without_creation_prompt(
 
     assert run_repo_init(args) == 0
     assert calls == [{}]
+
+
+def test_public_sidecar_prompt_defaults_yes_and_names_public(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (
+        SidecarInitSpec(
+            role="attachments", repo="acme/widget--attachments", visibility="public"
+        ),
+    )
+    prompts: list[str] = []
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {"attachments": _preflight("attachments", visibility="public")},
+    )
+    monkeypatch.setattr("sase.bead.attachments.audience.audience_enabled", lambda: True)
+    monkeypatch.setattr(
+        "sase.bead.attachments.remote_visibility.resolve_remote_visibility",
+        lambda _url: "public",
+    )
+    monkeypatch.setattr(
+        "sase.main._repo_init_sidecars._beads_remote_for_public_probe",
+        lambda: "https://github.com/acme/widget--beads.git",
+    )
+
+    def initialize(
+        _root: Path,
+        _workspace: int,
+        selected: tuple[SidecarInitSpec, ...],
+        *,
+        creation_authorized: dict[str, bool] | None = None,
+        publish_sidecar_changes: bool = True,
+    ) -> _SidecarInitOutcome:
+        assert creation_authorized == {"attachments": True}
+        return _outcome(tmp_path, selected)
+
+    monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", initialize)
+    args = _args(tmp_path)
+    args._init_stdin = _Tty()
+    args._init_input_func = lambda prompt: prompts.append(prompt) or ""
+    assert run_repo_init(args) == 0
+    assert prompts and "Repository visibility: PUBLIC." in prompts[0]
+    assert "[Y/n]" in prompts[0]
+
+
+def test_public_sidecar_refused_when_beads_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (
+        SidecarInitSpec(
+            role="attachments", repo="acme/widget--attachments", visibility="public"
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {"attachments": _preflight("attachments", visibility="public")},
+    )
+    monkeypatch.setattr("sase.bead.attachments.audience.audience_enabled", lambda: True)
+    monkeypatch.setattr(
+        "sase.bead.attachments.remote_visibility.resolve_remote_visibility",
+        lambda _url: "private",
+    )
+    monkeypatch.setattr(
+        "sase.main._repo_init_sidecars._beads_remote_for_public_probe",
+        lambda: "https://github.com/acme/widget--beads.git",
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.initialize_sidecars",
+        lambda _r, _w, selected, **_k: _outcome(tmp_path, selected),
+    )
+    args = _args(tmp_path)
+    args._init_stdin = _Tty()
+    args._init_input_func = lambda prompt: ""
+    assert run_repo_init(args) == 0
+    stderr = capsys.readouterr().err
+    assert "repos.sidecar.builtin.beads.visibility: private" in stderr
+
+
+def test_public_sidecar_flag_off_offers_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.main._repo_init_config import configured_sidecar_specs
+
+    _mark_managed_project(tmp_path)
+    monkeypatch.setattr(
+        "sase.bead.attachments.audience.audience_enabled", lambda: False
+    )
+    # configured_sidecar_specs filters the public role when the flag is off;
+    # the confirm path also refuses without prompting.
+    from sase.main._repo_init_sidecars import _confirm_sidecar_creation
+
+    preflight = _preflight("attachments", visibility="public")
+    args = _args(tmp_path)
+    args._init_stdin = _Tty()
+    assert _confirm_sidecar_creation(args, "attachments", preflight) is False

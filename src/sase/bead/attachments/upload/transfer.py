@@ -51,7 +51,17 @@ def upload_wires_now(
                 with transfer_progress(
                     f"{name} → {store.describe()}", size
                 ) as progress:
-                    store.put(digest, src, size, progress=progress)
+                    try:
+                        mime = wire.get("mime_type")
+                        mime_arg = str(mime) if isinstance(mime, str) and mime else None
+                        if tier_name == "public":
+                            store.put(
+                                digest, src, size, progress=progress, mime_type=mime_arg
+                            )
+                        else:
+                            store.put(digest, src, size, progress=progress)
+                    except TypeError:
+                        store.put(digest, src, size, progress=progress)
             except BlobStoreError:
                 raise
             except Exception as exc:
@@ -85,17 +95,22 @@ def queue_pending_upload(
         digest = str(wire.get("sha256") or wire.get("digest") or "")
         if not digest:
             continue
-        pending.append(
-            {
-                "digest": digest,
-                "size_bytes": int(wire.get("size_bytes") or 0),
-                "store_name": store_name,
-                "store_repo": store_repo,
-                "store_label": store_label,
-                "project_key": project_key,
-                "background": background,
-            }
+        mime_value = wire.get("mime_type")
+        mime_str = (
+            str(mime_value) if isinstance(mime_value, str) and mime_value else None
         )
+        item: dict[str, object] = {
+            "digest": digest,
+            "size_bytes": int(wire.get("size_bytes") or 0),
+            "store_name": store_name,
+            "store_repo": store_repo,
+            "store_label": store_label,
+            "project_key": project_key,
+            "background": background,
+        }
+        if mime_str:
+            item["mime_type"] = mime_str
+        pending.append(item)
     if echo_rows is not None:
         mutation.pending_attachment_echo_rows = echo_rows
         mutation.pending_attachment_wires = list(wires)
@@ -109,6 +124,26 @@ def _store_for_pending_item(item: dict[str, Any]) -> Any | None:
     if store_name == "large":
         try:
             return upload.discover_large_store(None)
+        except Exception:
+            return None
+    if store_name == "public":
+        repo = str(item.get("store_repo") or "")
+        if not repo:
+            try:
+                return upload.discover_public_store(None)
+            except Exception:
+                return None
+        label = str(item.get("store_label") or "")
+        project_key = str(item.get("project_key") or "")
+        try:
+            from sase.bead.attachments.git_store import GitAttachmentStore
+
+            return GitAttachmentStore(
+                repo,
+                label or f"{project_key}--attachments (public)",
+                name="public",
+                layout="public",
+            )
         except Exception:
             return None
     repo = str(item.get("store_repo") or "")
@@ -167,8 +202,24 @@ def run_pending_uploads(mutation: Any) -> None:
         if not digest or not project_key:
             continue
         labels[digest] = str(item.get("store_label") or "")
+        item_mime = item.get("mime_type")
+        item_mime_str = (
+            str(item_mime) if isinstance(item_mime, str) and item_mime else None
+        )
+        if item_mime_str is None:
+            wire_hint = by_digest.get(digest)
+            hint_mime = (wire_hint or {}).get("mime_type") if wire_hint else None
+            if isinstance(hint_mime, str) and hint_mime:
+                item_mime_str = hint_mime
         if item.get("background"):
-            _enqueue_failed(project_key, digest, size, origin, store_name=store_name)
+            _enqueue_failed(
+                project_key,
+                digest,
+                size,
+                origin,
+                store_name=store_name,
+                mime_type=item_mime_str,
+            )
             background_digests.add(digest)
             background_projects.add(project_key)
             continue
@@ -179,18 +230,81 @@ def run_pending_uploads(mutation: Any) -> None:
         if store is None:
             log.warning("attachment upload skipped: no reachable store")
             failed[digest] = project_key
-            _enqueue_failed(project_key, digest, size, origin, store_name=store_name)
+            _enqueue_failed(
+                project_key,
+                digest,
+                size,
+                origin,
+                store_name=store_name,
+                mime_type=item_mime_str,
+            )
             continue
         started = time.monotonic()
         try:
             wire = by_digest.get(digest)
             name = str((wire or {}).get("name") or digest[:12])
             with transfer_progress(f"{name} → {store.describe()}", size) as progress:
-                store.put(digest, src, size, progress=progress)
+                try:
+                    if store_name == "public":
+                        store.put(
+                            digest,
+                            src,
+                            size,
+                            progress=progress,
+                            mime_type=item_mime_str,
+                        )
+                    else:
+                        store.put(digest, src, size, progress=progress)
+                except TypeError:
+                    store.put(digest, src, size, progress=progress)
         except Exception as exc:
+            if getattr(exc, "secret_scan", False):
+                try:
+                    from sase.bead.attachments.upload.secret_scan import (
+                        handle_secret_scan_rejection,
+                    )
+                except Exception:
+                    handle_secret_scan_rejection = None  # type: ignore[assignment]
+                if handle_secret_scan_rejection is not None:
+                    try:
+                        from sase.bead.attachments.outbox import OutboxEntry
+
+                        handle_secret_scan_rejection(
+                            project_key,
+                            OutboxEntry(
+                                digest=digest,
+                                size_bytes=size,
+                                store=store_name,
+                                origin=origin,
+                                mime_type=item_mime_str,
+                            ),
+                            store,
+                            str(exc),
+                        )
+                    except Exception:
+                        pass
+                else:
+                    log.warning("attachment upload of %s… failed: %s", digest[:12], exc)
+                    failed[digest] = project_key
+                    _enqueue_failed(
+                        project_key,
+                        digest,
+                        size,
+                        origin,
+                        store_name=store_name,
+                        mime_type=item_mime_str,
+                    )
+                continue
             log.warning("attachment upload of %s… failed: %s", digest[:12], exc)
             failed[digest] = project_key
-            _enqueue_failed(project_key, digest, size, origin, store_name=store_name)
+            _enqueue_failed(
+                project_key,
+                digest,
+                size,
+                origin,
+                store_name=store_name,
+                mime_type=item_mime_str,
+            )
             continue
         elapsed[digest] = time.monotonic() - started
     if background_digests:
@@ -235,6 +349,7 @@ def _enqueue_failed(
     origin: str | None,
     *,
     store_name: str = "git",
+    mime_type: str | None = None,
 ) -> None:
     from sase.bead.attachments.outbox import OutboxEntry, enqueue_outbox
 
@@ -247,6 +362,7 @@ def _enqueue_failed(
                     size_bytes=size_bytes,
                     store=store_name,
                     origin=origin,
+                    mime_type=mime_type,
                 )
             ],
         )

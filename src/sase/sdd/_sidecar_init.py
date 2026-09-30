@@ -27,12 +27,14 @@ from sase.sdd._store_records import (
     write_sdd_store_record,
 )
 from sase.sdd._sidecar_bare import (
+    ensure_attachments_bare_clone,
     ensure_attachments_private_bare_clone,
     is_bare_sidecar_clone,
 )
 from sase.sdd._store_types import (
     AGENTS_SIDECAR_ROLE,
     ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    ATTACHMENTS_SIDECAR_ROLE,
     BEADS_SIDECAR_ROLE,
     SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
@@ -91,11 +93,16 @@ def resolve_sidecar_clone_root(workspace_dir: str | Path, role: str) -> Path | N
     from sase._linked_repo_config import (
         AGENTS_SIDECAR_ROLE,
         ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+        ATTACHMENTS_SIDECAR_ROLE,
     )
     from sase.linked_repos import hidden_sidecar_clone_dir, sidecar_repo_clone_dir
 
     workspace = Path(workspace_dir).expanduser()
-    if role not in (AGENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE):
+    if role not in (
+        AGENTS_SIDECAR_ROLE,
+        ATTACHMENTS_SIDECAR_ROLE,
+        ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    ):
         return Path(sidecar_repo_clone_dir(workspace, role))
 
     from sase.bead.project_name import infer_project_name_from_cwd
@@ -215,6 +222,11 @@ def initialize_sidecars(
         for spec in sidecar_specs:
             root = roots[spec.role]
             sidecar = sidecars[spec.role]
+            if spec.role == ATTACHMENTS_SIDECAR_ROLE:
+                ensure_attachments_bare_clone(
+                    root, sidecar.remote_url, role=ATTACHMENTS_SIDECAR_ROLE
+                )
+                continue
             if spec.role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
                 # A bare partial clone has no worktree, so the working-tree
                 # clone helper above must not manage it.
@@ -321,9 +333,9 @@ def _seed_sidecars(
     publish_changes: bool = True,
 ) -> None:
     for spec in sidecar_specs:
-        if spec.role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
-            # The private attachment store is a bare object store: no
-            # document seeding, README generation, or artifact-link gitignore.
+        if spec.role in {ATTACHMENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE}:
+            # The attachment stores are bare object stores: no document
+            # seeding, README generation, or artifact-link gitignore.
             continue
         root = roots[spec.role]
         generated = list(
@@ -522,6 +534,8 @@ def _sidecar_provider_options(
         options["sdd_remote_url"] = sidecar.remote_url
     if sidecar.description:
         options["sdd_description"] = sidecar.description
+    if sidecar.role == ATTACHMENTS_SIDECAR_ROLE:
+        options["sdd_secret_scanning"] = True
     return options
 
 

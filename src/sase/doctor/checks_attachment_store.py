@@ -12,12 +12,12 @@ if TYPE_CHECKING:
 
 _CHECK_ID = "project.attachment_store"
 _CHECK_ALIAS = "attachments.store"
-_TITLE = "Private attachment store"
+_TITLE = "Attachment stores"
 _GIT_TIMEOUT_SECONDS = 10
 
 
 def attachment_store_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
-    """Return the default check for the private attachment shared store."""
+    """Return the default check for the attachment shared stores."""
 
     return (
         CheckSpec(
@@ -70,16 +70,22 @@ def _resolve_project_key(context: DoctorContext) -> str | None:
     return name.strip()
 
 
-def _clone_for_key(project_key: str) -> object | None:
+def _clone_for_key(project_key: str, role: str | None = None) -> object | None:
     from pathlib import Path
 
     from sase._linked_repo_paths import hidden_sidecar_clone_dir
     from sase.sdd._store_types import ATTACHMENTS_PRIVATE_SIDECAR_ROLE
 
+    resolved = role or ATTACHMENTS_PRIVATE_SIDECAR_ROLE
     try:
-        clone = Path(
-            hidden_sidecar_clone_dir(project_key, ATTACHMENTS_PRIVATE_SIDECAR_ROLE)
-        )
+        from sase.bead.attachments.upload.discovery import role_disabled
+
+        if role_disabled(resolved):
+            return None
+    except Exception:
+        pass
+    try:
+        clone = Path(hidden_sidecar_clone_dir(project_key, resolved))
     except (ValueError, OSError):
         return None
     if not clone.is_dir():
@@ -216,16 +222,35 @@ def _check_attachment_store(context: DoctorContext) -> DiagnosticCheck:
 
 
 def _check_git_store_and_outbox(context: DoctorContext) -> DiagnosticCheck:
-    """Warn about an unreachable git store or a backed-up upload outbox."""
+    """Warn about an unreachable store or a backed-up upload outbox."""
+    from sase.sdd._store_types import (
+        ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+        ATTACHMENTS_SIDECAR_ROLE,
+    )
+
     project_key = _resolve_project_key(context)
     if project_key is None:
         return _skip("no current project; attachment store check needs one")
-    clone = _clone_for_key(project_key)
-    if clone is None:
-        return _skip(
-            f"project {project_key} has no attachments-private shared store; "
-            "attachments stay on this machine"
-        )
+    public_clone = _clone_for_key(project_key, ATTACHMENTS_SIDECAR_ROLE)
+    clone = _clone_for_key(project_key, ATTACHMENTS_PRIVATE_SIDECAR_ROLE)
+    if clone is None and public_clone is None:
+        try:
+            from sase.bead.config import get_attachment_large_store
+
+            if get_attachment_large_store():
+                pass
+            else:
+                return _skip(
+                    f"project {project_key} has no attachments-private shared store; "
+                    "attachments stay on this machine"
+                )
+        except Exception:
+            return _skip(
+                f"project {project_key} has no attachments-private shared store; "
+                "attachments stay on this machine"
+            )
+    if clone is None and public_clone is not None:
+        clone = public_clone
     branch = _tip_branch(clone)
     try:
         from pathlib import Path
@@ -294,13 +319,25 @@ def _check_git_store_and_outbox(context: DoctorContext) -> DiagnosticCheck:
             f"attachment-upload-outbox.json read failed: {exc}",
         )
     if queued:
-        count = len(queued)
+        pending = [e for e in queued if getattr(e, "state", "pending") != "blocked"]
+        blocked = [e for e in queued if getattr(e, "state", "pending") == "blocked"]
+        if blocked and not pending:
+            return _warn(
+                f"attachments-private store for {project_key} is reachable; "
+                f"{len(blocked)} blocked upload(s) held "
+                "(secret-scanning rejection; see outbox)",
+                f"{len(blocked)} blocked entries in attachment-upload-outbox.json",
+            )
+        count = len(pending) if pending else len(queued)
         noun = "upload" if count == 1 else "uploads"
+        detail = f"{count} entries in attachment-upload-outbox.json"
+        if blocked:
+            detail += f"; {len(blocked)} blocked"
         return _warn(
             f"attachments-private store for {project_key} is reachable; "
             f"{count} queued {noun} waiting "
             "(sase bead attachment push drains them)",
-            f"{count} entries in attachment-upload-outbox.json",
+            detail,
         )
     return DiagnosticCheck(
         id=_CHECK_ID,

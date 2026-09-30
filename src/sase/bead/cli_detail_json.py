@@ -131,6 +131,9 @@ def _enrich_note_dicts_with_availability(issue: Issue) -> list[dict[str, object]
                 size_bytes=size if isinstance(size, int) else None,
                 origin=origin if isinstance(origin, str) else None,
                 name=name,
+                visibility=wire.get("visibility")
+                if isinstance(wire.get("visibility"), str)
+                else None,
             )
             wire["availability"] = availability
             if availability == "cached":
@@ -172,6 +175,9 @@ def _evidence_attachment_dicts_with_availability(
                 size_bytes=size if isinstance(size, int) else None,
                 origin=origin if isinstance(origin, str) else None,
                 name=name,
+                visibility=wire.get("visibility")
+                if isinstance(wire.get("visibility"), str)
+                else None,
             )
             entry["availability"] = availability
             if availability == "cached":

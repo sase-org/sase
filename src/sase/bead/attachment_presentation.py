@@ -109,6 +109,7 @@ def attachment_availability(
     size_bytes: int | None = None,
     origin: str | None = None,
     name: str | None = None,
+    visibility: str | None = None,
 ) -> str:
     """Return the availability state for one attachment digest.
 
@@ -127,7 +128,14 @@ def attachment_availability(
             not isinstance(size_bytes, int) or size_bytes < 0
         ):
             size_bytes = None
-        return attachment_state(sha256, size_bytes=size_bytes, origin=origin, name=name)
+        effective = visibility if visibility in ("public", "private") else "private"
+        return attachment_state(
+            sha256,
+            size_bytes=size_bytes,
+            origin=origin,
+            name=name,
+            visibility=effective,
+        )
     except Exception:
         pass
     try:
@@ -147,6 +155,7 @@ def attachment_status_lines(
     sha256: str,
     size_bytes: int | None = None,
     origin: str | None = None,
+    visibility: str | None = None,
 ) -> list[str]:
     """Return view-path plus badge lines for one attachment in text output.
 
@@ -157,7 +166,11 @@ def attachment_status_lines(
     from sase.bead.attachments.fetch import attachment_badge, resolve_badge_origin
 
     state = attachment_availability(
-        sha256, size_bytes=size_bytes, origin=origin, name=name
+        sha256,
+        size_bytes=size_bytes,
+        origin=origin,
+        name=name,
+        visibility=visibility,
     )
     lines: list[str] = []
     if state == "cached":

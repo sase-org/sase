@@ -132,7 +132,18 @@ def _build_fetch_context(*, mode: FetchMode = "never") -> _FetchContext:
         try:
             from sase.bead.attachments.outbox import read_outbox
 
-            outbox = {entry.digest: entry for entry in read_outbox(project_key)}
+            outbox = {}
+            for entry in read_outbox(project_key):
+                existing = outbox.get(entry.digest)
+                if existing is None:
+                    outbox[entry.digest] = entry
+                    continue
+                # Two rows may share one digest across stores; a pending row
+                # still counts as pending_upload while a blocked row does not.
+                existing_blocked = getattr(existing, "state", "pending") == "blocked"
+                entry_blocked = getattr(entry, "state", "pending") == "blocked"
+                if existing_blocked and not entry_blocked:
+                    outbox[entry.digest] = entry
         except Exception as exc:
             log.debug("attachment outbox read skipped: %s", exc)
             outbox = {}
@@ -146,14 +157,19 @@ def _build_fetch_context(*, mode: FetchMode = "never") -> _FetchContext:
     )
 
 
-def _ordered_stores(context: _FetchContext, size_bytes: int | None) -> list[Any]:
-    """Return the context stores ordered by the size-routed tier first.
+def _ordered_stores(
+    context: _FetchContext,
+    size_bytes: int | None,
+    *,
+    visibility: str | None = None,
+) -> list[Any]:
+    """Return the context stores ordered by descriptor visibility.
 
-    Placement is deterministic by size, so the tier that should hold the
-    object probes first; the other tier is still probed on a miss (the
-    caps may have changed since the upload). A missing size probes git
-    first, the historical default.
+    Public descriptors probe ``public``, ``git``, ``large``; private (and
+    absent visibility) probe ``git``, ``large``, ``public``. Readers try
+    every store; visibility only sets the order.
     """
+    del size_bytes
     seen: list[Any] = []
     for store in list(getattr(context, "stores", None) or []):
         if store is not None and not any(store is known for known in seen):
@@ -161,21 +177,13 @@ def _ordered_stores(context: _FetchContext, size_bytes: int | None) -> list[Any]
     primary = getattr(context, "store", None)
     if primary is not None and not any(primary is known for known in seen):
         seen.insert(0, primary)
-    if size_bytes is None or len(seen) < 2:
-        return seen
-    try:
-        from sase.bead.config import get_attachment_git_max_bytes
-
-        git_max = get_attachment_git_max_bytes()
-    except Exception:
-        return seen
-    if size_bytes > git_max:
-        return sorted(
-            seen, key=lambda item: 0 if getattr(item, "name", "") == "large" else 1
-        )
-    return sorted(
-        seen, key=lambda item: 1 if getattr(item, "name", "") == "large" else 0
+    order = (
+        ("public", "git", "large")
+        if visibility == "public"
+        else ("git", "large", "public")
     )
+    rank = {name: index for index, name in enumerate(order)}
+    return sorted(seen, key=lambda item: rank.get(getattr(item, "name", ""), 99))
 
 
 @contextlib.contextmanager
@@ -214,6 +222,7 @@ def _ensure_discovered(context: _FetchContext | None) -> None:
         return
     context.project_key = discovered.project_key
     context.store = discovered.store
+    context.stores = discovered.stores
     context.outbox = discovered.outbox
 
 
@@ -262,13 +271,15 @@ def _ensure_fetched(
     *,
     size_bytes: int | None = None,
     name: str | None = None,
+    visibility: str | None = None,
 ) -> bool:
     """Fetch *sha256* into the local CAS through the ordered tier stores.
 
     Returns True when the local object is present and digest-verified. A
-    digest mismatch records ``corrupt`` and installs nothing; any other
-    failure records ``failed``. Downloads above 8 MiB draw a TTY progress
-    bar. Never raises.
+    digest mismatch records ``corrupt`` and installs nothing; a miss moves
+    on to the next store; any other transient failure moves on and the
+    digest is ``failed`` only after every store has failed. Downloads above
+    8 MiB draw a TTY progress bar. Never raises.
     """
     from sase.bead.attachments.progress import transfer_progress
 
@@ -285,7 +296,7 @@ def _ensure_fetched(
             return True
     except Exception:
         return False
-    stores = _ordered_stores(context, size_bytes)
+    stores = _ordered_stores(context, size_bytes, visibility=visibility)
     if not stores or sha256 in context.failed or sha256 in context.corrupt:
         return False
     for store in stores:
@@ -297,6 +308,11 @@ def _ensure_fetched(
             with transfer_progress(label, size_bytes) as progress:
                 store.get(sha256, cas.root, progress=progress)
         except Exception as exc:
+            if bool(getattr(exc, "missing", False)):
+                log.debug(
+                    "attachment fetch of %s… missed in store: %s", sha256[:12], exc
+                )
+                continue
             transient = bool(getattr(exc, "transient", True))
             message = str(exc).lower()
             if not transient or "mismatch" in message or "hash" in message:
@@ -321,6 +337,7 @@ def attachment_state(
     origin: str | None = None,
     name: str | None = None,
     context: _FetchContext | None = None,
+    visibility: str | None = None,
 ) -> str:
     """Return the availability state for one attachment digest.
 
@@ -354,7 +371,7 @@ def attachment_state(
             return "purged"
     except Exception:
         pass
-    stores = _ordered_stores(context, size_bytes)
+    stores = _ordered_stores(context, size_bytes, visibility=visibility)
     remote_has = False
     for store in stores:
         if _store_has(store, sha256):
@@ -373,7 +390,11 @@ def attachment_state(
         return "corrupt"
     if local_present and (not stores or remote_has):
         return "cached"
-    if sha256 in context.outbox:
+    pending_entry = context.outbox.get(sha256)
+    if (
+        pending_entry is not None
+        and getattr(pending_entry, "state", "pending") != "blocked"
+    ):
         return "pending_upload"
     if local_present:
         return "local_only"
@@ -383,7 +404,13 @@ def attachment_state(
             and size_bytes is not None
             and _should_auto_fetch(size_bytes, context.cap_bytes)
         ):
-            if _ensure_fetched(context, sha256, size_bytes=size_bytes, name=name):
+            if _ensure_fetched(
+                context,
+                sha256,
+                size_bytes=size_bytes,
+                name=name,
+                visibility=visibility,
+            ):
                 return "cached"
             if sha256 in context.corrupt:
                 return "corrupt"

@@ -68,12 +68,21 @@ def configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
         config=config,
     )
 
+    try:
+        from sase.bead.attachments.audience import audience_enabled
+
+        _audience_on = bool(audience_enabled())
+    except Exception:
+        _audience_on = False
+
     specs: list[SidecarInitSpec] = []
     for entry in entries:
         if entry.get("disabled") is True:
             continue
         role = _entry_text(entry, _SIDECAR_ROLE_KEY) or _entry_text(entry, "name")
         if not role:
+            continue
+        if role == "attachments" and not _audience_on:
             continue
         raw_repo = _entry_text(entry, "repo")
         repo: str | None = None

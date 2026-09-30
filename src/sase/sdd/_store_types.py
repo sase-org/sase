@@ -19,12 +19,14 @@ SDD_STORE_RECORD_FILENAME = "sdd-store.json"
 PLANS_SIDECAR_ROLE = "plans"
 BEADS_SIDECAR_ROLE = "beads"
 AGENTS_SIDECAR_ROLE = "agents"
+ATTACHMENTS_SIDECAR_ROLE = "attachments"
 ATTACHMENTS_PRIVATE_SIDECAR_ROLE = "attachments-private"
 RESERVED_SIDECAR_ROLES = frozenset(
     {
         PLANS_SIDECAR_ROLE,
         BEADS_SIDECAR_ROLE,
         AGENTS_SIDECAR_ROLE,
+        ATTACHMENTS_SIDECAR_ROLE,
         ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
     }
 )
@@ -44,7 +46,7 @@ def document_sidecar_roles(
 
     ``plans`` is reserved but is also a document corpus, so callers that need
     the complete corpus can opt into it explicitly. ``beads``, ``agents``,
-    and ``attachments-private`` are never document roles.
+    ``attachments``, and ``attachments-private`` are never document roles.
     """
 
     return tuple(
@@ -54,6 +56,7 @@ def document_sidecar_roles(
         not in {
             BEADS_SIDECAR_ROLE,
             AGENTS_SIDECAR_ROLE,
+            ATTACHMENTS_SIDECAR_ROLE,
             ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
         }
         and (include_plans or role != PLANS_SIDECAR_ROLE)

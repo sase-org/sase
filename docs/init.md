@@ -664,9 +664,9 @@ opt-out. Declining continues initialization without that sidecar. The clone is a
 partial repository at `~/.sase/projects/<project_key>/repos/attachments-private`. It has
 no worktree and no README, so initialization prints the clone path itself. A
 `visibility: public` override resolves to `private` for remote creation. Check an
-existing remote's visibility before storing attachments there. Disabling the role later
-does not stop attachment commands from using an existing local clone; use
-`-L/--local-only` for a particular attachment. See [Attachments](beads.md#attachments).
+existing remote's visibility before storing attachments there. Disabling either
+attachments role later hides it even when a clone already exists; use `-L/--local-only`
+for a particular attachment. See [Attachments](beads.md#attachments).
 
 `plans`, `beads`, `agents`, and the default `research` presentation preset receive
 illustrated README guides and directory-map assets. `attachments-private` does not.

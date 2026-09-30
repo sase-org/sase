@@ -286,6 +286,7 @@ class RcloneAttachmentStore:
         if not self.has(sha256):
             raise BlobStoreError(
                 f"attachment {sha256[:16]}… is not in {self._label}",
+                missing=True,
             )
         size = self._remote_size(sha256)
         self._stream_remote(sha256, cas, target, size, progress)

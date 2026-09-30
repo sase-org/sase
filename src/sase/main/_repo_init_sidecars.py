@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, TextIO
 from sase._linked_repo_config import (
     AGENTS_SIDECAR_ROLE,
     ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    ATTACHMENTS_SIDECAR_ROLE,
 )
 from sase.sdd._sidecar_bare import is_bare_sidecar_clone
 
@@ -23,7 +24,11 @@ if TYPE_CHECKING:
 #: Hidden sidecar roles whose absence never blocks ``sase repo init``: a
 #: declined or missing role simply continues init without that sidecar.
 _OPTIONAL_HIDDEN_SIDECAR_ROLES = frozenset(
-    {AGENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE}
+    {
+        AGENTS_SIDECAR_ROLE,
+        ATTACHMENTS_SIDECAR_ROLE,
+        ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    }
 )
 
 
@@ -139,11 +144,11 @@ def run_materialized_sidecars(
 def _initialized_sidecar_path(root: Path, role: str) -> Path:
     """Return the init echo path for one sidecar root.
 
-    The private attachment store is a bare object store with no README, so
-    init prints the bare clone path itself.
+    The attachment stores are bare object stores with no README, so init
+    prints the bare clone path itself.
     """
 
-    if role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
+    if role in {ATTACHMENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE}:
         return root
     return root / "README.md"
 
@@ -155,6 +160,8 @@ def _confirm_sidecar_creation(
 ) -> bool:
     if role == AGENTS_SIDECAR_ROLE:
         return _confirm_agents_sidecar_creation(args, preflight)
+    if role == ATTACHMENTS_SIDECAR_ROLE:
+        return _confirm_attachments_sidecar_creation(args, preflight)
     if role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
         return _confirm_attachments_private_sidecar_creation(args, preflight)
 
@@ -243,6 +250,118 @@ def _confirm_agents_sidecar_creation(
         return True
     print(
         f"warning: {resource} creation declined; continuing without the agents sidecar",
+        file=sys.stderr,
+    )
+    return False
+
+
+def _beads_remote_for_public_probe() -> str | None:
+    """Return the beads sidecar remote URL for the public-store probe."""
+
+    try:
+        from pathlib import Path as _Path
+
+        from sase._linked_repo_config import (
+            _SIDECAR_REMOTE_URL_KEY,
+            _SIDECAR_ROLE_KEY,
+            merged_sidecar_entries_from_config,
+            resolution_config,
+        )
+
+        workspace = str(_Path.cwd())
+        config = resolution_config(workspace, None)
+        for entry in merged_sidecar_entries_from_config(
+            config, primary_workspace_dir=workspace
+        ):
+            role = entry.get(_SIDECAR_ROLE_KEY) or entry.get("role")
+            if role == "beads":
+                remote = entry.get(_SIDECAR_REMOTE_URL_KEY) or entry.get("remote_url")
+                if isinstance(remote, str) and remote.strip():
+                    return remote.strip()
+                raw_remote = entry.get("remote_url")
+                if isinstance(raw_remote, str) and raw_remote.strip():
+                    return raw_remote.strip()
+                return None
+    except Exception:
+        return None
+    return None
+
+
+def _confirm_attachments_sidecar_creation(
+    args: argparse.Namespace,
+    preflight: SddSidecarPreflight,
+) -> bool:
+    try:
+        from sase.bead.attachments.audience import audience_enabled as _audience_on
+
+        _enabled = bool(_audience_on())
+    except Exception:
+        _enabled = False
+
+    if not _enabled:
+        return False
+    stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
+    resource = f"{preflight.provider} attachments sidecar repository"
+    if not stdin.isatty():
+        print(
+            f"warning: {resource} creation refused: interactive confirmation "
+            "is required; run `sase repo init` interactively to create it; "
+            "continuing without the attachments sidecar",
+            file=sys.stderr,
+        )
+        return False
+    try:
+        from sase.bead.attachments.remote_visibility import (
+            resolve_remote_visibility,
+        )
+
+        beads_remote = _beads_remote_for_public_probe()
+        visibility = (
+            resolve_remote_visibility(beads_remote) if beads_remote else "unknown"
+        )
+    except Exception:
+        visibility = "unknown"
+    if visibility != "public":
+        print(
+            "warning: attachments sidecar creation refused: the beads sidecar "
+            "is not public (repos.sidecar.builtin.beads.visibility: private); "
+            "continuing without the attachments sidecar",
+            file=sys.stderr,
+        )
+        return False
+    input_func = getattr(args, "_init_input_func", None) or input
+    prompt = (
+        "The attachments sidecar will hold public bead attachment bytes for "
+        "this project. Anyone who can read the beads sidecar can read it.\n"
+        "Repository visibility: PUBLIC.\n"
+        "Set repos.sidecar.builtin.attachments.disabled: true in sase/sase.yml "
+        "to opt out.\n\n"
+        f"Create public {preflight.provider} attachments sidecar repository "
+        f"{preflight.repo} on {preflight.host}? [Y/n] "
+    )
+    try:
+        answer = input_func(prompt)
+    except EOFError:
+        print(
+            f"warning: {resource} creation refused: no confirmation was "
+            "received; rerun `sase repo init` interactively to create it; "
+            "continuing without the attachments sidecar",
+            file=sys.stderr,
+        )
+        return False
+    except KeyboardInterrupt:
+        print(
+            f"\nwarning: {resource} creation refused; rerun `sase repo init` "
+            "interactively to create it; continuing without the attachments "
+            "sidecar",
+            file=sys.stderr,
+        )
+        return False
+    if answer.strip() == "" or answer.strip().lower() in {"y", "yes"}:
+        return True
+    print(
+        "warning: attachments sidecar creation declined; continuing without "
+        "the attachments sidecar",
         file=sys.stderr,
     )
     return False
@@ -376,7 +495,11 @@ def plan_sidecar_actions(
         if needs_connection:
             requires_tty = True
             detail = f"create or connect the provider {spec.role} sidecar repository"
-            if spec.role in (AGENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE):
+            if spec.role in (
+                AGENTS_SIDECAR_ROLE,
+                ATTACHMENTS_SIDECAR_ROLE,
+                ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+            ):
                 detail += (
                     f" with configured {spec.visibility} visibility at the "
                     "machine-level hidden path"
@@ -388,8 +511,8 @@ def plan_sidecar_actions(
                     detail=detail,
                 )
             )
-        if spec.role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
-            # The bare object store has no guide files to plan.
+        if spec.role in {ATTACHMENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE}:
+            # The bare object stores have no guide files to plan.
             continue
         if clone_exists or needs_connection:
             actions.extend(

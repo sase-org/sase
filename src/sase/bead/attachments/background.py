@@ -125,24 +125,20 @@ def launch_background_drain(project_key: str) -> int | None:
 
 
 def _discover_stores_for_drain(project_key: str) -> list[Any]:
-    """Return every reachable shared store for *project_key*, git first.
+    """Return every reachable shared store for *project_key*, public first.
 
     Discovery resolves from the inherited cwd (the worker starts in the
     project that queued the uploads); *project_key* names the outbox.
     """
     stores: list[Any] = []
     try:
-        from sase.bead.attachments.upload import (
-            discover_large_store,
-            discover_shared_store,
-        )
+        from sase.bead.attachments.upload import discover_stores
 
-        git_store = discover_shared_store(None)
-        if git_store is not None:
-            stores.append(git_store)
-        large_store = discover_large_store(None)
-        if large_store is not None:
-            stores.append(large_store)
+        discovered = discover_stores(None)
+        for key in ("public", "git", "large"):
+            store = discovered.get(key)
+            if store is not None:
+                stores.append(store)
     except Exception as exc:
         log.warning("attachment background store discovery failed: %s", exc)
     return stores

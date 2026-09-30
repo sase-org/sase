@@ -22,6 +22,7 @@ from sase.content_layout import resolve_project_config_read_path
 from sase.sdd._store_types import (
     AGENTS_SIDECAR_ROLE,
     ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    ATTACHMENTS_SIDECAR_ROLE,
     BEADS_SIDECAR_ROLE,
     PLANS_SIDECAR_ROLE,
 )
@@ -46,8 +47,15 @@ DEFAULT_RESEARCH_DESCRIPTION = "Durable SASE research reports and generated medi
 DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION = (
     "Hidden sidecar that stores private bead attachment bytes for this project."
 )
+DEFAULT_ATTACHMENTS_DESCRIPTION = (
+    "Hidden sidecar that stores public bead attachment bytes for this project."
+)
 HIDDEN_SIDECAR_ROLES = frozenset(
-    {AGENTS_SIDECAR_ROLE, ATTACHMENTS_PRIVATE_SIDECAR_ROLE}
+    {
+        AGENTS_SIDECAR_ROLE,
+        ATTACHMENTS_SIDECAR_ROLE,
+        ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    }
 )
 
 SIDECAR_BUILTIN_CONFIG_KEY = "builtin"
@@ -59,6 +67,7 @@ _BUILTIN_SIDECAR_ROLE_ORDER: tuple[str, ...] = (
     PLANS_SIDECAR_ROLE,
     BEADS_SIDECAR_ROLE,
     AGENTS_SIDECAR_ROLE,
+    ATTACHMENTS_SIDECAR_ROLE,
     ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
 )
 
@@ -210,6 +219,8 @@ def _merged_sidecar_entries_cached(
             # ``visibility: public`` is a config error surfaced by preflight
             # ("config requires private"), never a public create.
             normalized_entry["visibility"] = "private"
+        if normalized_entry.get("name") == ATTACHMENTS_SIDECAR_ROLE:
+            normalized_entry["visibility"] = "public"
         normalized_entry.setdefault("disabled", False)
         normalized_entry[_SIDECAR_REPO_MARKER] = True
         if identity is not None:
@@ -305,6 +316,60 @@ def merged_repo_entries_from_config(
     return [*linked, *sidecars], warnings
 
 
+def _beads_public_for_injection(
+    config: Mapping[str, Any] | None,
+    merged: Sequence[Mapping[str, Any]],
+) -> bool:
+    """Return whether the beads sidecar in *config*/*merged* is public.
+
+    Mirrors :func:`sase.bead.attachments.provenance.bead_store_visibility`
+    applied to the config being merged: default ``public`` when beads are a
+    sidecar without an explicit visibility, ``private`` for non-sidecar
+    (legacy) bead storage or an explicit private visibility.
+    """
+
+    try:
+        mapping = config if isinstance(config, Mapping) else {}
+        repos = mapping.get("repos")
+        sidecar = repos.get("sidecar") if isinstance(repos, Mapping) else None
+        if isinstance(sidecar, Mapping):
+            for bucket in (
+                sidecar.get(SIDECAR_BUILTIN_CONFIG_KEY),
+                sidecar.get(SIDECAR_CUSTOM_CONFIG_KEY),
+            ):
+                if isinstance(bucket, Mapping) and "beads" in bucket:
+                    entry = bucket.get("beads")
+                    if isinstance(entry, Mapping):
+                        visibility = (
+                            str(entry.get("visibility") or "public").strip().lower()
+                        )
+                        return visibility == "public"
+                    return True
+        for entry in merged:
+            if not isinstance(entry, Mapping):
+                continue
+            for key in (_SIDECAR_ROLE_KEY, "role", "name"):
+                try:
+                    value = entry.get(key)
+                except Exception:
+                    continue
+                if isinstance(value, str) and value.strip() == BEADS_SIDECAR_ROLE:
+                    visibility = (
+                        str(entry.get("visibility") or "public").strip().lower()
+                    )
+                    return visibility == "public"
+        # No beads sidecar entry: non-sidecar (legacy) bead storage counts
+        # as private, so no public attachments role is injected. The one
+        # exception is a config that never mentions beads at all, where the
+        # managed defaults below inject a public beads sidecar; treat that
+        # as public.
+        if not isinstance(sidecar, Mapping):
+            return False
+        return True
+    except Exception:
+        return False
+
+
 def inject_default_linked_repos(
     entries: Sequence[Mapping[str, Any]],
     *,
@@ -366,11 +431,20 @@ def inject_default_linked_repos(
     for hidden_role, hidden_description, hidden_visibility in (
         (AGENTS_SIDECAR_ROLE, DEFAULT_AGENTS_DESCRIPTION, "public"),
         (
+            ATTACHMENTS_SIDECAR_ROLE,
+            DEFAULT_ATTACHMENTS_DESCRIPTION,
+            "public",
+        ),
+        (
             ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
             DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION,
             "private",
         ),
     ):
+        if hidden_role == ATTACHMENTS_SIDECAR_ROLE and not _beads_public_for_injection(
+            config if config is not None else local_config, merged
+        ):
+            continue
         hidden_identity = resolve_sidecar_repo_identity(
             {
                 "name": hidden_role,
@@ -421,7 +495,7 @@ def _sidecar_config_entries(config: Mapping[str, Any]) -> list[Mapping[str, Any]
 
     ``repos.sidecar`` is a ``{builtin: {...}, custom: {...}}`` mapping keyed by
     role. The reserved builtin roles are emitted in canonical
-    ``plans, beads, agents, attachments-private`` order followed by custom
+    ``plans, beads, agents, attachments, attachments-private`` order followed by custom
     roles in configured order; a role declared in both buckets resolves to
     the ``custom`` entry, matching how custom model aliases win over builtin
     ones.

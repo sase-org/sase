@@ -2719,14 +2719,14 @@ See [Ownership Boundary](workspace.md#ownership-boundary) for the underlying
 primary/leased distinction and how sync is scheduled.
 
 `repos.sidecar` is a two-bucket mapping keyed by role: `builtin` holds overrides of the
-reserved `plans`, `beads`, `agents`, and `attachments-private` roles, and `custom` holds
-user-declared document sidecars such as `research`. The map key _is_ the role, so an
-entry never carries a `name` field and a role cannot be declared twice in one bucket.
-Because both buckets are mappings, a later config layer merges into an inherited entry
-per key — a project-local `custom: {research: {disabled: true}}` opts out of a global
-`research` sidecar. The former list form (a sequence of entries each carrying `name`) is
-no longer accepted and is ignored; run `sase doctor` to see which bucket each stale
-entry belongs in.
+reserved `plans`, `beads`, `agents`, `attachments`, and `attachments-private` roles, and
+`custom` holds user-declared document sidecars such as `research`. The map key _is_ the
+role, so an entry never carries a `name` field and a role cannot be declared twice in
+one bucket. Because both buckets are mappings, a later config layer merges into an
+inherited entry per key — a project-local `custom: {research: {disabled: true}}` opts
+out of a global `research` sidecar. The former list form (a sequence of entries each
+carrying `name`) is no longer accepted and is ignored; run `sase doctor` to see which
+bucket each stale entry belongs in.
 
 Sidecar entries use their role key as the primary CLI lookup key. Ordinary roles use
 `sase/repos/<role>` as their workspace clone directory. Their repository defaults to
@@ -2740,17 +2740,19 @@ agents when to open them with `/sase_repo`. Set `disabled: true` in a later conf
 to suppress a matching global entry or implicit fallback; disabled and auto-cloned
 sidecars are omitted from generated instructions.
 
-The roles `plans`, `beads`, `agents`, and `attachments-private` are reserved and are
-configured under `repos.sidecar.builtin`. `plans` owns canonical plans, `beads` owns the
-event store, `agents` is the hidden machine-level publication store plus the canonical
-prompt and prompt-artifact archive, and `attachments-private` is the hidden bare store
-for bead attachment bytes. Every other enabled role lives under `repos.sidecar.custom`
-and is a document sidecar: a `<YYYYMM>/*.md` corpus whose kind label is the role name.
-`attachments-private` is not a document role, so it cannot be declared under `custom`.
-Document roles receive clone/store resolution, `sase repo path <role>`, doctor
-validation, commit routing, `SASE_SDD_<ROLE>_DIR`, plan-search visibility, and an sase's
-TUI Plans kind. `research` is simply the default-seeded document role; only its
-illustrated README/directory-map preset is name-specific.
+The roles `plans`, `beads`, `agents`, `attachments`, and `attachments-private` are
+reserved and are configured under `repos.sidecar.builtin`. `plans` owns canonical plans,
+`beads` owns the event store, `agents` is the hidden machine-level publication store
+plus the canonical prompt and prompt-artifact archive, `attachments` is the hidden bare
+store for public bead attachment bytes, and `attachments-private` is the hidden bare
+store for private bead attachment bytes. Every other enabled role lives under
+`repos.sidecar.custom` and is a document sidecar: a `<YYYYMM>/*.md` corpus whose kind
+label is the role name. `attachments` and `attachments-private` are not document roles,
+so neither can be declared under `custom`. Document roles receive clone/store
+resolution, `sase repo path <role>`, doctor validation, commit routing,
+`SASE_SDD_<ROLE>_DIR`, plan-search visibility, and an sase's TUI Plans kind. `research`
+is simply the default-seeded document role; only its illustrated README/directory-map
+preset is name-specific.
 
 The `agents` role is intrinsically hidden from agent workflows. It never appears in
 generated memory, launch metadata, linked-repository environment variables, or a
@@ -2858,19 +2860,19 @@ repos:
 | Field                                         | Type           | Default                                                            | Description                                                                                                                                                                                                                                                              |
 | --------------------------------------------- | -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `github_orgs`                                 | string or list | -                                                                  | GitHub user/org namespaces available to provider completion and PR workflows.                                                                                                                                                                                            |
-| `default_linked_repos`                        | boolean        | `true`                                                             | Inject managed-project `--plans`, `--beads`, and hidden `--agents` and `--attachments-private` sidecars.                                                                                                                                                                 |
+| `default_linked_repos`                        | boolean        | `true`                                                             | Inject managed-project `--plans`, `--beads`, and hidden `--agents`, `--attachments`, and `--attachments-private` sidecars.                                                                                                                                               |
 | `repos.linked[].auto_clone`                   | boolean        | `false`                                                            | Materialize and prepare the repository automatically before each agent launch.                                                                                                                                                                                           |
 | `repos.linked[].name`                         | string         | required                                                           | Stable alias used in generated environment variable names and memory summaries.                                                                                                                                                                                          |
 | `repos.linked[].path`                         | string         | required                                                           | Primary checkout path. Relative paths resolve from the project's primary workspace.                                                                                                                                                                                      |
 | `repos.linked[].description`                  | string         | required                                                           | Human-readable purpose used when generating agent memory for the linked repository.                                                                                                                                                                                      |
 | `repos.linked[].revision_pin`                 | string         | -                                                                  | Pin file relative to the primary checkout root holding this repo's pushed SHA. The commit finalizer commits the pinned sibling first and writes its SHA into the pin file before the primary commit. The path must stay inside the checkout, including through symlinks. |
-| `repos.sidecar.builtin.<role>`                | object         | -                                                                  | Override for a reserved role; the key must be `plans`, `beads`, `agents`, or `attachments-private`.                                                                                                                                                                      |
-| `repos.sidecar.custom.<role>`                 | object         | -                                                                  | User-declared document sidecar; the key is the role and must not be a reserved one.                                                                                                                                                                                      |
+| `repos.sidecar.builtin.<role>`                | object         | -                                                                  | Override for a reserved role; the key must be `plans`, `beads`, `agents`, `attachments`, or `attachments-private`.                                                                                                                                                       |
+| `repos.sidecar.custom.<role>`                 | object         | -                                                                  | User-declared document sidecar; the key is the role and must not be a reserved one (`plans`, `beads`, `agents`, `attachments`, `attachments-private`).                                                                                                                   |
 | `repos.sidecar.*.<role>.repo`                 | string         | derived                                                            | Optional bare slug or `owner/repo` pin.                                                                                                                                                                                                                                  |
 | `repos.sidecar.*.<role>.description`          | string         | -                                                                  | Purpose shown in inventory; required in generated instructions for lazy entries.                                                                                                                                                                                         |
 | `repos.sidecar.*.<role>.auto_clone`           | boolean        | `false`                                                            | Materialize before agent launch; intrinsically ignored for the hidden `agents` and `attachments-private` roles.                                                                                                                                                          |
 | `repos.sidecar.*.<role>.auto_sync`            | boolean        | `false`                                                            | Fetch/fast-forward the primary clone when clean; intrinsically ignored for the hidden `agents` and `attachments-private` roles.                                                                                                                                          |
-| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                                                           | Requested visibility for remote creation; project-local `private` overrides the `agents` default. `attachments-private` resolves to `private`.                                                                                                                           |
+| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                                                           | Requested visibility for remote creation; project-local `private` overrides the `agents` default. `attachments` resolves to `public` and `attachments-private` resolves to `private`.                                                                                    |
 | `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                                                            | Disable the entry and suppress matching implicit sidecars, including `agents`.                                                                                                                                                                                           |
 | `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent                                            | Installed artifact-reference provider, qualified `<plugin>@<id>`, to use as the base policy.                                                                                                                                                                             |
 | `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)                                     | Prompt kind exposed as `@<kind>:<path>`.                                                                                                                                                                                                                                 |

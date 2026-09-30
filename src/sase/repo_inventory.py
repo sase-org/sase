@@ -16,7 +16,9 @@ from typing import Any
 
 from sase._linked_repo_config import (
     ATTACHMENTS_PRIVATE_SIDECAR_ROLE,
+    ATTACHMENTS_SIDECAR_ROLE,
     DEFAULT_AGENTS_DESCRIPTION,
+    DEFAULT_ATTACHMENTS_DESCRIPTION,
     DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION,
     DEFAULT_BEADS_DESCRIPTION,
     DEFAULT_PLANS_DESCRIPTION,
@@ -342,7 +344,11 @@ def _collect_project_repos(
                     or (
                         DEFAULT_ATTACHMENTS_PRIVATE_DESCRIPTION
                         if sidecar_role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE
-                        else DEFAULT_AGENTS_DESCRIPTION
+                        else (
+                            DEFAULT_ATTACHMENTS_DESCRIPTION
+                            if sidecar_role == ATTACHMENTS_SIDECAR_ROLE
+                            else DEFAULT_AGENTS_DESCRIPTION
+                        )
                     ),
                     source=(
                         "auto-injected sidecar"

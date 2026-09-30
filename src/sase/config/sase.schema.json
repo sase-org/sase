@@ -4673,14 +4673,14 @@
         },
         "sidecar": {
           "type": "object",
-          "description": "Project-owned sidecar repositories keyed by role name. Reserved roles (plans, beads, agents, attachments-private) belong under builtin; every other role is a document sidecar and belongs under custom. Ordinary roles clone below sase/repos/<role>; the hidden agents and attachments-private roles are explicitly accessible only at ~/.sase/projects/<project_key>/repos/<role>.",
+          "description": "Project-owned sidecar repositories keyed by role name. Reserved roles (plans, beads, agents, attachments, attachments-private) belong under builtin; every other role is a document sidecar and belongs under custom. Ordinary roles clone below sase/repos/<role>; the hidden agents, attachments, and attachments-private roles are explicitly accessible only at ~/.sase/projects/<project_key>/repos/<role>.",
           "additionalProperties": false,
           "properties": {
             "builtin": {
               "type": "object",
-              "description": "Overrides for the reserved sidecar roles. Keys are role names and must be one of plans, beads, agents, or attachments-private.",
+              "description": "Overrides for the reserved sidecar roles. Keys are role names and must be one of plans, beads, agents, attachments, or attachments-private.",
               "propertyNames": {
-                "enum": ["plans", "beads", "agents", "attachments-private"]
+                "enum": ["plans", "beads", "agents", "attachments", "attachments-private"]
               },
               "additionalProperties": {
                 "$ref": "#/definitions/sidecarRepo"
@@ -4688,11 +4688,11 @@
             },
             "custom": {
               "type": "object",
-              "description": "User-declared document sidecars such as research. Keys are role names and must not name a reserved role (plans, beads, agents, attachments-private).",
+              "description": "User-declared document sidecars such as research. Keys are role names and must not name a reserved role (plans, beads, agents, attachments, attachments-private).",
               "propertyNames": {
                 "minLength": 1,
                 "not": {
-                  "enum": ["plans", "beads", "agents", "attachments-private"]
+                  "enum": ["plans", "beads", "agents", "attachments", "attachments-private"]
                 }
               },
               "additionalProperties": {

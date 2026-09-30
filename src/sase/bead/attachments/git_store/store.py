@@ -104,6 +104,27 @@ def _writer_lock(repo: Path) -> Iterator[None]:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
+def _public_object_relpath(sha256: str, mime_type: str | None) -> str:
+    """Return the extension-preserving public object path for *sha256*."""
+
+    validate_sha256(sha256)
+    relpath = str(
+        require_rust_binding("attachment_public_object_relpath")(sha256, mime_type)
+    )
+    return relpath
+
+
+def _public_object_digest(relpath: str) -> str | None:
+    """Return the digest for a public object *relpath*, or None when foreign."""
+
+    try:
+        return str(
+            require_rust_binding("attachment_object_digest_from_relpath")(relpath)
+        )
+    except Exception:
+        return None
+
+
 class GitAttachmentStore:
     """A :class:`BlobStore` over a bare partial clone, written with plumbing."""
 
@@ -113,6 +134,8 @@ class GitAttachmentStore:
         label: str,
         *,
         fetch_timeout: float | None = None,
+        name: str = "git",
+        layout: str = "private",
     ) -> None:
         """Point at the bare repo at *repo*; *label* feeds :meth:`describe`."""
 
@@ -125,6 +148,8 @@ class GitAttachmentStore:
             raise BlobStoreError(f"not a bare git repository: {path}")
         self._repo = path
         self._label = label
+        self._store_name = name
+        self._layout = layout
         if fetch_timeout is not None:
             self._fetch_timeout = fetch_timeout
         else:  # Same bound as every other SDD network git command.
@@ -136,7 +161,7 @@ class GitAttachmentStore:
     def name(self) -> str:
         """Short stable identifier used in logs, badges, and the outbox."""
 
-        return "git"
+        return self._store_name
 
     def describe(self) -> str:
         """Human-readable destination/visibility label for the write echo."""
@@ -296,6 +321,49 @@ class GitAttachmentStore:
 
     # -- BlobStore ----------------------------------------------------
 
+    def _public_candidates(self, tip: str, sha256: str) -> list[str]:
+        """Return public object paths under *tip* matching *sha256*."""
+
+        prefix = f"files/objects/sha256/{sha256[:2]}/"
+        result = run_git(
+            ["ls-tree", "-r", "--name-only", tip, "--", prefix.rstrip("/")],
+            cwd=self._repo,
+            timeout=LOCAL_GIT_TIMEOUT_SECONDS,
+        )
+        if result.returncode != 0:
+            return []
+        matches: list[str] = []
+        for line in (result.stdout or "").splitlines():
+            name = line.strip()
+            if not name.startswith(prefix):
+                continue
+            if _public_object_digest(name) == sha256:
+                matches.append(name)
+        return matches
+
+    def _resolve_public_relpath(self, tip: str | None, sha256: str) -> str | None:
+        """Return one public object path for *sha256* at *tip*, if any."""
+
+        if tip is None:
+            return None
+        try:
+            candidates = self._public_candidates(tip, sha256)
+        except Exception:
+            return None
+        return candidates[0] if candidates else None
+
+    def _tip_for_read(self, branch: str) -> str | None:
+        """Return the best cached tip, fetching once per process."""
+
+        key = str(self._repo)
+        with _FETCHED_LOCK:
+            if key in _FETCHED_REPOS:
+                return self._cached_tip(branch)
+            _FETCHED_REPOS.add(key)
+        if self._fetch_now(branch):
+            return self._fetch_head_tip() or self._cached_tip(branch)
+        return self._cached_tip(branch)
+
     def has(self, sha256: str) -> bool:
         """Return whether the object for *sha256* is present in this store.
 
@@ -304,8 +372,20 @@ class GitAttachmentStore:
         """
 
         validate_sha256(sha256)
-        relpath = _object_relpath(sha256)
         branch = self._branch()
+        if self._layout == "public":
+            key = str(self._repo)
+            with _FETCHED_LOCK:
+                if key in _FETCHED_REPOS:
+                    tip = self._cached_tip(branch)
+                    return self._resolve_public_relpath(tip, sha256) is not None
+                _FETCHED_REPOS.add(key)
+            if self._fetch_now(branch):
+                tip = self._fetch_head_tip() or self._cached_tip(branch)
+            else:
+                tip = self._cached_tip(branch)
+            return self._resolve_public_relpath(tip, sha256) is not None
+        relpath = _object_relpath(sha256)
         key = str(self._repo)
         with _FETCHED_LOCK:
             if key in _FETCHED_REPOS:
@@ -347,6 +427,8 @@ class GitAttachmentStore:
         src: Path,
         size_bytes: int,
         progress: ProgressCallback | None = None,
+        *,
+        mime_type: str | None = None,
     ) -> None:
         """Upload the local file *src* under digest *sha256*.
 
@@ -355,6 +437,8 @@ class GitAttachmentStore:
         inside the bare git dir; on a non-fast-forward push the tip is
         refetched and the content-addressed tree rebuilt (bounded retries).
         A repeated put of the same digest commits nothing and succeeds.
+        The public layout writes the extension-preserving path for
+        *mime_type*; the private layout keeps the extensionless path.
         """
 
         validate_sha256(sha256)
@@ -367,7 +451,10 @@ class GitAttachmentStore:
                 f"cannot store {source}: bytes hash to {actual[:16]}…, "
                 f"not {sha256[:16]}…"
             )
-        relpath = _object_relpath(sha256)
+        if self._layout == "public":
+            relpath = _public_object_relpath(sha256, mime_type)
+        else:
+            relpath = _object_relpath(sha256)
         branch = self._branch()
         ref = f"refs/heads/{branch}"
         blob = write_object(self._repo, source, self._fetch_timeout)
@@ -412,7 +499,14 @@ class GitAttachmentStore:
         """
 
         validate_sha256(sha256)
-        relpath = _object_relpath(sha256)
+        is_public = self._layout == "public"
+        relpath: str = (
+            self._resolve_public_relpath(self._cached_tip(self._branch()), sha256) or ""
+            if is_public
+            else _object_relpath(sha256)
+        )
+        # The public tip may be stale; the fetch below refreshes it when the
+        # object is not found at the cached tip.
         cas = LocalAttachmentStore(root=Path(dest))
         cas.ensure_dirs()
         target = cas.object_path(sha256)
@@ -420,7 +514,11 @@ class GitAttachmentStore:
             return
         branch = self._branch()
         tip = self._cached_tip(branch)
-        blob = self._entry(tip, relpath) if tip is not None else None
+        if is_public:
+            relpath = self._resolve_public_relpath(tip, sha256) or ""
+            blob = self._entry(tip, relpath) if tip is not None and relpath else None
+        else:
+            blob = self._entry(tip, relpath) if tip is not None else None
         if blob is None:
             key = str(self._repo)
             with _FETCHED_LOCK:
@@ -430,6 +528,7 @@ class GitAttachmentStore:
             if not should_fetch:
                 raise BlobStoreError(
                     f"attachment {sha256[:16]}… is not in {self._label}",
+                    missing=True,
                 )
             if not self._fetch_now(branch):
                 raise BlobStoreError(
@@ -437,10 +536,17 @@ class GitAttachmentStore:
                     transient=True,
                 )
             tip = self._fetch_head_tip() or self._cached_tip(branch)
-            blob = self._entry(tip, relpath) if tip is not None else None
+            if is_public:
+                relpath = self._resolve_public_relpath(tip, sha256) or ""
+                blob = (
+                    self._entry(tip, relpath) if tip is not None and relpath else None
+                )
+            else:
+                blob = self._entry(tip, relpath) if tip is not None else None
             if blob is None:
                 raise BlobStoreError(
                     f"attachment {sha256[:16]}… is not in {self._label}",
+                    missing=True,
                 )
         size = blob_size(self._repo, blob, self._fetch_timeout)
         stream_blob(
@@ -477,18 +583,33 @@ class GitAttachmentStore:
                 f"purge tombstone is for {parsed['sha256'][:16]}…, not {sha256[:16]}…"
             )
         tombstone_relpath = _tombstone_relpath(sha256)
-        object_relpath = _object_relpath(sha256)
         branch = self._branch()
         ref = f"refs/heads/{branch}"
         with _writer_lock(self._repo):
             for _attempt in range(_PUSH_ATTEMPTS):
                 base = self._cached_tip(branch)
-                if (
-                    base is not None
-                    and self._entry(base, tombstone_relpath) is not None
-                ):
-                    if self._entry(base, object_relpath) is None:
+                if self._layout == "public":
+                    removals = (
+                        self._public_candidates(base, sha256)
+                        if base is not None
+                        else []
+                    )
+                    if (
+                        base is not None
+                        and self._entry(base, tombstone_relpath) is not None
+                        and not removals
+                    ):
                         return
+                    object_relpaths = removals
+                else:
+                    object_relpath = _object_relpath(sha256)
+                    if (
+                        base is not None
+                        and self._entry(base, tombstone_relpath) is not None
+                    ):
+                        if self._entry(base, object_relpath) is None:
+                            return
+                    object_relpaths = [object_relpath]
                 with tempfile.NamedTemporaryFile(
                     prefix="sase-attachment-tombstone-", suffix=".json"
                 ) as handle:
@@ -497,11 +618,18 @@ class GitAttachmentStore:
                     blob = write_object(
                         self._repo, Path(handle.name), self._fetch_timeout
                     )
+                if self._layout == "public":
+                    removal_list = list(object_relpaths)
+                    if base is None:
+                        # No base: tombstone only; object cannot exist.
+                        removal_list = []
+                else:
+                    removal_list = list(object_relpaths)
                 new_tree = build_tree_with_changes(
                     self._repo,
                     base,
                     {tombstone_relpath: blob},
-                    [object_relpath],
+                    removal_list,
                 )
                 if base is not None and new_tree == self._tree_of(base):
                     if sync_ref(self._repo, ref, self._fetch_timeout):
@@ -532,13 +660,21 @@ class GitAttachmentStore:
         """
 
         validate_sha256(sha256)
-        relpath = _object_relpath(sha256)
         branch = self._branch()
         ref = f"refs/heads/{branch}"
         with _writer_lock(self._repo):
             for _attempt in range(_PUSH_ATTEMPTS):
                 base = self._cached_tip(branch)
-                if base is None or self._entry(base, relpath) is None:
+                if base is None:
+                    return
+                if self._layout == "public":
+                    candidates = self._public_candidates(base, sha256)
+                    if not candidates:
+                        return
+                    relpath = candidates[0]
+                else:
+                    relpath = _object_relpath(sha256)
+                if self._entry(base, relpath) is None:
                     return
                 new_tree = build_tree_without(self._repo, base, relpath)
                 if new_tree == self._tree_of(base):

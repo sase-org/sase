@@ -16,10 +16,39 @@ from sase.bead.attachments.upload.errors import (
 
 
 def placement_tiers(
-    stores: dict[str, Any], *, git_max_bytes: int
+    stores: dict[str, Any],
+    *,
+    git_max_bytes: int,
+    public_max_bytes: int | None = None,
+    audience: str | None = None,
 ) -> list[dict[str, Any]]:
     """Build the ordered core-policy tier list for the reachable *stores*."""
-    tiers: list[dict[str, Any]] = []
+    if public_max_bytes is None:
+        try:
+            from sase.bead.config import get_attachment_public_max_bytes
+
+            public_max_bytes = get_attachment_public_max_bytes()
+        except Exception:
+            public_max_bytes = 26214400
+    if audience == "public":
+        if stores.get("public") is None:
+            return []
+        return [{"name": "public", "max_bytes": int(public_max_bytes)}]
+    if audience == "private":
+        tiers: list[dict[str, Any]] = []
+        if stores.get("git") is not None:
+            tiers.append({"name": "git", "max_bytes": git_max_bytes})
+        large_store = stores.get("large")
+        if large_store is not None:
+            try:
+                large_max = int(getattr(large_store, "max_bytes", 2147483648))
+            except (TypeError, ValueError):
+                large_max = 2147483648
+            tiers.append({"name": "large", "max_bytes": large_max})
+        return tiers
+    tiers = []
+    if stores.get("public") is not None:
+        tiers.append({"name": "public", "max_bytes": int(public_max_bytes)})
     if stores.get("git") is not None:
         tiers.append({"name": "git", "max_bytes": git_max_bytes})
     large_store = stores.get("large")

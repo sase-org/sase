@@ -12,6 +12,7 @@ from sase.bead.attachments.upload.discovery import (
     clone_has_remote,
     describe_label,
     discover_large_store,
+    discover_public_store,
     discover_shared_store,
     discover_shared_store_with_meta,
     discover_stores,
@@ -39,6 +40,9 @@ from sase.bead.attachments.upload.protocol import (
     pre_write_upload,
     promote_local_only,
 )
+from sase.bead.attachments.upload.secret_scan import (
+    handle_secret_scan_rejection,
+)
 from sase.bead.attachments.upload.transfer import (
     queue_pending_upload,
     run_pending_uploads,
@@ -52,10 +56,12 @@ __all__ = [
     "decide_placement",
     "describe_label",
     "discover_large_store",
+    "discover_public_store",
     "discover_shared_store",
     "discover_shared_store_with_meta",
     "discover_stores",
     "drain_before_upload",
+    "handle_secret_scan_rejection",
     "hidden_clone_path",
     "placement_tiers",
     "post_write_queue",

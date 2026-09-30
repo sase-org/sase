@@ -365,6 +365,17 @@ def update_ref(repo: Path, ref: str, new: str) -> None:
     )
 
 
+def _is_secret_scan_rejection(detail: str) -> bool:
+    """Return whether push *detail* is a permanent secret-scanning rejection."""
+
+    lowered = detail.lower()
+    return (
+        "gh013" in lowered
+        or "push cannot contain secrets" in lowered
+        or "push declined due to repository rule violations" in lowered
+    )
+
+
 def sync_ref(repo: Path, ref: str, fetch_timeout: float) -> bool:
     """Push *ref*; True on success, False on a non-fast-forward retry."""
 
@@ -376,6 +387,12 @@ def sync_ref(repo: Path, ref: str, fetch_timeout: float) -> bool:
     if result.returncode == 0:
         return True
     detail = (result.stderr or result.stdout or "unknown git error").strip()
+    if _is_secret_scan_rejection(detail):
+        raise BlobStoreError(
+            f"git push of attachment store blocked by secret scanning: {detail[-500:]}",
+            transient=False,
+            secret_scan=True,
+        )
     if (
         "non-fast-forward" in detail
         or "fetch first" in detail
