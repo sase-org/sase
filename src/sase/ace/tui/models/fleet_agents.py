@@ -20,6 +20,7 @@ from ._fleet_agents_payload import (
     merge_catalog_pages,
     normalize_response,
     response_is_partial,
+    snapshot_identities,
 )
 from ._fleet_agents_promotion import fleet_followed_batch_agent_session_promotions
 from ._fleet_agents_rows import HostFeedIssue, host_feed_issues, rows_from_response
@@ -37,6 +38,7 @@ class FleetRowsProjection:
     partial: bool = False
     counts: dict[str, Any] = field(default_factory=dict)
     host_feed_issues: tuple[HostFeedIssue, ...] = ()
+    snapshot_identities: tuple[tuple[str, str], ...] = ()
 
 
 def project_fleet_agents(
@@ -118,6 +120,7 @@ def project_fleet_agents(
         focus_rows=focus_rows,
         fleet_rows=fleet_rows,
         diagnostics=tuple(diagnostics),
+        snapshot_identities=snapshot_identities(fleet_source),
         configured_host_count=host_count,
         partial=any(
             response_is_partial(response)

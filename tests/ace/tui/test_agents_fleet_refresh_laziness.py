@@ -10,7 +10,12 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.actions.agents import _fleet as fleet_mod
+from sase.ace.tui.actions.agents import _fleet_projection as fleet_projection_mod
 from sase.ace.tui.actions.agents._fleet import AgentFleetMixin
+from sase.ace.tui.actions.agents._roster_generation import (
+    notify_roster_status_mutation,
+)
+from sase.ace.tui.models import _agent_tree as agent_tree_mod
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fleet_agents import FleetRowsProjection
 from sase.dispatch.models import MachineDiagnostic
@@ -48,6 +53,8 @@ class _FleetRefreshHarness(AgentFleetMixin):
         self._agents_fleet_available = False
         self._agents_fleet_last_error = None
         self._agents_refresh_active_source = "unknown"
+        self._agents_roster_generation = 0
+        self._agents_removal_generation = 0
         self.header_updates = 0
         self.reproject_sources: list[str] = []
         self.attention_announcements: list[FleetRowsProjection] = []
@@ -95,6 +102,11 @@ def _remote_row(
     *,
     status: str = "RUNNING",
     revision: int = 1,
+    freshness: str | None = None,
+    observed_at_unix: float | None = None,
+    host_cache_age_seconds: float | None = None,
+    host_running_count: int | None = None,
+    host_total_count: int | None = None,
 ) -> Agent:
     return Agent(
         AgentType.RUNNING,
@@ -109,7 +121,34 @@ def _remote_row(
         fleet_logical_key=f"apollo:{name}",
         fleet_exact_key=f"apollo:{name}:exact",
         fleet_revision=revision,
+        fleet_freshness=freshness,
+        fleet_observed_at_unix=observed_at_unix,
+        fleet_host_cache_age_seconds=host_cache_age_seconds,
+        fleet_host_running_count=host_running_count,
+        fleet_host_total_count=host_total_count,
     )
+
+
+def _count_tree_projections(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[int, int]]:
+    """Count project_mixed_agent_tree runs (local-size, remote-size)."""
+    calls: list[tuple[int, int]] = []
+    real = agent_tree_mod.project_mixed_agent_tree
+
+    def _counting(
+        local_agents: list[Agent],
+        remote_agents: list[Agent],
+    ) -> list[Agent]:
+        calls.append((len(local_agents), len(remote_agents)))
+        return real(local_agents, remote_agents)
+
+    monkeypatch.setattr(
+        agent_tree_mod,
+        "project_mixed_agent_tree",
+        _counting,
+    )
+    return calls
 
 
 def test_agents_fleet_problem_text_reports_only_actionable_problems() -> None:
@@ -267,6 +306,206 @@ def test_apply_fleet_projection_forced_remote_sources_repaint() -> None:
         source="remote_attention",
     )
 
+    assert app.reproject_sources == [
+        "fleet_refresh",
+        "fleet_refresh",
+        "fleet_refresh",
+    ]
+
+
+def test_unchanged_refresh_skips_tree_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert not hasattr(fleet_projection_mod, "_agents_projection_signature")
+    assert not hasattr(fleet_projection_mod, "_freeze_projection_value")
+    tree_calls = _count_tree_projections(monkeypatch)
+    app = _FleetRefreshHarness()
+    projection = FleetRowsProjection(
+        fleet_rows=(_remote_row(),),
+        snapshot_identities=(("snapshot", "snap-1"),),
+        configured_host_count=1,
+    )
+
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+    assert len(tree_calls) == 1
+    header_updates_after_first = app.header_updates
+
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+
+    assert len(tree_calls) == 1
+    assert app.reproject_sources == ["fleet_refresh"]
+    assert app.header_updates == header_updates_after_first + 1
+
+
+def test_revision_bump_reprojects_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree_calls = _count_tree_projections(monkeypatch)
+    app = _FleetRefreshHarness()
+    snapshot = (("snapshot", "snap-1"),)
+
+    app._apply_fleet_projection(
+        FleetRowsProjection(
+            fleet_rows=(_remote_row(revision=1),),
+            snapshot_identities=snapshot,
+            configured_host_count=1,
+        ),
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+    app._apply_fleet_projection(
+        FleetRowsProjection(
+            fleet_rows=(_remote_row(revision=2),),
+            snapshot_identities=snapshot,
+            configured_host_count=1,
+        ),
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+
+    assert len(tree_calls) == 2
+    assert app.reproject_sources == ["fleet_refresh", "fleet_refresh"]
+    assert app._agents[0].fleet_revision == 2
+
+
+def test_host_freshness_only_change_patches_rows_without_reprojecting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree_calls = _count_tree_projections(monkeypatch)
+    app = _FleetRefreshHarness()
+    snapshot = (("snapshot", "snap-1"),)
+
+    app._apply_fleet_projection(
+        FleetRowsProjection(
+            fleet_rows=(
+                _remote_row(
+                    freshness="fresh",
+                    observed_at_unix=100.0,
+                    host_cache_age_seconds=2.0,
+                    host_running_count=3,
+                    host_total_count=5,
+                ),
+            ),
+            snapshot_identities=snapshot,
+            configured_host_count=1,
+        ),
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+    assert len(tree_calls) == 1
+    header_updates_after_first = app.header_updates
+
+    refreshed = FleetRowsProjection(
+        fleet_rows=(
+            _remote_row(
+                freshness="stale",
+                observed_at_unix=200.0,
+                host_cache_age_seconds=95.0,
+                host_running_count=4,
+                host_total_count=5,
+            ),
+        ),
+        snapshot_identities=snapshot,
+        configured_host_count=1,
+    )
+    app._apply_fleet_projection(
+        refreshed,
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+
+    assert len(tree_calls) == 1
+    assert app.reproject_sources == ["fleet_refresh"]
+    assert app._agents_fleet_projection is refreshed
+    assert app.header_updates == header_updates_after_first + 1
+    live = app._agents[0]
+    assert live.fleet_freshness == "stale"
+    assert live.fleet_observed_at_unix == 200.0
+    assert live.fleet_host_cache_age_seconds == 95.0
+    assert live.fleet_host_running_count == 4
+
+
+def test_snapshot_identity_change_reprojects_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree_calls = _count_tree_projections(monkeypatch)
+    app = _FleetRefreshHarness()
+
+    app._apply_fleet_projection(
+        FleetRowsProjection(
+            fleet_rows=(_remote_row(),),
+            snapshot_identities=(("snapshot", "snap-a"),),
+            configured_host_count=1,
+        ),
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+    app._apply_fleet_projection(
+        FleetRowsProjection(
+            fleet_rows=(_remote_row(),),
+            snapshot_identities=(("snapshot", "snap-b"),),
+            configured_host_count=1,
+        ),
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+
+    assert len(tree_calls) == 2
+    assert app.reproject_sources == ["fleet_refresh", "fleet_refresh"]
+
+
+def test_local_roster_change_reprojects_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree_calls = _count_tree_projections(monkeypatch)
+    app = _FleetRefreshHarness()
+    projection = FleetRowsProjection(
+        fleet_rows=(_remote_row(),),
+        snapshot_identities=(("snapshot", "snap-1"),),
+        configured_host_count=1,
+    )
+
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+    assert len(tree_calls) == 1
+
+    notify_roster_status_mutation(app)
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+    assert len(tree_calls) == 2
+
+    app._agents_removal_generation += 1
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+    assert len(tree_calls) == 3
     assert app.reproject_sources == [
         "fleet_refresh",
         "fleet_refresh",

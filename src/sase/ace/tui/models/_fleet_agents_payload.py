@@ -306,6 +306,27 @@ def _freshness_value(value: object) -> object:
     return value
 
 
+def snapshot_identities(
+    response: Mapping[str, Any] | None,
+) -> tuple[tuple[str, str], ...]:
+    """Return host snapshot identities in host order for a fleet response.
+
+    Phase ``fleet-signature-cheap`` (epic ``sase-1d7``): the cheap
+    reprojection signature carries these alongside per-row wire revisions so
+    an unchanged refresh can skip ``project_clan_tree`` entirely. Hosts
+    without an identity contribute nothing; membership changes are still
+    caught by the per-row key set.
+    """
+    if response is None:
+        return ()
+    identities: list[tuple[str, str]] = []
+    for host in host_payloads(response):
+        identity = _snapshot_identity(host)
+        if identity is not None:
+            identities.append(identity)
+    return tuple(identities)
+
+
 def _snapshot_identity(host: Mapping[str, Any]) -> tuple[str, str] | None:
     """Return the owner snapshot identity *host*'s page was built from.
 
