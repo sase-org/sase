@@ -193,7 +193,7 @@ def _collision_key_for_destination(row: UnifiedSaveLocation, name: str) -> str:
     return storage_name
 
 
-def _destination_defines_name(row: UnifiedSaveLocation, name: str) -> bool:
+def destination_defines_name(row: UnifiedSaveLocation, name: str) -> bool:
     """Return whether *row* already defines callable *name*."""
 
     return _collision_key_for_destination(row, name) in row.names
@@ -221,7 +221,7 @@ def destination_target_for_name(
         [
             ResolutionSource(
                 candidate.location.path,
-                _destination_defines_name(candidate, name),
+                destination_defines_name(candidate, name),
             )
             for candidate in sorted(destinations, key=lambda item: item.precedence)
         ],
@@ -242,7 +242,7 @@ def destination_target_for_name(
             else None
         ),
         via_chezmoi=write_target.via_chezmoi,
-        exists_here=_destination_defines_name(row, name),
+        exists_here=destination_defines_name(row, name),
         resolution=resolution,
     )
 
@@ -586,6 +586,7 @@ __all__ = [
     "MiniXPromptTargetCatalog",
     "MiniXPromptWorkflowKind",
     "default_mini_xprompt_destination",
+    "destination_defines_name",
     "destination_target_for_name",
     "load_mini_xprompt_target_catalog",
     "mini_xprompt_prefix_matches",

@@ -2641,6 +2641,68 @@ DispatchTargetPickerModal {
     padding-top: 1;
 }
 
+SaveLocationPickerModal {
+    align: center middle;
+}
+
+#save-location-picker-container {
+    width: 72%;
+    min-width: 64;
+    max-width: 104;
+    height: auto;
+    max-height: 85%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#save-location-picker-header {
+    height: 1;
+    margin-bottom: 1;
+}
+
+#save-location-picker-title {
+    width: 1fr;
+    text-style: bold;
+    height: 1;
+}
+
+#save-location-picker-stepper {
+    width: auto;
+    color: $text-muted;
+    height: 1;
+}
+
+#save-location-picker-list {
+    height: auto;
+    max-height: 16;
+}
+
+#save-location-picker-preview {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+#save-location-picker-preview.-save-location-error {
+    color: $error;
+    text-style: bold;
+}
+
+#save-location-picker-notice {
+    height: 1;
+    color: $warning;
+    text-style: bold;
+}
+
+#save-location-picker-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $primary;
+    padding-top: 1;
+}
+
 
 /* Models panel styling */
 ModelsPanel {

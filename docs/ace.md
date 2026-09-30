@@ -8980,6 +8980,52 @@ the authoritative source and falls back to native Rust loading only for simple s
 if the helper is unavailable. Clients without snippet support do not receive these
 entries, because raw `$1` / `$0` markers would not behave like sase's TUI tabstops.
 
+### Save location picker
+
+Starting a new mini-xprompt (`gx`, `Ctrl+G x`, `Ctrl+G Ctrl+X`) or a new snippet (`gt`,
+`Ctrl+G t`) first shows a location picker: one panel that asks where the new entry
+should live. The picker opens synchronously, before any disk reads, so keys typed while
+destinations load are buffered and applied — never dropped into the prompt pane.
+
+One keypress picks a destination and `Enter` accepts the `★` default, whose reason is
+shown (`★ current`, `★ last used`, `★ configured`, `★ default`). `j`/`k` (or `↑`/`↓`,
+`Ctrl+N`/`Ctrl+P`) move the highlight and skip headers and unavailable rows; `Esc` (or
+`q`) cancels and returns focus to the origin pane.
+
+Hotkeys are mnemonic and scope-first: `p` is the project destination and `h` is the home
+destination in both pickers. In the mini-xprompt picker the Shift variant picks the
+config file of the same scope:
+
+| Picker  | Key   | Destination                                            |
+| ------- | ----- | ------------------------------------------------------ |
+| xprompt | `p`   | Project `sase/xprompts/` directory (`#<project>/…`)    |
+| xprompt | `P`   | Project `sase/sase.yml`                                |
+| xprompt | `h`   | Home `~/sase/xprompts/` directory                      |
+| xprompt | `H`   | User `sase.yml`                                        |
+| xprompt | `1–9` | Other Project/Home rows in display order               |
+| snippet | `p`   | Project `sase/sase.yml`                                |
+| snippet | `h`   | User `sase.yml`                                        |
+| snippet | `c`   | Configured `ace.snippet_config_path` (own top section) |
+| snippet | `1–9` | User `sase_*.yml` overlays in display order            |
+
+The default (↵) precedence is:
+
+- **Mini-xprompt:** `★ current` (the open pane's location when retargeting) →
+  `★ last used` → `★ default` on the Project directory (the Home directory in home mode)
+  → the first writable row.
+- **Snippet:** `★ current` (the open pane's location when renaming) → `★ configured` (an
+  explicit `ace.snippet_config_path`, which outranks last-used) → `★ last used` →
+  `★ default` on the resolved default file → the first writable row.
+
+The footer previews each destination
+(`→ <dir>/<name>.md · called as #<ns>/<name> · N xprompts here` for directories,
+`→ <file> · ace.snippets.<trigger> · N snippets here` for snippets). Rows that already
+define the typed name show `has #name` / `has ⇥ trigger`. Choosing a destination locks
+it for the name step: the old destination cycling is gone, and `⇧Tab` in the name step
+goes back to the picker while keeping the typed text. Writable plugin and built-in rows
+stay collapsed behind one `Plugins & built-in` summary row (`+`, `Enter`, or a click
+toggles it), so plain users never see clutter.
+
 ### Authoring a snippet from the prompt bar
 
 `gt` (NORMAL) or `Ctrl+G t` (INSERT) opens a dedicated snippet pane at the bottom of the

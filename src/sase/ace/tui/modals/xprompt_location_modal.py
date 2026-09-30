@@ -35,6 +35,16 @@ from sase.xprompt.loader import (
 from .base import FilterInput, OptionListNavigationMixin
 
 
+#: Canonical discovery labels matched by the save-location picker.
+#: The picker imports these instead of duplicating the literals below.
+XPROMPT_PROJECT_DIR_LABEL = "Project sase/xprompts/"
+XPROMPT_HOME_DIR_LABEL = "Home ~/sase/xprompts/"
+XPROMPT_PROJECT_HOME_LABEL_PREFIX = "Project home ("
+XPROMPT_PROJECT_CONFIG_LABEL = "Project sase/sase.yml"
+XPROMPT_USER_CONFIG_LABEL = "User sase.yml"
+XPROMPT_USER_OVERLAY_LABEL_PREFIX = "User sase_"
+
+
 def shorten_xprompt_location_path(path: str, cwd: str, home: str) -> str:
     """Shorten a path for display in the location selector.
 
@@ -90,14 +100,14 @@ def get_all_xprompt_locations(
     # --- 1. Canonical xprompt directories ---
     directories.append(
         XPromptLocation(
-            label="Project sase/xprompts/",
+            label=XPROMPT_PROJECT_DIR_LABEL,
             path=str(project_layout.xprompts.write_path),
             location_type="directory",
         )
     )
     directories.append(
         XPromptLocation(
-            label="Home ~/sase/xprompts/",
+            label=XPROMPT_HOME_DIR_LABEL,
             path=str(home_xprompts),
             location_type="directory",
         )
@@ -105,7 +115,7 @@ def get_all_xprompt_locations(
     if effective_project:
         directories.append(
             XPromptLocation(
-                label=f"Project home ({effective_project})",
+                label=f"{XPROMPT_PROJECT_HOME_LABEL_PREFIX}{effective_project})",
                 path=str(home_xprompts / effective_project),
                 location_type="directory",
             )
@@ -119,7 +129,7 @@ def get_all_xprompt_locations(
     )
     configs.append(
         XPromptLocation(
-            label="User sase.yml",
+            label=XPROMPT_USER_CONFIG_LABEL,
             path=str(user_sase_yml),
             location_type="config",
         )
@@ -137,7 +147,7 @@ def get_all_xprompt_locations(
             )
     configs.append(
         XPromptLocation(
-            label="Project sase/sase.yml",
+            label=XPROMPT_PROJECT_CONFIG_LABEL,
             path=str(project_layout.config.write_path),
             location_type="config",
         )

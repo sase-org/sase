@@ -24,6 +24,13 @@ from .save_index import names_for_location
 from .write_targets import resolve_xprompt_write_target
 
 
+#: Canonical discovery labels matched by the save-location picker.
+#: The picker imports these instead of duplicating the literals below.
+SNIPPET_USER_CONFIG_LABEL = "User sase.yml"
+SNIPPET_PROJECT_CONFIG_LABEL = "Project sase/sase.yml"
+SNIPPET_USER_OVERLAY_LABEL_PREFIX = "User sase_"
+
+
 @dataclass(frozen=True)
 class SnippetConfigLocation:
     """A YAML config file where a snippet can be saved."""
@@ -113,7 +120,9 @@ def load_snippet_config_locations(
     """
     chezmoi = get_use_chezmoi()
     config_dir = CHEZMOI_HOME / "dot_config" / "sase" if chezmoi else CONFIG_DIR
-    candidates: list[tuple[str, Path]] = [("User sase.yml", config_dir / "sase.yml")]
+    candidates: list[tuple[str, Path]] = [
+        (SNIPPET_USER_CONFIG_LABEL, config_dir / "sase.yml")
+    ]
     if config_dir.is_dir():
         candidates.extend(
             (f"User {overlay.name}", overlay)
@@ -121,7 +130,7 @@ def load_snippet_config_locations(
         )
     project_root = _project_root_for_snippet_locations(project, launch_workspace)
     local_config = resolve_project_layout(project_root).config.write_path
-    candidates.append(("Project sase/sase.yml", local_config))
+    candidates.append((SNIPPET_PROJECT_CONFIG_LABEL, local_config))
     return [
         SnippetConfigLocation(
             label=label,
@@ -280,6 +289,9 @@ def load_snippet_template(path: str | Path, trigger: str) -> str:
 
 
 __all__ = [
+    "SNIPPET_PROJECT_CONFIG_LABEL",
+    "SNIPPET_USER_CONFIG_LABEL",
+    "SNIPPET_USER_OVERLAY_LABEL_PREFIX",
     "SnippetCollision",
     "SnippetConfigLocation",
     "SnippetSaveTarget",

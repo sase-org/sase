@@ -312,6 +312,24 @@ _LAZY_EXPORTS = {
         ".saved_agent_group_revival_modal",
         "SavedAgentGroupRevivalResult",
     ),
+    "SaveLocationChoice": (".save_location_choices", "SaveLocationChoice"),
+    "SaveLocationPick": (".save_location_choices", "SaveLocationPick"),
+    "ChangeSaveLocationRequest": (
+        ".save_location_choices",
+        "ChangeSaveLocationRequest",
+    ),
+    "SaveLocationPickerModal": (
+        ".save_location_picker_modal",
+        "SaveLocationPickerModal",
+    ),
+    "snippet_location_choices": (
+        ".save_location_choices",
+        "snippet_location_choices",
+    ),
+    "xprompt_location_choices": (
+        ".save_location_choices",
+        "xprompt_location_choices",
+    ),
     "SavedQueryPickerModal": (".saved_query_picker", "SavedQueryPickerModal"),
     "SaveAgentGroupModal": (".save_agent_group_modal", "SaveAgentGroupModal"),
     "SaveAgentGroupResult": (".save_agent_group_modal", "SaveAgentGroupResult"),
