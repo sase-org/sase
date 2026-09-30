@@ -173,7 +173,119 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
             self._agent_tab_jump_hints = agent_tab_hints
         except Exception:
             pass
+        try:
+            agents = getattr(self, "_agents", [])
+            identity_by_hint: dict[str, object] = {}
+            for hint, idx in agent_hint_to_idx.items():
+                if 0 <= idx < len(agents):
+                    try:
+                        identity_by_hint[hint] = agents[idx].identity
+                    except Exception:
+                        continue
+            self._entry_jump_agent_identity_by_hint = identity_by_hint  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            panel_group = getattr(self, "_panel_group", None)
+            panel_keys = (
+                tuple(getattr(panel_group, "panel_keys", ()))
+                if panel_group is not None
+                else ()
+            )
+            banner_panel_by_hint: dict[str, object] = {}
+            for hint, target in banner_hint_to_target.items():
+                try:
+                    panel_idx = target[1]
+                    banner_panel_by_hint[hint] = (
+                        panel_keys[panel_idx]
+                        if 0 <= panel_idx < len(panel_keys)
+                        else None
+                    )
+                except Exception:
+                    banner_panel_by_hint[hint] = None
+            self._entry_jump_banner_hint_to_panel_key = banner_panel_by_hint  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            self._entry_jump_allocation_token = self._agents_jump_allocation_token()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         return True
+
+    def _agents_jump_allocation_token(self) -> object:
+        """Return a cheap token identifying the current jump-map inputs."""
+        agents_token: tuple[object, object]
+        try:
+            agents = getattr(self, "_agents", [])
+            agents_token = (id(agents), len(agents))
+        except Exception:
+            agents_token = (None, None)
+        try:
+            panel_group = getattr(self, "_panel_group", None)
+            panel_keys = (
+                tuple(getattr(panel_group, "panel_keys", ()))
+                if panel_group is not None
+                else ()
+            )
+        except Exception:
+            panel_keys = ()
+        try:
+            catalog_view = getattr(self, "_agent_tab_catalog_view", None)
+            catalog_keys = (
+                tuple(entry.key for entry in catalog_view())
+                if callable(catalog_view)
+                else ()
+            )
+        except Exception:
+            catalog_keys = ()
+        try:
+            strip_visible = getattr(self, "_agent_tab_strip_visible", None)
+            strip_token = bool(strip_visible()) if callable(strip_visible) else False
+        except Exception:
+            strip_token = False
+        try:
+            grouping_mode = getattr(self, "_grouping_mode", None)
+        except Exception:
+            grouping_mode = None
+        return (
+            agents_token,
+            panel_keys,
+            catalog_keys,
+            strip_token,
+            grouping_mode,
+        )
+
+    def _ensure_agents_jump_maps_current(self) -> None:
+        """Re-derive Agents-tab hint maps when the roster changed mid-mode."""
+        try:
+            if not getattr(self, "_entry_jump_mode_active", False):
+                return
+            if getattr(self, "current_tab", None) != "agents":
+                return
+            current = self._agents_jump_allocation_token()
+            stored = getattr(self, "_entry_jump_allocation_token", None)
+            if current == stored:
+                return
+            if stored is None:
+                # Harnesses that populate hint maps manually never went
+                # through allocation: adopt their maps as the baseline
+                # instead of reallocating over them.
+                try:
+                    self._entry_jump_allocation_token = current  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                return
+            try:
+                ok = self._prepare_agents_jump_maps()
+            except Exception:
+                ok = False
+            if not ok:
+                try:
+                    self._exit_entry_jump_mode()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def _begin_agents_jump_mode(self) -> None:
         """Allocate hints across visible agents, banners, and panel headers."""
@@ -284,11 +396,35 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_hint_to_tab = {}
         self._entry_jump_tab_to_hint = {}
         try:
+            self._entry_jump_allocation_token = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            self._entry_jump_agent_identity_by_hint = {}  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            self._entry_jump_banner_hint_to_panel_key = {}  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
             self._agent_tab_jump_hints = {}
         except Exception:
             pass
         if self.current_tab == "agents":
             self._refresh_agents_jump_hint_display()
+            refresh_footer = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh_footer):
+                try:
+                    refresh_footer()
+                except Exception:
+                    pass
+            flush = getattr(self, "_flush_hint_deferred_fleet_projection", None)
+            if callable(flush):
+                try:
+                    flush()
+                except Exception:
+                    pass
         else:
             self._refresh_current_tab()  # type: ignore[attr-defined]
 

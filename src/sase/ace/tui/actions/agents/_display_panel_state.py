@@ -64,6 +64,14 @@ class PanelRefreshStateMixin:
         """Return the panel key for every agent in display order."""
         raise NotImplementedError
 
+    def _agent_panel_title_for_key(
+        self,
+        key: PanelKey,
+        panel_agents: list[Agent],
+    ) -> Text:
+        """Build a panel title with the active hints and restore markers."""
+        raise NotImplementedError
+
     def _agent_panel_title(
         self,
         key: PanelKey,

@@ -161,6 +161,13 @@ class PanelWidgetRefreshOrchestrationMixin(PanelRefreshStateMixin):
         except NoMatches:
             return False
 
+        ensure_jump_current = getattr(self, "_ensure_agents_jump_maps_current", None)
+        if callable(ensure_jump_current):
+            try:
+                ensure_jump_current()
+            except Exception:
+                pass
+
         jump_hints = (
             dict(getattr(self, "_entry_jump_index_to_hint", {}))
             if getattr(self, "_entry_jump_mode_active", False)

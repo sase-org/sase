@@ -93,6 +93,11 @@ class NavigationMixinBase:
     # key is the tab key; hints render on the strip chips.
     _entry_jump_hint_to_tab: dict[str, TabJumpTarget]
     _entry_jump_tab_to_hint: dict[TabJumpTarget, str]
+    # Allocation token + identity maps so painted labels stay truthful when
+    # the roster changes mid-mode.
+    _entry_jump_allocation_token: object | None
+    _entry_jump_agent_identity_by_hint: dict[str, Any]
+    _entry_jump_banner_hint_to_panel_key: dict[str, Any]
     # Patches-tab banner jump-hint maps (grouped mode only).  Banner key is
     # the tuple group identity; Patches have no panel scope.
     _entry_jump_hint_to_patch_banner: dict[str, tuple[str, ...]]

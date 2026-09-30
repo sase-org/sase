@@ -191,6 +191,15 @@ class AgentTabsSwitchStripMixin:
         except Exception:
             log.exception("Tab strip switch failed")
 
+    def _ensure_jump_maps_current_for_strip(self) -> None:
+        """Re-derive jump maps so chips pick up labels once tabs appear."""
+        ensure = getattr(self, "_ensure_agents_jump_maps_current", None)
+        if callable(ensure):
+            try:
+                ensure()
+            except Exception:
+                pass
+
     def _descriptors_for_strip(
         self, entries: tuple[AgentTabCatalogEntry, ...], active: AgentTabKey | None
     ) -> tuple[Any, ...]:
@@ -245,6 +254,7 @@ class AgentTabsSwitchStripMixin:
                     extras[off_key] = off_text
         except Exception:  # noqa: BLE001 - off-tab counts are best-effort.
             pass
+        self._ensure_jump_maps_current_for_strip()
         jump_hints = dict(getattr(self, "_agent_tab_jump_hints", None) or {})
         return project_agent_tab_descriptors(
             tuple(entries),

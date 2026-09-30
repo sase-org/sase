@@ -162,6 +162,15 @@ def init_navigation_state(self: Any) -> None:
     self._entry_jump_hint_to_patch_banner = {}
     self._entry_jump_patch_banner_to_hint = {}
 
+    # Agents-tab strip-chip jump-hint maps (visible strip only).
+    self._entry_jump_hint_to_tab = {}
+    self._entry_jump_tab_to_hint = {}
+    # Allocation token + identity maps so painted labels stay truthful when
+    # the roster changes mid-mode (fleet refresh, loader finalize, rescope).
+    self._entry_jump_allocation_token = None
+    self._entry_jump_agent_identity_by_hint = {}
+    self._entry_jump_banner_hint_to_panel_key = {}
+
     # Entry jump-stack state. Non-Agents tabs keep per-tab row/banner
     # anchor stacks; the Agents tab uses richer anchors so panel and
     # banner focus can be restored.

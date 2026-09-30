@@ -192,6 +192,19 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             if banner_target is None and panel_target is None and agent_target is None:
                 self._exit_entry_jump_mode()
                 return True
+            if agent_target is not None:
+                resolved_agent_idx = self._resolve_agents_jump_agent_target(
+                    agent_target
+                )
+                if resolved_agent_idx is None:
+                    self._exit_entry_jump_mode()
+                    return True
+                agent_target = resolved_agent_idx
+                resolved_target = ("agent", agent_target)
+            if banner_target is not None:
+                if not self._validate_agents_jump_banner_target(banner_target):
+                    self._exit_entry_jump_mode()
+                    return True
             target_panel_idx = None
             if panel_target is not None:
                 target_panel_idx = self._agents_jump_panel_idx_for_key(panel_target[1])
@@ -372,6 +385,83 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
         self.current_idx = target
         self._exit_entry_jump_mode()
         return True
+
+    def _resolve_agents_jump_agent_target(self, old_idx: int) -> int | None:
+        """Resolve a painted agent hint to its current index by identity."""
+        try:
+            identity_by_hint = getattr(self, "_entry_jump_agent_identity_by_hint", None)
+            if not identity_by_hint:
+                return old_idx
+            hint = getattr(self, "_entry_jump_index_to_hint", {}).get(old_idx)
+            if hint is None:
+                # Fall back to a reverse search of the stale target map.
+                try:
+                    for candidate_hint, target in getattr(
+                        self, "_entry_jump_hint_to_target", {}
+                    ).items():
+                        if (
+                            isinstance(target, tuple)
+                            and len(target) == 2
+                            and target[0] == "agent"
+                            and target[1] == old_idx
+                        ):
+                            hint = candidate_hint
+                            break
+                except Exception:
+                    hint = None
+            if hint is None:
+                return old_idx
+            identity = identity_by_hint.get(hint)
+            if identity is None:
+                return old_idx
+            agents = getattr(self, "_agents", [])
+            try:
+                if 0 <= old_idx < len(agents) and agents[old_idx].identity == identity:
+                    return old_idx
+            except Exception:
+                pass
+            matches: list[int] = []
+            for idx, agent in enumerate(agents):
+                try:
+                    if agent.identity == identity:
+                        matches.append(idx)
+                except Exception:
+                    continue
+            if not matches:
+                return None
+            if len(matches) == 1:
+                return matches[0]
+            return min(matches, key=lambda idx: (abs(idx - old_idx), idx))
+        except Exception:
+            return old_idx
+
+    def _validate_agents_jump_banner_target(self, banner_target: object) -> bool:
+        """Return whether a painted banner target still names its panel."""
+        try:
+            if not (isinstance(banner_target, tuple) and len(banner_target) == 3):
+                return False
+            _kind, panel_idx, _group_key = banner_target
+            if not isinstance(panel_idx, int):
+                return False
+            panel_keys = tuple(
+                getattr(getattr(self, "_panel_group", None), "panel_keys", ())
+            )
+            if not (0 <= panel_idx < len(panel_keys)):
+                return False
+            expected_by_hint = getattr(
+                self, "_entry_jump_banner_hint_to_panel_key", None
+            )
+            if not expected_by_hint:
+                return True
+            hint = getattr(self, "_entry_jump_banner_to_hint", {}).get(banner_target)
+            if hint is None:
+                return True
+            expected = expected_by_hint.get(hint)
+            if expected is None:
+                return True
+            return panel_keys[panel_idx] == expected
+        except Exception:
+            return True
 
     def _active_entry_jump_target_map(self) -> dict[str, object]:
         """Return the unified active map, with compatibility for small harnesses."""

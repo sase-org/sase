@@ -100,6 +100,19 @@ class PanelPatchMixin:
     _panel_group: AgentPanelGroup
     _agents_first_load_done: bool
 
+    def _agent_panel_title_for_key(
+        self,
+        key: PanelKey,
+        panel_agents: list[Agent],
+    ) -> Text:
+        """Build a panel title with the active hints and restore markers.
+
+        Supplied by :class:`PanelCollectionMixin`, always present on the
+        real app; declared here only so mypy sees the attribute on this
+        mixin too.
+        """
+        raise NotImplementedError
+
     def _agent_panel_title(
         self,
         key: PanelKey,
@@ -500,14 +513,16 @@ class PanelPatchMixin:
             return False
 
         slot = panel_index.slice_for(agent_panel_key)
-        self._set_agent_panel_title(
-            widget,
-            self._agent_panel_title(
+        title_for_key = getattr(self, "_agent_panel_title_for_key", None)
+        if callable(title_for_key):
+            title = title_for_key(agent_panel_key, slot.agents)
+        else:
+            title = self._agent_panel_title(
                 agent_panel_key,
                 slot.agents,
                 merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
-            ),
-        )
+            )
+        self._set_agent_panel_title(widget, title)
         if refresh_info:
             self._update_agents_info_panel()  # type: ignore[attr-defined]
         self._record_display_patch_trace(display_cost="row_patch", count=1)

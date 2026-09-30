@@ -355,6 +355,12 @@ class AgentPanelHintFoldingMixin:
             refresh_footer = getattr(self, "_refresh_agent_footer_bindings_only", None)
             if callable(refresh_footer):
                 refresh_footer()
+        flush = getattr(self, "_flush_hint_deferred_fleet_projection", None)
+        if callable(flush):
+            try:
+                flush()
+            except Exception:
+                pass
 
     def _handle_panel_fold_hint_key(self, key: str) -> bool:
         """Consume one adaptive fold-hint key while the mode is armed."""

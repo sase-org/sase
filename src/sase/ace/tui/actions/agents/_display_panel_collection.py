@@ -488,6 +488,28 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 return
         self.current_idx = 0
 
+    def _agent_panel_title_for_key(
+        self,
+        key: PanelKey,
+        panel_agents: list[Agent],
+    ) -> Text:
+        """Build one title with the active hints and restore markers."""
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
+        marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
+        isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
+        restore_marked_fn = getattr(self, "_panel_fold_restore_marked_keys", None)
+        fold_restore_marked = restore_marked_fn() if callable(restore_marked_fn) else {}
+        title_hints = getattr(self, "_active_panel_title_jump_hints", None)
+        panel_jump_hints = title_hints() if callable(title_hints) else None
+        return self._agent_panel_title(
+            key,
+            panel_agents,
+            merge_tribe_panels=merge_tribe_panels,
+            panel_jump_hints=panel_jump_hints,
+            isolation_restore_marked=key in isolation_marked_keys,
+            fold_restore_marked_count=len(fold_restore_marked.get(key, ())),
+        )
+
     def _agent_panel_title(
         self,
         key: PanelKey,
@@ -576,13 +598,6 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         except NoMatches:
             return
         panel_index = self._agent_panel_index()
-        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
-        marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
-        isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
-        restore_marked_fn = getattr(self, "_panel_fold_restore_marked_keys", None)
-        fold_restore_marked = restore_marked_fn() if callable(restore_marked_fn) else {}
-        title_hints = getattr(self, "_active_panel_title_jump_hints", None)
-        panel_jump_hints = title_hints() if callable(title_hints) else None
         for key in self._panel_group.panel_keys:
             try:
                 widget = self.query_one(  # type: ignore[attr-defined]
@@ -590,13 +605,9 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 )
             except NoMatches:
                 continue
-            title = self._agent_panel_title(
+            title = self._agent_panel_title_for_key(
                 key,
                 panel_index.slice_for(key).agents,
-                merge_tribe_panels=merge_tribe_panels,
-                panel_jump_hints=panel_jump_hints,
-                isolation_restore_marked=key in isolation_marked_keys,
-                fold_restore_marked_count=len(fold_restore_marked.get(key, ())),
             )
             self._set_agent_panel_title(widget, title)
         self._focus_focused_panel_widget()

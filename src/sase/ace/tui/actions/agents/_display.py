@@ -603,6 +603,14 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             self._prune_stale_marked_agents()  # type: ignore[attr-defined]
             self._sync_panel_group()
             self._snap_focus_after_agents_fold_restore()
+            ensure_jump_current = getattr(
+                self, "_ensure_agents_jump_maps_current", None
+            )
+            if callable(ensure_jump_current):
+                try:
+                    ensure_jump_current()
+                except Exception:
+                    pass
             jump_hints = (
                 dict(self._entry_jump_index_to_hint)
                 if self._entry_jump_mode_active

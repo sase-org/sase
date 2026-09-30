@@ -51,6 +51,9 @@ class AgentFleetRefreshMixin:
         _agents_fleet_focus_rows: list[Agent]
         _agents_fleet_async_tasks: set[asyncio.Task[object]]
         _agents_fleet_refresh_generation: int
+        _agents_fleet_hint_deferred_apply: (
+            tuple[FleetRowsProjection, FederationConfig, int, str] | None
+        )
         _agents_fleet_loading: bool
         _agents_fleet_available: bool
         _agents_fleet_last_error: str | None
@@ -206,6 +209,21 @@ class AgentFleetRefreshMixin:
         generation: int,
         source: str,
     ) -> bool:
+        if getattr(self, "_entry_jump_mode_active", False) or getattr(
+            self, "_panel_fold_hint_mode_active", False
+        ):
+            # Hint modes have no time bound, so keep only the newest pending
+            # apply instead of arming a timer; the mode teardown flushes it.
+            try:
+                self._agents_fleet_hint_deferred_apply = (  # type: ignore[attr-defined]
+                    projection,
+                    config,
+                    generation,
+                    source,
+                )
+            except Exception:
+                pass
+            return True
         nav_gate = getattr(self, "_nav_gate", None)
         if nav_gate is None or not nav_gate.is_navigating():
             return False
@@ -220,6 +238,26 @@ class AgentFleetRefreshMixin:
             ),
         )
         return True
+
+    def _flush_hint_deferred_fleet_projection(self) -> None:
+        """Apply the newest hint-deferred fleet projection, if any."""
+        pending = getattr(self, "_agents_fleet_hint_deferred_apply", None)
+        if pending is None:
+            return
+        try:
+            self._agents_fleet_hint_deferred_apply = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            projection, config, generation, source = pending
+        except Exception:
+            return
+        self._apply_deferred_fleet_projection(
+            projection,
+            config=config,
+            generation=generation,
+            source=source,
+        )
 
     def _apply_deferred_fleet_projection(
         self,
