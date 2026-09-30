@@ -206,6 +206,9 @@ def test_terminal_blocked_waiter_upserts_one_notification(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    from sase.bead.plus_one_presentation import plus_one_badge
+    from sase.notifications.catalog import list_notification_infos
+
     waiter_dir = make_waiting_agent(tmp_path, "foo")
     dependency_dir = make_agent(
         tmp_path,
@@ -226,14 +229,21 @@ def test_terminal_blocked_waiter_upserts_one_notification(
     assert notification.sender == "wait_checks"
     assert notification.dedup_key == f"wait_checks:terminal-blocked:{waiter_dir}"
     assert notification.plus_one_count == 1
+    assert notification.action_data == {}
     assert str(waiter_dir) in notification.files
     assert str(dependency_dir) in notification.files
-    assert notification.action_data["waiter"] == "waiter-cl"
-    assert notification.action_data["dependency"] == "foo"
-    assert notification.action_data["blocking_artifact_dir"] == str(dependency_dir)
-    assert notification.action_data["blocking_outcome"] == "failed"
     assert any("never self-resolve" in note for note in notification.notes)
+    assert any("Waiter: waiter-cl" in note for note in notification.notes)
+    assert any(
+        f"Blocked on foo: {dependency_dir} (failed)" in note
+        for note in notification.notes
+    )
     assert any("Kill and relaunch" in note for note in notification.notes)
+    assert plus_one_badge(notification.plus_one_count) == "+1"
+    assert len(notification.plus_ones) == 1
+    assert "Still blocked on foo" in notification.plus_ones[0].note
+    for query in ("waiter-cl", "foo", "failed", str(dependency_dir)):
+        assert list_notification_infos(query=query, include_dismissed=True)
 
 
 def test_later_resolved_waiter_does_not_notify(

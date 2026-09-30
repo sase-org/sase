@@ -250,7 +250,7 @@ def test_compact_preserves_unread_and_actionable_notifications(tmp_path: Path) -
     _skip_without_notification_bindings()
     path = tmp_path / "notifications.jsonl"
     old = (datetime.now(UTC) - timedelta(days=30)).isoformat()
-    recent = (datetime.now(UTC) - timedelta(days=3)).isoformat()
+    recent = (datetime.now(UTC) - timedelta(days=2)).isoformat()
     future = (datetime.now(UTC) + timedelta(days=1)).isoformat()
 
     unread = _notification("unread")

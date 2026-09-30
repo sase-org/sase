@@ -121,20 +121,15 @@ def upsert_terminal_blocked_wait_notification(
         ),
     ]
     files = [str(waiter_dir), blocker.artifact_dir]
-    action_data: dict[str, Any] = {
-        "waiter": waiter_name,
-        "waiter_artifact_dir": str(waiter_dir),
-        "dependency": blocker.dependency,
-        "blocking_artifact_dir": blocker.artifact_dir,
-        "blocking_outcome": blocker.outcome,
-    }
+    # `action_data` stays empty: every producer value already lives in
+    # `notes` (waiter, dependency, outcome, recovery instructions) or
+    # `files` (waiter/blocking dirs, recovery diff) for display and search.
+    # No consumer reads `wait_checks` action keys to drive an action.
     if recovery.resume_command:
         notes.append(f"Monitor recovery: `{recovery.resume_command}`")
-        action_data["monitor_resume_command"] = recovery.resume_command
     if recovery.snapshot_path:
         notes.append(f"Worktree recovery diff: {recovery.snapshot_path}")
         files.append(recovery.snapshot_path)
-        action_data["worktree_recovery_diff_path"] = recovery.snapshot_path
     notification = Notification(
         id=str(uuid4()),
         timestamp=timestamp,
@@ -144,7 +139,6 @@ def upsert_terminal_blocked_wait_notification(
         notes=notes,
         files=files,
         tags=normalize_notification_tags(["wait", "blocked", "terminal-dependency"]),
-        action_data=action_data,
         dedup_key=f"wait_checks:terminal-blocked:{waiter_dir}",
     )
     upsert_notification(

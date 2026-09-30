@@ -297,6 +297,9 @@ def test_terminal_not_launchable_monitor_notification_names_resume_and_snapshot(
 
     run_wait_checks(tmp_path, monkeypatch)
 
+    from sase.bead.plus_one_presentation import plus_one_badge
+    from sase.notifications.catalog import list_notification_infos
+
     notifications = load_notifications()
     assert len(notifications) == 1
     notification = notifications[0]
@@ -304,7 +307,10 @@ def test_terminal_not_launchable_monitor_notification_names_resume_and_snapshot(
     assert "sase monitor resume abc123def456" in notes
     assert str(snapshot_path) in notes
     assert str(snapshot_path) in notification.files
-    assert notification.action_data["monitor_resume_command"] == (
-        "sase monitor resume abc123def456"
-    )
-    assert notification.action_data["worktree_recovery_diff_path"] == str(snapshot_path)
+    assert notification.action_data == {}
+    assert "Monitor recovery: `sase monitor resume abc123def456`" in notes
+    assert f"Worktree recovery diff: {snapshot_path}" in notes
+    assert plus_one_badge(notification.plus_one_count) == ""
+    assert notification.plus_one_count == 0
+    for query in ("abc123def456", "wf", str(snapshot_path)):
+        assert list_notification_infos(query=query, include_dismissed=True)
