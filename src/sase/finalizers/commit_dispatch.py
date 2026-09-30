@@ -273,10 +273,6 @@ def dispatch_commit_decisions(
 
         message = str(decision.get("message", "")).strip()
         bead_action = _decision_bead_action(decision)
-        if repo.kind != "main" and repo.name in revision_pins:
-            # Pinned siblings land first; only the main stitch applies
-            # bead_action so the assigned bead closes after the pin follows.
-            bead_action = None
         assigned_bead_id = _context_assigned_bead_id(context)
         attempt_fields = stitch_attempt_input_fields(
             repo,

@@ -212,6 +212,51 @@ def test_run_stitch_create_binds_saved_assigned_bead_env(
     assert captured[0]["SASE_BEAD_ID"] == "sase-accepted.1"
 
 
+def test_run_stitch_create_passes_bead_action_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    repo = _repo(repo_path)
+    artifacts = tmp_path / "artifacts"
+
+    def fake_run_bounded_subprocess(
+        _argv: list[str],
+        *,
+        cwd: str,
+        env: dict[str, str],
+        input_bytes: bytes | None,
+        timeout: float,
+    ) -> BoundedCompletedProcess:
+        del cwd, env, input_bytes, timeout
+        return BoundedCompletedProcess(
+            returncode=0,
+            stdout=b"",
+            stderr=b"",
+            duration_seconds=0.01,
+        )
+
+    monkeypatch.setattr(
+        "sase.finalizers.commit_repair.run_bounded_subprocess",
+        fake_run_bounded_subprocess,
+    )
+
+    result = run_stitch_create(
+        repo,
+        "fix(final): reconcile",
+        (),
+        FinalizerExecutionContext(
+            artifacts_dir=str(artifacts),
+            plan_digest=None,
+        ),
+        bead_action="keep",
+    )
+
+    assert "-B" in result.argv
+    assert result.argv[result.argv.index("-B") + 1] == "keep"
+
+
 def test_run_stitch_resume_clears_ambient_bead_when_context_is_unbound(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
