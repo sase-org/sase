@@ -353,6 +353,29 @@ def write_audience_metadata(
         pass
 
 
+def read_audience_reason(sha256: str) -> str | None:
+    """Return the local audience reason for *sha256*, if recorded.
+
+    The reason lives only in the machine-local CAS audience metadata; it
+    never enters descriptors, pages, or commit messages. Returns ``None``
+    when no metadata exists or it carries no reason. Never raises.
+    """
+    try:
+        raw = audience_metadata_path(sha256).read_text(encoding="utf-8")
+    except Exception:
+        return None
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    reason = payload.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        return None
+    return reason.strip()
+
+
 def duplicate_private_digest(digests: list[str], notes: Any) -> set[str]:
     """Return digests already stored privately in *notes* (duplicate intent)."""
     private: set[str] = set()
@@ -429,6 +452,7 @@ __all__ = [
     "decide_audience",
     "duplicate_private_digest",
     "gather_audience_facts",
+    "read_audience_reason",
     "refuse_agent_widening",
     "refuse_public_when_flag_off",
     "requested_from_flags",

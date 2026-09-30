@@ -291,6 +291,7 @@ def render_bead_note_lines(
                         image=attachment.image,
                         size_bytes=attachment.size_bytes,
                         sha256=attachment.sha256,
+                        visibility=getattr(attachment, "visibility", None),
                     )
                 )
                 for status_line in attachment_status_lines(
@@ -372,6 +373,7 @@ def render_plus_one_evidence_lines(
                         image=attachment.image,
                         size_bytes=attachment.size_bytes,
                         sha256=attachment.sha256,
+                        visibility=getattr(attachment, "visibility", None),
                     )
                 )
                 for status_line in attachment_status_lines(

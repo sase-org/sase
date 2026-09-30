@@ -112,6 +112,7 @@ def _enrich_note_dicts_with_availability(issue: Issue) -> list[dict[str, object]
         attachment_availability,
         attachment_view_path,
     )
+    from sase.bead.attachments.audience import read_audience_reason
 
     for note, note_dict in zip(issue.notes, note_dicts, strict=True):
         wire_list = note_dict.get("attachments")
@@ -126,14 +127,20 @@ def _enrich_note_dicts_with_availability(issue: Issue) -> list[dict[str, object]
                 continue
             size = wire.get("size_bytes")
             origin = wire.get("origin")
+            raw_visibility = wire.get("visibility")
+            visibility = raw_visibility if isinstance(raw_visibility, str) else None
+            wire["visibility"] = (
+                visibility if visibility in ("public", "private") else "private"
+            )
+            reason = read_audience_reason(sha)
+            if reason is not None:
+                wire["audience_reason"] = reason
             availability = attachment_availability(
                 sha,
                 size_bytes=size if isinstance(size, int) else None,
                 origin=origin if isinstance(origin, str) else None,
                 name=name,
-                visibility=wire.get("visibility")
-                if isinstance(wire.get("visibility"), str)
-                else None,
+                visibility=visibility,
             )
             wire["availability"] = availability
             if availability == "cached":
@@ -156,6 +163,7 @@ def _evidence_attachment_dicts_with_availability(
         attachment_availability,
         attachment_view_path,
     )
+    from sase.bead.attachments.audience import read_audience_reason
     from sase.bead.note_codec import attachment_to_dict
 
     attachments = getattr(evidence, "attachments", ())
@@ -167,17 +175,23 @@ def _evidence_attachment_dicts_with_availability(
         entry: dict[str, object] = dict(wire)
         sha = wire.get("sha256")
         name = wire.get("name")
+        raw_visibility = wire.get("visibility")
+        visibility = raw_visibility if isinstance(raw_visibility, str) else None
+        entry["visibility"] = (
+            visibility if visibility in ("public", "private") else "private"
+        )
         if isinstance(sha, str) and isinstance(name, str):
             size = wire.get("size_bytes")
             origin = wire.get("origin")
+            reason = read_audience_reason(sha)
+            if reason is not None:
+                entry["audience_reason"] = reason
             availability = attachment_availability(
                 sha,
                 size_bytes=size if isinstance(size, int) else None,
                 origin=origin if isinstance(origin, str) else None,
                 name=name,
-                visibility=wire.get("visibility")
-                if isinstance(wire.get("visibility"), str)
-                else None,
+                visibility=visibility,
             )
             entry["availability"] = availability
             if availability == "cached":

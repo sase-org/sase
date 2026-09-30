@@ -116,6 +116,7 @@ def _print_roster_lines(issue: Issue) -> None:
             image=attachment.image,
             size_bytes=attachment.size_bytes,
             sha256=attachment.sha256,
+            visibility=getattr(attachment, "visibility", None),
         )
         print(f"  {descriptor}")
         for status_line in attachment_status_lines(
@@ -124,16 +125,20 @@ def _print_roster_lines(issue: Issue) -> None:
             sha256=attachment.sha256,
             size_bytes=attachment.size_bytes,
             origin=getattr(attachment, "origin", None),
+            visibility=getattr(attachment, "visibility", None),
         ):
             print(f"    {status_line}")
 
 
 def _wire_with_availability(attachment: BeadNoteAttachment) -> dict[str, object]:
+    from sase.bead.attachments.audience import read_audience_reason
+
     wire: dict[str, object] = {
         "name": attachment.name,
         "sha256": attachment.sha256,
         "size_bytes": attachment.size_bytes,
         "mime_type": attachment.mime_type,
+        "visibility": attachment.effective_visibility(),
     }
     if attachment.image is not None:
         wire["image"] = {
@@ -142,11 +147,15 @@ def _wire_with_availability(attachment: BeadNoteAttachment) -> dict[str, object]
         }
     if attachment.origin is not None:
         wire["origin"] = attachment.origin
+    reason = read_audience_reason(attachment.sha256)
+    if reason is not None:
+        wire["audience_reason"] = reason
     availability = attachment_availability(
         attachment.sha256,
         size_bytes=attachment.size_bytes,
         origin=getattr(attachment, "origin", None),
         name=attachment.name,
+        visibility=getattr(attachment, "visibility", None),
     )
     wire["availability"] = availability
     if availability == "cached":
@@ -217,16 +226,38 @@ def _handle_bead_attachment_path(args: argparse.Namespace) -> None:
             size_bytes=attachment.size_bytes,
             origin=getattr(attachment, "origin", None),
             name=attachment.name,
+            visibility=getattr(attachment, "visibility", None),
         )
+        if state == "blocked":
+            # Blocked is about upload, not local readability: a verified
+            # local object still resolves to a path.
+            from sase.bead.attachments.fetch import local_object_verified
+
+            if local_object_verified(attachment.sha256):
+                state = "cached"
         if state != "cached":
+            from sase.bead.attachment_presentation import dispatch_fetch_hint
+            from sase.bead.attachments.fetch import (
+                resolve_badge_origin,
+                resolve_badge_repo,
+            )
+
+            badge_origin = resolve_badge_origin(
+                attachment.sha256, getattr(attachment, "origin", None)
+            )
             badge = attachment_badge(
                 state,
                 size_bytes=attachment.size_bytes,
                 bead_id=resolved_id,
                 name=attachment.name,
-                origin=getattr(attachment, "origin", None),
+                origin=badge_origin,
+                repo=resolve_badge_repo(attachment.sha256),
             )
             detail = f" ({badge})" if badge else ""
+            if state == "origin_only":
+                hint = dispatch_fetch_hint(badge_origin)
+                if hint is not None:
+                    detail += f" — {hint}"
             print(
                 f"Error: attachment {strip_display_name(name)} is not available"
                 f"{detail} (no local object for sha256:{attachment.sha256[:12]}).",
@@ -275,6 +306,7 @@ def _handle_bead_attachment_open(args: argparse.Namespace) -> None:
                 size_bytes=record.size_bytes,
                 origin=getattr(record, "origin", None),
                 name=record.name,
+                visibility=getattr(record, "visibility", None),
             )
             != "purged"
         )
@@ -328,14 +360,30 @@ def _handle_bead_attachment_open(args: argparse.Namespace) -> None:
             size_bytes=attachment.size_bytes,
             origin=getattr(attachment, "origin", None),
             name=attachment.name,
+            visibility=getattr(attachment, "visibility", None),
         )
+        if state == "blocked":
+            # Blocked is about upload, not local readability: a verified
+            # local object still opens.
+            from sase.bead.attachments.fetch import local_object_verified
+
+            if local_object_verified(attachment.sha256):
+                state = "cached"
         if state != "cached":
+            from sase.bead.attachments.fetch import (
+                resolve_badge_origin,
+                resolve_badge_repo,
+            )
+
             badge = attachment_badge(
                 state,
                 size_bytes=attachment.size_bytes,
                 bead_id=resolved_id,
                 name=attachment.name,
-                origin=getattr(attachment, "origin", None),
+                origin=resolve_badge_origin(
+                    attachment.sha256, getattr(attachment, "origin", None)
+                ),
+                repo=resolve_badge_repo(attachment.sha256),
             )
             detail = f" ({badge})" if badge else ""
             print(

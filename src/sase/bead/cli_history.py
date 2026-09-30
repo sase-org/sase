@@ -380,6 +380,7 @@ def _attachment_descriptor_lines(
                 image=getattr(attachment, "image", None),
                 size_bytes=attachment.size_bytes,
                 sha256=attachment.sha256,
+                visibility=getattr(attachment, "visibility", None),
             )
         )
     return lines
@@ -410,6 +411,7 @@ def _wired_attachment_lines(wired: list[object]) -> list[str]:
         ):
             lines.append(f"    attachment: {strip_display_name(name)}")
             continue
+        visibility = item.get("visibility")
         lines.append(
             "    attachment: "
             + attachment_descriptor(
@@ -418,6 +420,7 @@ def _wired_attachment_lines(wired: list[object]) -> list[str]:
                 image=item.get("image"),
                 size_bytes=size,
                 sha256=sha,
+                visibility=visibility if isinstance(visibility, str) else None,
             )
         )
     return lines

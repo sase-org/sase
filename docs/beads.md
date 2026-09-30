@@ -956,14 +956,21 @@ do.
 
 #### Troubleshooting badges
 
-Prose always renders; a preview or fetch failure never fails `show`/`read`. Each
-attachment carries one availability badge: no badge means `cached`, `⇣ not downloaded`
-means above the `bead.attachments.auto_fetch_max_bytes` cap (25 MiB; `-d/--download`
-lifts it for one invocation, `attachment path` and `attachment open` always fetch),
-`⇡ pending upload` means the bytes have not reached the shared store yet,
-`⚠ only on <machine>` means local-only, `✕ unavailable offline` means no reachable copy,
-`(purged)` means the bytes were purged behind a tombstone, and `‼ digest mismatch` means
-the cached bytes failed verification and were quarantined.
+Prose always renders; a preview or fetch failure never fails `show`/`read`. Every
+attachment line carries an audience badge: `🌐` means public (readable by anyone who can
+read the bead store) and `🔒` means private (or a pre-visibility descriptor, which is
+always private). Each attachment also carries one availability badge: no badge means
+`cached`, `⇣ not downloaded` means above the `bead.attachments.auto_fetch_max_bytes` cap
+(25 MiB; `-d/--download` lifts it for one invocation, `attachment path` and
+`attachment open` always fetch), `⇡ pending upload` means the bytes have not reached the
+shared store yet, `⚠ only on <machine>` means local-only, `⧉ on <machine>` means
+local-only and larger than `bead.attachments.git_max_bytes`, so it can only be fetched
+from that machine (see the `%dispatch:<machine>` hint), `🔒 no access (<repo>)` means
+the shared store denied the fetch (no grant on that machine),
+`⛔ blocked by secret scanning` means the push was rejected and the object stays local,
+`✕ unavailable offline` means no reachable copy, `(purged)` means the bytes were purged
+behind a tombstone, and `‼ digest mismatch` means the cached bytes failed verification
+and were quarantined.
 
 #### Mixed-fleet upgrades
 

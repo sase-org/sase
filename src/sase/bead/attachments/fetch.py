@@ -1,15 +1,18 @@
 """Lazy fetch, availability states, and badges for bead attachments.
 
 ``read``, ``show``, and ``attachment path`` resolve each attachment in this
-order: local tombstone, local CAS hit, then the ``attachments-private`` git
-store. ``attachment_should_auto_fetch`` (core policy) decides whether the
-read fetches under the ``auto_fetch_max_bytes`` cap; ``-d/--download`` lifts
-the cap for one invocation and ``attachment path`` always fetches.
-``attachment list`` never fetches and reports the state it can see.
+order: local tombstone, local CAS hit, then the shared git stores ordered by
+descriptor visibility. ``attachment_should_auto_fetch`` (core policy) decides
+whether the read fetches under the ``auto_fetch_max_bytes`` cap;
+``-d/--download`` lifts the cap for one invocation and ``attachment path``
+always fetches. ``attachment list`` never fetches and reports the state it
+can see.
 
 A fetch or preview failure never fails ``show`` or ``read``: the state falls
-back to ``unavailable`` (or ``corrupt`` on a digest mismatch) and the command
-still exits 0.
+back to ``unavailable`` (``corrupt`` on a digest mismatch, ``no_access`` on a
+git fetch access denial, ``blocked`` for secret-scanning rejections, and
+``origin_only`` for oversized local-only objects) and the command still
+exits 0.
 """
 
 from __future__ import annotations
@@ -32,12 +35,18 @@ AVAILABILITY_STATES = (
     "not_downloaded",
     "pending_upload",
     "local_only",
+    "origin_only",
+    "no_access",
+    "blocked",
     "unavailable",
     "purged",
     "corrupt",
 )
 """Every availability state. ``remote`` is transient: fetching callers never
-leave it user-visible."""
+leave it user-visible. ``origin_only`` is a local-only object larger than
+the git tier that can only be fetched from its origin machine; ``no_access``
+is a git fetch access denial; ``blocked`` is a secret-scanning push
+rejection recorded in the local outbox."""
 
 
 def format_attachment_size(size_bytes: int | None) -> str:
@@ -65,6 +74,7 @@ class _FetchContext:
     cap_bytes: int = 26214400
     failed: set[str] = field(default_factory=set)
     corrupt: set[str] = field(default_factory=set)
+    no_access: dict[str, str] = field(default_factory=dict)
     discover: bool = False
 
 
@@ -209,8 +219,8 @@ def _ensure_discovered(context: _FetchContext | None) -> None:
     ``context is None`` fallback never replace an injected ``store``. Clears
     the flag first, then copies ``project_key``, ``store``, and ``outbox``
     from today's eager discovery body. Leaves ``mode``, ``cap_bytes``,
-    ``failed``, and ``corrupt`` alone. Never raises: a discovery failure
-    leaves ``store`` as ``None``, matching the eager path.
+    ``failed``, ``corrupt``, and ``no_access`` alone. Never raises: a
+    discovery failure leaves ``store`` as ``None``, matching the eager path.
     """
     if context is None or not context.discover:
         return
@@ -265,6 +275,78 @@ def _store_has_tombstone(store: Any, sha256: str) -> bool:
         return False
 
 
+_ACCESS_DENIED_MARKERS = (
+    "repository not found",
+    "permission denied",
+    "could not read username",
+    "could not read password",
+    "authentication failed",
+    "access denied",
+    "http 401",
+    "http 403",
+    "http 404",
+    "status 401",
+    "status 403",
+    "status 404",
+    "error: 401",
+    "error: 403",
+    "error: 404",
+)
+"""Case-insensitive git fetch fragments that mean an access denial.
+
+A reader without a grant sees ``no_access`` instead of ``unavailable`` so
+the state stays honest about whose copy is missing.
+"""
+
+
+def _is_access_denied(exc: BaseException) -> bool:
+    """Return whether *exc* reads as a git fetch access denial."""
+    try:
+        message = str(exc).casefold()
+    except Exception:
+        return False
+    return any(marker in message for marker in _ACCESS_DENIED_MARKERS)
+
+
+def _store_label(store: Any) -> str:
+    """Return a human-readable repo label for *store*, never raising."""
+    for probe in ("describe",):
+        try:
+            label = getattr(store, probe)()
+        except Exception:
+            continue
+        if isinstance(label, str) and label.strip():
+            return label.strip()
+    try:
+        name = getattr(store, "name", None)
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+    except Exception:
+        pass
+    return "the shared store"
+
+
+def _get_git_max_bytes() -> int:
+    """Return the configured git-tier ceiling, failing open to 50 MiB."""
+    try:
+        from sase.bead.config import get_attachment_git_max_bytes
+
+        return get_attachment_git_max_bytes()
+    except Exception:
+        return 52428800
+
+
+def local_object_verified(sha256: str) -> bool:
+    """Return whether the local CAS holds a digest-verified *sha256*."""
+    cas = _local_store()
+    if cas is None:
+        return False
+    try:
+        return bool(cas.has(sha256) and cas.verify(sha256))
+    except Exception:
+        return False
+
+
 def _ensure_fetched(
     context: _FetchContext,
     sha256: str,
@@ -276,10 +358,12 @@ def _ensure_fetched(
     """Fetch *sha256* into the local CAS through the ordered tier stores.
 
     Returns True when the local object is present and digest-verified. A
-    digest mismatch records ``corrupt`` and installs nothing; a miss moves
-    on to the next store; any other transient failure moves on and the
-    digest is ``failed`` only after every store has failed. Downloads above
-    8 MiB draw a TTY progress bar. Never raises.
+    digest mismatch records ``corrupt`` and installs nothing; an access
+    denial records ``no_access`` with the denying repo's label and moves on
+    to the next store; a miss moves on to the next store; any other
+    transient failure moves on and the digest is ``failed`` only after every
+    store has failed. Downloads above 8 MiB draw a TTY progress bar. Never
+    raises.
     """
     from sase.bead.attachments.progress import transfer_progress
 
@@ -311,6 +395,15 @@ def _ensure_fetched(
             if bool(getattr(exc, "missing", False)):
                 log.debug(
                     "attachment fetch of %s… missed in store: %s", sha256[:12], exc
+                )
+                continue
+            if _is_access_denied(exc):
+                context.no_access.setdefault(sha256, _store_label(store))
+                log.debug(
+                    "attachment fetch of %s… denied by %s: %s",
+                    sha256[:12],
+                    context.no_access[sha256],
+                    exc,
                 )
                 continue
             transient = bool(getattr(exc, "transient", True))
@@ -346,6 +439,10 @@ def attachment_state(
     shared store the legacy two states hold: a verified local object is
     ``cached``, anything else ``unavailable``. ``remote`` is never returned;
     observation-only callers see ``not_downloaded`` for store-held objects.
+    A secret-scanning rejection recorded in the local outbox reads
+    ``blocked`` even when the bytes are local; a local-only object larger
+    than the git tier reads ``origin_only``; a git fetch access denial reads
+    ``no_access``.
     """
     del origin  # Badge input; state also uses the name for fetch progress.
     from sase.bead.attachments.store import validate_sha256
@@ -396,7 +493,13 @@ def attachment_state(
         and getattr(pending_entry, "state", "pending") != "blocked"
     ):
         return "pending_upload"
+    if pending_entry is not None and (
+        getattr(pending_entry, "state", "pending") == "blocked"
+    ):
+        return "blocked"
     if local_present:
+        if size_bytes is not None and size_bytes > _get_git_max_bytes():
+            return "origin_only"
         return "local_only"
     if remote_has:
         if context.mode == "force" or (
@@ -414,8 +517,12 @@ def attachment_state(
                 return "cached"
             if sha256 in context.corrupt:
                 return "corrupt"
+            if sha256 in context.no_access:
+                return "no_access"
             return "unavailable"
         return "not_downloaded"
+    if sha256 in context.no_access:
+        return "no_access"
     return "unavailable"
 
 
@@ -448,6 +555,22 @@ def resolve_badge_origin(
     return "this machine"
 
 
+def resolve_badge_repo(
+    sha256: str,
+    context: _FetchContext | None = None,
+) -> str | None:
+    """Return the denying repo label recorded for *sha256*, if any."""
+    context = context if context is not None else _current.get()
+    if context is not None:
+        try:
+            label = context.no_access.get(sha256)
+        except Exception:
+            label = None
+        if isinstance(label, str) and label.strip():
+            return label.strip()
+    return None
+
+
 def attachment_badge(
     state: str,
     *,
@@ -455,6 +578,7 @@ def attachment_badge(
     bead_id: str | None = None,
     name: str | None = None,
     origin: str | None = None,
+    repo: str | None = None,
 ) -> str | None:
     """Return the display badge for *state*, or None for ``cached``/``remote``."""
     if state in ("cached", "remote"):
@@ -469,6 +593,12 @@ def attachment_badge(
         return f"⇡ pending upload ({origin or 'unknown'})"
     if state == "local_only":
         return f"⚠ only on {origin or 'this machine'}"
+    if state == "origin_only":
+        return f"⧉ on {origin or 'this machine'}"
+    if state == "no_access":
+        return f"🔒 no access ({repo})" if repo else "🔒 no access"
+    if state == "blocked":
+        return "⛔ blocked by secret scanning"
     if state == "unavailable":
         return "✕ unavailable offline"
     if state == "purged":
@@ -490,6 +620,8 @@ __all__ = [
     "fetch_context",
     "format_attachment_size",
     "_get_auto_fetch_cap",
+    "local_object_verified",
     "resolve_badge_origin",
+    "resolve_badge_repo",
     "_should_auto_fetch",
 ]

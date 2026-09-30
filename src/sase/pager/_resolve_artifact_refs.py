@@ -203,6 +203,7 @@ def _resolve_attachment_artifact_link(
     if path is None:
         diagnostic = (
             getattr(result.resolution, "diagnostic", None)
+            or _attachment_state_diagnostic(bead_id, name)
             or f"attachment {name} is ✕ unavailable offline on {bead_id}."
         )
         return LinkResolution(unresolved_message=diagnostic)
@@ -279,6 +280,70 @@ def _resolve_attachment_artifact_link(
     return LinkResolution(
         target=card_link_target(result, path=path, context=link_context)
     )
+
+
+def _attachment_state_diagnostic(bead_id: str, name: str) -> str | None:
+    """Return a state-aware unavailable message for one attachment.
+
+    Mirrors the ``show``/``read`` badges (including ``no_access``,
+    ``origin_only`` with its ``%dispatch`` hint, and ``blocked``) so pager
+    links stay honest about whose copy is missing. Returns ``None`` when
+    the roster or state cannot be determined; callers fall back to the
+    generic offline message. Never raises.
+    """
+    try:
+        from sase.bead.attachment_presentation import dispatch_fetch_hint
+        from sase.bead.attachment_resolve import roster_for_bead_id
+        from sase.bead.attachments.fetch import (
+            attachment_badge,
+            attachment_state,
+            fetch_context,
+            resolve_badge_origin,
+            resolve_badge_repo,
+        )
+
+        _issue, roster = roster_for_bead_id(bead_id)
+        attachment = roster.get(name)
+        if attachment is None:
+            return None
+        sha256 = str(getattr(attachment, "sha256", "") or "")
+        if not sha256:
+            return None
+        size = getattr(attachment, "size_bytes", None)
+        attachment_origin = getattr(attachment, "origin", None)
+        visibility = getattr(attachment, "visibility", None)
+        with fetch_context(mode="never"):
+            state = attachment_state(
+                sha256,
+                size_bytes=size if isinstance(size, int) else None,
+                origin=attachment_origin
+                if isinstance(attachment_origin, str)
+                else None,
+                name=name,
+                visibility=visibility if isinstance(visibility, str) else None,
+            )
+            badge_origin = resolve_badge_origin(
+                sha256,
+                attachment_origin if isinstance(attachment_origin, str) else None,
+            )
+            badge = attachment_badge(
+                state,
+                size_bytes=size if isinstance(size, int) else None,
+                bead_id=bead_id,
+                name=name,
+                origin=badge_origin,
+                repo=resolve_badge_repo(sha256),
+            )
+        if state == "cached" or badge is None:
+            return None
+        message = f"attachment {name} is {badge} on {bead_id}."
+        if state == "origin_only":
+            hint = dispatch_fetch_hint(badge_origin)
+            if hint is not None:
+                message += f" {hint}."
+        return message
+    except Exception:
+        return None
 
 
 def _sanitized_attachment_text(path: Path) -> str | None:

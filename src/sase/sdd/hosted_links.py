@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase._git_remote import github_blob_url, github_commit_url
+from sase._git_remote import github_blob_url, github_commit_url, github_raw_url
 from sase.sdd.checkout_anchor import resolve_checkout_anchor
 
 if TYPE_CHECKING:
@@ -228,6 +228,44 @@ class HostedLinkResolver:
             path=path,
         )
 
+    def attachment_url(self, sha256: str, mime_type: str | None = None) -> str | None:
+        """Return the raw hosted URL for one public attachment object.
+
+        The URL points at the extension-preserving public object path in
+        the ``attachments`` sidecar, in the spike's chosen raw form, so
+        bead pages can link (and embed images with) bytes GitHub serves
+        with their content type. Returns ``None`` when the sidecar clone,
+        its remote, its branch, the relpath, or the raw URL cannot be
+        resolved. Never raises.
+        """
+
+        try:
+            from sase.bead.attachments.store import validate_sha256
+
+            validate_sha256(sha256)
+            coordinates = self._memoized(
+                "attachments", self._resolve_attachments_remote
+            )
+            if coordinates is None or coordinates.branch is None:
+                return None
+            from sase.core.rust import require_rust_binding
+
+            relpath = str(
+                require_rust_binding("attachment_public_object_relpath")(
+                    sha256, mime_type
+                )
+            )
+            if not relpath:
+                return None
+            return github_raw_url(
+                coordinates.remote_url,
+                provider=coordinates.provider,
+                branch=coordinates.branch,
+                path=relpath,
+            )
+        except Exception:
+            return None
+
     def commit_url(self, sha: str) -> str | None:
         """Return the primary repository's commit URL for *sha*."""
 
@@ -318,6 +356,43 @@ class HostedLinkResolver:
         if branch is None:
             return None
         return _RemoteCoordinates(store.beads_remote_url, store.provider, branch)
+
+    def _resolve_attachments_remote(self) -> _RemoteCoordinates | None:
+        from sase.agents_sync.links import hosted_provider
+
+        try:
+            from sase.bead.attachments.upload.discovery import (
+                hidden_clone_path,
+                resolve_project_key,
+            )
+            from sase.sdd._store_types import ATTACHMENTS_SIDECAR_ROLE
+        except Exception:
+            return None
+        try:
+            project_key = resolve_project_key(None)
+            if not project_key:
+                return None
+            clone = hidden_clone_path(project_key, ATTACHMENTS_SIDECAR_ROLE)
+        except Exception:
+            return None
+        if clone is None:
+            return None
+        repo = Path(clone).expanduser()
+        if not (repo / ".git").exists() and not (repo / "HEAD").exists():
+            return None
+        try:
+            got = self._git_runner(repo, ["remote", "get-url", "origin"], op=_REMOTE_OP)
+        except Exception:
+            return None
+        if got.returncode != 0:
+            return None
+        remote = got.stdout.strip() or None
+        if not remote:
+            return None
+        branch = resolve_hosted_branch(repo, git_runner=self._git_runner)
+        if branch is None:
+            return None
+        return _RemoteCoordinates(remote, hosted_provider(remote), branch)
 
     def _resolve_agents_remote(self) -> _RemoteCoordinates | None:
         from sase.agents_sync.links import hosted_provider

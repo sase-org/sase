@@ -1,19 +1,32 @@
-"""Plain-text presentation for bead note attachments (beta).
+"""Audience-aware presentation for bead note attachments.
 
-One chip formatter shared by CLI, JSON, and history. This phase uses the
-plain-text form only: prose replaces each ``@attachment:<name>`` token with
-``[name]``, filenames are stripped of control and bidi characters, and an
-``ATTACHMENTS`` block lists descriptors plus the local view path. No image
-drawing, no bytes, no ANSI escapes in the data itself.
+One chip formatter shared by CLI, JSON, history, and bead pages. CLI prose
+replaces each ``@attachment:<name>`` token with ``[name]``, filenames are
+stripped of control and bidi characters, and an ``ATTACHMENTS`` block lists
+descriptors plus the local view path. Every descriptor line carries an
+audience badge (``🌐`` public, ``🔒`` private or absent). Bead-page helpers
+render public files as links, embed public images, and never emit private
+digests or local reasons. No image drawing, no bytes, no ANSI escapes in
+the data itself.
 """
 
 from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Mapping
 from typing import Any
 
 _ATTACHMENT_TOKEN_RE = re.compile(r"@attachment:([^\s]+)")
+
+PUBLIC_BADGE = "🌐"
+PRIVATE_BADGE = "🔒"
+
+
+def audience_badge(visibility: str | None) -> str:
+    """Return ``🌐`` for explicit public, else ``🔒`` (private or absent)."""
+    return PUBLIC_BADGE if visibility == "public" else PRIVATE_BADGE
+
 
 # Trailing punctuation the scanner trims from a reference.
 _TOKEN_TRAILING_CHARS = ".,;:!?)]" + "}>"
@@ -91,8 +104,13 @@ def attachment_descriptor(
     image: Any,
     size_bytes: int,
     sha256: str,
+    visibility: str | None = None,
 ) -> str:
-    """Return one ``name · mime · dims · size · sha256:<12>`` descriptor."""
+    """Return one ``🌐/🔒 name · mime · dims · size · sha256:<12>`` descriptor.
+
+    The badge is ``🌐`` for explicit public, else ``🔒`` (private or
+    absent visibility).
+    """
     display = strip_display_name(name)
     dims = _format_attachment_dims(image)
     size = _format_attachment_size(size_bytes)
@@ -100,7 +118,7 @@ def attachment_descriptor(
     if dims is not None:
         parts.append(dims)
     parts.extend([size, f"sha256:{sha256[:12]}"])
-    return " \u00b7 ".join(parts)
+    return f"{audience_badge(visibility)} " + " \u00b7 ".join(parts)
 
 
 def attachment_availability(
@@ -148,6 +166,14 @@ def attachment_availability(
     return "unavailable"
 
 
+def dispatch_fetch_hint(origin: str | None) -> str | None:
+    """Return the ``%dispatch`` hint for an origin-only object, if known."""
+    if not isinstance(origin, str) or not origin.strip():
+        return None
+    machine = origin.strip()
+    return f"fetch via %dispatch:{machine} from {machine}"
+
+
 def attachment_status_lines(
     *,
     bead_id: str | None,
@@ -159,11 +185,16 @@ def attachment_status_lines(
 ) -> list[str]:
     """Return view-path plus badge lines for one attachment in text output.
 
-    ``cached`` renders the extension-preserving view path. ``pending_upload``
-    and ``local_only`` render the view path (the bytes are local) plus the
-    badge. Every other state renders only its badge.
+    ``cached`` renders the extension-preserving view path. ``pending_upload``,
+    ``local_only``, ``origin_only``, and ``blocked`` render the view path
+    (the bytes are local) plus the badge; ``origin_only`` appends the
+    ``%dispatch`` fetch hint. Every other state renders only its badge.
     """
-    from sase.bead.attachments.fetch import attachment_badge, resolve_badge_origin
+    from sase.bead.attachments.fetch import (
+        attachment_badge,
+        resolve_badge_origin,
+        resolve_badge_repo,
+    )
 
     state = attachment_availability(
         sha256,
@@ -182,7 +213,8 @@ def attachment_status_lines(
             if badge is not None:
                 lines.append(badge)
         return lines
-    if state in ("pending_upload", "local_only"):
+    resolved_origin = resolve_badge_origin(sha256, origin)
+    if state in ("pending_upload", "local_only", "origin_only", "blocked"):
         view = attachment_view_path(sha256, name)
         if view is not None:
             lines.append(view)
@@ -191,10 +223,15 @@ def attachment_status_lines(
         size_bytes=size_bytes if isinstance(size_bytes, int) else None,
         bead_id=bead_id,
         name=name,
-        origin=resolve_badge_origin(sha256, origin),
+        origin=resolved_origin,
+        repo=resolve_badge_repo(sha256),
     )
     if badge is not None:
         lines.append(badge)
+    if state == "origin_only":
+        hint = dispatch_fetch_hint(resolved_origin)
+        if hint is not None:
+            lines.append(hint)
     return lines
 
 
@@ -204,21 +241,109 @@ def attachment_page_line(
     mime_type: str,
     image: Any,
     size_bytes: int,
+    visibility: str | None = None,
+    url: str | None = None,
 ) -> str:
-    """Return one public bead-page line for an attachment.
+    """Return one bead-page line for an attachment.
 
     Bead pages are public artifacts, so the line names the file, its media
-    type, and its size with a private-attachment marker — and never a path,
-    a link, or a digest.
+    type, and its size — and never a path, a local reason, or (for private
+    files) a digest. Public files render as ``🌐 [name](url)`` when a hosted
+    URL is available, else as a badged plain name; private files render as
+    ``🔒 name · mime · size (private attachment)``.
     """
-    display = strip_display_name(name)
+    from sase.agents_sync.rendering_markdown import md_escape
+
+    display = md_escape(strip_display_name(name))
     dims = _format_attachment_dims(image)
     size = _format_attachment_size(size_bytes)
+    if visibility == "public":
+        labeled = f"[{display}]({url})" if url else display
+        parts = [labeled, mime_type]
+        if dims is not None:
+            parts.append(dims)
+        parts.append(size)
+        return f"{PUBLIC_BADGE} " + " · ".join(parts)
     parts = [display, mime_type]
     if dims is not None:
         parts.append(dims)
     parts.append(size)
-    return "🔒 " + " · ".join(parts) + " (private attachment)"
+    return f"{PRIVATE_BADGE} " + " · ".join(parts) + " (private attachment)"
+
+
+def page_prose_with_attachments(
+    text: str,
+    entries: Mapping[str, tuple[str | None, str | None]] | None,
+) -> str:
+    """Replace ``@attachment:<name>`` tokens with page links or chips.
+
+    *entries* maps an attachment name to its ``(visibility, url)`` pair.
+    Public names render as ``[name](url)`` (or ``[name]`` without a URL);
+    private and absent-visibility names render as ``🔒 name``; names absent
+    from *entries* render as ``[name]`` — never as the raw token. Display
+    names are markdown-escaped; local reasons and digests never appear.
+    """
+    from sase.agents_sync.rendering_markdown import md_escape
+
+    known: dict[str, tuple[str | None, str | None]] = dict(entries or {})
+
+    def _render_token(raw: str, trailing: str) -> str:
+        display = md_escape(strip_display_name(raw))
+        if not display:
+            return f"@attachment:{raw}{trailing}"
+        visibility, url = known.get(raw, (None, None))
+        if visibility == "public":
+            if url:
+                return f"[{display}]({url}){trailing}"
+            return f"[{display}]{trailing}"
+        if raw in known:
+            return f"{PRIVATE_BADGE} {display}{trailing}"
+        return f"[{display}]{trailing}"
+
+    for token_name in sorted(known, key=len, reverse=True):
+        if not token_name:
+            continue
+        rendered = _render_token(token_name, "")
+        # Re-render without trailing handling: exact tokens carry none.
+        text = text.replace(f"@attachment:{token_name}", rendered)
+
+    def _repl(match: re.Match[str]) -> str:
+        raw, trailing = _split_trailing(match.group(1))
+        if not raw:
+            return match.group(0)
+        return _render_token(raw, trailing)
+
+    return _ATTACHMENT_TOKEN_RE.sub(_repl, text)
+
+
+def page_image_embed(
+    *,
+    name: str,
+    mime_type: str,
+    size_bytes: int,
+    visibility: str | None,
+    url: str | None,
+) -> str | None:
+    """Return a ``![name](url)`` embed line, or ``None`` when not embeddable.
+
+    Only public images with a hosted URL and at most the auto-fetch cap
+    embed; extensionless objects and non-images link instead of embedding.
+    """
+    if visibility != "public" or not url:
+        return None
+    if not isinstance(mime_type, str) or not mime_type.startswith("image/"):
+        return None
+    try:
+        from sase.bead.config import get_attachment_auto_fetch_max_bytes
+
+        cap = get_attachment_auto_fetch_max_bytes()
+    except Exception:
+        cap = 26214400
+    if not isinstance(size_bytes, int) or size_bytes < 0 or size_bytes > cap:
+        return None
+    from sase.agents_sync.rendering_markdown import md_escape
+
+    return f"![{md_escape(strip_display_name(name))}]({url})"
 
 
 def attachment_view_path(sha256: str, name: str) -> str | None:
@@ -265,13 +390,19 @@ def extract_attachment_tokens(text: str) -> list[str]:
 
 
 __all__ = [
+    "PRIVATE_BADGE",
+    "PUBLIC_BADGE",
     "attachment_availability",
     "attachment_descriptor",
     "attachment_page_line",
     "attachment_status_lines",
     "attachment_view_path",
+    "audience_badge",
     "compact_attachment_suffix",
+    "dispatch_fetch_hint",
     "extract_attachment_tokens",
+    "page_image_embed",
+    "page_prose_with_attachments",
     "prose_with_chips",
     "strip_display_name",
 ]

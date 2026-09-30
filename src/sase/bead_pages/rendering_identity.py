@@ -68,6 +68,11 @@ class _CommitLinkResolver(Protocol):
     def commit_url(self, sha: str) -> str | None: ...
 
 
+@runtime_checkable
+class _AttachmentLinkResolver(Protocol):
+    def attachment_url(self, sha256: str, mime_type: str | None) -> str | None: ...
+
+
 def render_identity(
     detail: IssueDetail,
     *,
@@ -116,9 +121,60 @@ def render_references(
     return lines
 
 
-def render_prose_sections(issue: Issue) -> list[str]:
+def page_attachment_entries(
+    issue: Issue,
+    link_resolver: Any | None,
+) -> dict[str, tuple[str | None, str | None]]:
+    """Map attachment name to its ``(visibility, hosted URL)`` page pair.
+
+    Only explicit-public attachments resolve a hosted URL, through a
+    resolver carrying ``attachment_url``; everything else renders as a
+    private chip. Never raises: an unresolvable URL degrades to an unlinked
+    public chip rather than a broken link.
+    """
+
+    roster: dict[str, Any] = {}
+    for note in issue.notes:
+        for attachment in note.attachments:
+            roster.setdefault(attachment.name, attachment)
+    for evidence in issue.plus_one_evidence:
+        for attachment in getattr(evidence, "attachments", ()):
+            roster.setdefault(attachment.name, attachment)
+    entries: dict[str, tuple[str | None, str | None]] = {}
+    for name, attachment in roster.items():
+        visibility = getattr(attachment, "visibility", None)
+        url: str | None = None
+        if visibility == "public" and isinstance(
+            link_resolver, _AttachmentLinkResolver
+        ):
+            try:
+                candidate = link_resolver.attachment_url(
+                    attachment.sha256, attachment.mime_type
+                )
+            except Exception:
+                candidate = None
+            url = candidate if isinstance(candidate, str) and candidate else None
+        entries[name] = (
+            visibility if isinstance(visibility, str) else None,
+            url,
+        )
+    return entries
+
+
+def render_prose_sections(
+    issue: Issue,
+    *,
+    attachment_links: dict[str, tuple[str | None, str | None]] | None = None,
+) -> list[str]:
     """Render bounded free-form prose without allowing structural injection."""
 
+    from sase.bead.attachment_presentation import page_prose_with_attachments
+
+    entries = (
+        attachment_links
+        if attachment_links is not None
+        else page_attachment_entries(issue, None)
+    )
     lines: list[str] = []
     description = issue.description
     body = render_task_type_display_block(issue)
@@ -133,35 +189,78 @@ def render_prose_sections(issue: Issue) -> list[str]:
                 lines.append("")
             lines.append(_bounded_prose(body))
     if issue.notes_text.strip():
-        lines.extend(["", "## Notes", "", _bounded_prose(issue.notes_text)])
+        linked = page_prose_with_attachments(issue.notes_text, entries)
+        lines.extend(["", "## Notes", "", _bounded_prose(linked)])
     return lines
 
 
-def render_attachments(issue: Issue) -> list[str]:
+def render_attachments(
+    issue: Issue,
+    *,
+    attachment_links: dict[str, tuple[str | None, str | None]] | None = None,
+) -> list[str]:
     """Render the bead's current attachment roster for a public page.
 
-    Pages are public artifacts, so each line names the file, its media
-    type, and its size with a private-attachment marker — never a path, a
-    link, or a digest. The roster unions note and +1-evidence manifests.
+    Pages are public artifacts. Public files render as
+    ``🌐 [name](url) · mime · size`` with public images embedded inline
+    (at most four embeds per note and only under the auto-fetch cap);
+    private files render as ``🔒 name · mime · size (private attachment)``.
+    Lines never carry paths, local reasons, or private digests. Notes keep
+    their order with names sorted within a note; +1 evidence renders last.
     """
 
-    roster: dict[str, Any] = {}
+    from sase.bead.attachment_presentation import (
+        attachment_page_line,
+        page_image_embed,
+    )
+
+    entries = (
+        attachment_links
+        if attachment_links is not None
+        else page_attachment_entries(issue, None)
+    )
+    groups: list[list[Any]] = []
+    seen: set[str] = set()
     for note in issue.notes:
+        group = []
         for attachment in note.attachments:
-            roster[attachment.name] = attachment
+            if attachment.name in seen:
+                continue
+            seen.add(attachment.name)
+            group.append(attachment)
+        if group:
+            groups.append(sorted(group, key=lambda item: item.name))
+    evidence_group = []
     for evidence in issue.plus_one_evidence:
         for attachment in getattr(evidence, "attachments", ()):
-            roster[attachment.name] = attachment
-    if not roster:
+            if attachment.name in seen:
+                continue
+            seen.add(attachment.name)
+            evidence_group.append(attachment)
+    if evidence_group:
+        groups.append(sorted(evidence_group, key=lambda item: item.name))
+    if not groups:
         return []
-    from sase.bead.attachment_presentation import attachment_page_line
-
     lines = ["", "## Attachments", ""]
-    for name in sorted(roster):
-        attachment = roster[name]
-        lines.append(
-            f"- {md_escape(attachment_page_line(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes))}"
-        )
+    for group in groups:
+        embeds = 0
+        for attachment in group:
+            visibility, url = entries.get(attachment.name, (None, None))
+            lines.append(
+                f"- {attachment_page_line(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, visibility=visibility, url=url)}"
+            )
+            if embeds >= 4:
+                continue
+            embedded = page_image_embed(
+                name=attachment.name,
+                mime_type=attachment.mime_type,
+                size_bytes=attachment.size_bytes,
+                visibility=visibility,
+                url=url,
+            )
+            if embedded is not None:
+                lines.append(embedded)
+                embeds += 1
     return lines
 
 
@@ -169,11 +268,21 @@ def render_plus_one_evidence(
     issue: Issue,
     *,
     plan_links: PlanLinkResolver | None,
+    attachment_links: dict[str, tuple[str | None, str | None]] | None = None,
 ) -> list[str]:
-    """Render bounded, structurally safe corroboration callouts."""
+    """Render bounded, structurally safe corroboration callouts.
+
+    Evidence attachments render in the page-line form — links for public
+    files, private chips otherwise — and never show digests.
+    """
 
     if not issue.plus_one_evidence:
         return []
+    entries = (
+        attachment_links
+        if attachment_links is not None
+        else page_attachment_entries(issue, None)
+    )
     lines = ["", f"## {PLUS_ONE_SECTION_LABEL.title()}", ""]
     evidence_rows = sorted(
         issue.plus_one_evidence,
@@ -195,16 +304,14 @@ def render_plus_one_evidence(
             )
         lines.append(">")
         from sase.bead.attachment_presentation import (
-            attachment_descriptor,
-            prose_with_chips,
+            attachment_page_line,
+            page_prose_with_attachments,
         )
 
         attachments = getattr(evidence, "attachments", ())
         note_text = evidence.note
         if attachments:
-            note_text = prose_with_chips(
-                note_text, [attachment.name for attachment in attachments]
-            )
+            note_text = page_prose_with_attachments(note_text, entries)
         lines.extend(
             f"> {line}" if line else ">"
             for line in _bounded_prose(note_text).splitlines()
@@ -213,8 +320,9 @@ def render_plus_one_evidence(
             lines.append(">")
             lines.append("> **Attachments:**")
             for attachment in attachments:
+                visibility, url = entries.get(attachment.name, (None, None))
                 lines.append(
-                    f"> - {md_escape(attachment_descriptor(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, sha256=attachment.sha256))}"
+                    f"> - {attachment_page_line(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes, visibility=visibility, url=url)}"
                 )
         if evidence.refs:
             lines.append(">")
@@ -439,6 +547,8 @@ def _neutralize_structural_line(line: str) -> str:
 __all__ = [
     "MAX_RENDERED_PROSE_CHARS",
     "PlanLinkResolver",
+    "page_attachment_entries",
+    "render_attachments",
     "render_flag",
     "render_close_history",
     "render_identity",

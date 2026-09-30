@@ -286,8 +286,13 @@ class GitAttachmentStore:
             return None
         return result.stdout.strip() or None
 
-    def _fetch_now(self, branch: str) -> bool:
-        """Fetch *branch* from origin within the bounded timeout."""
+    def _fetch_now(self, branch: str) -> str | None:
+        """Fetch *branch* from origin within the bounded timeout.
+
+        Returns ``None`` on success, else the failure detail (stderr tail or
+        the transport exception). Callers surface the detail so readers can
+        tell an access denial apart from a plain miss.
+        """
 
         try:
             result = run_git(
@@ -296,20 +301,22 @@ class GitAttachmentStore:
                 timeout=self._fetch_timeout,
             )
         except (OSError, subprocess.SubprocessError) as exc:
-            log.warning("attachment git fetch failed for %r: %s", branch, exc)
-            return False
+            detail = str(exc).strip() or "unknown git error"
+            log.warning("attachment git fetch failed for %r: %s", branch, detail)
+            return detail
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "unknown git error").strip()
             log.warning("attachment git fetch failed for %r: %s", branch, detail)
-            return False
-        return True
+            return detail
+        return None
 
     def _rebase_local_onto_remote(self, branch: str, ref: str) -> None:
         """Fetch and move the local branch to the fetched tip for a rebuild."""
 
-        if not self._fetch_now(branch):
+        if (detail := self._fetch_now(branch)) is not None:
             raise BlobStoreError(
-                f"cannot reach {self._label}: git fetch failed", transient=True
+                f"cannot reach {self._label}: git fetch failed: {detail[-500:]}",
+                transient=True,
             )
         remote_tip = self._fetch_head_tip() or self._cached_tip(branch)
         if remote_tip is None:
@@ -360,7 +367,7 @@ class GitAttachmentStore:
             if key in _FETCHED_REPOS:
                 return self._cached_tip(branch)
             _FETCHED_REPOS.add(key)
-        if self._fetch_now(branch):
+        if self._fetch_now(branch) is None:
             return self._fetch_head_tip() or self._cached_tip(branch)
         return self._cached_tip(branch)
 
@@ -380,7 +387,7 @@ class GitAttachmentStore:
                     tip = self._cached_tip(branch)
                     return self._resolve_public_relpath(tip, sha256) is not None
                 _FETCHED_REPOS.add(key)
-            if self._fetch_now(branch):
+            if self._fetch_now(branch) is None:
                 tip = self._fetch_head_tip() or self._cached_tip(branch)
             else:
                 tip = self._cached_tip(branch)
@@ -392,7 +399,7 @@ class GitAttachmentStore:
                 tip = self._cached_tip(branch)
                 return tip is not None and self._entry(tip, relpath) is not None
             _FETCHED_REPOS.add(key)
-        if self._fetch_now(branch):
+        if self._fetch_now(branch) is None:
             tip = self._fetch_head_tip() or self._cached_tip(branch)
         else:
             tip = self._cached_tip(branch)
@@ -530,9 +537,10 @@ class GitAttachmentStore:
                     f"attachment {sha256[:16]}… is not in {self._label}",
                     missing=True,
                 )
-            if not self._fetch_now(branch):
+            if (fetch_detail := self._fetch_now(branch)) is not None:
                 raise BlobStoreError(
-                    f"cannot reach {self._label}: git fetch failed",
+                    f"cannot reach {self._label}: git fetch failed: "
+                    f"{fetch_detail[-500:]}",
                     transient=True,
                 )
             tip = self._fetch_head_tip() or self._cached_tip(branch)

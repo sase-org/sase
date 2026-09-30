@@ -88,6 +88,43 @@ def github_blob_url(
     return f"https://{parsed.host}/{encoded_repo}/blob/{encoded_branch}/{encoded_path}"
 
 
+def github_raw_url(
+    remote_url: str,
+    *,
+    provider: str | None,
+    branch: str,
+    path: str,
+) -> str | None:
+    """Return a sanitized raw-content URL for an unambiguous repository.
+
+    This is the canonical form bead pages embed public attachment objects
+    with: unlike ``blob`` URLs it serves the bytes with their content type,
+    and unlike ``blob?`` with ``?raw=true`` it needs no query string. The
+    same provider rule as :func:`github_blob_url` applies, so only GitHub
+    (including Enterprise) remotes resolve.
+    """
+    parsed = parse_hosted_git_remote(remote_url)
+    if parsed is None or not branch.strip() or not path.strip():
+        return None
+    provider_is_github = (provider or "").strip().casefold() == "github"
+    if _host_name(parsed.host) != "github.com" and not provider_is_github:
+        return None
+    repo_parts = parsed.repo.split("/")
+    if len(repo_parts) != 2 or not all(repo_parts):
+        return None
+    encoded_path = quote(path.strip().lstrip("/"), safe="/")
+    if _host_name(parsed.host) == "github.com":
+        encoded_repo = "/".join(quote(part, safe="") for part in repo_parts)
+        encoded_branch = quote(branch.strip(), safe="")
+        return (
+            f"https://raw.githubusercontent.com/{encoded_repo}"
+            f"/{encoded_branch}/{encoded_path}"
+        )
+    encoded_repo = "/".join(quote(part, safe="") for part in repo_parts)
+    encoded_branch = quote(branch.strip(), safe="")
+    return f"https://{parsed.host}/{encoded_repo}/raw/{encoded_branch}/{encoded_path}"
+
+
 def github_commit_url(
     remote_url: str,
     *,
