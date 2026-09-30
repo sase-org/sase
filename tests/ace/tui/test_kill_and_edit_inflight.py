@@ -104,7 +104,9 @@ class _DeferredKillApp(KillAndEditLastLaunchMixin, LaunchProcMixin):
     def _schedule_prompt_stash_badge_refresh(self) -> None:
         pass
 
-    def _schedule_failed_launch_prompt_recovery(self, submitted_prompt: str) -> None:
+    def _schedule_failed_launch_prompt_recovery(
+        self, submitted_prompt: str, **_kwargs: object
+    ) -> None:
         self.stash_calls.append(submitted_prompt)
 
     def _edit_and_relaunch_agent(

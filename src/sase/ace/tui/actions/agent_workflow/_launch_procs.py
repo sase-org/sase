@@ -64,6 +64,7 @@ class LaunchProcMixin:
         prompt: str,
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
+        submitted_prompt_origin: str = "typed",
         extra_payload: dict[str, object] | None = None,
     ) -> ObservedProc | None:
         """Submit a durable ``sase run`` launch and return its placeholder row.
@@ -72,6 +73,8 @@ class LaunchProcMixin:
         dies before returning a :class:`_LaunchProcOutcome` (a payloadless
         failure), the completion handler stashes this prompt so it stays
         recoverable. It is kept off the generic proc-queue contract.
+        ``submitted_prompt_origin`` carries the launch's history provenance so
+        a generated relaunch still records nothing on dead-worker recovery.
         """
         from ..agent_durable import submit_agent_launch
 
@@ -89,6 +92,9 @@ class LaunchProcMixin:
             prompts = getattr(self, "_launch_submitted_prompts", None)
             if prompts is not None and old_proc_id in prompts:
                 prompts[new_proc_id] = prompts.pop(old_proc_id)
+            origins = getattr(self, "_launch_submitted_origins", None)
+            if origins is not None and old_proc_id in origins:
+                origins[new_proc_id] = origins.pop(old_proc_id)
             from ._launch_records import rename_launch_record_proc_id
 
             rename_launch_record_proc_id(self, old_proc_id, new_proc_id)
@@ -111,6 +117,11 @@ class LaunchProcMixin:
                 prompts = {}
                 self._launch_submitted_prompts = prompts
             prompts[proc_info.proc_id] = submitted_prompt
+            origins = getattr(self, "_launch_submitted_origins", None)
+            if origins is None:
+                origins = {}
+                self._launch_submitted_origins = origins
+            origins[proc_info.proc_id] = submitted_prompt_origin
         return proc_info
 
     def _on_launch_proc_complete(
@@ -124,6 +135,7 @@ class LaunchProcMixin:
         # prompt of this session.
         _warm_common_placeholders_if_available(self)
         submitted_prompt = self._pop_launch_submitted_prompt(completion)
+        submitted_origin = self._pop_launch_submitted_origin(completion)
         outcome = _launch_outcome_from_completion(completion)
         proc_id = completion.proc_info.proc_id
         if outcome is None:
@@ -148,9 +160,15 @@ class LaunchProcMixin:
                 if submitted_prompt is not None:
                     # The worker died before recording the prompt; preserve it
                     # in the stash and refresh the badge off the event loop.
-                    self._schedule_failed_launch_prompt_recovery(  # type: ignore[attr-defined]
-                        submitted_prompt
-                    )
+                    try:
+                        self._schedule_failed_launch_prompt_recovery(  # type: ignore[attr-defined]
+                            submitted_prompt,
+                            origin=submitted_origin,
+                        )
+                    except TypeError:
+                        self._schedule_failed_launch_prompt_recovery(  # type: ignore[attr-defined]
+                            submitted_prompt
+                        )
                 notify_registered_error(self, "Launch failed", error_id=error_id)
             elif completion.message:
                 self.notify(completion.message)  # type: ignore[attr-defined]
@@ -232,6 +250,20 @@ class LaunchProcMixin:
             return None
         return prompts.pop(completion.proc_info.proc_id, None) or prompts.pop(
             completion.proc_info.display_name or "", None
+        )
+
+    def _pop_launch_submitted_origin(
+        self,
+        completion: TrackedProcCompletion[_LaunchProcOutcome],
+    ) -> str:
+        """Remove and return the provenance recorded for this launch proc."""
+        origins = getattr(self, "_launch_submitted_origins", None)
+        if not origins:
+            return "typed"
+        return (
+            origins.pop(completion.proc_info.proc_id, None)
+            or origins.pop(completion.proc_info.display_name or "", None)
+            or "typed"
         )
 
 

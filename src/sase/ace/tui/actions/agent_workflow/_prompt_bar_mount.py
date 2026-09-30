@@ -10,6 +10,7 @@ from sase.core.paths import sase_projects_dir
 
 from ._types import (
     PromptContext,
+    PromptOrigin,
     RelaunchOperation,
     begin_prompt_session,
     invalidate_prompt_session,
@@ -158,21 +159,32 @@ class PromptBarMountMixin:
         Empty / whitespace-only text is ignored. ``record_segments`` lets the
         all-pane cancel path preserve the joined stack as one history row, and
         ``add_or_update_prompt`` never downgrades a non-cancelled entry to
-        cancelled.
+        cancelled. A ``generated`` prompt session (member relaunch,
+        mentor apply) records nothing here; file references may still stay.
         """
         text = text.strip()
         if not text:
             return ""
 
-        from sase.history.prompt import add_or_update_prompt, is_recordable_prompt
+        from sase.history.prompt import is_recordable_prompt
+
+        from ._types import current_prompt_session
 
         recorded = is_recordable_prompt(text)
-        if record_segments:
-            add_or_update_prompt(text, cancelled=True, origin="typed")
-        else:
-            add_or_update_prompt(
-                text, cancelled=True, record_segments=False, origin="typed"
-            )
+        try:
+            session = current_prompt_session(self)
+            session_origin = session.prompt_origin if session is not None else "typed"
+        except Exception:
+            session_origin = "typed"
+        if session_origin != "generated":
+            from sase.history.prompt import add_or_update_prompt
+
+            if record_segments:
+                add_or_update_prompt(text, cancelled=True, origin="typed")
+            else:
+                add_or_update_prompt(
+                    text, cancelled=True, record_segments=False, origin="typed"
+                )
 
         from sase.history.file_references import (
             extract_recordable_file_refs,
@@ -182,6 +194,8 @@ class PromptBarMountMixin:
         refs = extract_recordable_file_refs(text)
         if refs:
             record_file_references(refs)
+        if session_origin == "generated":
+            return ""
         return text if recorded else ""
 
     def _unmount_prompt_bar(self) -> str:
@@ -198,11 +212,12 @@ class PromptBarMountMixin:
         except Exception:
             return ""  # Bar not present
 
-        invalidate_prompt_session(self, clear_context=False)
         # Save any non-trivial text as cancelled before removing the bar.
         # This is the safety net — every dismissal code path flows through
-        # here, so no prompt text can ever be silently lost.
+        # here, so no prompt text can ever be silently lost. Save before
+        # invalidating so a generated prompt session still skips its write.
         stored_text = self._save_bar_text_as_cancelled(bar)
+        invalidate_prompt_session(self, clear_context=False)
         self._detach_prompt_bar(bar)
         return stored_text
 
@@ -331,6 +346,7 @@ class PromptBarMountMixin:
         history_sort_key: str = "home",
         *,
         relaunch_operation: RelaunchOperation | None = None,
+        prompt_origin: PromptOrigin = "typed",
     ) -> None:
         """Set up prompt context for home directory mode without showing UI.
 
@@ -363,6 +379,7 @@ class PromptBarMountMixin:
                 is_home_mode=True,
             ),
             relaunch_operation=relaunch_operation,
+            prompt_origin=prompt_origin,
         )
 
     def _load_editor_markdown_into_bar(self, markdown: str) -> None:
@@ -574,10 +591,20 @@ class PromptBarMountMixin:
                 self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
         else:
             if initial_text.strip():
-                from sase.history.prompt import add_or_update_prompt
+                from ._types import current_prompt_session as _current_session
 
-                add_or_update_prompt(
-                    initial_text.strip(), cancelled=True, origin="typed"
-                )
+                try:
+                    _session = _current_session(self)
+                    _origin = (
+                        _session.prompt_origin if _session is not None else "typed"
+                    )
+                except Exception:
+                    _origin = "typed"
+                if _origin != "generated":
+                    from sase.history.prompt import add_or_update_prompt
+
+                    add_or_update_prompt(
+                        initial_text.strip(), cancelled=True, origin="typed"
+                    )
             self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
             invalidate_prompt_session(self)

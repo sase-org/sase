@@ -9,6 +9,7 @@ from ._launch_hold_guard import LaunchHoldGuardMixin
 from ._launch_provider_guard import LaunchProviderGuardMixin
 from ._types import (
     PromptContext,
+    PromptOrigin,
     PromptSessionId,
     current_prompt_session,
     prompt_session_is_live,
@@ -39,7 +40,13 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
 
         def _preflight_dispatch_pending_launch(self, launch_id: str) -> None: ...
 
-    def _finish_agent_launch(self, prompt: str, *, keep_bar: bool = False) -> None:
+    def _finish_agent_launch(
+        self,
+        prompt: str,
+        *,
+        keep_bar: bool = False,
+        prompt_origin: PromptOrigin | None = None,
+    ) -> None:
         """Complete agent launch with the given prompt.
 
         Anything the prompt needs collected is gathered on one page first: every
@@ -55,11 +62,15 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
             prompt: The user's prompt for the agent.
             keep_bar: Leave the prompt bar mounted and the base context intact
                 (single-pane submit with panes remaining) instead of unmounting.
+            prompt_origin: Override for bar-less launches (wait relaunch,
+                mentor apply). ``None`` keeps the live session's origin.
         """
         session = current_prompt_session(self)
         if session is None:
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
+        if prompt_origin is not None:
+            session.prompt_origin = prompt_origin
         owner_id = session.session_id
 
         from sase.agent.prompt_inputs import (

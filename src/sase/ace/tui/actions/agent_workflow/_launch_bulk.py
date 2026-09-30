@@ -90,6 +90,10 @@ class LaunchBulkSubmissionMixin:
             for key, value in dict(launch.extra_payload or {}).items()
             if key != "launch_units"
         }
+        if launch.history_prompt is not None and launch.history_prompt != launch.prompt:
+            shared_extra["history_text"] = launch.history_prompt
+        if launch.prompt_origin == "generated":
+            shared_extra["history_origin"] = "generated"
 
         def resolve() -> None:
             try:
@@ -176,6 +180,12 @@ class LaunchBulkSubmissionMixin:
         accepted: list[AcceptedBulkLaunch],
     ) -> bool:
         """Submit one planned marked-Patch launch. Return whether it was accepted."""
+        try:
+            bulk_origin = str(plan.payload.get("history_origin") or "typed")
+        except Exception:
+            bulk_origin = "typed"
+        if bulk_origin not in ("typed", "generated"):
+            bulk_origin = "typed"
         proc_info = self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch {plan.display_name}",
             cl_name=plan.cl_name,
@@ -184,6 +194,7 @@ class LaunchBulkSubmissionMixin:
             dedup_key=f"launch:{plan.workflow_name}",
             extra_payload=dict(plan.payload),
             submitted_prompt=plan.prompt,
+            submitted_prompt_origin=bulk_origin,
         )
         if proc_info is None:
             return False

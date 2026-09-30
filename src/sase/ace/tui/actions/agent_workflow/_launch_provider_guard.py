@@ -391,6 +391,8 @@ class LaunchProviderGuardMixin:
         if not remodeled and not aborted:
             self._continue_pending_launch(launch)
             return
+        if launch.history_prompt is None:
+            launch.history_prompt = launch.prompt
         if session.original_total == 1 and remodeled and not aborted:
             launch.prompt = surviving[0].prompt
             self._continue_pending_launch(launch)

@@ -9,6 +9,11 @@ from uuid import uuid4
 # Type alias for tab names
 TabName = Literal["artifacts", "agents", "services"]
 
+# History provenance for a prompt session. Mirrors
+# ``sase.history.prompt_store.PromptOrigin`` without importing history code
+# into the TUI type layer.
+PromptOrigin = Literal["typed", "generated"]
+
 
 @dataclass
 class PromptContext:
@@ -45,6 +50,7 @@ class _PromptSession:
     session_id: PromptSessionId
     context: PromptContext
     relaunch_operation: RelaunchOperation | None = None
+    prompt_origin: PromptOrigin = "typed"
 
 
 def begin_prompt_session(
@@ -52,12 +58,14 @@ def begin_prompt_session(
     context: PromptContext,
     *,
     relaunch_operation: RelaunchOperation | None = None,
+    prompt_origin: PromptOrigin = "typed",
 ) -> _PromptSession:
     """Attach a fresh prompt session to *app* and publish its legacy context."""
     session = _PromptSession(
         session_id=uuid4().hex,
         context=context,
         relaunch_operation=relaunch_operation,
+        prompt_origin=prompt_origin,
     )
     cast(Any, app)._prompt_context = context
     cast(Any, app)._prompt_session = session

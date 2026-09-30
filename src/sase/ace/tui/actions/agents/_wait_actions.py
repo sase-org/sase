@@ -653,11 +653,17 @@ class AgentWaitActionsMixin:
                 settle()
                 return
 
+            from sase.ace.tui.models.agent import is_generated_relaunch_source
+
+            wait_origin = (
+                "generated" if is_generated_relaunch_source(current) else "typed"
+            )
             self._setup_home_prompt_context(  # type: ignore[attr-defined]
                 display_name=current.display_name or current.cl_name,
                 history_sort_key=current.cl_name or "wait",
                 relaunch_operation=operation,
+                prompt_origin=wait_origin,
             )
-            self._finish_agent_launch(new_prompt)  # type: ignore[attr-defined]
+            self._finish_agent_launch(new_prompt, prompt_origin=wait_origin)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmKillModal(agent_description), on_confirm)  # type: ignore[attr-defined]

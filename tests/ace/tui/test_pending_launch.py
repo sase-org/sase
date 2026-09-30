@@ -70,7 +70,9 @@ class _PendingLaunchApp(RealBarLaunchApp):
         self._proc_observer = ProcObserver(on_snapshot=lambda _snapshot: None)
         self.stash_calls: list[str] = []
 
-    def _schedule_failed_launch_prompt_recovery(self, submitted_prompt: str) -> None:
+    def _schedule_failed_launch_prompt_recovery(
+        self, submitted_prompt: str, **_kwargs: object
+    ) -> None:
         self.stash_calls.append(submitted_prompt)
 
 

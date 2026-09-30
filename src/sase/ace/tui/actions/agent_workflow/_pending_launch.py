@@ -29,7 +29,7 @@ from ._launch_records import (
     push_launch_record,
 )
 from ._launch_submit_helpers import launch_record_context_from_prompt_context
-from ._types import PromptContext, RelaunchOperation
+from ._types import PromptContext, PromptOrigin, RelaunchOperation
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -78,6 +78,8 @@ class PendingLaunch:
     bulk_patches: tuple[Patch, ...]
     relaunch_operation: RelaunchOperation | None
     stage: PendingLaunchStage
+    history_prompt: str | None = None
+    prompt_origin: PromptOrigin = "typed"
     placeholder_id: str | None = None
     record: LaunchRecord | None = None
     # Guard state belongs to this accepted launch rather than the app so
@@ -102,6 +104,7 @@ def begin_pending_launch(
     bulk_patches: Sequence[Patch],
     relaunch_operation: RelaunchOperation | None,
     stage: PendingLaunchStage = PendingLaunchStage.SUBMITTING,
+    prompt_origin: PromptOrigin = "typed",
 ) -> PendingLaunch:
     """Register an accepted launch: registry entry, proc row, ``PREPARING`` record."""
     launch = PendingLaunch(
@@ -113,6 +116,7 @@ def begin_pending_launch(
         bulk_patches=tuple(bulk_patches),
         relaunch_operation=relaunch_operation,
         stage=stage,
+        prompt_origin=prompt_origin,
     )
     _registry(app)[launch.launch_id] = launch
 
@@ -270,19 +274,35 @@ def restore_pending_launch_prompt(
     notify = getattr(app, "notify", None)
     if explicit or _can_restore_into_bar(app):
         ctx = launch_record_context_from_prompt_context(launch.context)
-        app._edit_and_relaunch_agent(  # type: ignore[attr-defined]
-            launch.prompt,
-            ctx.project_file,
-            ctx.cl_name,
-            ctx.is_project_agent,
-            relaunch_operation=launch.relaunch_operation,
-        )
+        edit_and_relaunch = getattr(app, "_edit_and_relaunch_agent", None)
+        if callable(edit_and_relaunch):
+            try:
+                edit_and_relaunch(
+                    launch.prompt,
+                    ctx.project_file,
+                    ctx.cl_name,
+                    ctx.is_project_agent,
+                    relaunch_operation=launch.relaunch_operation,
+                    prompt_origin=launch.prompt_origin,
+                )
+            except TypeError:
+                edit_and_relaunch(
+                    launch.prompt,
+                    ctx.project_file,
+                    ctx.cl_name,
+                    ctx.is_project_agent,
+                    relaunch_operation=launch.relaunch_operation,
+                )
         if callable(notify):
             notify(f"{reason}; prompt restored")
         return True
     recover = getattr(app, "_schedule_failed_launch_prompt_recovery", None)
     if callable(recover):
-        recover(launch.prompt)
+        recovery_text = launch.history_prompt or launch.prompt
+        try:
+            recover(recovery_text, origin=launch.prompt_origin)
+        except TypeError:
+            recover(recovery_text)
     if callable(notify):
         notify(
             f"{reason}; prompt saved to stash (press @ to restore)",
@@ -308,9 +328,9 @@ async def flush_pending_launch_stashes(app: object) -> None:
     stashes = [
         asyncio.to_thread(
             record_failed_launch_prompt,
-            launch.prompt,
+            launch.history_prompt or launch.prompt,
             project=launch.context.project_name,
-            origin="typed",
+            origin=launch.prompt_origin,
         )
         for launch in launches
     ]

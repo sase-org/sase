@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir, sase_subdir
 
-from ._types import PromptContext
+from ._types import PromptContext, begin_prompt_session
 
 if TYPE_CHECKING:
     from ....patch import Patch, MentorEntry
@@ -192,23 +192,28 @@ class MentorReviewMixin:
             prompt += f"\n\n#{post_wf.name}(who=mentor)"
 
         # Set up prompt context in home mode (VCS resolution happens
-        # in _finish_agent_launch from the #vcs:cl_name prefix)
+        # in _finish_agent_launch from the #vcs:cl_name prefix). Mentor apply
+        # is always machine provenance.
         timestamp = generate_timestamp()
         workflow_name = f"ace(run)-{timestamp}"
-        self._prompt_context = PromptContext(
-            project_name="home",
-            cl_name=None,
-            project_file=preferred_project_spec_path(
-                str(sase_projects_dir() / "home"), "home"
+        begin_prompt_session(
+            self,
+            PromptContext(
+                project_name="home",
+                cl_name=None,
+                project_file=preferred_project_spec_path(
+                    str(sase_projects_dir() / "home"), "home"
+                ),
+                workspace_dir=str(Path.home()),
+                workspace_num=0,
+                workflow_name=workflow_name,
+                timestamp=timestamp,
+                history_sort_key=cl_name,
+                display_name=cl_name,
+                update_target="",
+                is_home_mode=True,
             ),
-            workspace_dir=str(Path.home()),
-            workspace_num=0,
-            workflow_name=workflow_name,
-            timestamp=timestamp,
-            history_sort_key=cl_name,
-            display_name=cl_name,
-            update_target="",
-            is_home_mode=True,
+            prompt_origin="generated",
         )
 
         # Save accepted comments as JSON artifact for traceability
@@ -221,7 +226,7 @@ class MentorReviewMixin:
             json.dumps(accepted_comments, indent=2), encoding="utf-8"
         )
 
-        self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
+        self._finish_agent_launch(prompt, prompt_origin="generated")  # type: ignore[attr-defined]
 
     def _run_mentor_profile(
         self,

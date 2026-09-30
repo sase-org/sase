@@ -18,7 +18,12 @@ from ._entry_name_prompts import (
     prepare_kill_and_edit_prompt,
     prompt_facing_agent_name,
 )
-from ._types import PromptContext, RelaunchOperation, begin_prompt_session
+from ._types import (
+    PromptContext,
+    PromptOrigin,
+    RelaunchOperation,
+    begin_prompt_session,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -226,8 +231,16 @@ class EntryRelaunchMixin:
                     severity="warning",
                 )
 
+        from sase.ace.tui.models.agent import is_generated_relaunch_source
+
         self._edit_and_relaunch_agent(
-            raw_prompt, agent.project_file, agent.cl_name, agent.is_project_agent
+            raw_prompt,
+            agent.project_file,
+            agent.cl_name,
+            agent.is_project_agent,
+            prompt_origin=(
+                "generated" if is_generated_relaunch_source(agent) else "typed"
+            ),
         )
 
     def _kill_and_edit_agent(
@@ -285,6 +298,11 @@ class EntryRelaunchMixin:
             or getattr(self, "_agents", None)
             or (agent,)
         )
+        from sase.ace.tui.models.agent import is_generated_relaunch_source
+
+        prompt_origin: PromptOrigin = (
+            "generated" if is_generated_relaunch_source(agent) else "typed"
+        )
 
         def on_prompt_resolved(raw_prompt: str | None) -> None:
             current = resolve_agent_identity(self, identity)
@@ -310,6 +328,7 @@ class EntryRelaunchMixin:
                 raw_prompt,
                 on_initiated=on_initiated,
                 relaunch_operation=relaunch_operation,
+                prompt_origin=prompt_origin,
             )
 
         schedule_relaunch_prompt_resolution(
@@ -331,6 +350,7 @@ class EntryRelaunchMixin:
         *,
         on_initiated: Callable[[bool], None] | None = None,
         relaunch_operation: RelaunchOperation | None = None,
+        prompt_origin: PromptOrigin = "typed",
     ) -> None:
         """Apply a resolved relaunch prompt to a still-current row.
 
@@ -359,6 +379,7 @@ class EntryRelaunchMixin:
                 agent_cl_name,
                 agent_is_project_agent,
                 relaunch_operation=relaunch_operation,
+                prompt_origin=prompt_origin,
             )
 
         from ..agents._core import DISMISSABLE_STATUSES
@@ -452,6 +473,7 @@ class EntryRelaunchMixin:
         is_project_agent: bool,
         *,
         relaunch_operation: RelaunchOperation | None = None,
+        prompt_origin: PromptOrigin = "typed",
     ) -> None:
         """Show agent prompt in the prompt input bar for editing and relaunch.
 
@@ -471,6 +493,7 @@ class EntryRelaunchMixin:
             is_project_agent,
             initial_value=raw_prompt,
             relaunch_operation=relaunch_operation,
+            prompt_origin=prompt_origin,
         )
 
     def _edit_and_relaunch_agents_bulk(
@@ -481,6 +504,7 @@ class EntryRelaunchMixin:
         is_project_agent: bool,
         *,
         relaunch_operation: RelaunchOperation | None = None,
+        prompt_origin: PromptOrigin = "typed",
     ) -> None:
         """Seed one editable prompt pane per killed agent (marked-set ``,x``).
 
@@ -503,6 +527,7 @@ class EntryRelaunchMixin:
             is_project_agent,
             initial_panes=raw_prompts,
             relaunch_operation=relaunch_operation,
+            prompt_origin=prompt_origin,
         )
 
     def _mount_edit_relaunch_prompt_bar(
@@ -514,6 +539,7 @@ class EntryRelaunchMixin:
         initial_value: str | None = None,
         initial_panes: list[str] | None = None,
         relaunch_operation: RelaunchOperation | None = None,
+        prompt_origin: PromptOrigin = "typed",
     ) -> None:
         """Set up home-mode prompt context and mount the prompt input bar.
 
@@ -558,6 +584,7 @@ class EntryRelaunchMixin:
                 is_home_mode=True,
             ),
             relaunch_operation=relaunch_operation,
+            prompt_origin=prompt_origin,
         )
 
         # Show prompt input bar with display-safe prompt text. Soft wrapping is

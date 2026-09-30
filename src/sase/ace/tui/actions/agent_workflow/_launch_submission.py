@@ -225,6 +225,7 @@ class LaunchSubmissionMixin:
             bulk_patches=bulk_patches,
             relaunch_operation=session.relaunch_operation,
             stage=PendingLaunchStage.HOLD_CHECK,
+            prompt_origin=session.prompt_origin,
         )
 
         # Unmount the prompt bar first (transfers focus to the active tab's
@@ -320,6 +321,11 @@ class LaunchSubmissionMixin:
         payload = dispatch_payload_from_prompt_context(ctx)
         if launch.extra_payload:
             payload.update(launch.extra_payload)
+        if launch.history_prompt is not None and launch.history_prompt != launch.prompt:
+            payload["history_text"] = launch.history_prompt
+        if launch.prompt_origin == "generated":
+            payload["history_origin"] = "generated"
+        recovery_prompt = launch.history_prompt or launch.prompt
 
         proc_info = self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch {ctx.display_name}",
@@ -328,7 +334,8 @@ class LaunchSubmissionMixin:
             prompt=launch.prompt,
             dedup_key=f"launch:{ctx.workflow_name}",
             extra_payload=payload,
-            submitted_prompt=launch.prompt,
+            submitted_prompt=recovery_prompt,
+            submitted_prompt_origin=launch.prompt_origin,
         )
         if proc_info is None:
             cancel_pending_launch(self, launch)

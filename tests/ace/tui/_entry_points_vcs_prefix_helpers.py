@@ -69,7 +69,7 @@ class _App(EntryPointsMixin):
         self.editor_prompts.append(prompt)
         return f"edited: {prompt}"
 
-    def _finish_agent_launch(self, prompt: str) -> None:
+    def _finish_agent_launch(self, prompt: str, **_kwargs: object) -> None:
         self.finished_prompts.append(prompt)
 
     def push_screen(self, screen: Any, callback: Any = None) -> None:
@@ -95,7 +95,7 @@ class _EditorApp(EntryPointsMixin, PromptBarMountMixin):
             return self.editor_result
         return f"edited: {prompt}"
 
-    def _finish_agent_launch(self, prompt: str) -> None:
+    def _finish_agent_launch(self, prompt: str, **_kwargs: object) -> None:
         self.finished_prompts.append(prompt)
 
     def _unmount_prompt_bar(self) -> None:

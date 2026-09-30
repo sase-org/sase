@@ -132,7 +132,9 @@ class PromptBarStashStoreMixin:
             return
         self._apply_prompt_stash_counts(*counts)
 
-    def _schedule_failed_launch_prompt_recovery(self, submitted_prompt: str) -> None:
+    def _schedule_failed_launch_prompt_recovery(
+        self, submitted_prompt: str, *, origin: str = "typed"
+    ) -> None:
         """Stash a payloadless failed-launch prompt, then refresh the badge.
 
         Used when a launch worker died before returning an outcome, so nothing
@@ -140,10 +142,12 @@ class PromptBarStashStoreMixin:
         badge read both run off the event loop.
         """
         self._spawn_prompt_stash_task(
-            self._recover_failed_launch_prompt_async(submitted_prompt)
+            self._recover_failed_launch_prompt_async(submitted_prompt, origin=origin)
         )
 
-    async def _recover_failed_launch_prompt_async(self, submitted_prompt: str) -> None:
+    async def _recover_failed_launch_prompt_async(
+        self, submitted_prompt: str, *, origin: str = "typed"
+    ) -> None:
         """Record + stash *submitted_prompt* off-thread, then refresh the badge."""
         import asyncio
 
@@ -151,7 +155,9 @@ class PromptBarStashStoreMixin:
 
         try:
             await asyncio.to_thread(
-                record_failed_launch_prompt, submitted_prompt, origin="typed"
+                record_failed_launch_prompt,
+                submitted_prompt,
+                origin=origin,  # type: ignore[arg-type]
             )
         except Exception:  # pragma: no cover - defensive (thread/IO error)
             return

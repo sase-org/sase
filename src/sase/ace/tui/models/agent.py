@@ -48,6 +48,7 @@ __all__ = [
     "compute_row_runtime",
     "format_compact_duration",
     "format_wait_until",
+    "is_generated_relaunch_source",
     "row_runtime_or_wait_ticks",
     "should_display_runtime_suffix",
     "wait_countdown_ticks",
@@ -56,6 +57,45 @@ __all__ = [
     "wait_until_target_and_reference",
     "load_attempt_history",
 ]
+
+
+def is_generated_relaunch_source(agent: object) -> bool:
+    """Return whether relaunching *agent* is machine provenance, not a new request.
+
+    A TUI retry, kill-and-edit, or wait relaunch whose source agent belongs
+    to a clan, is bound to a bead, or is a routine agent is recorded as
+    ``generated``, even if the user edited it. A relaunch of a standalone
+    agent stays ``typed``.
+    """
+    agent_clan = getattr(agent, "agent_clan", None)
+    if isinstance(agent_clan, str) and agent_clan.strip():
+        return True
+    epic_bead_id = getattr(agent, "epic_bead_id", None)
+    if isinstance(epic_bead_id, str) and epic_bead_id.strip():
+        return True
+    phase_bead_id = getattr(agent, "phase_bead_id", None)
+    if isinstance(phase_bead_id, str) and phase_bead_id.strip():
+        return True
+    agent_name = getattr(agent, "agent_name", None)
+    if isinstance(agent_name, str) and agent_name.strip():
+        try:
+            from sase.agent.bead_display import derive_agent_bead_id_from_name
+
+            if derive_agent_bead_id_from_name(agent_name) is not None:
+                return True
+        except Exception:
+            pass
+    routine_tribes = {"chop", "job"}
+    for attr in ("tribe", "clan_tribe"):
+        tribe = getattr(agent, attr, None)
+        if isinstance(tribe, str) and tribe.strip() in routine_tribes:
+            return True
+    clan_tribes = getattr(agent, "clan_tribes", None)
+    if isinstance(clan_tribes, (tuple, list, set, frozenset)):
+        for tribe in clan_tribes:
+            if isinstance(tribe, str) and tribe.strip() in routine_tribes:
+                return True
+    return False
 
 
 @lru_cache(maxsize=1024)

@@ -38,7 +38,9 @@ class _FakeApp(AgentLaunchMixin):
     def _schedule_prompt_stash_badge_refresh(self) -> None:
         pass
 
-    def _schedule_failed_launch_prompt_recovery(self, submitted_prompt: str) -> None:
+    def _schedule_failed_launch_prompt_recovery(
+        self, submitted_prompt: str, **_kwargs: Any
+    ) -> None:
         del submitted_prompt
 
     def push_screen(self, screen: Any, callback: Any = None) -> None:
@@ -68,6 +70,7 @@ class _FakeApp(AgentLaunchMixin):
         prompt: str = "",
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
+        submitted_prompt_origin: str = "typed",
         extra_payload: Any = None,
     ) -> ObservedProc | None:
         proc_id = f"proc-{len(self.launch_tasks) + 1}"
@@ -80,6 +83,7 @@ class _FakeApp(AgentLaunchMixin):
                 "prompt": prompt,
                 "dedup_key": dedup_key,
                 "submitted_prompt": submitted_prompt,
+                "submitted_prompt_origin": submitted_prompt_origin,
                 "extra_payload": extra_payload,
             }
         )

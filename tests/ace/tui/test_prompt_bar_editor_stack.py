@@ -120,7 +120,9 @@ class _EditorHarness(PromptBarRequestsMixin):
         self.editor_inputs.append(content)
         return self._editor_result
 
-    def _finish_agent_launch(self, prompt: str, *, keep_bar: bool = False) -> None:
+    def _finish_agent_launch(
+        self, prompt: str, *, keep_bar: bool = False, **_kwargs: object
+    ) -> None:
         del keep_bar
         self.finished.append(prompt)
 

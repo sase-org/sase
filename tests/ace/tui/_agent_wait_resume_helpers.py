@@ -169,6 +169,7 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
         display_name: str | None,
         history_sort_key: str | None,
         relaunch_operation: Any = None,
+        prompt_origin: str = "typed",
     ) -> None:
         from sase.ace.tui.actions.agent_workflow._types import (
             PromptContext,
@@ -191,6 +192,7 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
                 is_home_mode=True,
             ),
             relaunch_operation=relaunch_operation,
+            prompt_origin=prompt_origin,  # type: ignore[arg-type]
         )
         self.prompt_contexts.append(
             {
@@ -200,7 +202,7 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
             }
         )
 
-    def _finish_agent_launch(self, prompt: str) -> None:
+    def _finish_agent_launch(self, prompt: str, **_kwargs: Any) -> None:
         from sase.ace.tui.actions.agent_workflow._relaunch_barrier import (
             hold_launch_for_relaunch_cleanup,
         )

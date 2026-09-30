@@ -199,12 +199,25 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 ]
 
                 def mount_prompt_stack() -> None:
+                    from sase.ace.tui.models.agent import (
+                        is_generated_relaunch_source,
+                    )
+
+                    bulk_origin = (
+                        "generated"
+                        if any(
+                            is_generated_relaunch_source(agent)
+                            for agent in exact_agents
+                        )
+                        else "typed"
+                    )
                     self._edit_and_relaunch_agents_bulk(  # type: ignore[attr-defined]
                         prompts,
                         first.project_file,
                         first.cl_name,
                         first.is_project_agent,
                         relaunch_operation=operation,
+                        prompt_origin=bulk_origin,
                     )
 
                 from ..agent_workflow._relaunch_barrier import (

@@ -95,7 +95,6 @@ class PromptBarSubmitMixin:
                 self._notify_prompt_cancelled(stored, pane=False)
             return
 
-        invalidate_prompt_session(self, clear_context=False)
         stored = self._unmount_prompt_bar()  # type: ignore[attr-defined]
         self._prompt_context = None
         if stored:
