@@ -126,6 +126,7 @@ class _E2EApp(TrackedProcRecorderMixin, AgentsMixinCore):
         self.refilter_calls = 0
         self.async_refreshes = 0
         self.notification_refreshes_async = 0
+        self.scheduled_notification_resync_calls = 0
         self._scheduled: list[tuple[object, tuple[object, ...]]] = []
 
     def notify(self, message: str, *, severity: str = "information") -> None:
@@ -139,6 +140,9 @@ class _E2EApp(TrackedProcRecorderMixin, AgentsMixinCore):
 
     def _refresh_notification_count(self) -> None:
         self.refresh_count_calls += 1
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.scheduled_notification_resync_calls += 1
 
     async def _refresh_notification_count_async(self) -> None:
         self.notification_refreshes_async += 1
@@ -283,7 +287,8 @@ def test_acknowledging_done_agent_removes_completion_from_done_not_general_tab(
     modal._active_notification_tag = "done"
     assert _modal_visible_ids(modal) == ["n-beta"]
     assert app._unread_completed_agent_ids == {second.identity}
-    assert app.refresh_count_calls == 1
+    assert app.refresh_count_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
 
 
 def test_reading_one_agent_dismisses_only_its_notification(
@@ -303,7 +308,8 @@ def test_reading_one_agent_dismisses_only_its_notification(
 
     assert app._unread_completed_agent_ids == {second.identity}
     assert _active_completion_ids() == {"n-beta"}
-    assert app.refresh_count_calls == 1
+    assert app.refresh_count_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
 
 
 def test_dismissing_single_agent_removes_only_its_completion_notification(

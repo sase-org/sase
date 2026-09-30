@@ -150,7 +150,8 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
     ]
     assert app.patch_calls == [newest, middle, oldest]
     assert notification_dismiss.call_count == 3
-    assert app.notification_count_refresh_calls == 3
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 3
 
 
 def test_leader_j_descends_from_expanded_tribe_to_newest_unread() -> None:
@@ -291,7 +292,8 @@ def test_jump_to_next_unread_done_agent_acknowledges_target_unread_state(
     notification_dismiss.assert_called_once_with(
         [{"cl_name": done.cl_name, "raw_suffix": done.raw_suffix}]
     )
-    assert app.notification_count_refresh_calls == 1
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
 
 
 def test_jump_to_next_unread_done_agent_rebuilds_no_display_on_patch_failure() -> None:

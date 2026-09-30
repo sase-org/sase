@@ -104,13 +104,23 @@ class _SpanAckApp(AgentUnreadStateMixin):
     def __init__(self) -> None:
         self.notify_calls: list[str] = []
         self.refresh_count = 0
+        self.scheduled_resync_count = 0
 
     def _remove_agent_completion_notifications_from_cache(self, agents: object) -> int:
         del agents
         return 0
 
+    def _remove_agent_completion_notifications_from_cache_by_ids(
+        self, ids: object
+    ) -> int:
+        del ids
+        return 0
+
     def _refresh_notification_count(self) -> None:
         self.refresh_count += 1
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.scheduled_resync_count += 1
 
     def notify(self, message: str, **_: object) -> None:
         self.notify_calls.append(message)

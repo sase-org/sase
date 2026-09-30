@@ -61,7 +61,8 @@ def test_l_acknowledges_first_panel_entry_row(
     assert app.current_idx == 1
     assert first_rendered.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [first_rendered]
-    assert app.notification_count_refresh_calls == 1
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
     notification_dismiss.assert_called_once_with(
         [
             {

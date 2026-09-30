@@ -89,7 +89,10 @@ def test_toggle_agent_unread_again_marks_selected_row_read(
     notification_dismiss.assert_called_once_with(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
-    assert app.notification_count_refresh_calls == 1
+    # ack-pipeline: completion never reads the store on the UI thread; it
+    # schedules only the guarded async resync.
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
 
 
 def test_u_toggle_to_read_drops_matching_settlement_row_from_cache(
@@ -228,6 +231,7 @@ def test_acknowledge_agent_unread_patches_before_store_write(
     assert app.patch_calls == [agent]
     notification_dismiss.assert_not_called()
     assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 0
 
     [work] = app.worker_calls
     work()
@@ -235,7 +239,8 @@ def test_acknowledge_agent_unread_patches_before_store_write(
     notification_dismiss.assert_called_once_with(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
-    assert app.notification_count_refresh_calls == 1
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
 
 
 def test_acknowledge_agent_unread_failure_restores_marker(
@@ -437,7 +442,8 @@ def test_bulk_unread_toggle_marks_restores_and_marks_again(
             {"cl_name": second.cl_name, "raw_suffix": second.raw_suffix},
         ]
     )
-    assert app.notification_count_refresh_calls == 1
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
     assert app.refresh_calls == []
     assert app.patch_calls == [first, second]
 

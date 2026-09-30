@@ -410,6 +410,11 @@ def init_agent_state(self: Any) -> None:
     self._notif_read_seq = 0
     self._pending_ack_op_seq = 0
     self._pending_ack_overlay = {}
+    # Coalescing ack writer (epic sase-1d7 phase ack-pipeline): queued
+    # (op_id, keys, identities) plus snapshot copies, drained one Rust
+    # call per batch.
+    self._unread_ack_queue = []
+    self._unread_ack_write_in_flight = False
     self._notification_snapshot_refresh_pending = False
     self._notification_snapshot_refresh_followup = False
     self._notification_deadline_timer = None

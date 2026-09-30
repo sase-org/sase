@@ -184,6 +184,7 @@ class AgentPanelUnreadEntryApp(AgentUnreadMixin, AgentPanelCollapseApp):
         self._agent_info_metrics_cache: tuple[Any, ...] | None = None
         self.patch_calls: list[Agent] = []
         self.notification_count_refresh_calls = 0
+        self.scheduled_notification_resync_calls = 0
 
     def _try_patch_agent_row(self, agent: Agent) -> bool:
         self.patch_calls.append(agent)
@@ -191,6 +192,9 @@ class AgentPanelUnreadEntryApp(AgentUnreadMixin, AgentPanelCollapseApp):
 
     def _refresh_notification_count(self) -> None:
         self.notification_count_refresh_calls += 1
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.scheduled_notification_resync_calls += 1
 
 
 def make_agent(

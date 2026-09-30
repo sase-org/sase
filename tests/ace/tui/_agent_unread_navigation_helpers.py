@@ -67,6 +67,7 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
         self.refresh_calls: list[dict[str, Any]] = []
         self.debounced_refresh_calls = 0
         self.notification_count_refresh_calls = 0
+        self.scheduled_notification_resync_calls = 0
         self.header_calls = 0
         self.info_calls = 0
         self.tribe_calls = 0
@@ -104,6 +105,9 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
 
     def _refresh_notification_count(self) -> None:
         self.notification_count_refresh_calls += 1
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.scheduled_notification_resync_calls += 1
 
     def _update_agents_header(self) -> None:
         self.header_calls += 1
@@ -179,6 +183,7 @@ class LeaderUnreadJumpApp(
         self.refresh_calls: list[dict[str, Any]] = []
         self.current_tab_refresh_calls = 0
         self.notification_count_refresh_calls = 0
+        self.scheduled_notification_resync_calls = 0
         self.notifications: list[str] = []
         self.panel_fold_changes: list[tuple[str | None, bool]] = []
 
@@ -208,6 +213,9 @@ class LeaderUnreadJumpApp(
 
     def _refresh_notification_count(self) -> None:
         self.notification_count_refresh_calls += 1
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.scheduled_notification_resync_calls += 1
 
     def _invalidate_agent_panel_cache(self) -> None:
         self._nav_stops_cache = None

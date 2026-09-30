@@ -60,6 +60,7 @@ class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.notification_count_refresh_calls = 0
+        self.scheduled_notification_resync_calls = 0
         self.artifact_file_viewer_guard_active = False
         self.notify = Mock()
 
@@ -84,6 +85,9 @@ class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
 
     def _refresh_notification_count(self) -> None:
         self.notification_count_refresh_calls += 1
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.scheduled_notification_resync_calls += 1
 
 
 class _JumpHintSelectionApp(EntryJumpDispatchMixin, _SelectionApp):
@@ -278,7 +282,8 @@ def test_acknowledge_agent_unread_dismisses_matching_notification(
     notification_dismiss.assert_called_once_with(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
-    assert app.notification_count_refresh_calls == 1
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
 
 
 def test_acknowledge_agent_unread_filters_stale_cached_notification(
@@ -305,7 +310,8 @@ def test_acknowledge_agent_unread_filters_stale_cached_notification(
 
     assert agent.identity not in app._unread_completed_agent_ids
     assert app._notification_snapshot_cache.notifications == []
-    assert app.notification_count_refresh_calls == 1
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
 
 
 def test_agent_row_selection_dismisses_matching_settlement_row_from_cache(

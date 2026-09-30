@@ -58,6 +58,7 @@ class _StubApp(AgentUnreadMixin, AdvancedNavigationMixin):
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.notification_count_refresh_calls = 0
+        self.scheduled_notification_resync_calls = 0
         self.artifact_file_viewer_guard_active = False
         self.jump_footer_updates = 0
         self.notify = MagicMock()
@@ -102,6 +103,9 @@ class _StubApp(AgentUnreadMixin, AdvancedNavigationMixin):
 
     def _refresh_notification_count(self) -> None:
         self.notification_count_refresh_calls += 1
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.scheduled_notification_resync_calls += 1
 
 
 def _agent(

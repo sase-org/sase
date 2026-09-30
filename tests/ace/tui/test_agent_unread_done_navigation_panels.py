@@ -127,7 +127,8 @@ def test_unread_jump_expands_collapsed_panel_and_selects_exact_row(
     notification_dismiss.assert_called_once_with(
         [{"cl_name": target.cl_name, "raw_suffix": target.raw_suffix}]
     )
-    assert app.notification_count_refresh_calls == 1
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
 
 
 def test_unread_jump_expands_manually_guarded_target_without_acknowledging(

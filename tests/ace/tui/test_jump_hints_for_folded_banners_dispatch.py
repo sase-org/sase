@@ -115,7 +115,8 @@ def test_jump_dispatch_agent_acknowledges_unread_done_and_patches_row(
     notification_dismiss.assert_called_once_with(
         [{"cl_name": target.cl_name, "raw_suffix": target.raw_suffix}]
     )
-    assert app.notification_count_refresh_calls == 1
+    assert app.notification_count_refresh_calls == 0
+    assert app.scheduled_notification_resync_calls == 1
 
 
 def test_jump_dispatch_manual_unread_target_stays_guarded(

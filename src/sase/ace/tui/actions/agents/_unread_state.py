@@ -436,10 +436,17 @@ class AgentUnreadStateMixin:
         self,
         request: _UnreadNotificationDismissal,
     ) -> None:
-        """Persist an optimistic read-side notification dismissal off-thread."""
+        """Persist an optimistic read-side notification dismissal off-thread.
+
+        The request joins the coalescing ack queue: one worker drains the
+        queue and issues one Rust call per batch. The worker computes the
+        cached snapshot's matching ids off-thread so completion never
+        reads the store on the UI thread.
+        """
         from dataclasses import replace
 
         from ._pending_ack_fence import register_pending_ack
+        from ._unread_ack_writer import enqueue_unread_ack
 
         # Register before scheduling: every reconcile path treats these
         # identities as read until a post-write snapshot retires them.
@@ -447,63 +454,20 @@ class AgentUnreadStateMixin:
             request,
             op_id=register_pending_ack(self, request.identities),
         )
-
-        def work() -> None:
-            dismissed_count = 0
-            error: Exception | None = None
-            store_bytes: int | None = None
-            try:
-                from sase.notifications import (
-                    dismiss_agent_completion_notifications_matching_agents,
-                )
-
-                dismissed_count = (
-                    dismiss_agent_completion_notifications_matching_agents(
-                        self._notification_key_dicts_from_keys(request.keys)
-                    )
-                )
-            except Exception as exc:
-                error = exc
-                log.exception("Failed to dismiss acknowledged agent notification")
-            # Stat the store here on the worker thread: the UI-thread
-            # completion span reports this size without touching disk itself.
-            try:
-                from sase.notifications.store import notifications_file_path
-
-                store_bytes = notifications_file_path().stat().st_size
-            except OSError:
-                store_bytes = None
-
-            complete = lambda: self._complete_unread_notification_dismissal(  # noqa: E731
-                request,
-                dismissed_count=dismissed_count,
-                error=error,
-                store_bytes=store_bytes,
-            )
-            call_from_thread = getattr(self, "call_from_thread", None)
-            if callable(call_from_thread):
-                call_from_thread(complete)
-                return
-            complete()
-
-        run_worker = getattr(self, "run_worker", None)
-        if not callable(run_worker):
-            work()
-            return
-
         try:
-            run_worker(
-                work,
-                thread=True,
-                name="agents-unread-ack",
-                group="agents",
-                exit_on_error=False,
-            )
-        except TypeError:
-            run_worker(work, thread=True)
+            enqueue_unread_ack(self, request)
         except Exception:
             log.exception("Failed to schedule acknowledged-agent notification write")
             self._restore_unread_notification_dismissal(request)
+
+    def _remove_agent_completion_notifications_from_cache_by_ids(
+        self,
+        ids: set[str],
+    ) -> int:
+        """Drop cached snapshot notifications by id set (no store I/O)."""
+        from ._unread_ack_writer import remove_cached_notifications_by_ids
+
+        return remove_cached_notifications_by_ids(self, ids)
 
     def _complete_unread_notification_dismissal(
         self,
@@ -512,8 +476,13 @@ class AgentUnreadStateMixin:
         dismissed_count: int,
         error: Exception | None,
         store_bytes: int | None = None,
+        matched_ids: set[str] | None = None,
     ) -> None:
-        """Reconcile the off-thread notification write outcome on the UI thread."""
+        """Reconcile the off-thread notification write outcome on the UI thread.
+
+        Never reads the store: the worker computed *matched_ids* off-thread
+        and the completion applies them to the cached snapshot by id set.
+        """
         from sase.ace.tui.util.trace import tui_trace
 
         with tui_trace(
@@ -525,6 +494,7 @@ class AgentUnreadStateMixin:
                 request,
                 dismissed_count=dismissed_count,
                 error=error,
+                matched_ids=matched_ids,
             )
 
     def _apply_unread_notification_dismissal_outcome(
@@ -533,8 +503,15 @@ class AgentUnreadStateMixin:
         *,
         dismissed_count: int,
         error: Exception | None,
+        matched_ids: set[str] | None = None,
     ) -> None:
-        """Apply the off-thread notification write outcome on the UI thread."""
+        """Apply the off-thread notification write outcome on the UI thread.
+
+        Read-free: removes the worker-computed *matched_ids* from the cached
+        snapshot by id set and schedules only the guarded async resync. The
+        optimistic paint already went through the chrome helper; the resync's
+        reconcile repaints through it as well.
+        """
         from ._pending_ack_fence import mark_pending_ack_write_complete
 
         if error is not None:
@@ -548,15 +525,20 @@ class AgentUnreadStateMixin:
             return
 
         # The write landed: stamp done_seq so only a read that began
-        # after this point retires the pending entries.
+        # after this point retires the pending entries. Recorded per op
+        # when its batch lands, so each op in a failed batch still
+        # restores only its own still-owned identities.
         mark_pending_ack_write_complete(self, request.op_id, request.identities)
-        removed_count = self._remove_agent_completion_notifications_from_cache(
-            list(request.agents)
+        removed_count = self._remove_agent_completion_notifications_from_cache_by_ids(
+            set(matched_ids) if matched_ids else set()
         )
         if dismissed_count or removed_count:
-            refresh_count = getattr(self, "_refresh_notification_count", None)
-            if callable(refresh_count):
-                refresh_count()
+            schedule = getattr(self, "_schedule_notification_snapshot_refresh", None)
+            if callable(schedule):
+                try:
+                    schedule()
+                except Exception:
+                    log.exception("Failed to schedule post-ack notification resync")
 
     def _restore_unread_notification_dismissal(
         self,
