@@ -273,23 +273,38 @@ over those records without replaying. Rows land in novel/mid/near-duplicate coho
 carries the novel-cohort coverage and precision so presets can be calibrated against
 novel prompts without replaying.
 
-2026-09 replay over 11,500 rows (4,275 typed; 1,710 warmed, 2,556 scored, 188,134
-positions; ungated top-1 50.8%, top-3 59.7%):
+2026-09-30 replay over 11,631 rows (3,301 typed after the generated-origin filter; 1,320
+warmed, 1,971 scored, 142,120 positions; ungated top-1 43.2%, top-3 54.0%), run under
+the corrected support semantics (distinct support counts each observation once across
+history, session, archive and draft; the project partition only boosts mass):
 
 | preset   | coverage | precision | novel precision | mid precision | near-dup precision |
 | -------- | -------: | --------: | --------------: | ------------: | -----------------: |
-| cautious |    35.9% |     89.4% |           65.7% |         86.0% |              99.0% |
-| balanced |    35.9% |     89.4% |           65.7% |         86.0% |              99.0% |
-| eager    |    58.9% |     75.2% |           43.1% |         70.4% |              97.0% |
+| cautious |    18.1% |     85.0% |           77.6% |         90.2% |              94.7% |
+| balanced |    25.9% |     80.7% |           65.1% |         85.8% |              96.9% |
+| eager    |    59.0% |     62.9% |           40.6% |         68.3% |              93.5% |
 
-Cost at the scored corpus: predict latency p50 ~1.4ms / p95 ~3.2ms, ~54MB across ~3,800
-rows and ~225k contexts. Calibration outcome: the novel
+Method: the sweep grid (`min_p` 0.40-0.85, `min_margin` 0.05-0.40, `min_support` 1-5)
+scores 400 points over the recorded per-position evidence without replaying. Balanced
+(`min_p=0.75, min_margin=0.20, min_support=2`) is the max-coverage point meeting
+overall >= 75% and novel
 
-> =65% target binds hard (precision climbs steeply only near cautious strictness), so
-> balanced moved to `min_p=0.75, min_support=4` (margin stays 0.20; the margin dimension
-> is flat there), landing on the max-coverage grid point meeting overall >=75% and
-> novel >=65%. Novel headroom is thin (~0.7pp), so re-run the tool before loosening
-> these presets; cautious (>=85%) and eager (>=60%) already met their targets unchanged.
+> = 65%; the margin is flat across 0.05-0.40 there, so it keeps its previous value.
+> Eager (`0.40/0.05/1`) is the max-coverage point meeting overall >= 60%. Cautious
+> (`0.60/0.40/5`) is the max-coverage point meeting overall >= 85% with novel at least 5
+> points above balanced (77.6% vs 70.1% bar); it is strictly tighter than balanced via
+> `min_support` 5 > 2, and the 0.40 margin is load-bearing at `min_p` 0.60 — unlike the
+> old `0.75/0.35/4`, which gated exactly the same positions as balanced because a 0.75
+> top-1 share leaves the runner-up at most 0.25. Coverage 18.1% vs 25.9% confirms the
+> two presets now gate measurably different sets.
+
+Cost at the scored corpus: replay-scorer latency p50 ~1.2ms / p95 ~2.2ms, `approx_bytes`
+~56.8MB across 3,261 used rows and ~224k contexts. These numbers come from `replay.rs`'s
+own scorer, not production predict; the production predict/compile/memory budgets are
+tracked as `PROPOSED FOLLOW-UP` notes on phase `sase-1cj.12.3`. Calibration outcome:
+headroom is thin everywhere that matters (balanced novel +0.1pp over its 65% bar,
+cautious overall +0.0pp over 85%, eager overall +2.9pp over 60%), so re-run the tool
+before loosening any preset.
 
 #### Archive source (cross-machine prompt archive)
 
@@ -347,6 +362,34 @@ weight would dilute further.
 Verdict: the default stays `[history]`; the archive remains an opt-in
 (`next_word_sources: [history, archive]`). Re-run the `history,archive` replay before
 reconsidering — it needs a longer budget or a sampled row set, not a stronger claim.
+
+2026-09-30 sampled comparison (`--score-every 6`: every 6th post-warm row scored, every
+row still joining the corpus, same stride for both runs). History: 3,301 typed, 329
+scored rows, 24,342 positions. History+archive: 7,719 typed (4,418 archive rows at full
+weight, no singleton pruning), 730 scored rows, 104,274 positions:
+
+| run             | novel top-3 | near-dup top-1 | balanced cov | balanced prec |
+| --------------- | ----------: | -------------: | -----------: | ------------: |
+| history         |       40.3% |          79.7% |        27.7% |         84.6% |
+| history+archive |       31.2% |          80.4% |        42.4% |         93.1% |
+
+The archive floods the mix with near-duplicates (55,789 of 104,274 positions) while
+novel top-3 drops 9.1 points — the +1pt rule fails, and the drop goes the wrong way even
+at full weight (an upper bound on the production 0.25 pruned source). Balanced novel
+gated precision also falls 65.6% to 62.2%, below its 65% calibration bar. Final verdict:
+the default stays `[history]`; the archive remains an opt-in.
+
+#### Prediction RSS
+
+2026-09-30 process RSS (VmRSS before/after, after `gc.collect`, aggregates only;
+corroborated by a second run with a warmed allocator): building the history corpus
+retains ~180MB over the row-loaded baseline (3,261 rows used, `approx_bytes` ~56.8MB,
+compile ~0.9s) and the pruned archive corpus retains ~130MB more (4,126 rows used,
+`approx_bytes` ~27.0MB, compile ~2.5s) — roughly 3.6x `approx_bytes` resident, against
+the ≤ 60 MB budget. Resident HashMap capacity beyond the flat-array estimate is the
+likely gap. This is a `PROPOSED FOLLOW-UP` on phase `sase-1cj.12.4`: reaching the budget
+needs lossy pruning/quantization (a product decision) or allocator / layout work, not
+silent evidence drops.
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace
 with a PyO3 crate at `crates/sase_core_py/`.

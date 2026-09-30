@@ -3,10 +3,11 @@
 
 This is a measurement tool, not a gate: it warms the Rust replay evaluator
 on the oldest share of typed history rows, scores every word-boundary
-position of each later row, then prints aggregate-only accuracy, coverage,
-precision, keystroke-savings, run-length, latency, and memory tables by
-cohort. No prompt text is printed. Use the tables to calibrate the
-confidence presets in ``sase_core::prompt_prediction``.
+position of each later row (or every K-th row with ``--score-every K``),
+then prints aggregate-only accuracy, coverage, precision,
+keystroke-savings, run-length, latency, and memory tables by cohort. No
+prompt text is printed. Use the tables to calibrate the confidence
+presets in ``sase_core::prompt_prediction``.
 """
 
 from __future__ import annotations
@@ -70,6 +71,15 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--json",
         action="store_true",
         help="print the full aggregate-only report as JSON instead of tables",
+    )
+    parser.add_argument(
+        "--score-every",
+        type=int,
+        default=1,
+        metavar="K",
+        help="score only every K-th post-warm row (default: 1, every row). "
+        "Every row still joins the corpus, so the selection is deterministic; "
+        "use the same K to compare history against history,archive.",
     )
     return parser.parse_args(argv)
 
@@ -240,9 +250,16 @@ def main(argv: list[str] | None = None) -> int:
         rows = rows + build_archive_prediction_rows(
             history_texts=[row.text for row in rows],
         )
+    if args.score_every < 1:
+        print(
+            f"error: --score-every must be >= 1, got {args.score_every}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     options = PromptPredictionReplayOptions(
         now_epoch=int(time.time()),
         excluded_words=sorted(load_deleted_prompt_words()),
+        score_every=args.score_every,
     )
     report = evaluate_prompt_prediction_replay(rows, options)
     if args.json:

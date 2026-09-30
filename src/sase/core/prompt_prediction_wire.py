@@ -356,6 +356,7 @@ class PromptPredictionReplayOptions:
     draft_weight: float = 1.0
     reject_conflicts: bool = True
     warm_fraction: float = 0.4
+    score_every: int = 1
 
     def to_dict(self) -> dict[str, Any]:
         """Return the ``sase_core_rs``-facing dict for these options."""
@@ -372,6 +373,7 @@ class PromptPredictionReplayOptions:
             "draft_weight": self.draft_weight,
             "reject_conflicts": self.reject_conflicts,
             "warm_fraction": self.warm_fraction,
+            "score_every": self.score_every,
         }
 
 

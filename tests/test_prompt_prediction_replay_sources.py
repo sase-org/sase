@@ -44,3 +44,9 @@ def test_sources_rejects_unknown_and_archive_only() -> None:
     with pytest.raises(SystemExit) as solo:
         module._check_sources("archive")
     assert solo.value.code == 2
+
+
+def test_score_every_defaults_to_every_row() -> None:
+    module = _load()
+    assert module._parse_args([]).score_every == 1
+    assert module._parse_args(["--score-every", "6"]).score_every == 6
