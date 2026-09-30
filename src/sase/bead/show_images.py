@@ -240,10 +240,28 @@ def kitty_escape_for_png(png_bytes: bytes) -> str:
     return "".join(parts)
 
 
+def attachment_names_for_issue(issue: object) -> list[str]:
+    """Return attachment names from note plus +1-evidence manifests, in order."""
+    names: list[str] = []
+    for note in getattr(issue, "notes", ()):
+        names.extend(attachment.name for attachment in note.attachments)
+    for evidence in getattr(issue, "plus_one_evidence", ()):
+        names.extend(
+            attachment.name for attachment in getattr(evidence, "attachments", ())
+        )
+    return names
+
+
 def attachment_targets_for_body(
     bead_id: str, body_plain: str, names: list[str] | tuple[str, ...]
 ) -> tuple[object, ...]:
-    """Return ``AttachedTarget`` spans for chips and descriptor rows."""
+    """Return ``AttachedTarget`` spans for chips and descriptor rows.
+
+    ``body_plain`` must be ANSI-free: the owning ``PagerSection.plain_text``.
+    The returned offsets are validated against that text, so callers must not
+    pass a string containing ANSI SGR escapes. No stripping happens here; the
+    caller owns the coordinate space.
+    """
     from sase.pager.document import AttachedTarget
 
     ordered = sorted({name for name in names if name}, key=len, reverse=True)
@@ -322,6 +340,7 @@ __all__ = [
     "SHOW_IMAGE_MODES",
     "TEXT_PREVIEW_LINES",
     "TEXT_PREVIEW_MAX_BYTES",
+    "attachment_names_for_issue",
     "attachment_targets_for_body",
     "get_show_images_config",
     "is_previewable_raster",

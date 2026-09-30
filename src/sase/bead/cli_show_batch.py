@@ -626,38 +626,35 @@ def _show_batch_sections(
             wrap=wrap,
             images_mode=images_mode,
         )
-        targets: tuple[object, ...] = ()
-        try:
-            from sase.bead.show_images import attachment_targets_for_body
-
-            names: list[str] = []
-            for note in issue.notes:
-                names.extend(attachment.name for attachment in note.attachments)
-            for evidence in issue.plus_one_evidence:
-                names.extend(
-                    attachment.name
-                    for attachment in getattr(evidence, "attachments", ())
-                )
-            if names:
-                targets = attachment_targets_for_body(issue.id, body, names)  # type: ignore[assignment]
-        except Exception:
-            targets = ()
-        sections.append(
-            PagerSection(
-                identity=subject_ref,
-                title=f"{issue.id} · {issue.title}",
-                kind="bead",
-                body=body,
-                subject_ref=subject_ref,
-                targets=targets,  # type: ignore[arg-type]
-                link_anchors=_show_entry_link_anchors(context),
-                origin=PagerOrigin.BEAD,
-                owner=document_owner_from_path(
-                    context.design_cwd, source_reference=subject_ref
-                ),
-                known_kinds=known_kinds_from_artifact_context(reference_context),
-            )
+        section = PagerSection(
+            identity=subject_ref,
+            title=f"{issue.id} · {issue.title}",
+            kind="bead",
+            body=body,
+            subject_ref=subject_ref,
+            link_anchors=_show_entry_link_anchors(context),
+            origin=PagerOrigin.BEAD,
+            owner=document_owner_from_path(
+                context.design_cwd, source_reference=subject_ref
+            ),
+            known_kinds=known_kinds_from_artifact_context(reference_context),
         )
+        try:
+            from sase.bead.show_images import (
+                attachment_names_for_issue,
+                attachment_targets_for_body,
+            )
+
+            names = attachment_names_for_issue(issue)
+            if names:
+                targets = attachment_targets_for_body(
+                    issue.id, section.plain_text, names
+                )  # type: ignore[assignment]
+                if targets:
+                    section = replace(section, targets=targets)  # type: ignore[arg-type]
+        except Exception:
+            pass
+        sections.append(section)
     return tuple(sections)
 
 
