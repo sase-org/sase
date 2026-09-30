@@ -49,19 +49,29 @@ class PromptTextAreaEditActionsMixin(PromptTextAreaListEditingMixin):
         self._refresh_completion_after_cursor_move()
 
     def action_cursor_right(self, select: bool = False) -> None:
+        # Fish parity only at the true end of line: ``Right``/``Ctrl+F``
+        # take the whole ghost there, and stay plain motion before a
+        # closing tail (e.g. stepping past ``)``). Textual's default
+        # action inserts a live suggestion, so plain motion must drop the
+        # rendered text first; validation after the move clears the stale
+        # ghost state while the armed chain survives.
         accept = getattr(self, "_accept_next_word_all", None)
+        at_eol = getattr(self, "_next_word_ghost_at_eol", None)
         visible = getattr(self, "_next_word_ghost_visible", None)
         try:
-            if (
-                not select
-                and callable(accept)
-                and callable(visible)
-                and bool(visible())
-            ):
-                if bool(accept()):
-                    return
+            ghost_visible = bool(visible()) if callable(visible) else False
         except Exception:
-            pass
+            ghost_visible = False
+        if ghost_visible and callable(accept) and callable(at_eol):
+            try:
+                if not select and bool(at_eol()) and bool(accept()):
+                    return
+            except Exception:
+                pass
+            try:
+                self.suggestion = ""
+            except Exception:
+                pass
         super().action_cursor_right(select)
         self._refresh_completion_after_cursor_move()
 

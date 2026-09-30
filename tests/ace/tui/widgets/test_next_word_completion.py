@@ -96,6 +96,6 @@ def test_auto_space_eligible_word_boundary() -> None:
 
 
 def test_hint_constants() -> None:
-    assert NEXT_WORD_GHOST_HINT == "[^T] word  [^F] all"
+    assert NEXT_WORD_GHOST_HINT == "[^T] word  [^L] all"
     assert NEXT_WORD_NO_GUESS_HINT == "no next-word guess"
     assert NEXT_WORD_WARMING_HINT == "warming next words…"

@@ -205,6 +205,34 @@ async def test_next_word_menu_narrow_png_snapshot(
         )
 
 
+async def test_next_word_ghost_before_closer_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await _mount_prompt_bar(page, "Plan (see the)")
+        ta = bar.active_text_area()
+        ta.cursor_location = (0, len(ta.text) - 1)
+        await wait_for_visual_idle(page)
+        ta.suggestion = " parser"
+        bar.show_next_word_hint(NEXT_WORD_GHOST_HINT)
+        await wait_for_svg_contains(page, "parser")
+        await wait_for_svg_contains(page, "word")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "next_word_ghost_before_closer_120x40",
+            title="ACE prompt input — next-word ghost before a closer",
+        )
+
+
 async def test_next_word_auto_space_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

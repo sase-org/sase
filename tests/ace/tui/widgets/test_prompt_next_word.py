@@ -415,6 +415,10 @@ async def test_auto_space_shows_ghost_without_separator() -> None:
         # The typed space is the separator, so the ghost has none.
         assert not ta.suggestion.startswith(" ")
         assert ta._next_word_chain_is_armed() is True
+        # Typing-triggered ghosts show text at once but wait out the
+        # reveal beat before naming their hint.
+        assert "[^T] word" not in _bar_hint(bar)
+        await pilot.pause(0.6)
         assert "[^T] word" in _bar_hint(bar)
 
 

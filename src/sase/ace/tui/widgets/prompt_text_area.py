@@ -193,6 +193,8 @@ class PromptTextArea(
         self._next_word_chain = None
         self._next_word_ghost = None
         self._next_word_hint: str | None = None
+        self._next_word_reveal_timer = None
+        self._next_word_reveal_generation = 0
         self._prompt_preview_request_id: int = 0
         self._prompt_jump_request_id: int = 0
         self._prompt_format_request_id: int = 0
