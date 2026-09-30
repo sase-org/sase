@@ -139,7 +139,7 @@ async def _open_name_modal(
 ) -> None:
     page.app.push_screen(modal)
     await page.expect_modal("MiniXPromptNameModal")
-    await wait_for_svg_contains(page, "Open mini-xprompt")
+    await wait_for_svg_contains(page, "● Name")
     await wait_for_state(
         page,
         lambda: (
@@ -210,7 +210,7 @@ async def test_mini_xprompt_name_fresh_completion_png_snapshot(
         ),
         destinations=(row,),
     )
-    modal = MiniXPromptNameModal(catalog, initial_name="re")
+    modal = MiniXPromptNameModal(catalog, row, initial_name="re")
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
@@ -234,6 +234,7 @@ async def test_mini_xprompt_name_edit_existing_png_snapshot(
     definition = _definition("review", directory / "review.md")
     modal = MiniXPromptNameModal(
         MiniXPromptTargetCatalog(definitions=(definition,), destinations=(row,)),
+        row,
         initial_name="review",
     )
 
@@ -264,6 +265,7 @@ async def test_mini_xprompt_name_incompatible_swarm_png_snapshot(
     )
     modal = MiniXPromptNameModal(
         MiniXPromptTargetCatalog(definitions=(definition,), destinations=(row,)),
+        row,
         initial_name="swarm",
     )
 
@@ -404,6 +406,29 @@ async def test_mini_xprompt_scoped_frontmatter_png_snapshot(
             page,
             "mini_xprompt_scoped_frontmatter_120x40",
             title="ACE mini-xprompt pane - scoped frontmatter",
+        )
+
+
+async def test_mini_xprompt_location_flow_picker_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    del tmp_path
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await mount_prompt_bar(page, "Summarize the risky assumptions.")
+        await page.press("escape")
+        await page.press("g", "x")
+        await page.expect_modal("SaveLocationPickerModal")
+        await wait_for_svg_contains(page, "where should it live?")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "mini_xprompt_location_flow_picker_120x40",
+            title="ACE mini-xprompt location picker — real chord flow",
         )
 
 

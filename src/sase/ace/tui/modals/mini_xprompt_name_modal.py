@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -20,11 +21,11 @@ from .mini_xprompt_target_catalog import (
     MiniXPromptDefinition,
     MiniXPromptDestinationTarget,
     MiniXPromptTargetCatalog,
-    default_mini_xprompt_destination,
     destination_target_for_name,
     mini_xprompt_prefix_matches,
     validate_name_for_destination,
 )
+from .save_location_choices import ChangeSaveLocationRequest
 from .unified_xprompt_save_support import UnifiedSaveLocation
 
 MiniXPromptOpenAction = Literal["create", "edit", "fork", "override"]
@@ -71,10 +72,11 @@ class _MiniXPromptNameInput(Input):
 
     BINDINGS = [
         Binding("tab", "forward('complete_match')", show=False),
+        Binding("shift+tab", "forward('change_location')", show=False),
         Binding("up", "forward('prev_match')", show=False),
         Binding("down", "forward('next_match')", show=False),
-        Binding("ctrl+n", "forward('next_destination')", show=False),
-        Binding("ctrl+p", "forward('prev_destination')", show=False),
+        Binding("ctrl+n", "forward('next_match')", show=False),
+        Binding("ctrl+p", "forward('prev_match')", show=False),
     ]
 
     def action_forward(self, action_name: str) -> None:
@@ -88,10 +90,11 @@ class _MiniXPromptMatchList(OptionList):
 
     BINDINGS = [
         Binding("tab", "forward('complete_match')", show=False),
+        Binding("shift+tab", "forward('change_location')", show=False),
         Binding("up", "forward('prev_match')", show=False),
         Binding("down", "forward('next_match')", show=False),
-        Binding("ctrl+n", "forward('next_destination')", show=False),
-        Binding("ctrl+p", "forward('prev_destination')", show=False),
+        Binding("ctrl+n", "forward('next_match')", show=False),
+        Binding("ctrl+p", "forward('prev_match')", show=False),
     ]
 
     def action_forward(self, action_name: str) -> None:
@@ -100,34 +103,38 @@ class _MiniXPromptMatchList(OptionList):
             action()
 
 
-class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
-    """Ask for a mini-xprompt name and report target resolution live."""
+class MiniXPromptNameModal(
+    ModalScreen[MiniXPromptNameResult | ChangeSaveLocationRequest | None]
+):
+    """Ask for a mini-xprompt name at a locked destination.
+
+    The destination is chosen by the location picker before this step; this
+    modal never changes it. ``Shift+Tab`` asks the orchestrator to reopen the
+    picker while keeping the typed text.
+    """
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "open", "Open", show=False),
         Binding("tab", "complete_match", "Complete", show=False),
+        Binding("shift+tab", "change_location", "Change location", show=False),
         Binding("up", "prev_match", "Previous match", show=False),
         Binding("down", "next_match", "Next match", show=False),
-        Binding("ctrl+n", "next_destination", "Next destination", show=False),
-        Binding("ctrl+p", "prev_destination", "Previous destination", show=False),
+        Binding("ctrl+n", "next_match", "Next match", show=False),
+        Binding("ctrl+p", "prev_match", "Previous match", show=False),
     ]
 
     def __init__(
         self,
         catalog: MiniXPromptTargetCatalog,
+        destination: UnifiedSaveLocation,
         *,
         initial_name: str = "",
-        last_used_path: str | None = None,
     ) -> None:
         super().__init__()
         self._catalog = catalog
         self._initial_name = initial_name
-        self._destination = default_mini_xprompt_destination(
-            catalog,
-            name=initial_name,
-            last_used_path=last_used_path,
-        )
+        self._destination = destination
         self._updating_matches = False
         self._analysis_debouncer: DetailPanelDebouncer | None = None
         self._analysis_tasks: set[asyncio.Task[None]] = set()
@@ -136,7 +143,10 @@ class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="mini-xprompt-name-container"):
-            yield Label("Open mini-xprompt", id="mini-xprompt-name-title")
+            yield Label(
+                f"✓ {self._destination.location.label} › ● Name",
+                id="mini-xprompt-name-title",
+            )
             with Horizontal(classes="mini-xprompt-name-field"):
                 yield Label("Name", classes="mini-xprompt-name-field-label")
                 yield _MiniXPromptNameInput(
@@ -150,7 +160,7 @@ class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
                     yield _MiniXPromptMatchList(id="mini-xprompt-name-matches")
                 with Vertical(id="mini-xprompt-name-destination-panel"):
                     yield Static(
-                        "Destination",
+                        "Saving to",
                         classes="mini-xprompt-name-panel-title",
                     )
                     yield Static(
@@ -160,7 +170,7 @@ class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
                     )
             yield Static("", id="mini-xprompt-name-verdict", markup=False)
             yield Static(
-                "tab complete · up/down matches · ^n/^p destination · enter open · esc cancel",
+                "tab complete · ↑↓ matches · ⇧tab location · enter open · esc cancel",
                 id="mini-xprompt-name-hints",
                 markup=False,
             )
@@ -202,37 +212,42 @@ class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
 
     def _identity(self) -> tuple[str, str] | None:
         name = self._current_name()
-        if self._destination is None:
-            return None
         if validate_name_for_destination(name, self._destination) is not None:
             return None
         return (name, self._destination.location.path)
 
     def _refresh(self) -> None:
-        self._refresh_destination()
+        self._refresh_saving_to()
         self._refresh_matches()
         self._refresh_verdict()
         identity = self._identity()
         if identity is not None and identity not in self._analysis_cache:
             self._schedule_analysis(identity)
 
-    def _refresh_destination(self) -> None:
+    def _refresh_saving_to(self) -> None:
         target = self.query_one("#mini-xprompt-name-destination", Static)
-        if self._destination is None:
-            target.update("No writable xprompt destinations found")
-            return
         name = self._current_name()
-        details = [self._destination.display_path]
+        lines = []
         if name and validate_name_for_destination(name, self._destination) is None:
             destination = destination_target_for_name(
                 self._destination,
                 name,
                 destinations=self._catalog.destinations,
             )
-            details.append(destination.display_path)
-        if self._destination.namespace:
-            details.append(f"namespace {self._destination.namespace}/")
-        target.update(" · ".join(details))
+            lines.append(f"→ {destination.display_path}")
+            notes = []
+            if self._destination.namespace:
+                notes.append(f"namespace {self._destination.namespace}/")
+            if destination.via_chezmoi:
+                notes.append("via chezmoi")
+            if notes:
+                lines.append(" · ".join(notes))
+        else:
+            lines.append(f"→ {self._destination.display_path}")
+            if self._destination.namespace:
+                lines.append(f"namespace {self._destination.namespace}/")
+        lines.append("⇧Tab change location")
+        target.update("\n".join(lines))
 
     def _refresh_matches(self) -> None:
         option_list = self.query_one(
@@ -265,10 +280,6 @@ class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
         verdict = self.query_one("#mini-xprompt-name-verdict", Static)
         name = self._current_name()
         error = validate_name_for_destination(name, self._destination)
-        if self._destination is None:
-            verdict.set_classes("mini-xprompt-name-verdict-error")
-            verdict.update("Invalid target: no writable xprompt destinations found")
-            return
         if error is not None:
             verdict.set_classes("mini-xprompt-name-verdict-error")
             verdict.update(f"Invalid name: {error}")
@@ -301,7 +312,7 @@ class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
         name, destination_path = identity
         destination = self._destination
         try:
-            if destination is None or destination.location.path != destination_path:
+            if destination.location.path != destination_path:
                 return
             analysis = await asyncio.to_thread(
                 _build_mini_xprompt_name_analysis,
@@ -316,9 +327,6 @@ class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
             self._refresh()
 
     async def action_open(self) -> None:
-        if self._destination is None:
-            self._refresh()
-            return
         name = self._current_name()
         if validate_name_for_destination(name, self._destination) is not None:
             self._refresh()
@@ -361,28 +369,17 @@ class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
         field.value = match.name
         field.cursor_position = len(field.value)
         field.focus()
-        self._destination = default_mini_xprompt_destination(
-            self._catalog,
-            name=match.name,
-            last_used_path=(
-                self._destination.location.path
-                if self._destination is not None
-                else None
-            ),
-        )
         self._refresh()
+
+    def action_change_location(self) -> None:
+        field = self.query_one("#mini-xprompt-name-input", _MiniXPromptNameInput)
+        self.dismiss(ChangeSaveLocationRequest(text=field.value))
 
     def action_next_match(self) -> None:
         self._move_match(1)
 
     def action_prev_match(self) -> None:
         self._move_match(-1)
-
-    def action_next_destination(self) -> None:
-        self._move_destination(1)
-
-    def action_prev_destination(self) -> None:
-        self._move_destination(-1)
 
     def _move_match(self, direction: int) -> None:
         option_list = self.query_one(
@@ -407,26 +404,6 @@ class MiniXPromptNameModal(ModalScreen[MiniXPromptNameResult | None]):
             option_list.highlighted = selected
         finally:
             self._updating_matches = False
-        self.query_one("#mini-xprompt-name-input", _MiniXPromptNameInput).focus()
-
-    def _move_destination(self, direction: int) -> None:
-        choices = [row for row in self._catalog.destinations if row.is_selectable]
-        if not choices:
-            return
-        if self._destination is None:
-            self._destination = choices[0 if direction > 0 else -1]
-            self._refresh()
-            return
-        try:
-            current = next(
-                index
-                for index, row in enumerate(choices)
-                if row.location.path == self._destination.location.path
-            )
-        except StopIteration:
-            current = -1 if direction > 0 else 0
-        self._destination = choices[(current + direction) % len(choices)]
-        self._refresh()
         self.query_one("#mini-xprompt-name-input", _MiniXPromptNameInput).focus()
 
     def _highlighted_match(self) -> MiniXPromptDefinition | None:
@@ -500,6 +477,7 @@ def _build_mini_xprompt_name_analysis(
         destination_target,
         exact_definition=exact,
         destination_definition=destination_definition,
+        destinations=catalog.destinations,
     )
     return _MiniXPromptNameAnalysis(
         name=name,
@@ -517,6 +495,7 @@ def _build_mini_xprompt_verdict(
     *,
     exact_definition: MiniXPromptDefinition | None,
     destination_definition: MiniXPromptDefinition | None,
+    destinations: Sequence[UnifiedSaveLocation] = (),
 ) -> _MiniXPromptNameVerdict:
     """Return the exact Enter behavior for one mini-name analysis."""
 
@@ -561,6 +540,18 @@ def _build_mini_xprompt_verdict(
         )
     if exact_definition is not None:
         message = f"Fork {reference} from {exact_definition.display_path} into {destination.display_path}"
+        if exact_definition.location_path:
+            other = next(
+                (
+                    row
+                    for row in destinations
+                    if row.location.path == exact_definition.location_path
+                    and row.location.path != destination.location_path
+                ),
+                None,
+            )
+            if other is not None:
+                message += f" · ⇧tab to pick {other.location.label}"
         return _MiniXPromptNameVerdict(
             kind="warning",
             message=message,

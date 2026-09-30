@@ -8,10 +8,10 @@ import yaml
 
 from sase.ace.tui.modals import mini_xprompt_target_catalog as catalog_mod
 from sase.ace.tui.modals.mini_xprompt_target_catalog import (
-    default_mini_xprompt_destination,
     destination_target_for_name,
     load_mini_xprompt_target_catalog,
     mini_xprompt_prefix_matches,
+    rebase_name_for_destination,
     validate_name_for_destination,
 )
 from sase.ace.tui.modals.unified_xprompt_save_modal import UnifiedSaveLocation
@@ -127,57 +127,33 @@ def test_catalog_indexes_directory_config_duplicates_and_swarm_status(
     assert definitions[2].entry_name == "review"
 
 
-def test_default_destination_prefers_exact_editable_then_last_used(
+def test_rebase_name_for_destination_seeds_and_strips_namespace(
     tmp_path: Path,
-    monkeypatch,
 ) -> None:
-    _empty_catalog_only(monkeypatch)
-    first = tmp_path / "first"
-    last = tmp_path / "last"
-    _write_xprompt(first / "review.md", "body")
-    first_row = _row(first, names=frozenset({"review"}), precedence=0)
-    last_row = _row(last, group="Home directories", precedence=1)
-    catalog = load_mini_xprompt_target_catalog(locations=[first_row, last_row])
+    project_row = _row(tmp_path / "project", namespace="sase")
+    home_row = _row(tmp_path / "home")
+    other_row = _row(tmp_path / "other", namespace="work")
 
+    assert rebase_name_for_destination("review", project_row) == "sase/review"
+    assert rebase_name_for_destination("sase/review", project_row) == "sase/review"
+    assert rebase_name_for_destination("", project_row) == ""
+    assert rebase_name_for_destination("review", home_row) == "review"
     assert (
-        default_mini_xprompt_destination(
-            catalog,
-            name="review",
-            last_used_path=str(last),
+        rebase_name_for_destination(
+            "sase/review", home_row, from_destination=project_row
         )
-        == first_row
+        == "review"
     )
     assert (
-        default_mini_xprompt_destination(
-            catalog,
-            name="fresh",
-            last_used_path=str(last),
+        rebase_name_for_destination(
+            "sase/review", other_row, from_destination=project_row
         )
-        == last_row
+        == "work/review"
     )
-
-
-def test_read_only_exact_match_falls_back_to_writable_override(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    _empty_catalog_only(monkeypatch)
-    readonly = tmp_path / "readonly"
-    writable = tmp_path / "writable"
-    _write_xprompt(readonly / "review.md", "body")
-    readonly_row = _row(
-        readonly,
-        names=frozenset({"review"}),
-        disabled_reason="read-only",
-        precedence=0,
+    assert (
+        rebase_name_for_destination("review", other_row, from_destination=project_row)
+        == "work/review"
     )
-    writable_row = _row(writable, precedence=1)
-    catalog = load_mini_xprompt_target_catalog(locations=[readonly_row, writable_row])
-
-    definition = catalog.effective_definition("review")
-    assert definition is not None
-    assert definition.compatibility == "read_only"
-    assert default_mini_xprompt_destination(catalog, name="review") == writable_row
 
 
 def test_catalog_only_workflows_skills_and_memory_are_incompatible(

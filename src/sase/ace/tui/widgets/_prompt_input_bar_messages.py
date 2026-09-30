@@ -253,7 +253,7 @@ class SnippetPaneSaveRequested(Message, namespace="prompt_input_bar"):
 
 
 class MiniXPromptTargetRequested(Message, namespace="prompt_input_bar"):
-    """Request the name panel for a pane-scoped mini-xprompt target."""
+    """Request the location-first flow for a pane-scoped mini-xprompt target."""
 
     def __init__(
         self,
@@ -261,11 +261,13 @@ class MiniXPromptTargetRequested(Message, namespace="prompt_input_bar"):
         origin_bar: PromptInputBar,
         origin_pane_id: str,
         initial_name: str = "",
+        current_location_path: str | None = None,
     ) -> None:
         super().__init__()
         self.origin_bar = origin_bar
         self.origin_pane_id = origin_pane_id
         self.initial_name = initial_name
+        self.current_location_path = current_location_path
 
 
 class MiniXPromptPaneSaveRequested(Message, namespace="prompt_input_bar"):

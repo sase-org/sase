@@ -7162,22 +7162,23 @@ completion in the prompt input and does not toggle this save screen. A successfu
 whole-stack save binds the prompt stack to that source. `gw` then performs atomic
 write-back, and if the source changed since load it offers overwrite, reload, or save-as
 instead of clobbering it. `gd` loads the simple xprompt under the cursor for the same
-bound editing loop. `gx` opens or retargets one focused mini-xprompt pane; saving that
-pane publishes the definition without binding the surrounding prompt stack. `gL`
-converts the active pane through a prefilled frontmatter ghost row and rewrites the pane
-to invoke the committed helper. Before `gX` opens the save preview, its xprompt version
-converts live `<label>` tags into required Jinja `text` inputs; switching that screen to
-snippet mode shows and saves the original active-pane body instead. A fresh `gx`
-extraction applies the same raw-placeholder conversion to the copied origin-pane body
-before the mini pane opens and seeds the mini definition's inferred inputs. Raw
-placeholders typed later in the mini pane are saved as edited; the mini save review does
-not run another conversion pass. `gL` also applies the conversion when it creates a
-frontmatter-local helper. Set `ace.prompt_inputs.xprompt_placeholder_args: false` to
-disable these conversions while preserving `gL` Jinja-variable inference. `gw` only
-writes the currently bound definition—it does not reinterpret newly typed raw
-placeholders. Tags in inline code, fenced code, and disabled xprompt regions stay
-literal throughout. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders)
-for the exact launch, conversion, and naming rules.
+bound editing loop. `gx` first shows the [location picker](#save-location-picker) and
+then opens or retargets one focused mini-xprompt pane; saving that pane publishes the
+definition without binding the surrounding prompt stack. `gL` converts the active pane
+through a prefilled frontmatter ghost row and rewrites the pane to invoke the committed
+helper. Before `gX` opens the save preview, its xprompt version converts live `<label>`
+tags into required Jinja `text` inputs; switching that screen to snippet mode shows and
+saves the original active-pane body instead. A fresh `gx` extraction applies the same
+raw-placeholder conversion to the copied origin-pane body before the mini pane opens and
+seeds the mini definition's inferred inputs. Raw placeholders typed later in the mini
+pane are saved as edited; the mini save review does not run another conversion pass.
+`gL` also applies the conversion when it creates a frontmatter-local helper. Set
+`ace.prompt_inputs.xprompt_placeholder_args: false` to disable these conversions while
+preserving `gL` Jinja-variable inference. `gw` only writes the currently bound
+definition—it does not reinterpret newly typed raw placeholders. Tags in inline code,
+fenced code, and disabled xprompt regions stay literal throughout. See
+[Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact launch,
+conversion, and naming rules.
 
 `Ctrl+G p` opens the Prompts overlay on the Stash tab from the prompt bar. From the main
 sase's TUI tabs, when you are not typing in a text field, `@` acts on Stash. If the open

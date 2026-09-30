@@ -264,38 +264,32 @@ def validate_name_for_destination(
     return None
 
 
-def default_mini_xprompt_destination(
-    catalog: MiniXPromptTargetCatalog,
+def rebase_name_for_destination(
+    name: str,
+    to_destination: UnifiedSaveLocation,
     *,
-    name: str = "",
-    last_used_path: str | None = None,
-) -> UnifiedSaveLocation | None:
-    """Return the destination selected when the mini-name panel opens."""
+    from_destination: UnifiedSaveLocation | None = None,
+) -> str:
+    """Rebase *name* onto *to_destination*'s namespace.
 
-    exact = catalog.effective_definition(name) if name else None
-    if exact is not None and exact.is_editable and exact.location_path:
-        match = _destination_by_path(catalog.destinations, exact.location_path)
-        if match is not None and match.is_selectable:
-            return match
-    if last_used_path:
-        match = _destination_by_path(catalog.destinations, last_used_path)
-        if match is not None and match.is_selectable:
-            return match
-    for predicate in (
-        lambda row: row.group == "Project",
-        lambda row: row.location.label.startswith("Home "),
-    ):
-        match = next(
-            (
-                row
-                for row in catalog.destinations
-                if row.is_selectable and predicate(row)
-            ),
-            None,
-        )
-        if match is not None:
-            return match
-    return next((row for row in catalog.destinations if row.is_selectable), None)
+    When *to_destination* has a namespace and the text lacks its ``<ns>/``
+    prefix, the prefix is added. When moving away from a namespaced
+    *from_destination*, that destination's prefix is stripped first. Empty
+    names stay empty so the name step opens with a blank field.
+    """
+
+    remainder = name
+    if from_destination is not None and from_destination.namespace:
+        prefix = f"{from_destination.namespace}/"
+        if remainder.startswith(prefix):
+            remainder = remainder.removeprefix(prefix)
+    if not remainder:
+        return ""
+    if to_destination.namespace:
+        prefix = f"{to_destination.namespace}/"
+        if not remainder.startswith(prefix):
+            remainder = f"{prefix}{remainder}"
+    return remainder
 
 
 def mini_xprompt_prefix_matches(
@@ -558,12 +552,6 @@ def _callable_name(row: UnifiedSaveLocation, storage_name: str) -> str:
     return storage_name
 
 
-def _destination_by_path(
-    rows: Sequence[UnifiedSaveLocation], path: str
-) -> UnifiedSaveLocation | None:
-    return next((row for row in rows if row.location.path == path), None)
-
-
 def _existing_write_target(path: str | Path) -> XPromptWriteTarget:
     return resolve_xprompt_write_target(path)
 
@@ -585,10 +573,10 @@ __all__ = [
     "MiniXPromptDestinationTarget",
     "MiniXPromptTargetCatalog",
     "MiniXPromptWorkflowKind",
-    "default_mini_xprompt_destination",
     "destination_defines_name",
     "destination_target_for_name",
     "load_mini_xprompt_target_catalog",
     "mini_xprompt_prefix_matches",
+    "rebase_name_for_destination",
     "validate_name_for_destination",
 ]

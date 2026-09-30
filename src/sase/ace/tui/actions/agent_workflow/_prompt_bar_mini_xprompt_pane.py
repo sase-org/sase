@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.widgets._local_xprompt_conversion import infer_local_xprompt_inputs
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
@@ -14,13 +14,22 @@ from sase.xprompt.save import SaveTargetFormat, load_config_xprompt_markdown
 from ._types import PromptContext
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine
+    from collections.abc import Coroutine, Sequence
 
     from sase.ace.tui.modals.mini_xprompt_name_modal import MiniXPromptNameResult
     from sase.ace.tui.modals.mini_xprompt_target_catalog import (
         MiniXPromptDefinition,
         MiniXPromptTargetCatalog,
     )
+    from sase.ace.tui.modals.save_location_choices import (
+        ChangeSaveLocationRequest,
+        SaveLocationChoice,
+        SaveLocationPick,
+    )
+    from sase.ace.tui.modals.save_location_picker_modal import (
+        SaveLocationPickerModal,
+    )
+    from sase.ace.tui.modals.unified_xprompt_save_support import UnifiedSaveLocation
     from sase.ace.tui.widgets import PromptInputBar
     from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
     from sase.xprompt.save_state import SaveKind
@@ -44,7 +53,7 @@ class PromptBarMiniXPromptPaneMixin:
         self,
         event: object,
     ) -> None:
-        """Handle pane-scoped mini-xprompt target requests."""
+        """Handle pane-scoped mini-xprompt target requests location-first."""
         from ...widgets import PromptInputBar
 
         if not isinstance(event, PromptInputBar.MiniXPromptTargetRequested):
@@ -60,56 +69,13 @@ class PromptBarMiniXPromptPaneMixin:
             )
             return
 
-        project = (
-            self._prompt_context.project_name
-            if self._prompt_context is not None
-            and not self._prompt_context.is_home_mode
-            else None
-        )
-        try:
-            catalog, last_used = await asyncio.gather(
-                asyncio.to_thread(_load_mini_xprompt_catalog, project),
-                asyncio.to_thread(_load_last_used_locations),
-            )
-        except Exception as exc:
-            self.notify(  # type: ignore[attr-defined]
-                f"Failed to prepare mini-xprompt pane: {exc}",
-                severity="error",
-            )
-            return
-
-        if (
-            not origin_bar.is_mounted
-            or not origin_bar.mini_xprompt_target_origin_available(event.origin_pane_id)
-        ):
-            self.notify(  # type: ignore[attr-defined]
-                "Prompt pane is no longer available - mini-xprompt discarded",
-                severity="warning",
-            )
-            return
-
-        from ...modals import MiniXPromptNameModal
-
-        def _on_result(result: MiniXPromptNameResult | None) -> None:
-            if result is None:
-                origin_bar.refocus_pane_id(event.origin_pane_id)
-                return
-            self._spawn_mini_xprompt_pane_task(
-                self._apply_mini_xprompt_name_result(
-                    origin_bar,
-                    event.origin_pane_id,
-                    result,
-                )
-            )
-
-        self.push_screen(  # type: ignore[attr-defined]
-            MiniXPromptNameModal(
-                catalog,
-                initial_name=event.initial_name,
-                last_used_path=last_used.get("xprompt"),
-            ),
-            _on_result,
-        )
+        _MiniXPromptLocationFlow(
+            self,
+            origin_bar=origin_bar,
+            origin_pane_id=event.origin_pane_id,
+            initial_name=event.initial_name,
+            current_location_path=event.current_location_path,
+        ).start()
 
     async def on_prompt_input_bar_mini_xprompt_pane_save_requested(
         self,
@@ -180,12 +146,233 @@ class PromptBarMiniXPromptPaneMixin:
         task.add_done_callback(tasks.discard)
 
 
-def _load_mini_xprompt_catalog(project: str | None) -> MiniXPromptTargetCatalog:
+class _MiniXPromptLocationFlow:
+    """One location-first mini-xprompt request, picker first then name step."""
+
+    def __init__(
+        self,
+        app: Any,
+        *,
+        origin_bar: PromptInputBar,
+        origin_pane_id: str,
+        initial_name: str,
+        current_location_path: str | None,
+    ) -> None:
+        self._app = app
+        self._origin_bar = origin_bar
+        self._origin_pane_id = origin_pane_id
+        self._seed_base = initial_name
+        self._seed_from_path = current_location_path
+        self._current_location_path = current_location_path
+        context = app._prompt_context
+        if context is not None and not context.is_home_mode:
+            self._project: str | None = context.project_name
+        else:
+            self._project = None
+        self._home_mode = bool(context is not None and context.is_home_mode)
+        self._catalog: MiniXPromptTargetCatalog | None = None
+        self._rows: tuple[UnifiedSaveLocation, ...] = ()
+        self._settled = False
+
+    def start(self) -> None:
+        """Push the picker synchronously and load destinations in the background."""
+        from ...modals.save_location_picker_modal import SaveLocationPickerModal
+
+        picker = SaveLocationPickerModal(
+            kind="xprompt",
+            title=_mini_xprompt_picker_title(
+                self._seed_base, self._current_location_path
+            ),
+        )
+        self._app.push_screen(picker, self._on_pick)  # type: ignore[attr-defined]
+        self._app._spawn_mini_xprompt_pane_task(
+            self._load_and_show(picker, name=self._seed_base, highlight_id=None)
+        )
+
+    def _origin_available(self) -> bool:
+        return bool(
+            self._origin_bar.is_mounted
+            and self._origin_bar.mini_xprompt_target_origin_available(
+                self._origin_pane_id
+            )
+        )
+
+    async def _load_and_show(
+        self,
+        picker: SaveLocationPickerModal,
+        *,
+        name: str,
+        highlight_id: str | None,
+    ) -> None:
+        """Load rows, catalog, and choices off-thread, then feed the picker."""
+        try:
+            rows = await asyncio.to_thread(_load_unified_save_rows, self._project)
+            last_used = await asyncio.to_thread(_load_last_used_locations)
+            catalog = await asyncio.to_thread(
+                _load_mini_xprompt_catalog, self._project, rows
+            )
+            choices, _default_id = await asyncio.to_thread(
+                _build_mini_xprompt_picker_choices,
+                rows,
+                last_used_path=last_used.get("xprompt"),
+                current_path=self._current_location_path,
+                home_mode=self._home_mode,
+                project=self._project,
+                name=name,
+            )
+        except Exception as exc:
+            if self._settled:
+                return
+            if not self._origin_available():
+                self._settled = True
+                self._app.notify(  # type: ignore[attr-defined]
+                    "Prompt pane is no longer available - mini-xprompt discarded",
+                    severity="warning",
+                )
+                picker.dismiss(None)
+                return
+            self._app.notify(  # type: ignore[attr-defined]
+                f"Failed to prepare mini-xprompt pane: {exc}",
+                severity="error",
+            )
+            picker.set_load_error(f"Failed to load destinations: {exc}")
+            return
+        # Stored before set_choices so the dismiss callback, which may run
+        # synchronously inside set_choices, can push the name step with no
+        # further awaits.
+        self._rows = tuple(rows)
+        self._catalog = catalog
+        if self._settled:
+            return
+        if not self._origin_available():
+            self._settled = True
+            self._app.notify(  # type: ignore[attr-defined]
+                "Prompt pane is no longer available - mini-xprompt discarded",
+                severity="warning",
+            )
+            picker.dismiss(None)
+            return
+        picker.set_choices(choices, highlight_id=highlight_id)
+
+    def _on_pick(self, pick: SaveLocationPick | None) -> None:
+        self._settled = True
+        if pick is None or self._catalog is None:
+            self._origin_bar.refocus_pane_id(self._origin_pane_id)
+            return
+        row = next(
+            (item for item in self._rows if item.location.path == pick.choice_id),
+            None,
+        )
+        if row is None:
+            self._origin_bar.refocus_pane_id(self._origin_pane_id)
+            return
+        self._open_name_step(row, (self._seed_base or "") + (pick.typeahead or ""))
+
+    def _open_name_step(self, row: UnifiedSaveLocation, raw_text: str) -> None:
+        from ...modals import MiniXPromptNameModal
+        from ...modals.mini_xprompt_target_catalog import rebase_name_for_destination
+
+        catalog = self._catalog
+        assert catalog is not None
+        from_row = next(
+            (item for item in self._rows if item.location.path == self._seed_from_path),
+            None,
+        )
+        seeded = rebase_name_for_destination(raw_text, row, from_destination=from_row)
+        modal = MiniXPromptNameModal(catalog, row, initial_name=seeded)
+        self._app.push_screen(  # type: ignore[attr-defined]
+            modal, lambda result: self._on_name_result(result, row)
+        )
+
+    def _on_name_result(
+        self,
+        result: MiniXPromptNameResult | ChangeSaveLocationRequest | None,
+        row: UnifiedSaveLocation,
+    ) -> None:
+        from ...modals.save_location_choices import ChangeSaveLocationRequest
+
+        if result is None:
+            self._origin_bar.refocus_pane_id(self._origin_pane_id)
+            return
+        if isinstance(result, ChangeSaveLocationRequest):
+            from ...modals.save_location_picker_modal import SaveLocationPickerModal
+
+            self._settled = False
+            self._seed_base = result.text
+            self._seed_from_path = row.location.path
+            picker = SaveLocationPickerModal(
+                kind="xprompt",
+                title=_mini_xprompt_picker_title(
+                    self._seed_base, self._current_location_path
+                ),
+            )
+            self._app.push_screen(picker, self._on_pick)  # type: ignore[attr-defined]
+            self._app._spawn_mini_xprompt_pane_task(
+                self._load_and_show(
+                    picker,
+                    name=result.text,
+                    highlight_id=row.location.path,
+                )
+            )
+            return
+        self._app._spawn_mini_xprompt_pane_task(
+            self._app._apply_mini_xprompt_name_result(
+                self._origin_bar,
+                self._origin_pane_id,
+                result,
+            )
+        )
+
+
+def _mini_xprompt_picker_title(
+    initial_name: str, current_location_path: str | None
+) -> str:
+    """Return the picker title for a new mini-xprompt or a retarget."""
+    if current_location_path and initial_name:
+        return f"Retarget #{initial_name} · where should it live?"
+    return "New mini-xprompt · where should it live?"
+
+
+def _load_unified_save_rows(
+    project: str | None,
+) -> list[UnifiedSaveLocation]:
+    from sase.ace.tui.modals.unified_xprompt_save_support import (
+        load_unified_save_locations,
+    )
+
+    return load_unified_save_locations(project)
+
+
+def _load_mini_xprompt_catalog(
+    project: str | None,
+    rows: Sequence[UnifiedSaveLocation],
+) -> MiniXPromptTargetCatalog:
     from sase.ace.tui.modals.mini_xprompt_target_catalog import (
         load_mini_xprompt_target_catalog,
     )
 
-    return load_mini_xprompt_target_catalog(project)
+    return load_mini_xprompt_target_catalog(project, locations=rows)
+
+
+def _build_mini_xprompt_picker_choices(
+    rows: Sequence[UnifiedSaveLocation],
+    *,
+    last_used_path: str | None,
+    current_path: str | None,
+    home_mode: bool,
+    project: str | None,
+    name: str,
+) -> tuple[tuple[SaveLocationChoice, ...], str | None]:
+    from sase.ace.tui.modals.save_location_choices import xprompt_location_choices
+
+    return xprompt_location_choices(
+        rows,
+        last_used_path=last_used_path,
+        current_path=current_path,
+        home_mode=home_mode,
+        project=project,
+        name=name,
+    )
 
 
 def _load_last_used_locations() -> dict[SaveKind, str]:

@@ -64,14 +64,17 @@ class PromptInputBarMiniXPromptPaneMixin(_MixinBase):
             except Exception:
                 return
             initial_name = ""
+            current_location_path: str | None = None
             mini = self._stack.mini_xprompt_item
             if mini is not None and mini.mini_xprompt_target is not None:
                 initial_name = mini.mini_xprompt_target.name
+                current_location_path = mini.mini_xprompt_target.location_path
             self.post_message(
                 self.MiniXPromptTargetRequested(
                     origin_bar=self,
                     origin_pane_id=origin.id or "",
                     initial_name=initial_name,
+                    current_location_path=current_location_path,
                 )
             )
 

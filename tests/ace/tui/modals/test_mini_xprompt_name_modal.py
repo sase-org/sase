@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, OptionList, Static
+from textual.widgets import Input, Label, OptionList, Static
 
 from sase.ace.testing.wait import wait_for as wait_for_pilot
 from sase.ace.tui.modals import mini_xprompt_name_modal as modal_mod
@@ -14,6 +14,7 @@ from sase.ace.tui.modals.mini_xprompt_name_modal import (
     MiniXPromptNameModal,
     MiniXPromptNameResult,
 )
+from sase.ace.tui.modals.save_location_choices import ChangeSaveLocationRequest
 from sase.ace.tui.modals.mini_xprompt_target_catalog import (
     MiniXPromptDefinition,
     MiniXPromptTargetCatalog,
@@ -144,6 +145,7 @@ async def test_invalid_name_enter_is_inert(tmp_path: Path) -> None:
         app.push_screen(
             MiniXPromptNameModal(
                 MiniXPromptTargetCatalog(definitions=(), destinations=(row,)),
+                row,
                 initial_name="#bad name",
             ),
             results.append,
@@ -169,6 +171,7 @@ async def test_new_name_returns_create_target(tmp_path: Path) -> None:
         app.push_screen(
             MiniXPromptNameModal(
                 MiniXPromptTargetCatalog(definitions=(), destinations=(row,)),
+                row,
                 initial_name="review",
             ),
             results.append,
@@ -199,6 +202,7 @@ async def test_exact_editable_match_returns_edit_action(tmp_path: Path) -> None:
                     definitions=(definition,),
                     destinations=(row,),
                 ),
+                row,
                 initial_name="review",
             ),
             results.append,
@@ -242,6 +246,7 @@ async def test_read_only_match_returns_override_action(tmp_path: Path) -> None:
                     definitions=(definition,),
                     destinations=(readonly_row, writable_row),
                 ),
+                writable_row,
                 initial_name="review",
             ),
             results.append,
@@ -282,6 +287,7 @@ async def test_incompatible_exact_match_refuses_open(tmp_path: Path) -> None:
                     definitions=(definition,),
                     destinations=(row,),
                 ),
+                row,
                 initial_name="review",
             ),
             results.append,
@@ -295,7 +301,7 @@ async def test_incompatible_exact_match_refuses_open(tmp_path: Path) -> None:
     assert results == []
 
 
-async def test_incompatible_selected_destination_refuses_fork_over_editable_effective(
+async def test_locked_incompatible_destination_refuses_open(
     tmp_path: Path,
 ) -> None:
     high = tmp_path / "high"
@@ -327,19 +333,13 @@ async def test_incompatible_selected_destination_refuses_fork_over_editable_effe
                     definitions=(editable, incompatible),
                     destinations=(high_row, low_row),
                 ),
+                low_row,
                 initial_name="review",
             ),
             results.append,
         )
         modal = app.screen
         assert isinstance(modal, MiniXPromptNameModal)
-        await _wait_for_analysis_idle(pilot, modal)
-        assert (
-            str(high)
-            in modal.query_one("#mini-xprompt-name-destination", Static).render().plain
-        )
-
-        await pilot.press("ctrl+n")
         verdict = await _wait_for_verdict(pilot, modal, "Cannot open #review at")
         assert "xprompt swarms" in verdict
         await pilot.press("enter")
@@ -367,6 +367,7 @@ async def test_prefix_order_tab_completion_and_match_navigation_keep_input_focus
         app.push_screen(
             MiniXPromptNameModal(
                 MiniXPromptTargetCatalog(definitions=definitions, destinations=(row,)),
+                row,
                 initial_name="rev",
             )
         )
@@ -392,34 +393,37 @@ async def test_prefix_order_tab_completion_and_match_navigation_keep_input_focus
         assert input_field.value == "review_long"
 
 
-async def test_ctrl_n_cycles_destinations_without_stealing_focus(
+async def test_ctrl_n_moves_matches_without_changing_destination(
     tmp_path: Path,
 ) -> None:
-    first = _row(tmp_path / "first")
-    second = _row(tmp_path / "second")
+    row = _row(tmp_path / "xprompts")
+    definitions = (
+        _definition("review", tmp_path / "xprompts" / "review.md"),
+        _definition("review_long", tmp_path / "xprompts" / "review_long.md"),
+    )
     app = _ModalApp()
 
     async with app.run_test(size=(110, 30)) as pilot:
         app.push_screen(
             MiniXPromptNameModal(
-                MiniXPromptTargetCatalog(definitions=(), destinations=(first, second)),
-                initial_name="review",
+                MiniXPromptTargetCatalog(definitions=definitions, destinations=(row,)),
+                row,
+                initial_name="rev",
             )
         )
         modal = app.screen
         assert isinstance(modal, MiniXPromptNameModal)
         await _wait_for_analysis_idle(pilot, modal)
-        await pilot.press("ctrl+n")
-        await wait_for_pilot(
-            pilot,
-            lambda: (
-                str(tmp_path / "second")
-                in modal.query_one("#mini-xprompt-name-destination", Static)
-                .render()
-                .plain
-            ),
-            timeout=8.0,
+        before = (
+            modal.query_one("#mini-xprompt-name-destination", Static).render().plain
         )
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await pilot.press("ctrl+p")
+        await pilot.pause()
+        after = modal.query_one("#mini-xprompt-name-destination", Static).render().plain
+        assert before == after
+        assert str(tmp_path / "xprompts") in after
         assert modal.query_one("#mini-xprompt-name-input", Input).has_focus
 
 
@@ -428,6 +432,7 @@ async def test_stale_async_analysis_is_not_cached(tmp_path: Path) -> None:
     app, handles = await _open_modal(
         MiniXPromptNameModal(
             MiniXPromptTargetCatalog(definitions=(), destinations=(row,)),
+            row,
             initial_name="review",
         )
     )
@@ -441,6 +446,119 @@ async def test_stale_async_analysis_is_not_cached(tmp_path: Path) -> None:
         assert ("review", str(tmp_path / "xprompts")) not in modal._analysis_cache
     finally:
         await pilot_cm.__aexit__(None, None, None)
+
+
+async def test_shift_tab_returns_change_location_request(tmp_path: Path) -> None:
+    row = _row(tmp_path / "xprompts")
+    results: list[Any] = []
+    app = _ModalApp()
+
+    async with app.run_test(size=(110, 30)) as pilot:
+        app.push_screen(
+            MiniXPromptNameModal(
+                MiniXPromptTargetCatalog(definitions=(), destinations=(row,)),
+                row,
+                initial_name="rev",
+            ),
+            results.append,
+        )
+        modal = app.screen
+        assert isinstance(modal, MiniXPromptNameModal)
+        await _wait_for_analysis_idle(pilot, modal)
+        await pilot.press("shift+tab")
+        await wait_for_pilot(pilot, lambda: bool(results), timeout=8.0)
+
+    result = results[0]
+    assert isinstance(result, ChangeSaveLocationRequest)
+    assert result.text == "rev"
+
+
+async def test_tab_completion_keeps_locked_destination(tmp_path: Path) -> None:
+    row = _row(tmp_path / "xprompts")
+    definitions = (
+        _definition("review", tmp_path / "xprompts" / "review.md"),
+        _definition("review_long", tmp_path / "xprompts" / "review_long.md"),
+    )
+    app = _ModalApp()
+
+    async with app.run_test(size=(110, 30)) as pilot:
+        app.push_screen(
+            MiniXPromptNameModal(
+                MiniXPromptTargetCatalog(definitions=definitions, destinations=(row,)),
+                row,
+                initial_name="rev",
+            )
+        )
+        modal = app.screen
+        assert isinstance(modal, MiniXPromptNameModal)
+        await _wait_for_analysis_idle(pilot, modal)
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal.query_one("#mini-xprompt-name-input", Input).value.startswith(
+            "review"
+        )
+        assert modal._destination.location.path == str(tmp_path / "xprompts")
+
+
+async def test_name_step_shows_stepper_saving_to_and_hints(tmp_path: Path) -> None:
+    row = _row(tmp_path / "xprompts", namespace="sase")
+    app = _ModalApp()
+
+    async with app.run_test(size=(110, 30)) as pilot:
+        app.push_screen(
+            MiniXPromptNameModal(
+                MiniXPromptTargetCatalog(definitions=(), destinations=(row,)),
+                row,
+                initial_name="",
+            )
+        )
+        modal = app.screen
+        assert isinstance(modal, MiniXPromptNameModal)
+        await _wait_for_analysis_idle(pilot, modal)
+        title = modal.query_one("#mini-xprompt-name-title", Label).render().plain
+        assert "● Name" in title
+        assert row.location.label in title
+        saving_to = (
+            modal.query_one("#mini-xprompt-name-destination", Static).render().plain
+        )
+        assert "⇧Tab change location" in saving_to
+        assert "namespace sase/" in saving_to
+        hints = modal.query_one("#mini-xprompt-name-hints", Static).render().plain
+        assert hints == (
+            "tab complete · ↑↓ matches · ⇧tab location · enter open · esc cancel"
+        )
+
+
+async def test_fork_verdict_suggests_shift_tab_to_other_destination(
+    tmp_path: Path,
+) -> None:
+    high = tmp_path / "high"
+    low = tmp_path / "low"
+    high_row = _row(high, names=frozenset({"review"}), precedence=0)
+    low_row = _row(low, precedence=10)
+    definition = _definition(
+        "review",
+        high / "review.md",
+        location_path=str(high),
+        precedence=0,
+    )
+    app = _ModalApp()
+
+    async with app.run_test(size=(110, 30)) as pilot:
+        app.push_screen(
+            MiniXPromptNameModal(
+                MiniXPromptTargetCatalog(
+                    definitions=(definition,),
+                    destinations=(high_row, low_row),
+                ),
+                low_row,
+                initial_name="review",
+            )
+        )
+        modal = app.screen
+        assert isinstance(modal, MiniXPromptNameModal)
+        verdict = await _wait_for_verdict(pilot, modal, "Fork #review")
+        assert "⇧tab to pick" in verdict
 
 
 def test_build_verdict_describes_shadowed_create(tmp_path: Path) -> None:
