@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 from sase.ace.tui.widgets.artifacts.beads_data import (
     BeadsSnapshot,
@@ -104,4 +107,13 @@ def snapshot(tmp_path: Path, *, project: str | None = "alpha") -> BeadsSnapshot:
     )
 
 
-__all__ = ["snapshot"]
+PINNED_NOW = datetime(2026, 7, 8, 12, 0, 0)
+
+
+@pytest.fixture
+def pinned_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Freeze "now" so the shared bead age labels are deterministic."""
+    monkeypatch.setattr("sase.core.time.local_now", lambda: PINNED_NOW)
+
+
+__all__ = ["PINNED_NOW", "pinned_clock", "snapshot"]
