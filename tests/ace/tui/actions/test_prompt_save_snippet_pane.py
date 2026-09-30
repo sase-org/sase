@@ -16,6 +16,7 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane import (
 )
 from sase.ace.tui.modals import ConfirmActionModal
 from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
+from sase.ace.tui.modals.save_location_picker_modal import SaveLocationPickerModal
 from sase.ace.tui.modals.snippet_name_modal import (
     SnippetNameModal,
     SnippetNameResult,
@@ -124,6 +125,14 @@ async def test_gt_new_snippet_loop_writes_publishes_expands_and_restores_cursor(
             "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_derived_snippet_catalog",
             return_value=({}, {}),
         ),
+        patch(
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_snippet_last_used_path",
+            return_value=None,
+        ),
+        patch(
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_snippet_names_by_path",
+            return_value={str(config): frozenset()},
+        ),
         patch("sase.xprompt.save_state.save_last_used_location", return_value=True),
     ):
         async with app.run_test(size=(110, 34)) as pilot:
@@ -136,6 +145,10 @@ async def test_gt_new_snippet_loop_writes_publishes_expands_and_restores_cursor(
             original_cursor = origin.cursor_location
 
             await pilot.press("g", "t")
+            await wait_for(
+                pilot, lambda: isinstance(app.screen, SaveLocationPickerModal)
+            )
+            await pilot.press("enter")
             await wait_for(pilot, lambda: isinstance(app.screen, SnippetNameModal))
 
             await pilot.press("t", "o", "d", "o")

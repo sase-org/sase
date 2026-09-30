@@ -365,8 +365,8 @@ contains a stack, sase's TUI saves the non-empty panes as one `---`-separated xp
 body, while snippet mode saves only the active pane. When you want to author or retarget
 exactly one simple xprompt in a focused prompt pane, use `gx`, `Ctrl+G x`, or
 `Ctrl+G Ctrl+X`. When you already know you're authoring a snippet trigger,
-`gt`/`Ctrl+G t` opens a faster, dedicated snippet pane instead of this general save
-panel — see
+`gt`/`Ctrl+G t`/`Ctrl+G Ctrl+T` opens a faster, dedicated snippet pane instead of this
+general save panel — it starts on a location picker, then the trigger-name panel — see
 [Authoring a snippet from the prompt bar](ace.md#authoring-a-snippet-from-the-prompt-bar).
 To browse or edit the composed catalog, `gT`/`Ctrl+G T` opens the
 [Snippets panel](ace.md#snippets-panel); the lowercase and uppercase chords coexist.

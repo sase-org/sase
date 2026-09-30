@@ -5241,6 +5241,12 @@ SnippetNameModal #snippet-name-destination {
     padding: 1;
 }
 
+SnippetNameModal .snippet-name-change-hint {
+    height: 1;
+    color: $text-muted;
+    text-style: dim;
+}
+
 SnippetNameModal #snippet-name-verdict {
     height: 2;
     margin-top: 1;

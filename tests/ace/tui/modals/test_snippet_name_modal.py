@@ -342,32 +342,53 @@ async def test_matches_filter_order_and_tab_completion(tmp_path: Path) -> None:
         )
 
 
-async def test_destination_line_renders_fallback_and_cycles_selectable_only(
+async def test_destination_is_locked_and_arrows_move_matches(
     tmp_path: Path,
 ) -> None:
-    default = tmp_path / "default.yml"
-    disabled = tmp_path / "disabled.yml"
-    override = tmp_path / "override.yml"
-    _write_snippets(default, {})
-    _write_snippets(disabled, {})
-    _write_snippets(override, {})
+    dest = tmp_path / "dest.yml"
+    other = tmp_path / "other.yml"
+    _write_snippets(dest, {"todo": "TODO($1): $0", "todos": "- [ ] $1"})
+    _write_snippets(other, {})
     results: list[SnippetNameResult | None] = []
     app = _ModalApp()
 
     async with app.run_test(size=(110, 28)) as pilot:
         app.push_screen(
             SnippetNameModal(
-                _target(default, display="default.yml", fallback_reason="read-only"),
+                _target(dest, display="dest.yml"),
                 [
-                    _location(default, display="default.yml"),
-                    _location(
-                        disabled, display="disabled.yml", disabled_reason="locked"
-                    ),
-                    _location(override, display="override.yml"),
+                    _location(dest, display="dest.yml"),
+                    _location(other, display="other.yml"),
                 ],
-                initial_trigger="todo",
+                initial_trigger="to",
             ),
             results.append,
+        )
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(pilot, lambda: _contains(_matches_plain(modal), "todos"))
+        before = _destination_plain(modal)
+        assert before is not None and "dest.yml" in before
+        await pilot.press("down")
+        await pilot.pause()
+        await pilot.press("up")
+        await pilot.pause()
+        assert _destination_plain(modal) == before
+        assert not _contains(_destination_plain(modal), "other.yml")
+
+
+async def test_destination_line_renders_fallback_note(tmp_path: Path) -> None:
+    default = tmp_path / "default.yml"
+    _write_snippets(default, {})
+    app = _ModalApp()
+
+    async with app.run_test(size=(110, 28)) as pilot:
+        app.push_screen(
+            SnippetNameModal(
+                _target(default, display="default.yml", fallback_reason="read-only"),
+                [_location(default, display="default.yml")],
+                initial_trigger="todo",
+            ),
+            None,
         )
         modal = await _wait_for_modal(pilot, app)
         await wait_for(
@@ -376,20 +397,30 @@ async def test_destination_line_renders_fallback_and_cycles_selectable_only(
                 _destination_plain(modal), "configured path unusable: read-only"
             ),
         )
-        await wait_for(pilot, lambda: _contains(_verdict_plain(modal), "Create ⇥ todo"))
-        await pilot.press("down")
-        await wait_for(
-            pilot,
-            lambda: _contains(_destination_plain(modal), "override.yml"),
+
+
+async def test_shift_tab_requests_location_change(tmp_path: Path) -> None:
+    from sase.ace.tui.modals.save_location_choices import ChangeSaveLocationRequest
+
+    config = tmp_path / "sase.yml"
+    _write_snippets(config, {})
+    results: list[object] = []
+    app = _ModalApp()
+
+    async with app.run_test(size=(100, 28)) as pilot:
+        app.push_screen(
+            SnippetNameModal(
+                _target(config), [_location(config)], initial_trigger="tod"
+            ),
+            results.append,
         )
-        assert not _contains(_destination_plain(modal), "disabled.yml")
-        await wait_for(pilot, lambda: _contains(_verdict_plain(modal), "Create ⇥ todo"))
-        await pilot.press("enter")
+        await _wait_for_modal(pilot, app)
+        await pilot.press("shift+tab")
         await wait_for(pilot, lambda: bool(results))
 
     result = results[0]
-    assert result is not None
-    assert result.target.write_path == override
+    assert isinstance(result, ChangeSaveLocationRequest)
+    assert result.text == "tod"
 
 
 async def test_escape_returns_none(tmp_path: Path) -> None:

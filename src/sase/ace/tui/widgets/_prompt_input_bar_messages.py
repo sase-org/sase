@@ -229,11 +229,13 @@ class SnippetTargetRequested(Message, namespace="prompt_input_bar"):
         origin_bar: PromptInputBar,
         origin_pane_id: str,
         initial_trigger: str = "",
+        current_location_path: str | None = None,
     ) -> None:
         super().__init__()
         self.origin_bar = origin_bar
         self.origin_pane_id = origin_pane_id
         self.initial_trigger = initial_trigger
+        self.current_location_path = current_location_path
 
 
 class SnippetPaneSaveRequested(Message, namespace="prompt_input_bar"):

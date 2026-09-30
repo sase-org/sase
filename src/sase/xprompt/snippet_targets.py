@@ -277,6 +277,24 @@ def snippet_collision(
     )
 
 
+def snippet_save_target_for_location(
+    location: SnippetConfigLocation,
+) -> SnippetSaveTarget:
+    """Return the save target that writes new entries to *location*."""
+    from sase.xprompt.write_targets import write_target_for_written_path
+
+    write_target = write_target_for_written_path(location.path)
+    return SnippetSaveTarget(
+        read_path=write_target.read_path,
+        write_path=write_target.write_path,
+        apply_target=write_target.apply_target,
+        via_chezmoi=write_target.via_chezmoi,
+        display_path=location.display_path,
+        source="configured",
+        fallback_reason=None,
+    )
+
+
 def load_snippet_template(path: str | Path, trigger: str) -> str:
     """Return the stored template for one ``ace.snippets`` trigger."""
     source = Path(path)
@@ -299,4 +317,5 @@ __all__ = [
     "load_snippet_config_locations",
     "resolve_snippet_save_target",
     "snippet_collision",
+    "snippet_save_target_for_location",
 ]

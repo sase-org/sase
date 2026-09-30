@@ -59,14 +59,17 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
             except Exception:
                 return
             initial_trigger = ""
+            current_location_path: str | None = None
             snippet = self._stack.snippet_item
             if snippet is not None and snippet.snippet_target is not None:
                 initial_trigger = snippet.snippet_target.trigger
+                current_location_path = snippet.snippet_target.write_path
             self.post_message(
                 self.SnippetTargetRequested(
                     origin_bar=self,
                     origin_pane_id=origin.id or "",
                     initial_trigger=initial_trigger,
+                    current_location_path=current_location_path,
                 )
             )
 

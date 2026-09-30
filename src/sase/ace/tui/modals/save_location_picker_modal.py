@@ -138,6 +138,32 @@ class SaveLocationPickerModal(ModalScreen[SaveLocationPick | None]):
         self._typeahead = ""
         self._rebuild()
 
+    def set_notice(self, message: str) -> None:
+        """Show a footer notice line (for example a fallback warning)."""
+        if self._dismissed:
+            return
+        self._notice = message or ""
+        if not self.is_mounted:
+            return
+        try:
+            existing = self.query_one("#save-location-picker-notice", Static)
+        except Exception:
+            existing = None
+        if existing is not None:
+            existing.update(self._notice)
+            return
+        if not self._notice:
+            return
+        try:
+            container = self.query_one("#save-location-picker-container", Container)
+            hints = self.query_one("#save-location-picker-hints", Static)
+        except Exception:
+            return
+        container.mount(
+            Static(self._notice, id="save-location-picker-notice"),
+            before=hints,
+        )
+
     def compose(self) -> ComposeResult:
         with Container(id="save-location-picker-container"):
             with Horizontal(id="save-location-picker-header"):

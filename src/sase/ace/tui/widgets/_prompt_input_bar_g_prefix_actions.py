@@ -149,6 +149,7 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "request_snippet_target_pane",
         "_g_prefix_label_snippet_target",
         "_g_prefix_available_snippet_target",
+        ctrl_g_aliases=("ctrl+t",),
     ),
     _PromptGPrefixBinding(
         "T",

@@ -394,9 +394,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1cu(ChangeSaveLocationRequest)' \
-        --epic-symbol 'sase-1cu(SaveLocationPickerModal)' \
-        --epic-symbol 'sase-1cu(snippet_location_choices)' \
         --epic-symbol 'sase-1cu(xprompt_location_choices)' \
         {{ args }}
 

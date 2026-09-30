@@ -1550,14 +1550,16 @@ parent directory must be writable.
 
 A configured value that is unusable — wrong suffix, unwritable parent, invalid YAML, or
 a project `sase/sase.yml` that still needs its legacy migration — falls back to the
-default and reports why: both the `gt` trigger-name panel and the `gX` save panel's
-snippet mode append the reason to the destination line (e.g.
-`configured path unusable: read-only`) rather than silently writing somewhere else. The
-`gX` save panel additionally always offers the resolved `ace.snippet_config_path`
-destination as a selectable, pre-highlighted row — even when it is a custom filename or
-path that falls outside the standard discovered locations (`sase.yml` / `sase_*.yml`
-under `~/.config/sase/` or the chezmoi equivalent, and the project's `sase/sase.yml`) —
-so a configured preference is never silently dropped from the picker.
+default and reports why: both the `gt` location picker (as a footer warning) and
+trigger-name panel and the `gX` save panel's snippet mode append the reason to the
+destination line (e.g. `configured path unusable: read-only`) rather than silently
+writing somewhere else. When set to a usable file, it is the `★ configured` default of
+the snippet location picker and outranks last-used. The `gX` save panel additionally
+always offers the resolved `ace.snippet_config_path` destination as a selectable,
+pre-highlighted row — even when it is a custom filename or path that falls outside the
+standard discovered locations (`sase.yml` / `sase_*.yml` under `~/.config/sase/` or the
+chezmoi equivalent, and the project's `sase/sase.yml`) — so a configured preference is
+never silently dropped from the picker.
 
 ```yaml
 ace:

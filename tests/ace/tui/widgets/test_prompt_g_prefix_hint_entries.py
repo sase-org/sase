@@ -117,6 +117,16 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
         assert ctrl_g_mini_xprompt.aliases == ("ctrl+x",)
         assert bare_unified_save.aliases == ()
         assert ctrl_g_unified_save.aliases == ()
+        bare_snippet = next(
+            entry for entry in bar.g_prefix_hint_entries() if entry.key == "t"
+        )
+        ctrl_g_snippet = next(
+            entry
+            for entry in bar.g_prefix_hint_entries(via_ctrl_g=True)
+            if entry.key == "t"
+        )
+        assert bare_snippet.aliases == ()
+        assert ctrl_g_snippet.aliases == ("ctrl+t",)
 
 
 async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> None:

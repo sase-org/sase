@@ -106,7 +106,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
-        assert "^Gt   new snippet…" in plain
+        assert "^Gt / ^G^T   new snippet…" in plain
         assert "^Gx   open mini-xprompt…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^Gp   stashed prompts…" not in plain
@@ -147,7 +147,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
-        assert "^Gt   new snippet…" in plain
+        assert "^Gt / ^G^T   new snippet…" in plain
         assert "^Gx   open mini-xprompt…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "... +4 more" in plain

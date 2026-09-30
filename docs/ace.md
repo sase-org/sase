@@ -6870,7 +6870,7 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                                                                                             |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                                                                                   |
 | `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open or retarget one mini-xprompt pane                                                                                                                                                                     |
-| `Ctrl+G t`                   | Open a new/rename-in-place snippet target pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                                                   |
+| `Ctrl+G t` / `Ctrl+G Ctrl+T` | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                           |
 | `Ctrl+G X`                   | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                                                                                       |
 | `Ctrl+G L`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                                                                                       |
 | `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                                                                                              |
@@ -7118,7 +7118,7 @@ prefix actions currently available.
 | `gd`        | Edit the xprompt definition under the cursor in the prompt bar                                                                                                                      |
 | `gf`        | Reformat the active prompt pane's Markdown with Prettier                                                                                                                            |
 | `gx`        | Open or retarget one mini-xprompt pane                                                                                                                                              |
-| `gt`        | Open a new/rename-in-place snippet target pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                            |
+| `gt`        | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                    |
 | `gX`        | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>` and leaves the bar open                                                                                        |
 | `gL`        | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                                                                |
 
@@ -7850,11 +7850,11 @@ list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
 The **Snippets panel** is the browse-and-edit surface for one project's composed snippet
 catalog — the same catalog `sase snippet`, prompt expansion, and the editor helper use
 (see [Snippets](#snippets)). From a prompt pane, press `gT` in NORMAL mode or `Ctrl+G T`
-in INSERT or NORMAL. Lowercase `gt` / `Ctrl+G t` still opens the snippet target pane.
-The which-key hint row lists `snippets…` on both prefixes. If the cursor sits on a
-`#[trigger]` call or a bare trigger that is already in the in-memory catalog, that entry
-is selected; otherwise the panel opens on the first visible entry. Closing with `Esc` or
-`q` restores the prompt pane, vim mode, selection, and cursor.
+in INSERT or NORMAL. Lowercase `gt` / `Ctrl+G t` / `Ctrl+G Ctrl+T` still opens the
+snippet target pane. The which-key hint row lists `snippets…` on both prefixes. If the
+cursor sits on a `#[trigger]` call or a bare trigger that is already in the in-memory
+catalog, that entry is selected; otherwise the panel opens on the first visible entry.
+Closing with `Esc` or `q` restores the prompt pane, vim mode, selection, and cursor.
 
 The header reads `SNIPPETS · <project> · N snippets · project i/N` and always uses the
 configured `PROJECT_NAME:`, never a `ProjectSpec` key. Generated initial-capital aliases
@@ -9028,21 +9028,23 @@ toggles it), so plain users never see clutter.
 
 ### Authoring a snippet from the prompt bar
 
-`gt` (NORMAL) or `Ctrl+G t` (INSERT) opens a dedicated snippet pane at the bottom of the
-prompt input stack, a faster loop than the general save panel above when you already
-know you're authoring a trigger:
+`gt` (NORMAL), `Ctrl+G t`, or `Ctrl+G Ctrl+T` (INSERT or NORMAL) opens a dedicated
+snippet pane at the bottom of the prompt input stack, a faster loop than the general
+save panel above when you already know you're authoring a trigger:
 
-1. **Name it.** `gt` opens the trigger-name panel: type a trigger and it validates live,
-   lists up to six existing triggers that share your typed prefix (`Tab` completes to
-   the highlighted one), and shows the destination file the entry will be written to.
-   `↑`/`↓` (or `Ctrl+P`/`Ctrl+N`) cycle the destination among the other discovered
-   config files for this invocation only — it never rewrites `ace.snippet_config_path`.
-   The verdict line reports one of: an invalid trigger; `✓ Create` for a fresh trigger;
-   a warning that the trigger already exists in the destination (`Enter` will load it
-   for editing); a warning that it's defined in a different config file (saving here
-   will shadow or be shadowed by that file, per your project's precedence); or a warning
-   that the trigger is derived from an xprompt and this entry will override it.
-2. **Open the pane.** `Enter` opens the snippet pane — empty for a new trigger, or
+1. **Choose where.** `gt` first shows the [location picker](#save-location-picker): one
+   keypress picks the config file and `Enter` accepts the `★` default. Keys typed while
+   the destinations load are kept as type-ahead for the next step.
+2. **Name it.** The trigger-name panel shows the locked destination (`⇧Tab` goes back to
+   change it): type a trigger and it validates live, lists up to six existing triggers
+   that share your typed prefix (`Tab` completes to the highlighted one, and `↑`/`↓` or
+   `Ctrl+P`/`Ctrl+N` move that highlight). The verdict line reports one of: an invalid
+   trigger; `✓ Create` for a fresh trigger; a warning that the trigger already exists in
+   the destination (`Enter` will load it for editing); a warning that it's defined in a
+   different config file (saving here will shadow or be shadowed by that file, per your
+   project's precedence); or a warning that the trigger is derived from an xprompt and
+   this entry will override it.
+3. **Open the pane.** `Enter` opens the snippet pane — empty for a new trigger, or
    pre-filled with the current definition (from the destination, the shadowing file, or
    the derived xprompt template) when the trigger already exists. The pane always opens
    in INSERT mode and is unmistakably not a prompt pane: its own separator rule names
@@ -9050,7 +9052,7 @@ know you're authoring a trigger:
    for an unsaved trigger), and its own accent color and subtitle. It is never included
    in a launch, a stash, or a save-as — `Enter` in it means "save the snippet", not
    "submit the stack".
-3. **Save it.** `Enter` in the pane opens the save confirmation, showing `[Draft]` for a
+4. **Save it.** `Enter` in the pane opens the save confirmation, showing `[Draft]` for a
    brand-new trigger or opening straight on `Diff` — a real `difflib` unified diff
    against the existing entry — for an overwrite (`Ctrl+O` cycles Draft / Existing /
    Diff, `Ctrl+D`/`Ctrl+U` scroll). An empty body refuses to save; a byte-identical
@@ -9060,15 +9062,16 @@ know you're authoring a trigger:
    template to every open prompt input in the session immediately (no restart needed),
    and closes the pane only once the write succeeds — a failed write leaves the draft in
    place to retry.
-4. **Follow-ups.** A successful save runs the same post-write chooser as the general
+5. **Follow-ups.** A successful save runs the same post-write chooser as the general
    save panel: an optional commit & push, and — for a chezmoi-managed destination — a
    scoped `chezmoi apply` limited to the deployed snippet file.
-5. **Discard or rename.** `Ctrl+C` discards the pane; if you've typed anything different
+6. **Discard or rename.** `Ctrl+C` discards the pane; if you've typed anything different
    from the loaded body, a confirmation guards against losing it. `Esc` returns to
-   NORMAL mode without discarding. `gt` again while the pane is open re-opens the
-   trigger-name panel prefilled with the current trigger to rename or re-target it
-   without touching the body you've written. On close (saved or discarded), focus and
-   the cursor return to exactly the pane and position you were at before `gt`.
+   NORMAL mode without discarding. `gt` again while the pane is open shows the location
+   picker first (defaulting to the pane's current file), then re-opens the trigger-name
+   panel prefilled with the current trigger to rename or re-target it without touching
+   the body you've written. On close (saved or discarded), focus and the cursor return
+   to exactly the pane and position you were at before `gt`.
 
 ### XPrompt Picker (`#@`)
 

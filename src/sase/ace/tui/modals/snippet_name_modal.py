@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -15,6 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.modals.save_location_choices import ChangeSaveLocationRequest
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.xprompt.naming import validate_snippet_trigger
 from sase.xprompt.snippet_targets import (
@@ -24,7 +24,6 @@ from sase.xprompt.snippet_targets import (
     load_snippet_template,
     snippet_collision,
 )
-from sase.xprompt.write_targets import write_target_for_written_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,10 +68,11 @@ class _SnippetNameInput(Input):
 
     BINDINGS = [
         Binding("tab", "forward('complete_match')", show=False),
-        Binding("up", "forward('prev_destination')", show=False),
-        Binding("down", "forward('next_destination')", show=False),
-        Binding("ctrl+n", "forward('next_destination')", show=False),
-        Binding("ctrl+p", "forward('prev_destination')", show=False),
+        Binding("shift+tab", "forward('change_location')", show=False),
+        Binding("up", "forward('prev_match')", show=False),
+        Binding("down", "forward('next_match')", show=False),
+        Binding("ctrl+n", "forward('next_match')", show=False),
+        Binding("ctrl+p", "forward('prev_match')", show=False),
     ]
 
     def action_forward(self, action_name: str) -> None:
@@ -86,8 +86,9 @@ class _SnippetMatchList(OptionList):
 
     BINDINGS = [
         Binding("tab", "forward('complete_match')", show=False),
-        Binding("up", "forward('prev_destination')", show=False),
-        Binding("down", "forward('next_destination')", show=False),
+        Binding("shift+tab", "forward('change_location')", show=False),
+        Binding("up", "forward('prev_match')", show=False),
+        Binding("down", "forward('next_match')", show=False),
     ]
 
     def action_forward(self, action_name: str) -> None:
@@ -96,17 +97,25 @@ class _SnippetMatchList(OptionList):
             action()
 
 
-class SnippetNameModal(ModalScreen[SnippetNameResult | None]):
-    """Ask for a snippet trigger and report collisions live."""
+class SnippetNameModal(
+    ModalScreen[SnippetNameResult | ChangeSaveLocationRequest | None]
+):
+    """Ask for a snippet trigger and report collisions live.
+
+    The destination is locked by the location picker that pushed this modal:
+    ``↑``/``↓``/``Ctrl+N``/``Ctrl+P`` move the match highlight and ``⇧Tab``
+    asks the orchestrator to reopen the picker.
+    """
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "open", "Open", show=False),
         Binding("tab", "complete_match", "Complete", show=False),
-        Binding("up", "prev_destination", "Previous destination", show=False),
-        Binding("down", "next_destination", "Next destination", show=False),
-        Binding("ctrl+n", "next_destination", "Next destination", show=False),
-        Binding("ctrl+p", "prev_destination", "Previous destination", show=False),
+        Binding("shift+tab", "change_location", "Change location", show=False),
+        Binding("up", "prev_match", "Previous match", show=False),
+        Binding("down", "next_match", "Next match", show=False),
+        Binding("ctrl+n", "next_match", "Next match", show=False),
+        Binding("ctrl+p", "prev_match", "Previous match", show=False),
     ]
 
     def __init__(
@@ -133,7 +142,10 @@ class SnippetNameModal(ModalScreen[SnippetNameResult | None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="snippet-name-container"):
-            yield Label("New snippet", id="snippet-name-title")
+            yield Label(
+                f"✓ {self._location_label()} › ● Name",
+                id="snippet-name-title",
+            )
             with Horizontal(classes="snippet-name-field"):
                 yield Label("Trigger", classes="snippet-name-field-label")
                 yield _SnippetNameInput(
@@ -146,11 +158,16 @@ class SnippetNameModal(ModalScreen[SnippetNameResult | None]):
                     yield Static("Matches", classes="snippet-name-panel-title")
                     yield _SnippetMatchList(id="snippet-name-matches")
                 with Vertical(id="snippet-name-destination-panel"):
-                    yield Static("Destination", classes="snippet-name-panel-title")
+                    yield Static("Saving to", classes="snippet-name-panel-title")
                     yield Static("", id="snippet-name-destination", markup=False)
+                    yield Static(
+                        "⇧tab change location",
+                        classes="snippet-name-change-hint",
+                        markup=False,
+                    )
             yield Static("", id="snippet-name-verdict", markup=False)
             yield Static(
-                "tab complete · ↑↓ destination · enter open · esc cancel",
+                "tab complete · ↑↓ matches · ⇧tab location · enter open · esc cancel",
                 id="snippet-name-hints",
                 markup=False,
             )
@@ -202,9 +219,19 @@ class SnippetNameModal(ModalScreen[SnippetNameResult | None]):
         if identity is not None and identity not in self._analysis_cache:
             self._schedule_analysis(identity)
 
+    def _location_label(self) -> str:
+        """Return the picker label for the locked destination."""
+        wanted = {str(self._target.write_path), str(self._target.read_path)}
+        for location in self._locations:
+            if location.path in wanted:
+                return location.label
+        return "Configured snippet config"
+
     def _refresh_destination(self) -> None:
         line = self.query_one("#snippet-name-destination", Static)
         message = self._target.display_path
+        if self._target.via_chezmoi:
+            message += " · chezmoi-managed"
         if self._target.fallback_reason:
             message += f" · configured path unusable: {self._target.fallback_reason}"
         disabled = self._destination_disabled_reason()
@@ -487,63 +514,41 @@ class SnippetNameModal(ModalScreen[SnippetNameResult | None]):
         field.focus()
         self._refresh()
 
-    def action_next_destination(self) -> None:
-        self._move_destination(1)
+    def action_next_match(self) -> None:
+        self._move_match(1)
 
-    def action_prev_destination(self) -> None:
-        self._move_destination(-1)
+    def action_prev_match(self) -> None:
+        self._move_match(-1)
 
-    def _move_destination(self, direction: int) -> None:
-        choices = self._destination_choices()
-        if not choices:
-            return
-        current_path = str(self._target.write_path)
+    def action_change_location(self) -> None:
+        """Ask the orchestrator to reopen the location picker."""
         try:
-            current = next(
-                index
-                for index, (_, target) in enumerate(choices)
-                if str(target.write_path) == current_path
-            )
-        except StopIteration:
-            current = -1 if direction > 0 else 0
-        target = choices[(current + direction) % len(choices)][1]
-        if target == self._target:
+            text = self.query_one("#snippet-name-trigger", _SnippetNameInput).value
+        except Exception:
+            text = self._initial_trigger
+        self.dismiss(ChangeSaveLocationRequest(text=text))
+
+    def _move_match(self, direction: int) -> None:
+        option_list = self.query_one("#snippet-name-matches", _SnippetMatchList)
+        selectable = [
+            index
+            for index in range(option_list.option_count)
+            if not getattr(option_list.get_option_at_index(index), "disabled", False)
+        ]
+        if not selectable:
             return
-        self._target = target
-        self._refresh()
-
-    def _destination_choices(
-        self,
-    ) -> tuple[tuple[SnippetConfigLocation | None, SnippetSaveTarget], ...]:
-        seen: set[str] = set()
-        choices: list[tuple[SnippetConfigLocation | None, SnippetSaveTarget]] = []
-
-        initial_key = str(self._initial_target.write_path)
-        initial_reason = self._disabled_reason_for_path(initial_key)
-        if initial_reason is None:
-            choices.append((self._location_for_path(initial_key), self._initial_target))
-            seen.add(initial_key)
-        for location in self._locations:
-            if not location.is_selectable or location.path in seen:
-                continue
-            target = self._target_for_location(location)
-            choices.append((location, target))
-            seen.add(str(target.write_path))
-        return tuple(choices)
-
-    def _target_for_location(
-        self, location: SnippetConfigLocation
-    ) -> SnippetSaveTarget:
-        write_target = write_target_for_written_path(location.path)
-        return SnippetSaveTarget(
-            read_path=write_target.read_path,
-            write_path=write_target.write_path,
-            apply_target=write_target.apply_target,
-            via_chezmoi=write_target.via_chezmoi,
-            display_path=location.display_path,
-            source="configured",
-            fallback_reason=None,
-        )
+        current = option_list.highlighted
+        if current not in selectable:
+            selected = selectable[0 if direction > 0 else -1]
+        else:
+            index = selectable.index(current)
+            selected = selectable[(index + direction) % len(selectable)]
+        self._updating_matches = True
+        try:
+            option_list.highlighted = selected
+        finally:
+            self._updating_matches = False
+        self.query_one("#snippet-name-trigger", _SnippetNameInput).focus()
 
     def _destination_disabled_reason(self) -> str | None:
         return self._disabled_reason_for_path(str(self._target.write_path))
