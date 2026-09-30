@@ -108,6 +108,7 @@ def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
     monkeypatch.setenv("SASE_AGENT_NAME", "starter--0")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", "/dead/starter")
     monkeypatch.setenv("SASE_PROVIDER_SYNC_CEILING_SECONDS", "600")
+    monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "1200")
     write_project_file(
         "proj",
         running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
@@ -155,6 +156,7 @@ def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
     assert "SASE_AGENT_NAME" not in captured_env
     assert "SASE_ARTIFACTS_DIR" not in captured_env
     assert "SASE_PROVIDER_SYNC_CEILING_SECONDS" not in captured_env
+    assert "SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS" not in captured_env
 
 
 def test_start_monitor_captures_supervisor_diagnostics(

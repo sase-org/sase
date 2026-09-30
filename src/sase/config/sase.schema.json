@@ -1506,6 +1506,25 @@
           "minimum": 1,
           "default": 16777216,
           "description": "Per-run event file cap in bytes (default 16 MiB)."
+        },
+        "soft_ceiling": {
+          "type": "object",
+          "description": "The most time an agent should block on one `sase tool run` before escalating to a monitor; it kills nothing; the effective budget is the smaller of this and the hard ceiling's budget.",
+          "default": {"default": "", "providers": {}},
+          "additionalProperties": false,
+          "properties": {
+            "default": {
+              "type": "string",
+              "default": "",
+              "description": "Default soft-ceiling duration (e.g. 90s, 20m, 1h); empty means none."
+            },
+            "providers": {
+              "type": "object",
+              "description": "Per-provider soft-ceiling durations keyed by registered provider name; empty means none.",
+              "default": {},
+              "additionalProperties": {"type": "string"}
+            }
+          }
         }
       }
     }

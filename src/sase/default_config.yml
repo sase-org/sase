@@ -113,6 +113,12 @@ tool_runs:
   run_log_max_bytes: 268435456
   # 16 MiB per-run event-file cap.
   event_max_bytes: 16777216
+  # The most time an agent should block on one `sase tool run` before
+  # escalating to a monitor; it kills nothing; the effective budget is the
+  # smaller of this and the hard ceiling's budget.
+  soft_ceiling:
+    default: ""
+    providers: {}
 
 # Machine-level service procs the `sase service` host starts, restarts, and
 # stops. Project-local sase.yml entries are ignored. Nothing runs until the

@@ -16,7 +16,10 @@ from sase.continuation_capture import (
     record_prepared_prompt_capture_best_effort,
 )
 from sase.core.time import generate_timestamp
-from sase.env_contracts import SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV
+from sase.env_contracts import (
+    SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV,
+    SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV,
+)
 from .messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
 from sase.telemetry.metrics import (
@@ -345,6 +348,7 @@ def invoke_agent(
     t0 = time.monotonic()
     previous_finalizer_nonce = os.environ.get("SASE_FINAL_TURN_NONCE")
     previous_sync_ceiling = os.environ.get(SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV)
+    previous_soft_ceiling = os.environ.get(SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV)
     if artifacts_dir:
         from sase.finalizers.declaration import mint_finalizer_turn_nonce
 
@@ -363,6 +367,19 @@ def invoke_agent(
             os.environ.pop(SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV, None)
         else:
             os.environ[SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV] = str(sync_ceiling)
+        # Export the execution provider's resolved soft ceiling beside the
+        # hard ceiling: the provider entry first, then default. A malformed
+        # value is ignored (the getter warns) and never fails a launch.
+        try:
+            from sase.config.tools import get_tool_runs_soft_ceiling_seconds
+
+            soft_ceiling = get_tool_runs_soft_ceiling_seconds(execution_provider_label)
+        except Exception:  # noqa: BLE001 - soft-ceiling export fails open.
+            soft_ceiling = None
+        if soft_ceiling is None:
+            os.environ.pop(SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV, None)
+        else:
+            os.environ[SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV] = str(soft_ceiling)
         if artifacts_dir:
             from sase.axe.run_agent_helpers import update_meta_field
 
@@ -561,3 +578,9 @@ def invoke_agent(
             os.environ.pop(SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV, None)
         else:
             os.environ[SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV] = previous_sync_ceiling
+        if previous_soft_ceiling is None:
+            os.environ.pop(SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV, None)
+        else:
+            os.environ[SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS_ENV] = (
+                previous_soft_ceiling
+            )

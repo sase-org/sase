@@ -5232,16 +5232,26 @@ tool_runs:
   log_max_bytes: 2147483648
   run_log_max_bytes: 268435456
   event_max_bytes: 16777216
+  soft_ceiling:
+    default: ""
+    providers: {}
 ```
 
-| Field                         | Type | Default      | Minimum | Description                                                                       |
-| ----------------------------- | ---- | ------------ | ------- | --------------------------------------------------------------------------------- |
-| `tool_runs.summary_days`      | int  | `180`        | `1`     | Days to retain run/attempt/lifecycle summaries after settlement.                  |
-| `tool_runs.detail_days`       | int  | `60`         | `1`     | Days to retain stage/sample events and projections. Must be `<= summary_days`.    |
-| `tool_runs.log_days`          | int  | `14`         | `1`     | Days to retain output and event files after settlement. Must be `<= detail_days`. |
-| `tool_runs.log_max_bytes`     | int  | `2147483648` | `1`     | Aggregate retained-log target in bytes (2 GiB).                                   |
-| `tool_runs.run_log_max_bytes` | int  | `268435456`  | `1`     | Per-run retained-log cap in bytes (256 MiB).                                      |
-| `tool_runs.event_max_bytes`   | int  | `16777216`   | `1`     | Per-run event-file cap in bytes (16 MiB).                                         |
+| Field                                     | Type   | Default      | Minimum | Description                                                                             |
+| ----------------------------------------- | ------ | ------------ | ------- | --------------------------------------------------------------------------------------- |
+| `tool_runs.summary_days`                  | int    | `180`        | `1`     | Days to retain run/attempt/lifecycle summaries after settlement.                        |
+| `tool_runs.detail_days`                   | int    | `60`         | `1`     | Days to retain stage/sample events and projections. Must be `<= summary_days`.          |
+| `tool_runs.log_days`                      | int    | `14`         | `1`     | Days to retain output and event files after settlement. Must be `<= detail_days`.       |
+| `tool_runs.log_max_bytes`                 | int    | `2147483648` | `1`     | Aggregate retained-log target in bytes (2 GiB).                                         |
+| `tool_runs.run_log_max_bytes`             | int    | `268435456`  | `1`     | Per-run retained-log cap in bytes (256 MiB).                                            |
+| `tool_runs.event_max_bytes`               | int    | `16777216`   | `1`     | Per-run event-file cap in bytes (16 MiB).                                               |
+| `tool_runs.soft_ceiling.default`          | string | `""`         | —       | Default soft-ceiling duration (`90s`, `20m`, `1h`); empty means none.                   |
+| `tool_runs.soft_ceiling.providers.<name>` | string | `""`         | —       | Per-provider soft-ceiling duration keyed by registered provider name; empty means none. |
+
+`tool_runs.soft_ceiling` is the most time an agent should block on one `sase tool run`
+before escalating to a monitor; it kills nothing; the effective budget is the smaller of
+this and the hard ceiling's budget. The provider entry wins, then `default`, then none.
+A malformed or non-positive value is ignored with one warning and never fails a launch.
 
 Unknown fields and non-positive or inconsistent horizons are rejected. JSON Schema
 cannot express `detail_days <= summary_days`; runtime validation covers that.

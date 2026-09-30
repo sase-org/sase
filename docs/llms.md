@@ -783,7 +783,10 @@ Muse's synchronous ceiling goes to a SASE monitor, chosen before the command sta
   `SASE_PROVIDER_SYNC_CEILING_SECONDS=600` (absent when the flag is off), so in-harness
   tooling can read the kill ceiling instead of guessing it. The variable is scrubbed at
   every agent, monitor, and proc boundary, so a child never inherits its starter's
-  ceiling.
+  ceiling. Beside it SASE exports `SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS` from
+  `tool_runs.soft_ceiling` (unset when none is configured); it kills nothing and names
+  the most time an agent should block on one `sase tool run` before escalating to a
+  monitor.
 - **Mode-aware single-turn directive.** Every Muse prompt carries a short prefix stating
   the ceiling and the up-front routing rules: final verification prefers prepared
   monitor completion (`/sase_final`), commands that can take longer than 10 minutes go

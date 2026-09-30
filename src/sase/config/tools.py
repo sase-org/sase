@@ -9,6 +9,7 @@ load either way because receipt policy lives outside definition identity).
 
 from __future__ import annotations
 
+import logging
 import re
 import subprocess
 from collections.abc import Mapping
@@ -20,6 +21,8 @@ from sase.config.core import get_local_config_path, load_config_layers
 from sase.config.layers import load_yaml_file_with_metadata
 from sase.content_layout import discover_project_root
 from sase.core.tool_run import tool_run_normalize_definition
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_TOOL_RUNS_SUMMARY_DAYS = 180
@@ -40,6 +43,7 @@ _TOOL_RUNS_FIELDS = (
     "log_max_bytes",
     "run_log_max_bytes",
     "event_max_bytes",
+    "soft_ceiling",
 )
 
 
@@ -332,11 +336,94 @@ def _positive_int(value: object, field: str, default: int) -> int:
     raise ToolRunsConfigError(f"{field} must be a positive integer")
 
 
+def _parse_soft_ceiling_value(value: object, field: str) -> int | None:
+    """Parse one ``tool_runs.soft_ceiling`` duration value to whole seconds.
+
+    Empty means none. A malformed or non-positive value is ignored with one
+    warning and resolves to ``None``; it never fails a launch.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        logger.warning(
+            "Ignoring %s: must be a duration string, not %s",
+            field,
+            type(value).__name__,
+        )
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        from sase.core.cli_duration import parse_cli_duration
+
+        seconds = parse_cli_duration(text, flag=field)[0]
+    except ValueError as exc:
+        logger.warning("Ignoring %s %r: %s", field, value, exc)
+        return None
+    whole = int(seconds)
+    if whole <= 0:
+        logger.warning("Ignoring %s %r: must be greater than zero", field, value)
+        return None
+    return whole
+
+
+def get_tool_runs_soft_ceiling_seconds(provider_name: str | None = None) -> int | None:
+    """Return the execution provider's resolved soft ceiling in whole seconds.
+
+    Resolution order is the provider entry, then ``default``, then none.
+    Empty means none; a malformed or non-positive value is ignored with one
+    warning. It never raises and never fails a launch.
+    """
+    from sase.config.core import load_merged_config
+
+    try:
+        raw = load_merged_config().get("tool_runs", {})
+    except Exception:  # noqa: BLE001 - soft-ceiling resolution is fail-open.
+        return None
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, Mapping):
+        return None
+    section = raw.get("soft_ceiling", {})
+    if section is None:
+        return None
+    if not isinstance(section, Mapping):
+        logger.warning(
+            "Ignoring tool_runs.soft_ceiling: must be a mapping, not %s",
+            type(section).__name__,
+        )
+        return None
+    providers = section.get("providers", {})
+    if providers is None:
+        providers = {}
+    if not isinstance(providers, Mapping):
+        logger.warning(
+            "Ignoring tool_runs.soft_ceiling.providers: must be a mapping, not %s",
+            type(providers).__name__,
+        )
+        providers = {}
+    if provider_name:
+        entry = providers.get(provider_name)
+        if entry is not None and (not isinstance(entry, str) or entry.strip()):
+            # A present but malformed entry warns inside the parser and falls
+            # through to default; an empty string means absent.
+            parsed = _parse_soft_ceiling_value(
+                entry, f"tool_runs.soft_ceiling.providers.{provider_name}"
+            )
+            if parsed is not None:
+                return parsed
+    return _parse_soft_ceiling_value(
+        section.get("default", ""), "tool_runs.soft_ceiling.default"
+    )
+
+
 __all__ = [
     "ToolCatalog",
     "ToolCatalogError",
     "ToolRunsConfigError",
     "get_tool_runs_config",
+    "get_tool_runs_soft_ceiling_seconds",
     "load_project_tool_catalog",
     "load_project_tool_catalog_at",
     "tool_project_identity",
