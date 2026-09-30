@@ -3606,9 +3606,11 @@ the default active-pane behavior.
 - A prompt with frontmatter but only one segment is a single-agent prompt with local
   xprompts (not multi-agent).
 - `---` inside fenced code blocks is not treated as a separator.
-- When a multi-agent prompt is saved to prompt history, each individual segment is also
-  saved as a separate entry. This allows segments to appear independently in the prompt
-  history picker for reuse.
+- When a multi-agent prompt a user submitted is saved to prompt history, each individual
+  segment is also saved as a separate entry. This allows segments to appear
+  independently in the prompt history picker for reuse. Segment recording applies only
+  to user-submitted multi-prompts: machine-originated launches write no history rows at
+  all.
 
 ### Xprompt Swarms (Library-Defined Fan-Out)
 

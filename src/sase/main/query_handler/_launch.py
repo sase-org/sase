@@ -1,11 +1,32 @@
 """Launch ``sase run`` prompts as detached background agents."""
 
 import json
+import os
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from sase.agent.launcher import launch_agents_from_cwd
+from sase.history.prompt_store import PromptOrigin
+
+#: Process marker set on every monitor-supervised command.
+MONITOR_ID_ENV = "SASE_MONITOR_ID"
+
+
+def _sase_run_ingress_origin() -> PromptOrigin:
+    """Return the history origin for one ``sase run`` ingress launch.
+
+    Monitor commands and gate commands reach ``sase run`` as automation, so
+    they classify as ``generated`` (which the history writers drop). Every
+    other terminal invocation classifies as ``typed``.
+    """
+    from sase.notification_gates.command_runner import GATE_COMMAND_ENV
+
+    if os.environ.get(MONITOR_ID_ENV):
+        return "generated"
+    if os.environ.get(GATE_COMMAND_ENV):
+        return "generated"
+    return "typed"
 
 
 def launch_query(query: str) -> None:
@@ -25,6 +46,7 @@ def launch_query(query: str) -> None:
     if isinstance(payload.get("prompt"), str) and payload["prompt"]:
         query = payload["prompt"]
     allow_force_reuse = bool(payload.get("allow_force_reuse"))
+    ingress_origin = _sase_run_ingress_origin()
     from sase.agent.prompt_inputs import missing_required_input_names
 
     missing_inputs = missing_required_input_names(query)
@@ -92,11 +114,18 @@ def launch_query(query: str) -> None:
             unresolved_names=tuple(unresolved_names),
         )
     except RemoteDispatchLaunchError as exc:
+        from sase.history.prompt import record_failed_launch_prompt
+
+        # The forwarded prompt is recorded verbatim: remote dispatch sends it
+        # before project-tag expansion, which happens on the target machine.
+        record_failed_launch_prompt(query, origin=ingress_origin)
         _emit_failed_launch_result(str(exc))
         sys.exit(1)
     if dispatch_result is not None:
+        from sase.history.prompt import add_or_update_prompt
         from sase.ops.commands.run import emit_run_launch_result
 
+        add_or_update_prompt(query, allow_short=True, origin=ingress_origin)
         print(dispatch_result.message)
         emit_run_launch_result(
             success=True,
@@ -121,7 +150,7 @@ def launch_query(query: str) -> None:
             validate_project_tags_for_launch(query)
         except ProjectTagError as exc:
             message = str(exc)
-            record_failed_launch_prompt(query, origin="typed")
+            record_failed_launch_prompt(query, origin=ingress_origin)
             print(f"Error: {message}", file=sys.stderr)
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
@@ -129,13 +158,16 @@ def launch_query(query: str) -> None:
             query = expand_project_tags(query)
         except ProjectTagError as exc:
             message = str(exc)
-            record_failed_launch_prompt(query, origin="typed")
+            record_failed_launch_prompt(query, origin=ingress_origin)
             print(f"Error: {message}", file=sys.stderr)
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
         except Exception:  # noqa: BLE001 - tags stay literal when catalog is cold.
             pass
 
+    # The launcher sees the force-reuse rewritten prompt below; history keeps
+    # what the human submitted (after project-tag expansion).
+    history_query = query
     segment_extra_env = None
     force_reuse_applied = False
     if allow_force_reuse:
@@ -150,7 +182,7 @@ def launch_query(query: str) -> None:
             force_reuse_plan = plan_force_reuse_launch(query)
         except Exception as exc:
             message = str(exc)
-            record_failed_launch_prompt(query, origin="typed")
+            record_failed_launch_prompt(query, origin=ingress_origin)
             print(f"Error: {message}", file=sys.stderr)
             emit_run_launch_result(success=False, message=message)
             sys.exit(1)
@@ -159,7 +191,7 @@ def launch_query(query: str) -> None:
                 apply_force_reuse_launch(force_reuse_plan)
             except Exception as exc:
                 message = f"Agent name reuse failed: {exc}"
-                record_failed_launch_prompt(query, origin="typed")
+                record_failed_launch_prompt(query, origin=ingress_origin)
                 print(f"Error: {message}", file=sys.stderr)
                 emit_run_launch_result(success=False, message=message)
                 sys.exit(1)
@@ -173,6 +205,8 @@ def launch_query(query: str) -> None:
             payload=payload,
             allow_force_reuse=allow_force_reuse,
             unresolved_names=tuple(unresolved_names),
+            history_query=history_query,
+            history_origin=ingress_origin,
         )
 
     launch_units = None
@@ -197,14 +231,14 @@ def launch_query(query: str) -> None:
                 query,
                 segment_extra_env=segment_extra_env,
                 launch_units=launch_units,
-                origin="typed",
+                origin=ingress_origin,
             )
         elif segment_extra_env is not None:
             results = launch_agents_from_cwd(
-                query, segment_extra_env=segment_extra_env, origin="typed"
+                query, segment_extra_env=segment_extra_env, origin=ingress_origin
             )
         else:
-            results = launch_agents_from_cwd(query, origin="typed")
+            results = launch_agents_from_cwd(query, origin=ingress_origin)
     except RuntimeError as e:
         from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
 
@@ -266,8 +300,15 @@ def _dispatch_direct_typed_launch_if_active(
     payload: Mapping[str, Any],
     allow_force_reuse: bool,
     unresolved_names: Sequence[str],
+    history_query: str | None = None,
+    history_origin: PromptOrigin | None = "typed",
 ) -> None:
-    """Admit a direct typed launch, or return so the legacy path can run."""
+    """Admit a direct typed launch, or return so the legacy path can run.
+
+    *history_query* is the pre-rewrite root prompt the human submitted; it is
+    what history records, since these launches bypass the launcher that would
+    otherwise record it (and would only see the rewritten prompt).
+    """
     from sase.agent.direct_typed_launch import (
         dispatch_direct_typed_launch,
         typed_launch_run_message,
@@ -280,6 +321,7 @@ def _dispatch_direct_typed_launch_if_active(
         source_surface = "ace" if allow_force_reuse else "cli"
     raw_inputs = payload.get("inputs")
     safe_inputs = raw_inputs if isinstance(raw_inputs, dict) else None
+    recorded_query = history_query if history_query is not None else query
     try:
         dispatched = dispatch_direct_typed_launch(
             query,
@@ -287,11 +329,17 @@ def _dispatch_direct_typed_launch_if_active(
             safe_inputs=safe_inputs,
         )
     except LaunchRequestError as exc:
+        from sase.history.prompt import record_failed_launch_prompt
+
+        record_failed_launch_prompt(recorded_query, origin=history_origin)
         _emit_failed_launch_result(str(exc))
         sys.exit(1)
     if dispatched is None:
         return
     result, bundle_dir = dispatched
+    from sase.history.prompt import add_or_update_prompt
+
+    add_or_update_prompt(recorded_query, allow_short=True, origin=history_origin)
     message = typed_launch_run_message(result)
     result_payload = typed_launch_run_payload(
         result,
@@ -337,8 +385,6 @@ def _confirm_hold_arm(
     launch proceeds unconditionally: the arm notification and the
     LaunchApproval preview already list the capture.
     """
-    import os
-
     from sase.ops.models import PROC_ID_ENV
 
     if os.environ.get("SASE_AGENT") or os.environ.get(PROC_ID_ENV):

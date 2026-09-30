@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from sase.history import prompt_store as store
@@ -18,17 +19,32 @@ class _PromptMutation:
     origin: store.PromptOrigin | None = None
 
 
-def _effective_prompt_origin(
+def effective_prompt_origin(
     origin: store.PromptOrigin | None,
+    *,
+    launch_envs: tuple[Mapping[str, str] | None, ...] = (),
 ) -> store.PromptOrigin | None:
-    """Resolve *origin* for the current process.
+    """Resolve the write-time origin for one launch.
 
-    A launch recorded from inside a SASE agent is machine-generated whatever
-    entry point it came through, so an explicit ``typed`` origin is upgraded
-    to ``generated`` there. ``None`` (unknown/legacy path) is left alone so
-    historical rows keep their unwritten state.
+    ``generated`` means "do not write": the writers treat it as a no-op so
+    machine-originated launches leave no row, no placeholder, and no Stash
+    entry. An explicit ``generated`` origin, a chop/job marker in any of the
+    launch's own *launch_envs* mappings, or a ``SASE_AGENT`` process
+    environment each resolve to ``generated``. ``None`` (unknown/legacy path)
+    is left alone so historical rows keep their unwritten state.
+
+    *launch_envs* holds launch parameters only, never ``os.environ``: chop
+    markers count only when the launch itself carries them, because surfaces
+    such as the Telegram inbound handler run inside a job tick whose process
+    env carries the same markers for human prompts.
     """
-    if origin == "typed" and os.environ.get("SASE_AGENT"):
+    from sase.axe.chop_agents import is_chop_launch_env
+
+    if origin == "generated":
+        return "generated"
+    if any(is_chop_launch_env(env) for env in launch_envs):
+        return "generated"
+    if os.environ.get("SASE_AGENT"):
         return "generated"
     return origin
 
@@ -63,7 +79,14 @@ def add_or_update_prompt(
     tags, and recovering one from an abandoned draft is exactly what makes the
     completion menu feel like it remembers. Span extraction covers the whole
     string, so multi-prompt segments need no separate call.
+
+    A ``generated`` origin writes nothing at all: no row, no placeholder, and
+    no ``last_used`` bump of an already-typed row.
     """
+    effective_origin = effective_prompt_origin(origin)
+    if effective_origin == "generated":
+        return
+
     from sase.history.prompt_placeholders import record_prompt_placeholders
 
     record_prompt_placeholders(text)
@@ -71,7 +94,6 @@ def add_or_update_prompt(
     if not store.is_recordable_prompt(text, allow_short=allow_short):
         return
 
-    effective_origin = _effective_prompt_origin(origin)
     current_timestamp = store.generate_timestamp()
     mutations = [
         _PromptMutation(text=text, cancelled=cancelled, origin=effective_origin)
@@ -107,15 +129,21 @@ def record_failed_launch_prompt(
     A failed launch still records the prompt's ``<foobar>`` tags in the common
     placeholder store: the user wrote them, so they stay available in the next
     prompt's completion menu even though the launch produced no agents.
+
+    A ``generated`` origin writes nothing at all: no row, no placeholder, and
+    no Stash entry.
     """
     if not text.strip():
+        return
+
+    effective_origin = effective_prompt_origin(origin)
+    if effective_origin == "generated":
         return
 
     from sase.history.prompt_placeholders import record_prompt_placeholders
 
     record_prompt_placeholders(text)
 
-    effective_origin = _effective_prompt_origin(origin)
     current_timestamp = store.generate_timestamp()
     mutations = [
         _PromptMutation(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -70,15 +69,13 @@ def launch_planned_bead_work_agents(
     if not segments:
         return []
 
-    effective_origin: PromptOrigin | None = (
-        "generated" if os.environ.get("SASE_AGENT") else origin
+    from sase.history.prompt_store_mutations import effective_prompt_origin
+
+    effective_origin: PromptOrigin | None = effective_prompt_origin(
+        origin, launch_envs=tuple(segment_extra_env)
     )
 
     def record_failed_launch_prompt(text: str) -> None:
-        from sase.axe.chop_agents import is_chop_launch_env
-
-        if any(is_chop_launch_env(env) for env in segment_extra_env):
-            return
         from sase.history.prompt import (
             record_failed_launch_prompt as record_interactive_failed_launch,
         )

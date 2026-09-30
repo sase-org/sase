@@ -31,6 +31,14 @@ from sase.notification_gates.paths import open_regular_nofollow, owned_resource_
 
 _PROC_FD_DIR = Path("/proc/self/fd")
 
+#: Marker exported into every owned gate command's environment so the
+#: ``sase run`` ingress can classify automation launches as generated.
+#: ``sase run`` is the only human entry point automation can reach, so the
+#: check lives there rather than in the central store helper (a daemon
+#: restarted from inside a gate command would otherwise inherit the marker
+#: across a proc boundary and silently drop human mobile/Telegram rows).
+GATE_COMMAND_ENV = "SASE_GATE_COMMAND"
+
 
 def run_owned_command(
     bundle_path: Path,
@@ -54,12 +62,14 @@ def run_owned_command(
         os.lseek(command_fd, 0, os.SEEK_SET)
         argv, pass_fds = _exec_target(command_fd, command_path, command_argv)
         try:
+            command_env = {**os.environ, GATE_COMMAND_ENV: "1"}
             if on_output_line is not None:
                 return _run_command_streaming(
                     argv,
                     input_data=canonical_json_bytes(input_data) + b"\n",
                     cwd=bundle_path,
                     pass_fds=pass_fds,
+                    env=command_env,
                     on_output_line=on_output_line,
                     on_process_state=on_process_state,
                 )
@@ -68,6 +78,7 @@ def run_owned_command(
                 input=canonical_json_bytes(input_data) + b"\n",
                 capture_output=True,
                 cwd=bundle_path,
+                env=command_env,
                 pass_fds=pass_fds,
                 shell=False,
                 check=False,
@@ -150,6 +161,7 @@ def _run_command_streaming(
     input_data: bytes,
     cwd: Path,
     pass_fds: tuple[int, ...],
+    env: dict[str, str] | None = None,
     on_output_line: Callable[[str, str], None],
     on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None,
 ) -> subprocess.CompletedProcess[bytes]:
@@ -160,6 +172,7 @@ def _run_command_streaming(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=cwd,
+        env=env,
         pass_fds=pass_fds,
         shell=False,
     )
@@ -343,6 +356,7 @@ def _sha256_fd(fd: int) -> str:
 
 
 __all__ = [
+    "GATE_COMMAND_ENV",
     "decode_json_result",
     "decode_output",
     "record_execution_error",

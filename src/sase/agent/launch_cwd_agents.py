@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
@@ -60,18 +59,15 @@ def launch_agents_from_cwd_impl(
             provider. Unexpected guard failures are logged and swallowed.
     """
 
-    # A launch recorded from inside a SASE agent is machine-generated
-    # whatever entry point it came through (robustness rule).
-    effective_origin: PromptOrigin | None = (
-        "generated" if os.environ.get("SASE_AGENT") else origin
+    from sase.history.prompt_store_mutations import effective_prompt_origin
+
+    # Provenance resolves once here and the history writers gate on it, so a
+    # machine-originated launch writes no row on success or on failure alike.
+    effective_origin: PromptOrigin | None = effective_prompt_origin(
+        origin, launch_envs=(extra_env, *(segment_extra_env or ()))
     )
 
     def record_failed_launch_prompt(text: str) -> None:
-        from sase.axe.chop_agents import is_chop_launch_env
-
-        launch_envs = (extra_env, *(segment_extra_env or ()))
-        if any(is_chop_launch_env(env) for env in launch_envs):
-            return
         from sase.history.prompt import (
             record_failed_launch_prompt as record_interactive_failed_launch,
         )

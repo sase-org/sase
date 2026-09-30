@@ -23,20 +23,26 @@ same text was also submitted as a prompt.
 
 `sase prompt` reads and writes those JSON shards directly - there is no separate
 database to manage. Each shard row stores `text`, `timestamp`, `last_used`, `cancelled`,
-and an optional `origin`: `typed` for prompts a human typed (TUI submit, `sase run`,
-`sase prompt run`, cancelled drafts), `generated` for machine-driven launches
-(LaunchApproval, axe chops, bead work, plan approvals). Rows written before origins
-existed carry no `origin`. When the same text is recorded twice, the merge keeps the
-newest timestamps but never downgrades: `typed` beats `generated` beats no origin, just
-like a successful launch is never downgraded to cancelled. Anything launched from inside
-a SASE agent is recorded as `generated` whatever entry point it came through, so the
-next-word prediction corpus can exclude machine-generated prompts. Readers aggregate and
-deduplicate records across shards, so reusing the same prompt in a later month still
-shows one newest entry even if older shard copies remain on disk. New launch recordings
-only touch the current-month shard. Maintenance commands such as `delete` and `prune`
-remove every stored copy of the selected exact prompt text. Replay commands (`run`,
-`edit`, `select`) route through the same launch machinery as `sase run`, so
-multi-prompt, multi-model, and xprompt behavior stay identical.
+and an optional `origin`: `typed` for prompts a human submitted, `generated` for
+machine-driven launches. Prompt history is a write policy, not a label: only human
+submissions are recorded, once per submission, through a human entry point - the TUI
+prompt bar (including cancelled drafts and failed submits), `sase run` or
+`sase prompt run` from a terminal, the mobile gateway, or Telegram. A machine-originated
+launch (agents and LaunchApproval, routine/job launches, bead work, plan/epic approval,
+restarts, monitor commands and gate commands, member-agent relaunches, mentor-apply
+launches) writes no history row, no `<placeholder>` tags, and no Stash entry: a
+generated reuse of already-typed text does not even bump that row's `last_used`. Rows
+written before origins existed carry no `origin`, and legacy `generated` rows remain
+until they are pruned. When the same text is recorded twice, the merge keeps the newest
+timestamps but never downgrades: `typed` beats `generated` beats no origin, just like a
+successful launch is never downgraded to cancelled. The next-word prediction corpus
+excludes `generated` rows. Readers aggregate and deduplicate records across shards, so
+reusing the same prompt in a later month still shows one newest entry even if older
+shard copies remain on disk. New launch recordings only touch the current-month shard.
+Maintenance commands such as `delete` and `prune` remove every stored copy of the
+selected exact prompt text. Replay commands (`run`, `edit`, `select`) route through the
+same launch machinery as `sase run`, so multi-prompt, multi-model, and xprompt behavior
+stay identical.
 
 ## Selectors
 
