@@ -10,7 +10,6 @@ from __future__ import annotations
 import base64
 import io
 import os
-import shutil
 from pathlib import Path
 
 SHOW_IMAGE_MODES = ("auto", "cells", "kitty", "never")
@@ -25,7 +24,7 @@ _SVG_EPS_SUFFIXES = frozenset({".svg", ".svgz", ".eps", ".epsi"})
 _KITTY_CHUNK_SIZE = 4096
 
 
-def get_show_images_config() -> str:
+def _get_show_images_config() -> str:
     """Return ``bead.show.images`` or ``auto`` when missing/malformed."""
     try:
         from sase.config import load_merged_config
@@ -48,13 +47,13 @@ def get_show_images_config() -> str:
     return normalized if normalized in SHOW_IMAGE_MODES else DEFAULT_SHOW_IMAGES
 
 
-def kitty_graphics_supported(env: dict[str, str] | None = None) -> bool:
+def _kitty_graphics_supported(env: dict[str, str] | None = None) -> bool:
     """Return whether the terminal advertises kitty-graphics support."""
     try:
-        from sase.doctor.checks_deep_terminal import _kitty_graphics_support
+        from sase.doctor.checks_deep_terminal import kitty_graphics_support
 
         source = dict(os.environ) if env is None else dict(env)
-        support = _kitty_graphics_support(source)
+        support = kitty_graphics_support(source)
         return bool(support.get("supported"))
     except Exception:
         return False
@@ -73,7 +72,7 @@ def resolve_images_mode(
     so ``read``, JSON, and piped ``show`` stay free of escapes and bytes.
     """
     source = dict(os.environ) if env is None else dict(env)
-    raw = cli_value if cli_value is not None else get_show_images_config()
+    raw = cli_value if cli_value is not None else _get_show_images_config()
     effective = str(raw or DEFAULT_SHOW_IMAGES).strip().lower()
     if effective not in SHOW_IMAGE_MODES:
         effective = DEFAULT_SHOW_IMAGES
@@ -88,7 +87,7 @@ def resolve_images_mode(
     if effective == "cells":
         return "cells", None
     inside_tmux = bool(source.get("TMUX"))
-    supported = kitty_graphics_supported(source)
+    supported = _kitty_graphics_supported(source)
     if effective == "kitty":
         if supported and not inside_tmux:
             return "kitty", None
@@ -116,13 +115,6 @@ def thumbnail_size(
         return columns, min(MAX_PREVIEW_ROWS, 6)
     rows = max(1, round(columns * image_height / max(1, image_width) / 2))
     return columns, min(MAX_PREVIEW_ROWS, rows)
-
-
-def _terminal_width() -> int:
-    try:
-        return max(20, shutil.get_terminal_size(fallback=(80, 24)).columns)
-    except Exception:
-        return 80
 
 
 def _truecolor(env: dict[str, str] | None = None) -> bool:
@@ -226,7 +218,7 @@ def preview_text_attachment(view_path: str) -> list[str] | None:
     return lines[:TEXT_PREVIEW_LINES] if lines else []
 
 
-def kitty_escape_for_png(png_bytes: bytes) -> str:
+def _kitty_escape_for_png(png_bytes: bytes) -> str:
     """Return chunked kitty-graphics escapes transmitting *png_bytes*."""
     encoded = base64.b64encode(bytes(png_bytes)).decode("ascii")
     chunks = [
@@ -318,7 +310,7 @@ def kitty_escape_for_path(view_path: str) -> str | None:
     if not raw:
         return None
     if raw[:8] == b"\x89PNG\r\n\x1a\n":
-        return kitty_escape_for_png(raw)
+        return _kitty_escape_for_png(raw)
     try:
         from PIL import Image
     except ImportError:
@@ -328,7 +320,7 @@ def kitty_escape_for_path(view_path: str) -> str | None:
             converted = image.convert("RGB")
             buffer = io.BytesIO()
             converted.save(buffer, format="PNG")
-            return kitty_escape_for_png(buffer.getvalue())
+            return _kitty_escape_for_png(buffer.getvalue())
     except Exception:
         return None
 
@@ -342,11 +334,11 @@ __all__ = [
     "TEXT_PREVIEW_MAX_BYTES",
     "attachment_names_for_issue",
     "attachment_targets_for_body",
-    "get_show_images_config",
+    "_get_show_images_config",
     "is_previewable_raster",
     "kitty_escape_for_path",
-    "kitty_escape_for_png",
-    "kitty_graphics_supported",
+    "_kitty_escape_for_png",
+    "_kitty_graphics_supported",
     "preview_text_attachment",
     "previews_enabled",
     "render_cell_thumbnail",

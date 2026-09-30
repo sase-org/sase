@@ -22,8 +22,8 @@ from sase.bead.model import BeadNoteAttachment, Issue, Status
 def handle_bead_attachment(args: argparse.Namespace) -> None:
     """Dispatch one ``sase bead attachment`` action."""
     action = getattr(args, "attachment_action", None)
-    if action in (None, "list", "open"):
-        # List and open never fetch; they report the state the command sees.
+    if action in (None, "list"):
+        # List never fetches; it reports the state the command sees.
         from sase.bead.attachments.fetch import fetch_context
 
         with fetch_context(mode="never"):
@@ -245,7 +245,13 @@ def _handle_bead_attachment_path(args: argparse.Namespace) -> None:
 
 
 def _handle_bead_attachment_open(args: argparse.Namespace) -> None:
-    """Open one attachment in the terminal viewer, with n/p across viewables."""
+    """Open one attachment in the terminal viewer, with n/p across viewables.
+
+    Explicit open always fetches: the object downloads from the shared store
+    even when it is above the auto-fetch cap.
+    """
+    from sase.bead.attachments.fetch import attachment_badge, fetch_context
+
     issue_id = args.id
     name = getattr(args, "name", None)
     bead_context = resolve_bead_operation_context([issue_id])
@@ -261,26 +267,31 @@ def _handle_bead_attachment_open(args: argparse.Namespace) -> None:
         print(f"Error: {resolved_id}: no attachments.", file=sys.stderr)
         sys.exit(1)
     if name is None:
-        cached = sorted(
+        candidates = sorted(
             attachment_name
             for attachment_name, record in roster.items()
-            if attachment_availability(record.sha256) == "cached"
+            if attachment_availability(
+                record.sha256,
+                size_bytes=record.size_bytes,
+                origin=getattr(record, "origin", None),
+                name=record.name,
+            )
+            != "purged"
         )
-        if not cached:
+        if not candidates:
             print(
-                f"Error: {resolved_id} has no cached attachments "
-                "(✕ unavailable offline).",
+                f"Error: {resolved_id} has no attachments available.",
                 file=sys.stderr,
             )
             sys.exit(1)
-        if len(cached) == 1:
-            name = cached[0]
+        if len(candidates) == 1:
+            name = candidates[0]
         else:
             import sys as _sys
 
             if _sys.stdin.isatty() and _sys.stderr.isatty():
                 print(f"Attachments on {resolved_id}:", file=sys.stderr)
-                for index, candidate in enumerate(cached, start=1):
+                for index, candidate in enumerate(candidates, start=1):
                     print(f"  {index}. {candidate}", file=sys.stderr)
                 try:
                     choice = input("Open which attachment [1]? ").strip() or "1"
@@ -288,18 +299,18 @@ def _handle_bead_attachment_open(args: argparse.Namespace) -> None:
                     print("Error: no attachment chosen.", file=sys.stderr)
                     sys.exit(1)
                 try:
-                    name = cached[int(choice) - 1]
+                    name = candidates[int(choice) - 1]
                 except (IndexError, ValueError):
                     print(
                         f"Error: invalid choice {choice!r}; "
-                        f"choose 1-{len(cached)} or name one explicitly.",
+                        f"choose 1-{len(candidates)} or name one explicitly.",
                         file=sys.stderr,
                     )
                     sys.exit(1)
             else:
-                listing = ", ".join(cached)
+                listing = ", ".join(candidates)
                 print(
-                    f"Error: {resolved_id} has {len(cached)} cached attachments: "
+                    f"Error: {resolved_id} has {len(candidates)} attachments: "
                     f"{listing}; specify a name.",
                     file=sys.stderr,
                 )
@@ -311,13 +322,28 @@ def _handle_bead_attachment_open(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
-    if attachment_availability(attachment.sha256) != "cached":
-        print(
-            f"Error: attachment {strip_display_name(name)} is "
-            "✕ unavailable offline on this machine.",
-            file=sys.stderr,
+    with fetch_context(mode="force"):
+        state = attachment_availability(
+            attachment.sha256,
+            size_bytes=attachment.size_bytes,
+            origin=getattr(attachment, "origin", None),
+            name=attachment.name,
         )
-        sys.exit(1)
+        if state != "cached":
+            badge = attachment_badge(
+                state,
+                size_bytes=attachment.size_bytes,
+                bead_id=resolved_id,
+                name=attachment.name,
+                origin=getattr(attachment, "origin", None),
+            )
+            detail = f" ({badge})" if badge else ""
+            print(
+                f"Error: attachment {strip_display_name(name)} is not available"
+                f"{detail} (no local object for sha256:{attachment.sha256[:12]}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
     try:
         from sase.bead.attachment_resolve import viewable_media_specs
     except Exception:

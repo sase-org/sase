@@ -525,6 +525,7 @@ _DELIBERATELY_LITERAL_FREE_TEXT = frozenset(
         ("read", "project"),
         ("touched", "verb"),
         # Audit reasons are recorded verbatim, never expanded.
+        ("attachment", "purge", "reason"),
         ("read", "reason"),
         ("snooze", "until"),
         ("sync-external", "project"),

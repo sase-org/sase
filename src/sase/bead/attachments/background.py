@@ -43,7 +43,7 @@ def should_background(size_bytes: int) -> bool:
         return False
 
 
-def format_background_size(size_bytes: int) -> str:
+def _format_background_size(size_bytes: int) -> str:
     """Format a byte count the way the background echo does (up to GiB)."""
     if size_bytes < 1024:
         return f"{size_bytes} bytes"
@@ -76,12 +76,12 @@ def rewrite_echo_for_background(
             continue
         size = int(matched.get("size_bytes") or 0)
         echo_rows[index] = (
-            f"{row} ⇡ uploading in background ({format_background_size(size)}) "
+            f"{row} ⇡ uploading in background ({_format_background_size(size)}) "
             "— sase bead attachment push"
         )
 
 
-def background_log_path(project_key: str) -> Path:
+def _background_log_path(project_key: str) -> Path:
     """Return the worker log path for *project_key* (appended, never truncated)."""
     from sase.core.paths import sase_projects_dir, validate_sase_project_name
 
@@ -98,7 +98,7 @@ def launch_background_drain(project_key: str) -> int | None:
     try:
         from sase.detach_scope import detach_scope
 
-        log_path = background_log_path(project_key)
+        log_path = _background_log_path(project_key)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         launch = detach_scope(
             [
@@ -124,7 +124,7 @@ def launch_background_drain(project_key: str) -> int | None:
         return None
 
 
-def discover_stores_for_drain(project_key: str) -> list[Any]:
+def _discover_stores_for_drain(project_key: str) -> list[Any]:
     """Return every reachable shared store for *project_key*, git first.
 
     Discovery resolves from the inherited cwd (the worker starts in the
@@ -172,7 +172,7 @@ def drain_project_outbox(
     if queued == 0:
         return (0, 0)
     if stores is None:
-        stores = discover_stores_for_drain(project_key)
+        stores = _discover_stores_for_drain(project_key)
     if not stores:
         return (0, queued)
     drained_total = 0
@@ -283,10 +283,10 @@ if __name__ == "__main__":
 
 
 __all__ = [
-    "background_log_path",
-    "discover_stores_for_drain",
+    "_background_log_path",
+    "_discover_stores_for_drain",
     "drain_project_outbox",
-    "format_background_size",
+    "_format_background_size",
     "launch_background_drain",
     "main",
     "rewrite_echo_for_background",

@@ -14,7 +14,7 @@ from sase.tool.executor import ToolRunCliRequest, execute_tool_run
 from sase.tool.routing import (
     inline_refusal,
     monitor_start_form,
-    read_sync_ceiling,
+    _read_sync_ceiling,
 )
 
 
@@ -219,10 +219,10 @@ def test_missing_binding_fails_open_with_warning(
 
 def test_read_sync_ceiling_accepts_only_positive_integers() -> None:
     env = {"SASE_PROVIDER_SYNC_CEILING_SECONDS": "600"}
-    assert read_sync_ceiling(env) == 600
+    assert _read_sync_ceiling(env) == 600
     for raw in ("abc", "0", "-5", "", "  ", "6.5"):
-        assert read_sync_ceiling({"SASE_PROVIDER_SYNC_CEILING_SECONDS": raw}) is None
-    assert read_sync_ceiling({}) is None
+        assert _read_sync_ceiling({"SASE_PROVIDER_SYNC_CEILING_SECONDS": raw}) is None
+    assert _read_sync_ceiling({}) is None
 
 
 def test_monitor_start_form_matches_handoff_refusal() -> None:

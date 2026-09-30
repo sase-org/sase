@@ -91,6 +91,14 @@ _SASE_CORE_MIGRATION_COMPATIBILITY_PATHS = frozenset(
     }
 )
 
+#: Exported bead note corpus: verbatim historical bead note texts used as a
+#: golden for note-attachment parsing.
+_SASE_CORE_BEAD_NOTE_CORPUS_PATHS = frozenset(
+    {
+        "crates/sase_core/tests/fixtures/note_attachment/at_bearing_notes.jsonl",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class _RepoSpec:
@@ -291,7 +299,9 @@ def _is_generated_provider_copy(
 def _is_immutable_history(
     repo: str, path: str, line: str, match: str, context: str
 ) -> bool:
-    del repo, line, match, context
+    del line, match, context
+    if repo == "sase-core" and path in _SASE_CORE_BEAD_NOTE_CORPUS_PATHS:
+        return True
     return (
         path.endswith("CHANGELOG.md")
         or path.startswith(".beads/")

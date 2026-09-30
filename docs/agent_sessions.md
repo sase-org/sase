@@ -197,12 +197,12 @@ wherever ordering is required. The `clan=`, `session=`, and `tribe=` keywords on
 are mutually exclusive, and none can be combined with `%clan` in the same segment.
 
 While the `legacy_agent_family_syntax` sunset flag is on (the default), the retired
-`family=` keyword is accepted as `session=`. The same flag still accepts `family:` and
-`kind:family` in agent queries, `--next-fork family`, a gate `"fork": "family"`, and the
-`SASE_AGENT_FAMILY_ATTACH` environment variable. New prompts should use the session
-spellings. Turning the flag off rejects those new uses. A record that was already stored
-still reads. `family=` and `session=` together are an error in either flag state. See
-[feature_flags](configuration.md#feature_flags).
+family keyword on `%id` is accepted as `session=`. The same flag still accepts the
+`family` and `kind` agent-query values, the `--next-fork` family value, a gate
+`"fork": "family"`, and the `SASE_AGENT_FAMILY_ATTACH` environment variable. New prompts
+should use the session spellings. Turning the flag off rejects those new uses. A record
+that was already stored still reads. The retired family keyword and `session=` together
+are an error in either flag state. See [feature_flags](configuration.md#feature_flags).
 
 The clan name is permanently reserved as a container name and cannot also belong to an
 agent. Each member must be named `<clan>.<suffix>`; launch planning rejects an

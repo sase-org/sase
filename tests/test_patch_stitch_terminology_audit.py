@@ -120,6 +120,30 @@ def test_classifier_accepts_sase_core_patch_record_migration_headers() -> None:
     assert rule == "external_legacy_boundary"
 
 
+def test_classifier_accepts_sase_core_bead_note_corpus() -> None:
+    classification, rule, _reason = _classify_candidate(
+        "sase-core",
+        "crates/sase_core/tests/fixtures/note_attachment/at_bearing_notes.jsonl",
+        "ChangeSpec COMMITS refs",
+        "ChangeSpec",
+    )
+
+    assert classification == "immutable-history"
+    assert rule == "immutable_history"
+
+
+def test_classifier_rejects_other_sase_core_fixture() -> None:
+    classification, rule, _reason = _classify_candidate(
+        "sase-core",
+        "crates/sase_core/tests/fixtures/other_fixture.jsonl",
+        "ChangeSpec COMMITS refs",
+        "ChangeSpec",
+    )
+
+    assert classification == "defect"
+    assert rule == "unclassified"
+
+
 def test_classifier_accepts_core_lazy_facade_legacy_public_export() -> None:
     classification, rule, _reason = _classify_candidate(
         "main",

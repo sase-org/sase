@@ -24,7 +24,7 @@ ProgressFactory = Callable[[str, int | None], AbstractContextManager[Any]]
 """Build a bar context for ``(label, total_bytes)``; yields a callback or None."""
 
 
-def progress_allowed(size_bytes: int | None) -> bool:
+def _progress_allowed(size_bytes: int | None) -> bool:
     """Return whether a transfer of *size_bytes* may draw a progress bar."""
     if size_bytes is None or size_bytes < PROGRESS_MIN_BYTES:
         return False
@@ -49,7 +49,7 @@ def transfer_progress(
     the bar when known. The callback accepts ``(bytes_done, total_or_None)``
     per the :class:`BlobStore` protocol. Exiting stops a live bar.
     """
-    if not progress_allowed(total_bytes):
+    if not _progress_allowed(total_bytes):
         yield None
         return
     try:
@@ -99,6 +99,6 @@ def transfer_progress(
 __all__ = [
     "PROGRESS_MIN_BYTES",
     "ProgressFactory",
-    "progress_allowed",
+    "_progress_allowed",
     "transfer_progress",
 ]

@@ -47,16 +47,21 @@ def roster_for_bead_id(bead_id: str) -> tuple[Issue, dict[str, BeadNoteAttachmen
 def materialize_attachment_view(bead_id: str, name: str) -> Path:
     """Materialize the extension-preserving view path, fetching if needed.
 
-    This phase has no shared-store fetching: only the local CAS is consulted.
+    Explicit user actions (``artifact path|open|read attachment:…`` and pager
+    link activation) always fetch from the shared store when needed.
     Raises ``KeyError`` when the bead/attachment is unknown and ``FileNotFoundError``
-    when no local object exists.
+    when no local or shared copy exists.
     """
+    from sase.bead.attachments.fetch import fetch_context
+
     _issue, roster = roster_for_bead_id(bead_id)
     attachment = roster.get(name)
     if attachment is None:
         raise KeyError(f"attachment not found: {name} on {bead_id}")
     sha256 = str(getattr(attachment, "sha256", ""))
     attachment_name = str(getattr(attachment, "name", name))
+    size_bytes = getattr(attachment, "size_bytes", None)
+    origin = getattr(attachment, "origin", None)
     try:
         from sase.bead.attachment_presentation import (
             attachment_availability,
@@ -64,11 +69,18 @@ def materialize_attachment_view(bead_id: str, name: str) -> Path:
         )
     except Exception as exc:
         raise FileNotFoundError(f"attachment unavailable: {name}") from exc
-    if attachment_availability(sha256) != "cached":
-        raise FileNotFoundError(
-            f"attachment {name} is ✕ unavailable offline on this machine"
+    with fetch_context(mode="force"):
+        state = attachment_availability(
+            sha256,
+            size_bytes=size_bytes if isinstance(size_bytes, int) else None,
+            origin=origin if isinstance(origin, str) else None,
+            name=attachment_name,
         )
-    view = attachment_view_path(sha256, attachment_name)
+        if state != "cached":
+            raise FileNotFoundError(
+                f"attachment {name} is ✕ unavailable offline on this machine"
+            )
+        view = attachment_view_path(sha256, attachment_name)
     if view is None:
         raise FileNotFoundError(
             f"attachment {name} is ✕ unavailable offline on this machine"

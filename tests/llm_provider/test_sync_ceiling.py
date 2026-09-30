@@ -10,7 +10,7 @@ import pytest
 from sase.env_contracts import SASE_PROVIDER_SYNC_CEILING_SECONDS_ENV
 from sase.feature_flags import override_flags
 from sase.llm_provider._invoke import _provider_sync_ceiling_seconds, invoke_agent
-from sase.llm_provider._plugin_manager import validate_sync_ceiling_seconds
+from sase.llm_provider._plugin_manager import _validate_sync_ceiling_seconds
 from sase.llm_provider.claude import ClaudeCodeProvider, _claude_sync_ceiling_seconds
 from sase.llm_provider.muse import MuseProvider
 from sase.llm_provider.preprocessing import _PreprocessResult
@@ -59,11 +59,11 @@ def test_provider_without_the_hook_declares_no_ceiling() -> None:
 
 @pytest.mark.parametrize("value", [True, False, "600", 600.0, 0, -5, None])
 def test_validation_rejects_non_positive_integers(value: object) -> None:
-    assert validate_sync_ceiling_seconds(value) is None
+    assert _validate_sync_ceiling_seconds(value) is None
 
 
 def test_validation_accepts_a_positive_int() -> None:
-    assert validate_sync_ceiling_seconds(600) == 600
+    assert _validate_sync_ceiling_seconds(600) == 600
 
 
 def test_invoke_helper_treats_an_exception_as_no_ceiling() -> None:

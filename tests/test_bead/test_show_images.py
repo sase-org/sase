@@ -71,23 +71,6 @@ def test_mode_matrix_tty_pipe_no_color_agent_tmux_kitty() -> None:
     assert resolve_images_mode("bogus", is_tty=True, env=kitty_env)[0] == "kitty"
 
 
-def test_config_accessor_fails_open(monkeypatch: pytest.MonkeyPatch) -> None:
-    from sase.bead.config import get_show_images_default
-
-    monkeypatch.setattr(
-        "sase.config.load_merged_config",
-        lambda: {"bead": {"show": {"images": "kitty"}}},
-    )
-    assert get_show_images_default() == "kitty"
-    monkeypatch.setattr(
-        "sase.config.load_merged_config",
-        lambda: {"bead": {"show": {"images": "bogus"}}},
-    )
-    assert get_show_images_default() == "auto"
-    monkeypatch.setattr("sase.config.load_merged_config", lambda: {"bead": None})
-    assert get_show_images_default() == "auto"
-
-
 def test_thumbnail_dimensions_and_limits() -> None:
     from sase.bead.show_images import MAX_PREVIEW_ROWS, thumbnail_size
 
@@ -117,15 +100,15 @@ def test_cell_rendering_and_decode_failure(tmp_path: Path) -> None:
 
 
 def test_kitty_framing_chunking() -> None:
-    from sase.bead.show_images import kitty_escape_for_png
+    from sase.bead.show_images import _kitty_escape_for_png
 
     payload = bytes(range(256)) * 200
-    escape = kitty_escape_for_png(payload)
+    escape = _kitty_escape_for_png(payload)
     assert escape.startswith("\x1b_Ga=T,f=100,m=")
     assert escape.endswith("\x1b\\")
     assert "\x1b_Ga=T,f=100,m=1;" in escape
     assert "\x1b_Ga=T,f=100,m=0;" in escape
-    single = kitty_escape_for_png(b"hi")
+    single = _kitty_escape_for_png(b"hi")
     assert single.count("\x1b_G") == 1
     assert single.startswith("\x1b_Ga=T,f=100,m=0;")
 

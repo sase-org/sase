@@ -378,7 +378,12 @@ def test_configured_sidecar_specs_suppress_disabled_agents(
 
     specs = _configured_sidecar_specs(tmp_path)
 
-    assert {spec.role for spec in specs} == {"plans", "research", "beads"}
+    assert {spec.role for spec in specs} == {
+        "plans",
+        "research",
+        "beads",
+        "attachments-private",
+    }
 
 
 def test_plan_non_project_reports_blocker(tmp_path: Path) -> None:
@@ -566,3 +571,33 @@ def test_init_registry_uses_repo_runner() -> None:
     assert tuple(specs) == ("config", "machine", "memory", "repo", "service", "skills")
     assert specs["repo"].plan is plan_repo_init
     assert specs["repo"].run is run_repo_init
+
+
+def test_missing_attachments_private_plans_warning_not_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing optional attachment store warns instead of blocking check."""
+    from sase.main import _repo_init_sidecars as sidecars
+
+    specs = (
+        SidecarInitSpec(
+            role="attachments-private",
+            repo="acme/widget--attachments-private",
+            visibility="private",
+        ),
+    )
+    missing_root = tmp_path / "attachments-private"
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.resolve_sidecar_clone_root",
+        lambda _root, _role: missing_root,
+    )
+    monkeypatch.setattr(sidecars, "is_bare_sidecar_clone", lambda _root: False)
+
+    actions, warnings, requires_tty = sidecars.plan_sidecar_actions(
+        tmp_path, specs, frozenset()
+    )
+
+    assert actions == []
+    assert requires_tty is False
+    assert any("attachments-private is not set up" in warning for warning in warnings)
+    assert any("attachments stay local-only" in warning for warning in warnings)

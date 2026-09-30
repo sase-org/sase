@@ -28,7 +28,7 @@ REFUSAL_NEXT_PLACEHOLDER = "<what the follow-up should do with the result>"
 REFUSAL_COMPLETION_REASON = "Verify before host completion"
 
 
-def read_sync_ceiling(env: Mapping[str, str] | None = None) -> int | None:
+def _read_sync_ceiling(env: Mapping[str, str] | None = None) -> int | None:
     """Return the provider synchronous kill ceiling in seconds, if valid.
 
     Only positive integers count. A missing, empty, non-integer, zero, or
@@ -108,7 +108,7 @@ def inline_refusal(
     environ = os.environ if env is None else env
     if not str(environ.get("SASE_AGENT") or "").strip():
         return None
-    ceiling = read_sync_ceiling(environ)
+    ceiling = _read_sync_ceiling(environ)
     if ceiling is None:
         return None
     if resolved.adhoc or not resolved.tool_name:
@@ -165,5 +165,5 @@ __all__ = [
     "REFUSAL_NEXT_PLACEHOLDER",
     "inline_refusal",
     "monitor_start_form",
-    "read_sync_ceiling",
+    "_read_sync_ceiling",
 ]

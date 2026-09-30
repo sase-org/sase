@@ -4081,8 +4081,9 @@ gate:
 Within the grace window, reclaim cancels an expired gate and settles its turn as a
 normal `timeout`; once the window has passed, a still-pending turn settles as `lost`
 instead. A missing, negative, or non-integer value falls back to `3600`. While
-`legacy_sase_shell_syntax` is enabled, `gate.shell.reclaim_grace_seconds` is accepted as
-this same setting. Setting both keys is an error; use only `gate.turn`.
+`legacy_sase_shell_syntax` is enabled, the retired `gate.shell` `.reclaim_grace_seconds`
+key is accepted as this same setting. Setting both keys is an error; use only
+`gate.turn`.
 
 Source: `src/sase/default_config.yml`, `src/sase/gate_turn/reclaim.py`
 
@@ -5030,16 +5031,17 @@ flags deprecated. The currently registered flags are:
 registered is removed the next time an installing process reconciles
 `feature_flags.json`.
 
-`legacy_agent_family_syntax` accepts, while it stays on, `%id(..., family=...)` as
-`session=`, the agent queries `family:` and `kind:family` as `session:` and
-`kind:session`, `--next-fork family`, a gate `"fork": "family"`, and
+`legacy_agent_family_syntax` accepts, while it stays on, the retired family keyword on
+`%id` as `session=`, the `family` and `kind` agent-query values as `session:` and
+`kind:session`, the `--next-fork` family value, a gate `"fork": "family"`, and
 `SASE_AGENT_FAMILY_ATTACH`. `legacy_sase_shell_syntax` accepts
-`sase gate create --shell`, `--shell-status`, `--shell-stop-status`, and
-`--next-fork shell`; a gate spec's `"shell"` block, `"fork": "shell"`, and
-`"continuation_mode": "gate_shell"`; `--shell` on `sase proc list` or `sase proc run`
-(replaced by `--name`); and `gate.shell.reclaim_grace_seconds`. Supplying both names for
-the same option or block is an error in either flag state. Write the session and turn
-spellings in new prompts and config, and use `--name` for proc commands.
+`sase gate create --shell`, `--shell-status`, `--shell-stop-status`, and the
+`--next-fork` shell value; a gate spec's `"shell"` block, the `"fork"` key set to
+`"shell"`, and `"continuation_mode": "gate_shell"`; `--shell` on `sase proc list` or
+`sase proc run` (replaced by `--name`); and the retired `gate.shell`
+`.reclaim_grace_seconds` key. Supplying both names for the same option or block is an
+error in either flag state. Write the session and turn spellings in new prompts and
+config, and use `--name` for proc commands.
 
 Run `sase flag list` for the live registry with effective and saved state.
 

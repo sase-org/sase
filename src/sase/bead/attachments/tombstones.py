@@ -26,13 +26,13 @@ from sase.bead.attachments.store import LocalAttachmentStore, validate_sha256
 TOMBSTONE_SCHEMA_VERSION = 1
 
 
-def tombstone_filename(sha256: str) -> str:
+def _tombstone_filename(sha256: str) -> str:
     """Return the local tombstone filename for *sha256*."""
     validate_sha256(sha256)
     return f"{sha256}.json"
 
 
-def tombstone_payload(
+def _tombstone_payload(
     sha256: str, reason: str, actor: str | None = None
 ) -> dict[str, Any]:
     """Return the ``AttachmentTombstoneWire`` payload for *sha256*."""
@@ -63,7 +63,7 @@ def tombstone_payload(
 def tombstone_bytes(sha256: str, reason: str, actor: str | None = None) -> bytes:
     """Return the canonical JSON bytes for a purge tombstone."""
     return (
-        json.dumps(tombstone_payload(sha256, reason, actor), indent=2) + "\n"
+        json.dumps(_tombstone_payload(sha256, reason, actor), indent=2) + "\n"
     ).encode("utf-8")
 
 
@@ -84,9 +84,9 @@ def parse_tombstone_bytes(raw: bytes) -> dict[str, Any]:
     return value
 
 
-def local_tombstone_path(store: LocalAttachmentStore, sha256: str) -> Path:
+def _local_tombstone_path(store: LocalAttachmentStore, sha256: str) -> Path:
     """Return the local tombstone path for *sha256*."""
-    return store.tombstones_dir / tombstone_filename(sha256)
+    return store.tombstones_dir / _tombstone_filename(sha256)
 
 
 def has_local_tombstone(store: LocalAttachmentStore, sha256: str) -> bool:
@@ -96,7 +96,7 @@ def has_local_tombstone(store: LocalAttachmentStore, sha256: str) -> bool:
     except ValueError:
         return False
     try:
-        return (store.tombstones_dir / sha256).exists() or local_tombstone_path(
+        return (store.tombstones_dir / sha256).exists() or _local_tombstone_path(
             store, sha256
         ).exists()
     except OSError:
@@ -111,7 +111,7 @@ def write_local_tombstone(
 ) -> Path:
     """Record a local purge tombstone; return its path (idempotent)."""
     store.ensure_dirs()
-    path = local_tombstone_path(store, sha256)
+    path = _local_tombstone_path(store, sha256)
     if not path.exists():
         path.write_bytes(tombstone_bytes(sha256, reason, actor))
     return path
@@ -120,10 +120,10 @@ def write_local_tombstone(
 __all__ = [
     "TOMBSTONE_SCHEMA_VERSION",
     "has_local_tombstone",
-    "local_tombstone_path",
+    "_local_tombstone_path",
     "parse_tombstone_bytes",
     "tombstone_bytes",
-    "tombstone_filename",
-    "tombstone_payload",
+    "_tombstone_filename",
+    "_tombstone_payload",
     "write_local_tombstone",
 ]

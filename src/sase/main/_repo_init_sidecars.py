@@ -367,6 +367,12 @@ def plan_sidecar_actions(
         roots[spec.role] = root
         clone_exists = (root / ".git").is_dir() or is_bare_sidecar_clone(root)
         needs_connection = not clone_exists and spec.role not in recorded_roles
+        if needs_connection and spec.role == ATTACHMENTS_PRIVATE_SIDECAR_ROLE:
+            warnings.append(
+                "optional private attachment store attachments-private is not set up; "
+                "attachments stay local-only — run `sase repo init` to create it"
+            )
+            continue
         if needs_connection:
             requires_tty = True
             detail = f"create or connect the provider {spec.role} sidecar repository"

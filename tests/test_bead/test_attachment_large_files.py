@@ -488,18 +488,18 @@ def test_progress_stays_quiet_below_threshold_or_off_tty(
 ) -> None:
     from sase.bead.attachments.progress import (
         PROGRESS_MIN_BYTES,
-        progress_allowed,
+        _progress_allowed,
         transfer_progress,
     )
 
     assert PROGRESS_MIN_BYTES == 8 * 1024 * 1024
-    assert progress_allowed(None) is False
-    assert progress_allowed(PROGRESS_MIN_BYTES - 1) is False
+    assert _progress_allowed(None) is False
+    assert _progress_allowed(PROGRESS_MIN_BYTES - 1) is False
     monkeypatch.setenv("SASE_AGENT", "1")
-    assert progress_allowed(64 * 1024 * 1024) is False
+    assert _progress_allowed(64 * 1024 * 1024) is False
     monkeypatch.delenv("SASE_AGENT")
     # pytest captures stderr: never a TTY here.
-    assert progress_allowed(64 * 1024 * 1024) is False
+    assert _progress_allowed(64 * 1024 * 1024) is False
     with transfer_progress("label", 64 * 1024 * 1024) as bar:
         assert bar is None
     with transfer_progress("label", 1024) as bar:
@@ -511,11 +511,11 @@ def test_progress_draws_on_a_tty(
 ) -> None:
     import sys
 
-    from sase.bead.attachments.progress import progress_allowed, transfer_progress
+    from sase.bead.attachments.progress import _progress_allowed, transfer_progress
 
     monkeypatch.delenv("SASE_AGENT", raising=False)
     monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
-    assert progress_allowed(9 * 1024 * 1024) is True
+    assert _progress_allowed(9 * 1024 * 1024) is True
     with transfer_progress("big.bin", 9 * 1024 * 1024) as bar:
         assert bar is not None
         bar(1024, 9 * 1024 * 1024)

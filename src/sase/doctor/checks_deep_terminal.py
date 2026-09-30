@@ -20,7 +20,7 @@ _TMUX_PASSTHROUGH_MIN_VERSION = (3, 3)
 
 def check_kitty_graphics(context: DoctorContext) -> DiagnosticCheck:
     """Infer kitty-graphics support for inline artifact rendering."""
-    support = _kitty_graphics_support(context.env)
+    support = kitty_graphics_support(context.env)
     kitten_path = shutil.which("kitten")
     missing_details: list[str] = []
     if not support["supported"]:
@@ -261,7 +261,7 @@ def check_truecolor(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
-def _kitty_graphics_support(env: dict[str, str]) -> dict[str, str | bool]:
+def kitty_graphics_support(env: dict[str, str]) -> dict[str, str | bool]:
     term = env.get("TERM", "").lower()
     term_program = env.get("TERM_PROGRAM", "").lower()
     if env.get("KITTY_WINDOW_ID") or term == "xterm-kitty":

@@ -71,7 +71,7 @@ class OutboxEntry:
         )
 
 
-def outbox_path(project_key: str) -> Path:
+def _outbox_path(project_key: str) -> Path:
     """Return the outbox path for *project_key*."""
     validate_sase_project_name(project_key)
     return sase_projects_dir() / project_key / OUTBOX_FILENAME
@@ -79,7 +79,7 @@ def outbox_path(project_key: str) -> Path:
 
 @contextmanager
 def _outbox_lock(project_key: str) -> Iterator[None]:
-    path = outbox_path(project_key)
+    path = _outbox_path(project_key)
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_suffix(path.suffix + ".lock")
     with lock_path.open("a+b") as handle:
@@ -127,16 +127,16 @@ def read_outbox(project_key: str) -> list[OutboxEntry]:
     A malformed file raises ValueError so callers can warn without losing it.
     """
     with _outbox_lock(project_key):
-        return _read_locked(outbox_path(project_key))
+        return _read_locked(_outbox_path(project_key))
 
 
 def enqueue_outbox(project_key: str, entries: list[OutboxEntry]) -> list[OutboxEntry]:
     """Append entries whose digests are not already queued."""
     if not entries:
         with _outbox_lock(project_key):
-            return _read_locked(outbox_path(project_key))
+            return _read_locked(_outbox_path(project_key))
     with _outbox_lock(project_key):
-        path = outbox_path(project_key)
+        path = _outbox_path(project_key)
         current = _read_locked(path)
         known = {entry.digest for entry in current}
         merged = list(current)
@@ -154,7 +154,7 @@ def remove_outbox_digests(
     """Drop *digests* from the queue, returning the remainder."""
     wanted = set(digests)
     with _outbox_lock(project_key):
-        path = outbox_path(project_key)
+        path = _outbox_path(project_key)
         current = _read_locked(path)
         remaining = [entry for entry in current if entry.digest not in wanted]
         if len(remaining) != len(current):
@@ -178,7 +178,7 @@ def drain_outbox(
     deadline = time.monotonic() + max(0.0, time_bound_seconds)
     try:
         with _outbox_lock(project_key):
-            path = outbox_path(project_key)
+            path = _outbox_path(project_key)
             entries = _read_locked(path)
     except ValueError as exc:
         log.warning("attachment outbox drain skipped: %s", exc)
@@ -231,7 +231,7 @@ __all__ = [
     "OutboxEntry",
     "drain_outbox",
     "enqueue_outbox",
-    "outbox_path",
+    "_outbox_path",
     "read_outbox",
     "remove_outbox_digests",
 ]

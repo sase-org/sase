@@ -40,7 +40,7 @@ class AltSpan:
 
 
 @dataclass(frozen=True, slots=True)
-class AltGroup:
+class _AltGroup:
     """A top-level closed ``%{...}`` group with its branch texts.
 
     ``start``/``end`` are character offsets covering the whole group
@@ -91,7 +91,7 @@ def tokenize(text: str) -> list[AltSpan]:
     return spans
 
 
-def groups(text: str) -> tuple[AltGroup, ...]:
+def groups(text: str) -> tuple[_AltGroup, ...]:
     """Return top-level closed ``%{...}`` groups with their branch texts.
 
     Shares the same cached scan records as :func:`tokenize`, so grouping never
@@ -100,7 +100,7 @@ def groups(text: str) -> tuple[AltGroup, ...]:
     """
     if not _has_alt_marker(text):
         return ()
-    found: list[AltGroup] = []
+    found: list[_AltGroup] = []
     for record in _cached_records(text):
         if record["form"] != "brace" or record["depth"] != 0:
             continue
@@ -115,7 +115,7 @@ def groups(text: str) -> tuple[AltGroup, ...]:
             previous = int(separator) + 1
         branches.append(text[previous : int(close)])
         found.append(
-            AltGroup(int(record["marker_start"]), int(close) + 1, tuple(branches))
+            _AltGroup(int(record["marker_start"]), int(close) + 1, tuple(branches))
         )
     return tuple(found)
 

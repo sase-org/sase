@@ -22,7 +22,7 @@ _COMPLETION_CANDIDATE_LIMIT = 50
 _COMPLETION_SCAN_LIMIT = 500
 
 
-def attachment_trigger_at(line_before_cursor: str) -> tuple[int, str, bool] | None:
+def _attachment_trigger_at(line_before_cursor: str) -> tuple[int, str, bool] | None:
     """Return ``(at_column, query, quoted)`` for an ``@``-path trigger.
 
     Scans the current line up to the cursor for the last significant ``@``.
@@ -59,7 +59,7 @@ def attachment_trigger_at(line_before_cursor: str) -> tuple[int, str, bool] | No
         return at, query, quoted
 
 
-def complete_attachment_prefix(
+def _complete_attachment_prefix(
     query: str,
     cwd: Path | str,
     *,
@@ -100,7 +100,7 @@ def complete_attachment_prefix(
     return candidates[:limit]
 
 
-def longest_common_prefix(candidates: list[str]) -> str:
+def _longest_common_prefix(candidates: list[str]) -> str:
     """Return the longest common prefix of *candidates* ("" when empty)."""
     if not candidates:
         return ""
@@ -113,7 +113,7 @@ def _quote_attachment_path(path: str) -> str:
     return f'@"{escaped}"'
 
 
-def format_pasted_path_for_note(
+def _format_pasted_path_for_note(
     pasted: str,
     cwd: Path | str | None = None,
 ) -> str | None:
@@ -146,7 +146,7 @@ def format_pasted_path_for_note(
     return _quote_attachment_path(candidate)
 
 
-class BeadNoteTextArea(TextArea):
+class _BeadNoteTextArea(TextArea):
     """Note editor with ``@``-path completion and paste-to-attach."""
 
     def __init__(
@@ -169,7 +169,7 @@ class BeadNoteTextArea(TextArea):
         return row, col, line[: max(0, col)]
 
     async def _on_paste(self, event: events.Paste) -> None:
-        formatted = format_pasted_path_for_note(event.text, self._attachment_cwd)
+        formatted = _format_pasted_path_for_note(event.text, self._attachment_cwd)
         if formatted is not None:
             if result := self._replace_via_keyboard(formatted, *self.selection):
                 self.move_cursor(result.end_location)
@@ -179,7 +179,7 @@ class BeadNoteTextArea(TextArea):
 
     def action_paste(self) -> None:
         clipboard = self.app.clipboard
-        formatted = format_pasted_path_for_note(clipboard, self._attachment_cwd)
+        formatted = _format_pasted_path_for_note(clipboard, self._attachment_cwd)
         if formatted is not None:
             if result := self._replace_via_keyboard(formatted, *self.selection):
                 self.move_cursor(result.end_location)
@@ -196,18 +196,18 @@ class BeadNoteTextArea(TextArea):
 
     def _try_complete_attachment(self) -> bool:
         row, col, before = self._current_line_before_cursor()
-        trigger = attachment_trigger_at(before)
+        trigger = _attachment_trigger_at(before)
         if trigger is None:
             return False
         at, query, quoted = trigger
-        candidates = complete_attachment_prefix(query, self._attachment_cwd)
+        candidates = _complete_attachment_prefix(query, self._attachment_cwd)
         if not candidates:
             self._show_hint("No matching paths")
             return True
         if len(candidates) == 1:
             self._apply_completion(row, at, col, query, quoted, candidates[0])
             return True
-        common = longest_common_prefix(candidates)
+        common = _longest_common_prefix(candidates)
         base_len = len(query.rpartition("/")[2] if "/" in query else query)
         if len(common) > base_len:
             self._apply_completion(row, at, col, query, quoted, common)
@@ -269,7 +269,7 @@ class BeadNoteModal(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Container(id="bead-note-container", classes="bead-modal-container small"):
             yield Label(f"Add note · {self.bead_id}", classes="bead-modal-title")
-            yield BeadNoteTextArea(
+            yield _BeadNoteTextArea(
                 self.initial_value,
                 id="bead-note-text",
                 cwd=self.cwd,
@@ -293,7 +293,7 @@ class BeadNoteModal(ModalScreen[str | None]):
     def on_mount(self) -> None:
         error_label = self.query_one("#bead-note-error", Label)
         error_label.display = bool(self.initial_error)
-        self.query_one("#bead-note-text", BeadNoteTextArea).focus()
+        self.query_one("#bead-note-text", _BeadNoteTextArea).focus()
 
     def _on_completion_hint(self, message: str) -> None:
         try:
@@ -326,7 +326,7 @@ class BeadNoteModal(ModalScreen[str | None]):
             self.action_cancel()
 
     def action_save(self) -> None:
-        note = self.query_one("#bead-note-text", BeadNoteTextArea).text.strip()
+        note = self.query_one("#bead-note-text", _BeadNoteTextArea).text.strip()
         if not note:
             self.notify("Note cannot be empty", severity="error")
             return
@@ -338,9 +338,9 @@ class BeadNoteModal(ModalScreen[str | None]):
 
 __all__ = [
     "BeadNoteModal",
-    "BeadNoteTextArea",
-    "attachment_trigger_at",
-    "complete_attachment_prefix",
-    "format_pasted_path_for_note",
-    "longest_common_prefix",
+    "_BeadNoteTextArea",
+    "_attachment_trigger_at",
+    "_complete_attachment_prefix",
+    "_format_pasted_path_for_note",
+    "_longest_common_prefix",
 ]

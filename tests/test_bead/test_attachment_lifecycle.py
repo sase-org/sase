@@ -22,7 +22,7 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.attachment_doctor import (
     inspect_attachment_health,
-    manifest_mismatches,
+    _manifest_mismatches,
     render_attachment_health_messages,
     repair_attachment_health,
 )
@@ -213,17 +213,17 @@ def test_manifest_mismatch_detector() -> None:
     matched = _note_issue(
         "ok", "see @attachment:log.txt", (_descriptor("log.txt", digest),)
     )
-    assert manifest_mismatches([matched]) == []
+    assert _manifest_mismatches([matched]) == []
     orphan_token = _note_issue(
         "bad", "see @attachment:gone.txt", (_descriptor("log.txt", digest),)
     )
-    lines = manifest_mismatches([orphan_token])
+    lines = _manifest_mismatches([orphan_token])
     assert len(lines) == 1
     assert "sase-zz.1 note#1" in lines[0]
     orphan_descriptor = _note_issue(
         "bad", "no tokens here", (_descriptor("x", digest),)
     )
-    assert len(manifest_mismatches([orphan_descriptor])) == 1
+    assert len(_manifest_mismatches([orphan_descriptor])) == 1
 
 
 def test_doctor_finds_dangling_and_corrupt(project_dir: Path, work_dir: Path) -> None:

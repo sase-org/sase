@@ -239,6 +239,38 @@ def test_whole_argument_file_loads_text_and_attaches(
     assert [a.name for a in notes[0].attachments] == ["inner.png"]
 
 
+def test_same_text_path_plus_reuse_writes_one_descriptor(
+    project_dir: Path, work_dir: Path
+) -> None:
+    (work_dir / "shot.png").write_bytes(PNG_HEAD + b"same-text")
+    issue_id = _create_issue(project_dir)
+
+    _, err, code = _run_note(
+        [issue_id, "-a", "amy", "shot", "@./shot.png", "again", "@attachment:shot.png"]
+    )
+
+    assert code == 0, err
+    notes = _notes(project_dir, issue_id)
+    assert [a.name for a in notes[0].attachments] == ["shot.png"]
+    assert notes[0].text.count("@attachment:shot.png") == 2
+    assert notes[0].text.count("[shot.png]") == 0
+    assert notes[0].text == "shot @attachment:shot.png again @attachment:shot.png"
+
+
+def test_repeated_path_writes_one_descriptor(project_dir: Path, work_dir: Path) -> None:
+    (work_dir / "shot.png").write_bytes(PNG_HEAD + b"repeat")
+    issue_id = _create_issue(project_dir)
+
+    _, err, code = _run_note(
+        [issue_id, "-a", "amy", "see", "@./shot.png", "again", "@./shot.png"]
+    )
+
+    assert code == 0, err
+    notes = _notes(project_dir, issue_id)
+    assert [a.name for a in notes[0].attachments] == ["shot.png"]
+    assert notes[0].text.count("@attachment:shot.png") == 2
+
+
 def test_fast_path_note_with_embedded_at_stays_in_python() -> None:
     from sase.main import bead_fast_path
 

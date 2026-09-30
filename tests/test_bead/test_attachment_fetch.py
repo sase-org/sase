@@ -297,12 +297,12 @@ def _cas_with(
 def test_state_machine_without_store_stays_two_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.bead.attachments.fetch import FetchContext, attachment_state
+    from sase.bead.attachments.fetch import _FetchContext, attachment_state
 
     data = b"local only bytes"
     sha = hashlib.sha256(data).hexdigest()
     _cas_with(tmp_path, monkeypatch, {sha: data})
-    context = FetchContext(mode="auto")
+    context = _FetchContext(mode="auto")
     assert attachment_state("0" * 64, context=context) == "unavailable"
     assert attachment_state(sha, context=context) == "cached"
     assert attachment_state(sha, size_bytes=len(data), context=context) == "cached"
@@ -311,7 +311,7 @@ def test_state_machine_without_store_stays_two_state(
 def test_state_machine_with_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.bead.attachments.fetch import FetchContext, attachment_state
+    from sase.bead.attachments.fetch import _FetchContext, attachment_state
     from sase.bead.attachments.outbox import OutboxEntry
 
     remote_data = b"remote bytes here"
@@ -335,7 +335,7 @@ def test_state_machine_with_store(
     (tombstones / gone_sha).write_text("{}", encoding="utf-8")
 
     store = _FakeStore(objects={remote_sha: remote_data, local_sha: local_data})
-    context = FetchContext(
+    context = _FetchContext(
         mode="never",
         store=store,
         outbox={
@@ -366,18 +366,18 @@ def test_state_machine_with_store(
     lone_data = b"only here"
     lone_sha = hashlib.sha256(lone_data).hexdigest()
     _cas_with(tmp_path, monkeypatch, {lone_sha: lone_data})
-    lonely = FetchContext(mode="never", store=_FakeStore(), cap_bytes=8)
+    lonely = _FetchContext(mode="never", store=_FakeStore(), cap_bytes=8)
     assert attachment_state(lone_sha, size_bytes=1, context=lonely) == "local_only"
 
 
 def test_state_machine_remote_tombstone_is_purged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.bead.attachments.fetch import FetchContext, attachment_state
+    from sase.bead.attachments.fetch import _FetchContext, attachment_state
 
     sha = hashlib.sha256(b"purged upstream").hexdigest()
     _cas_with(tmp_path, monkeypatch, {})
-    context = FetchContext(
+    context = _FetchContext(
         mode="force", store=_FakeStore(tombstones={sha}), cap_bytes=8
     )
     assert attachment_state(sha, size_bytes=1, context=context) == "purged"
@@ -386,13 +386,13 @@ def test_state_machine_remote_tombstone_is_purged(
 def test_fetch_mode_auto_installs_under_cap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.bead.attachments.fetch import FetchContext, attachment_state
+    from sase.bead.attachments.fetch import _FetchContext, attachment_state
     from sase.bead.attachments.store import LocalAttachmentStore
 
     data = b"small remote file"
     sha = hashlib.sha256(data).hexdigest()
     _cas_with(tmp_path, monkeypatch, {})
-    context = FetchContext(
+    context = _FetchContext(
         mode="auto", store=_FakeStore(objects={sha: data}), cap_bytes=1 << 20
     )
     assert attachment_state(sha, size_bytes=len(data), context=context) == "cached"
@@ -402,12 +402,12 @@ def test_fetch_mode_auto_installs_under_cap(
 def test_fetch_mismatch_is_corrupt_and_not_installed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.bead.attachments.fetch import FetchContext, attachment_state
+    from sase.bead.attachments.fetch import _FetchContext, attachment_state
     from sase.bead.attachments.store import LocalAttachmentStore
 
     claimed = hashlib.sha256(b"real bytes").hexdigest()
     _cas_with(tmp_path, monkeypatch, {})
-    context = FetchContext(
+    context = _FetchContext(
         mode="force",
         store=_FakeStore(objects={claimed: b"tampered bytes"}),
         cap_bytes=1,
@@ -670,9 +670,9 @@ def test_doctor_ok_warn_and_skip(
     assert check.status == "WARN"
     assert "1 queued" in check.summary
 
-    from sase.bead.attachments.outbox import outbox_path
+    from sase.bead.attachments.outbox import _outbox_path
 
-    outbox_path("test-project").write_text("{malformed", encoding="utf-8")
+    _outbox_path("test-project").write_text("{malformed", encoding="utf-8")
     check = _check_attachment_store(context)
     assert check.status == "WARN"
     assert "unreadable" in check.summary or "malformed" in check.details[0]
@@ -692,3 +692,93 @@ def test_doctor_check_registered() -> None:
     for spec in registry.list_checks(include_deep=True):
         if spec.id == "project.attachment_store":
             assert spec.aliases == ("attachments.store",)
+
+
+def test_open_fetches_from_shared_store_on_second_home(
+    project_dir: Path,
+    work_dir: Path,
+    remote: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit `attachment open` fetches on a second home like `path` does."""
+    import sase.ace.tui.graphics as _graphics
+
+    home_a = tmp_path / "sase-home-a"
+    _plant_hidden_clone(home_a, remote)
+    data = b"open me bytes" + bytes(range(64))
+    issue_id = _create_plan(project_dir)
+    sha = _note_with_file(project_dir, work_dir, issue_id, "open_me.bin", data)
+
+    _use_home(monkeypatch, tmp_path, "sase-home-b")
+    _plant_hidden_clone(tmp_path / "sase-home-b", remote)
+
+    from sase.bead.attachments.store import LocalAttachmentStore
+
+    assert not LocalAttachmentStore().has(sha)
+
+    seen: list[tuple[object, ...]] = []
+
+    class _Ok:
+        ok = True
+        warnings: tuple[object, ...] = ()
+
+    monkeypatch.setattr(
+        _graphics,
+        "view_artifact_files",
+        lambda specs: seen.append(tuple(specs)) or _Ok(),
+    )
+
+    out, err, code = _run(["attachment", "open", issue_id, "open_me.bin"])
+    assert code == 0, err
+    assert seen, "open should reach the viewer"
+    view_path = Path(str(seen[-1][0].path))
+    assert view_path.name == "open_me.bin"
+    assert view_path.read_bytes() == data
+    assert LocalAttachmentStore().verify(sha)
+
+
+def test_materialize_attachment_view_fetches_on_second_home(
+    project_dir: Path,
+    work_dir: Path,
+    remote: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`attachment:` resolution fetches from the shared store when needed."""
+    from sase.bead.attachment_resolve import materialize_attachment_view
+
+    home_a = tmp_path / "sase-home-a"
+    _plant_hidden_clone(home_a, remote)
+    data = b"resolve me bytes" + bytes(range(64))
+    issue_id = _create_plan(project_dir)
+    sha = _note_with_file(project_dir, work_dir, issue_id, "resolve_me.bin", data)
+
+    _use_home(monkeypatch, tmp_path, "sase-home-b")
+    _plant_hidden_clone(tmp_path / "sase-home-b", remote)
+
+    from sase.bead.attachments.store import LocalAttachmentStore
+
+    assert not LocalAttachmentStore().has(sha)
+    view = materialize_attachment_view(issue_id, "resolve_me.bin")
+    assert view.name == "resolve_me.bin"
+    assert view.read_bytes() == data
+    assert LocalAttachmentStore().verify(sha)
+
+
+def test_open_without_store_fails_with_badge_error(
+    project_dir: Path,
+    work_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unreachable store still fails open with the badge-bearing error."""
+    data = b"local only bytes"
+    issue_id = _create_plan(project_dir)
+    _note_with_file(project_dir, work_dir, issue_id, "lonely.bin", data)
+
+    _use_home(monkeypatch, tmp_path, "sase-home-bare")
+    out, err, code = _run(["attachment", "open", issue_id, "lonely.bin"])
+    assert code != 0
+    assert "not available" in err
+    assert "sha256:" in err

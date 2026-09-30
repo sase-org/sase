@@ -27,7 +27,7 @@ ORPHAN_AGE_SECONDS = 7 * 24 * 60 * 60
 
 
 @dataclass(frozen=True)
-class AttachmentReference:
+class _AttachmentReference:
     """One current-manifest reference to an attachment digest."""
 
     issue_id: str
@@ -37,17 +37,17 @@ class AttachmentReference:
 
 
 @dataclass
-class AttachmentInventory:
+class _AttachmentInventory:
     """One project's current attachment references plus local objects."""
 
-    references: list[AttachmentReference] = field(default_factory=list)
+    references: list[_AttachmentReference] = field(default_factory=list)
     local_objects: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def digests_referenced(self) -> set[str]:
         """Return every digest named by a current manifest."""
         return {reference.sha256 for reference in self.references}
 
-    def references_for_digest(self, sha256: str) -> list[AttachmentReference]:
+    def references_for_digest(self, sha256: str) -> list[_AttachmentReference]:
         """Return every current reference to *sha256*, sorted by bead."""
         matches = [
             reference for reference in self.references if reference.sha256 == sha256
@@ -86,9 +86,9 @@ def roster_for_issue(issue: Any) -> dict[str, Any]:
     return roster
 
 
-def collect_references(issues: list[Any]) -> list[AttachmentReference]:
+def _collect_references(issues: list[Any]) -> list[_AttachmentReference]:
     """Collect current-manifest references across *issues*."""
-    references: list[AttachmentReference] = []
+    references: list[_AttachmentReference] = []
     for issue in issues:
         issue_id = str(getattr(issue, "id", "?"))
         for source, record in _manifest_records(issue):
@@ -97,14 +97,14 @@ def collect_references(issues: list[Any]) -> list[AttachmentReference]:
             if not name or not sha256:
                 continue
             references.append(
-                AttachmentReference(
+                _AttachmentReference(
                     issue_id=issue_id, source=source, name=name, sha256=sha256
                 )
             )
     return references
 
 
-def scan_local_objects(store: LocalAttachmentStore) -> dict[str, dict[str, Any]]:
+def _scan_local_objects(store: LocalAttachmentStore) -> dict[str, dict[str, Any]]:
     """Map each local digest to its size, mtime, and view names."""
     found: dict[str, dict[str, Any]] = {}
     objects_dir = store.objects_dir
@@ -141,7 +141,7 @@ def scan_local_objects(store: LocalAttachmentStore) -> dict[str, dict[str, Any]]
     return found
 
 
-def collect_inventory(view: Any) -> AttachmentInventory:
+def collect_inventory(view: Any) -> _AttachmentInventory:
     """Build the current-manifest plus local-object inventory for *view*."""
     from sase.bead.model import Status
 
@@ -159,9 +159,9 @@ def collect_inventory(view: Any) -> AttachmentInventory:
     except Exception as exc:
         log.debug("attachment inventory listing skipped: %s", exc)
         issues = []
-    return AttachmentInventory(
-        references=collect_references(list(issues)),
-        local_objects=scan_local_objects(LocalAttachmentStore()),
+    return _AttachmentInventory(
+        references=_collect_references(list(issues)),
+        local_objects=_scan_local_objects(LocalAttachmentStore()),
     )
 
 
@@ -191,7 +191,7 @@ def store_has_tombstone(stores: dict[str, Any], sha256: str) -> bool:
 
 
 def orphan_digests(
-    inventory: AttachmentInventory, *, now: float | None = None
+    inventory: _AttachmentInventory, *, now: float | None = None
 ) -> list[str]:
     """Return local digests no current manifest references, aged past grace.
 
@@ -209,7 +209,7 @@ def orphan_digests(
 
 
 @dataclass
-class PruneCandidate:
+class _PruneCandidate:
     """One evictable cached object, oldest views first."""
 
     sha256: str
@@ -224,8 +224,8 @@ class PrunePlan:
 
     budget_bytes: int
     total_bytes: int
-    candidates: list[PruneCandidate] = field(default_factory=list)
-    evict: list[PruneCandidate] = field(default_factory=list)
+    candidates: list[_PruneCandidate] = field(default_factory=list)
+    evict: list[_PruneCandidate] = field(default_factory=list)
     skipped_pending: int = 0
     skipped_local_only: int = 0
     evicted_bytes: int = 0
@@ -237,7 +237,7 @@ class PrunePlan:
 
 
 def plan_prune(
-    inventory: AttachmentInventory,
+    inventory: _AttachmentInventory,
     stores: dict[str, Any],
     outbox_digests: set[str],
     budget_bytes: int,
@@ -270,7 +270,7 @@ def plan_prune(
             plan.skipped_local_only += 1
             continue
         plan.candidates.append(
-            PruneCandidate(
+            _PruneCandidate(
                 sha256=digest,
                 size_bytes=int(info.get("size_bytes", 0)),
                 mtime=float(info.get("mtime", 0.0)),
@@ -370,20 +370,20 @@ def outbox_digests_for_project(project_key: str | None) -> set[str]:
 
 __all__ = [
     "ORPHAN_AGE_SECONDS",
-    "AttachmentInventory",
-    "AttachmentReference",
-    "PruneCandidate",
+    "_AttachmentInventory",
+    "_AttachmentReference",
+    "_PruneCandidate",
     "PrunePlan",
     "apply_prune_evictions",
     "collect_inventory",
-    "collect_references",
+    "_collect_references",
     "orphan_digests",
     "outbox_digests_for_project",
     "plan_prune",
     "quarantine_local_object",
     "remove_orphan_objects",
     "roster_for_issue",
-    "scan_local_objects",
+    "_scan_local_objects",
     "store_has_digest",
     "store_has_tombstone",
 ]

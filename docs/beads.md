@@ -938,20 +938,21 @@ without ever failing the command: kitty inline pixels, then subpixel cell thumbn
 10 rows), then text cards (≤ 5 dim lines), then chips. Control the mode with
 `show -i/--images auto|cells|kitty|never` or the permanent `bead.show.images` config
 (default `auto`). `sase bead attachment open <id> [<name>]` opens one attachment in the
-terminal viewer (never fetches; with no name it opens the only viewable attachment).
-Attachment chips are labeled pager links into the existing viewer, and
-`attachment:<bead-id>/<name>` refs resolve wherever artifact refs do.
+terminal viewer (fetches from the shared store when needed, like `path`; with no name it
+opens the only available attachment). Attachment chips are labeled pager links into the
+existing viewer, and `attachment:<bead-id>/<name>` refs resolve wherever artifact refs
+do.
 
 #### Troubleshooting badges
 
 Prose always renders; a preview or fetch failure never fails `show`/`read`. Each
 attachment carries one availability badge: no badge means `cached`, `⇣ not downloaded`
 means above the `bead.attachments.auto_fetch_max_bytes` cap (25 MiB; `-d/--download`
-lifts it for one invocation, `attachment path` always fetches), `⇡ pending upload` means
-the bytes have not reached the shared store yet, `⚠ only on <machine>` means local-only,
-`✕ unavailable offline` means no reachable copy, `(purged)` means the bytes were purged
-behind a tombstone, and `‼ digest mismatch` means the cached bytes failed verification
-and were quarantined.
+lifts it for one invocation, `attachment path` and `attachment open` always fetch),
+`⇡ pending upload` means the bytes have not reached the shared store yet,
+`⚠ only on <machine>` means local-only, `✕ unavailable offline` means no reachable copy,
+`(purged)` means the bytes were purged behind a tombstone, and `‼ digest mismatch` means
+the cached bytes failed verification and were quarantined.
 
 #### Mixed-fleet upgrades
 
@@ -1407,8 +1408,8 @@ tokens.
 
 List content-addressed attachment snapshots, open one in the terminal viewer, or print
 the absolute local view path for one attachment. With no child subcommand,
-`sase bead attachment` delegates to `sase bead attachment list`. List and open never
-fetch; path fetches from the shared store when needed, even above the auto-fetch cap.
+`sase bead attachment` delegates to `sase bead attachment list`. List never fetches;
+open and path fetch from the shared store when needed, even above the auto-fetch cap.
 
 ```bash
 sase bead attachment list sase-ab
@@ -1418,10 +1419,11 @@ sase bead attachment path sase-ab shot.png
 
 `list` text output shows one descriptor per attachment plus the cached view path or an
 unavailable marker. `path` materializes the extension-preserving local view and prints
-its absolute path, or fails with a clear unavailable error when no local object exists.
-`open` opens one attachment in the terminal viewer (with no name, it opens the only
-viewable attachment or lists candidates). `push` drains the upload outbox and promotes
-local-only objects to the shared stores without authoring notes.
+its absolute path, or fails with a clear unavailable error when no shared copy exists.
+`open` opens one attachment in the terminal viewer, fetching from the shared store when
+needed (with no name, it opens the only available attachment or lists candidates).
+`push` drains the upload outbox and promotes local-only objects to the shared stores
+without authoring notes.
 
 ```bash
 sase bead attachment open sase-ab shot.png

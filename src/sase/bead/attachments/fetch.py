@@ -54,7 +54,7 @@ def format_attachment_size(size_bytes: int | None) -> str:
 
 
 @dataclass
-class FetchContext:
+class _FetchContext:
     """One command's shared fetch inputs: stores, outbox, cap, and mode."""
 
     mode: FetchMode = "never"
@@ -68,17 +68,17 @@ class FetchContext:
     discover: bool = False
 
 
-_current: ContextVar[FetchContext | None] = ContextVar(
+_current: ContextVar[_FetchContext | None] = ContextVar(
     "attachment_fetch_context", default=None
 )
 
 
-def current_fetch_context() -> FetchContext | None:
+def _current_fetch_context() -> _FetchContext | None:
     """Return the ambient fetch context, or None outside one."""
     return _current.get()
 
 
-def get_auto_fetch_cap() -> int:
+def _get_auto_fetch_cap() -> int:
     """Return the configured auto-fetch ceiling, failing open to 25 MiB."""
     try:
         from sase.bead.config import get_attachment_auto_fetch_max_bytes
@@ -88,7 +88,7 @@ def get_auto_fetch_cap() -> int:
         return 26214400
 
 
-def should_auto_fetch(size_bytes: int, cap_bytes: int) -> bool:
+def _should_auto_fetch(size_bytes: int, cap_bytes: int) -> bool:
     """Return the core auto-fetch policy, failing open to True."""
     try:
         from sase.core.rust import require_rust_binding
@@ -100,13 +100,13 @@ def should_auto_fetch(size_bytes: int, cap_bytes: int) -> bool:
         return True
 
 
-def build_fetch_context(*, mode: FetchMode = "never") -> FetchContext:
+def _build_fetch_context(*, mode: FetchMode = "never") -> _FetchContext:
     """Discover the shared stores and outbox once for one command.
 
     Never raises: a missing store or unreadable outbox degrades to local
     observation instead of failing the read.
     """
-    cap = get_auto_fetch_cap()
+    cap = _get_auto_fetch_cap()
     project_key: str | None = None
     store: Any | None = None
     stores: list[Any] = []
@@ -136,7 +136,7 @@ def build_fetch_context(*, mode: FetchMode = "never") -> FetchContext:
         except Exception as exc:
             log.debug("attachment outbox read skipped: %s", exc)
             outbox = {}
-    return FetchContext(
+    return _FetchContext(
         mode=mode,
         project_key=project_key,
         store=store,
@@ -146,7 +146,7 @@ def build_fetch_context(*, mode: FetchMode = "never") -> FetchContext:
     )
 
 
-def _ordered_stores(context: FetchContext, size_bytes: int | None) -> list[Any]:
+def _ordered_stores(context: _FetchContext, size_bytes: int | None) -> list[Any]:
     """Return the context stores ordered by the size-routed tier first.
 
     Placement is deterministic by size, so the tier that should hold the
@@ -179,14 +179,14 @@ def _ordered_stores(context: FetchContext, size_bytes: int | None) -> list[Any]:
 
 
 @contextlib.contextmanager
-def fetch_context(*, mode: FetchMode = "never") -> Iterator[FetchContext]:
+def fetch_context(*, mode: FetchMode = "never") -> Iterator[_FetchContext]:
     """Set the ambient fetch context for one command's render.
 
     Discovery stays lazy: no store, outbox, or ``upload`` import happens
     here. The first :func:`attachment_state` or :func:`resolve_badge_origin`
     call inside the context discovers them via :func:`_ensure_discovered`.
     """
-    context = FetchContext(mode=mode, cap_bytes=get_auto_fetch_cap(), discover=True)
+    context = _FetchContext(mode=mode, cap_bytes=_get_auto_fetch_cap(), discover=True)
     token = _current.set(context)
     try:
         yield context
@@ -194,7 +194,7 @@ def fetch_context(*, mode: FetchMode = "never") -> Iterator[FetchContext]:
         _current.reset(token)
 
 
-def _ensure_discovered(context: FetchContext | None) -> None:
+def _ensure_discovered(context: _FetchContext | None) -> None:
     """Run one-time lazy discovery for a ``fetch_context`` context.
 
     No-op unless ``discover`` is true, so contexts built by tests or by the
@@ -208,7 +208,7 @@ def _ensure_discovered(context: FetchContext | None) -> None:
         return
     context.discover = False
     try:
-        discovered = build_fetch_context(mode=context.mode)
+        discovered = _build_fetch_context(mode=context.mode)
     except Exception as exc:
         log.debug("attachment shared-store lazy discovery skipped: %s", exc)
         return
@@ -256,8 +256,8 @@ def _store_has_tombstone(store: Any, sha256: str) -> bool:
         return False
 
 
-def ensure_fetched(
-    context: FetchContext,
+def _ensure_fetched(
+    context: _FetchContext,
     sha256: str,
     *,
     size_bytes: int | None = None,
@@ -320,7 +320,7 @@ def attachment_state(
     size_bytes: int | None = None,
     origin: str | None = None,
     name: str | None = None,
-    context: FetchContext | None = None,
+    context: _FetchContext | None = None,
 ) -> str:
     """Return the availability state for one attachment digest.
 
@@ -339,7 +339,7 @@ def attachment_state(
         return "unavailable"
     context = context if context is not None else _current.get()
     if context is None:
-        context = FetchContext()
+        context = _FetchContext()
     else:
         _ensure_discovered(context)
     cas = _local_store()
@@ -381,9 +381,9 @@ def attachment_state(
         if context.mode == "force" or (
             context.mode == "auto"
             and size_bytes is not None
-            and should_auto_fetch(size_bytes, context.cap_bytes)
+            and _should_auto_fetch(size_bytes, context.cap_bytes)
         ):
-            if ensure_fetched(context, sha256, size_bytes=size_bytes, name=name):
+            if _ensure_fetched(context, sha256, size_bytes=size_bytes, name=name):
                 return "cached"
             if sha256 in context.corrupt:
                 return "corrupt"
@@ -395,7 +395,7 @@ def attachment_state(
 def resolve_badge_origin(
     sha256: str,
     attachment_origin: str | None,
-    context: FetchContext | None = None,
+    context: _FetchContext | None = None,
 ) -> str:
     """Return the machine name for the pending/local-only badges."""
     context = context if context is not None else _current.get()
@@ -453,16 +453,16 @@ def attachment_badge(
 
 __all__ = [
     "AVAILABILITY_STATES",
-    "FetchContext",
+    "_FetchContext",
     "FetchMode",
     "attachment_badge",
     "attachment_state",
-    "build_fetch_context",
-    "current_fetch_context",
-    "ensure_fetched",
+    "_build_fetch_context",
+    "_current_fetch_context",
+    "_ensure_fetched",
     "fetch_context",
     "format_attachment_size",
-    "get_auto_fetch_cap",
+    "_get_auto_fetch_cap",
     "resolve_badge_origin",
-    "should_auto_fetch",
+    "_should_auto_fetch",
 ]

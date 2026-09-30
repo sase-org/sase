@@ -64,10 +64,10 @@ class LLMPluginManager(LLMProvider):
             result = self._pm.hook.llm_sync_ceiling_seconds()
         except Exception:
             return None
-        return validate_sync_ceiling_seconds(result)
+        return _validate_sync_ceiling_seconds(result)
 
 
-def validate_sync_ceiling_seconds(value: object) -> int | None:
+def _validate_sync_ceiling_seconds(value: object) -> int | None:
     """Return *value* when it is a usable sync ceiling, else ``None``."""
     if isinstance(value, bool) or not isinstance(value, int):
         return None

@@ -33,7 +33,7 @@ _REPAIR_HINT = "sase bead doctor --fix-attachments"
 
 
 @dataclass
-class AttachmentHealthReport:
+class _AttachmentHealthReport:
     """Structured attachment health for one project."""
 
     healthy: bool = True
@@ -49,7 +49,7 @@ class AttachmentHealthReport:
     outbox_unreadable: bool = False
 
 
-def manifest_mismatches(issues: list[Any]) -> list[str]:
+def _manifest_mismatches(issues: list[Any]) -> list[str]:
     """Return token/manifest mismatch lines across *issues*' manifests."""
     from sase.bead.attachment_presentation import extract_attachment_tokens
 
@@ -82,14 +82,14 @@ def manifest_mismatches(issues: list[Any]) -> list[str]:
     return lines
 
 
-def inspect_attachment_health() -> AttachmentHealthReport:
+def inspect_attachment_health() -> _AttachmentHealthReport:
     """Inspect attachment health; never raises on store or git failures.
 
     When the bead store itself is unavailable, the core doctor already
     reports that: this returns a clean empty report so plain
     ``sase bead doctor`` output stays unchanged.
     """
-    report = AttachmentHealthReport()
+    report = _AttachmentHealthReport()
     try:
         from sase.bead.cli_common import get_read_view
 
@@ -115,7 +115,7 @@ def inspect_attachment_health() -> AttachmentHealthReport:
                     _Status.CLOSED,
                 ],
             )
-        report.mismatches = manifest_mismatches(list(_issues))
+        report.mismatches = _manifest_mismatches(list(_issues))
     except Exception as exc:
         log.debug("attachment doctor mismatch scan skipped: %s", exc)
     if report.mismatches:
@@ -199,7 +199,7 @@ def inspect_attachment_health() -> AttachmentHealthReport:
     return report
 
 
-def render_attachment_health_messages(report: AttachmentHealthReport) -> list[str]:
+def render_attachment_health_messages(report: _AttachmentHealthReport) -> list[str]:
     """Render concise doctor messages; empty when there is nothing to say."""
     if report.errors:
         return [
@@ -246,7 +246,7 @@ def render_attachment_health_messages(report: AttachmentHealthReport) -> list[st
     return messages
 
 
-def _needs_repair(report: AttachmentHealthReport) -> bool:
+def _needs_repair(report: _AttachmentHealthReport) -> bool:
     """Return whether the repair would change anything."""
     return bool(
         report.orphans
@@ -256,7 +256,7 @@ def _needs_repair(report: AttachmentHealthReport) -> bool:
     )
 
 
-def preview_attachment_repairs(report: AttachmentHealthReport) -> list[str]:
+def preview_attachment_repairs(report: _AttachmentHealthReport) -> list[str]:
     """Preview the ``--fix-attachments`` repair lines."""
     lines: list[str] = []
     if report.orphans:
@@ -279,7 +279,7 @@ def preview_attachment_repairs(report: AttachmentHealthReport) -> list[str]:
     return lines
 
 
-def repair_attachment_health(report: AttachmentHealthReport) -> list[str]:
+def repair_attachment_health(report: _AttachmentHealthReport) -> list[str]:
     """Apply the repair; return one result line per action."""
     results: list[str] = []
     if report.orphans:
@@ -309,9 +309,9 @@ def repair_attachment_health(report: AttachmentHealthReport) -> list[str]:
 
 
 __all__ = [
-    "AttachmentHealthReport",
+    "_AttachmentHealthReport",
     "inspect_attachment_health",
-    "manifest_mismatches",
+    "_manifest_mismatches",
     "preview_attachment_repairs",
     "render_attachment_health_messages",
     "repair_attachment_health",
