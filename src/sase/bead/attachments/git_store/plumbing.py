@@ -160,6 +160,111 @@ def build_tree(repo: Path, base: str | None, blob: str, relpath: str) -> str:
             os.unlink(index_path)
 
 
+def build_tree_with_changes(
+    repo: Path,
+    base: str | None,
+    adds: dict[str, str],
+    removals: list[str],
+) -> str:
+    """Return the tree of *base* with *adds* upserted and *removals* deleted.
+
+    *adds* maps ``relpath -> blob`` (written with ``100644``). A purge
+    tombstone write uses one call: the tombstone blob is added while the
+    object blob is removed, so the tip never shows bytes without their
+    tombstone. Commit messages name no filenames, only digests.
+    """
+
+    index_fd, index_path = tempfile.mkstemp(prefix="sase-attachment-index-")
+    os.close(index_fd)
+    try:
+        env = _commit_env({"GIT_INDEX_FILE": index_path})
+        if base is None:
+            _check(
+                run_git(
+                    ["read-tree", "--empty"],
+                    cwd=repo,
+                    timeout=LOCAL_GIT_TIMEOUT_SECONDS,
+                    env=env,
+                ),
+                "read-tree",
+            )
+        else:
+            _check(
+                run_git(
+                    ["read-tree", base],
+                    cwd=repo,
+                    timeout=LOCAL_GIT_TIMEOUT_SECONDS,
+                    env=env,
+                ),
+                "read-tree",
+            )
+        removed = set(removals)
+        if removed:
+            listed = _check(
+                run_git(
+                    ["ls-files", "--stage", "-z"],
+                    cwd=repo,
+                    timeout=LOCAL_GIT_TIMEOUT_SECONDS,
+                    env=env,
+                ),
+                "ls-files",
+            )
+            entries = []
+            for record in listed.stdout.split("\0"):
+                if not record:
+                    continue
+                meta, _, path = record.partition("\t")
+                if path in removed or path in adds:
+                    continue
+                mode, _, remainder = meta.partition(" ")
+                blob, _, _stage = remainder.partition(" ")
+                entries.append(f"{mode},{blob},{path}")
+            _check(
+                run_git(
+                    ["read-tree", "--empty"],
+                    cwd=repo,
+                    timeout=LOCAL_GIT_TIMEOUT_SECONDS,
+                    env=env,
+                ),
+                "read-tree",
+            )
+            for entry in entries:
+                _check(
+                    run_git(
+                        ["update-index", "--add", "--cacheinfo", entry],
+                        cwd=repo,
+                        timeout=LOCAL_GIT_TIMEOUT_SECONDS,
+                        env=env,
+                    ),
+                    "update-index",
+                )
+        for relpath, blob in adds.items():
+            _check(
+                run_git(
+                    [
+                        "update-index",
+                        "--add",
+                        "--cacheinfo",
+                        f"100644,{blob},{relpath}",
+                    ],
+                    cwd=repo,
+                    timeout=LOCAL_GIT_TIMEOUT_SECONDS,
+                    env=env,
+                ),
+                "update-index",
+            )
+        result = run_git(
+            ["write-tree"],
+            cwd=repo,
+            timeout=LOCAL_GIT_TIMEOUT_SECONDS,
+            env=env,
+        )
+        return _check(result, "write-tree").stdout.strip()
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(index_path)
+
+
 def build_tree_without(repo: Path, base: str, relpath: str) -> str:
     """Return the tree of *base* with *relpath* removed.
 

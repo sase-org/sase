@@ -33,14 +33,14 @@ def split_attachment_ref(ref: str) -> tuple[str, str] | None:
 
 def roster_for_bead_id(bead_id: str) -> tuple[Issue, dict[str, BeadNoteAttachment]]:
     """Return ``(issue, roster)`` for *bead_id* or raise ``KeyError``/``ValueError``."""
-    from sase.bead.cli_attachment import _roster_for_issue
+    from sase.bead.attachments.lifecycle import roster_for_issue
     from sase.bead.cli_common import get_read_view, resolve_bead_operation_context
 
     bead_context = resolve_bead_operation_context([bead_id], exit_on_error=False)
     resolved_id = bead_context.resolved_ids[0]
     with get_read_view(bead_context=bead_context) as view:
         issue = view.show(resolved_id)
-    roster = _roster_for_issue(issue)
+    roster = roster_for_issue(issue)
     return issue, roster
 
 

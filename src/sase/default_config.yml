@@ -1942,6 +1942,11 @@ bead:
     # Set remote to an rclone destination such as "athena-sftp:attachments"
     # or a local path; max_bytes defaults to 2 GiB. Null disables the tier.
     large_store: null
+    # Local attachment cache budget in bytes (10 GiB).
+    # `sase bead attachment prune` evicts cached objects confirmed present
+    # in a shared store, oldest views first, to fit under this budget.
+    # Missing or malformed values fail open to this default.
+    local_cache_max_bytes: 10737418240
   show:
     # Image previews for `sase bead show`: auto, cells, kitty, or never.
     # `read`, JSON, and piped `show` never draw.

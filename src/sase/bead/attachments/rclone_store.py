@@ -290,6 +290,74 @@ class RcloneAttachmentStore:
         size = self._remote_size(sha256)
         self._stream_remote(sha256, cas, target, size, progress)
 
+    def write_tombstone(self, sha256: str, payload: bytes) -> None:
+        """Record a purge tombstone for *sha256* and remove its object.
+
+        The tombstone JSON uploads to
+        ``files/tombstones/sha256/<xx>/<sha>.json`` (staged through a
+        ``.partial-<uuid>`` name like every other upload), then the object
+        is deleted. A repeated write succeeds without changing bytes.
+        """
+
+        from sase.bead.attachments.tombstones import parse_tombstone_bytes
+
+        validate_sha256(sha256)
+        if not isinstance(payload, (bytes, bytearray)) or not bytes(payload):
+            raise BlobStoreError("cannot write an empty purge tombstone")
+        parsed = parse_tombstone_bytes(bytes(payload))
+        if parsed["sha256"] != sha256:
+            raise BlobStoreError(
+                f"purge tombstone is for {parsed['sha256'][:16]}…, not {sha256[:16]}…"
+            )
+        with tempfile.NamedTemporaryFile(
+            prefix="sase-attachment-tombstone-", suffix=".json"
+        ) as handle:
+            handle.write(bytes(payload))
+            handle.flush()
+            partial_relpath = (
+                f"files/tombstones/sha256/{sha256[:2]}/.partial-{uuid.uuid4().hex}"
+            )
+            copyto = self._run(
+                "copyto",
+                handle.name,
+                self._remote_path(partial_relpath),
+                what="purge tombstone upload",
+            )
+            if copyto.returncode != 0:
+                raise BlobStoreError(
+                    f"could not upload purge tombstone for {sha256[:16]}… "
+                    f"to {self._label}: {self._failure_detail(copyto)}",
+                    transient=True,
+                )
+            try:
+                moveto = self._run(
+                    "moveto",
+                    self._remote_path(partial_relpath),
+                    self._remote_path(_tombstone_relpath(sha256)),
+                    what="purge tombstone finalize",
+                )
+            except BlobStoreError:
+                with contextlib.suppress(BlobStoreError):
+                    self._run(
+                        "deletefile",
+                        self._remote_path(partial_relpath),
+                        what="purge tombstone cleanup",
+                    )
+                raise
+            if moveto.returncode != 0:
+                with contextlib.suppress(BlobStoreError):
+                    self._run(
+                        "deletefile",
+                        self._remote_path(partial_relpath),
+                        what="purge tombstone cleanup",
+                    )
+                raise BlobStoreError(
+                    f"could not upload purge tombstone for {sha256[:16]}… "
+                    f"to {self._label}: {self._failure_detail(moveto)}",
+                    transient=True,
+                )
+        self.delete(sha256)
+
     def delete(self, sha256: str) -> None:
         """Remove digest *sha256*; a no-op when it is already absent."""
         validate_sha256(sha256)

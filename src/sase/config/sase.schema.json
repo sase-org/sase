@@ -4829,6 +4829,12 @@
               "default": 67108864,
               "minimum": 1
             },
+            "local_cache_max_bytes": {
+              "type": "integer",
+              "description": "Local attachment cache budget in bytes (10 GiB). sase bead attachment prune evicts cached objects confirmed present in a shared store to fit under this budget. Missing or malformed values fail open to the default.",
+              "default": 10737418240,
+              "minimum": 1
+            },
             "large_store": {
               "type": ["object", "null"],
               "description": "Optional rclone large-object tier for objects above git_max_bytes. Null disables the tier.",

@@ -14,6 +14,7 @@ import fcntl
 import hashlib
 import logging
 import subprocess
+import tempfile
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -27,6 +28,7 @@ from sase.bead.attachments.git_store._common import (
 from sase.bead.attachments.git_store.plumbing import (
     blob_size,
     build_tree,
+    build_tree_with_changes,
     build_tree_without,
     commit_tree,
     stream_blob,
@@ -453,11 +455,80 @@ class GitAttachmentStore:
             self._label,
         )
 
+    def write_tombstone(self, sha256: str, payload: bytes) -> None:
+        """Record a purge tombstone for *sha256* and remove its object.
+
+        The tombstone blob is added at
+        ``files/tombstones/sha256/<xx>/<sha>.json`` while the object blob
+        is removed in the same plumbing commit, so the tip never shows
+        bytes without their tombstone. Retries on non-fast-forward push;
+        a repeated write commits nothing and succeeds. The commit message
+        names the digest only, never filenames.
+        """
+
+        from sase.bead.attachments.tombstones import parse_tombstone_bytes
+
+        validate_sha256(sha256)
+        if not isinstance(payload, (bytes, bytearray)) or not bytes(payload):
+            raise BlobStoreError("cannot write an empty purge tombstone")
+        parsed = parse_tombstone_bytes(bytes(payload))
+        if parsed["sha256"] != sha256:
+            raise BlobStoreError(
+                f"purge tombstone is for {parsed['sha256'][:16]}…, not {sha256[:16]}…"
+            )
+        tombstone_relpath = _tombstone_relpath(sha256)
+        object_relpath = _object_relpath(sha256)
+        branch = self._branch()
+        ref = f"refs/heads/{branch}"
+        with _writer_lock(self._repo):
+            for _attempt in range(_PUSH_ATTEMPTS):
+                base = self._cached_tip(branch)
+                if (
+                    base is not None
+                    and self._entry(base, tombstone_relpath) is not None
+                ):
+                    if self._entry(base, object_relpath) is None:
+                        return
+                with tempfile.NamedTemporaryFile(
+                    prefix="sase-attachment-tombstone-", suffix=".json"
+                ) as handle:
+                    handle.write(bytes(payload))
+                    handle.flush()
+                    blob = write_object(
+                        self._repo, Path(handle.name), self._fetch_timeout
+                    )
+                new_tree = build_tree_with_changes(
+                    self._repo,
+                    base,
+                    {tombstone_relpath: blob},
+                    [object_relpath],
+                )
+                if base is not None and new_tree == self._tree_of(base):
+                    if sync_ref(self._repo, ref, self._fetch_timeout):
+                        return
+                else:
+                    parents = [] if base is None else ["-p", base]
+                    commit = commit_tree(
+                        self._repo,
+                        new_tree,
+                        parents,
+                        f"chore(attachments): purge {sha256}",
+                    )
+                    update_ref(self._repo, ref, commit)
+                    if sync_ref(self._repo, ref, self._fetch_timeout):
+                        return
+                self._rebase_local_onto_remote(branch, ref)
+            raise BlobStoreError(
+                f"could not push attachment purge of {sha256[:16]}… "
+                f"after {_PUSH_ATTEMPTS} attempts",
+                transient=True,
+            )
+
     def delete(self, sha256: str) -> None:
         """Remove digest *sha256*; a no-op when it is already absent.
 
-        Purge remains a later phase: this only satisfies the protocol and
-        writes no tombstone.
+        This only satisfies the protocol and writes no tombstone; purge
+        flows use :meth:`write_tombstone` instead.
         """
 
         validate_sha256(sha256)

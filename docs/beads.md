@@ -1360,6 +1360,28 @@ its absolute path, or fails with a clear unavailable error when no local object 
 | ---------- | ------------ | ------------------------------------- |
 | `list`     | `-j, --json` | Emit machine-readable attachment data |
 
+### `sase bead attachment purge <id> <name> -r WHY` / `sase bead attachment prune`
+
+Remove one attachment's bytes everywhere while leaving every bead event untouched
+(`purge`), or evict store-confirmed cached objects to fit the local cache budget
+(`prune`). `purge` writes a tombstone to each configured shared store, deletes the local
+object and its views, and records a local tombstone, so notes keep their text and render
+`(purged)` while fetches refuse the digest. It previews every note that references the
+digest, confirms on a TTY (or `-y/--yes`), and prints the manual `git filter-repo`
+history-erasure procedure, which is never automated. `prune` prints a dry-run plan by
+default and evicts with `-y/--yes`; pending-upload and local-only objects are never
+evicted. `sase bead doctor` reports token/manifest mismatches, dangling descriptors,
+pending uploads, local-only objects, tombstoned references, digest mismatches, and
+orphans older than 7 days; `sase bead doctor --fix-attachments` removes orphans,
+re-drains the outbox, and quarantines corrupt objects.
+
+```bash
+sase bead attachment purge sase-ab shot.png -r 'contains a secret' -y
+sase bead attachment prune
+sase bead attachment prune -y
+sase bead doctor --fix-attachments
+```
+
 ### `sase bead blocked`
 
 Show all issues that have at least one active (non-closed) blocker. Rows use the same

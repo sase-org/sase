@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from sase.agents_sync.rendering_markdown import md_cell, md_code, md_escape
 from sase.bead.cli_common import status_icon
@@ -134,6 +134,34 @@ def render_prose_sections(issue: Issue) -> list[str]:
             lines.append(_bounded_prose(body))
     if issue.notes_text.strip():
         lines.extend(["", "## Notes", "", _bounded_prose(issue.notes_text)])
+    return lines
+
+
+def render_attachments(issue: Issue) -> list[str]:
+    """Render the bead's current attachment roster for a public page.
+
+    Pages are public artifacts, so each line names the file, its media
+    type, and its size with a private-attachment marker — never a path, a
+    link, or a digest. The roster unions note and +1-evidence manifests.
+    """
+
+    roster: dict[str, Any] = {}
+    for note in issue.notes:
+        for attachment in note.attachments:
+            roster[attachment.name] = attachment
+    for evidence in issue.plus_one_evidence:
+        for attachment in getattr(evidence, "attachments", ()):
+            roster[attachment.name] = attachment
+    if not roster:
+        return []
+    from sase.bead.attachment_presentation import attachment_page_line
+
+    lines = ["", "## Attachments", ""]
+    for name in sorted(roster):
+        attachment = roster[name]
+        lines.append(
+            f"- {md_escape(attachment_page_line(name=attachment.name, mime_type=attachment.mime_type, image=attachment.image, size_bytes=attachment.size_bytes))}"
+        )
     return lines
 
 

@@ -153,6 +153,25 @@ def get_attachment_background_upload_min_bytes() -> int:
     return value
 
 
+DEFAULT_ATTACHMENT_LOCAL_CACHE_MAX_BYTES = 10737418240
+
+
+def get_attachment_local_cache_max_bytes() -> int:
+    """Return the local attachment cache budget, failing open to 10 GiB.
+
+    ``sase bead attachment prune`` evicts cached objects confirmed present
+    in a shared store, oldest views first, to fit under this budget. Missing
+    or malformed values fail open to the default. Booleans are rejected
+    explicitly because ``bool`` is a subclass of ``int``.
+    """
+    value = _attachment_config().get(
+        "local_cache_max_bytes", DEFAULT_ATTACHMENT_LOCAL_CACHE_MAX_BYTES
+    )
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return DEFAULT_ATTACHMENT_LOCAL_CACHE_MAX_BYTES
+    return value
+
+
 def get_attachment_large_store() -> dict[str, object] | None:
     """Return the configured rclone large-object store, or None.
 

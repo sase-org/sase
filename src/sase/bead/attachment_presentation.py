@@ -185,6 +185,29 @@ def attachment_status_lines(
     return lines
 
 
+def attachment_page_line(
+    *,
+    name: str,
+    mime_type: str,
+    image: Any,
+    size_bytes: int,
+) -> str:
+    """Return one public bead-page line for an attachment.
+
+    Bead pages are public artifacts, so the line names the file, its media
+    type, and its size with a private-attachment marker — and never a path,
+    a link, or a digest.
+    """
+    display = strip_display_name(name)
+    dims = _format_attachment_dims(image)
+    size = _format_attachment_size(size_bytes)
+    parts = [display, mime_type]
+    if dims is not None:
+        parts.append(dims)
+    parts.append(size)
+    return "🔒 " + " · ".join(parts) + " (private attachment)"
+
+
 def attachment_view_path(sha256: str, name: str) -> str | None:
     """Materialize the extension-preserving view path, or ``None`` when missing."""
     try:
@@ -231,6 +254,7 @@ def extract_attachment_tokens(text: str) -> list[str]:
 __all__ = [
     "attachment_availability",
     "attachment_descriptor",
+    "attachment_page_line",
     "attachment_status_lines",
     "attachment_view_path",
     "compact_attachment_suffix",

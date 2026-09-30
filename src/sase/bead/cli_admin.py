@@ -51,6 +51,7 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
     fix_issue_prefix = bool(getattr(args, "fix_issue_prefix", False))
     fix_plan_archive = bool(getattr(args, "fix_plan_archive", False))
     fix_projection = bool(getattr(args, "fix_projection", False))
+    fix_attachments = bool(getattr(args, "fix_attachments", False))
     assume_yes = bool(getattr(args, "yes", False))
     archive_store = _resolve_doctor_plan_archive_store(
         materialize=fix_plan_archive,
@@ -85,6 +86,23 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
                 messages,
                 render_plan_archive_health_messages(archive_report),
             )
+        try:
+            from sase.bead.attachment_doctor import (
+                inspect_attachment_health,
+                render_attachment_health_messages,
+            )
+
+            attachment_report = inspect_attachment_health()
+            messages = _extend_doctor_messages(
+                messages,
+                render_attachment_health_messages(attachment_report),
+            )
+        except Exception as exc:  # noqa: BLE001 - doctor reports availability.
+            attachment_report = None
+            messages = _extend_doctor_messages(
+                messages,
+                [f"WARNING: attachment doctor unavailable: {exc}"],
+            )
         for msg in messages:
             print(msg)
         preview = (
@@ -112,6 +130,9 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
 
     if fix_issue_prefix:
         _repair_issue_prefix(assume_yes)
+
+    if fix_attachments:
+        _repair_attachments(attachment_report, assume_yes)
 
     if preview is None:
         return
@@ -415,6 +436,55 @@ def _confirm_projection_repair(row_count: int) -> bool:
     return answer.strip().lower() in {"y", "yes"}
 
 
+def _repair_attachments(attachment_report: Any | None, assume_yes: bool) -> None:
+    from sase.bead.attachment_doctor import (
+        inspect_attachment_health,
+        preview_attachment_repairs,
+        repair_attachment_health,
+    )
+
+    report = attachment_report
+    if report is None:
+        try:
+            report = inspect_attachment_health()
+        except Exception as exc:  # noqa: BLE001 - doctor reports availability.
+            print(f"Attachment repair unavailable: {exc}", file=sys.stderr)
+            return
+    for line in preview_attachment_repairs(report):
+        print(line)
+    if not any(
+        [
+            getattr(report, "orphans", ()),
+            getattr(report, "corrupt", ()),
+            getattr(report, "pending_upload", 0),
+            getattr(report, "outbox_unreadable", False),
+        ]
+    ):
+        print("No attachment repairs apply.")
+        return
+    if not (assume_yes or _confirm_attachment_repair()):
+        print("Attachment repair cancelled; no changes applied.")
+        return
+    try:
+        current = inspect_attachment_health()
+    except Exception as exc:  # noqa: BLE001 - doctor reports availability.
+        print(f"Attachment repair unavailable: {exc}", file=sys.stderr)
+        return
+    for result in repair_attachment_health(current):
+        print(result)
+    print("✓ Attachment repair complete")
+
+
+def _confirm_attachment_repair() -> bool:
+    if not sys.stdin.isatty():
+        return False
+    try:
+        answer = input("Apply attachment repairs? [y/N] ")
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
+
+
 def _confirm_plan_archive_repair(repair_count: int) -> bool:
     if not sys.stdin.isatty():
         return False
@@ -574,6 +644,7 @@ Quick Start:
   sase bead doctor --fix-issue-prefix            Reset a leaked ProjectSpec-key issue prefix
   sase bead doctor --fix-plan-archive            Archive recoverable missing plans
   sase bead doctor --fix-projection              Repair issues.jsonl drift
+  sase bead doctor --fix-attachments             Repair attachment orphans and uploads
   sase bead work <target> [<target> ...]        Launch plan, epic, or task agents in order""")
 
 

@@ -14,6 +14,7 @@ from sase.bead.attachment_presentation import (
     attachment_view_path,
     strip_display_name,
 )
+from sase.bead.attachments.lifecycle import roster_for_issue
 from sase.bead.cli_common import get_read_view, resolve_bead_operation_context
 from sase.bead.model import BeadNoteAttachment, Issue, Status
 
@@ -43,21 +44,17 @@ def _dispatch_bead_attachment(args: argparse.Namespace, action: str | None) -> N
         _handle_bead_attachment_list(args)
     elif action == "push":
         _handle_bead_attachment_push(args)
+    elif action == "purge":
+        from sase.bead.cli_attachment_lifecycle import handle_bead_attachment_purge
+
+        handle_bead_attachment_purge(args)
+    elif action == "prune":
+        from sase.bead.cli_attachment_lifecycle import handle_bead_attachment_prune
+
+        handle_bead_attachment_prune(args)
     else:
         print(f"Unknown attachment action: {action}", file=sys.stderr)
         sys.exit(1)
-
-
-def _roster_for_issue(issue: Issue) -> dict[str, BeadNoteAttachment]:
-    """Map attachment name to its latest model record for one issue."""
-    roster: dict[str, BeadNoteAttachment] = {}
-    for note in issue.notes:
-        for attachment in note.attachments:
-            roster[attachment.name] = attachment
-    for evidence in issue.plus_one_evidence:
-        for attachment in getattr(evidence, "attachments", ()):
-            roster[attachment.name] = attachment
-    return roster
 
 
 def _handle_bead_attachment_list(args: argparse.Namespace) -> None:
@@ -86,7 +83,7 @@ def _handle_bead_attachment_list(args: argparse.Namespace) -> None:
                 Status.CLOSED,
             ],
         )
-    scoped = [issue for issue in issues if _roster_for_issue(issue)]
+    scoped = [issue for issue in issues if roster_for_issue(issue)]
     if as_json:
         print(_list_json(scoped), end="")
         return
@@ -99,7 +96,7 @@ def _handle_bead_attachment_list(args: argparse.Namespace) -> None:
 
 
 def _print_single_list(issue: Issue, *, as_json: bool) -> None:
-    roster = _roster_for_issue(issue)
+    roster = roster_for_issue(issue)
     if as_json:
         print(_single_json(issue), end="")
         return
@@ -110,7 +107,7 @@ def _print_single_list(issue: Issue, *, as_json: bool) -> None:
 
 
 def _print_roster_lines(issue: Issue) -> None:
-    roster = _roster_for_issue(issue)
+    roster = roster_for_issue(issue)
     for name in sorted(roster):
         attachment = roster[name]
         descriptor = attachment_descriptor(
@@ -160,7 +157,7 @@ def _wire_with_availability(attachment: BeadNoteAttachment) -> dict[str, object]
 
 
 def _single_json(issue: Issue) -> str:
-    roster = _roster_for_issue(issue)
+    roster = roster_for_issue(issue)
     payload = {
         "id": issue.id,
         "attachments": [
@@ -179,7 +176,7 @@ def _list_json(issues: Sequence[Issue]) -> str:
                 "title": issue.title,
                 "attachments": [
                     _wire_with_availability(attachment)
-                    for attachment in _roster_for_issue(issue).values()
+                    for attachment in roster_for_issue(issue).values()
                 ],
             }
             for issue in issues
@@ -206,7 +203,7 @@ def _handle_bead_attachment_path(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {issue_id}", file=sys.stderr)
             sys.exit(1)
-    roster = _roster_for_issue(issue)
+    roster = roster_for_issue(issue)
     attachment = roster.get(name)
     if attachment is None:
         print(
@@ -259,7 +256,7 @@ def _handle_bead_attachment_open(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {issue_id}", file=sys.stderr)
             sys.exit(1)
-    roster = _roster_for_issue(issue)
+    roster = roster_for_issue(issue)
     if not roster:
         print(f"Error: {resolved_id}: no attachments.", file=sys.stderr)
         sys.exit(1)
@@ -391,7 +388,7 @@ def _handle_bead_attachment_push(args: argparse.Namespace) -> None:
             except KeyError:
                 print(f"Error: issue not found: {scope_id}", file=sys.stderr)
                 sys.exit(1)
-        roster = _roster_for_issue(issue)
+        roster = roster_for_issue(issue)
         only_digests = {record.sha256 for record in roster.values()}
         project_key = resolve_project_key(bead_context)
     else:

@@ -276,6 +276,11 @@ def ensure_fetched(
     if cas is None:
         return False
     try:
+        if _has_local_tombstone(cas, sha256):
+            return False
+    except Exception:
+        return False
+    try:
         if cas.has(sha256) and cas.verify(sha256):
             return True
     except Exception:
@@ -283,6 +288,9 @@ def ensure_fetched(
     stores = _ordered_stores(context, size_bytes)
     if not stores or sha256 in context.failed or sha256 in context.corrupt:
         return False
+    for store in stores:
+        if _store_has_tombstone(store, sha256):
+            return False
     label = name or f"{sha256[:12]}…"
     for store in stores:
         try:

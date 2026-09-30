@@ -171,6 +171,15 @@ def register_bead_doctor_parser(
         ),
     )
     parser.add_argument(
+        "-T",
+        "--fix-attachments",
+        action="store_true",
+        help=(
+            "Preview and, after confirmation, repair attachment orphans, "
+            "re-drain the upload outbox, and quarantine corrupt objects"
+        ),
+    )
+    parser.add_argument(
         "-y",
         "--yes",
         action="store_true",

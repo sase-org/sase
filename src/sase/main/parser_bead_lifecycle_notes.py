@@ -164,16 +164,17 @@ def register_bead_attachment_parser(
     """Register ``sase bead attachment``."""
     parser = subparsers.add_parser(
         "attachment",
-        help="List, open, push, or resolve attachment snapshots",
+        help="List, open, push, purge, prune, or resolve attachment snapshots",
         description=(
             "List content-addressed attachment snapshots on a bead, open one "
             "in the terminal viewer, print the absolute local view path "
-            "for one attachment, or push queued uploads to the shared store. "
-            "Invoking 'sase bead attachment' without a subcommand delegates "
-            "to 'sase bead attachment list'. List and open never fetch; "
-            "path always fetches from the shared store when needed, even "
-            "above the auto-fetch cap. Push drains the upload outbox and "
-            "never authors notes."
+            "for one attachment, push queued uploads to the shared store, "
+            "purge one attachment behind tombstones, or prune the local "
+            "cache. Invoking 'sase bead attachment' without a subcommand "
+            "delegates to 'sase bead attachment list'. List and open never "
+            "fetch; path always fetches from the shared store when needed, "
+            "even above the auto-fetch cap. Push drains the upload outbox "
+            "and never authors notes."
         ),
         epilog=(
             "Examples:\n"
@@ -182,7 +183,9 @@ def register_bead_attachment_parser(
             "  sase bead attachment open sase-ab shot.png\n"
             "  sase bead attachment path sase-ab shot.png\n"
             "  sase bead attachment push\n"
-            "  sase bead attachment push sase-ab"
+            "  sase bead attachment push sase-ab\n"
+            "  sase bead attachment purge sase-ab shot.png -r 'contains a secret'\n"
+            "  sase bead attachment prune"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -256,6 +259,55 @@ def register_bead_attachment_parser(
         "id",
         nargs="?",
         help="Full or shorthand issue ID to scope the drain",
+    )
+    purge_parser = attachment_subparsers.add_parser(
+        "purge",
+        help="Purge one attachment behind tombstones",
+        description=(
+            "Remove one attachment's bytes everywhere while leaving every "
+            "bead event untouched: a tombstone goes to each configured "
+            "shared store, the local object and its views are deleted, and "
+            "a local tombstone is recorded. Notes keep their text and "
+            "render (purged); fetches refuse the digest. Prints the manual "
+            "history-erasure procedure; it is never automated. Available "
+            "with the flag off; it never authors notes."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    purge_parser.add_argument("id", help="Full or shorthand issue ID")
+    purge_parser.add_argument("name", help="Attachment name to purge")
+    purge_parser.add_argument(
+        "-r",
+        "--reason",
+        dest="reason",
+        required=True,
+        help="Why the bytes are purged (recorded in the tombstone)",
+    )
+    purge_parser.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help="Purge without an interactive confirmation",
+    )
+    prune_parser = attachment_subparsers.add_parser(
+        "prune",
+        help="Prune the local attachment cache to its budget",
+        description=(
+            "Evict cached objects confirmed present in a shared store, "
+            "oldest views first, to fit under "
+            "bead.attachments.local_cache_max_bytes. A dry-run plan prints "
+            "by default; -y applies it. Pending-upload and local-only "
+            "objects are never evicted. Available with the flag off."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    prune_parser.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help="Evict the planned objects instead of a dry run",
     )
 
 
