@@ -172,3 +172,21 @@ async def test_none_slot_claims_cursor_without_menu() -> None:
         # lower-priority surface may pop a menu either.
         assert ta.text == "{% set x"
         assert ta._file_completion_active is False
+
+
+async def test_setting_off_still_claims_in_tag_cursor() -> None:
+    app = NoAutoJinjaApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("{{ x ")
+        ta.cursor_location = (0, len("{{ x "))
+
+        await pilot.press("%")
+        await pilot.press("m")
+        await pilot.press("o")
+
+        # With `auto_jinja_menu` off no Jinja menu opens, but the in-tag
+        # cursor still claims the auto path so the directive menu never
+        # opens inside the tag.
+        assert ta._file_completion_active is False
+        assert ta._completion_kind != "directive"

@@ -204,7 +204,6 @@ class PromptTextAreaKeyHandlingMixin(
         if (
             self._vim_mode == "insert"
             and not self._file_completion_active
-            and settings.auto_jinja_menu
             and _is_auto_xprompt_menu_character(character)
             and self._try_auto_jinja_completion()
         ):

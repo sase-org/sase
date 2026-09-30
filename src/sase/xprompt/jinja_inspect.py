@@ -11,7 +11,12 @@ from jinja2 import TemplateSyntaxError, meta
 from ._directive_alt import _ALT_DIRECTIVE_RE
 from ._literal_zones import code_literal_ranges, literal_zone_ranges
 from ._jinja import get_jinja_env
-from .jinja_assist import JinjaScope, JinjaUnavailableVariable, jinja_scope_variables
+from .jinja_assist import (
+    JinjaScope,
+    JinjaScopeVariables,
+    JinjaUnavailableVariable,
+    jinja_scope_variables,
+)
 
 _POSITIONAL_RE = re.compile(r"_[0-9]+")
 
@@ -98,17 +103,6 @@ class JinjaDiagnostics:
     span: tuple[int, int] | None = None
     unknown_variables: tuple[str, ...] = ()
     unavailable_variables: tuple[JinjaUnavailableVariable, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class JinjaCompletionContext:
-    """The editable token inside a Jinja2 tag at the cursor."""
-
-    replacement_start: int
-    replacement_end: int
-    prefix: str
-    tag_kind: Literal["variable", "block"]
-    namespace: str | None = None
 
 
 def has_jinja(text: str) -> bool:
@@ -265,7 +259,7 @@ def undeclared_variables(
     diagnostics = diagnose(text)
     if diagnostics.has_jinja and not diagnostics.ok:
         return None
-    scope_vars = jinja_scope_variables(text, scope)
+    scope_vars: JinjaScopeVariables = jinja_scope_variables(text, scope)
     known = set(scope_vars.known) | {
         unavailable.name for unavailable in scope_vars.unavailable
     }
@@ -285,88 +279,9 @@ def _default_known_context() -> set[str]:
     )
 
 
-def known_toplevel_context() -> set[str]:
-    """Return catalog variables defined in every scope.
-
-    Thin wrapper over :func:`sase.xprompt.jinja_assist.jinja_catalog`
-    kept for the TUI Jinja menu until it moves to the engine; prefer
-    :func:`sase.xprompt.jinja_assist.jinja_scope_variables` for linting.
-    """
-    from .jinja_assist import jinja_catalog
-
-    return {
-        variable.name
-        for variable in jinja_catalog().variables
-        if variable.availability_rule == "always"
-    }
-
-
-def builtin_runtime_names() -> set[str]:
-    """Return agent-run built-in names from the Rust catalog.
-
-    Thin wrapper over :func:`sase.xprompt.jinja_assist.jinja_catalog`
-    kept for the TUI Jinja menu until it moves to the engine. Unlike the
-    old static mirror, this includes every catalog ``run`` variable (such
-    as ``patch_name``) so the menu and the lint cannot drift apart.
-    """
-    from .jinja_assist import jinja_catalog
-
-    return {
-        variable.name
-        for variable in jinja_catalog().variables
-        if variable.availability_rule in ("run", "run_needs_repeat", "run_needs_wait")
-    }
-
-
-def builtin_runtime_member_names(namespace: str) -> set[str]:
-    """Return known member names for a runtime namespace from the catalog.
-
-    Thin wrapper over :func:`sase.xprompt.jinja_assist.jinja_catalog`
-    kept for the TUI Jinja menu until it moves to the engine.
-    """
-    from .jinja_assist import jinja_catalog
-
-    for variable in jinja_catalog().variables:
-        if variable.name == namespace:
-            return {member.name for member in variable.members}
-    return set()
-
-
 def jinja_filter_names() -> tuple[str, ...]:
     """Return registered filter names for prompt completion."""
     return tuple(sorted(get_jinja_env().filters))
-
-
-def completion_context(
-    text: str,
-    cursor_offset: int,
-) -> JinjaCompletionContext | None:
-    """Return a Jinja completion context at *cursor_offset*, if any."""
-    tag = _tag_at_cursor(text, cursor_offset)
-    if tag is None:
-        return None
-    tag_kind, open_start, open_end, close_start, _close_end = tag
-    if tag_kind == "comment":
-        return None
-
-    content_start = open_end
-    content_end = len(text) if close_start is None else close_start
-    cursor_offset = min(max(cursor_offset, content_start), content_end)
-    token_start = cursor_offset
-    while token_start > content_start and _name_char(text[token_start - 1]):
-        token_start -= 1
-    token_end = cursor_offset
-    while token_end < content_end and _name_char(text[token_end]):
-        token_end += 1
-    prefix = text[token_start:cursor_offset]
-    namespace = _namespace_before_token(text, content_start, token_start)
-    return JinjaCompletionContext(
-        replacement_start=token_start,
-        replacement_end=token_end,
-        prefix=prefix,
-        tag_kind="block" if tag_kind == "block" else "variable",
-        namespace=namespace,
-    )
 
 
 def matching_delimiter_spans(
@@ -505,23 +420,3 @@ def _tag_at_cursor(
                     best = candidate
             search_start = open_end
     return best
-
-
-def _name_char(char: str) -> bool:
-    return char == "_" or char.isalnum()
-
-
-def _namespace_before_token(
-    text: str,
-    content_start: int,
-    token_start: int,
-) -> str | None:
-    if token_start <= content_start or text[token_start - 1] != ".":
-        return None
-    namespace_end = token_start - 1
-    namespace_start = namespace_end
-    while namespace_start > content_start and _name_char(text[namespace_start - 1]):
-        namespace_start -= 1
-    if namespace_start == namespace_end:
-        return None
-    return text[namespace_start:namespace_end]

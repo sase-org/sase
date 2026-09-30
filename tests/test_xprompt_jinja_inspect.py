@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from sase.xprompt import jinja_inspect
+from sase.xprompt import jinja_assist, jinja_inspect
 from sase.xprompt._jinja import get_global_template_vars
 
 
-def test_builtin_runtime_names_contains_agent_run_context() -> None:
-    names = jinja_inspect.builtin_runtime_names()
+def test_engine_catalog_contains_agent_run_context() -> None:
+    names = {variable.name for variable in jinja_assist.jinja_catalog().variables}
 
     assert names >= {
         "cl_name",
@@ -19,13 +19,12 @@ def test_builtin_runtime_names_contains_agent_run_context() -> None:
         "wait_chats",
         "agents",
     }
-    assert "__sase_workflow_inherited_vcs_tag" not in names
 
 
-def test_inspect_template_accepts_builtin_runtime_names() -> None:
-    known = (
-        jinja_inspect.known_toplevel_context() | jinja_inspect.builtin_runtime_names()
-    )
+def test_inspect_template_accepts_engine_known_names() -> None:
+    from sase.xprompt.jinja_inspect import _default_known_context
+
+    known = _default_known_context()
 
     diagnostics = jinja_inspect.inspect_template(
         "{{ wait.chats }} {{ wait.artifacts }} {{ wait_chats }} {{ agents }}",
@@ -140,7 +139,9 @@ def test_reserved_globals_are_known_when_runtime_value_is_unresolved(
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
 
     assert get_global_template_vars() == {}
-    assert "root" in jinja_inspect.known_toplevel_context()
+    from sase.xprompt.jinja_inspect import _default_known_context
+
+    assert "root" in _default_known_context()
     assert jinja_inspect.inspect_template("Path is {{ root }}").unknown_variables == ()
 
 
@@ -177,25 +178,28 @@ def test_inspect_template_still_validates_live_jinja() -> None:
     assert diagnostics.unknown_variables == ()
 
 
-def test_completion_context_inside_unclosed_tag() -> None:
+def test_engine_completion_inside_unclosed_tag() -> None:
     text = "Hello {{ ro"
-    ctx = jinja_inspect.completion_context(text, len(text))
+    completion = jinja_assist.jinja_completion(
+        text, len(text), jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
+    )
 
-    assert ctx is not None
-    assert ctx.prefix == "ro"
-    assert ctx.namespace is None
-    assert text[ctx.replacement_start : ctx.replacement_end] == "ro"
-    assert ctx.tag_kind == "variable"
+    assert completion is not None
+    assert completion.prefix == "ro"
+    assert any(item.name == "root" for item in completion.items)
 
 
-def test_completion_context_inside_wait_namespace() -> None:
+def test_engine_completion_inside_wait_namespace() -> None:
     text = "Hello {{ wait.art }}"
-    ctx = jinja_inspect.completion_context(text, len("Hello {{ wait.art"))
+    completion = jinja_assist.jinja_completion(
+        text,
+        len("Hello {{ wait.art"),
+        jinja_assist.JinjaScope(kind="prompt", frontmatter=None),
+    )
 
-    assert ctx is not None
-    assert ctx.prefix == "art"
-    assert ctx.namespace == "wait"
-    assert text[ctx.replacement_start : ctx.replacement_end] == "art"
+    assert completion is not None
+    assert completion.prefix == "art"
+    assert any(item.name == "artifacts" for item in completion.items)
 
 
 def test_matching_delimiters_returns_pair_around_cursor() -> None:

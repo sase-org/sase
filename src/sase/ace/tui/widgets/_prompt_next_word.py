@@ -177,7 +177,27 @@ class PromptNextWordMixin(_MixinBase):
             offset = self._absolute_offset(self.cursor_location)
         except Exception:
             return False
-        return next_word_rest_of_line(text, offset).strip() == ""
+        if next_word_rest_of_line(text, offset).strip() != "":
+            return False
+        # Inside a Jinja tag Jinja owns completion: never show the
+        # history next-word ghost there, whether or not its menu is open.
+        # Read-only engine probe through the existing widget helper.
+        try:
+            from sase.ace.tui.widgets.jinja_completion import (
+                build_jinja_completion_result,
+                jinja_scope_for_editor,
+            )
+
+            if (
+                build_jinja_completion_result(
+                    text, offset, jinja_scope_for_editor(self)
+                )
+                is not None
+            ):
+                return False
+        except Exception:
+            pass
+        return True
 
     def _next_word_available_width(self) -> int:
         """Return the remaining cells on the cursor's wrapped row."""

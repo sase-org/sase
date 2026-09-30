@@ -152,33 +152,6 @@ class JinjaDiagnosticsMixin(_MixinBase):
         self._refresh_jinja_overlay()
 
 
-def jinja_scope_for_text_area(
-    bar: Any, text_area: object | None = None
-) -> jinja_assist.JinjaScope:
-    """Return the engine scope for a prompt *text_area*.
-
-    A mini-xprompt pane uses ``xprompt`` scope with the pane's own
-    frontmatter; a stack bound to an xprompt target uses ``xprompt`` scope
-    with the stack frontmatter; any other prompt-mode pane uses ``prompt``
-    scope with the stack frontmatter. Non-prompt modes (feedback and any
-    future approve mode) use ``prompt`` scope without frontmatter.
-    """
-    if getattr(bar, "_mode", "prompt") != "prompt":
-        return jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
-    scope_getter = getattr(bar, "_frontmatter_scope", None)
-    if callable(scope_getter):
-        try:
-            scope = scope_getter(text_area)
-        except (AttributeError, TypeError, ValueError):
-            pass
-        else:
-            raw = getattr(scope, "raw", "") or ""
-            if getattr(scope, "has_target", False):
-                return jinja_assist.JinjaScope(kind="xprompt", frontmatter=raw or None)
-            return jinja_assist.JinjaScope(kind="prompt", frontmatter=raw or None)
-    return jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
-
-
 def _inspect_with_engine_scope(
     bar: Any, text: str, text_area: object | None = None
 ) -> jinja_inspect.JinjaDiagnostics:
@@ -189,8 +162,17 @@ def _inspect_with_engine_scope(
     ``unavailable_variables`` with the engine's reason instead of being
     called unknown. In ``xprompt`` scope any ``_<digits>`` name is known.
     """
-    scope = jinja_scope_for_text_area(bar, text_area)
-    scope_vars = jinja_assist.jinja_scope_variables(text, scope)
+    scope_getter = getattr(bar, "jinja_scope_for_text_area", None)
+    if callable(scope_getter):
+        try:
+            scope = scope_getter(text_area)
+        except Exception:
+            scope = jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
+    else:
+        scope = jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
+    scope_vars: jinja_assist.JinjaScopeVariables = jinja_assist.jinja_scope_variables(
+        text, scope
+    )
     diagnostics = jinja_inspect.diagnose(text)
     if not diagnostics.has_jinja or not diagnostics.ok:
         return diagnostics

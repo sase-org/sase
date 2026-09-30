@@ -94,6 +94,15 @@ def _bar_hint(bar: PromptInputBar) -> str:
     return subtitle.plain if hasattr(subtitle, "plain") else str(subtitle)
 
 
+async def test_ghost_suppressed_inside_jinja_tag() -> None:
+    app = NextWordTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("{{ ")
+        ta.cursor_location = (0, len(ta.text))
+        assert ta._next_word_ghost_allowed() is False
+
+
 async def test_arm_after_word_commit_shows_ghost_with_hint() -> None:
     app = NextWordTestApp()
     async with app.run_test() as pilot:

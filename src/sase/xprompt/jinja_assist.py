@@ -44,19 +44,11 @@ class JinjaScope:
 
 
 @dataclass(frozen=True, slots=True)
-class JinjaPosition:
+class _JinjaPosition:
     """Zero-based LSP position whose character offset is measured in UTF-16."""
 
     line: int
     character: int
-
-
-@dataclass(frozen=True, slots=True)
-class JinjaRange:
-    """Half-open range using LSP UTF-16 positions."""
-
-    start: JinjaPosition
-    end: JinjaPosition
 
 
 @dataclass(frozen=True, slots=True)
@@ -389,14 +381,14 @@ def _optional_str(value: Any) -> str | None:
     return str(value)
 
 
-def _position_for_offset(text: str, offset: int) -> JinjaPosition | None:
+def _position_for_offset(text: str, offset: int) -> _JinjaPosition | None:
     """Convert a Python character offset to an LSP UTF-16 position."""
     if offset < 0 or offset > len(text):
         return None
     line_start = text.rfind("\n", 0, offset) + 1
     line = text.count("\n", 0, line_start)
     character = sum(_utf16_width(char) for char in text[line_start:offset])
-    return JinjaPosition(line=line, character=character)
+    return _JinjaPosition(line=line, character=character)
 
 
 def _offsets_for_range(text: str, editor_range: Any) -> tuple[int, int] | None:
@@ -461,8 +453,6 @@ __all__ = [
     "JinjaCompletionItemKind",
     "JinjaCompletionSlot",
     "JinjaCompletionSource",
-    "JinjaPosition",
-    "JinjaRange",
     "JinjaScope",
     "JinjaScopeKind",
     "JinjaScopeVariables",

@@ -258,6 +258,38 @@ def test_xprompt_skill_path_matches_lsp(tmp_path: Path) -> None:
     assert "provider_name" in names
 
 
+_RUN_TIME_HEAD = "%repeat:2\n%wait:build\n"
+
+_RUN_TIME_CURSORS = {
+    "run-variables": "{{ ",
+    "run-prefixed": "{{ pa",
+    "run-legacy": "{{ cl",
+    "run-members": "{{ wait.",
+}
+
+
+def test_run_time_names_match_lsp(tmp_path: Path) -> None:
+    scope = JinjaScope("prompt", None)
+    for name, cursor_line in _RUN_TIME_CURSORS.items():
+        document = f"{_RUN_TIME_HEAD}{cursor_line}{_CURSOR}}}"
+        text, offset = _split_cursor(document)
+        adapter = _check_parity(tmp_path, text, offset, scope)
+        assert adapter.items, f"{name}: expected candidates on both surfaces"
+    text, offset = _split_cursor(f"{_RUN_TIME_HEAD}{{{{ {_CURSOR}}}}}")
+    adapter = _check_parity(tmp_path, text, offset, scope)
+    names = {item.name for item in adapter.items}
+    assert {"wait", "patch_name", "cl_name", "n", "agents"} <= names
+    text, offset = _split_cursor(f"{_RUN_TIME_HEAD}{{{{ wait.{_CURSOR}}}}}")
+    adapter = _check_parity(tmp_path, text, offset, scope)
+    assert {"chats", "artifacts"} <= {item.name for item in adapter.items}
+    text, offset = _split_cursor(f"{_RUN_TIME_HEAD}{{{{ pa{_CURSOR}}}}}")
+    adapter = _check_parity(tmp_path, text, offset, scope)
+    assert "patch_name" in {item.name for item in adapter.items}
+    text, offset = _split_cursor(f"{_RUN_TIME_HEAD}{{{{ cl{_CURSOR}}}}}")
+    adapter = _check_parity(tmp_path, text, offset, scope)
+    assert "cl_name" in {item.name for item in adapter.items}
+
+
 def test_lifted_frontmatter_matches_inline_document(tmp_path: Path) -> None:
     for name, body_line in _LIFTED_BODY_CURSORS.items():
         body, body_offset = _split_cursor(body_line)

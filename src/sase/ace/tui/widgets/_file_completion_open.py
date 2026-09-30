@@ -229,19 +229,18 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         return True
 
     def _try_auto_jinja_completion(self) -> bool:
-        """Open the Jinja menu while typing inside a tag when enabled.
+        """Claim the auto path inside a Jinja tag, opening the menu when enabled.
 
         Returns ``True`` whenever the cursor is inside a Jinja tag, even
         when the slot offers no candidates: an in-tag ``none`` slot claims
         the cursor with no menu so lower-priority surfaces (placeholder,
-        directive, ``@``, ``#``) never take over tag contents. Returns
-        ``False`` only outside tags, outside prompt mode, or when
-        ``auto_jinja_menu`` is off.
+        directive, ``@``, ``#``) never take over tag contents.
+        ``auto_jinja_menu`` controls only whether the menu opens; an
+        in-tag cursor with the setting off still returns ``True`` with no
+        menu. Returns ``False`` only outside tags or outside prompt mode.
         """
         bar = self._find_prompt_bar()
         if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
-            return False
-        if not self._prompt_completion_settings().auto_jinja_menu:
             return False
         result = build_jinja_completion_result(
             self.text,
@@ -251,6 +250,8 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         )
         if result is None:
             return False
+        if not self._prompt_completion_settings().auto_jinja_menu:
+            return True
         if not result.candidates:
             return True
         self._completion_kind = "jinja"

@@ -309,3 +309,15 @@ def test_jinja_soft_completion_includes_wait_namespace_members() -> None:
     assert suggestion is not None
     assert suggestion.completion_kind == "jinja"
     assert suggestion.display == "artifacts"
+
+
+def test_jinja_soft_completion_never_falls_through_to_directive() -> None:
+    for text in ("{{ foo %mo", '{% set x = "%mod'):
+        suggestion = build_prompt_soft_completion(
+            text=text,
+            cursor_offset=len(text),
+            settings=PromptCompletionSettings(),
+            xprompt_entries=[],
+        )
+
+        assert suggestion is None, text

@@ -137,6 +137,30 @@ async def test_input_declaring_prompt_hides_patch_name() -> None:
     assert "patch_name" not in names
 
 
+async def test_menu_rows_match_engine_order() -> None:
+    from sase.xprompt import jinja_assist
+
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        bar._stack.set_frontmatter_model(
+            PromptFrontmatter(inputs=[InputArg(name="topic", type=InputType.LINE)])
+        )
+        ta.load_text("{{ ")
+        ta.cursor_location = (0, len("{{ "))
+        scope = bar.jinja_scope_for_text_area(ta)
+
+        await pilot.press("ctrl+t")
+
+        assert ta._completion_kind == "jinja"
+        menu_names = [candidate.name for candidate in ta._file_completion_candidates]
+        engine = jinja_assist.jinja_completion(ta.text, len(ta.text), scope)
+        assert engine is not None
+        engine_names = [item.name for item in engine.items]
+        assert menu_names == engine_names
+
+
 async def test_filter_slot_gives_filters() -> None:
     result = build_jinja_completion_result("{{ x | ", len("{{ x | "), PROMPT_SCOPE)
 

@@ -278,6 +278,9 @@ def build_prompt_soft_completion(
                 ],
                 display=candidate.display,
             )
+        # Inside a Jinja tag Jinja owns completion: never fall through
+        # to xprompt-arg, directive, or file surfaces.
+        return None
 
     if xprompt_entries is not None and "#" in text:
         arg_suggestion = _build_xprompt_arg_suggestion(

@@ -95,6 +95,20 @@ def jinja_scope_label_for_editor(editor: Any) -> str | None:
     return None
 
 
+def _completion_items(
+    completion: jinja_assist.JinjaCompletion,
+) -> tuple[jinja_assist.JinjaCompletionItem, ...]:
+    """Return the engine's ranked items for *completion*."""
+    return completion.items
+
+
+def _availability_of(
+    item: jinja_assist.JinjaCompletionItem,
+) -> jinja_assist.JinjaAvailability:
+    """Return the availability record for a completion *item*."""
+    return item.availability
+
+
 def build_jinja_completion_result(
     text: str,
     cursor_offset: int,
@@ -110,37 +124,42 @@ def build_jinja_completion_result(
     cursor ahead of every other completion surface.
     """
     active_scope = scope or jinja_assist.JinjaScope(kind="prompt", frontmatter=None)
-    completion = jinja_assist.jinja_completion(text, cursor_offset, active_scope)
+    completion: jinja_assist.JinjaCompletion | None = jinja_assist.jinja_completion(
+        text, cursor_offset, active_scope
+    )
     if completion is None:
         return None
-    candidates = [
-        CompletionCandidate(
-            display=item.name,
-            insertion=item.insertion,
-            is_dir=False,
-            name=item.name,
-            metadata=JinjaCompletionMetadata(
-                kind=item.kind,
-                source=item.source,
-                type_label=item.type_label,
-                signature=item.signature,
-                required=item.required,
-                default_display=item.default_display,
-                choices=item.choices,
-                availability=item.availability.state,
-                hint=item.availability.hint,
-                legacy_for=item.legacy_for,
-                closes=item.closes,
-                shadows=item.shadows,
-                match_runs=item.match_runs,
-                summary=item.summary,
-                slot=completion.slot,
-                namespace=completion.namespace,
-                scope_label=scope_label,
-            ),
+    items = _completion_items(completion)
+    candidates = []
+    for item in items:
+        availability = _availability_of(item)
+        candidates.append(
+            CompletionCandidate(
+                display=item.name,
+                insertion=item.insertion,
+                is_dir=False,
+                name=item.name,
+                metadata=JinjaCompletionMetadata(
+                    kind=item.kind,
+                    source=item.source,
+                    type_label=item.type_label,
+                    signature=item.signature,
+                    required=item.required,
+                    default_display=item.default_display,
+                    choices=item.choices,
+                    availability=availability.state,
+                    hint=availability.hint,
+                    legacy_for=item.legacy_for,
+                    closes=item.closes,
+                    shadows=item.shadows,
+                    match_runs=item.match_runs,
+                    summary=item.summary,
+                    slot=completion.slot,
+                    namespace=completion.namespace,
+                    scope_label=scope_label,
+                ),
+            )
         )
-        for item in completion.items
-    ]
     return JinjaCompletionResult(
         prefix=completion.prefix,
         replacement_start=completion.replacement_start,
