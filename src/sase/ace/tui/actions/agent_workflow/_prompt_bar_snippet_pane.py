@@ -169,6 +169,49 @@ class _SnippetLocationFlow:
         self._picker = picker
         self._picker_open = True
 
+    def _is_live_picker(self, picker: SaveLocationPickerModal | None) -> bool:
+        """Return True when *picker* is still the flow's active stage."""
+        return picker is not None and self._picker is picker and self._picker_open
+
+    def _dismiss_for_origin_loss(self, picker: SaveLocationPickerModal | None) -> None:
+        """Close the active picker after the origin disappears.
+
+        The origin-lost warning is issued exactly once: through the picker
+        dismissal callback when the dismiss lands, or directly when there is
+        no mounted picker to dismiss (so no callback will fire).
+        """
+        self._origin_lost = True
+        if not self._is_live_picker(picker):
+            return
+        assert picker is not None
+        try:
+            if picker.is_mounted:
+                picker.dismiss(None)
+                return
+        except Exception:
+            pass
+        self._picker_open = False
+        self._host.notify(  # type: ignore[attr-defined]
+            "Prompt pane is no longer available - snippet discarded",
+            severity="warning",
+        )
+
+    def _fail_picker_load(
+        self, picker: SaveLocationPickerModal | None, exc: BaseException
+    ) -> None:
+        """Show a recoverable load error on the live picker and notify."""
+        if not self._is_live_picker(picker):
+            return
+        assert picker is not None
+        try:
+            picker.set_load_error(f"Failed to prepare snippet pane: {exc}")
+        except Exception:
+            pass
+        self._host.notify(  # type: ignore[attr-defined]
+            f"Failed to prepare snippet pane: {exc}",
+            severity="error",
+        )
+
     async def load_and_deliver(self, trigger_text: str) -> None:
         """Load destinations off-thread, then feed them to the live picker."""
         picker = self._picker
@@ -185,30 +228,17 @@ class _SnippetLocationFlow:
                 ),
             )
         except Exception as exc:
-            if (
-                picker is not None
-                and self._picker is picker
-                and self._picker_open
-                and picker.is_mounted
-            ):
-                picker.set_load_error(f"Failed to prepare snippet pane: {exc}")
-            self._host.notify(  # type: ignore[attr-defined]
-                f"Failed to prepare snippet pane: {exc}",
-                severity="error",
-            )
+            if not self._is_live_picker(picker):
+                return
+            if not self._origin_available():
+                self._dismiss_for_origin_loss(picker)
+                return
+            self._fail_picker_load(picker, exc)
+            return
+        if not self._is_live_picker(picker):
             return
         if not self._origin_available():
-            self._origin_lost = True
-            if picker is not None and self._picker is picker and self._picker_open:
-                try:
-                    if picker.is_mounted:
-                        picker.dismiss(None)
-                    else:
-                        self._picker_open = False
-                except Exception:
-                    self._picker_open = False
-            return
-        if picker is None or self._picker is not picker or not self._picker_open:
+            self._dismiss_for_origin_loss(picker)
             return
         derived_snippets, derived_sources = derived
         self._loaded_target = target
@@ -227,20 +257,19 @@ class _SnippetLocationFlow:
                 trigger_text,
             )
         except Exception as exc:
-            if (
-                picker is not None
-                and self._picker is picker
-                and self._picker_open
-                and picker.is_mounted
-            ):
-                picker.set_load_error(f"Failed to prepare snippet pane: {exc}")
-            self._host.notify(  # type: ignore[attr-defined]
-                f"Failed to prepare snippet pane: {exc}",
-                severity="error",
-            )
+            if not self._is_live_picker(picker):
+                return
+            if not self._origin_available():
+                self._dismiss_for_origin_loss(picker)
+                return
+            self._fail_picker_load(picker, exc)
             return
-        if picker is None or self._picker is not picker or not self._picker_open:
+        if not self._is_live_picker(picker):
             return
+        if not self._origin_available():
+            self._dismiss_for_origin_loss(picker)
+            return
+        assert picker is not None
         self._targets_by_choice = targets
         if target.fallback_reason:
             picker.set_notice(
@@ -252,12 +281,7 @@ class _SnippetLocationFlow:
     async def redeliver_for_name(self, text: str) -> None:
         """Rebuild picker choices for the typed name after a ⇧Tab round trip."""
         picker = self._picker
-        if (
-            self._loaded_target is None
-            or picker is None
-            or self._picker is not picker
-            or not self._picker_open
-        ):
+        if self._loaded_target is None or not self._is_live_picker(picker):
             return
         try:
             names = await asyncio.to_thread(
@@ -265,7 +289,17 @@ class _SnippetLocationFlow:
                 self._project,
                 self._configured,
             )
+            if not self._is_live_picker(picker):
+                return
+            if not self._origin_available():
+                self._dismiss_for_origin_loss(picker)
+                return
             last_used = await asyncio.to_thread(_load_snippet_last_used_path)
+            if not self._is_live_picker(picker):
+                return
+            if not self._origin_available():
+                self._dismiss_for_origin_loss(picker)
+                return
             choices, targets = await asyncio.to_thread(
                 _build_snippet_picker_tables,
                 tuple(self._loaded_locations),
@@ -276,10 +310,20 @@ class _SnippetLocationFlow:
                 self._project,
                 text,
             )
-        except Exception:
+        except Exception as exc:
+            if not self._is_live_picker(picker):
+                return
+            if not self._origin_available():
+                self._dismiss_for_origin_loss(picker)
+                return
+            self._fail_picker_load(picker, exc)
             return
-        if self._picker is not picker or not self._picker_open:
+        if not self._is_live_picker(picker):
             return
+        if not self._origin_available():
+            self._dismiss_for_origin_loss(picker)
+            return
+        assert picker is not None
         self._targets_by_choice = targets
         picker.set_choices(choices, highlight_id=self._in_use_choice_id)
 

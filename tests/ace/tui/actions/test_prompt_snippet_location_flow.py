@@ -358,3 +358,155 @@ async def test_origin_vanished_closes_picker_with_warning(tmp_path: Path) -> Non
                 "no longer available" in message
                 for message, _severity in app.notifications
             )
+
+
+async def test_origin_lost_during_choice_build_closes_picker(tmp_path: Path) -> None:
+    """Origin loss inside the off-thread choice build must not orphan a picker."""
+    import sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane as pane_mod
+
+    config = tmp_path / "sase.yml"
+    _write_snippet_config(config, {})
+    gate = threading.Event()
+    entered = threading.Event()
+    real_build = pane_mod._build_snippet_picker_tables
+
+    def _gated_build(*args: object, **kwargs: object) -> object:
+        entered.set()
+        assert gate.wait(timeout=10)
+        return real_build(*args, **kwargs)  # type: ignore[arg-type]
+
+    app = _SnippetFlowApp("agent prompt")
+    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane"
+    with _patches(target=_target(config), locations=[_user_location(config)]):
+        with patch(f"{base}._build_snippet_picker_tables", side_effect=_gated_build):
+            async with app.run_test(size=(110, 34)) as pilot:
+                await pilot.pause()
+                bar = app.query_one(PromptInputBar)
+                await pilot.press("escape")
+                await pilot.press("g", "t")
+                await _open_picker(pilot, app)
+                await wait_for(pilot, lambda: entered.is_set())
+                bar.snippet_target_origin_available = (  # type: ignore[method-assign]
+                    lambda pane_id: False
+                )
+                gate.set()
+                await _wait_snippet_tasks(app)
+                await wait_for(
+                    pilot,
+                    lambda: not isinstance(app.screen, SaveLocationPickerModal),
+                )
+                assert not isinstance(app.screen, SnippetNameModal)
+                warnings = [
+                    message
+                    for message, _severity in app.notifications
+                    if "no longer available" in message
+                ]
+                assert len(warnings) == 1
+
+
+async def test_shift_tab_reload_error_shows_error(tmp_path: Path) -> None:
+    """A Shift+Tab rebuild failure must surface, not hang on loading."""
+    import sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane as pane_mod
+
+    config = tmp_path / "sase.yml"
+    _write_snippet_config(config, {"todo": "TODO($1): $0"})
+    real_build = pane_mod._build_snippet_picker_tables
+    calls = 0
+
+    def _fail_on_reload(*args: object, **kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise RuntimeError("reload boom")
+        return real_build(*args, **kwargs)  # type: ignore[arg-type]
+
+    app = _SnippetFlowApp("agent prompt")
+    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane"
+    with _patches(
+        target=_target(config),
+        locations=[_user_location(config)],
+        names={str(config): frozenset({"todo"})},
+    ):
+        with patch(f"{base}._build_snippet_picker_tables", side_effect=_fail_on_reload):
+            async with app.run_test(size=(110, 34)) as pilot:
+                await pilot.pause()
+                await pilot.press("escape")
+                await pilot.press("g", "t")
+                modal = await _open_picker(pilot, app)
+                await wait_for(pilot, lambda: modal.loaded is True)
+                await pilot.press("h")
+                name_modal = await _wait_name_modal(pilot, app)
+                name_modal.query_one("#snippet-name-trigger", Input).value = "todo"
+                await pilot.pause()
+                await pilot.press("shift+tab")
+                reopened = await _open_picker(pilot, app)
+                await wait_for(
+                    pilot,
+                    lambda: reopened._load_error is not None,
+                )
+                assert isinstance(app.screen, SaveLocationPickerModal)
+                assert not isinstance(app.screen, SnippetNameModal)
+                assert "reload boom" in (reopened._load_error or "")
+                assert any(
+                    "Failed to prepare snippet pane" in message
+                    for message, _severity in app.notifications
+                )
+
+
+async def test_shift_tab_origin_lost_closes_picker(tmp_path: Path) -> None:
+    """Origin loss during a Shift+Tab rebuild closes the picker with a warning."""
+    import sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane as pane_mod
+
+    config = tmp_path / "sase.yml"
+    _write_snippet_config(config, {"todo": "TODO($1): $0"})
+    real_build = pane_mod._build_snippet_picker_tables
+    gate = threading.Event()
+    entered = threading.Event()
+    calls = 0
+
+    def _gate_reload(*args: object, **kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            entered.set()
+            assert gate.wait(timeout=10)
+        return real_build(*args, **kwargs)  # type: ignore[arg-type]
+
+    app = _SnippetFlowApp("agent prompt")
+    base = "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane"
+    with _patches(
+        target=_target(config),
+        locations=[_user_location(config)],
+        names={str(config): frozenset({"todo"})},
+    ):
+        with patch(f"{base}._build_snippet_picker_tables", side_effect=_gate_reload):
+            async with app.run_test(size=(110, 34)) as pilot:
+                await pilot.pause()
+                bar = app.query_one(PromptInputBar)
+                await pilot.press("escape")
+                await pilot.press("g", "t")
+                modal = await _open_picker(pilot, app)
+                await wait_for(pilot, lambda: modal.loaded is True)
+                await pilot.press("h")
+                name_modal = await _wait_name_modal(pilot, app)
+                name_modal.query_one("#snippet-name-trigger", Input).value = "todo"
+                await pilot.pause()
+                await pilot.press("shift+tab")
+                await _open_picker(pilot, app)
+                await wait_for(pilot, lambda: entered.is_set())
+                bar.snippet_target_origin_available = (  # type: ignore[method-assign]
+                    lambda pane_id: False
+                )
+                gate.set()
+                await _wait_snippet_tasks(app)
+                await wait_for(
+                    pilot,
+                    lambda: not isinstance(app.screen, SaveLocationPickerModal),
+                )
+                assert not isinstance(app.screen, SnippetNameModal)
+                warnings = [
+                    message
+                    for message, _severity in app.notifications
+                    if "no longer available" in message
+                ]
+                assert len(warnings) == 1
