@@ -336,10 +336,11 @@ sase tool stop RUN         # ask the owner to stop it; reports requested vs stop
 ```
 
 Agents hand off through `sase monitor start` (which reserves the run and prints its id
-before the turn ends); `sase tool run -H` refuses inside an agent or a live owner with
-the exact monitor form to use instead (exit `2`). An agent's inline run of a catalog
-tool declared `long` or `unbounded` is likewise refused before starting when its class
-floor meets the provider's synchronous ceiling (see "Inline-then-escalate" above).
+before the turn ends) or detach with `-d` (see "Detached runs" below);
+`sase tool run -H` refuses inside an agent or a live owner with the exact monitor form
+to use instead (exit `2`). An agent's inline run of a catalog tool declared `long` or
+`unbounded` is likewise refused before starting when its class floor meets the
+provider's synchronous ceiling (see "Inline-then-escalate" above).
 
 ### Detached runs
 

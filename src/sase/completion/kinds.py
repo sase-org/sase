@@ -201,6 +201,7 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("gate", "wait"), "id"): ValueKind.GATE,
         (("memory", "read"), "selectors"): ValueKind.MEMORY,
         (("memory", "show"), "selectors"): ValueKind.MEMORY,
+        (("monitor", "start"), "join"): ValueKind.TOOL_RUN,
         (("plan", "show"), "target"): ValueKind.PLAN,
         (("plan", "approve"), "selector"): ValueKind.PENDING_PLAN,
         (("plan", "reject"), "selector"): ValueKind.PENDING_PLAN,

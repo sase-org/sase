@@ -23292,7 +23292,7 @@
                 "default": null,
                 "dest": "join",
                 "hidden": false,
-                "kind": null,
+                "kind": "tool_run",
                 "metavar": "RUN",
                 "repeatable": false,
                 "required": false,

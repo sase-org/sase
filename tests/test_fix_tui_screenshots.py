@@ -288,8 +288,10 @@ def test_build_run_pytest_command_forwards_capture_options(tmp_path: Path) -> No
         ({"GITHUB_ACTIONS": "true"}, True),
         ({"CI": "true", "SASE_AGENT": "1"}, False),
         ({"CI": "true", "SASE_MONITOR_ID": "fhsavmh28p9v"}, False),
+        ({"CI": "true", "SASE_PROC_ID": "k3v9q2m7x1ab"}, False),
         ({"GITHUB_ACTIONS": "true", "SASE_AGENT": "1"}, True),
         ({"GITHUB_ACTIONS": "true", "SASE_MONITOR_ID": "fhsavmh28p9v"}, True),
+        ({"GITHUB_ACTIONS": "true", "SASE_PROC_ID": "k3v9q2m7x1ab"}, True),
         ({"CI": "true", "GITHUB_ACTIONS": "true", "SASE_AGENT": "1"}, True),
     ],
 )

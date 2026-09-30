@@ -64,13 +64,17 @@ def default_is_ci(environ: Mapping[str, str]) -> bool:
 
     SASE agent workspaces export ``CI=true`` for pytest/tooling, so ``CI``
     alone is not enough when ``SASE_AGENT`` is set. Detached ``sase monitor``
-    commands do not inherit ``SASE_AGENT*`` identity, but they do set
-    ``SASE_MONITOR_ID``; treat that the same way. GitHub Actions still
-    refuses because it sets ``GITHUB_ACTIONS``.
+    commands and detached ToolRun procs (an agent's escalated or ``-d``
+    ``sase tool run``) do not inherit ``SASE_AGENT*`` identity, but they do
+    set ``SASE_MONITOR_ID`` or ``SASE_PROC_ID``; treat those the same way.
+    GitHub Actions still refuses because it sets ``GITHUB_ACTIONS``.
     """
     if _truthy(environ.get("GITHUB_ACTIONS")):
         return True
-    if _truthy(environ.get("SASE_AGENT")) or _truthy(environ.get("SASE_MONITOR_ID")):
+    if any(
+        _truthy(environ.get(key))
+        for key in ("SASE_AGENT", "SASE_MONITOR_ID", "SASE_PROC_ID")
+    ):
         return False
     return _truthy(environ.get("CI"))
 

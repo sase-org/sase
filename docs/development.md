@@ -1004,12 +1004,13 @@ and prints the compact report (scope, status, counts, report path) outside
 those goldens are not known to be current. Direct `check-full` in CI refuses at the
 update stage; repository CI uses `just fix-tui-screenshots --check` instead. Update mode
 also refuses when `GITHUB_ACTIONS` is set, when `CI` is set outside a SASE agent
-workspace or `sase monitor` command, off Linux, or when the renderer fingerprint is
-skewed. SASE agent processes export `CI=true` for pytest/tooling; that flag alone does
-not block local golden updates. Detached monitor commands do not inherit `SASE_AGENT*`,
-but they set `SASE_MONITOR_ID`, which is treated the same way.
-`--sase-update-visual-snapshots` is retired; pytest rejects it with the replacement
-command.
+workspace, `sase monitor` command, or SASE proc, off Linux, or when the renderer
+fingerprint is skewed. SASE agent processes export `CI=true` for pytest/tooling; that
+flag alone does not block local golden updates. Detached monitor commands and detached
+ToolRun procs (an agent's escalated or `-d` `sase tool run`) do not inherit
+`SASE_AGENT*`, but they set `SASE_MONITOR_ID` or `SASE_PROC_ID`, which is treated the
+same way. `--sase-update-visual-snapshots` is retired; pytest rejects it with the
+replacement command.
 
 Every update run (`clean`, `applied`, or `partial`) and check-mode drift retain a
 reviewable report under a unique run directory in `.pytest_cache/sase-visual/runs/`,
