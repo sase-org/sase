@@ -88,6 +88,27 @@ def register_bead_close_parser(
         help=("Keep new attachments on this machine without uploading"),
     )
     parser.add_argument(
+        "-K",
+        "--private",
+        dest="private",
+        action="store_true",
+        help=("Store new attachments privately"),
+    )
+    parser.add_argument(
+        "-W",
+        "--public",
+        dest="public",
+        action="store_true",
+        help=("Request public attachments (beta; needs confirmation)"),
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help=("Confirm a human public widening without a prompt"),
+    )
+    parser.add_argument(
         "-p",
         "--phases",
         action="append",
@@ -393,6 +414,27 @@ def register_bead_update_parser(
         dest="local_only",
         action="store_true",
         help=("Keep new attachments on this machine without uploading"),
+    )
+    parser.add_argument(
+        "-K",
+        "--private",
+        dest="private",
+        action="store_true",
+        help=("Store new attachments privately"),
+    )
+    parser.add_argument(
+        "-W",
+        "--public",
+        dest="public",
+        action="store_true",
+        help=("Request public attachments (beta; needs confirmation)"),
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help=("Confirm a human public widening without a prompt"),
     )
     parser.add_argument(
         "-b",

@@ -91,6 +91,8 @@ def _author_update_notes(
     text: str,
     *,
     allow_sensitive: bool,
+    audience_requested: str = "auto",
+    audience_confirmed: bool = False,
 ) -> list[tuple[str, AuthoredNoteAttachments]]:
     """Run the attachment authoring service once across every updated bead.
 
@@ -117,6 +119,8 @@ def _author_update_notes(
             cwd=Path.cwd(),
             allow_sensitive=allow_sensitive,
             progress_factory=transfer_progress,
+            audience_requested=audience_requested,
+            audience_confirmed=audience_confirmed,
         )
     except NoteAttachmentAuthoringError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -144,6 +148,24 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         sys.exit(1)
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     local_only = bool(getattr(args, "local_only", False))
+    from sase.bead.attachments import audience as _audience
+
+    _private = bool(getattr(args, "private", False))
+    _public = bool(getattr(args, "public", False))
+    _confirmed = bool(getattr(args, "yes", False))
+    if _public and not _audience.audience_enabled():
+        _audience.refuse_public_when_flag_off()
+    _audience.validate_audience_flags(
+        private=_private,
+        public=_public,
+        allow_sensitive=allow_sensitive,
+        local_only=local_only,
+        has_attachments=True,
+    )
+    audience_requested = _audience.requested_from_flags(
+        private=_private, public=_public, local_only=local_only
+    )
+    audience_confirmed = _confirmed
     try:
         description = (
             read_at_path_value(args.description, target="--description")
@@ -242,6 +264,8 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                     issue_ids,
                     note,
                     allow_sensitive=allow_sensitive,
+                    audience_requested=audience_requested,
+                    audience_confirmed=audience_confirmed,
                 )
                 union_wires: list[dict[str, Any]] = []
                 seen_digests: set[str] = set()
@@ -306,7 +330,7 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         reopened_ancestors = [
             proj.show(ancestor_id) for ancestor_id in reopened_ancestor_ids
         ]
-        if placement in ("git", "large", "mixed") and placement_wires:
+        if placement in ("git", "large", "mixed", "public_pending") and placement_wires:
             from sase.bead.attachments.upload import post_write_queue
 
             post_write_queue(

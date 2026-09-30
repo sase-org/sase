@@ -4812,6 +4812,12 @@
               "default": 52428800,
               "minimum": 1
             },
+            "public_max_bytes": {
+              "type": "integer",
+              "description": "Largest single attachment the public tier accepts, in bytes (25 MiB). Missing, malformed, or above 95 MiB fails open to the default.",
+              "default": 26214400,
+              "minimum": 1
+            },
             "require_upload": {
               "type": "boolean",
               "description": "When true, attachment bytes upload before the bead event is written; any upload failure aborts with nothing written and nothing queued.",
@@ -5724,6 +5730,11 @@
         "provider_drain": {
           "type": "boolean",
           "description": "Hard-disabling an LLM provider drains it: a usage-limit disable submits a durable 'sase agent drain' proc that relaunches the agents that provider stranded and sends one enriched usage-limit notification naming what moved and what did not, and a manual disable in Launch Control offers the same relaunch.",
+          "default": false
+        },
+        "public_bead_attachments": {
+          "type": "boolean",
+          "description": "Bead note attachments get a SASE audience decision; public ones route to the public attachments sidecar, and -W/--public is accepted.",
           "default": false
         },
         "queue_capacity_budget": {

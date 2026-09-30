@@ -45,6 +45,7 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
     verified_after_close = bool(getattr(args, "verified_after_close", False))
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     local_only = bool(getattr(args, "local_only", False))
+    audience_requested, audience_confirmed = _audience_from_args(args)
     try:
         note = read_note_text_value(args.note, target="--note", bead_id=args.id)
     except CliFileValueError as exc:
@@ -71,10 +72,13 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
                 note,
                 edit_ordinal=None,
                 allow_sensitive=allow_sensitive,
+                audience_requested=audience_requested,
+                audience_confirmed=audience_confirmed,
             )
             stored_note = authored.stored_text
             note_attachments = authored.attachments or None
             echo_rows = authored.echo_rows
+            _warn_when_flags_without_attachments(echo_rows, args, note_attachments)
             if note_attachments:
                 from sase.bead.attachments.upload import pre_write_upload
 
@@ -128,7 +132,11 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
                 _withheld_reopen_note(reporter, reopen_withheld_closed_at),
                 author=reporter,
             )
-        if changed and placement in ("git", "large", "mixed") and placement_wires:
+        if (
+            changed
+            and placement in ("git", "large", "mixed", "public_pending")
+            and placement_wires
+        ):
             from sase.bead.attachments.upload import post_write_queue
 
             post_write_queue(
@@ -183,6 +191,7 @@ def handle_bead_note(args: argparse.Namespace) -> None:
     remove_ordinal = getattr(args, "remove", None)
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     local_only = bool(getattr(args, "local_only", False))
+    audience_requested, audience_confirmed = _audience_from_args(args)
     text = args.text
 
     if edit_ordinal is not None and not text:
@@ -232,10 +241,13 @@ def handle_bead_note(args: argparse.Namespace) -> None:
                     str(text),
                     edit_ordinal=edit_ordinal,
                     allow_sensitive=allow_sensitive,
+                    audience_requested=audience_requested,
+                    audience_confirmed=audience_confirmed,
                 )
                 stored_text = authored.stored_text
                 manifest = authored.attachments
                 echo_rows = authored.echo_rows
+                _warn_when_flags_without_attachments(echo_rows, args, manifest)
                 if manifest:
                     from sase.bead.attachments.upload import pre_write_upload
 
@@ -279,7 +291,7 @@ def handle_bead_note(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        if placement in ("git", "large", "mixed") and placement_wires:
+        if placement in ("git", "large", "mixed", "public_pending") and placement_wires:
             from sase.bead.attachments.upload import post_write_queue
 
             post_write_queue(
@@ -302,6 +314,50 @@ def handle_bead_note(args: argparse.Namespace) -> None:
         print(f"Noted: {issue.id} — {issue.title}")
 
 
+def _audience_from_args(args: object) -> tuple[str, bool]:
+    """Validate audience flags and return ``(requested, confirmed)``."""
+    from sase.bead.attachments import audience as _audience
+
+    private = bool(getattr(args, "private", False))
+    public = bool(getattr(args, "public", False))
+    allow_sensitive = bool(getattr(args, "allow_sensitive", False))
+    local_only = bool(getattr(args, "local_only", False))
+    confirmed = bool(getattr(args, "yes", False))
+    if public and not _audience.audience_enabled():
+        _audience.refuse_public_when_flag_off()
+    _audience.validate_audience_flags(
+        private=private,
+        public=public,
+        allow_sensitive=allow_sensitive,
+        local_only=local_only,
+        has_attachments=True,
+    )
+    return (
+        _audience.requested_from_flags(
+            private=private, public=public, local_only=local_only
+        ),
+        confirmed,
+    )
+
+
+def _warn_when_flags_without_attachments(
+    echo_rows: list[str], args: object, manifest: list[dict[str, object]] | None
+) -> None:
+    """Append the dim ignored-flags warning when nothing was attached."""
+    if manifest:
+        return
+    from sase.bead.attachments import audience as _audience
+
+    warnings = _audience.validate_audience_flags(
+        private=bool(getattr(args, "private", False)),
+        public=bool(getattr(args, "public", False)),
+        allow_sensitive=bool(getattr(args, "allow_sensitive", False)),
+        local_only=bool(getattr(args, "local_only", False)),
+        has_attachments=False,
+    )
+    echo_rows.extend(warnings)
+
+
 def _author_note_text(
     mutation: Any,
     issue_id: str,
@@ -309,6 +365,8 @@ def _author_note_text(
     *,
     edit_ordinal: int | None,
     allow_sensitive: bool,
+    audience_requested: str = "auto",
+    audience_confirmed: bool = False,
 ) -> AuthoredNoteAttachments:
     """Run the attachment authoring service over note text.
 
@@ -338,6 +396,8 @@ def _author_note_text(
             allow_sensitive=allow_sensitive,
             previous_manifest=previous,
             progress_factory=transfer_progress,
+            audience_requested=audience_requested,
+            audience_confirmed=audience_confirmed,
         )
     except NoteAttachmentAuthoringError as exc:
         print(f"Error: {exc}", file=sys.stderr)

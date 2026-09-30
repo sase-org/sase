@@ -71,6 +71,8 @@ def get_attachment_sensitive_patterns() -> list[str]:
 
 DEFAULT_ATTACHMENT_GIT_MAX_BYTES = 52428800
 MAX_ATTACHMENT_GIT_MAX_BYTES = 99614720
+DEFAULT_ATTACHMENT_PUBLIC_MAX_BYTES = 26214400
+MAX_ATTACHMENT_PUBLIC_MAX_BYTES = 99614720
 
 
 def _attachment_config() -> dict[str, object]:
@@ -105,6 +107,25 @@ def get_attachment_git_max_bytes() -> int:
         or value > MAX_ATTACHMENT_GIT_MAX_BYTES
     ):
         return DEFAULT_ATTACHMENT_GIT_MAX_BYTES
+    return value
+
+
+def get_attachment_public_max_bytes() -> int:
+    """Return the configured public-tier ceiling, failing open to the default.
+
+    Missing, malformed, or above 95 MiB fails open to 25 MiB. Booleans are
+    rejected explicitly because ``bool`` is a subclass of ``int``.
+    """
+    value = _attachment_config().get(
+        "public_max_bytes", DEFAULT_ATTACHMENT_PUBLIC_MAX_BYTES
+    )
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 1
+        or value > MAX_ATTACHMENT_PUBLIC_MAX_BYTES
+    ):
+        return DEFAULT_ATTACHMENT_PUBLIC_MAX_BYTES
     return value
 
 

@@ -41,6 +41,11 @@ def _attachment_to_dict(attachment: BeadNoteAttachment) -> dict[str, Any]:
             else {}
         ),
         **({"origin": attachment.origin} if attachment.origin is not None else {}),
+        **(
+            {"visibility": attachment.visibility}
+            if attachment.visibility is not None
+            else {}
+        ),
     }
 
 
@@ -71,6 +76,13 @@ def _attachment_from_dict(entry: object) -> BeadNoteAttachment | None:
             return None
         image = (width, height)
     origin = entry.get("origin")
+    raw_visibility = entry.get("visibility")
+    visibility: str | None = None
+    if isinstance(raw_visibility, str) and raw_visibility.strip() in (
+        "public",
+        "private",
+    ):
+        visibility = raw_visibility.strip()
     return BeadNoteAttachment(
         name=name,
         sha256=sha256,
@@ -78,6 +90,7 @@ def _attachment_from_dict(entry: object) -> BeadNoteAttachment | None:
         mime_type=mime_type,
         image=image,
         origin=None if origin is None else str(origin),
+        visibility=visibility,
     )
 
 

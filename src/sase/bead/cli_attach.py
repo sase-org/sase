@@ -26,6 +26,23 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
     prose = getattr(args, "note", None)
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     local_only = bool(getattr(args, "local_only", False))
+    private = bool(getattr(args, "private", False))
+    public = bool(getattr(args, "public", False))
+    confirmed = bool(getattr(args, "yes", False))
+    from sase.bead.attachments import audience as _audience
+
+    if public and not _audience.audience_enabled():
+        _audience.refuse_public_when_flag_off()
+    _audience.validate_audience_flags(
+        private=private,
+        public=public,
+        allow_sensitive=allow_sensitive,
+        local_only=local_only,
+        has_attachments=True,
+    )
+    audience_requested = _audience.requested_from_flags(
+        private=private, public=public, local_only=local_only
+    )
 
     if "-" in files and name is None:
         print(
@@ -63,6 +80,8 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
                     prose=prose,
                     name=str(name),
                     allow_sensitive=allow_sensitive,
+                    audience_requested=audience_requested,
+                    audience_confirmed=confirmed,
                 )
             else:
                 authored = _author_files_attach(
@@ -71,6 +90,8 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
                     files=files,
                     name=name,
                     allow_sensitive=allow_sensitive,
+                    audience_requested=audience_requested,
+                    audience_confirmed=confirmed,
                 )
                 stored_text, manifest, echo_rows = (
                     authored.stored_text,
@@ -101,7 +122,7 @@ def handle_bead_attach(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
-        if placement in ("git", "large", "mixed") and placement_wires:
+        if placement in ("git", "large", "mixed", "public_pending") and placement_wires:
             from sase.bead.attachments.upload import post_write_queue
 
             post_write_queue(
@@ -126,6 +147,8 @@ def _author_files_attach(
     files: list[str],
     name: str | None,
     allow_sensitive: bool,
+    audience_requested: str = "auto",
+    audience_confirmed: bool = False,
 ) -> Any:
     """Run the authoring service over prose plus one token per file."""
     from sase.bead.attachments.authoring import (
@@ -145,6 +168,8 @@ def _author_files_attach(
             allow_sensitive=allow_sensitive,
             preferred_names=preferred,
             progress_factory=transfer_progress,
+            audience_requested=audience_requested,
+            audience_confirmed=audience_confirmed,
         )
     except NoteAttachmentAuthoringError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -157,6 +182,8 @@ def _author_stdin_attach(
     prose: str | None,
     name: str,
     allow_sensitive: bool,
+    audience_requested: str = "auto",
+    audience_confirmed: bool = False,
 ) -> tuple[str, list[dict[str, Any]], list[str]]:
     """Attach piped stdin bytes under *name*, with optional prose above.
 
@@ -185,6 +212,8 @@ def _author_stdin_attach(
                 cwd=Path.cwd(),
                 allow_sensitive=allow_sensitive,
                 progress_factory=transfer_progress,
+                audience_requested=audience_requested,
+                audience_confirmed=audience_confirmed,
             )
         except NoteAttachmentAuthoringError as exc:
             print(f"Error: {exc}", file=sys.stderr)
@@ -202,14 +231,21 @@ def _author_stdin_attach(
     existing = dict(roster)
     for wire in manifest:
         existing[wire["name"]] = wire
-    wire, row = stream_attachment_wire(
-        name,
-        sha256=blob.sha256,
-        size_bytes=blob.size_bytes,
-        head=bytes(blob.head),
-        object_path=blob.object_path,
-        roster=existing,
-    )
+    try:
+        wire, row = stream_attachment_wire(
+            name,
+            sha256=blob.sha256,
+            size_bytes=blob.size_bytes,
+            head=bytes(blob.head),
+            object_path=blob.object_path,
+            roster=existing,
+            audience_requested=audience_requested,
+            audience_confirmed=audience_confirmed,
+            allow_sensitive=allow_sensitive,
+        )
+    except NoteAttachmentAuthoringError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     manifest.append(wire)
     echo_rows.append(row)
     if stored_text:

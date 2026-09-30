@@ -5,8 +5,10 @@ file attachments for prompts. This package is the ``~/.sase/attachments``
 content-addressed store from the bead-note-attachments epic.
 """
 
+from sase.bead.attachments.audience import audience_metadata_path
 from sase.bead.attachments.blob_store import BlobStore, BlobStoreError, ProgressCallback
 from sase.bead.attachments.git_store import GitAttachmentStore
+from sase.bead.attachments.remote_visibility import set_remote_visibility_prober
 from sase.bead.attachments.images import ImageDims, probe_image
 from sase.bead.attachments.rclone_store import RcloneAttachmentStore, rclone_binary
 from sase.bead.attachments.ingest import (
@@ -31,10 +33,12 @@ __all__ = [
     "LocalAttachmentStore",
     "ProgressCallback",
     "RcloneAttachmentStore",
+    "audience_metadata_path",
     "default_store_root",
     "ingest_path",
     "ingest_stream",
     "probe_image",
     "rclone_binary",
+    "set_remote_visibility_prober",
     "validate_sha256",
 ]

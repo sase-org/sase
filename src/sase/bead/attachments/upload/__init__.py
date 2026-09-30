@@ -20,6 +20,7 @@ from sase.bead.attachments.upload.discovery import (
 )
 from sase.bead.attachments.upload.echo import (
     rewrite_echo_for_local,
+    rewrite_echo_for_public_pending,
     rewrite_echo_for_upload,
 )
 from sase.bead.attachments.upload.errors import (
@@ -64,6 +65,7 @@ __all__ = [
     "queue_pending_upload",
     "resolve_project_key",
     "rewrite_echo_for_local",
+    "rewrite_echo_for_public_pending",
     "rewrite_echo_for_upload",
     "run_pending_uploads",
     "split_wires_by_tier",

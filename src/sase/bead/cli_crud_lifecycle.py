@@ -135,6 +135,8 @@ def _author_close_note(
     text: str,
     *,
     allow_sensitive: bool,
+    audience_requested: str = "auto",
+    audience_confirmed: bool = False,
 ) -> AuthoredNoteAttachments:
     """Run the attachment authoring service over a close note.
 
@@ -160,6 +162,8 @@ def _author_close_note(
             cwd=Path.cwd(),
             allow_sensitive=allow_sensitive,
             progress_factory=transfer_progress,
+            audience_requested=audience_requested,
+            audience_confirmed=audience_confirmed,
         )
     except NoteAttachmentAuthoringError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -169,6 +173,24 @@ def _author_close_note(
 def handle_bead_close(args: argparse.Namespace) -> None:
     allow_sensitive = bool(getattr(args, "allow_sensitive", False))
     local_only = bool(getattr(args, "local_only", False))
+    from sase.bead.attachments import audience as _audience
+
+    _private = bool(getattr(args, "private", False))
+    _public = bool(getattr(args, "public", False))
+    _confirmed = bool(getattr(args, "yes", False))
+    if _public and not _audience.audience_enabled():
+        _audience.refuse_public_when_flag_off()
+    _audience.validate_audience_flags(
+        private=_private,
+        public=_public,
+        allow_sensitive=allow_sensitive,
+        local_only=local_only,
+        has_attachments=True,
+    )
+    audience_requested = _audience.requested_from_flags(
+        private=_private, public=_public, local_only=local_only
+    )
+    audience_confirmed = _confirmed
     try:
         note = getattr(args, "note", None)
         if note is not None:
@@ -208,10 +230,24 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                     resolved_ids,
                     note,
                     allow_sensitive=allow_sensitive,
+                    audience_requested=audience_requested,
+                    audience_confirmed=audience_confirmed,
                 )
                 note = authored.stored_text
                 note_attachments = authored.attachments or None
                 echo_rows = authored.echo_rows
+                if not note_attachments:
+                    from sase.bead.attachments import audience as _echo_audience
+
+                    echo_rows.extend(
+                        _echo_audience.validate_audience_flags(
+                            private=_private,
+                            public=_public,
+                            allow_sensitive=allow_sensitive,
+                            local_only=local_only,
+                            has_attachments=False,
+                        )
+                    )
                 if note_attachments:
                     from sase.bead.attachments.upload import pre_write_upload
 
@@ -252,7 +288,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         already_closed_ids = mutation_outcome_ids(outcome, "already_closed_ids")
         noted_ids = mutation_outcome_ids(outcome, "noted_ids")
         cascade_closed_ids = mutation_outcome_ids(outcome, "cascade_closed_ids")
-        if placement in ("git", "large", "mixed") and placement_wires:
+        if placement in ("git", "large", "mixed", "public_pending") and placement_wires:
             from sase.bead.attachments.upload import post_write_queue
 
             post_write_queue(

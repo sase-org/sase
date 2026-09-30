@@ -63,6 +63,9 @@ def author_note_attachments(
     previous_manifest: Sequence[str] = (),
     preferred_names: Mapping[str, str] | None = None,
     progress_factory: ProgressFactory | None = None,
+    audience_requested: str = "auto",
+    audience_confirmed: bool = False,
+    audience_actor: str | None = None,
 ) -> AuthoredNoteAttachments:
     """Scan *text*, ingest referenced files, and compose the stored note.
 
@@ -70,6 +73,8 @@ def author_note_attachments(
     to the attachment name it should take instead of its file basename.
     *progress_factory* draws a TTY bar per ingested file (the CLI passes
     :func:`transfer_progress`); the TUI passes nothing and stays clean.
+    *audience_requested* is one of ``auto`` | ``public`` | ``private`` |
+    ``local_only``; *audience_confirmed* skips the human widening prompt.
     """
     from sase.core.rust import require_rust_binding
 
@@ -83,8 +88,18 @@ def author_note_attachments(
     assigned_names = [assigned[index] for index in range(len(path_refs))]
     compose_binding = require_rust_binding("compose_note_attachment_text")
     stored_text = str(compose_binding(text, scan, assigned_names))
+    visibilities = _decide_visibilities(
+        resolved,
+        blobs,
+        assigned,
+        notes=notes,
+        allow_sensitive=allow_sensitive,
+        audience_requested=audience_requested,
+        audience_confirmed=audience_confirmed,
+        audience_actor=audience_actor,
+    )
     manifest, echo_rows = _build_manifest(
-        resolved, blobs, assigned, reuse_refs, roster, display_bases
+        resolved, blobs, assigned, reuse_refs, roster, display_bases, visibilities
     )
     new_names = [wire["name"] for wire in manifest]
     detached = tuple(name for name in previous_manifest if name not in new_names)
@@ -107,6 +122,9 @@ def author_note_attachments_per_bead(
     allow_sensitive: bool = False,
     preferred_names: Mapping[str, str] | None = None,
     progress_factory: ProgressFactory | None = None,
+    audience_requested: str = "auto",
+    audience_confirmed: bool = False,
+    audience_actor: str | None = None,
 ) -> list[AuthoredNoteAttachments]:
     """Scan and ingest *text* once, then compose one result per bead roster.
 
@@ -125,6 +143,17 @@ def author_note_attachments_per_bead(
     )
     compose_binding = require_rust_binding("compose_note_attachment_text")
     results: list[AuthoredNoteAttachments] = []
+    flat_notes = [note for notes in notes_per_bead for note in notes]
+    visibilities = _decide_visibilities(
+        resolved,
+        blobs,
+        _assign_names(resolved, blobs, {}, path_refs, preferred_names)[0],
+        notes=flat_notes,
+        allow_sensitive=allow_sensitive,
+        audience_requested=audience_requested,
+        audience_confirmed=audience_confirmed,
+        audience_actor=audience_actor,
+    )
     for roster in rosters:
         assigned, display_bases = _assign_names(
             resolved, blobs, roster, path_refs, preferred_names
@@ -132,7 +161,7 @@ def author_note_attachments_per_bead(
         assigned_names = [assigned[index] for index in range(len(path_refs))]
         stored_text = str(compose_binding(text, scan, assigned_names))
         manifest, echo_rows = _build_manifest(
-            resolved, blobs, assigned, reuse_refs, roster, display_bases
+            resolved, blobs, assigned, reuse_refs, roster, display_bases, visibilities
         )
         echo_rows.extend(_bare_word_hints(scan, base_dir))
         results.append(
@@ -153,12 +182,16 @@ def stream_attachment_wire(
     head: bytes,
     object_path: object,
     roster: Mapping[str, dict[str, Any]],
+    audience_requested: str = "auto",
+    audience_confirmed: bool = False,
+    audience_actor: str | None = None,
+    allow_sensitive: bool = False,
 ) -> tuple[dict[str, Any], str]:
     """Uniquify *candidate_name* against *roster* and build its wire + echo.
 
-    Stdin attachments have no path for the scanner, so the caller ingests the
-    stream itself and finishes the wire here. Returns the wire dict and the
-    stderr echo row.
+    Stdin attachments run the same decision and scan flow with ``path=None``
+    (stdin always fails private unless explicitly narrowed). Returns the
+    wire dict and the stderr echo row.
     """
     from sase.config import get_machine_name
     from sase.core.rust import require_rust_binding
@@ -170,6 +203,87 @@ def stream_attachment_wire(
         {"name": name, "sha256": wire["sha256"]} for name, wire in roster.items()
     ]
     name = str(unique_binding(sanitized, sha256, existing))
+    visibility: str | None = None
+    reason: str | None = None
+    outcome: str | None = None
+    from sase.bead.attachments import audience as _audience
+
+    if _audience.audience_enabled():
+        try:
+            classify_binding = require_rust_binding("classify_attachment")
+            classified: dict[str, Any] = dict(classify_binding(name, bytes(head)))
+            attachment_class = str(classified.get("class") or "binary")
+        except Exception:
+            attachment_class = "binary"
+        from sase.bead.config import get_attachment_public_max_bytes
+
+        public_max = get_attachment_public_max_bytes()
+        scan: dict[str, Any] | None = None
+        try:
+            scan = _audience.scan_cas_object(
+                Path(str(object_path)), max_bytes=public_max
+            )
+        except Exception:
+            scan = None
+        try:
+            from sase.bead.attachments import provenance as _provenance
+
+            actor = audience_actor or _provenance.current_actor()
+        except Exception:
+            actor = audience_actor or "agent"
+        facts = _audience.gather_audience_facts(
+            source_path=None,
+            size_bytes=size_bytes,
+            attachment_class=attachment_class,
+            scan=scan,
+            requested=audience_requested,
+            actor=actor,
+            confirmed=audience_confirmed,
+            allow_sensitive=allow_sensitive,
+            public_max_bytes=public_max,
+        )
+        decision = _audience.decide_audience(facts)
+        outcome = str(decision.get("outcome") or "private")
+        rule = str(decision.get("rule") or "fail_private")
+        reason = str(decision.get("reason") or "no public evidence")
+        if outcome == "refuse":
+            if audience_requested == "public" and actor == "agent":
+                _audience.refuse_agent_widening(name, reason, sha256)
+            raise NoteAttachmentAuthoringError(
+                f"refusing --public for {name}: {reason} — nothing was written."
+            )
+        if outcome == "confirm":
+            confirmed_now = _audience.confirm_widening(
+                name, reason, confirmed=audience_confirmed, actor=actor
+            )
+            if confirmed_now:
+                facts = _audience.gather_audience_facts(
+                    source_path=None,
+                    size_bytes=size_bytes,
+                    attachment_class=attachment_class,
+                    scan=scan,
+                    requested=audience_requested,
+                    actor=actor,
+                    confirmed=True,
+                    allow_sensitive=allow_sensitive,
+                    public_max_bytes=public_max,
+                )
+                decision = _audience.decide_audience(facts)
+                outcome = str(decision.get("outcome") or "private")
+                rule = str(decision.get("rule") or "fail_private")
+                reason = str(decision.get("reason") or "human confirmed widening")
+            else:
+                if actor != "human":
+                    _audience.refuse_agent_widening(name, reason, sha256)
+                outcome = "private"
+                reason = f"{reason} (staying private without confirmation)"
+        visibility = "public" if outcome == "public" else "private"
+        _audience.write_audience_metadata(
+            sha256=sha256,
+            rule=rule,
+            reason=reason,
+            explicit=audience_requested in ("public", "private", "local_only"),
+        )
     wire, echo_row = _finish_wire(
         name=name,
         sanitized=sanitized,
@@ -178,6 +292,9 @@ def stream_attachment_wire(
         head=head,
         object_path=object_path,
         origin=get_machine_name() or None,
+        visibility=visibility,
+        reason=reason,
+        outcome=outcome,
     )
     return wire, echo_row
 
@@ -238,6 +355,8 @@ def roster_wires(notes: Sequence[BeadNote]) -> dict[str, dict[str, Any]]:
                 }
             if attachment.origin is not None:
                 wire["origin"] = attachment.origin
+            if attachment.visibility is not None:
+                wire["visibility"] = attachment.visibility
             roster[attachment.name] = wire
     return roster
 
@@ -395,6 +514,152 @@ def _assign_names(
     return assigned, display_bases
 
 
+def _decide_visibilities(
+    resolved: dict[int, Path],
+    blobs: dict[Path, Any],
+    assigned: dict[int, str],
+    *,
+    notes: Any = (),
+    allow_sensitive: bool = False,
+    audience_requested: str = "auto",
+    audience_confirmed: bool = False,
+    audience_actor: str | None = None,
+) -> dict[Path, dict[str, Any]]:
+    """Run the audience decision per unique ingested path.
+
+    Returns a map from resolved path to ``{"visibility", "reason",
+    "rule", "explicit"}``. With the beta flag off, returns an empty map
+    (no visibility is written). Exits non-zero before any bead event is
+    written on agent-widening refusals and non-widenable ``--public``
+    requests.
+    """
+    from sase.bead.attachments import audience as _audience
+
+    if not _audience.audience_enabled():
+        return {}
+    from sase.bead.config import get_attachment_public_max_bytes
+
+    public_max = get_attachment_public_max_bytes()
+    try:
+        from sase.bead.attachments import provenance as _provenance
+
+        actor = audience_actor or _provenance.current_actor()
+    except Exception:
+        actor = audience_actor or "agent"
+    # Duplicate intent: digests already stored privately stay private on auto.
+    try:
+        all_digests = [blobs[target].sha256 for target in set(resolved.values())]
+        dup_private = _audience.duplicate_private_digest(all_digests, notes)
+    except Exception:
+        dup_private = set()
+    visibilities: dict[Path, dict[str, Any]] = {}
+    seen: set[Path] = set()
+    for index in sorted(resolved):
+        target = resolved[index]
+        if target in seen:
+            continue
+        seen.add(target)
+        blob = blobs[target]
+        filename = assigned.get(index, target.name)
+        # Classify from the ingested head (matches the stored MIME type).
+        try:
+            from sase.core.rust import require_rust_binding
+
+            classify_binding = require_rust_binding("classify_attachment")
+            classified: dict[str, Any] = dict(
+                classify_binding(filename, bytes(blob.head))
+            )
+            attachment_class = str(classified.get("class") or "binary")
+        except Exception:
+            attachment_class = "binary"
+        # Scan the CAS object for text classes up to the public cap.
+        scan: dict[str, Any] | None = None
+        try:
+            scan = _audience.scan_cas_object(
+                Path(str(blob.object_path)), max_bytes=public_max
+            )
+        except Exception:
+            scan = None
+        facts = _audience.gather_audience_facts(
+            source_path=target,
+            size_bytes=int(blob.size_bytes),
+            attachment_class=attachment_class,
+            scan=scan,
+            requested=audience_requested,
+            actor=actor,
+            confirmed=audience_confirmed,
+            allow_sensitive=allow_sensitive,
+            public_max_bytes=public_max,
+        )
+        decision = _audience.decide_audience(facts)
+        outcome = str(decision.get("outcome") or "private")
+        rule = str(decision.get("rule") or "fail_private")
+        reason = str(decision.get("reason") or "no public evidence")
+        if outcome == "refuse":
+            if audience_requested == "public" and actor == "agent":
+                _audience.refuse_agent_widening(filename, reason, str(blob.sha256))
+            import sys as _sys
+
+            print(
+                f"Error: refusing --public for {filename}: {reason}.",
+                file=_sys.stderr,
+            )
+            raise NoteAttachmentAuthoringError(
+                f"refusing --public for {filename}: {reason} — nothing was written."
+            )
+        if outcome == "confirm":
+            confirmed_now = _audience.confirm_widening(
+                filename, reason, confirmed=audience_confirmed, actor=actor
+            )
+            if confirmed_now:
+                facts = _audience.gather_audience_facts(
+                    source_path=target,
+                    size_bytes=int(blob.size_bytes),
+                    attachment_class=attachment_class,
+                    scan=scan,
+                    requested=audience_requested,
+                    actor=actor,
+                    confirmed=True,
+                    allow_sensitive=allow_sensitive,
+                    public_max_bytes=public_max,
+                )
+                decision = _audience.decide_audience(facts)
+                outcome = str(decision.get("outcome") or "private")
+                rule = str(decision.get("rule") or "fail_private")
+                reason = str(decision.get("reason") or "human confirmed widening")
+            else:
+                if actor != "human":
+                    _audience.refuse_agent_widening(filename, reason, str(blob.sha256))
+                outcome = "private"
+                rule = str(decision.get("rule") or "fail_private")
+                reason = f"{reason} (staying private without confirmation)"
+        # Duplicate-digest intent: an auto decision stays private with a warn.
+        explicit = audience_requested in ("public", "private", "local_only")
+        if (
+            outcome == "public"
+            and audience_requested == "auto"
+            and str(blob.sha256) in dup_private
+        ):
+            outcome = "private"
+            rule = "explicit"
+            reason = "same bytes already stored privately"
+            explicit = False
+        visibility = "public" if outcome == "public" else "private"
+        if outcome == "local_only":
+            visibility = "private"
+        _audience.write_audience_metadata(
+            sha256=str(blob.sha256), rule=rule, reason=reason, explicit=explicit
+        )
+        visibilities[target] = {
+            "visibility": visibility,
+            "outcome": outcome,
+            "reason": reason,
+            "rule": rule,
+            "explicit": explicit,
+        }
+    return visibilities
+
+
 def _build_manifest(
     resolved: dict[int, Path],
     blobs: dict[Path, Any],
@@ -402,6 +667,7 @@ def _build_manifest(
     reuse_refs: list[dict[str, Any]],
     roster: Mapping[str, dict[str, Any]],
     display_bases: Mapping[int, str] | None = None,
+    visibilities: Mapping[Path, dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Build the wire manifest and echo rows for new ingests and reuses."""
     from sase.config import get_machine_name
@@ -421,6 +687,7 @@ def _build_manifest(
             blob = blobs[target]
             base = (display_bases or {}).get(index, target.name)
             sanitized = str(sanitize_binding(base))
+            audience = (visibilities or {}).get(target)
             wire, echo_row = _finish_wire(
                 name=name,
                 sanitized=sanitized,
@@ -429,6 +696,9 @@ def _build_manifest(
                 head=bytes(blob.head),
                 object_path=blob.object_path,
                 origin=origin,
+                visibility=str(audience["visibility"]) if audience else None,
+                reason=str(audience["reason"]) if audience else None,
+                outcome=str(audience["outcome"]) if audience else None,
             )
             manifest.append(wire)
             seen_names.add(name)
@@ -451,6 +721,9 @@ def _finish_wire(
     head: bytes,
     object_path: object,
     origin: str | None,
+    visibility: str | None = None,
+    reason: str | None = None,
+    outcome: str | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Build one wire dict and its stderr echo row from an ingested blob."""
     from sase.core.rust import require_rust_binding
@@ -468,14 +741,28 @@ def _finish_wire(
         wire["image"] = {"width": dims[0], "height": dims[1]}
     if origin:
         wire["origin"] = origin
+    if visibility in ("public", "private"):
+        from sase.bead.attachments import audience as _audience
+
+        if _audience.audience_enabled():
+            wire["visibility"] = visibility
     size = _format_size(size_bytes)
     descriptor = wire["mime_type"]
     if dims is not None:
         descriptor += f" · {dims[0]}×{dims[1]}"
+    badge = ""
+    if visibility == "public":
+        badge = " · 🌐 public"
+    elif visibility == "private":
+        badge = f" · 🔒 private ({reason})" if reason else " · 🔒 private"
+        if outcome == "local_only":
+            badge = f" · 🔒 private ({reason})" if reason else " · 🔒 private"
     if name == sanitized:
-        echo_row = f"attached {name} · {descriptor} · {size} · local"
+        echo_row = f"attached {name} · {descriptor} · {size}{badge or ' · local'}"
     else:
-        echo_row = f"{sanitized} stored as {name} · {descriptor} · {size} · local"
+        echo_row = (
+            f"{sanitized} stored as {name} · {descriptor} · {size}{badge or ' · local'}"
+        )
     return wire, echo_row
 
 

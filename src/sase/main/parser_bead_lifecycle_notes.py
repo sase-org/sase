@@ -73,6 +73,27 @@ def register_bead_plus_one_parser(
         help=("Keep new attachments on this machine without uploading"),
     )
     parser.add_argument(
+        "-K",
+        "--private",
+        dest="private",
+        action="store_true",
+        help=("Store new attachments privately"),
+    )
+    parser.add_argument(
+        "-W",
+        "--public",
+        dest="public",
+        action="store_true",
+        help=("Request public attachments (beta; needs confirmation)"),
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help=("Confirm a human public widening without a prompt"),
+    )
+    parser.add_argument(
         "--verified-after-close",
         action="store_true",
         help=(
@@ -149,6 +170,27 @@ def register_bead_attach_parser(
         dest="local_only",
         action="store_true",
         help="Keep new attachments on this machine without uploading",
+    )
+    parser.add_argument(
+        "-K",
+        "--private",
+        dest="private",
+        action="store_true",
+        help="Store new attachments privately",
+    )
+    parser.add_argument(
+        "-W",
+        "--public",
+        dest="public",
+        action="store_true",
+        help="Request public attachments (beta; needs confirmation)",
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help="Confirm a human public widening without a prompt",
     )
 
 
@@ -350,6 +392,27 @@ def register_bead_note_parser(
         dest="local_only",
         action="store_true",
         help=("Keep new attachments on this machine without uploading"),
+    )
+    parser.add_argument(
+        "-K",
+        "--private",
+        dest="private",
+        action="store_true",
+        help=("Store new attachments privately"),
+    )
+    parser.add_argument(
+        "-W",
+        "--public",
+        dest="public",
+        action="store_true",
+        help=("Request public attachments (beta; needs confirmation)"),
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help=("Confirm a human public widening without a prompt"),
     )
     edit_group = parser.add_mutually_exclusive_group()
     edit_group.add_argument(

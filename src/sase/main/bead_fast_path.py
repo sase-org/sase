@@ -44,6 +44,12 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
         return None
     if argv[0] == "update" and _update_uses_python_note_surface(argv):
         return None
+    # Audience flags need the Python authoring service (decision, scan,
+    # confirmation, and visibility); the Rust fast path must fall through.
+    if argv[0] in {"note", "close", "update", "+1", "attach"} and (
+        _argv_has_audience_flag(argv)
+    ):
+        return None
     # Inline ``@<path>`` references anywhere in a ``note`` invocation are
     # snapshots, not literal text, so they stay on the Python surface that
     # runs the authoring service.
@@ -416,6 +422,18 @@ def _argv_requests_at_path(argv: list[str]) -> bool:
             return True
         separator = arg.find("=")
         if separator > 0 and arg[separator + 1 :].startswith("@"):
+            return True
+    return False
+
+
+def _argv_has_audience_flag(argv: list[str]) -> bool:
+    """Return whether *argv* carries an audience flag needing Python."""
+    for arg in argv[1:]:
+        if arg in {"-K", "--private", "-W", "--public", "-y", "--yes"}:
+            return True
+        if arg.startswith("--private=") or arg.startswith("--public="):
+            return True
+        if arg.startswith("--yes="):
             return True
     return False
 

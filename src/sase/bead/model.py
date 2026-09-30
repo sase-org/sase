@@ -114,7 +114,9 @@ class BeadNoteAttachment:
     locations, or availability belong here: those are machine-local and are
     resolved at render time from the local content-addressed store.
     ``image`` is ``(width, height)`` pixels, present only when the ingest
-    probe returned dimensions.
+    probe returned dimensions. ``visibility`` is ``"public"`` or
+    ``"private"`` when written under the ``public_bead_attachments`` beta
+    flag, and ``None`` for pre-visibility descriptors (effective private).
     """
 
     name: str
@@ -123,6 +125,11 @@ class BeadNoteAttachment:
     mime_type: str
     image: tuple[int, int] | None = None
     origin: str | None = None
+    visibility: str | None = None
+
+    def effective_visibility(self) -> str:
+        """Return ``"public"`` only for explicit public, else ``"private"``."""
+        return "public" if self.visibility == "public" else "private"
 
     def validate(self) -> None:
         if not self.name.strip():
@@ -141,6 +148,10 @@ class BeadNoteAttachment:
                 raise ValueError("bead note attachment image dimensions must exceed 0")
         if self.origin is not None and not self.origin.strip():
             raise ValueError("bead note attachment origin cannot be empty or blank")
+        if self.visibility is not None and self.visibility not in ("public", "private"):
+            raise ValueError(
+                'bead note attachment visibility must be "public" or "private"'
+            )
 
 
 @dataclass(frozen=True)

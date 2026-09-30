@@ -1928,6 +1928,9 @@ bead:
     # Largest single attachment the git tier accepts, in bytes (50 MiB).
     # Missing, malformed, or above 95 MiB fails open to this default.
     git_max_bytes: 52428800
+    # Largest single attachment the public tier accepts, in bytes (25 MiB).
+    # Missing, malformed, or above 95 MiB fails open to this default.
+    public_max_bytes: 26214400
     # When true, attachment bytes upload before the bead event is written;
     # any upload failure aborts with nothing written and nothing queued.
     require_upload: false

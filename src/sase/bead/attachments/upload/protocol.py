@@ -38,28 +38,87 @@ def pre_write_upload(
     if not wires:
         return ("skip", {}, None, False)
     upload.drain_before_upload(bead_context)
+    # Route by audience without cross-audience fallback: public wires never
+    # touch the private tiers. Until the public store lands (phase sase-1d5.4),
+    # public intent is retained and queued for that missing store.
+    public_wires = [w for w in wires if str(w.get("visibility") or "") == "public"]
+    private_wires = [w for w in wires if str(w.get("visibility") or "") != "public"]
+    if public_wires and not private_wires:
+        upload.rewrite_echo_for_public_pending(echo_rows, public_wires)
+        project_key = upload.resolve_project_key(bead_context)
+        return ("public_pending", {}, project_key, False)
+    placement_wires = private_wires if public_wires else wires
     placement, stores, project_key = upload.prepare_placement(
-        wires,
+        placement_wires,
         local_only=local_only,
         bead_context=bead_context,
     )
     require_upload = get_attachment_require_upload()
+    if public_wires:
+        upload.rewrite_echo_for_public_pending(echo_rows, public_wires)
     if placement in ("local_only", "no_store"):
-        upload.rewrite_echo_for_local(echo_rows)
+        # Only rewrite private rows as local; public rows already say pending.
+        if not public_wires:
+            upload.rewrite_echo_for_local(echo_rows)
+        elif private_wires:
+            upload.rewrite_echo_for_local(echo_rows)
+        if public_wires and placement == "no_store":
+            return ("public_pending", {}, project_key, require_upload)
         return (placement, stores, project_key, require_upload)
     if require_upload:
         assert stores
         try:
-            elapsed = upload.upload_wires_now(wires, stores)
+            elapsed = upload.upload_wires_now(private_wires or wires, stores)
         except Exception as exc:
             print(f"Error: attachment upload failed: {exc}", file=sys.stderr)
             sys.exit(1)
         first_store = next(iter(stores.values()))
         upload.rewrite_echo_for_upload(
-            echo_rows, wires, label=first_store.describe(), elapsed=elapsed
+            echo_rows,
+            private_wires or wires,
+            label=first_store.describe(),
+            elapsed=elapsed,
         )
+        if public_wires:
+            upload.rewrite_echo_for_public_pending(echo_rows, public_wires)
         return ("uploaded", stores, project_key, require_upload)
     return (placement, stores, project_key, require_upload)
+
+
+def _queue_public_wires(
+    mutation: Any,
+    public_wires: list[dict[str, Any]],
+    echo_rows: list[str],
+    project_key: str | None,
+) -> None:
+    """Queue public wires for the missing public store (no fallback)."""
+    from sase.bead.attachments import upload
+
+    if project_key is None:
+        project_key = upload.resolve_project_key(None)
+        if project_key is None:
+            return
+    for wire in public_wires:
+        digest = str(wire.get("sha256") or wire.get("digest") or "")
+        if not digest:
+            continue
+        pending = getattr(mutation, "pending_attachment_uploads", None)
+        if pending is None:
+            pending = []
+            mutation.pending_attachment_uploads = pending
+        pending.append(
+            {
+                "digest": digest,
+                "size_bytes": int(wire.get("size_bytes") or 0),
+                "store_name": "public",
+                "store_repo": "",
+                "store_label": "public attachments sidecar",
+                "project_key": project_key,
+                "background": False,
+            }
+        )
+    mutation.pending_attachment_echo_rows = echo_rows
+    mutation.pending_attachment_wires = list(public_wires)
 
 
 def _store_identity(tier_name: str, store: Any) -> tuple[str, str]:
@@ -91,6 +150,36 @@ def post_write_queue(
 
     if not wires:
         return
+    if placement == "public_pending":
+        public_wires = [w for w in wires if str(w.get("visibility") or "") == "public"]
+        if not public_wires:
+            return
+        if project_key is None:
+            project_key = upload.resolve_project_key(None)
+            if project_key is None:
+                return
+        for wire in public_wires:
+            digest = str(wire.get("sha256") or wire.get("digest") or "")
+            if not digest:
+                continue
+            pending = getattr(mutation, "pending_attachment_uploads", None)
+            if pending is None:
+                pending = []
+                mutation.pending_attachment_uploads = pending
+            pending.append(
+                {
+                    "digest": digest,
+                    "size_bytes": int(wire.get("size_bytes") or 0),
+                    "store_name": "public",
+                    "store_repo": "",
+                    "store_label": "public attachments sidecar",
+                    "project_key": project_key,
+                    "background": False,
+                }
+            )
+        mutation.pending_attachment_echo_rows = echo_rows
+        mutation.pending_attachment_wires = list(wires)
+        return
     if placement not in ("git", "large", "mixed") or require_upload:
         return
     if not isinstance(stores, dict):
@@ -100,6 +189,13 @@ def post_write_queue(
     if project_key is None:
         project_key = upload.resolve_project_key(None)
         if project_key is None:
+            return
+    # Queue any public wires for the missing public store as well.
+    public_wires = [w for w in wires if str(w.get("visibility") or "") == "public"]
+    if public_wires:
+        _queue_public_wires(mutation, public_wires, echo_rows, project_key)
+        wires = [w for w in wires if str(w.get("visibility") or "") != "public"]
+        if not wires:
             return
     from sase.bead.attachments.background import should_background
     from sase.bead.config import get_attachment_git_max_bytes

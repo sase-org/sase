@@ -885,11 +885,11 @@ devices, and sockets are refused. Every problem is collected and nothing is writ
 Every note-bearing verb accepts attachments:
 
 ```bash
-sase bead note <id> <text> [-S/--allow-sensitive] [-L/--local-only]
-sase bead close <id> -n <text> [-S/--allow-sensitive] [-L/--local-only]
-sase bead update <id> -n <text> [-S/--allow-sensitive] [-L/--local-only]
-sase bead +1 <id> -n <text> [-S/--allow-sensitive] [-L/--local-only]
-sase bead attach <id> <file|->... [-a/--author NAME] [-n/--note TEXT] [-N/--name NAME] [-S/--allow-sensitive] [-L/--local-only]
+sase bead note <id> <text> [-S/--allow-sensitive] [-L/--local-only] [-K/--private] [-W/--public] [-y/--yes]
+sase bead close <id> -n <text> [-S/--allow-sensitive] [-L/--local-only] [-K/--private] [-W/--public] [-y/--yes]
+sase bead update <id> -n <text> [-S/--allow-sensitive] [-L/--local-only] [-K/--private] [-W/--public] [-y/--yes]
+sase bead +1 <id> -n <text> [-S/--allow-sensitive] [-L/--local-only] [-K/--private] [-W/--public] [-y/--yes]
+sase bead attach <id> <file|->... [-a/--author NAME] [-n/--note TEXT] [-N/--name NAME] [-S/--allow-sensitive] [-L/--local-only] [-K/--private] [-W/--public] [-y/--yes]
 sase bead attachment list [<id>] [-j/--json]
 sase bead attachment open <id> [<name>]
 sase bead attachment path <id> <name>
@@ -929,6 +929,16 @@ lands in a durable outbox, badged `⇡ pending upload`, and drains on the next p
 sync, or worker launch. `bead.attachments.require_upload: true` uploads before the event
 instead and aborts with nothing written when the upload fails. An explicit
 `-L/--local-only` still keeps the bytes local in that mode.
+
+#### Attachment visibility (beta)
+
+Behind the `public_bead_attachments` beta flag, every attachment gets a SASE audience
+decision: `🌐 public` means readable by anyone who can read the bead store, and
+`🔒 private` stays on the private attachments sidecar. Use `-K/--private` to force
+private and `-W/--public` to request public (a human confirms on a TTY, or passes
+`-y/--yes`). Agents can only narrow; only humans widen. Files over
+`bead.attachments.public_max_bytes` (default 25 MiB) never go public. Private protects
+bytes, not names or prose: filenames and note text stay as public as the bead itself.
 
 #### Viewing
 
