@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import secrets
 import sys
 from collections.abc import Mapping
@@ -11,6 +12,8 @@ from typing import Any
 
 from sase.core.tool_run import tool_run_begin
 from sase.tool.argv import ResolvedToolArgv
+from sase.tool.demand import demand_context as build_demand_context
+from sase.tool.demand import record_run_demand
 from sase.tool.executor_recording import build_begin_request, finish_tool_run
 from sase.tool.logs import prepare_run_paths
 
@@ -144,12 +147,30 @@ def reserve_handoff_run(
             events_path=events_path,
             error=f"reservation did not create a run{detail}",
         )
+    _record_reservation_demand(run_id, starter is not None)
     return HandoffReservation(
         run_id=run_id,
         owner_kind=owner_kind,
         owner_id=owner_id,
         events_path=events_path,
     )
+
+
+def _record_reservation_demand(run_id: str, has_starter: bool) -> None:
+    """Record the reserving side's provider and ceiling context; never raises.
+
+    Ceilings ride along only for a starter-scoped (detached) reservation,
+    which the caller's harness actually bounds; a plain hand-off reservation
+    records the provider only. A failure never turns a reservation into a
+    refusal.
+    """
+
+    try:
+        context = build_demand_context(os.environ, include_ceilings=has_starter)
+    except Exception:  # noqa: BLE001 - context capture is fail-open.
+        context = None
+    if context is not None:
+        record_run_demand(run_id, context=context)
 
 
 def worker_argv(run_id: str) -> list[str]:

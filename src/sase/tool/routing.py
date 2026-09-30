@@ -32,7 +32,7 @@ REFUSAL_NEXT_PLACEHOLDER = "<what the follow-up should do with the result>"
 REFUSAL_COMPLETION_REASON = "Verify before host completion"
 
 
-def _read_ceiling_value(environ: Mapping[str, str], key: str) -> int | None:
+def read_ceiling_seconds(environ: Mapping[str, str], key: str) -> int | None:
     """Return a validated positive-integer ceiling for *key*, if present.
 
     A missing, empty, non-integer, zero, or negative value is treated as
@@ -63,7 +63,7 @@ def _read_sync_ceiling(env: Mapping[str, str] | None = None) -> int | None:
 
     import os
 
-    return _read_ceiling_value(os.environ if env is None else env, _CEILING_ENV)
+    return read_ceiling_seconds(os.environ if env is None else env, _CEILING_ENV)
 
 
 def _format_seconds(seconds: int) -> str:
@@ -198,8 +198,8 @@ def sync_wait_budget(
     environ = os.environ if env is None else env
     if not str(environ.get("SASE_AGENT") or "").strip():
         return None
-    ceiling = _read_ceiling_value(environ, _CEILING_ENV)
-    soft_ceiling = _read_ceiling_value(environ, _SOFT_CEILING_ENV)
+    ceiling = read_ceiling_seconds(environ, _CEILING_ENV)
+    soft_ceiling = read_ceiling_seconds(environ, _SOFT_CEILING_ENV)
     if ceiling is None and soft_ceiling is None:
         return None
     try:
@@ -433,6 +433,7 @@ __all__ = [
     "inline_refusal",
     "is_joinable",
     "monitor_start_form",
+    "read_ceiling_seconds",
     "sync_wait_budget",
     "_read_sync_ceiling",
 ]

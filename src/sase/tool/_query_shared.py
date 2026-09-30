@@ -13,11 +13,13 @@ from typing import Any, TextIO, cast
 
 from sase.config.tools import DEFAULT_TOOL_RUNS_DETAIL_DAYS
 from sase.core.tool_run import tool_run_triage_show
+from sase.tool.demand import format_ceiling_seconds, format_cpu_cores
 from sase.tool.logs import log_policy, read_truncation_messages
 from sase.tool.render import (
     EMPTY,
     format_argv,
     format_duration_ms,
+    format_kib,
     format_state,
     format_tool_name,
 )
@@ -118,6 +120,7 @@ def print_show(envelope: dict[str, Any]) -> None:
         f"DIRTY     {_dirty_count(run.get('fingerprint_before'))} -> {_dirty_count(run.get('fingerprint_after'))}",
         f"TOOLCHAIN {_format_toolchain(run)}",
         f"SAMPLES   {len(envelope.get('samples') or ())}",
+        *_demand_lines(run),
     ]
     diagnostics = run.get("diagnostics") or ()
     if diagnostics:
@@ -219,6 +222,87 @@ def _format_toolchain(run: dict[str, Any]) -> str:
         output = str(probe.get("output") or "").strip().splitlines()
         parts.append(f"{name}={output[0] if output else EMPTY}")
     return "  ".join(parts) or EMPTY
+
+
+def _demand_lines(run: dict[str, Any]) -> list[str]:
+    """Render the demand record lines; empty when the run has none."""
+
+    demand = run.get("demand")
+    if not isinstance(demand, dict):
+        return []
+    lines: list[str] = []
+    context = demand.get("context")
+    if isinstance(context, dict):
+        lines.append(f"CONTEXT   {_format_demand_context(context)}")
+    usage = demand.get("usage")
+    if isinstance(usage, dict):
+        lines.append(f"DEMAND    {_format_demand_usage(usage, run)}")
+    grants = demand.get("worker_grants")
+    if isinstance(grants, list):
+        for grant in grants:
+            if isinstance(grant, dict):
+                lines.append(f"WORKERS   {_format_worker_grant(grant)}")
+    return lines
+
+
+def _format_demand_context(context: dict[str, Any]) -> str:
+    provider = context.get("provider")
+    provider_text = str(provider) if provider else EMPTY
+    ceiling = context.get("sync_ceiling_seconds")
+    soft_ceiling = context.get("sync_soft_ceiling_seconds")
+    return (
+        f"provider {provider_text} · "
+        f"ceiling {format_ceiling_seconds(ceiling if type(ceiling) is int else None)} · "
+        f"soft {format_ceiling_seconds(soft_ceiling if type(soft_ceiling) is int else None)}"
+    )
+
+
+def _format_demand_usage(usage: dict[str, Any], run: dict[str, Any]) -> str:
+    user_ms = usage.get("cpu_user_ms")
+    system_ms = usage.get("cpu_system_ms")
+    cpu_total = None
+    if type(user_ms) is int or type(system_ms) is int:
+        cpu_total = (user_ms if type(user_ms) is int else 0) + (
+            system_ms if type(system_ms) is int else 0
+        )
+    wall_ms = run.get("duration_ms")
+    cores = format_cpu_cores(cpu_total, wall_ms if type(wall_ms) is int else None)
+    cpu_text = format_duration_ms(cpu_total)
+    cpu_part = f"cpu {cpu_text}" + (f" ({cores} cores)" if cores else "")
+    max_rss = usage.get("max_process_rss_kib")
+    peak = usage.get("peak_tree_rss_kib")
+    samples = usage.get("tree_rss_samples")
+    return (
+        f"{cpu_part} · "
+        f"max process RSS {format_kib(max_rss if type(max_rss) is int else None)} · "
+        f"tree RSS peak {format_kib(peak if type(peak) is int else None)} "
+        f"({samples if type(samples) is int else 0} samples)"
+    )
+
+
+def _format_worker_grant(grant: dict[str, Any]) -> str:
+    source = grant.get("source") or EMPTY
+    path = grant.get("path") or EMPTY
+    granted = grant.get("granted")
+    floor = grant.get("requested_floor")
+    ceiling = grant.get("requested_ceiling")
+    head = (
+        f"{source} {path} {granted if type(granted) is int else EMPTY} "
+        f"of {floor if type(floor) is int else EMPTY}"
+        f"–{ceiling if type(ceiling) is int else EMPTY}"
+    )
+    parts = [head]
+    budget = grant.get("budget")
+    if type(budget) is int:
+        parts.append(f"budget {budget}")
+    wait_ms = grant.get("wait_ms")
+    parts.append(
+        f"waited {format_duration_ms(wait_ms if type(wait_ms) is int else None)}"
+    )
+    escalated_from = grant.get("escalated_from")
+    if escalated_from:
+        parts.append(f"from {escalated_from}")
+    return " · ".join(parts)
 
 
 def _format_sample(sample: dict[str, Any]) -> str:

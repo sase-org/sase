@@ -23,7 +23,7 @@ RUN_PYTEST_PATH = ROOT / "tools" / "run_pytest"
 
 # Every process global `tools/run_pytest`'s main() mutates on its way to
 # execv: TMPDIR and SASE_PYTEST_TMP_REDIRECTED (_prepare_pytest_tmpdir()), the
-# four keys _sanitize_pytest_environment() pops
+# keys _sanitize_pytest_environment() pops
 # (run_pytest.PYTEST_ENV_UNSET_KEYS), the requests it hands the plugins it is
 # about to exec (COVERAGE_CORE, and the health, timings, and cost record
 # requests), and lane switches set for the pytest child. Duplicated here rather
@@ -36,6 +36,7 @@ PINNED_ENV_VARS: tuple[str, ...] = (
     "SASE_COMMIT_METHOD_ALLOW_OVERRIDE",
     "SASE_PR_NAME",
     "SASE_PR_STATUS",
+    "SASE_TOOL_RUN_DEMAND",
     "COVERAGE_CORE",
     "SASE_TEST_SELECTION_HEALTH_RECORD",
     "SASE_TEST_SELECTION_TIMINGS_RECORD",

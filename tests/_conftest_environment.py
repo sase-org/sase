@@ -41,6 +41,7 @@ _clear_ambient_console_color_override_env_vars()
 TOOL_RUN_RECORDING_ENV_VARS = (
     "SASE_TOOL_CONTINUE",
     "SASE_TOOL_PYTHON",
+    "SASE_TOOL_RUN_DEMAND",
     "SASE_TOOL_RUN_EVENTS",
     "SASE_TOOL_RUN_ID",
     "SASE_MONITOR_DIAGNOSTICS_DIR",

@@ -35,6 +35,7 @@ from tests._suite_gate_budget import (  # noqa: E402
     configured_token_budget,
     fit_request_to_budget,
 )
+from tests._suite_gate_demand import record_worker_grant  # noqa: E402
 from tests._suite_gate_env import gate_directory, gate_timeout  # noqa: E402
 from tests._suite_gate_lease import WorkerTokenLease  # noqa: E402
 from tests._test_selection import (  # noqa: E402
@@ -44,6 +45,7 @@ from tests._test_selection import (  # noqa: E402
 )
 from tests._test_selection_changes import ChangeSet, compute_change_set  # noqa: E402
 from tests._test_selection_gear import (  # noqa: E402
+    SCOPED_WORKER_FLOOR,
     ScopedGear,
     engage_scoped_gear,
     manifest_with_gear,
@@ -94,6 +96,9 @@ PYTEST_ENV_UNSET_KEYS = (
     "SASE_COMMIT_METHOD_ALLOW_OVERRIDE",
     "SASE_PR_NAME",
     "SASE_PR_STATUS",
+    # The demand grant channel belongs to this process's own grant decision:
+    # pytest children must not append their own grants to the parent's run.
+    "SASE_TOOL_RUN_DEMAND",
 )
 FAST_MARKER_EXPRESSION = "not slow and not visual"
 SLOW_MARKER_EXPRESSION = "slow"
@@ -747,13 +752,21 @@ def _bypass_worker_grant(
     return granted
 
 
+# Attribution for the full-lane grant record ``_parallel_worker_grant``
+# files. ``main()`` sets these before calling it so the helper keeps its
+# zero-arg shape; the record lands before ``_sanitize_pytest_environment``.
+_GRANT_LANE: str | None = None
+_GRANT_ESCALATED_FROM: str | None = None
+
+
 def _parallel_worker_grant() -> tuple[int, WorkerTokenLease | None]:
     budget, capacity_is_explicit = configured_token_budget()
     exact_worker_count = _configured_worker_count()
 
     if descendant_exemption():
         # An ancestor's lease already paid for this width. Grant it untouched
-        # and take no tokens: acquiring here would double-count the demand.
+        # and take no tokens: acquiring here would double-count the demand,
+        # so nothing is recorded either — the ancestor already did.
         if exact_worker_count is not None:
             return exact_worker_count, None
         return automatic_worker_range(budget)[1], None
@@ -766,13 +779,23 @@ def _parallel_worker_grant() -> tuple[int, WorkerTokenLease | None]:
         exact = False
 
     if os.environ.get("SASE_TEST_GATE_DISABLED") == "1":
-        return _bypass_worker_grant(
+        granted = _bypass_worker_grant(
             floor,
             ceiling,
             budget,
             exact=exact,
             capacity_is_explicit=capacity_is_explicit,
-        ), None
+        )
+        record_worker_grant(
+            path="bypass",
+            requested_floor=floor,
+            requested_ceiling=ceiling,
+            granted=granted,
+            lane=_GRANT_LANE,
+            budget=budget,
+            escalated_from=_GRANT_ESCALATED_FROM,
+        )
+        return granted, None
 
     lease = WorkerTokenLease(
         directory=gate_directory(),
@@ -780,7 +803,33 @@ def _parallel_worker_grant() -> tuple[int, WorkerTokenLease | None]:
         timeout=gate_timeout(),
         capacity_is_explicit=capacity_is_explicit,
     )
-    granted = lease.acquire(floor, ceiling, exact=exact)
+    started = time.monotonic()
+    try:
+        granted = lease.acquire(floor, ceiling, exact=exact)
+    except pytest.UsageError:
+        # The acquire timed out waiting for tokens: record the refusal with
+        # the elapsed wait, then re-raise.
+        record_worker_grant(
+            path="lease",
+            requested_floor=floor,
+            requested_ceiling=ceiling,
+            granted=0,
+            lane=_GRANT_LANE,
+            budget=budget,
+            wait_ms=int((time.monotonic() - started) * 1000),
+            escalated_from=_GRANT_ESCALATED_FROM,
+        )
+        raise
+    record_worker_grant(
+        path="lease",
+        requested_floor=floor,
+        requested_ceiling=ceiling,
+        granted=granted,
+        lane=_GRANT_LANE,
+        budget=budget,
+        wait_ms=int((time.monotonic() - started) * 1000),
+        escalated_from=_GRANT_ESCALATED_FROM,
+    )
     lease.make_inheritable()
     return granted, lease
 
@@ -1255,6 +1304,9 @@ def main(argv: list[str] | None = None) -> int:
     lease: WorkerTokenLease | None = None
     scoped_manifest: dict[str, object] | None = None
     scoped_worker_count: int | None = None
+    # Set when scoped escalation switches the mode: the full lane's grant
+    # record then carries where it escalated from.
+    escalated_from: str | None = None
     manifest_path = _scoped_manifest_path()
     try:
         pytest_args = _apply_ace_page_group_isolation_mode(mode, pytest_args)
@@ -1285,6 +1337,15 @@ def main(argv: list[str] | None = None) -> int:
                     selection, gear, selected=selection.gear_candidate
                 )
                 pytest_args = [*pytest_args, *selection.gear_candidate]
+                record_worker_grant(
+                    path="gear",
+                    requested_floor=SCOPED_WORKER_FLOOR,
+                    requested_ceiling=gear.ceiling,
+                    granted=gear.worker_count or 0,
+                    lane=SCOPED_MODE,
+                    budget=configured_token_budget()[0],
+                    selected_files=len(selection.gear_candidate or ()),
+                )
             elif selection.escalated:
                 # Never let the fast path become the slow path: a large or
                 # broadened selection runs the governed full lane instead of a
@@ -1304,6 +1365,7 @@ def main(argv: list[str] | None = None) -> int:
                     outcome="escalated",
                 )
                 mode = "fast"
+                escalated_from = "scoped"
             elif not selection.selected:
                 print(
                     "no test files selected; skipping pytest entirely",
@@ -1316,6 +1378,14 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 scoped_manifest = selection.manifest
                 pytest_args = [*pytest_args, *selection.selected]
+                record_worker_grant(
+                    path="serial",
+                    requested_floor=1,
+                    requested_ceiling=1,
+                    granted=1,
+                    lane=SCOPED_MODE,
+                    selected_files=len(selection.selected or ()),
+                )
 
         pytest_args, shard_spec = _apply_shard_mode(mode, pytest_args)
         # A shard is partial evidence about the whole suite: recording it as
@@ -1348,6 +1418,9 @@ def main(argv: list[str] | None = None) -> int:
             serial = False
             distribution_mode = _configured_distribution_mode()
             _reject_numprocesses_args(pytest_args)
+            global _GRANT_LANE, _GRANT_ESCALATED_FROM
+            _GRANT_LANE = mode
+            _GRANT_ESCALATED_FROM = escalated_from
             worker_count, lease = _parallel_worker_grant()
         command = _pytest_command(
             mode,

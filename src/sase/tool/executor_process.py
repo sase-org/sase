@@ -12,7 +12,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING, BinaryIO
+from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
 from sase.supervision.logs import pump_output
 from sase.tool.executor_signals import SignalState
@@ -22,6 +22,12 @@ if TYPE_CHECKING:
 
 TOOL_RUN_ID_ENV = "SASE_TOOL_RUN_ID"
 TOOL_RUN_EVENTS_ENV = "SASE_TOOL_RUN_EVENTS"
+#: Grant channel a recorded child appends per-grant JSONL demand records to.
+TOOL_RUN_DEMAND_ENV = "SASE_TOOL_RUN_DEMAND"
+#: Provider overlay a monitor proc carries for its starter agent.
+TOOL_RUN_PROVIDER_ENV = "SASE_TOOL_RUN_PROVIDER"
+#: File name of the grant channel inside a run's log directory.
+DEMAND_FILE_NAME = "demand.jsonl"
 TOOL_NAME_ENV = "SASE_TOOL_NAME"
 TOOL_PROJECT_ROOT_ENV = "SASE_TOOL_PROJECT_ROOT"
 TOOL_RUN_AGENT_ENV = "SASE_TOOL_RUN_AGENT"
@@ -123,6 +129,7 @@ def child_env(
         env[TOOL_RUN_ID_ENV] = run_id
         if events_path is not None:
             env[TOOL_RUN_EVENTS_ENV] = str(events_path)
+            env[TOOL_RUN_DEMAND_ENV] = str(events_path.parent / DEMAND_FILE_NAME)
         if continuation_mode is not None and events_path is not None:
             env[TOOL_CONTINUE_ENV] = continuation_mode
             env[TOOL_PYTHON_ENV] = sys.executable
@@ -132,6 +139,7 @@ def child_env(
         return env
     env.pop(TOOL_RUN_ID_ENV, None)
     env.pop(TOOL_RUN_EVENTS_ENV, None)
+    env.pop(TOOL_RUN_DEMAND_ENV, None)
     env.pop(TOOL_CONTINUE_ENV, None)
     env.pop(TOOL_PYTHON_ENV, None)
     return env
@@ -199,14 +207,33 @@ def _pump_child_stream(stream: BinaryIO, callback: Callable[[bytes], None]) -> N
     pump_output(stream, callback)
 
 
+class ChildExit(NamedTuple):
+    """A reaped child's exit code plus the ``wait4`` resource usage.
+
+    ``code`` is ``None`` when no exit status could be determined. ``rusage``
+    is the ``os.wait4`` rusage of the reaped child tree, or ``None`` when the
+    child was settled through the ``Popen`` fallback path (usage unavailable).
+    """
+
+    code: int | None
+    rusage: Any
+
+
 def wait_child(
     proc: subprocess.Popen[bytes],
     signals: SignalState,
     *,
     on_tick: Callable[[], None] | None = None,
     escalate: bool = True,
-) -> int | None:
+) -> ChildExit:
     """Wait for the child, escalating to SIGKILL unless owned.
+
+    The child is reaped with ``os.wait4`` so the wrapper also captures the
+    child tree's CPU time and max RSS. The reaped status is stored on
+    ``proc.returncode`` immediately: a later ``Popen.poll()`` would otherwise
+    hit ``ECHILD`` and report ``0``. When reaping is impossible
+    (``ChildProcessError``/``OSError`` from ``wait4``) the wait falls back to
+    the ``Popen`` path and usage is unavailable.
 
     Under a live enclosing monitor/proc owner the wrapper skips its own
     ``TERM_ESCALATE_SECONDS`` SIGKILL escalation entirely (``escalate=False``):
@@ -216,29 +243,83 @@ def wait_child(
     """
 
     escalate_at: float | None = None
+    popen_fallback = False
+
+    def on_alive() -> ChildExit | None:
+        nonlocal escalate_at
+        time.sleep(0.1)
+        if on_tick is not None:
+            try:
+                on_tick()
+            except Exception:  # noqa: BLE001 - ingest cannot change the child.
+                pass
+        if not escalate:
+            return None
+        if (signals.sigint or signals.sigterm) and escalate_at is None:
+            escalate_at = time.monotonic() + TERM_ESCALATE_SECONDS
+        if escalate_at is not None and time.monotonic() >= escalate_at:
+            if signals.pgid is not None:
+                try:
+                    os.killpg(signals.pgid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    pass
+            return _kill_wait(proc)
+        return None
+
+    while True:
+        if not popen_fallback:
+            try:
+                reaped_pid, status, rusage = os.wait4(proc.pid, os.WNOHANG)
+            except OSError:
+                # Already reaped elsewhere, or reaping is unsupported: settle
+                # through Popen with usage unavailable.
+                popen_fallback = True
+            else:
+                if reaped_pid != 0:
+                    code = os.waitstatus_to_exitcode(status)
+                    proc.returncode = code
+                    return ChildExit(code, rusage)
+                decided = on_alive()
+                if decided is not None:
+                    return decided
+                continue
+        try:
+            poll_code: int | None = proc.poll()
+        except Exception:  # noqa: BLE001 - a broken pipe still settles.
+            poll_code = None
+        if poll_code is None:
+            decided = on_alive()
+            if decided is not None:
+                return decided
+            continue
+        return ChildExit(poll_code, None)
+
+
+def _kill_wait(proc: subprocess.Popen[bytes]) -> ChildExit:
+    """Reap an escalated child, waiting at most ``KILL_WAIT_SECONDS``."""
+
+    deadline = time.monotonic() + KILL_WAIT_SECONDS
     while True:
         try:
-            return proc.wait(timeout=0.1)
-        except subprocess.TimeoutExpired:
-            if on_tick is not None:
-                try:
-                    on_tick()
-                except Exception:  # noqa: BLE001 - ingest cannot change the child.
-                    pass
-            if not escalate:
-                continue
-            if (signals.sigint or signals.sigterm) and escalate_at is None:
-                escalate_at = time.monotonic() + TERM_ESCALATE_SECONDS
-            if escalate_at is not None and time.monotonic() >= escalate_at:
-                if signals.pgid is not None:
-                    try:
-                        os.killpg(signals.pgid, signal.SIGKILL)
-                    except (ProcessLookupError, PermissionError, OSError):
-                        pass
-                try:
-                    return proc.wait(timeout=KILL_WAIT_SECONDS)
-                except subprocess.TimeoutExpired:
-                    return proc.poll()
+            reaped_pid, status, rusage = os.wait4(proc.pid, os.WNOHANG)
+        except OSError:
+            return ChildExit(_popen_poll_code(proc), None)
+        if reaped_pid != 0:
+            code = os.waitstatus_to_exitcode(status)
+            proc.returncode = code
+            return ChildExit(code, rusage)
+        if time.monotonic() >= deadline:
+            return ChildExit(_popen_poll_code(proc), None)
+        time.sleep(0.05)
+
+
+def _popen_poll_code(proc: subprocess.Popen[bytes]) -> int | None:
+    """Return one non-blocking ``Popen`` exit poll, or ``None``."""
+
+    try:
+        return proc.poll()
+    except Exception:  # noqa: BLE001 - a broken pipe still settles.
+        return None
 
 
 def settle_wait_code(
@@ -274,10 +355,14 @@ def spawn_diagnostic(exc: OSError, argv: tuple[str, ...]) -> str:
 
 
 __all__ = [
+    "DEMAND_FILE_NAME",
     "KILL_WAIT_SECONDS",
     "TERM_ESCALATE_SECONDS",
     "TOOL_NAME_ENV",
+    "TOOL_RUN_DEMAND_ENV",
+    "TOOL_RUN_PROVIDER_ENV",
     "TOOL_PROJECT_ROOT_ENV",
+    "ChildExit",
     "TOOL_RUN_AGENT_ENV",
     "TOOL_RUN_EVENTS_ENV",
     "TOOL_RUN_ID_ENV",

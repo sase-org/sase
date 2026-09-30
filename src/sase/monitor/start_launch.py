@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.agent.identity import discover_agent_runtime
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.bead.epic_launch_handoff import MONITOR_ARTIFACTS_ENV
 from sase.config._settings import get_monitor_tool_wrap
@@ -78,12 +79,21 @@ def _tool_run_agent_overlay(starter_agent: str | None) -> dict[str, str]:
 
     Passed as ``SASE_TOOL_RUN_AGENT`` so a monitor-owned ``sase tool run``
     records its starter without restoring ``SASE_AGENT*`` (which would flip
-    compact output back on inside an owner). Scrubbed at agent launch like
-    every other ``SASE_TOOL_*`` variable.
+    compact output back on inside an owner). ``SASE_TOOL_RUN_PROVIDER``
+    carries the starter's provider for the same reason, when known; ceilings
+    are never forwarded, because a monitor has none. Both are scrubbed at
+    agent launch like every other ``SASE_TOOL_*`` variable.
     """
+    overlay: dict[str, str] = {}
     if starter_agent and starter_agent.strip():
-        return {"SASE_TOOL_RUN_AGENT": starter_agent.strip()}
-    return {}
+        overlay["SASE_TOOL_RUN_AGENT"] = starter_agent.strip()
+    try:
+        provider = discover_agent_runtime()
+    except Exception:  # noqa: BLE001 - provider attribution is best effort.
+        provider = None
+    if provider:
+        overlay["SASE_TOOL_RUN_PROVIDER"] = provider
+    return overlay
 
 
 def _record_monitor_join(

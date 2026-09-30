@@ -17,6 +17,7 @@ import time
 from typing import Any
 
 from sase.core.tool_run import tool_run_append_event
+from sase.tool.demand import TREE_RSS_UNAVAILABLE, tree_rss_kib
 
 SAMPLE_INTERVAL_SECONDS = 10.0
 _PSI_KINDS = ("cpu", "memory", "io")
@@ -153,6 +154,14 @@ class LoadSampler:
     samples: list[dict[str, Any]] = field(default_factory=list)
     stopped: bool = False
     write_failures: int = 0
+    #: The child whose process tree is RSS-sampled on the sampler tick, or
+    #: ``None`` for load samples only. Cleared once the child is reaped.
+    child_pid: int | None = None
+    #: ``/proc`` root the tree scan reads; injectable for tests.
+    proc_root: str = "/proc"
+    peak_tree_rss_kib: int | None = None
+    tree_rss_samples: int = 0
+    tree_rss_unavailable: str | None = None
 
     def elapsed_ms(self) -> int:
         return max(0, int((time.monotonic() - self.started) * 1000))
@@ -173,7 +182,31 @@ class LoadSampler:
             self.samples.append(sample)
         else:
             self.write_failures += 1
+        self.maybe_sample_tree_rss()
         return sample
+
+    def maybe_sample_tree_rss(self) -> int | None:
+        """Fold one tree-RSS observation into the peak; never raises."""
+
+        if self.child_pid is None or self.tree_rss_unavailable is not None:
+            return None
+        try:
+            total = tree_rss_kib(self.child_pid, proc_root=self.proc_root)
+        except Exception:  # noqa: BLE001 - a scan error skips that tick.
+            return None
+        if total is None:
+            if not Path(self.proc_root).is_dir():
+                self.tree_rss_unavailable = TREE_RSS_UNAVAILABLE
+            return None
+        self.tree_rss_samples += 1
+        if self.peak_tree_rss_kib is None or total > self.peak_tree_rss_kib:
+            self.peak_tree_rss_kib = total
+        return total
+
+    def stop_tree_sampling(self) -> None:
+        """Stop tree-RSS sampling once the child is reaped."""
+
+        self.child_pid = None
 
     def stop(self) -> None:
         self.stopped = True

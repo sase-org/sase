@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.tool.argv import ResolvedToolArgv
 
@@ -41,6 +42,10 @@ class RecordedRunContext:
     stop_recorded: Callable[[], bool] | None = None
     timeout_recorded: Callable[[], bool] | None = None
     continuation_mode: str | None = None
+    #: Provider/ceiling facts the agent-side starter captured. The adopt
+    #: worker never fills this in, so it never overwrites the starter's
+    #: record; ``None`` records nothing.
+    demand_context: dict[str, Any] | None = None
 
 
 __all__ = ["RecordedRunContext", "ToolRunCliRequest"]

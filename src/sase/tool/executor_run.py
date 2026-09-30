@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from sase.core.process_identity import process_identity_token
@@ -15,6 +16,12 @@ from sase.telemetry.metrics import (
     TOOL_RUN_SETTLEMENTS,
 )
 from sase.tool._executor_shared import default_continuation_mode
+from sase.tool.demand import (
+    build_resource_usage,
+    demand_file_path,
+    read_demand_grants,
+    record_run_demand,
+)
 from sase.tool.executor_display import (
     duration_ms_since,
     warn_once,
@@ -23,6 +30,7 @@ from sase.tool.executor_display import (
 )
 from sase.tool.executor_models import RecordedRunContext
 from sase.tool.executor_process import (
+    ChildExit,
     child_env,
     settle_wait_code,
     should_merge_streams,
@@ -179,6 +187,8 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             child_pgid=child_pgid,
             fingerprint_before=fingerprint_before,
         )
+        if ctx.demand_context is not None:
+            record_run_demand(run_id, context=dict(ctx.demand_context))
 
     policy = log_policy()
     budget = RunLogBudget(int(policy.get("run_log_max_bytes") or 0))
@@ -203,7 +213,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             event_max_bytes=int(policy.get("event_max_bytes") or 0),
         )
     if recorded:
-        sampler = LoadSampler(run_id=run_id, started=started)
+        sampler = LoadSampler(run_id=run_id, started=started, child_pid=child_pid)
         sampler.maybe_sample(force=True)
         if sampler.write_failures:
             inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="sample")
@@ -256,7 +266,9 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
     # With a merged pipe proc.stderr is None, so the second callback is never
     # invoked and a single pump drains the child's write order.
     pumps = start_output_pumps(proc, on_merged if merged else on_stdout, on_stderr)
-    wait_code = wait_child(proc, signals, on_tick=on_tick, escalate=not has_owner)
+    wait_exit = wait_child(proc, signals, on_tick=on_tick, escalate=not has_owner)
+    if sampler is not None:
+        sampler.stop_tree_sampling()
     for pump in pumps:
         pump.join(timeout=5.0)
     if stdout_sink is not None:
@@ -282,7 +294,9 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
     if log_failed and recorded:
         warn_once(_WARN_INCOMPLETE)
 
-    state, exit_code, signal_num, interruption = settle_wait_code(wait_code, signals)
+    state, exit_code, signal_num, interruption = settle_wait_code(
+        wait_exit.code, signals
+    )
     if exit_code == 0 and ingestor is not None and ingestor.has_unfinished_continuation:
         # Core rejects a ``failed`` run carrying the child's successful status.
         # The wrapper therefore records the safety-net failure as exit 1, the
@@ -317,6 +331,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         recorded_exit = None
         recorded_signal = None
     if recorded:
+        _record_run_usage(run_id, wait_exit, sampler, ctx.events_path)
         fingerprint_after = observe_fingerprint(resolved)
         finished = finish_tool_run(
             run_id,
@@ -363,6 +378,41 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             triage_enabled=True,
         )
     return cli_code
+
+
+def _record_run_usage(
+    run_id: str,
+    wait_exit: ChildExit,
+    sampler: LoadSampler | None,
+    events_path: Path | None,
+) -> None:
+    """Record one usage-plus-grants demand fragment after the reap.
+
+    Runs after the child is reaped and before ``finish_tool_run``. The
+    demand file may hold no grants (a child that never leased, or a
+    passthrough run with no events path); usage is still recorded. Never
+    raises and never changes the child's result.
+    """
+
+    demand_path = demand_file_path(events_path)
+    grants: list[dict[str, Any]] = []
+    grant_diagnostics: list[str] = []
+    if demand_path is not None:
+        grants, grant_diagnostics = read_demand_grants(demand_path, run_id)
+    if sampler is not None:
+        usage = build_resource_usage(
+            wait_exit.rusage,
+            peak_tree_rss_kib=sampler.peak_tree_rss_kib,
+            tree_rss_samples=sampler.tree_rss_samples,
+            availability=(
+                [sampler.tree_rss_unavailable]
+                if sampler.tree_rss_unavailable is not None
+                else []
+            ),
+        )
+    else:
+        usage = build_resource_usage(wait_exit.rusage)
+    record_run_demand(run_id, usage=usage, grants=grants, diagnostics=grant_diagnostics)
 
 
 def _observe_spawned_child(

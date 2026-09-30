@@ -60,10 +60,24 @@ def format_tool_name(run: dict[str, Any]) -> str:
     return "(ad-hoc)"
 
 
+def format_kib(kib: int | None) -> str:
+    """Format a KiB memory size as ``512 KiB``, ``1.1 MiB``, or ``9.8 GiB``."""
+
+    if kib is None:
+        return EMPTY
+    if kib < 1024:
+        return f"{kib} KiB"
+    mib = kib / 1024
+    if mib < 1024:
+        return f"{mib:.1f} MiB"
+    return f"{mib / 1024:.1f} GiB"
+
+
 __all__ = [
     "EMPTY",
     "format_argv",
     "format_duration_ms",
+    "format_kib",
     "format_state",
     "format_tool_name",
     "format_typical",

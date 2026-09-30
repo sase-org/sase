@@ -491,6 +491,23 @@ def tool_run_receipts_report(
     )
 
 
+def tool_run_record_demand(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Merge per-run demand context, usage, and worker grants into a run."""
+
+    return dict(
+        require_rust_binding("tool_run_record_demand")(
+            store_path or str(tool_run_store_path()),
+            {"schema_version": 1, **dict(request)},
+            busy_timeout_ms,
+        )
+    )
+
+
 def tool_run_live_glance(
     request: Mapping[str, Any] | None = None,
     *,
@@ -617,6 +634,7 @@ __all__ = [
     "tool_run_receipt_lookup",
     "tool_run_receipt_settle",
     "tool_run_receipts_report",
+    "tool_run_record_demand",
     "tool_run_request_stop",
     "tool_run_retention_apply",
     "tool_run_retention_preview",

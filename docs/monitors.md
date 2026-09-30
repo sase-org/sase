@@ -196,7 +196,9 @@ recorded with the monitor as owner and the starter agent attributed — plain
 the wrapper. Only the argv the proc supervisor execs is wrapped: `monitor_command` and
 `monitor_execution_argv` stay exactly as written, so every prepared-completion `-f`
 binding keeps resolving the raw command. The wrapper is built from the supervisor's own
-Python (`sys.executable -m sase`), never `PATH`.
+Python (`sys.executable -m sase`), never `PATH`. The starter's provider rides along as
+`SASE_TOOL_RUN_PROVIDER` for the run's demand context; ceilings are never forwarded,
+because a monitor has none.
 
 Where the table below resolves to a tool run, the start reserves that run up front — a
 `created` hand-off run owned by the monitor id — and the proc execs the claiming worker

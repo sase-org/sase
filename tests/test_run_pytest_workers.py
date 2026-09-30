@@ -7,7 +7,9 @@ pin the automatic range, the exact-capacity override, and the disabled gate.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -205,3 +207,136 @@ def test_corroborated_automatic_exemption_takes_the_range_ceiling(
     monkeypatch.setattr(runner, "automatic_worker_range", lambda _budget: (2, 9))
 
     assert runner._parallel_worker_grant() == (9, None)
+
+
+def _demand_channel(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    demand_path = tmp_path / "demand.jsonl"
+    monkeypatch.setenv("SASE_TOOL_RUN_DEMAND", str(demand_path))
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", "run-1")
+    return demand_path
+
+
+def _sole_grant(demand_path: Path) -> dict:
+    lines = demand_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    record = json.loads(lines[0])
+    assert record["schema_version"] == 1
+    assert record["kind"] == "worker_grant"
+    assert record["run_id"] == "run-1"
+    return record["grant"]
+
+
+def _leased_runner(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, granted: int
+) -> ModuleType:
+    runner = load_run_pytest()
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
+
+    class FakeLease:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def acquire(self, floor: int, ceiling: int, *, exact: bool) -> int:
+            return granted
+
+        def make_inheritable(self) -> None:
+            pass
+
+    monkeypatch.setattr(runner, "WorkerTokenLease", FakeLease)
+    monkeypatch.setattr(runner, "configured_token_budget", lambda: (12, False))
+    monkeypatch.setattr(runner, "automatic_worker_range", lambda _budget: (2, 9))
+    monkeypatch.setattr(runner, "gate_directory", lambda: tmp_path)
+    monkeypatch.setattr(runner, "gate_timeout", lambda: 3.0)
+    return runner
+
+
+def test_lease_grant_is_recorded_to_the_demand_channel(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    demand_path = _demand_channel(monkeypatch, tmp_path)
+    runner = _leased_runner(monkeypatch, tmp_path, 7)
+    runner._GRANT_LANE = "fast"
+    runner._GRANT_ESCALATED_FROM = "scoped"
+
+    assert runner._parallel_worker_grant()[0] == 7
+
+    grant = _sole_grant(demand_path)
+    assert grant["source"] == "pytest"
+    assert grant["lane"] == "fast"
+    assert grant["path"] == "lease"
+    assert grant["requested_floor"] == 2
+    assert grant["requested_ceiling"] == 9
+    assert grant["granted"] == 7
+    assert grant["budget"] == 12
+    assert grant["wait_ms"] >= 0
+    assert grant["escalated_from"] == "scoped"
+
+
+def test_acquire_timeout_records_a_refusal_and_reraises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    demand_path = _demand_channel(monkeypatch, tmp_path)
+    runner = _leased_runner(monkeypatch, tmp_path, 7)
+
+    def _timeout(self: object, floor: int, ceiling: int, *, exact: bool) -> int:
+        raise pytest.UsageError("timed out waiting for tokens")
+
+    monkeypatch.setattr(runner.WorkerTokenLease, "acquire", _timeout)
+    runner._GRANT_LANE = "fast"
+
+    with pytest.raises(pytest.UsageError):
+        runner._parallel_worker_grant()
+
+    grant = _sole_grant(demand_path)
+    assert grant["path"] == "lease"
+    assert grant["granted"] == 0
+    assert grant["wait_ms"] >= 0
+    assert grant["lane"] == "fast"
+
+
+def test_bypass_grant_is_recorded(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    demand_path = _demand_channel(monkeypatch, tmp_path)
+    runner = load_run_pytest()
+    monkeypatch.setenv("SASE_TEST_GATE_DISABLED", "1")
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.setattr(runner, "configured_token_budget", lambda: (8, False))
+    monkeypatch.setattr(runner, "automatic_worker_range", lambda _budget: (4, 20))
+
+    assert runner._parallel_worker_grant() == (8, None)
+
+    grant = _sole_grant(demand_path)
+    assert grant["path"] == "bypass"
+    assert grant["requested_floor"] == 4
+    assert grant["requested_ceiling"] == 20
+    assert grant["granted"] == 8
+    assert grant["budget"] == 8
+    assert grant["wait_ms"] == 0
+
+
+def test_descendant_exemption_records_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    demand_path = _demand_channel(monkeypatch, tmp_path)
+    runner = load_run_pytest()
+    monkeypatch.setenv("SASE_PYTEST_WORKERS", "6")
+    monkeypatch.setenv("SASE_TEST_GATE_GOVERNED", "1")
+    monkeypatch.setattr(runner, "configured_token_budget", lambda: (32, False))
+
+    assert runner._parallel_worker_grant() == (6, None)
+    assert not demand_path.exists()
+
+
+def test_sanitize_pops_the_demand_channel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.setenv("SASE_TOOL_RUN_DEMAND", "/tmp/demand.jsonl")
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", "run-1")
+
+    runner._sanitize_pytest_environment()
+
+    assert "SASE_TOOL_RUN_DEMAND" not in runner.os.environ
+    assert runner.os.environ["SASE_TOOL_RUN_ID"] == "run-1"

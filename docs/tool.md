@@ -93,7 +93,42 @@ nested `tools/run_silent` (or a test that invokes one) records nothing into the
 enclosing run's stage timeline or monitor diagnostics. `SASE_TOOL_RUN_ID` stays, so a
 nested `sase tool run` keeps its parent link. The test suite scrubs those variables and
 `SASE_TOOL_RUN_ID` at session start, which covers `stages: none` tools such as `test`; a
-test that needs them sets them explicitly.
+test that needs them sets them explicitly. `SASE_TOOL_RUN_DEMAND` deliberately passes
+through: a stage that leases pytest workers reports its grant to the enclosing run's
+demand record (see below).
+
+## Demand recording
+
+Every recorded run also captures the demand evidence a future admission design needs:
+provider and ceiling context, process-tree CPU and memory, and pytest worker grants with
+token-wait time. `sase tool show RUN` renders the record, and `show -j` carries the raw
+`run.demand` object. Three writers contribute, each fail-open — a recording failure
+warns at most once per process and never changes the child's result:
+
+- The agent-side starter records the provider (`SASE_AGENT_LLM_PROVIDER` and friends,
+  with the `SASE_TOOL_RUN_PROVIDER` overlay as fallback) and the synchronous kill
+  ceilings. A foreground run and a starter-scoped (detached) reservation record
+  ceilings; a plain hand-off reservation records the provider only. The adopt worker
+  never writes context, so it cannot overwrite the starter's facts.
+- The executing wrapper reaps the child with `wait4` for CPU seconds and max RSS, and
+  samples live tree RSS on its ~10 s tick. CPU covers the child plus every descendant
+  that exited and was reaped inside the tree; max RSS is the largest single process, not
+  a sum.
+- The child reports pytest worker grants over
+  `SASE_TOOL_RUN_DEMAND=<run log dir>/demand.jsonl`, one JSON line per grant, so any
+  project's test runner can report grants. `tools/run_pytest` pops the variable before
+  pytest starts, and the test suite scrubs it at session start, so nested runs never
+  append to the parent's record.
+
+A lost run (wrapper killed) records no usage and no grants; that gap is not
+reconstructed.
+
+A grant line is
+`{"schema_version": 1, "kind": "worker_grant", "run_id": "<id>", "grant": {...}}` with
+the grant carrying `grant_id`, `source`, `observed_ts_ms`, `lane` (`scoped`, `fast`,
+`cov`, ...), `path` (`serial`, `gear`, `lease`, or `bypass`), `requested_floor`,
+`requested_ceiling`, `granted` (`0` for a refused or timed-out lease), `budget`,
+`wait_ms`, `selected_files`, and `escalated_from`.
 
 ## Run output versus retained output
 

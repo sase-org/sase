@@ -362,3 +362,138 @@ def test_scoped_selection_failure_is_a_usage_error(
 
     assert runner.main(["scoped"]) == int(pytest.ExitCode.USAGE_ERROR)
     assert "test selection failed" in capsys.readouterr().err
+
+
+def _demand_channel(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    demand_path = tmp_path / "demand.jsonl"
+    monkeypatch.setenv("SASE_TOOL_RUN_DEMAND", str(demand_path))
+    monkeypatch.setenv("SASE_TOOL_RUN_ID", "run-1")
+    return demand_path
+
+
+def _grants(demand_path: Path) -> list:
+    return [
+        json.loads(line)["grant"]
+        for line in demand_path.read_text(encoding="utf-8").splitlines()
+    ]
+
+
+def test_scoped_gear_grant_is_recorded(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_run_pytest()
+    demand_path = _demand_channel(monkeypatch, tmp_path)
+    candidate = ("tests/test_alpha.py", "tests/test_beta.py")
+    install_scoped_selection(
+        runner,
+        monkeypatch,
+        tmp_path,
+        scoped_selection(
+            runner,
+            escalated=True,
+            rules=("serial-budget-exceeded",),
+            gear_candidate=candidate,
+        ),
+    )
+    lease = _FakeLease()
+
+    class _Completed:
+        returncode = 0
+
+    monkeypatch.setattr(
+        runner,
+        "engage_scoped_gear",
+        lambda **_kwargs: (runner.ScopedGear(attempted=True, worker_count=3), lease),
+    )
+    monkeypatch.setattr(runner.os, "execv", _refuse_exec)
+    monkeypatch.setattr(
+        runner.subprocess, "run", lambda *_args, **_kwargs: _Completed()
+    )
+
+    assert runner.main(["scoped"]) == 0
+
+    grants = _grants(demand_path)
+    assert len(grants) == 1
+    grant = grants[0]
+    assert grant["source"] == "pytest"
+    assert grant["lane"] == "scoped"
+    assert grant["path"] == "gear"
+    assert grant["granted"] == 3
+    assert grant["requested_floor"] == runner.SCOPED_WORKER_FLOOR
+    assert grant["selected_files"] == 2
+    assert grant["escalated_from"] is None
+
+
+def test_scoped_serial_run_records_a_single_worker_grant(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_run_pytest()
+    demand_path = _demand_channel(monkeypatch, tmp_path)
+    selected = ("tests/test_alpha.py", "tests/test_beta.py")
+    install_scoped_selection(
+        runner, monkeypatch, tmp_path, scoped_selection(runner, selected=selected)
+    )
+
+    class _Completed:
+        returncode = 0
+
+    def _unexpected_grant() -> object:
+        raise AssertionError("scoped serial mode attempted token acquisition")
+
+    monkeypatch.setattr(runner, "_parallel_worker_grant", _unexpected_grant)
+    monkeypatch.setattr(runner.os, "execv", _refuse_exec)
+    monkeypatch.setattr(
+        runner.subprocess, "run", lambda *_args, **_kwargs: _Completed()
+    )
+
+    assert runner.main(["scoped"]) == 0
+
+    grants = _grants(demand_path)
+    assert len(grants) == 1
+    grant = grants[0]
+    assert grant["lane"] == "scoped"
+    assert grant["path"] == "serial"
+    assert grant["granted"] == 1
+    assert grant["selected_files"] == 2
+
+
+def test_scoped_escalation_attributes_the_full_lane_grant(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_run_pytest()
+    install_scoped_selection(
+        runner,
+        monkeypatch,
+        tmp_path,
+        scoped_selection(runner, escalated=True, rules=("justfile",)),
+    )
+    captured: dict[str, object] = {}
+
+    class ExecCalled(Exception):
+        pass
+
+    def _execv(_executable: str, _command: list[str]) -> None:
+        raise ExecCalled
+
+    def _grant() -> tuple[int, None]:
+        captured["lane"] = runner._GRANT_LANE
+        captured["escalated_from"] = runner._GRANT_ESCALATED_FROM
+        return (7, None)
+
+    monkeypatch.setattr(runner, "_parallel_worker_grant", _grant)
+    monkeypatch.setattr(runner.os, "execv", _execv)
+
+    _real_subprocess_run = runner.subprocess.run
+
+    def _unexpected_run(command: list[str], **kwargs: object) -> object:
+        if "pytest" in command:
+            raise AssertionError("an escalated run must not stay in the serial lane")
+        # Health recording resolves HEAD through git; let that through.
+        return _real_subprocess_run(command, **kwargs)
+
+    monkeypatch.setattr(runner.subprocess, "run", _unexpected_run)
+
+    with pytest.raises(ExecCalled):
+        runner.main(["scoped"])
+
+    assert captured == {"lane": "fast", "escalated_from": "scoped"}
