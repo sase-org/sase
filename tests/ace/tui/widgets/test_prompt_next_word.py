@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import time
+from unittest.mock import patch
 
 import pytest
 from textual.widgets import Static
 
+from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.next_word_completion import (
+    NEXT_WORD_NO_GUESS_RECENT_FILES_HINT,
+)
+from sase.ace.tui.widgets.next_word_menu import NEXT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -15,6 +21,7 @@ from sase.core.prompt_prediction_facade import (
     PromptPredictionModel,
 )
 from sase.core.prompt_prediction_wire import (
+    PromptPredictionCandidate,
     PromptPredictionCorpusOptions,
     PromptPredictionModelConfig,
     PromptPredictionRequest,
@@ -491,3 +498,96 @@ async def test_auto_space_requests_no_menu_rows(
         await pilot.pause()
         assert ta._next_word_ghost_visible() is True
         assert limits and set(limits) == {0}
+
+
+async def test_boundary_ctrl_t_with_confident_corpus_shows_ghost() -> None:
+    """A whitespace ``Ctrl+T`` runs the next-word request, not file history."""
+    app = NextWordTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        bar = app.query_one(PromptInputBar)
+        ta.load_text("Can you help me ")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t")
+
+        assert ta._next_word_chain_is_armed() is True
+        assert ta._next_word_ghost_visible() is True
+        assert ta._completion_kind != "file_history"
+        assert "[^T] word" in _bar_hint(bar)
+
+
+async def test_boundary_ctrl_t_with_weak_corpus_opens_menu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-confident boundary guess opens the ``next_word`` menu."""
+    weak = PromptPredictionResult(
+        schema_version=1,
+        blocked_reason=None,
+        context_words=["help", "me"],
+        confident=False,
+        ghost=[],
+        candidates=[
+            PromptPredictionCandidate(
+                word="implement",
+                key="implement",
+                score=0.4,
+                probability=0.4,
+                support=2,
+                order=2,
+                continuation=["it"],
+            )
+        ],
+    )
+    app = NextWordTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Can you help me ")
+        ta.cursor_location = (0, len(ta.text))
+        monkeypatch.setattr(ta, "_predict_next_words", lambda *args, **kwargs: weak)
+        await pilot.press("ctrl+t")
+
+        assert ta._next_word_chain_is_armed() is True
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == NEXT_WORD_COMPLETION_KIND
+
+
+async def test_boundary_ctrl_t_without_guess_teaches_recent_files() -> None:
+    """A guess-free boundary ``Ctrl+T`` names the moved ``Ctrl+G r`` menu."""
+    app = NextWordTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        bar = app.query_one(PromptInputBar)
+        ta.load_text("zzz qqq ")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t")
+
+        assert ta._next_word_chain_is_armed() is True
+        assert ta._file_completion_active is False
+        assert NEXT_WORD_NO_GUESS_RECENT_FILES_HINT in _bar_hint(bar)
+
+
+async def test_boundary_ctrl_t_off_opens_file_history() -> None:
+    """With next-word off, a whitespace ``Ctrl+T`` keeps file history."""
+    history = CompletionCandidate(
+        display="docs/readme.md",
+        insertion="docs/readme.md",
+        is_dir=False,
+        name="docs/readme.md",
+    )
+    app = NextWordTestApp(settings=PromptCompletionSettings(next_word="off"))
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("alpha ")
+        ta.cursor_location = (0, len(ta.text))
+
+        with patch(
+            "sase.ace.tui.widgets._file_completion_open."
+            "build_file_history_completion_candidates",
+            return_value=([history], ""),
+        ):
+            await pilot.press("ctrl+t")
+
+        assert ta._completion_kind == "file_history"
+        assert ta._file_completion_candidates == [history]

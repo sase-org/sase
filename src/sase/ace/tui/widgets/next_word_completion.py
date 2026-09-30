@@ -17,6 +17,10 @@ NEXT_WORD_GHOST_HINT = "[^T] word  [^F] all"
 #: Transient hint when the chain is armed but no guess is available.
 NEXT_WORD_NO_GUESS_HINT = "no next-word guess"
 
+#: Transient hint when a whitespace-boundary ``Ctrl+T`` finds no guess. It
+#: teaches the moved recent-files menu, which now lives on ``Ctrl+G r``.
+NEXT_WORD_NO_GUESS_RECENT_FILES_HINT = "no next-word guess  [^G r] recent files"
+
 #: Transient hint while the prediction model is still warming.
 NEXT_WORD_WARMING_HINT = "warming next words…"
 
@@ -189,6 +193,7 @@ def next_word_has_word_suffix(text: str, cursor_offset: int) -> bool:
 __all__ = [
     "NEXT_WORD_GHOST_HINT",
     "NEXT_WORD_NO_GUESS_HINT",
+    "NEXT_WORD_NO_GUESS_RECENT_FILES_HINT",
     "NEXT_WORD_WARMING_HINT",
     "NextWordChain",
     "NextWordGhost",

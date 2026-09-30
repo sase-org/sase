@@ -9,6 +9,7 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.next_word_completion import (
     NEXT_WORD_GHOST_HINT,
     NEXT_WORD_NO_GUESS_HINT,
+    NEXT_WORD_NO_GUESS_RECENT_FILES_HINT,
 )
 from sase.ace.tui.widgets.next_word_menu import (
     NEXT_WORD_COMPLETION_KIND,
@@ -122,6 +123,29 @@ async def test_next_word_no_guess_png_snapshot(
             page,
             "next_word_no_guess_120x40",
             title="ACE prompt input — next-word no guess",
+        )
+
+
+async def test_next_word_no_guess_recent_files_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await _mount_prompt_bar(page, "zzz qqq ")
+        bar.show_next_word_hint(NEXT_WORD_NO_GUESS_RECENT_FILES_HINT)
+        await wait_for_svg_contains(page, "recent files")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "next_word_no_guess_recent_files_120x40",
+            title="ACE prompt input — next-word no guess with recent files",
         )
 
 

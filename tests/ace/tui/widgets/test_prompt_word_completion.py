@@ -35,6 +35,13 @@ class WordCompletionTestApp(CompletionTestApp):
         return self.settings
 
 
+class WordCompletionOffModeTestApp(CompletionTestApp):
+    """Completion harness with the next-word chain disabled."""
+
+    def get_prompt_completion_settings(self) -> PromptCompletionSettings:
+        return PromptCompletionSettings(next_word="off")
+
+
 def _result(
     text: str,
     cursor_offset: int | None = None,
@@ -604,14 +611,14 @@ async def test_ctrl_n_then_ctrl_t_accepts_second_prompt_word_row() -> None:
         assert ta._insert_g_prefix_pending is False
 
 
-async def test_whitespace_keeps_recent_file_history_precedence() -> None:
+async def test_whitespace_off_mode_keeps_recent_file_history() -> None:
     history = CompletionCandidate(
         display="docs/readme.md",
         insertion="docs/readme.md",
         is_dir=False,
         name="docs/readme.md",
     )
-    app = CompletionTestApp()
+    app = WordCompletionOffModeTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("alpha ")

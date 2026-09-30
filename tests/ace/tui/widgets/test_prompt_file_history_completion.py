@@ -8,14 +8,33 @@ from unittest.mock import patch
 from _pytest.monkeypatch import MonkeyPatch
 from textual.widgets import Static
 
+from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 from ._completion_helpers import CompletionTestApp
 
 
+class OffModeCompletionTestApp(CompletionTestApp):
+    """Completion harness with the next-word chain disabled.
+
+    A whitespace ``Ctrl+T`` belongs to the next-word chain when it is
+    enabled, so file-history dispatch tests run with ``next_word: off`` to
+    preserve the old slot. The settings hook is local to this module so
+    other harnesses keep skipping background inventory warming.
+    """
+
+    def get_prompt_completion_settings(self) -> PromptCompletionSettings:
+        return PromptCompletionSettings(next_word="off")
+
+
+def _off_mode_app() -> CompletionTestApp:
+    """Return a completion app with next-word off."""
+    return OffModeCompletionTestApp()
+
+
 class TestFileHistoryCompletion:
-    """Ctrl+T at an empty cursor prefix shows file-reference history."""
+    """``Ctrl+G r`` (and ``Ctrl+T`` with next-word off) shows file history."""
 
     async def test_empty_prompt_with_history_shows_panel(
         self,
@@ -30,7 +49,7 @@ class TestFileHistoryCompletion:
 
         record_file_references(["/etc/hosts", "~/notes/ideas.md"])
 
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test():
             bar = app.query_one(PromptInputBar)
             ta = app.query_one(PromptTextArea)
@@ -58,7 +77,7 @@ class TestFileHistoryCompletion:
             "sase.history.file_references._HISTORY_FILE",
             tmp_path / "hist.json",
         )
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test():
             bar = app.query_one(PromptInputBar)
             ta = app.query_one(PromptTextArea)
@@ -85,7 +104,7 @@ class TestFileHistoryCompletion:
 
         record_file_references(["/etc/hosts"])
 
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test():
             ta = app.query_one(PromptTextArea)
             ta.load_text("   ")
@@ -110,7 +129,7 @@ class TestFileHistoryCompletion:
 
         record_file_references(["/etc/hosts"])
 
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test():
             ta = app.query_one(PromptTextArea)
             ta.load_text("look at ")
@@ -135,7 +154,7 @@ class TestFileHistoryCompletion:
 
         record_file_references(["/etc/hosts"])
 
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test():
             ta = app.query_one(PromptTextArea)
             ta.load_text("foo  bar")
@@ -184,7 +203,7 @@ class TestFileHistoryCompletion:
 
         record_file_references(["/etc/hosts"])
 
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test():
             ta = app.query_one(PromptTextArea)
             ta.load_text("foo   bar")
@@ -212,7 +231,7 @@ class TestFileHistoryCompletion:
 
         record_file_references(["/etc/hosts"])
 
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test() as pilot:
             ta = app.query_one(PromptTextArea)
             ta.load_text("")
@@ -267,7 +286,7 @@ class TestFileHistoryCompletion:
         record_file_references(["/a", "/b", "/c"])
         # Most-recent first on disk: ["/c", "/b", "/a"]
 
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test() as pilot:
             ta = app.query_one(PromptTextArea)
             ta.load_text("")
@@ -320,7 +339,7 @@ class TestFileHistoryCompletion:
 
         record_file_references(["/only"])
 
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test() as pilot:
             bar = app.query_one(PromptInputBar)
             ta = app.query_one(PromptTextArea)
@@ -387,7 +406,7 @@ class TestFileHistoryCompletion:
 
         record_file_references(["/etc/hosts", "~/a.md"])
 
-        app = CompletionTestApp()
+        app = _off_mode_app()
         async with app.run_test() as pilot:
             ta = app.query_one(PromptTextArea)
             ta.load_text("")
@@ -399,3 +418,56 @@ class TestFileHistoryCompletion:
                 assert ta._file_completion_active is True
                 await pilot.press("x")
             assert ta._file_completion_active is False
+
+    async def test_ctrl_g_r_opens_file_history_from_insert(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts"])
+
+        # Default (chain) mode: ``Ctrl+G r`` bypasses the next-word chain.
+        app = CompletionTestApp()
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("alpha ")
+            ta.cursor_location = (0, len(ta.text))
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("ctrl+g", "r")
+            assert ta._completion_kind == "file_history"
+            assert ta._file_completion_active is True
+
+    async def test_ctrl_g_r_opens_file_history_from_normal(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.history.file_references._HISTORY_FILE",
+            tmp_path / "hist.json",
+        )
+        from sase.history.file_references import record_file_references
+
+        record_file_references(["/etc/hosts"])
+
+        app = CompletionTestApp()
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("alpha ")
+            ta.cursor_location = (0, len(ta.text))
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("escape")
+                assert ta._vim_mode == "normal"
+                await pilot.press("ctrl+g", "r")
+            assert ta._completion_kind == "file_history"
+            assert ta._file_completion_active is True

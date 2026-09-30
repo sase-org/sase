@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from sase.ace.tui.widgets.next_word_completion import (
     NEXT_WORD_GHOST_HINT,
     NEXT_WORD_NO_GUESS_HINT,
+    NEXT_WORD_NO_GUESS_RECENT_FILES_HINT,
     NEXT_WORD_WARMING_HINT,
     NextWordChain,
     NextWordGhost,
@@ -548,6 +549,26 @@ class PromptNextWordMixin(_MixinBase):
         if self._next_word_ghost_visible():
             return True
         return self._explicit_next_word_request()
+
+    def _try_next_word_boundary_request(self) -> bool:
+        """Arm the chain and run an explicit request at a whitespace boundary.
+
+        Boundary ``Ctrl+T`` (no token under the cursor) owns the old
+        file-history slot when next-word is enabled: arm the chain at the
+        cursor, show a visible ghost, or run an explicit request. A
+        no-guess outcome teaches the moved menu with the
+        ``[^G r] recent files`` hint. With next-word off the press stays
+        unconsumed so the dispatcher falls through to file history.
+        """
+        if not self._next_word_enabled():
+            return False
+        self._arm_next_word_chain()
+        if self._next_word_ghost_visible():
+            return True
+        consumed = self._explicit_next_word_request()
+        if consumed and self._next_word_hint == NEXT_WORD_NO_GUESS_HINT:
+            self._show_next_word_transient_hint(NEXT_WORD_NO_GUESS_RECENT_FILES_HINT)
+        return consumed
 
     def _refresh_visible_next_word_surface(self) -> None:
         """Show a ghost when a warm model lands while the chain is armed."""

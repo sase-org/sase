@@ -95,6 +95,7 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("X", "save as xprompt/snippet"),
             ("L", "save as local xprompt"),
             ("p", "stashed prompts…"),
+            ("r", "recent files"),
         ]
 
         bare_mini_xprompt = next(
@@ -168,6 +169,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("X", "save as xprompt/snippet"),
             ("L", "save as local xprompt"),
             ("p", "stashed prompts…"),
+            ("r", "recent files"),
         ]
 
 
@@ -215,7 +217,8 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
 
         ctrl_g_entries = entry_pairs(bar, via_ctrl_g=True)
         assert ("ctrl+c", "cancel all panes") in ctrl_g_entries
-        assert ctrl_g_entries[-1] == ("p", "stashed prompts…")
+        assert ("r", "recent files") in ctrl_g_entries
+        assert ctrl_g_entries[-1] == ("r", "recent files")
 
 
 async def test_multi_pane_without_stash_hides_load_and_restore() -> None:

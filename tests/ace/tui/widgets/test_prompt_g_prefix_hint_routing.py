@@ -84,6 +84,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             lambda **_: calls.append("L"),
         )
         monkeypatch.setattr(bar, "request_open_prompt_stash", lambda: calls.append("p"))
+        monkeypatch.setattr(bar, "open_recent_file_history", lambda: calls.append("r"))
         monkeypatch.setattr(
             bar, "request_open_glossary_panel", lambda: calls.append("G")
         )
@@ -122,6 +123,9 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         assert app.save_xprompt_requests == []
         assert bar.dispatch_g_prefix_key("p") is False
         assert bar.dispatch_g_prefix_key("p", via_ctrl_g=True) is True
+        # Bare ``gr`` stays vim-owned; only ``Ctrl+G r`` opens recent files.
+        assert bar.dispatch_g_prefix_key("r") is False
+        assert bar.dispatch_g_prefix_key("r", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("S", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("P", via_ctrl_g=True) is False
         # Unknown / vim-owned continuations fall through to vim.
@@ -151,6 +155,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "x",
             "t",
             "p",
+            "r",
             "S",
         ]
 

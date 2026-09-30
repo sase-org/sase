@@ -110,7 +110,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^Gx   open mini-xprompt…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^Gp   stashed prompts…" not in plain
-        assert "... +5 more" in plain
+        assert "... +6 more" in plain
         assert ("b", "launch tab…") in entry_pairs(bar, via_ctrl_g=True)
         assert ("T", "snippets…") in entry_pairs(bar, via_ctrl_g=True)
         assert "^Gs" not in plain
@@ -150,7 +150,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^Gt / ^G^T   new snippet…" in plain
         assert "^Gx   open mini-xprompt…" not in plain
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
-        assert "... +4 more" in plain
+        assert "... +5 more" in plain
         assert ("b", "launch tab…") in entry_pairs(bar, via_ctrl_g=True)
         assert "^Gs" not in plain
         assert "^GS" not in plain
@@ -175,7 +175,17 @@ async def test_ctrl_g_hints_group_ctrl_x_with_mini_xprompt(
         await pilot.pause()
 
         plain = panel.render().plain
-        assert "^Gx / ^G^X   open mini-xprompt…" in plain
+        # The appended recent-files row pushes the mini-xprompt row below
+        # the panel fold in this empty-prompt config, so the ``ctrl+x``
+        # grouping is covered through the entries instead of the pixels.
+        assert "... +2 more" in plain
+        mini = next(
+            entry
+            for entry in bar.g_prefix_hint_entries(via_ctrl_g=True)
+            if entry.key == "x"
+        )
+        assert mini.aliases == ("ctrl+x",)
+        assert mini.label == "open mini-xprompt…"
         assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^GX   save as xprompt/snippet" not in plain
 

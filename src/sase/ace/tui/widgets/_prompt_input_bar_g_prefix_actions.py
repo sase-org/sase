@@ -190,6 +190,13 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_stash_restore",
         ctrl_g_only=True,
     ),
+    _PromptGPrefixBinding(
+        "r",
+        "open_recent_file_history",
+        "_g_prefix_label_recent_files",
+        "_g_prefix_available_recent_files",
+        ctrl_g_only=True,
+    ),
 )
 
 
@@ -682,3 +689,21 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
     def _g_prefix_label_open_stash(self) -> str:
         """Return the ``Ctrl+G p`` label."""
         return "stashed prompts…"
+
+    def open_recent_file_history(self) -> None:
+        """Open the recent-files history menu (the ``Ctrl+G r`` keymap)."""
+        if self._mode != "prompt" or self._stack.selected_item.is_auxiliary_pane:
+            return
+        action = getattr(self.active_text_area(), "_try_file_history_completion", None)
+        if callable(action):
+            action()
+
+    def _g_prefix_label_recent_files(self) -> str:
+        """Return the ``Ctrl+G r`` label."""
+        return "recent files"
+
+    def _g_prefix_available_recent_files(self) -> bool:
+        """Whether ``Ctrl+G r`` can open recent files from the active pane."""
+        return (
+            self._mode == "prompt" and not self._stack.selected_item.is_auxiliary_pane
+        )
