@@ -85,6 +85,19 @@ _JINJA_PANEL_MAX_HEIGHT = 5
 _SUBTITLE_BORDER_RESERVED_CELLS = 6
 _CURSOR_READOUT_DIVIDER = "  ·  "
 
+_MODEL_SHORTCUT_SUBTITLES = frozenset(
+    {MODEL_ALIAS_MODE_SUBTITLE, MODEL_EXPLICIT_MODE_SUBTITLE}
+)
+
+
+def _is_model_shortcut_subtitle(base: str | Text) -> bool:
+    """Whether *base* is a model-completion shortcut subtitle.
+
+    ``base`` may be a styled peek ``Text``, which is unhashable, so only
+    plain strings are looked up in the set.
+    """
+    return isinstance(base, str) and base in _MODEL_SHORTCUT_SUBTITLES
+
 
 def _reserved_panel_rows(
     line_count: int,
@@ -268,10 +281,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         if shortcut_subtitle:
             self._subtitle_base = shortcut_subtitle
             self.border_subtitle = self._render_subtitle(shortcut_subtitle)
-        elif self._subtitle_base in {
-            MODEL_ALIAS_MODE_SUBTITLE,
-            MODEL_EXPLICIT_MODE_SUBTITLE,
-        }:
+        elif _is_model_shortcut_subtitle(self._subtitle_base):
             self._subtitle_base = self._mode_subtitle
             self.border_subtitle = self._render_subtitle(self._mode_subtitle)
         self._update_height()
@@ -290,10 +300,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._completion_visible = False
         self._completion_panel_kind = None
         self._completion_line_count = 0
-        if self._subtitle_base in {
-            MODEL_ALIAS_MODE_SUBTITLE,
-            MODEL_EXPLICIT_MODE_SUBTITLE,
-        }:
+        if _is_model_shortcut_subtitle(self._subtitle_base):
             self._subtitle_base = self._mode_subtitle
             self.border_subtitle = self._render_subtitle(self._mode_subtitle)
         self._update_height()

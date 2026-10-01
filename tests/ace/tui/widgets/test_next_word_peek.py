@@ -386,3 +386,64 @@ async def test_chain_mode_auto_trigger_stays_silent() -> None:
         await pilot.press("space")
         await pilot.pause(0.6)
         assert ta._next_word_peek_visible() is False
+
+
+async def test_escape_with_visible_peek_enters_normal_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from rich.text import Text
+
+    app = _chain_app()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        bar = app.query_one(PromptInputBar)
+        ta.load_text("Can you help me the plan")
+        ta.cursor_location = (0, len("Can you help me"))
+        _patch_confident(monkeypatch, ta, ["review", "it", "now"])
+        ta._arm_next_word_chain()
+        await pilot.pause()
+        assert ta._next_word_peek_visible() is True
+        assert isinstance(bar._subtitle_base, Text)
+        await pilot.press("escape")
+        await pilot.pause()
+        assert ta._vim_mode == "normal"
+        assert ta._next_word_peek_visible() is False
+        assert bar._subtitle_base == bar._mode_subtitle
+
+
+async def test_hide_file_completions_preserves_visible_peek(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _chain_app()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        bar = app.query_one(PromptInputBar)
+        ta.load_text("Can you help me the plan")
+        ta.cursor_location = (0, len("Can you help me"))
+        _patch_confident(monkeypatch, ta, ["review", "it", "now"])
+        ta._arm_next_word_chain()
+        await pilot.pause()
+        assert ta._next_word_peek_visible() is True
+        peek = bar._subtitle_base
+        bar.hide_file_completions()
+        assert bar._subtitle_base is peek
+
+
+def test_is_model_shortcut_subtitle() -> None:
+    from rich.text import Text
+
+    from sase.ace.tui.widgets._prompt_input_bar_completion_panel import (
+        _is_model_shortcut_subtitle,
+    )
+    from sase.ace.tui.widgets.model_alias_completion import (
+        MODEL_ALIAS_MODE_SUBTITLE,
+    )
+    from sase.ace.tui.widgets.model_explicit_completion import (
+        MODEL_EXPLICIT_MODE_SUBTITLE,
+    )
+
+    assert _is_model_shortcut_subtitle(MODEL_ALIAS_MODE_SUBTITLE) is True
+    assert _is_model_shortcut_subtitle(MODEL_EXPLICIT_MODE_SUBTITLE) is True
+    assert _is_model_shortcut_subtitle("[Enter] send") is False
+    assert _is_model_shortcut_subtitle(Text(MODEL_ALIAS_MODE_SUBTITLE)) is False
+    assert _is_model_shortcut_subtitle(Text("review it")) is False
