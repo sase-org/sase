@@ -304,6 +304,39 @@ def test_empty_incomplete_apply_keeps_session_sticky_epic_widget(
     assert epic_widget in app._container.children
 
 
+def test_emptied_sticky_epic_widget_unmounts_once_bridge_expires(
+    monkeypatch: Any,
+) -> None:
+    """The same bridged widget unmounts once the sticky bridge expires."""
+    import sase.ace.tui.actions.agents._display_panel_collection as coll
+
+    epic = _agent("epic-worker", tribe="epic", suffix="e1", status="RUNNING")
+    review = _agent("review-worker", tribe="review", suffix="r1", status="RUNNING")
+    app = _DisplayDiffApp([epic, review], monkeypatch)
+    app._agent_search_query = "NOT machine:apollo"
+    app._agent_display_last_search_query = "NOT machine:apollo"
+    app._remember_session_mounted_occupancy()
+    epic_widget = app._widgets[_widget_sel("epic")]
+
+    now = [500.0]
+    monkeypatch.setattr(coll, "_sticky_now", lambda: now[0])
+    app._agents = []
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[epic, review],
+        defer_detail=True,
+    )
+    assert app._widgets[_widget_sel("epic")] is epic_widget
+    assert epic_widget in app._container.children
+
+    now[0] = 500.0 + coll.STICKY_PANEL_BRIDGE_S
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[],
+        defer_detail=True,
+    )
+
+    assert epic_widget not in app._container.children
+
+
 class _ApplyDisplayApp(
     AgentFleetProjectionMixin,
     AgentFleetDispatchLaunchMixin,

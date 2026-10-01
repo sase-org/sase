@@ -55,6 +55,14 @@ class EventCountdownMixin(EventHandlersBase):
                         probe(source="countdown_tick")
                     except Exception:
                         pass
+                expire_sticky = getattr(
+                    self, "_maybe_expire_sticky_panel_bridges", None
+                )
+                if callable(expire_sticky):
+                    try:
+                        expire_sticky(now_mono=now_mono)
+                    except Exception:
+                        pass
         else:  # axe
             self._update_axe_info_panel()  # type: ignore[attr-defined]
             # Stream live output for an active chop run without waiting for

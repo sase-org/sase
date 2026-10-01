@@ -1,10 +1,19 @@
-"""Panel-group synchronization and border-title refresh helpers."""
+"""Panel-group synchronization and border-title refresh helpers.
+
+Session-sticky tribe panels bridge unexplained disappearances for at most
+``STICKY_PANEL_BRIDGE_S`` seconds. Positive evidence of where a row is
+(placed under another key, in another tab, or under a re-keyed container)
+retires the old key in the same sync; unexplained absence only bridges
+briefly so transient zero-row publications never flicker.
+"""
 
 from __future__ import annotations
 
+import time
 from collections.abc import Collection
 from typing import TYPE_CHECKING, Any
 
+from ...util.trace import trace_event
 from ._display_helpers import panel_widget_id_for_key
 from ._display_panel_state import PanelRefreshStateMixin
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
@@ -29,6 +38,11 @@ if TYPE_CHECKING:
     from ...models.agent_panels import PanelKey
     from ...widgets import AgentList
     from ..navigation.jump_hints import PanelJumpTarget
+
+#: How long an unaccounted identity keeps an empty tribe panel mounted.
+STICKY_PANEL_BRIDGE_S = 5.0
+
+_sticky_now = time.monotonic
 
 
 class PanelCollectionMixin(PanelRefreshStateMixin):
@@ -56,7 +70,38 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             backing = getattr(self, "_session_mounted_panel_backing", None)
             if backing is not None:
                 backing.clear()
+            unaccounted = getattr(self, "_session_sticky_unaccounted_since", None)
+            if unaccounted is not None:
+                unaccounted.clear()
+            pending = getattr(self, "_session_sticky_pending_retired", None)
+            if pending is not None:
+                pending.clear()
         return mounted
+
+    def _session_sticky_unaccounted_since_map(
+        self,
+    ) -> dict[tuple[AgentType, str, str | None], float]:
+        """Return first-unaccounted monotonic timestamps per sticky identity.
+
+        Cleared alongside the sticky store on a committed-query change, when
+        an identity renders again, when it retires, and when it is no longer
+        recorded under any key.
+        """
+        self._session_mounted_identity_map()
+        unaccounted = getattr(self, "_session_sticky_unaccounted_since", None)
+        if unaccounted is None:
+            unaccounted = {}
+            self._session_sticky_unaccounted_since = unaccounted  # type: ignore[attr-defined]
+        return unaccounted
+
+    def _session_sticky_pending_retired_set(self) -> set[PanelKey]:
+        """Return authoritative retirements awaiting the next panel sync."""
+        self._session_mounted_identity_map()
+        pending = getattr(self, "_session_sticky_pending_retired", None)
+        if pending is None:
+            pending = set()
+            self._session_sticky_pending_retired = pending  # type: ignore[attr-defined]
+        return pending
 
     def _session_mounted_backing_map(
         self,
@@ -93,15 +138,51 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             if sticky_key_in_scope(self, key)
         }
 
+    def _sticky_placement_map(
+        self,
+    ) -> dict[tuple[AgentType, str, str | None], tuple[PanelKey, bool]]:
+        """Return roster identity -> (panel key, in active scope).
+
+        Built over the tab- and fold-independent roster so a row that moved
+        to another tribe, another tab, or a re-keyed container is positive
+        evidence its old panel is empty. Panel keys use the same
+        root-anchored rule as the renderer.
+        """
+        from ...models.agent_panels import normalize_panel_key, panel_key_per_agent
+        from ...models.agent_tab_index import ALL_AGENT_TABS
+        from ._tab_scope import current_agent_tab_scope
+
+        roster = getattr(self, "_agents_with_children", None) or self._agents
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
+        keys = panel_key_per_agent(roster, merge_tribe_panels=merge_tribe_panels)
+        scope = current_agent_tab_scope(self)
+        index = getattr(self, "_agent_tab_index", None)
+        placement: dict[tuple[AgentType, str, str | None], tuple[PanelKey, bool]] = {}
+        if scope is ALL_AGENT_TABS or index is None:
+            for agent, key in zip(roster, keys, strict=True):
+                placement[agent.identity] = (normalize_panel_key(key), True)
+        else:
+            for agent, key in zip(roster, keys, strict=True):
+                try:
+                    in_scope = index.key_for(agent) == scope
+                except Exception:
+                    in_scope = True
+                placement[agent.identity] = (normalize_panel_key(key), in_scope)
+        return placement
+
     def _remember_session_mounted_occupancy(self) -> set[PanelKey]:
         """Reconcile the session-sticky store against the rendered roster.
 
         Records every rendered row under its current key, moves identities
-        rendered under a new key out of their old keys, then drops dismissed
-        identities (and clan containers whose backing members are all
-        dismissed) from keys with no rendered rows. Absence alone never
-        retires a key: an incomplete or bounded load is not proof a row is
-        gone. Returns the keys the reconcile retired.
+        rendered under a new key out of their old keys, then reconciles keys
+        with no rendered rows: an identity placed under another key or
+        outside the active scope retires immediately, as does a synthetic
+        container whose backing members are all placed elsewhere or
+        dismissed. Any other unaccounted identity (absent from the roster, or
+        present and placed here but not rendered) only bridges for
+        ``STICKY_PANEL_BRIDGE_S`` seconds before it stops pinning the key, so
+        transient zero-row publications never flicker but never linger.
+        Returns the keys the reconcile retired.
         """
         from ...models.agent_panels import (
             agent_is_rendered_in_agents_panel,
@@ -129,11 +210,74 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 if other != key:
                     mounted[other].discard(identity)
         self._record_session_mounted_backing(backing, set(rendered_now))
+        unaccounted = self._session_sticky_unaccounted_since_map()
+        for identity in rendered_now:
+            unaccounted.pop(identity, None)
+        dismissed = set(getattr(self, "_dismissed_agents", ()))
+        skip_keys = set(rendered_now.values())
+        empty_keys = [
+            key
+            for key in mounted
+            if key not in skip_keys and sticky_key_in_scope(self, key)
+        ]
+        extra_reasons: dict[tuple[AgentType, str, str | None], str] = {}
+        if empty_keys:
+            placement = self._sticky_placement_map()
+            now = _sticky_now()
+            for key in empty_keys:
+                bare = unstick_panel_key(key)
+                for identity in list(mounted.get(key, ())):
+                    if identity in dismissed:
+                        continue
+                    placed = placement.get(identity)
+                    if placed is not None and (placed[0] != bare or not placed[1]):
+                        extra_reasons[identity] = "placed_elsewhere"
+                        unaccounted.pop(identity, None)
+                        continue
+                    members = backing.get(identity)
+                    if placed is None and members:
+                        accounted = True
+                        for member in members:
+                            if member in dismissed:
+                                continue
+                            member_placed = placement.get(member)
+                            if member_placed is None:
+                                accounted = False
+                                break
+                            member_key, member_in_scope = member_placed
+                            if member_key == bare and member_in_scope:
+                                accounted = False
+                                break
+                        if accounted:
+                            extra_reasons[identity] = "container_members_accounted"
+                            unaccounted.pop(identity, None)
+                            continue
+                    if identity in extra_reasons:
+                        continue
+                    since = unaccounted.get(identity)
+                    if since is None:
+                        unaccounted[identity] = now
+                    elif now - since >= STICKY_PANEL_BRIDGE_S:
+                        extra_reasons[identity] = "bridge_expired"
+                        unaccounted.pop(identity, None)
+        gone = dismissed | set(extra_reasons)
         # Keys with rendered rows keep their mount regardless of the store.
-        return self._prune_session_mounted_gone(
-            set(getattr(self, "_dismissed_agents", ())),
-            skip_keys=set(rendered_now.values()),
+        retired = self._prune_session_mounted_gone(
+            gone,
+            skip_keys=skip_keys,
+            reasons=extra_reasons,
+            default_reason="dismissed",
         )
+        if mounted:
+            recorded = set()
+            for remaining in mounted.values():
+                recorded.update(remaining)
+            for identity in list(unaccounted):
+                if identity not in recorded:
+                    unaccounted.pop(identity, None)
+        else:
+            unaccounted.clear()
+        return retired
 
     def _record_session_mounted_backing(
         self,
@@ -193,33 +337,65 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         gone: set[tuple[AgentType, str, str | None]],
         *,
         skip_keys: set[PanelKey] | None = None,
+        reasons: dict[tuple[AgentType, str, str | None], str] | None = None,
+        default_reason: str = "dismissed",
     ) -> set[PanelKey]:
         """Drop *gone* identities and fully-gone-backed containers.
 
         A recorded clan container retires with its key once every backing
         member is in *gone*, even though the container itself is never
         dismissed. Keys in *skip_keys* keep their mount regardless of the
-        store. Returns the keys left empty.
+        store. Each retired key emits one ``agents.sticky_panel_retired``
+        trace event naming the reason. Returns the keys left empty.
         """
         mounted = self._session_mounted_identity_map()
         backing = self._session_mounted_backing_map()
         skipped = skip_keys or set()
+        reason_for = reasons or {}
+        priority = {
+            "placed_elsewhere": 0,
+            "container_members_accounted": 1,
+            "bridge_expired": 2,
+        }
         retired: set[PanelKey] = set()
         for key in list(mounted):
             if key in skipped or not sticky_key_in_scope(self, key):
                 continue
             remaining = mounted[key]
             before = set(remaining)
+            discarded_reasons: list[str] = []
+            for identity in list(before):
+                if identity in gone:
+                    discarded_reasons.append(reason_for.get(identity, default_reason))
             remaining.difference_update(gone)
             for identity in list(remaining):
                 members = backing.get(identity)
                 if members and members <= gone:
                     remaining.discard(identity)
+                    discarded_reasons.append(default_reason)
             for identity in before - set(remaining):
                 backing.pop(identity, None)
             if not remaining:
                 del mounted[key]
-                retired.add(unstick_panel_key(key))
+                bare = unstick_panel_key(key)
+                retired.add(bare)
+                reason = default_reason
+                best = None
+                for candidate in discarded_reasons:
+                    rank = priority.get(candidate, 3)
+                    if best is None or rank < best[0]:
+                        best = (rank, candidate)
+                if best is not None:
+                    reason = best[1]
+                trace_event(
+                    "agents.sticky_panel_retired",
+                    panel="" if bare is None else str(bare),
+                    reason=reason,
+                )
+        unaccounted = getattr(self, "_session_sticky_unaccounted_since", None)
+        if unaccounted:
+            for identity in gone:
+                unaccounted.pop(identity, None)
         return retired
 
     def _reconcile_session_mounted_for_apply(self, load_state: object) -> set[PanelKey]:
@@ -262,7 +438,12 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             if identity not in present
         )
         gone.update(getattr(self, "_dismissed_agents", ()))
-        return self._prune_session_mounted_gone(gone)
+        retired = self._prune_session_mounted_gone(
+            gone, default_reason="complete_history"
+        )
+        if retired:
+            self._session_sticky_pending_retired_set().update(retired)
+        return retired
 
     def _retire_session_mounted_identities(
         self, identities: Collection[tuple[AgentType, str, str | None]]
@@ -270,8 +451,9 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         """Drop explicitly removed identities and retire keys left with none.
 
         Only user-driven removals (dismiss, kill, named-proc dismiss) call this.
-        A tribe's agents merely being absent from the roster never retires its
-        key: an incomplete or bounded load is not proof that a row is gone.
+        Merely being absent from the roster only bridges briefly: placed
+        elsewhere retires at the next sync and unexplained absence expires
+        after ``STICKY_PANEL_BRIDGE_S`` seconds.
         Clan containers retire through their backing: removing a clan's last
         members retires the container identity in the same call. Returns the
         keys that were retired.
@@ -285,7 +467,35 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 self._session_mounted_backing_map(),
                 {identity for remaining in mounted.values() for identity in remaining},
             )
-        return self._prune_session_mounted_gone(removed)
+        return self._prune_session_mounted_gone(
+            removed, default_reason="explicit_removal"
+        )
+
+    def _maybe_expire_sticky_panel_bridges(
+        self, *, now_mono: float | None = None
+    ) -> None:
+        """Expire sticky-panel bridges on a quiet host.
+
+        Returns immediately when no unaccounted timestamps are pending or
+        none has reached ``STICKY_PANEL_BRIDGE_S``. Otherwise requests the
+        established incremental refresh so the next sync retires the key
+        and unmounts its widget. No new timer or refresh path.
+        """
+        unaccounted = getattr(self, "_session_sticky_unaccounted_since", None)
+        if not unaccounted:
+            return
+        now = now_mono if now_mono is not None else _sticky_now()
+        expired = False
+        for since in list(unaccounted.values()):
+            if now - since >= STICKY_PANEL_BRIDGE_S:
+                expired = True
+                break
+        if not expired:
+            return
+        refresh = getattr(self, "_refresh_agents_display_after_finalize", None)
+        if not callable(refresh):
+            return
+        refresh(previous_agents=list(self._agents), defer_detail=True)
 
     def _widget_panel_keys(
         self,
@@ -369,6 +579,10 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         prev_focused = self._panel_group.focused_key
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         reconciled_retired = self._remember_session_mounted_occupancy()
+        pending = getattr(self, "_session_sticky_pending_retired", None)
+        if pending:
+            reconciled_retired |= set(pending)
+            pending.clear()
         if merge_tribe_panels:
             self._panel_group = AgentPanelGroup.from_agents(
                 self._agents,
