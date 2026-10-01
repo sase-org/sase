@@ -10,11 +10,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.feature_flags import override_flags
-from sase.llm_provider.muse import (
-    MuseProvider,
+from sase.llm_provider._muse_directive import (
     _muse_single_turn_directive,
-    _muse_synchronous_shell_enabled,
+    muse_synchronous_shell_enabled,
 )
+from sase.llm_provider.muse import MuseProvider
 from sase.llm_provider.types import LLMInvocationError, LLMInvocationOptions
 
 from ._muse_provider_helpers import _invoke_and_capture
@@ -78,10 +78,10 @@ def test_muse_prompt_file_is_written_0o600_and_removed() -> None:
         return ("response", "", 0, {})
 
     with (
-        patch("sase.llm_provider.muse.subprocess.Popen") as mock_popen,
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.subprocess.Popen") as mock_popen,
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         patch(
-            "sase.llm_provider.muse.stream_and_parse_muse_json_output",
+            "sase.llm_provider.muse_provider.stream_and_parse_muse_json_output",
             side_effect=_capture,
         ),
     ):
@@ -190,10 +190,10 @@ def test_muse_provider_specific_extra_args_are_used_as_a_fallback(
 def test_muse_never_interpolates_the_prompt_into_a_shell() -> None:
     with (
         patch(
-            "sase.llm_provider.muse.stream_and_parse_muse_json_output"
+            "sase.llm_provider.muse_provider.stream_and_parse_muse_json_output"
         ) as mock_stream,
-        patch("sase.llm_provider.muse.subprocess.Popen") as mock_popen,
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.subprocess.Popen") as mock_popen,
+        patch("sase.llm_provider.muse_provider.provider_timer"),
     ):
         mock_popen.return_value = MagicMock()
         mock_stream.return_value = ("response", "", 0, {})
@@ -207,8 +207,11 @@ def test_muse_never_interpolates_the_prompt_into_a_shell() -> None:
 
 def test_muse_missing_executable_names_the_env_var_and_install_command() -> None:
     with (
-        patch("sase.llm_provider.muse.subprocess.Popen", side_effect=FileNotFoundError),
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch(
+            "sase.llm_provider.muse_provider.subprocess.Popen",
+            side_effect=FileNotFoundError,
+        ),
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         pytest.raises(FileNotFoundError) as excinfo,
     ):
         MuseProvider().invoke("prompt", model_tier="large", suppress_output=True)
@@ -222,10 +225,10 @@ def test_muse_missing_executable_names_the_env_var_and_install_command() -> None
 def test_muse_nonzero_exit_raises_called_process_error() -> None:
     with (
         patch(
-            "sase.llm_provider.muse.stream_and_parse_muse_json_output"
+            "sase.llm_provider.muse_provider.stream_and_parse_muse_json_output"
         ) as mock_stream,
-        patch("sase.llm_provider.muse.subprocess.Popen") as mock_popen,
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.subprocess.Popen") as mock_popen,
+        patch("sase.llm_provider.muse_provider.provider_timer"),
     ):
         mock_popen.return_value = MagicMock()
         mock_stream.return_value = ("partial", "boom", 1, {})
@@ -254,7 +257,7 @@ def test_muse_interrupt_reconstructs_the_continuation_prompt() -> None:
         return ("second pass", "", 0, {})
 
     with (
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
     ):
         result = provider.invoke(
@@ -278,7 +281,7 @@ def test_muse_sync_shell_flag_reads_both_states(
     flag_value: bool, expected: bool
 ) -> None:
     with override_flags(muse_synchronous_shell=flag_value):
-        assert _muse_synchronous_shell_enabled() is expected
+        assert muse_synchronous_shell_enabled() is expected
 
 
 def test_muse_sync_shell_flag_falls_back_to_on_when_unresolvable(
@@ -290,7 +293,7 @@ def test_muse_sync_shell_flag_falls_back_to_on_when_unresolvable(
         raise FeatureFlagError("unknown feature flag: 'muse_synchronous_shell'")
 
     monkeypatch.setattr("sase.feature_flags.current_flags", _raise)
-    assert _muse_synchronous_shell_enabled() is True
+    assert muse_synchronous_shell_enabled() is True
 
 
 def test_muse_sync_shell_flag_adds_enable_shell_tool() -> None:
@@ -343,7 +346,7 @@ def _invoke_and_capture_prompts(provider: MuseProvider) -> list[str]:
         return ("response", "", 0, {})
 
     with (
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
     ):
         provider.invoke("do the thing", model_tier="large", suppress_output=True)

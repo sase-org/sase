@@ -238,5 +238,5 @@ def test_muse_invoke_survives_a_provider_the_watchdog_had_to_kill(
 def _invoke_muse() -> Any:
     from unittest.mock import patch
 
-    with patch("sase.llm_provider.muse.provider_timer"):
+    with patch("sase.llm_provider.muse_provider.provider_timer"):
         return MuseProvider().invoke("prompt", model_tier="large", suppress_output=True)

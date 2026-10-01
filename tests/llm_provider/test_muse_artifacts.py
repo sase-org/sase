@@ -477,10 +477,10 @@ def test_muse_hands_the_parser_the_session_id_it_passed_on_the_command_line() ->
         return MagicMock()
 
     with (
-        patch("sase.llm_provider.muse.subprocess.Popen", side_effect=_record),
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.subprocess.Popen", side_effect=_record),
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         patch(
-            "sase.llm_provider.muse.stream_and_parse_muse_json_output",
+            "sase.llm_provider.muse_provider.stream_and_parse_muse_json_output",
             side_effect=_capture,
         ),
     ):

@@ -8,12 +8,12 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.llm_provider._wait_signals import WAIT_SIGNAL_RE, ends_with_wait_claim
-from sase.llm_provider.muse import (
-    _MUSE_WAIT_CONTINUATION_NUDGE,
-    _muse_max_wait_continuations,
-    MuseProvider,
+from sase.llm_provider._muse_directive import (
+    MUSE_WAIT_CONTINUATION_NUDGE,
+    muse_max_wait_continuations,
 )
+from sase.llm_provider._wait_signals import WAIT_SIGNAL_RE, ends_with_wait_claim
+from sase.llm_provider.muse import MuseProvider
 from sase.llm_provider.types import LLMInvocationError
 
 
@@ -51,7 +51,7 @@ def _invoke_with_replies(
         return (content, stderr, return_code, _usage())
 
     with (
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
     ):
         result = provider.invoke(
@@ -80,8 +80,7 @@ def test_muse_wait_claim_triggers_one_continuation(
     assert prompts[0].endswith("\n\n--- User Prompt ---\noriginal task")
     assert "--- Work So Far ---\nStarted the check;" in prompts[1]
     assert (
-        f"--- Required Continuation ---\n{_MUSE_WAIT_CONTINUATION_NUDGE}"
-        in (prompts[1])
+        f"--- Required Continuation ---\n{MUSE_WAIT_CONTINUATION_NUDGE}" in (prompts[1])
     )
     # The reconstructed continuation keeps the single-turn directive.
     assert prompts[1].startswith("SASE single-turn instructions for Muse Code")
@@ -106,7 +105,7 @@ def test_muse_wait_guard_budget_exhaustion_raises(
         return ("Still running, so I'll wait.", "", 0, _usage())
 
     with (
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
         pytest.raises(LLMInvocationError) as exc_info,
     ):
@@ -137,7 +136,7 @@ def test_muse_wait_guard_zero_budget_raises_without_continuation(
         return ("I'll wait for the command.", "", 0, _usage())
 
     with (
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
         pytest.raises(LLMInvocationError),
     ):
@@ -174,7 +173,7 @@ def test_muse_wait_guard_names_artifacts_dir(
         return ("I'll wait for the command.", "", 0, _usage())
 
     with (
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
         pytest.raises(LLMInvocationError) as exc_info,
     ):
@@ -233,7 +232,7 @@ def test_muse_interrupt_takes_precedence_over_wait_claim(
         return ("Second pass.", "", 0, _usage())
 
     with (
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.provider_timer"),
         patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
     ):
         result = provider.invoke(
@@ -262,14 +261,14 @@ def test_muse_wait_budget_parses(
         monkeypatch.delenv("SASE_MUSE_MAX_WAIT_CONTINUATIONS", raising=False)
     else:
         monkeypatch.setenv("SASE_MUSE_MAX_WAIT_CONTINUATIONS", env_value)
-    assert _muse_max_wait_continuations() == expected
+    assert muse_max_wait_continuations() == expected
 
 
 def test_muse_negative_wait_budget_clamps_to_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_MUSE_MAX_WAIT_CONTINUATIONS", "-2")
-    assert _muse_max_wait_continuations() == 0
+    assert muse_max_wait_continuations() == 0
 
 
 @pytest.mark.parametrize(

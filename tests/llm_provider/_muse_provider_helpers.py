@@ -67,10 +67,10 @@ def _invoke_and_capture(
     """Invoke *provider* against mocked subprocess plumbing and return the argv."""
     with (
         patch(
-            "sase.llm_provider.muse.stream_and_parse_muse_json_output"
+            "sase.llm_provider.muse_provider.stream_and_parse_muse_json_output"
         ) as mock_stream,
-        patch("sase.llm_provider.muse.subprocess.Popen") as mock_popen,
-        patch("sase.llm_provider.muse.provider_timer"),
+        patch("sase.llm_provider.muse_provider.subprocess.Popen") as mock_popen,
+        patch("sase.llm_provider.muse_provider.provider_timer"),
     ):
         mock_popen.return_value = MagicMock()
         mock_stream.return_value = ("response", "", 0, {})
