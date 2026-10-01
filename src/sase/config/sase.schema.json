@@ -5720,6 +5720,11 @@
           "default": true,
           "deprecated": true
         },
+        "memory_history": {
+          "type": "boolean",
+          "description": "Memory and instruction pager sections receive history, TTY history defaults to the pager, and later panel consumers may expose history.",
+          "default": false
+        },
         "monitor_continuation_records": {
           "type": "boolean",
           "description": "New monitor starts persist versioned continuation records, frozen outcome policy, checkpoints, and durable delivery/adoption state for production continuation routing.",

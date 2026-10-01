@@ -225,6 +225,9 @@ builtin = "sase.artifact_providers._builtin:BuiltinArtifactProviders"
 [project.entry-points."sase_dispatch"]
 builtin = "sase.dispatch.providers:BuiltinDispatchProviders"
 
+[project.entry-points."sase_pager_history"]
+memory = "sase.memory.history.pager_provider:memory_history_provider_factory"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/sase"]
 

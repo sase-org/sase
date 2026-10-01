@@ -147,7 +147,7 @@ def test_document_has_pending_syntax_work_ignores_attempted_sections() -> None:
     host = _FakeHost(document)
     assert host._document_has_pending_syntax_work() is True
 
-    host._syntax_attempted.add("a")
+    host._syntax_attempted.add(("a", None))
 
     assert host._document_has_pending_syntax_work() is False
 
@@ -165,7 +165,7 @@ def test_syntax_prepare_order_puts_the_current_section_first() -> None:
 def test_reset_for_new_document_bumps_generation_and_drops_per_document_state() -> None:
     document = _document(_section("a", "print('hi')\n"))
     host = _FakeHost(document)
-    host._syntax_attempted.add("a")
+    host._syntax_attempted.add(("a", None))
     host._syntax_document_span_budget_used = 5
 
     host._reset_syntax_for_new_document()
@@ -187,8 +187,8 @@ async def test_prepare_one_section_highlights_an_eligible_section() -> None:
     changed = await host._prepare_one_section(document, 0, section)
 
     assert changed is True
-    assert "a" in host._syntax_attempted
-    prepared = host._syntax_prepared["a"]
+    assert ("a", None) in host._syntax_attempted
+    prepared = host._syntax_prepared[("a", None)]
     assert prepared.styled_text.plain == section.plain_text
     assert prepared.hint == "py"
 
@@ -201,8 +201,8 @@ async def test_prepare_one_section_skips_a_section_without_raw_source() -> None:
     changed = await host._prepare_one_section(document, 0, section)
 
     assert changed is False
-    assert "a" in host._syntax_attempted
-    assert "a" not in host._syntax_prepared
+    assert ("a", None) in host._syntax_attempted
+    assert ("a", None) not in host._syntax_prepared
     assert len(host._syntax_result_cache) == 0
 
 
@@ -214,7 +214,7 @@ async def test_prepare_one_section_skips_a_plain_alias_without_hashing() -> None
     changed = await host._prepare_one_section(document, 0, section)
 
     assert changed is False
-    assert "a" in host._syntax_attempted
+    assert ("a", None) in host._syntax_attempted
     assert len(host._syntax_result_cache) == 0
 
 
@@ -227,8 +227,8 @@ async def test_prepare_one_section_respects_the_document_span_budget() -> None:
     changed = await host._prepare_one_section(document, 0, section)
 
     assert changed is False
-    assert "a" in host._syntax_attempted
-    assert "a" not in host._syntax_prepared
+    assert ("a", None) in host._syntax_attempted
+    assert ("a", None) not in host._syntax_prepared
 
 
 async def test_prepare_one_section_reuses_the_cached_result_for_identical_content(
@@ -251,8 +251,8 @@ async def test_prepare_one_section_reuses_the_cached_result_for_identical_conten
     await host._prepare_one_section(document, 0, document.sections[1])
 
     assert len(calls) == 1
-    assert host._syntax_prepared["a"].styled_text.plain == body
-    assert host._syntax_prepared["b"].styled_text.plain == body
+    assert host._syntax_prepared[("a", None)].styled_text.plain == body
+    assert host._syntax_prepared[("b", None)].styled_text.plain == body
 
 
 async def test_prepare_one_section_reuses_cache_across_documents(
@@ -283,7 +283,7 @@ async def test_prepare_one_section_reuses_cache_across_documents(
     )
 
     assert len(calls) == 1  # still one -- the second visit hit the result cache
-    assert host._syntax_prepared["a-again"].styled_text.plain == body
+    assert host._syntax_prepared[("a-again", None)].styled_text.plain == body
 
 
 async def test_prepare_one_section_discards_a_stale_completion(
@@ -313,7 +313,7 @@ async def test_prepare_one_section_discards_a_stale_completion(
     changed = await task
 
     assert changed is False
-    assert "a" not in host._syntax_prepared
+    assert ("a", None) not in host._syntax_prepared
 
 
 # --- theme invalidation -------------------------------------------------------
@@ -337,7 +337,7 @@ async def test_theme_change_clears_styled_cache_and_reschedules() -> None:
     host = _FakeHost(document)
     host.app = SimpleNamespace(current_theme=_theme("#010101"))
     await host._prepare_one_section(document, 0, document.sections[0])
-    assert "a" in host._syntax_prepared
+    assert ("a", None) in host._syntax_prepared
     assert len(host._syntax_styled_cache) == 1
 
     host.app = SimpleNamespace(current_theme=_theme("#020202"))
@@ -476,7 +476,7 @@ def test_prepared_section_texts_and_current_hint_reflect_prepared_state() -> Non
     assert host._prepared_section_texts() == {}
     assert host._current_syntax_hint() is None
 
-    host._syntax_prepared["b"] = screen_syntax_mod._PreparedSection(
+    host._syntax_prepared[("b", None)] = screen_syntax_mod._PreparedSection(
         styled_text=Text("two\n"), hint="py"
     )
 

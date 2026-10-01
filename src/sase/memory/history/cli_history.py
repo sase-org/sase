@@ -95,6 +95,11 @@ def _translate_strand_selector(selector: StrandSelector, repo_root: Path) -> str
     )
 
 
+def translate_history_selector(raw: str, repo_root: Path) -> str:
+    """Translate a CLI selector to a core selector (shared with the pager)."""
+    return _translate_selector(raw, repo_root)
+
+
 def _translate_selector(raw: str, repo_root: Path) -> str:
     """Translate a CLI selector to a core selector.
 
@@ -182,6 +187,17 @@ def _emit_json(console: Console, payload: Any) -> None:
     console.print_json(json.dumps(payload, sort_keys=True))
 
 
+def _history_beta_enabled() -> bool:
+    """Return whether the memory-history pager beta is on."""
+    try:
+        from sase.feature_flags import current_flags
+        from sase.feature_flags.registry import FeatureFlag
+
+        return bool(current_flags().enabled(FeatureFlag.memory_history))
+    except Exception:
+        return False
+
+
 def handle_memory_history_command(
     args: argparse.Namespace,
     *,
@@ -196,20 +212,36 @@ def handle_memory_history_command(
         project_root = _project_root_for_args(args)
         scope_arg = getattr(args, "scope", None) or "all"
         scopes = active_service.scopes_for(scope_arg, project_root)
-        output_format = getattr(args, "format", None) or "text"
+        requested = getattr(args, "format", None)
+        beta_on = _history_beta_enabled()
+        if requested is None:
+            output_format = "pager" if (beta_on and sys.stdout.isatty()) else "text"
+        else:
+            output_format = requested
+        if output_format == "pager" and not beta_on:
+            print(
+                "sase memory history -f pager needs the memory_history beta "
+                "(disabled: ordinary pager behavior, text TTY default).",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        if output_format not in ("json", "text", "pager"):
+            print(
+                f"invalid --format {output_format!r}: expected json, pager, or text",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        if output_format == "pager" and getattr(args, "format", None) == "json":
+            output_format = "json"
         if output_format == "pager":
-            print(
-                "sase memory history -f pager arrives with the pager time "
-                "axis (a later phase of this epic); use text or json here.",
-                file=sys.stderr,
+            _handle_pager(
+                active_service,
+                scopes,
+                project_root,
+                list(getattr(args, "selectors", None) or ()),
+                args,
             )
-            sys.exit(2)
-        if output_format not in ("json", "text"):
-            print(
-                f"invalid --format {output_format!r}: expected json or text",
-                file=sys.stderr,
-            )
-            sys.exit(2)
+            return
         selectors = list(getattr(args, "selectors", None) or ())
         if not selectors:
             _handle_feed(
@@ -234,6 +266,97 @@ def handle_memory_history_command(
     except (HistoryScopeError, HistoryNotFoundError, HistoryAmbiguityError) as exc:
         print(f"sase memory history: {exc}", file=sys.stderr)
         sys.exit(1)
+
+
+def _handle_pager(
+    service: HistoryService,
+    scopes: list[Any],
+    project_root: Path,
+    selectors: list[str],
+    args: argparse.Namespace,
+) -> None:
+    """Open selector history in the pager with per-selector scopes and pins."""
+    from sase.memory.history.pager_provider import (
+        build_history_document,
+        selector_to_core_selector,
+    )
+
+    if not selectors:
+        print(
+            "note: history feed pager arrives in its assigned phase; "
+            "showing text feed for now.",
+            file=sys.stderr,
+        )
+        console = Console()
+        _handle_feed(
+            console,
+            service,
+            scopes,
+            args,
+            now_epoch=int(time.time()),
+            output_format="text",
+        )
+        return
+    if bool(getattr(args, "diff", False)):
+        # Word-diff pager rendering belongs to sase-1dr.8: keep the read
+        # view and preserve the existing text diff path for now.
+        print(
+            "note: history word-diff pager arrives in sase-1dr.8; "
+            "opening the read view instead.",
+            file=sys.stderr,
+        )
+    sections: list[Any] = []
+    for raw in selectors:
+        deployed = None
+        candidate_scopes = scopes
+        core_selector = raw
+        if raw.startswith("~/") or raw == "~":
+            mapped = map_deployed_home_path(Path(raw))
+            if mapped is None:
+                raise HistoryNotFoundError(
+                    f"history selector {raw!r} has no chezmoi source subject"
+                )
+            home_scopes = [s for s in scopes if s.scope_key == "home"]
+            if not home_scopes:
+                raise HistoryScopeError(
+                    f"history selector {raw!r} needs the home scope "
+                    "(enable chezmoi or pass -S home)"
+                )
+            candidate_scopes = home_scopes
+            core_selector = mapped
+            deployed = raw
+        else:
+            project_scopes = [s for s in scopes if s.scope_kind == "project"]
+            repo_root = (
+                Path(project_scopes[0].repo_root) if project_scopes else project_root
+            )
+            core_selector = selector_to_core_selector(raw, repo_root)
+        scope, _ = service.resolve_in_scopes(candidate_scopes, core_selector)
+        at = getattr(args, "at", None)
+        revision = at or "now"
+        if at is not None:
+            revision, _ = _at_to_version(
+                service, scope, core_selector, at, include_hidden=True
+            )
+        document = build_history_document(
+            scope=scope,
+            subject=core_selector,
+            initial_revision=revision,
+            service=service,
+            title=deployed or raw,
+        )
+        sections.extend(document.sections)
+    if not sections:
+        raise HistoryNotFoundError("no history sections to page")
+    from sase.pager.app import SasePager
+    from sase.pager.document import PagerDocument, PagerOrigin
+
+    pager_document = PagerDocument(
+        sections=tuple(sections),
+        title="memory history" if len(sections) > 1 else sections[0].title,
+        origin=PagerOrigin.FILE,
+    )
+    SasePager(pager_document).run()
 
 
 def _handle_feed(

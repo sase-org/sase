@@ -65,6 +65,8 @@ def apply_gutter(
     number_width: int,
     emphasis_range: tuple[int, int] | None = None,
     accent: str | None = None,
+    change_marks: dict[int, str] | None = None,
+    removal_anchors: set[int] | frozenset[int] | tuple[int, ...] | None = None,
 ) -> _GutterSection:
     """Wrap *text* and prefix every visual row with gutter cells.
 
@@ -74,6 +76,10 @@ def apply_gutter(
     ``emphasis_range`` is an inclusive 1-based logical-line range: every
     visual row in that range, including wrapped continuation rows, paints
     a thick accent rail. The gutter cell count does not change.
+    ``change_marks`` maps 1-based logical lines to ``"added"``/``"changed"``
+    read-view marks; ``removal_anchors`` holds 1-based anchor rows where a
+    red ``╴`` paints (0 means before-first). A goto rail wins when both a
+    goto emphasis and a change mark coincide.
     """
     wrap_width = max(content_width, 1)
     console = Console(
@@ -85,25 +91,53 @@ def apply_gutter(
         emoji=False,
     )
     lo, hi = _normalized_emphasis_range(emphasis_range)
+    marks = change_marks or {}
+    anchors = set(removal_anchors or ())
     lines = _logical_lines(text)
     visual_rows: list[Text] = []
     line_rows: list[int] = []
+    if 0 in anchors:
+        visual_rows.append(_removal_anchor_row(number_width))
     for line_number, logical in enumerate(lines, start=1):
         line_rows.append(len(visual_rows))
         in_range = lo is not None and hi is not None and lo <= line_number <= hi
         wrapped = _wrap_logical_line(logical, wrap_width, console)
         for wrap_index, piece in enumerate(wrapped):
             number = line_number if wrap_index == 0 else None
-            visual_rows.append(
-                _guttered_row(
-                    piece,
-                    number=number,
-                    number_width=number_width,
-                    emphasize=in_range and number is not None,
-                    rail=in_range,
-                    accent=accent,
+            change_kind = marks.get(line_number) if wrap_index == 0 else None
+            if in_range:
+                visual_rows.append(
+                    _guttered_row(
+                        piece,
+                        number=number,
+                        number_width=number_width,
+                        emphasize=in_range and number is not None,
+                        rail=in_range,
+                        accent=accent,
+                    )
                 )
-            )
+            elif change_kind in ("added", "changed"):
+                visual_rows.append(
+                    _change_mark_row(
+                        piece,
+                        number=number,
+                        number_width=number_width,
+                        kind=change_kind,
+                    )
+                )
+            else:
+                visual_rows.append(
+                    _guttered_row(
+                        piece,
+                        number=number,
+                        number_width=number_width,
+                        emphasize=False,
+                        rail=False,
+                        accent=None,
+                    )
+                )
+        if line_number in anchors:
+            visual_rows.append(_removal_anchor_row(number_width))
     if not visual_rows:
         visual_rows.append(
             _guttered_row(
@@ -196,6 +230,37 @@ def _gutter_cells(
     else:
         cells.append(_SEPARATOR, style=_SEPARATOR_STYLE)
     return cells
+
+
+def _change_mark_row(
+    piece: Text,
+    *,
+    number: int | None,
+    number_width: int,
+    kind: str,
+) -> Text:
+    """Render one gutter row with a read-view change mark.
+
+    Green ``▌`` marks added lines, the modified accent marks changed
+    lines; the rail column is reused so gutter width never changes.
+    """
+    row = Text(no_wrap=True, overflow="crop")
+    label = f"{'':>{number_width}}" if number is None else f"{number:>{number_width}}"
+    row.append(label, style=_NUMBER_STYLE)
+    if kind == "added":
+        row.append("▌ ", style="green")
+    else:
+        row.append("▌ ", style="magenta")
+    row.append_text(piece)
+    return row
+
+
+def _removal_anchor_row(number_width: int) -> Text:
+    """Render a red removal-anchor row for deleted lines."""
+    row = Text(no_wrap=True, overflow="crop")
+    row.append(f"{'':>{number_width}}", style=_NUMBER_STYLE)
+    row.append("╴ ", style="red")
+    return row
 
 
 __all__ = [

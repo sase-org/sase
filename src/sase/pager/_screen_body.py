@@ -210,6 +210,11 @@ class PagerBodyMixin:
     def _compose_body_at_width(self: Any, width: int) -> ComposedBody:
         mark = getattr(self, "_goto_mark", None)
         accent = self._goto_accent_for_mark() if mark is not None else None
+        marks_fn = getattr(self, "_history_marks_for_body", None)
+        change_marks = None
+        removal_anchors = None
+        if callable(marks_fn):
+            change_marks, removal_anchors = marks_fn()
         return compose_body(
             self.document,
             width,
@@ -218,6 +223,8 @@ class PagerBodyMixin:
             prepared_sections=self._prepared_section_texts(),
             line_mark=mark,
             goto_accent=accent,
+            change_marks=change_marks,
+            removal_anchors=removal_anchors,
         )
 
     def _build_label_layer(self: Any, width: int) -> PagerLabelLayer:

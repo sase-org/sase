@@ -203,6 +203,11 @@ def _binding_rows(
             ("/", "Search forward"),
             ("n / N", "Next / previous match"),
             ("?", "Show trail and keys"),
+            ("", ""),
+            ("Time", ""),
+            ("( / )", "Older / newer version (skips hidden)"),
+            ("{ / }", "First version / now or tombstone"),
+            ("E", "Edit now from a past version"),
         ]
     )
     return tuple((key, label) for key, label in rows if key or label)

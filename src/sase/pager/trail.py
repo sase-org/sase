@@ -50,6 +50,7 @@ class PagerTrailEntry:
     search: PagerSearchState
     label_anchor: LabelWindowScope | None
     line_mark: LineMark | None = None
+    version_pins: tuple[tuple[str, object], ...] = ()
 
 
 def append_bounded_trail(

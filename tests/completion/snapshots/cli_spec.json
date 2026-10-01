@@ -20859,6 +20859,188 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "94d6a24684953dc6",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "history",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "all",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--all"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "at",
+                "hidden": false,
+                "kind": null,
+                "metavar": "REV",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-A",
+                  "--at"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "diff",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-d",
+                  "--diff"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "json",
+                  "pager",
+                  "text"
+                ],
+                "default": null,
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "limit",
+                "hidden": false,
+                "kind": null,
+                "metavar": "N",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-l",
+                  "--limit"
+                ],
+                "takes_value": true,
+                "value_hint": "int"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "metavar": "REF",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "since",
+                "hidden": false,
+                "kind": null,
+                "metavar": "DATE",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-s",
+                  "--since"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": [
+                  "all",
+                  "home",
+                  "project"
+                ],
+                "default": "all",
+                "dest": "scope",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-S",
+                  "--scope"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "memory",
+              "history"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "selectors",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "SELECTOR",
+                "nargs": "*",
+                "required": false,
+                "value_hint": "text"
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "cf9ea9fc7eee50af",
             "hidden": false,
             "mutex_groups": [],

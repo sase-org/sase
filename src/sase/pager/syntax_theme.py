@@ -217,8 +217,87 @@ def _relative_luminance(color: Color) -> float:
     )
 
 
+def contrast_ratio(foreground: str | None, background: str | None) -> float:
+    """Return the public WCAG contrast ratio for two CSS colors."""
+    return _contrast_ratio(foreground, background)
+
+
+def history_palette_from_theme(theme: Any | None) -> dict[str, str]:
+    """Return history chrome roles seeded around the violet past accent.
+
+    Past stays violet (``#9d7cd8`` corrected for contrast); text contrast
+    is >=4.5 and mark contrast >=3.0, and the past hue stays >=60 degrees
+    from the theme warning hue. Callers invalidate on host theme change.
+    """
+    values = _theme_values(theme)
+    background = _readable_color(values[1], fallback="#000000")
+    foreground = _readable_color(values[0], fallback=_contrast_text(background))
+    warning = values[6] or "#FFB000"
+    past = _ensure_contrast("#9d7cd8", background, foreground)
+    past = _keep_hue_distance(past, warning, background, foreground)
+    insert = _ensure_contrast("#3FB950", background, foreground)
+    delete = _ensure_contrast("#F85149", background, foreground)
+    return {
+        "past": past,
+        "insert": insert,
+        "delete": delete,
+        "gutter_add": insert,
+        "gutter_change": past,
+        "gutter_remove": delete,
+        "tombstone": delete,
+        "uncommitted": _ensure_contrast(warning, background, foreground),
+    }
+
+
+def _keep_hue_distance(
+    past: str, warning: str | None, background: str, foreground: str
+) -> str:
+    """Nudge *past* away from the warning hue when they sit too close."""
+    try:
+        from textual.color import Color as _Color
+
+        past_hue = _hue_of(_Color.parse(past))
+        warning_hue = _hue_of(_Color.parse(warning or "#FFB000"))
+        if past_hue is None or warning_hue is None:
+            return past
+        distance = abs(past_hue - warning_hue)
+        distance = min(distance, 360 - distance)
+        if distance >= 60:
+            return past
+        # Rotate toward blue/violet to preserve the past hue family.
+        candidate = _Color.parse("#9d7cd8").hex
+        if _contrast_ratio(candidate, background) >= 3.0:
+            return candidate
+        return _ensure_contrast(candidate, background, foreground)
+    except Exception:
+        return past
+
+
+def _hue_of(color: Any) -> float | None:
+    try:
+        _, _, _, hue = color.hsv if hasattr(color, "hsv") else (None, None, None, None)
+        return float(hue) if hue is not None else None
+    except Exception:
+        try:
+            red, green, blue = color.r / 255, color.g / 255, color.b / 255
+            mx, mn = max(red, green, blue), min(red, green, blue)
+            if mx == mn:
+                return 0.0
+            if mx == red:
+                hue = (60 * ((green - blue) / (mx - mn)) + 360) % 360
+            elif mx == green:
+                hue = (60 * ((blue - red) / (mx - mn)) + 120) % 360
+            else:
+                hue = (60 * ((red - green) / (mx - mn)) + 240) % 360
+            return hue
+        except Exception:
+            return None
+
+
 __all__ = [
     "MIN_SYNTAX_CONTRAST",
     "SyntaxPalette",
+    "contrast_ratio",
+    "history_palette_from_theme",
     "syntax_palette_from_theme",
 ]

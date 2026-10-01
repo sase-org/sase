@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from textual.widgets import Static
 
+from sase.ace.testing.wait import wait_for
 from sase.pager._help import PagerHelpScreen
+from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.history.models import committed_pin_for_ordinal
+from sase.pager.history.provider import (
+    clear_history_provider_factories,
+    register_history_provider_factory,
+)
 from sase.pager.trail import PAGER_TRAIL_LIMIT
 from sase.pager.app import SasePager
 from sase.pager.resolve import LinkTarget, LinkTargetKind
@@ -400,3 +408,98 @@ async def test_tab_does_not_advance_under_help_modal() -> None:
 
         assert app.screen is screen
         assert screen.document is target
+
+
+class _VersionStepFakeProvider:
+    """Deterministic two-version provider for version-step regression tests."""
+
+    provider_key = "version-step-fake"
+    IDENTITY = "probe:/tmp/version-step.md"
+
+    def recognizes(self, section: PagerSection) -> bool:
+        return section.identity == self.IDENTITY
+
+    def load_timeline(self, section: PagerSection) -> dict[str, object]:
+        return {
+            "versions": [
+                {"ordinal": 1, "commit": "a" * 40, "hidden": False},
+                {"ordinal": 2, "commit": "b" * 40, "hidden": False},
+            ]
+        }
+
+    def load_version(self, section: PagerSection, ordinal: int) -> PagerSection | None:
+        if ordinal == 0:
+            return replace(section, body="live body\nsecond line\n", version_pin=None)
+        pin = committed_pin_for_ordinal(
+            section.subject_ref or section.identity,
+            ordinal,
+            commit=("ab"[ordinal - 1]) * 40,
+            blob_oid=str(ordinal) * 40,
+        )
+        return replace(
+            section,
+            body=f"version {ordinal} body\nsecond line\n",
+            version_pin=pin,  # type: ignore[arg-type]
+        )
+
+    def compare_versions(
+        self, section: PagerSection, base_ordinal: int, target_ordinal: int
+    ) -> dict[str, object] | None:
+        return {"line_marks": [1], "word_ops": [], "removal_anchors": []}
+
+    def resolve_historical_link(
+        self, section: PagerSection, ref: str
+    ) -> PagerSection | None:
+        return None
+
+    def refresh(self, section: PagerSection) -> PagerSection | None:
+        return replace(section, version_pin=None)
+
+
+def _version_step_document() -> PagerDocument:
+    section = PagerSection(
+        identity=_VersionStepFakeProvider.IDENTITY,
+        title="version-step.md",
+        kind="file",
+        body="live body\nsecond line\n",
+        subject_ref=_VersionStepFakeProvider.IDENTITY,
+    )
+    return PagerDocument(
+        sections=(section,), title="version-step.md", origin=PagerOrigin.FILE
+    )
+
+
+def _current_ordinal(screen: PagerScreen, identity: str) -> int | None:
+    state = screen._history_states.get(identity)
+    if state is None or state.current_pin is None:
+        return None
+    return state.current_pin.ordinal
+
+
+async def test_paren_keys_step_between_now_and_newest_committed() -> None:
+    """``(`` publishes the newest committed body; ``)`` restores now.
+
+    Regression test: the history mixin used to address worker-to-UI
+    callbacks through a ``call_from_thread`` helper that ``PagerScreen``
+    does not provide, so no version step could ever publish, and the
+    anchor-restore call passed its arguments in the wrong order.
+    """
+    clear_history_provider_factories()
+    register_history_provider_factory(_VersionStepFakeProvider)
+    try:
+        identity = _VersionStepFakeProvider.IDENTITY
+        app = SasePager(_version_step_document())
+        async with app.run_test(size=(80, 24)) as pilot:
+            screen = pager_screen(app)
+            await wait_for(pilot, lambda: identity in screen._history_states)
+            assert _current_ordinal(screen, identity) == 0
+
+            await pilot.press("(")
+            await wait_for(pilot, lambda: _current_ordinal(screen, identity) == 2)
+            assert "version 2 body" in screen.document.sections[0].plain_text
+
+            await pilot.press(")")
+            await wait_for(pilot, lambda: _current_ordinal(screen, identity) == 0)
+            assert "live body" in screen.document.sections[0].plain_text
+    finally:
+        clear_history_provider_factories()

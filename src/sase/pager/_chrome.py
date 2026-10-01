@@ -8,6 +8,7 @@ without booting an App.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any, cast
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -210,6 +211,7 @@ def subject_line(
     char_count: int,
     width: int,
     syntax_hint: str | None = None,
+    history_state: dict[str, object] | None = None,
 ) -> Text:
     """Build the sticky subject line: title left, position right.
 
@@ -221,6 +223,9 @@ def subject_line(
     shown only when syntax is actually enabled/prepared for the current
     section; it is the first thing dropped at a narrow width, before either
     the subject or the position information it sits beside.
+    ``history_state`` optionally carries ``ordinal``/``total``/``age``/
+    ``dirty``/``tombstone`` for the history subject chip; it truncates
+    without wrapping at narrow widths.
     """
     glyph = _section_icon(current_section.kind)
     accent = _section_accent(current_section.kind)
@@ -231,6 +236,10 @@ def subject_line(
     if section_total > 1 and current_section.title != document.title:
         left.append(" · ", style="dim")
         append_path_label(left, current_section.title, style="", root_style=MUTED_STYLE)
+    chip = _history_chip(history_state)
+    if chip is not None:
+        left.append(" ", style="dim")
+        left.append_text(chip)
 
     right_parts = []
     if section_total > 1:
@@ -244,12 +253,38 @@ def subject_line(
             right_str = with_hint
     right = Text(right_str, style="dim")
 
+    available = max(width - cell_len(right.plain) - 1, 0)
+    if cell_len(left.plain) > available:
+        cropped = left.plain[: max(available - 1, 0)] + "…"
+        left = Text(cropped, style="bold")
     gap = max(width - cell_len(left.plain) - cell_len(right.plain), 1)
-    line = Text()
+    line = Text(no_wrap=True, overflow="crop")
     line.append_text(left)
     line.append(" " * gap)
     line.append_text(right)
     return line
+
+
+def _history_chip(state: dict[str, object] | None) -> Text | None:
+    """Return the violet past / dim now / amber dirty subject chip."""
+    if not state:
+        return None
+    if bool(state.get("tombstone")):
+        return Text("✖ deleted", style="red")
+    ordinal = int(cast(Any, state.get("ordinal", 0)) or 0)
+    if ordinal > 0:
+        total = int(cast(Any, state.get("total", 0)) or 0)
+        age = str(state.get("age", "") or "")
+        label = f"⟲ PAST v{ordinal}/{total}" if total else f"⟲ PAST v{ordinal}"
+        if age:
+            label = f"{label} · {age}"
+        return Text(label, style="#9d7cd8")
+    if bool(state.get("dirty")):
+        return Text("◌ uncommitted", style="yellow")
+    total = int(cast(Any, state.get("total", 0)) or 0)
+    if total:
+        return Text(f"v{total} versions", style="dim")
+    return None
 
 
 def section_rule(
@@ -286,16 +321,23 @@ def footer_legend(
     trail_back_count: int = 0,
     trail_forward_count: int = 0,
     status: str | None = None,
+    history_available: bool = False,
+    history_pinned: bool = False,
 ) -> Text:
     """Build the availability-driven footer legend.
 
     Only verbs that would sometimes do nothing are worth a row (the ACE
     footer convention, matched here): plain scrolling (``j``/``k``/``g``/``G``
     /``ctrl+d``/``ctrl+u``) is always available so it lives in ``?`` only.
+    History verbs appear only when a provider owns the current section.
     """
     verbs: list[tuple[str, str]] = []
     if status is not None:
         verbs.append(("…", status))
+    if history_available:
+        verbs.append(("( )", "version"))
+        if history_pinned:
+            verbs.append(("E", "edits now"))
     action_key = {"copy": "y", "edit": "E"}.get(pending_action)
     if action_key is not None:
         verbs.append((f"{action_key}{pending_prefix}…", pending_action))

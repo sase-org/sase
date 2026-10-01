@@ -12,6 +12,7 @@ from sase.ace.tui.actions.agents._metadata_pager_document import (
     build_agent_metadata_document,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailHeaderSummary
+from sase.pager._screen_syntax import _syntax_key_for_section  # noqa: PLC2701
 from sase.pager.app import SasePager
 from sase.pager.screen import PagerScreen
 from tests.ace.agent_artifact_startup_fixtures import make_agent
@@ -75,7 +76,7 @@ async def test_agent_conversation_png_snapshot(
             pilot,
             lambda: (
                 all(
-                    s.identity in screen._syntax_attempted
+                    _syntax_key_for_section(s) in screen._syntax_attempted
                     for s in document.sections[-3:]
                 )
                 and not screen._syntax_pass_running

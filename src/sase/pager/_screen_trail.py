@@ -38,6 +38,9 @@ class PagerTrailMixin:
             self.dismiss(PagerExit(trail_exhausted=True))
             return
         self._resolve_generation += 1
+        history_bump = getattr(self, "_bump_history_generation", None)
+        if callable(history_bump):
+            history_bump()
         target = self._back_trail.pop()
         append_bounded_trail(self._forward_trail, self._current_view_state())
         self._restore_view_state(target)
@@ -46,6 +49,9 @@ class PagerTrailMixin:
         if not self._forward_trail:
             return
         self._resolve_generation += 1
+        history_bump = getattr(self, "_bump_history_generation", None)
+        if callable(history_bump):
+            history_bump()
         target = self._forward_trail.pop()
         append_bounded_trail(self._back_trail, self._current_view_state())
         self._restore_view_state(target)
@@ -55,6 +61,9 @@ class PagerTrailMixin:
 
     def _restore_view_state(self: Any, state: PagerTrailEntry) -> None:
         self.document = state.document
+        rehydrate = getattr(self, "_rehydrate_history_pins", None)
+        if callable(rehydrate):
+            rehydrate(state.version_pins)
         self._body = None
         self._body_width = None
         self._label_layer = None
@@ -87,6 +96,9 @@ class PagerTrailMixin:
     def _current_view_state(self: Any) -> PagerTrailEntry:
         section = self._current_section_or_none()
         scroll = self._body_scroll()
+        pins: tuple[tuple[str, object], ...] = tuple(
+            (item.identity, item.version_pin) for item in self.document.sections
+        )
         return PagerTrailEntry(
             document=self.document,
             document_identity=self._document_identity(),
@@ -99,6 +111,7 @@ class PagerTrailMixin:
             search=self._current_search_state(),
             label_anchor=self._label_window_scope,
             line_mark=self._goto_mark,
+            version_pins=pins,
         )
 
     def _current_search_state(self: Any) -> PagerSearchState:

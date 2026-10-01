@@ -25,6 +25,7 @@ from sase.pager._screen_actions import PagerActionMixin, _DanglingRefKey
 from sase.pager._screen_body import PagerBodyMixin
 from sase.pager._screen_chrome import PagerChromeMixin
 from sase.pager._screen_goto import PagerGotoMixin
+from sase.pager._screen_history import PagerHistoryMixin
 from sase.pager._screen_search import PagerSearchMixin
 from sase.pager._screen_syntax import PagerSyntaxMixin
 from sase.pager._screen_trail import PagerTrailMixin
@@ -37,6 +38,7 @@ from sase.pager.trail import PagerTrailEntry
 
 
 class PagerScreen(
+    PagerHistoryMixin,
     PagerBodyMixin,
     PagerActionMixin,
     PagerTrailMixin,
@@ -57,6 +59,10 @@ class PagerScreen(
     CSS = PAGER_CSS
 
     BINDINGS = [
+        Binding("left_parenthesis", "history_older", "Older", show=False),
+        Binding("right_parenthesis", "history_newer", "Newer", show=False),
+        Binding("left_curly_bracket", "history_first", "First", show=False),
+        Binding("right_curly_bracket", "history_now", "Now", show=False),
         Binding("q,escape", "close_pager", "Close"),
         Binding("j,down", "scroll_down", "Down"),
         Binding("k,up", "scroll_up", "Up"),
@@ -118,6 +124,7 @@ class PagerScreen(
         self._footer_status: str | None = None
         self._init_goto_state()
         self._init_syntax_state()
+        self._init_history_state()
 
     def on_unmount(self) -> None:
         cancel_pump_free_tasks(self)
@@ -144,6 +151,7 @@ class PagerScreen(
             self._update_subject()
             self.watch(self.app, "theme", self._on_app_theme_changed, init=False)
             self._start_syntax_preparation_after_paint()
+            self._start_history_discovery_after_paint()
 
     def on_key(self, event: Key) -> None:
         """Give the re-hosted vim search first refusal on every keypress.

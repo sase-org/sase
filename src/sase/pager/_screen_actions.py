@@ -132,6 +132,44 @@ class PagerActionMixin:
             self.notify("This document has no section to act on.", severity="warning")
             return
         section = self._current_section()
+        pin = getattr(section, "version_pin", None)
+        pinned_ordinal = int(getattr(pin, "ordinal", 0) or 0) if pin is not None else 0
+        if action == "copy" and pinned_ordinal > 0:
+            commit = str(getattr(pin, "commit", "") or "")
+            live_ref = section.subject_ref or section.identity
+            if commit:
+                short_path = live_ref.removeprefix("file:")
+                self._copy_ref(f"{commit}:{short_path}", label="this version")
+                return
+        if action == "edit":
+            live_path = self._history_live_path_for_section(section)
+            if live_path is not None:
+                if live_path == "__deleted__":
+                    self.notify(
+                        "This version was deleted — no live file to edit.",
+                        severity="warning",
+                    )
+                    return
+                index = self._current_section_index()
+                owner = section.owner
+                context = self._link_context_for_section_index(index)
+                if owner is not None and context is not None:
+                    from dataclasses import replace as _replace
+
+                    from sase.pager.link_context import merge_link_context
+
+                    unpinned = _replace(owner, revision=None)
+                    context = merge_link_context(
+                        section.link_anchors,
+                        self.document.link_context,
+                        owner=unpinned,
+                    )
+                self._resolve_and_dispatch(
+                    live_path,
+                    intent="edit",
+                    context=context,
+                )
+                return
         ref = section.subject_ref
         if ref is None:
             what = "copy" if action == "copy" else "edit"
@@ -146,6 +184,23 @@ class PagerActionMixin:
                 intent="edit",
                 context=self._link_context_for_section_index(index),
             )
+
+    def _history_live_path_for_section(self: Any, section: Any) -> str | None:
+        states = getattr(self, "_history_states", None)
+        if not states or section.identity not in states:
+            return None
+        state = states[section.identity]
+        live = getattr(state, "live_section", None)
+        if live is not None and getattr(live, "subject_ref", None):
+            return str(live.subject_ref)
+        pin = getattr(section, "version_pin", None)
+        if pin is not None and int(getattr(pin, "ordinal", 0) or 0) > 0:
+            # Pinned but no live snapshot: fall back to the subject ref
+            # unless the status marks a deletion tombstone.
+            if getattr(state, "status", "") == "tombstone":
+                return "__deleted__"
+            return str(section.subject_ref) if section.subject_ref else None
+        return None
 
     def _activate_label(self: Any, label: PagerLabel) -> None:
         self._last_activated_label = label
@@ -256,10 +311,42 @@ class PagerActionMixin:
             return
         self._set_footer_status("loading")
         self._resolve_generation += 1
+        history_bump = getattr(self, "_bump_history_generation", None)
+        if callable(history_bump):
+            history_bump()
         generation = self._resolve_generation
         document = self.document
+        try:
+            history_section = self._current_section()
+        except Exception:
+            history_section = None
 
         async def resolve_task() -> None:
+            if (
+                history_section is not None
+                and getattr(history_section, "version_pin", None) is not None
+            ):
+                historical = await asyncio.to_thread(
+                    self._try_historical_link, history_section, ref
+                )
+                if (
+                    generation != self._resolve_generation
+                    or self.document is not document
+                ):
+                    return
+                if historical is not None:
+                    self._apply_historical_section(
+                        historical, ref, intent=intent, context=context
+                    )
+                    return
+                if getattr(self, "_history_miss_notice", None) is not None:
+                    notice = self._history_miss_notice  # type: ignore[attr-defined]
+                    self._history_miss_notice = None  # type: ignore[attr-defined]
+                    if notice:
+                        self._set_footer_status(None)
+                        self.notify(notice, severity="warning")
+                        self._repaint_label_state()
+                        return
             try:
                 result = await asyncio.to_thread(
                     self._resolve_ref,
@@ -287,6 +374,67 @@ class PagerActionMixin:
             name="sase-pager-resolve",
             registry_attr="_pump_free_resolve_tasks",
         )
+
+    def _try_historical_link(self: Any, section: Any, ref: str) -> Any | None:
+        try:
+            from sase.pager.history.provider import history_provider_for_section
+        except Exception:
+            return None
+        try:
+            provider = history_provider_for_section(section)
+        except Exception:
+            return None
+        if provider is None:
+            return None
+        try:
+            resolve = getattr(provider, "resolve_historical_link", None)
+            if resolve is None:
+                return None
+            return resolve(section, ref)
+        except Exception as exc:
+            try:
+                from sase.pager.history.provider import HistoryMissingError as _Miss
+
+                if isinstance(exc, _Miss):
+                    pin = getattr(section, "version_pin", None)
+                    commit = str(getattr(pin, "commit", "") or "")[:7]
+                    self._history_miss_notice = (  # type: ignore[attr-defined]
+                        f"{ref} is not present at {commit}; "
+                        "open at creation or now instead."
+                    )
+                    return None
+            except Exception:
+                pass
+            try:
+                if "HistoryMissingError" in type(exc).__name__:
+                    self._history_miss_notice = str(exc)  # type: ignore[attr-defined]
+                    return None
+            except Exception:
+                pass
+            return None
+
+    def _apply_historical_section(
+        self: Any,
+        section: Any,
+        ref: str,
+        *,
+        intent: str,
+        context: Any | None = None,
+    ) -> None:
+        from sase.pager.document import PagerDocument
+
+        self._set_footer_status(None)
+        if intent == "edit":
+            self._dispatch_section_action("edit")
+            return
+        document = PagerDocument(
+            sections=(section,),
+            title=section.title,
+            origin=self.document.origin,
+            link_context=self.document.link_context,
+        )
+        self._push_trail_entry()
+        self._navigate_to_document(document, line=None)
 
     def _apply_resolution(
         self: Any,

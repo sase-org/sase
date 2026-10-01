@@ -10,4 +10,12 @@ classification, cause attribution, snapshots, and diffing stay in
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from sase.memory.history.pager_provider import (
+    MemoryHistoryProvider,
+    build_history_document,
+)
+
+__all__: list[str] = [
+    "MemoryHistoryProvider",
+    "build_history_document",
+]

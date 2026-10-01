@@ -69,6 +69,21 @@ def _lex_and_style(
     return result, styled
 
 
+def _syntax_key_for_section(section: PagerSection) -> tuple[str, str | None]:
+    """Return the version-safe syntax key for *section*.
+
+    Committed pins key by ``(identity, blob_oid)``; live history pins
+    key by a content digest so a refresh cannot paint stale syntax;
+    non-history sections keep the legacy ``(identity, None)`` shape.
+    """
+    pin = section.version_pin
+    if pin is None:
+        return (section.identity, None)
+    if pin.ordinal > 0:
+        return (section.identity, pin.blob_oid or pin.commit or f"v{pin.ordinal}")
+    return (section.identity, f"live:{content_digest(section.plain_text)}")
+
+
 class PagerSyntaxMixin:
     """Own background syntax preparation, its caches, and theme invalidation."""
 
@@ -80,8 +95,8 @@ class PagerSyntaxMixin:
     _search: VimSearchController
     _syntax_palette: SyntaxPalette
     _syntax_generation: int
-    _syntax_prepared: dict[str, _PreparedSection]
-    _syntax_attempted: set[str]
+    _syntax_prepared: dict[tuple[str, str | None], _PreparedSection]
+    _syntax_attempted: set[tuple[str, str | None]]
     _syntax_result_cache: SyntaxResultCache
     _syntax_styled_cache: StyledTextCache
     _syntax_restart_requested: bool
@@ -134,7 +149,7 @@ class PagerSyntaxMixin:
         if not self.document.sections:
             return None
         section = self._current_section()
-        entry = self._syntax_prepared.get(section.identity)
+        entry = self._syntax_prepared.get(_syntax_key_for_section(section))
         return None if entry is None else entry.hint
 
     def _prepared_section_texts(self: Any) -> dict[int, Text]:
@@ -143,7 +158,7 @@ class PagerSyntaxMixin:
             return {}
         texts: dict[int, Text] = {}
         for index, section in enumerate(self.document.sections):
-            entry = prepared.get(section.identity)
+            entry = prepared.get(_syntax_key_for_section(section))
             if entry is not None:
                 texts[index] = entry.styled_text
         return texts
@@ -153,7 +168,7 @@ class PagerSyntaxMixin:
             return False
         attempted = self._syntax_attempted
         for section in self.document.sections:
-            if section.identity in attempted:
+            if _syntax_key_for_section(section) in attempted:
                 continue
             if section_syntax_language(section) is not None:
                 return True
@@ -217,7 +232,7 @@ class PagerSyntaxMixin:
                 section_index = order[position]
                 position += 1
                 section = document.sections[section_index]
-                if section.identity in self._syntax_attempted:
+                if _syntax_key_for_section(section) in self._syntax_attempted:
                     continue
                 changed = await self._prepare_one_section(document, generation, section)
                 if self._syntax_is_stale(document, generation):
@@ -242,13 +257,14 @@ class PagerSyntaxMixin:
         section: PagerSection,
     ) -> bool:
         """Prepare one section; return whether it now paints differently."""
+        key = _syntax_key_for_section(section)
         language = section_syntax_language(section)
         canonical_language = None if language is None else normalize_language(language)
         if language is None or canonical_language is None:
-            self._syntax_attempted.add(section.identity)
+            self._syntax_attempted.add(key)
             return False
         if self._syntax_document_span_budget_used >= MAX_DOCUMENT_SYNTAX_SPANS:
-            self._syntax_attempted.add(section.identity)
+            self._syntax_attempted.add(key)
             return False
 
         source = section.plain_text
@@ -292,14 +308,12 @@ class PagerSyntaxMixin:
                     return False
                 self._syntax_styled_cache.put(styled_key, styled)
 
-        self._syntax_attempted.add(section.identity)
+        self._syntax_attempted.add(key)
         self._syntax_document_span_budget_used += len(result.spans)
         if result.disposition is not SyntaxDisposition.HIGHLIGHTED:
             return False
         hint = syntax_hint_alias(result.language) if result.language else None
-        self._syntax_prepared[section.identity] = _PreparedSection(
-            styled_text=styled, hint=hint
-        )
+        self._syntax_prepared[key] = _PreparedSection(styled_text=styled, hint=hint)
         return True
 
     def _publish_syntax_update(self: Any) -> None:
@@ -309,6 +323,11 @@ class PagerSyntaxMixin:
         self._label_layer = self._build_label_layer(width)
         mark = getattr(self, "_goto_mark", None)
         accent_fn = getattr(self, "_goto_accent_for_mark", None)
+        marks_fn = getattr(self, "_history_marks_for_body", None)
+        change_marks = None
+        removal_anchors = None
+        if callable(marks_fn):
+            change_marks, removal_anchors = marks_fn()
         self._body = compose_body(
             self.document,
             width,
@@ -319,6 +338,8 @@ class PagerSyntaxMixin:
             goto_accent=accent_fn()
             if mark is not None and accent_fn is not None
             else None,
+            change_marks=change_marks,
+            removal_anchors=removal_anchors,
         )
         if self._search.is_active:
             self._search.refresh_styled_base()

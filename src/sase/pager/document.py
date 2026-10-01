@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from rich.console import Console, RenderableType
 from rich.text import Text
@@ -14,6 +14,9 @@ from sase.artifact_ref_models import ArtifactRefDocumentOwner, ArtifactRefDocume
 from sase.artifact_ref_operations import split_link_location
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpan, LinkSpanKind, PagerOrigin, scan_links
+
+if TYPE_CHECKING:
+    from sase.pager.history.models import VersionPin
 
 PagerTargetSource = Literal["attached", "scanned"]
 
@@ -79,6 +82,7 @@ class PagerSection:
     origin: PagerOrigin | None = None
     owner: ArtifactRefDocumentOwner | None = None
     known_kinds: tuple[str, ...] = ()
+    version_pin: VersionPin | None = None  # type: ignore[valid-type]
     _body_text: Text = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing.wait import wait_for
+from sase.pager._screen_syntax import _syntax_key_for_section  # noqa: PLC2701
 from sase.pager.app import SasePager
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection, RawSourceSpec
 from sase.pager.screen import PagerScreen
@@ -122,11 +123,14 @@ def _diff_document() -> PagerDocument:
     )
 
 
-async def _wait_for_syntax(pilot: object, app: SasePager, identity: str) -> None:
+async def _wait_for_syntax(
+    pilot: object, app: SasePager, section: PagerSection
+) -> None:
     screen = _pager_screen(app)
+    key = _syntax_key_for_section(section)
     await wait_for(
         pilot,
-        lambda: identity in screen._syntax_prepared and not screen._syntax_pass_running,
+        lambda: key in screen._syntax_prepared and not screen._syntax_pass_running,
     )
 
 
@@ -145,12 +149,6 @@ async def test_syntax_png_snapshot(
         "diff": _diff_document(),
         "search": _python_document(),
     }
-    identities = {
-        "python": "file:/tmp/demo.py",
-        "markdown": "file:/tmp/note.md",
-        "diff": "file:/tmp/change.diff",
-        "search": "file:/tmp/demo.py",
-    }
     document = documents[state]
     theme_label = "light" if light else "dark"
     app = _SnapshotPager(
@@ -158,7 +156,7 @@ async def test_syntax_png_snapshot(
         theme_name="textual-light" if light else None,
     )
     async with app.run_test(size=size) as pilot:
-        await _wait_for_syntax(pilot, app, identities[state])
+        await _wait_for_syntax(pilot, app, document.sections[0])
         if state == "search":
             await pilot.press("slash")
             for character in "comment":

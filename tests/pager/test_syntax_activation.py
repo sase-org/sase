@@ -138,8 +138,10 @@ async def test_prepared_source_keeps_canonical_characters_and_link_spans() -> No
     app = SasePager(document)
     async with app.run_test(size=(80, 24)) as pilot:
         screen = _pager_screen(app)
-        await wait_for(pilot, lambda: "file:/tmp/demo.py" in screen._syntax_prepared)
-        prepared = screen._syntax_prepared["file:/tmp/demo.py"]
+        await wait_for(
+            pilot, lambda: ("file:/tmp/demo.py", None) in screen._syntax_prepared
+        )
+        prepared = screen._syntax_prepared[("file:/tmp/demo.py", None)]
         assert prepared.styled_text.plain == document.sections[0].plain_text
         assert prepared.hint == "py"
         assert prepared.styled_text.spans
@@ -172,10 +174,11 @@ async def test_first_paint_and_keys_work_before_slow_syntax(
             scroll = screen.query_one("#pager-body-scroll", VerticalScroll)
             before = scroll.scroll_y
             await pilot.press("j")
-            assert "file:/tmp/demo.py" not in screen._syntax_prepared
+            assert ("file:/tmp/demo.py", None) not in screen._syntax_prepared
             release.set()
             await wait_for(
-                pilot, lambda: "file:/tmp/demo.py" in screen._syntax_prepared
+                pilot,
+                lambda: ("file:/tmp/demo.py", None) in screen._syntax_prepared,
             )
             assert scroll.scroll_y >= before
     finally:
