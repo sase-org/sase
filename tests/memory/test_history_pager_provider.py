@@ -14,14 +14,16 @@ from sase.memory.history import pager_provider as provider_mod
 from sase.memory.history import scopes as history_scopes
 from sase.memory.history.cli_history import handle_memory_history_command
 from sase.memory.history.pager_provider import (
-    _MemoryHistoryProvider,
-    _tombstone_banner,
     build_history_document,
     dirty_now_from_timeline,
     history_marks_from_comparison,
     is_deleted_row,
     newest_committed_row,
     visible_ordinals_for_timeline,
+)
+from sase.memory.history.pager_provider_core import (
+    _MemoryHistoryProvider,
+    _tombstone_banner,
 )
 from sase.memory.history.render_text import format_banner_date
 from sase.memory.history.service import HistoryService

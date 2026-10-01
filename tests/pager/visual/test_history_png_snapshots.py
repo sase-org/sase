@@ -27,7 +27,7 @@ from sase.pager.history.models import (
     committed_pin_for_ordinal,
     live_pin_for_subject,
 )
-from sase.memory.history.pager_provider import _tombstone_banner
+from sase.memory.history.pager_provider_core import _tombstone_banner
 from sase.pager.history.provider import clear_history_provider_factories
 from sase.pager.screen import PagerScreen
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
