@@ -299,6 +299,67 @@ async def test_next_word_peek_narrow_png_snapshot(
         )
 
 
+async def test_next_word_midword_ghost_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await _mount_prompt_bar(page, "Can you help me imple")
+        ta = bar.active_text_area()
+        ta.cursor_location = (0, len(ta.text))
+        ta.suggestion = "ment it"
+        bar.show_next_word_hint(NEXT_WORD_GHOST_HINT)
+        # The cursor block sits on the suggestion's first cell, so the
+        # contiguous ghost span after it reads "ent it".
+        await wait_for_svg_contains(page, "ent it")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "next_word_midword_ghost_120x40",
+            title="ACE prompt input — mid-word completion ghost",
+        )
+
+
+async def test_next_word_midword_peek_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await _mount_prompt_bar(
+            page, "Can you help me imple the parser and make sure the tests pass"
+        )
+        ta = bar.active_text_area()
+        ta.cursor_location = (0, len("Can you help me imple"))
+        # Flush the cursor-move messages before showing: they would
+        # otherwise validate a chainless hint away after the show.
+        await wait_for_visual_idle(page)
+        peek = ta._build_next_word_peek_text(["implement", "it", "now"])
+        assert peek is not None
+        bar.show_next_word_hint(peek)
+        await wait_for_svg_contains(page, "⇢")
+        await wait_for_svg_contains(page, "implement")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "next_word_midword_peek_120x40",
+            title="ACE prompt input — mid-word completion peek",
+        )
+
+
 async def test_next_word_auto_space_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

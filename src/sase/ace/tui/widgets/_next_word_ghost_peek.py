@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from rich.cells import cell_len
 from rich.text import Text
 
-from sase.ace.tui.widgets._next_word_ghost_state import NextWordGhostStateMixin
+from sase.ace.tui.widgets._next_word_midword import NextWordMidwordMixin
 from sase.ace.tui.widgets.next_word_completion import (
     next_word_chain_armed,
     next_word_has_word_suffix,
@@ -30,13 +30,19 @@ from sase.ace.tui.widgets.next_word_placement import (
 )
 
 
-class NextWordGhostPeekMixin(NextWordGhostStateMixin):
+class NextWordGhostPeekMixin(NextWordMidwordMixin):
     """Peek state, reveal timing, auto trigger, and accept actions."""
 
     if TYPE_CHECKING:
+        from sase.core.prompt_prediction_wire import PromptPredictionWordCompletion
+
         _next_word_hint: str | Text | None
         _next_word_peek: NextWordPeek | None
         suggestion: str
+
+        def _maybe_auto_next_word_midword(self, character: str | None) -> bool: ...
+        def _accept_next_word_midword_peek_one(self) -> bool: ...
+        def _accept_next_word_midword_peek_all(self) -> bool: ...
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
@@ -50,6 +56,7 @@ class NextWordGhostPeekMixin(NextWordGhostStateMixin):
             self,
             *,
             reveal: Literal["immediate", "delayed"] = "immediate",
+            complete_current_word: bool = False,
         ) -> None: ...
 
     def _next_word_peek_visible(self) -> bool:
@@ -245,6 +252,7 @@ class NextWordGhostPeekMixin(NextWordGhostStateMixin):
         words: list[str],
         *,
         reveal: Literal["immediate", "delayed"] = "immediate",
+        word_completion: PromptPredictionWordCompletion | None = None,
     ) -> bool:
         """Trim *words* and show them as the border peek; return success.
 
@@ -252,7 +260,9 @@ class NextWordGhostPeekMixin(NextWordGhostStateMixin):
         has; width degradation drops trailing preview words before hints.
         A ``delayed`` reveal stores the peek unrevealed until the beat. An
         explicit peek shows immediately. The ghost is cleared: only one
-        surface is ever visible.
+        surface is ever visible. A mid-word peek carries the core's
+        *word_completion* so its accepts finish the typed word via the
+        suffix instead of re-inserting the whole word.
         """
         if not words:
             return False
@@ -278,6 +288,7 @@ class NextWordGhostPeekMixin(NextWordGhostStateMixin):
                 anchor_text=text,
                 words=tuple(trimmed),
                 revealed=False,
+                word_completion=word_completion,
             )
             self._schedule_next_word_reveal(text, offset)
             return True
@@ -291,6 +302,7 @@ class NextWordGhostPeekMixin(NextWordGhostStateMixin):
             anchor_text=text,
             words=tuple(trimmed),
             revealed=True,
+            word_completion=word_completion,
         )
         self._show_next_word_peek_text(peek_text)
         return True
@@ -336,15 +348,15 @@ class NextWordGhostPeekMixin(NextWordGhostStateMixin):
         """Show a gated ghost or peek after a typed trigger in ``auto`` mode.
 
         Any typed non-word character following a word token predicts next
-        words (mid-word characters stay silent until the mid-word phase).
-        Inline placements render at once as ghost text; peeks and hints
-        wait for the reveal beat. Everything else follows the chain
-        contract.
+        words; a typed word character with no word character after the
+        cursor requests a mid-word completion instead. Inline placements
+        render at once as ghost text; peeks and hints wait for the reveal
+        beat. Everything else follows the chain contract.
         """
         if character is None or len(character) != 1 or not character.isprintable():
             return False
         if character.isalnum() or character in {"-", "_", "'", "’"}:
-            return False
+            return self._maybe_auto_next_word_midword(character)
         mode, _, _ = self._next_word_settings()
         if mode != "auto":
             return False
@@ -368,11 +380,14 @@ class NextWordGhostPeekMixin(NextWordGhostStateMixin):
         One undo step, then predict again immediately so the next guess
         shows without flicker. A trailing space is added when an
         identifier character follows, with the cursor landing after the
-        word, exactly like the next-word menu accept.
+        word, exactly like the next-word menu accept. A mid-word peek
+        instead finishes the typed word via its completion suffix.
         """
         peek = getattr(self, "_next_word_peek", None)
         if peek is None or not peek.words:
             return False
+        if getattr(peek, "word_completion", None) is not None:
+            return self._accept_next_word_midword_peek_one()
         if not self._next_word_peek_visible():
             return False
         word = peek.words[0]
@@ -403,10 +418,16 @@ class NextWordGhostPeekMixin(NextWordGhostStateMixin):
         return True
 
     def _accept_next_word_peek_all(self) -> bool:
-        """Insert every peek word with menu separator rules, then re-arm."""
+        """Insert every peek word with menu separator rules, then re-arm.
+
+        A mid-word peek instead inserts its suffix plus every preview
+        word, mirroring the mid-word ghost text.
+        """
         peek = getattr(self, "_next_word_peek", None)
         if peek is None or not peek.words:
             return False
+        if getattr(peek, "word_completion", None) is not None:
+            return self._accept_next_word_midword_peek_all()
         if not self._next_word_peek_visible():
             return False
         words = [word for word in peek.words if word]

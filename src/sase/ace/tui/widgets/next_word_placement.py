@@ -16,6 +16,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -24,6 +25,9 @@ from sase.ace.tui.widgets._ranking_signal_rows import (
     SEQUENCE_COLOR,
     SEQUENCE_GLYPH,
 )
+
+if TYPE_CHECKING:
+    from sase.core.prompt_prediction_wire import PromptPredictionWordCompletion
 
 
 class NextWordPlacement(Enum):
@@ -73,15 +77,17 @@ class NextWordPeek:
 
     ``words`` are the trimmed preview words, ``revealed`` tracks the
     reveal beat (explicit requests and accepts reveal immediately while
-    auto peeks wait), and ``word_completion`` stays ``None`` until the
-    mid-word phase composes suffix-plus-continuation peeks.
+    auto peeks wait), and ``word_completion`` carries the core's
+    current-word completion for mid-word peeks (``None`` for
+    boundary peeks). A mid-word peek's first word is the completed word;
+    its accepts insert the suffix, never the whole word.
     """
 
     anchor_offset: int
     anchor_text: str
     words: tuple[str, ...]
     revealed: bool
-    word_completion: object | None = None
+    word_completion: PromptPredictionWordCompletion | None = None
 
 
 def _is_placement_word_char(character: str) -> bool:
@@ -332,6 +338,23 @@ def next_word_auto_space_eligible(text: str, cursor_offset: int) -> bool:
     return _is_placement_word_char(text[index])
 
 
+def next_word_midword_eligible(text: str, cursor_offset: int) -> bool:
+    """Return whether a just-typed word character may trigger mid-word autosuggest.
+
+    The typed character (just before the cursor) must be a word character
+    and no word character may follow the cursor: typing inside a word
+    stays silent. Every non-``none`` placement is eligible; the placement
+    classification decides the surface (inline ghost or border peek).
+    """
+    if cursor_offset <= 0 or cursor_offset > len(text):
+        return False
+    if not _is_placement_word_char(text[cursor_offset - 1]):
+        return False
+    return (
+        classify_next_word_placement(text, cursor_offset) is not NextWordPlacement.NONE
+    )
+
+
 __all__ = [
     "NEXT_WORD_CLOSING_TAIL_CHARS",
     "NEXT_WORD_MAX_TAIL_CHARS",
@@ -344,6 +367,7 @@ __all__ = [
     "fit_next_word_ghost_with_tail",
     "next_word_auto_space_eligible",
     "next_word_is_last_wrapped_section",
+    "next_word_midword_eligible",
     "next_word_rest_of_line",
     "trim_next_word_peek_words",
 ]

@@ -7,6 +7,7 @@ this module only formats a gated ``ghost: [word]`` list for display.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from rich.cells import cell_len
@@ -44,6 +45,10 @@ class NextWordChain:
 
     anchor_offset: int
     anchor_text: str
+    #: Whether the chain was armed by a mid-word trigger and expects a
+    #: ``complete_current_word`` result (suffix-plus-continuation
+    #: composition with old-core silence). Boundary arms leave this False.
+    midword: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +161,73 @@ def next_word_has_word_suffix(text: str, cursor_offset: int) -> bool:
     return cursor_offset < len(text) and text[cursor_offset] in _NEXT_WORD_SUFFIX_CHARS
 
 
+def build_midword_ghost_text(
+    suffix: str,
+    continuation: Sequence[str],
+) -> str:
+    """Return the inline ghost for a mid-word completion.
+
+    The ghost is the core's casing-preserving *suffix* plus, when a gated
+    continuation follows the completed word, a space and the continuation
+    words (``"ment it now"``). An empty suffix means the typed word is
+    already complete, so the ghost starts with that space
+    (``" it now"``). Returns ``""`` when there is nothing to show: an
+    exact word with no continuation never offers a guess.
+    """
+    words = [word for word in continuation if word]
+    if not suffix:
+        return f" {' '.join(words)}" if words else ""
+    if not words:
+        return suffix
+    return f"{suffix} {' '.join(words)}"
+
+
+def fit_midword_ghost_with_tail(
+    suffix: str,
+    continuation: Sequence[str],
+    available_width: int,
+    max_words: int,
+    tail: str,
+) -> str:
+    """Fit a mid-word ghost beside the shifted *tail*; return ``""`` on failure.
+
+    The ghost plus the shifted tail must fit *available_width*, the
+    remaining cells of the cursor's wrapped row, so the tail's cells come
+    off the budget first. The continuation caps at ``max_words - 1``
+    words because ``max_words`` counts the completed word, then trailing
+    continuation words drop until the composed ghost fits. Returns ``""``
+    when even the suffix alone does not fit (the placement becomes
+    ``peek``) or when there is nothing to show.
+    """
+    budget = available_width - (cell_len(tail) if tail else 0)
+    if budget <= 0:
+        return ""
+    kept = [word for word in continuation if word][: max(0, max_words - 1)]
+    while True:
+        text = build_midword_ghost_text(suffix, kept)
+        if not text:
+            return ""
+        if cell_len(text) <= budget:
+            return text
+        if not kept:
+            return ""
+        kept.pop()
+
+
+def midword_peek_words(
+    word: str,
+    continuation: Sequence[str],
+    max_words: int,
+) -> list[str]:
+    """Return the peek words for a mid-word completion.
+
+    The first word is the completed *word* (what ``Ctrl+T`` finishes),
+    followed by the continuation preview, capped at *max_words*.
+    """
+    words = [word, *[item for item in continuation if item]]
+    return [item for item in words if item][: max(1, max_words)]
+
+
 __all__ = [
     "NEXT_WORD_GHOST_HINT",
     "NEXT_WORD_NO_GUESS_HINT",
@@ -163,8 +235,11 @@ __all__ = [
     "NEXT_WORD_WARMING_HINT",
     "NextWordChain",
     "NextWordGhost",
+    "build_midword_ghost_text",
     "build_next_word_ghost_text",
+    "fit_midword_ghost_with_tail",
     "fit_next_word_ghost",
+    "midword_peek_words",
     "next_word_auto_space_eligible",
     "next_word_chain_armed",
     "next_word_ghost_expected",

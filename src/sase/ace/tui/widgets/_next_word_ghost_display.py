@@ -13,6 +13,7 @@ from ._next_word_ghost_peek import NextWordGhostPeekMixin
 from ._next_word_ghost_state import (
     NEXT_WORD_GHOST_LIMIT,
     NEXT_WORD_REVEAL_DELAY_MS,
+    NEXT_WORD_SYNC_MAX_DRAFT_CHARS,
 )
 
 
@@ -23,5 +24,6 @@ class NextWordGhostDisplayMixin(NextWordGhostPeekMixin):
 __all__ = [
     "NEXT_WORD_GHOST_LIMIT",
     "NEXT_WORD_REVEAL_DELAY_MS",
+    "NEXT_WORD_SYNC_MAX_DRAFT_CHARS",
     "NextWordGhostDisplayMixin",
 ]

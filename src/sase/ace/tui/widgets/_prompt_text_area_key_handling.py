@@ -597,6 +597,8 @@ class PromptTextAreaKeyHandlingMixin(
         ):
             self._try_vcs_project_completion()
         self._open_auto_reference_completion_after_change(event.character)
-        # Opt-in automatic ghost: only a typed space at a word boundary
-        # predicts, reusing the ghost-chain acceptance and clearing contract.
+        # Automatic ghost in auto mode: a typed non-word character after
+        # a word predicts the next words, while a typed word character
+        # requests a mid-word completion instead. Both reuse the
+        # ghost-chain acceptance and clearing contract.
         self._maybe_auto_next_word_ghost(event.character)

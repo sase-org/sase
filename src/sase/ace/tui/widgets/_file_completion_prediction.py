@@ -67,13 +67,17 @@ class FileCompletionPredictionMixin(FileCompletionWorkerMixin):
         limit: int = 5,
         max_words: int = 4,
         confidence: str = "balanced",
+        complete_current_word: bool = False,
     ) -> PromptPredictionResult | None:
         """Predict next words for *text_before_cursor*, or ``None`` on silence.
 
         Silence covers the cold model, a session-disabled feature, and any
         prediction failure (which disables the feature for the session and
         logs once). The returned ghost is truncated before the first
-        history-deleted word and deleted candidates are dropped.
+        history-deleted word, deleted candidates are dropped, and a
+        current-word completion whose word was deleted is dropped. With
+        *complete_current_word* the core also returns the gated completion
+        of the word being typed.
         """
         try:
             settings = getattr(self, "_prompt_completion_settings", None)
@@ -98,6 +102,7 @@ class FileCompletionPredictionMixin(FileCompletionWorkerMixin):
                     limit=limit,
                     max_words=max_words,
                     confidence=confidence,
+                    complete_current_word=complete_current_word,
                 )
             )
         except Exception:
@@ -202,7 +207,11 @@ class FileCompletionPredictionMixin(FileCompletionWorkerMixin):
     def _post_filter_deleted_words(
         self, result: PromptPredictionResult
     ) -> PromptPredictionResult:
-        """Truncate the ghost and candidates at history-deleted words."""
+        """Truncate the ghost and candidates at history-deleted words.
+
+        A current-word completion whose completed word was deleted in
+        memory is dropped as well, so a deleted word is never completed.
+        """
         deletions = self._prediction_deleted_words()
         if not deletions:
             return result
@@ -212,9 +221,21 @@ class FileCompletionPredictionMixin(FileCompletionWorkerMixin):
             for candidate in result.candidates
             if candidate.key not in deletions
         ]
-        if ghost == result.ghost and len(candidates) == len(result.candidates):
+        completion = result.word_completion
+        if completion is not None and completion.word.casefold() in deletions:
+            completion = None
+        if (
+            ghost == result.ghost
+            and len(candidates) == len(result.candidates)
+            and completion is result.word_completion
+        ):
             return result
-        return replace(result, ghost=ghost, candidates=candidates)
+        return replace(
+            result,
+            ghost=ghost,
+            candidates=candidates,
+            word_completion=completion,
+        )
 
     def _prediction_deleted_words(self) -> frozenset[str]:
         """Return casefolded history-deleted words without touching disk."""

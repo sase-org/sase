@@ -51,7 +51,15 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
             limit: int = 5,
             max_words: int = 4,
             confidence: str = "balanced",
+            complete_current_word: bool = False,
         ) -> PromptPredictionResult | None: ...
+        def _compose_next_word_midword_result(
+            self,
+            result: PromptPredictionResult | None,
+            *,
+            reveal: Literal["immediate", "delayed"] = "immediate",
+        ) -> bool: ...
+        def _cancel_next_word_midword_request(self) -> None: ...
         def _prompt_prediction_is_cold(self) -> bool: ...
         def _schedule_prompt_prediction_load(self) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
@@ -74,6 +82,10 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
     def _clear_next_word_chain(self) -> None:
         """Clear ghost and peek, disarm the chain, restore the subtitle."""
         self._next_word_chain = None
+        try:
+            self._cancel_next_word_midword_request()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self._clear_next_word_ghost()
         try:
             self._clear_next_word_peek()  # type: ignore[attr-defined]
@@ -100,25 +112,26 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         except Exception:
             pass
 
-    def _arm_next_word_chain(
-        self, *, reveal: Literal["immediate", "delayed"] = "immediate"
-    ) -> None:
-        """Arm the chain at the cursor and show a gated ghost when it fits.
+    def _anchor_next_word_chain(self, *, midword: bool) -> tuple[str, int] | None:
+        """Reset the chain, ghost, peek, and hint anchors without predicting.
 
-        Typing-triggered arms pass ``reveal="delayed"`` so the ghost text
-        appears at once while its hint waits for the reveal beat;
-        explicit arms show both immediately.
+        Returns the ``(text, offset)`` snapshot, or ``None`` when the chain
+        cannot arm (unreadable document or a blocking UI state). A pending
+        deferred mid-word request is superseded.
         """
-        if not self._next_word_enabled():
-            self._clear_next_word_chain()
-            return
+        try:
+            self._cancel_next_word_midword_request()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         try:
             text = self.text
             offset = self._absolute_offset(self.cursor_location)
         except Exception:
-            return
+            return None
         self._cancel_next_word_reveal()
-        self._next_word_chain = NextWordChain(anchor_offset=offset, anchor_text=text)
+        self._next_word_chain = NextWordChain(
+            anchor_offset=offset, anchor_text=text, midword=midword
+        )
         self._next_word_ghost = None
         try:
             self._next_word_peek = None  # type: ignore[attr-defined]
@@ -127,7 +140,31 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         self._next_word_hint = None
         if not self._next_word_ghost_allowed():
             self._hide_next_word_hint()
+            return None
+        return (text, offset)
+
+    def _arm_next_word_chain(
+        self,
+        *,
+        reveal: Literal["immediate", "delayed"] = "immediate",
+        complete_current_word: bool = False,
+    ) -> None:
+        """Arm the chain at the cursor and show a gated ghost when it fits.
+
+        Typing-triggered arms pass ``reveal="delayed"`` so the ghost text
+        appears at once while its hint waits for the reveal beat;
+        explicit arms show both immediately. With
+        *complete_current_word* the core also completes the word being
+        typed and the guess composes as suffix plus continuation, with
+        old-core silence when the field is missing.
+        """
+        if not self._next_word_enabled():
+            self._clear_next_word_chain()
             return
+        anchored = self._anchor_next_word_chain(midword=complete_current_word)
+        if anchored is None:
+            return
+        text, offset = anchored
         _, max_words, confidence = self._next_word_settings()
         try:
             text_before = text[:offset]
@@ -137,12 +174,18 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
                 limit=NEXT_WORD_GHOST_LIMIT,
                 max_words=max_words,
                 confidence=confidence,
+                complete_current_word=complete_current_word,
             )
         except Exception:
             return
         if result is None:
             # Cold or disabled: keep the chain armed for an explicit press.
             self._hide_next_word_hint()
+            return
+        if complete_current_word:
+            self._compose_next_word_midword_result(  # type: ignore[attr-defined]
+                result, reveal=reveal
+            )
             return
         if not getattr(result, "confident", False) or not result.ghost:
             self._hide_next_word_hint()
@@ -191,6 +234,8 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
             text_before = text[:offset]
         except Exception:
             return True
+        chain = getattr(self, "_next_word_chain", None)
+        wants_completion = bool(getattr(chain, "midword", False))
         try:
             is_cold = bool(self._prompt_prediction_is_cold())
         except Exception:
@@ -208,6 +253,7 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
                 limit=NEXT_WORD_MENU_LIMIT,
                 max_words=max_words,
                 confidence=confidence,
+                complete_current_word=wants_completion,
             )
         except Exception:
             result = None
@@ -224,6 +270,17 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
                 self._show_next_word_transient_hint(NEXT_WORD_WARMING_HINT)
             else:
                 self._show_next_word_transient_hint(NEXT_WORD_NO_GUESS_HINT)
+            return True
+        if wants_completion:
+            # A mid-word chain owns the explicit press the same way: the
+            # guess composes as suffix plus continuation, or the press
+            # teaches silence. The menu never opens here: its accepts
+            # insert whole words and would duplicate the typed prefix.
+            if self._compose_next_word_midword_result(  # type: ignore[attr-defined]
+                result
+            ):
+                return True
+            self._show_next_word_transient_hint(NEXT_WORD_NO_GUESS_HINT)
             return True
         if getattr(result, "confident", False) and result.ghost:
             if self._next_word_ghost_allowed():
@@ -321,6 +378,8 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
             pass
         if not self._next_word_ghost_allowed():
             return
+        chain = getattr(self, "_next_word_chain", None)
+        wants_completion = bool(getattr(chain, "midword", False))
         _, max_words, confidence = self._next_word_settings()
         try:
             text = self.text
@@ -330,10 +389,18 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
                 limit=NEXT_WORD_GHOST_LIMIT,
                 max_words=max_words,
                 confidence=confidence,
+                complete_current_word=wants_completion,
             )
         except Exception:
             return
         if result is None or not getattr(result, "confident", False):
+            return
+        if wants_completion:
+            # A mid-word chain refreshes as suffix plus continuation: a
+            # plain next-word ghost after a half-typed word would be wrong.
+            self._compose_next_word_midword_result(  # type: ignore[attr-defined]
+                result
+            )
             return
         if not result.ghost:
             return

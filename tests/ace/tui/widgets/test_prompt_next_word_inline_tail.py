@@ -227,7 +227,7 @@ async def test_multi_pane_ghost_isolation() -> None:
         assert second._next_word_chain is None
 
 
-async def test_typed_word_char_stays_silent_in_auto() -> None:
+async def test_typed_word_char_requests_midword_in_auto() -> None:
     app = _auto_app()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -235,7 +235,10 @@ async def test_typed_word_char_stays_silent_in_auto() -> None:
         ta.cursor_location = (0, len(ta.text))
         await pilot.press("m")
         await pilot.pause()
-        # Mid-word completion arrives in the mid-word phase.
+        # Mid-word completion landed: a typed word character with no
+        # word character after the cursor requests complete_current_word.
         assert ta.text == "Can you help me implem"
-        assert ta._next_word_ghost_visible() is False
-        assert ta._next_word_chain is None or not ta._next_word_chain_is_armed()
+        assert ta._next_word_ghost_visible() is True
+        assert ta._next_word_chain is not None
+        assert ta._next_word_chain.midword is True
+        assert ta._next_word_chain_is_armed()

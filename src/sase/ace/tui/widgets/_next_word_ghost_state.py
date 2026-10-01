@@ -40,6 +40,14 @@ NEXT_WORD_GHOST_LIMIT = 0
 #: hint in the same keystroke.
 NEXT_WORD_REVEAL_DELAY_MS = 350
 
+#: Synchronous-draft threshold: a typing-triggered mid-word request runs
+#: synchronously while ``len(text_before_cursor)`` fits in this many
+#: characters. Longer drafts defer off the Textual pump (thin timer plus a
+#: pump-free ``asyncio.to_thread`` predict). Chosen in
+#: ``docs/rust_backend.md`` as the largest bench bucket whose typing-path
+#: p95 stays at or under 1 ms on real history.
+NEXT_WORD_SYNC_MAX_DRAFT_CHARS = 4000
+
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
@@ -384,5 +392,6 @@ class NextWordGhostStateMixin(_MixinBase):
 __all__ = [
     "NEXT_WORD_GHOST_LIMIT",
     "NEXT_WORD_REVEAL_DELAY_MS",
+    "NEXT_WORD_SYNC_MAX_DRAFT_CHARS",
     "NextWordGhostStateMixin",
 ]
