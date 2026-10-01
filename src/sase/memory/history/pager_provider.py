@@ -68,6 +68,23 @@ def _looks_like_memory_path(value: str) -> bool:
     return False
 
 
+def _pin_carries_memory_subject(section: PagerSection) -> bool:
+    """Return whether the section pin names a memory-history subject.
+
+    Sections built by :func:`build_history_document` carry the wire
+    subject id (``note:``, ``web:``, ``strand:``, ``instructions:``) on
+    their pin whatever the selector's spelling, so short selectors like
+    ``decisions`` attach even though no path text names the memory root.
+    """
+    from sase.pager.history.moment import MEMORY_SUBJECT_PREFIXES
+
+    pin = section.version_pin
+    if pin is None:
+        return False
+    subject_id = str(getattr(pin, "subject_id", "") or "")
+    return subject_id.startswith(MEMORY_SUBJECT_PREFIXES)
+
+
 def _recognizes_section(section: PagerSection) -> bool:
     for part in _section_text_parts(section):
         if _looks_like_memory_path(part):
@@ -209,12 +226,19 @@ def is_deleted_row(row: dict[str, Any]) -> bool:
     return str(row.get("class", "") or "") == "deleted"
 
 
+#: Pseudo-version classes on ordinal-0 timeline rows: the core wire
+#: reports dirty worktrees this way, without ``status``/``state`` keys.
+_PSEUDO_DIRTY_CLASSES = ("uncommitted", "staged")
+
+
 def dirty_now_from_timeline(timeline: dict[str, Any]) -> bool:
     for row in timeline.get("versions", ()):  # type: ignore[union-attr]
         if not isinstance(row, dict):
             continue
         if int(row.get("ordinal", 0) or 0) != 0:
             continue
+        if str(row.get("class", "") or "") in _PSEUDO_DIRTY_CLASSES:
+            return True
         status = row.get("status", row.get("state", ""))
         if isinstance(status, dict):
             worktree = str(status.get("worktree", "") or "").lower()
@@ -249,6 +273,8 @@ class _MemoryHistoryProvider:
 
     def recognizes(self, section: PagerSection) -> bool:
         try:
+            if _pin_carries_memory_subject(section):
+                return True
             return _recognizes_section(section)
         except Exception:
             return False
@@ -380,6 +406,38 @@ def _tombstone_banner(version: dict[str, Any]) -> str:
     return f"✖ {label} {date} by {actor} · last content shown"
 
 
+def _wire_subject_id(response: dict[str, Any], fallback: str) -> str:
+    """Return the wire subject id, preferring the explicit subject record.
+
+    The version response carries the canonical id either as a subject
+    mapping (``{"id": ...}``) or as a top-level ``subject_id`` string;
+    both beat the bare selector the caller resolved.
+    """
+    subject = response.get("subject", {})
+    if isinstance(subject, dict) and subject.get("id"):
+        return str(subject.get("id"))
+    wire_id = response.get("subject_id")
+    if isinstance(wire_id, str) and wire_id:
+        return wire_id
+    return fallback
+
+
+def _wire_history_path(response: dict[str, Any], fallback: str) -> str:
+    """Return the canonical repo-relative path for a version response."""
+    subject = response.get("subject", {})
+    if isinstance(subject, dict):
+        paths = subject.get("paths", ())
+        if isinstance(paths, (list, tuple)) and paths and paths[0]:
+            return str(paths[0])
+    version = response.get("version", {})
+    if isinstance(version, dict):
+        for key in ("path", "source_path"):
+            candidate = version.get(key)
+            if isinstance(candidate, str) and candidate:
+                return candidate
+    return fallback
+
+
 def _derived_section(
     section: PagerSection,
     scope: Any,
@@ -399,12 +457,8 @@ def _derived_section(
     commit = version.get("commit")
     blob_oid = version.get("blob_oid")
     class_name = str(version.get("class", "") or "")
-    subject = response.get("subject", {})
-    subject_id = str(
-        subject.get("id", selector) if isinstance(subject, dict) else selector
-    )
-    version_path = version.get("path")
-    historical_path = str(version_path) if version_path else selector
+    subject_id = _wire_subject_id(response, selector)
+    historical_path = _wire_history_path(response, selector)
     if class_name == "deleted":
         body = f"{_tombstone_banner(version)}\n\n{body}"
     pin: VersionPin = committed_pin_for_ordinal(
@@ -453,8 +507,7 @@ def _derived_section_from_resolve(
         return None
     ordinal = int(version.get("ordinal", 0) or 0)
     commit = version.get("commit")
-    subject = resolved.get("subject", {})
-    subject_id = str(subject.get("id", ref) if isinstance(subject, dict) else ref)
+    subject_id = _wire_subject_id(resolved, ref)
     body = str(resolved.get("body", "") or "")
     pin: VersionPin = committed_pin_for_ordinal(
         subject_id,
@@ -538,11 +591,16 @@ def build_history_document(
         body = f"(unavailable: historical body for {selector} is not stored)"
     version = response.get("version", {})
     ordinal = int(version.get("ordinal", 0) or 0) if isinstance(version, dict) else 0
+    # Stamp the resolved repo-relative path so the memory provider owns
+    # the section whatever the selector's spelling (bare ``decisions`` or
+    # ``glossary:stitch`` never name the memory root themselves).
+    resolved_path = _wire_history_path(response, selector)
+    subject_id = _wire_subject_id(response, selector)
     owner: ArtifactRefDocumentOwner | None = None
     try:
         repo_root = Path(str(getattr(scope, "repo_root", ".")))
         owner = ArtifactRefDocumentOwner(
-            source_reference=selector,
+            source_reference=resolved_path,
             source_directory=str(repo_root),
             checkout_candidates=(repo_root,),
             revision=version.get("commit")
@@ -560,12 +618,12 @@ def build_history_document(
         if cleaned.isdigit():
             base_ordinal = int(cleaned)
     if ordinal == 0:
-        pin: VersionPin = live_pin_for_subject(subject)
+        pin: VersionPin = live_pin_for_subject(subject_id)
         if requested_view == "diff":
             pin = replace(pin, view="diff")
     else:
         pin = committed_pin_for_ordinal(
-            subject,
+            subject_id,
             ordinal,
             commit=version.get("commit") if isinstance(version, dict) else None,
             blob_oid=version.get("blob_oid") if isinstance(version, dict) else None,
@@ -577,7 +635,7 @@ def build_history_document(
         title=title or subject.rsplit("/", 1)[-1],
         kind="file",
         body=body,
-        subject_ref=subject,
+        subject_ref=resolved_path,
         raw_source=classify_source(
             category="raw_file", logical_filename="note.md", source=body
         ),

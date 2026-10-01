@@ -476,6 +476,163 @@ def _current_ordinal(screen: PagerScreen, identity: str) -> int | None:
     return state.current_pin.ordinal
 
 
+class _CleanNowFakeProvider:
+    """Three-version provider whose clean now is the newest version.
+
+    The timeline metadata OIDs match the newest row's blob, so now ≡ v3
+    and the first ``(`` must skip the byte-identical v3 copy.
+    """
+
+    provider_key = "clean-now-fake"
+    IDENTITY = "probe:/tmp/clean-now.md"
+    NEWEST_BLOB = "c" * 40
+
+    def recognizes(self, section: PagerSection) -> bool:
+        return section.identity == self.IDENTITY
+
+    def load_timeline(self, section: PagerSection) -> dict[str, object]:
+        return {
+            "versions": [
+                {"ordinal": 1, "commit": "a" * 40, "blob_oid": "a" * 40},
+                {"ordinal": 2, "commit": "b" * 40, "blob_oid": "b" * 40},
+                {
+                    "ordinal": 3,
+                    "commit": "c" * 40,
+                    "blob_oid": self.NEWEST_BLOB,
+                },
+            ],
+            "worktree_oid": self.NEWEST_BLOB,
+            "head_oid": self.NEWEST_BLOB,
+        }
+
+    def load_version(self, section: PagerSection, ordinal: int) -> PagerSection | None:
+        if ordinal == 0:
+            return replace(section, body="live body\nsecond line\n", version_pin=None)
+        pin = committed_pin_for_ordinal(
+            section.subject_ref or section.identity,
+            ordinal,
+            commit=("abc"[ordinal - 1]) * 40,
+            blob_oid=("abc"[ordinal - 1]) * 40,
+        )
+        return replace(
+            section,
+            body=f"version {ordinal} body\nsecond line\n",
+            version_pin=pin,  # type: ignore[arg-type]
+        )
+
+    def compare_versions(
+        self, section: PagerSection, base_ordinal: int, target_ordinal: int
+    ) -> dict[str, object] | None:
+        return {"line_marks": [1], "word_ops": [], "removal_anchors": []}
+
+    def resolve_historical_link(
+        self, section: PagerSection, ref: str
+    ) -> PagerSection | None:
+        return None
+
+    def refresh(self, section: PagerSection) -> PagerSection | None:
+        return replace(section, version_pin=None)
+
+
+def _clean_now_document(pin_ordinal: int = 0) -> PagerDocument:
+    pin = None
+    if pin_ordinal:
+        pin = committed_pin_for_ordinal(
+            _CleanNowFakeProvider.IDENTITY,
+            pin_ordinal,
+            commit="c" * 40,
+            blob_oid=_CleanNowFakeProvider.NEWEST_BLOB,
+        )
+    section = PagerSection(
+        identity=_CleanNowFakeProvider.IDENTITY,
+        title="clean-now.md",
+        kind="file",
+        body="live body\nsecond line\n",
+        subject_ref=_CleanNowFakeProvider.IDENTITY,
+        version_pin=pin,  # type: ignore[arg-type]
+    )
+    return PagerDocument(
+        sections=(section,), title="clean-now.md", origin=PagerOrigin.FILE
+    )
+
+
+async def test_paren_from_clean_now_skips_identical_newest() -> None:
+    """The first ``(`` from a clean now ≡ vN lands on vN−1, never a copy."""
+    clear_history_provider_factories()
+    register_history_provider_factory(_CleanNowFakeProvider)
+    try:
+        identity = _CleanNowFakeProvider.IDENTITY
+        app = SasePager(_clean_now_document())
+        async with app.run_test(size=(80, 24)) as pilot:
+            screen = pager_screen(app)
+            await wait_for(pilot, lambda: identity in screen._history_states)
+            assert _current_ordinal(screen, identity) == 0
+
+            await pilot.press("(")
+            await wait_for(pilot, lambda: _current_ordinal(screen, identity) == 2)
+            assert "version 2 body" in screen.document.sections[0].plain_text
+
+            await pilot.press(")")
+            await wait_for(pilot, lambda: _current_ordinal(screen, identity) == 0)
+            assert "live body" in screen.document.sections[0].plain_text
+    finally:
+        clear_history_provider_factories()
+
+
+async def test_arrival_pin_to_newest_opens_now() -> None:
+    """An arrival pin to vN on a clean now ≡ vN subject reads now."""
+    clear_history_provider_factories()
+    register_history_provider_factory(_CleanNowFakeProvider)
+    try:
+        identity = _CleanNowFakeProvider.IDENTITY
+        app = SasePager(_clean_now_document(pin_ordinal=3))
+        async with app.run_test(size=(80, 24)) as pilot:
+            screen = pager_screen(app)
+            await wait_for(
+                pilot,
+                lambda: (
+                    screen._history_states.get(identity) is not None
+                    and screen._history_states[identity].current_pin is not None
+                ),
+            )
+            assert _current_ordinal(screen, identity) == 0
+    finally:
+        clear_history_provider_factories()
+
+
+class _DirtyNowFakeProvider(_CleanNowFakeProvider):
+    """Three-version provider with uncommitted worktree edits on top."""
+
+    provider_key = "dirty-now-fake"
+
+    def load_timeline(self, section: PagerSection) -> dict[str, object]:
+        timeline = super().load_timeline(section)
+        versions = list(timeline["versions"])  # type: ignore[union-attr]
+        versions.insert(0, {"ordinal": 0, "class": "uncommitted"})
+        return {**timeline, "versions": versions, "worktree_oid": "d" * 40}
+
+
+async def test_paren_from_dirty_now_lands_on_newest() -> None:
+    """``(`` from a dirty now lands on vN (HEAD), not an older version."""
+    clear_history_provider_factories()
+    register_history_provider_factory(_DirtyNowFakeProvider)
+    try:
+        identity = _DirtyNowFakeProvider.IDENTITY
+        app = SasePager(_clean_now_document())
+        async with app.run_test(size=(80, 24)) as pilot:
+            screen = pager_screen(app)
+            await wait_for(pilot, lambda: identity in screen._history_states)
+            assert _current_ordinal(screen, identity) == 0
+            # The ordinal-0 uncommitted row marks the worktree dirty.
+            assert screen._history_states[identity].status == "dirty-now"
+
+            await pilot.press("(")
+            await wait_for(pilot, lambda: _current_ordinal(screen, identity) == 3)
+            assert "version 3 body" in screen.document.sections[0].plain_text
+    finally:
+        clear_history_provider_factories()
+
+
 async def test_paren_keys_step_between_now_and_newest_committed() -> None:
     """``(`` publishes the newest committed body; ``)`` restores now.
 

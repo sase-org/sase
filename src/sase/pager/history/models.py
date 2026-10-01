@@ -8,7 +8,7 @@ that the memory provider fills in.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 HistoryView = Literal["read", "diff"]
 
@@ -68,6 +68,11 @@ class SectionTimeState:
     body_cache: dict[tuple[int, str], object] = field(default_factory=dict)
     comparison_cache: dict[tuple[int, int], object] = field(default_factory=dict)
     expanded_folds: set[int] = field(default_factory=set)
+    # Cached VersionMoment (see sase.pager.history.moment.moment_for_state),
+    # rebuilt once per (generation, pin, status, timeline identity). Kept
+    # as Any so these models never import the moment module.
+    cached_moment: Any = None
+    cached_moment_key: tuple[object, ...] = ()
 
 
 def live_pin_for_subject(subject_id: str, *, selector: str = "now") -> VersionPin:

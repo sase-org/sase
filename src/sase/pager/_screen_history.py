@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
 from sase.pager._labels import PagerLabelLayer
@@ -202,6 +202,29 @@ class PagerHistoryMixin:
                 state.current_pin = section_pin
             else:
                 state.current_pin = live_pin_for_subject(state.subject_id)
+        if isinstance(state.current_pin, VersionPin):
+            # A pin to the newest ordinal on a now ≡ vN subject reads now:
+            # canonicalize the arrival pin (CLI `-A`, feed links) to the
+            # live section without pushing a trail entry.
+            from sase.pager.history.moment import (
+                canonical_ordinal,
+                moment_for_state,
+            )
+
+            moment = moment_for_state(state)
+            if moment is not None:
+                pin = state.current_pin
+                if canonical_ordinal(pin.ordinal, moment) != pin.ordinal:
+                    live = live_pin_for_subject(state.subject_id)
+                    try:
+                        state.current_pin = replace(
+                            live,
+                            view=pin.view,
+                            compare_base=pin.compare_base,
+                            explicit_base=pin.explicit_base,
+                        )
+                    except Exception:
+                        state.current_pin = live
         self._update_footer()
         self._update_subject()
         pin = state.current_pin
@@ -256,42 +279,27 @@ class PagerHistoryMixin:
         state = self._history_states.get(identity)
         if state is None:
             return
-        visible = state.visible_ordinals
-        if not visible:
+        from sase.pager.history.moment import (
+            StepIntent,
+            boundary_notice,
+            moment_for_state,
+            step_target,
+        )
+
+        moment = moment_for_state(state)
+        if moment is None:
+            self.notify("History load failed — keeping live.", severity="warning")
+            return
+        if moment.kind == "loading":
             self.notify("No committed versions.", severity="information")
             return
-        current = self._history_current_pin_ordinal_for_identity(identity)
-        target: int | None
-        if intent == "older":
-            candidates = (
-                [v for v in visible if v < current] if current else list(visible)
-            )
-            if not candidates and not current:
-                target = max(visible)
-            elif candidates:
-                target = max(candidates)
-            else:
-                self.notify("Already at the oldest version.", severity="information")
-                return
-        elif intent == "newer":
-            if not current:
-                self.notify("Already at now.", severity="information")
-                return
-            candidates = [v for v in visible if v > current]
-            if candidates:
-                target = min(candidates)
-            else:
-                target = 0
-        elif intent == "first":
-            target = min(visible)
-            if current == target:
-                self.notify("Already at the first version.", severity="information")
-                return
-        else:
-            if not current:
-                self.notify("Already at now.", severity="information")
-                return
-            target = 0
+        if intent not in ("older", "newer", "first", "now"):
+            return
+        step = cast(StepIntent, intent)
+        target = step_target(moment, step)
+        if target is None:
+            self.notify(boundary_notice(moment, step), severity="information")
+            return
         await self._load_and_swap_version(identity, target, document, generation)
 
     def _history_current_pin_ordinal_for_identity(self: Any, identity: str) -> int:
@@ -309,6 +317,25 @@ class PagerHistoryMixin:
         state = self._history_states.get(identity)
         if state is None:
             return
+        # A step onto the newest ordinal of a now ≡ vN subject reads the
+        # live section instead of a byte-identical copy.
+        preserve_view = False
+        try:
+            from sase.pager.history.moment import (
+                canonical_ordinal,
+                moment_for_state,
+            )
+
+            moment = moment_for_state(state)
+            if moment is not None and canonical_ordinal(ordinal, moment) != ordinal:
+                ordinal = canonical_ordinal(ordinal, moment)
+                current = state.current_pin
+                preserve_view = (
+                    current is not None
+                    and str(getattr(current, "view", "read") or "read") == "diff"
+                )
+        except Exception:
+            pass
         cache_key = (ordinal, state.subject_id)
         cached = state.body_cache.get(cache_key)
         if cached is not None and isinstance(cached, PagerSection):
@@ -339,6 +366,27 @@ class PagerHistoryMixin:
         if loaded is None:
             self.notify("History load failed — keeping live.", severity="warning")
             return
+        if preserve_view:
+            # The canonicalized live swap keeps the pin's view and base.
+            current = state.current_pin
+            base_pin = loaded.version_pin
+            if base_pin is None:
+                base_pin = live_pin_for_subject(state.subject_id)
+            if current is not None:
+                try:
+                    loaded = replace(
+                        loaded,
+                        version_pin=replace(
+                            base_pin,
+                            view=getattr(current, "view", "read"),
+                            compare_base=getattr(current, "compare_base", None),
+                            explicit_base=bool(
+                                getattr(current, "explicit_base", False)
+                            ),
+                        ),
+                    )
+                except Exception:
+                    pass
         if len(state.body_cache) >= _HISTORY_CACHE_LIMIT:
             state.body_cache.clear()
         state.body_cache[cache_key] = loaded

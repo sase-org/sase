@@ -186,6 +186,21 @@ class PagerTimelineMixin:
         pin = state.current_pin
         current = int(getattr(pin, "ordinal", 0) or 0) if pin is not None else 0
         target = ordinal
+        canonicalized = False
+        try:
+            from sase.pager.history.moment import (
+                canonical_ordinal,
+                moment_for_state,
+            )
+
+            moment = moment_for_state(state)
+            if moment is not None:
+                # Opening the newest version of a now ≡ vN subject reads
+                # the live section instead of a byte-identical copy.
+                target = canonical_ordinal(target, moment)
+                canonicalized = target != ordinal
+        except Exception:
+            pass
         if klass in _PSEUDO_CLASSES:
             if klass == "staged":
                 self.notify(
@@ -193,8 +208,14 @@ class PagerTimelineMixin:
                     severity="information",
                 )
             target = 0
-        if target == current and (target != 0 or klass in _PSEUDO_CLASSES):
-            if target != 0 or self._timeline_current_class(state, 0) == klass:
+        if target == current and (
+            target != 0 or klass in _PSEUDO_CLASSES or canonicalized
+        ):
+            if (
+                target != 0
+                or canonicalized
+                or self._timeline_current_class(state, 0) == klass
+            ):
                 self.notify("Already at that version.", severity="information")
                 return
         self._push_trail_entry()

@@ -48,16 +48,42 @@ class PagerChromeMixin:
         state = states.get(section.identity)
         if state is None:
             return (False, False, None)
+        from sase.pager.history.moment import moment_for_state
+
+        moment = moment_for_state(state)
         pin = state.current_pin or section.version_pin
-        ordinal = pin.ordinal if pin is not None else 0
-        total = len(state.visible_ordinals)
-        view = str(getattr(pin, "view", "read") or "read")
+        kind: str
+        view: str
+        if moment is not None:
+            # Numbering is absolute: the displayed version over N, the
+            # newest committed ordinal with hidden versions included.
+            ordinal = moment.ordinal
+            total = moment.newest
+            kind = moment.kind
+            view = moment.view
+            age = ""
+            if moment.committed_time:
+                try:
+                    import time as _time
+
+                    from sase.pager._time_band_vocab import format_age
+
+                    age = format_age(int(_time.time()), moment.committed_time)
+                except Exception:
+                    age = ""
+        else:
+            ordinal = pin.ordinal if pin is not None else 0
+            total = len(state.visible_ordinals)
+            kind = ""
+            view = str(getattr(pin, "view", "read") or "read")
+            age = ""
         history_state: dict[str, object] = {
             "ordinal": ordinal,
             "total": total,
-            "dirty": state.status == "dirty-now",
-            "tombstone": state.status == "tombstone",
-            "age": "",
+            "kind": kind,
+            "dirty": kind == "now_dirty" or state.status == "dirty-now",
+            "tombstone": kind == "deleted" or state.status == "tombstone",
+            "age": age,
             "view": view,
             "diff_base": self._history_diff_base_for(state, ordinal),
         }
@@ -81,7 +107,10 @@ class PagerChromeMixin:
                         getattr(band_data, "honest_kind", ""),
                         getattr(band_data, "honest_detail", None),
                     )
-        return (True, ordinal > 0, history_state)
+        # Pinned means the live pin reads a committed version; a clean
+        # now ≡ vN still counts its version in the chip but is not pinned.
+        pinned = pin.ordinal > 0 if pin is not None else False
+        return (True, pinned, history_state)
 
     def _history_diff_base_for(self: Any, state: Any, ordinal: int) -> int | None:
         try:

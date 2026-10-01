@@ -283,6 +283,56 @@ def _section_for_state(state: str) -> PagerSection:
     )
 
 
+#: Fixed committer time for fixture rows (2020-01-01 UTC): the subject
+#: chip's relative age reads ``6y`` and stays put until 2027, long after
+#: the badge phase replaces the interim chip with the state pill.
+_FIXTURE_TIME = 1577836800
+
+
+def _fixture_timeline_rows(
+    deleted_newest: bool = False,
+) -> tuple[dict[str, object], ...]:
+    """Return fixed committed rows for the injected history state."""
+    return (
+        {
+            "ordinal": 1,
+            "commit": _COMMIT_V1,
+            "committer_time": _FIXTURE_TIME,
+            "class": "created",
+            "summary": {"section_paths": ["Garden note"], "created_words": 90},
+            "provenance": {"subject": "plant the garden"},
+        },
+        {
+            "ordinal": 2,
+            "commit": _COMMIT_V2,
+            "blob_oid": _BLOB_V2,
+            "committer_time": _FIXTURE_TIME,
+            "class": "authored",
+            "summary": {
+                "section_paths": ["Garden note"],
+                "words_added": 12,
+                "words_removed": 4,
+                "volume": 16,
+            },
+            "provenance": {"subject": "tend the garden"},
+        },
+        {
+            "ordinal": 3,
+            "commit": _COMMIT_V3,
+            "blob_oid": _BLOB_V3,
+            "committer_time": _FIXTURE_TIME,
+            "class": "deleted" if deleted_newest else "authored",
+            "summary": {
+                "section_paths": ["Garden note"],
+                "words_added": 3,
+                "words_removed": 9,
+                "volume": 12,
+            },
+            "provenance": {"subject": "replant the beds"},
+        },
+    )
+
+
 def _inject_history_state(screen: PagerScreen, state: str) -> None:
     """Populate deterministic per-section history state for *state*."""
     if state == "past":
@@ -360,6 +410,10 @@ def _inject_history_state(screen: PagerScreen, state: str) -> None:
             visible_ordinals=(1, 2, 3),
             current_pin=live_pin_for_subject(_SUBJECT_ID),
         )
+    time_state.timeline = _fixture_timeline_rows(  # type: ignore[assignment]
+        deleted_newest=(state == "tombstone")
+    )
+    time_state.timeline_meta = {}
     screen._history_states[_IDENTITY] = time_state
     screen._history_supported[_IDENTITY] = True
     screen._body_width = None

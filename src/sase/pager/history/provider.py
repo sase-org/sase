@@ -9,6 +9,7 @@ constructing ``HistoryService`` or inspecting files.
 
 from __future__ import annotations
 
+import importlib
 import importlib.metadata
 from typing import Any, Protocol
 
@@ -69,22 +70,54 @@ def clear_history_provider_factories() -> None:
     _DISCOVERY_DONE = False
 
 
+#: Built-in memory-history factory, used when entry-point metadata is
+#: stale and does not list it. Imported lazily by string so pager core
+#: never imports memory modules at import time.
+_BUILTIN_FACTORY_REF = (
+    "sase.memory.history.pager_provider:memory_history_provider_factory"
+)
+
+
+def _entry_point_is_builtin(point: object) -> bool:
+    """Return whether an entry point already names the built-in factory."""
+    try:
+        value = str(getattr(point, "value", "") or "")
+    except Exception:
+        return False
+    candidate = value.split(";")[0].strip().split("[")[0].strip()
+    return candidate == _BUILTIN_FACTORY_REF
+
+
 def _discover_entry_point_factories() -> None:
     """Load ``sase_pager_history`` entry-point factories once per process."""
     global _DISCOVERY_DONE
     if _DISCOVERY_DONE:
         return
     _DISCOVERY_DONE = True
+    points: Any
     try:
         points = importlib.metadata.entry_points(group=_ENTRY_POINT_GROUP)
     except Exception:
-        return
+        points = ()
+    builtin_seen = False
     for point in points:
         try:
+            if _entry_point_is_builtin(point):
+                builtin_seen = True
             factory = point.load()
         except Exception:
             continue
         _PROVIDER_FACTORIES.append(factory)
+    if not builtin_seen:
+        # A dev checkout whose editable-install metadata predates the
+        # entry point gets no provider at all without this fallback.
+        try:
+            module_name, _, attr = _BUILTIN_FACTORY_REF.partition(":")
+            factory = getattr(importlib.import_module(module_name), attr)
+        except Exception:
+            return
+        if not any(known is factory for known in _PROVIDER_FACTORIES):
+            _PROVIDER_FACTORIES.append(factory)
 
 
 def history_provider_for_section(

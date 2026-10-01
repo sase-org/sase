@@ -224,8 +224,8 @@ def subject_line(
     section; it is the first thing dropped at a narrow width, before either
     the subject or the position information it sits beside.
     ``history_state`` optionally carries ``ordinal``/``total``/``age``/
-    ``dirty``/``tombstone`` for the history subject chip; it truncates
-    without wrapping at narrow widths.
+    ``dirty``/``tombstone``/``kind`` for the history subject chip; it
+    truncates without wrapping at narrow widths.
     """
     glyph = _section_icon(current_section.kind)
     accent = _section_accent(current_section.kind)
@@ -293,7 +293,9 @@ def _history_chip(state: dict[str, object] | None) -> Text | None:
         )
         return Text(label, style=style)
     ordinal = int(cast(Any, state.get("ordinal", 0)) or 0)
-    if ordinal > 0:
+    # A clean now ≡ vN counts its version but is never labelled PAST.
+    is_now = str(state.get("kind", "") or "") == "now"
+    if ordinal > 0 and not is_now:
         total = int(cast(Any, state.get("total", 0)) or 0)
         age = str(state.get("age", "") or "")
         label = f"⟲ PAST v{ordinal}/{total}" if total else f"⟲ PAST v{ordinal}"
@@ -309,7 +311,7 @@ def _history_chip(state: dict[str, object] | None) -> Text | None:
         return chip
     total = int(cast(Any, state.get("total", 0)) or 0)
     if total:
-        label = f"v{total} versions"
+        label = f"{total} versions"
         if diff_suffix:
             label = f"{label} · {diff_suffix}"
         return Text(label, style="dim")

@@ -28,6 +28,7 @@ from sase.memory.history.service import HistoryService
 from sase.pager.document import PagerOrigin
 from sase.pager.history.provider import (
     clear_history_provider_factories,
+    history_factories_snapshot,
     history_provider_for_section,
     register_history_provider_factory,
 )
@@ -349,6 +350,91 @@ def test_diff_view_renders_real_core_comparison(fixture_repo: Path) -> None:
     rendered = build_diff_body(comparison, target.plain_text)
     assert "Added line." in rendered.text.plain
     assert rendered.change_lines
+
+
+def test_bare_note_selector_attaches_history(fixture_repo: Path) -> None:
+    service = HistoryService()
+    scope = service.project_scope(fixture_repo)
+    provider = _MemoryHistoryProvider(service=service)
+    document = build_history_document(scope=scope, subject="note.md", service=service)
+    section = document.sections[0]
+    # The resolved repo-relative path is stamped, so the bare selector
+    # attaches even though it never names the memory root.
+    assert section.subject_ref == "sase/memory/note.md"
+    assert provider.recognizes(section) is True
+    pin = section.version_pin
+    assert pin is not None and str(pin.subject_id).startswith("note:")
+
+
+def test_memory_subject_pin_recognized_without_path_text() -> None:
+    from sase.pager.document import PagerSection
+    from sase.pager.history.models import committed_pin_for_ordinal
+
+    provider = _MemoryHistoryProvider(service=None)
+    for subject_id in (
+        "note:project:demo/decisions",
+        "web:project:demo/decisions",
+        "strand:project:demo/glossary/stitch",
+        "instructions:project:demo",
+    ):
+        section = PagerSection(
+            identity="history:decisions:now",
+            title="decisions",
+            kind="file",
+            body="body\n",
+            subject_ref="decisions",
+            version_pin=committed_pin_for_ordinal(subject_id, 1),
+        )
+        assert provider.recognizes(section) is True, subject_id
+    other = PagerSection(
+        identity="other",
+        title="other",
+        kind="file",
+        body="body\n",
+        subject_ref="other.txt",
+        version_pin=committed_pin_for_ordinal("file:other.txt", 1),
+    )
+    assert provider.recognizes(other) is False
+
+
+def test_builtin_factory_found_when_entry_points_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import importlib.metadata
+
+    monkeypatch.setattr(importlib.metadata, "entry_points", lambda *a, **k: [])
+    clear_history_provider_factories()
+    try:
+        factories = history_factories_snapshot()
+        providers = [factory() for factory in factories]
+        assert any(
+            getattr(provider, "provider_key", None) == "memory-history"
+            for provider in providers
+        )
+    finally:
+        clear_history_provider_factories()
+
+
+def test_dirty_detection_from_pseudo_rows() -> None:
+    assert (
+        dirty_now_from_timeline(
+            {
+                "versions": [
+                    {"ordinal": 0, "class": "uncommitted"},
+                    {"ordinal": 1, "class": "authored"},
+                ]
+            }
+        )
+        is True
+    )
+    assert (
+        dirty_now_from_timeline({"versions": [{"ordinal": 0, "class": "staged"}]})
+        is True
+    )
+    assert (
+        dirty_now_from_timeline({"versions": [{"ordinal": 1, "class": "authored"}]})
+        is False
+    )
 
 
 def test_cli_diff_flag_opens_diff_view(
