@@ -31,6 +31,7 @@ from sase.axe.run_agent_runner_finalize import classify_exec_success
 from sase.axe.runner_workspace import WorkspacePreparationError
 from sase.axe.run_agent_runner_setup import (
     build_output_variable_namespaces,
+    capture_launch_evidence,
     capture_sdd_base_sha,
     prepare_linked_repo_workspaces_if_needed,
     prepare_workspace_if_needed,
@@ -315,6 +316,19 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
     if sdd_base_sha:
         bootstrap.agent_meta["sdd_base_sha"] = sdd_base_sha
         write_agent_meta(state.artifacts_dir, bootstrap.agent_meta)
+
+    try:
+        before_keys = set(bootstrap.agent_meta)
+        capture_launch_evidence(state.workspace_dir, bootstrap.agent_meta)
+        if set(bootstrap.agent_meta) - before_keys:
+            write_agent_meta(state.artifacts_dir, bootstrap.agent_meta)
+    except Exception:  # noqa: BLE001 - launch evidence is fail-open.
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "launch evidence capture failed; continuing without it",
+            exc_info=True,
+        )
 
     # Everything the post-gate path (accepted plans, commits, notifications)
     # would otherwise import lazily is imported here, before the agent CLI

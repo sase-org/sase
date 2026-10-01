@@ -395,7 +395,7 @@ def test_batch_event_round_trips_through_jsonl(tmp_path: Path) -> None:
     append_memory_read_event(event, log_path=log_path)
 
     assert read_memory_read_events(log_path=log_path) == (event,)
-    assert event.schema_version == 2
+    assert event.schema_version == 3
     assert event.canonical_path == "glossary:stitch"
     assert event.resolved_path == ""
 

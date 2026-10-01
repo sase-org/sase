@@ -31,7 +31,10 @@ from sase.axe.run_agent_runner_setup_prompt import (
     write_submitted_xprompt_artifact,
 )
 from sase.axe.run_agent_runner_setup_workspace import (
+    capture_instruction_snapshot,
+    capture_launch_evidence,
     capture_sdd_base_sha,
+    capture_workspace_head,
     enter_agent_workspace,
     guard_workspace_not_occupied,
     prepare_workspace_if_needed,
@@ -41,7 +44,10 @@ __all__ = [
     "apply_retry_chain_to_meta",
     "build_output_variable_namespaces",
     "bump_spawn_telemetry",
+    "capture_instruction_snapshot",
+    "capture_launch_evidence",
     "capture_sdd_base_sha",
+    "capture_workspace_head",
     "enter_agent_workspace",
     "expand_deferred_launch_xprompts",
     "guard_workspace_not_occupied",

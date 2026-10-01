@@ -60,16 +60,16 @@ def build_memory_read_event_for_view(
         )
 
     resolved_targets, included_targets, scope_origin = _batch_targets(view)
-    byte_count = sum(
-        note.content.byte_count for note in _notes_with_inline(view)
-    ) + sum(
+    notes_with_inline = _notes_with_inline(view)
+    byte_count = sum(note.content.byte_count for note in notes_with_inline) + sum(
         len(node.strand.body.encode("utf-8"))
         for section in view.web_sections
         for node in section.nodes
     )
     frontmatter_stripped = any(
-        note.content.frontmatter_stripped for note in _notes_with_inline(view)
+        note.content.frontmatter_stripped for note in notes_with_inline
     )
+    included_blob_oids = _batch_blob_oids(view, notes_with_inline)
     return build_memory_read_batch_event(
         kind=view.kind,
         selectors=view.selectors,
@@ -83,6 +83,7 @@ def build_memory_read_event_for_view(
         agent=agent,
         project=view.project_name,
         cwd=cwd_path,
+        included_blob_oids=included_blob_oids,
     )
 
 
@@ -114,6 +115,45 @@ def _batch_targets(
                 append_unique(included, target)
             scope_origin.append((target, node.scope))
     return tuple(resolved), tuple(included), tuple(scope_origin)
+
+
+def _batch_blob_oids(
+    view: ResolvedMemorySelectorBatch,
+    notes_with_inline: tuple[ResolvedMemoryNote, ...],
+) -> tuple[tuple[str, str], ...]:
+    """Return path -> blob OID pairs for every file/body in a batch read."""
+    try:
+        from sase.memory.blob_oid import git_blob_oid
+    except ImportError:
+        return ()
+    pairs: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def append_pair(target: str, data: bytes) -> None:
+        if target in seen:
+            return
+        seen.add(target)
+        try:
+            pairs.append((target, git_blob_oid(data)))
+        except Exception:  # noqa: BLE001 - OID capture never blocks a read.
+            pass
+
+    for note in notes_with_inline:
+        try:
+            append_pair(
+                note.content.path.canonical_path,
+                note.content.raw_text.encode("utf-8"),
+            )
+        except Exception:  # noqa: BLE001 - see above.
+            continue
+    for section in view.web_sections:
+        for node in section.nodes:
+            target = f"{section.web.slug}:{node.strand.slug}"
+            try:
+                append_pair(target, node.strand.body.encode("utf-8"))
+            except Exception:  # noqa: BLE001 - see above.
+                continue
+    return tuple(pairs)
 
 
 def _notes_with_inline(

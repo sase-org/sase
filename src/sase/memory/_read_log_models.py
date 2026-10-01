@@ -8,7 +8,7 @@ from typing import Literal
 
 from sase.memory.notes import MemoryNote
 
-READ_LOG_SCHEMA_VERSION = 2
+READ_LOG_SCHEMA_VERSION = 3
 
 MemoryReadKind = Literal["note", "web", "strand"]
 
@@ -83,6 +83,8 @@ class MemoryReadEvent:
     included_targets: tuple[str, ...] = ()
     depth: int | None = None
     scope_origin: tuple[tuple[str, str], ...] = ()
+    blob_oid: str | None = None
+    included_blob_oids: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

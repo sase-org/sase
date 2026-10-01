@@ -264,7 +264,7 @@ def _deploy_to_project_repo(
     stdin: TextIO | None = None,
 ) -> int:
     stdin_is_tty = _stdin_is_tty if stdin is None else stdin.isatty
-    return _deploy_project_repo(
+    exit_code = _deploy_project_repo(
         project_result,
         no_commit=no_commit,
         run_before_commit_hook=run_before_commit_hook,
@@ -275,13 +275,26 @@ def _deploy_to_project_repo(
         message=message,
         owned_paths=owned_paths,
     )
+    if exit_code != 0 or no_commit:
+        return exit_code
+    try:
+        from sase.main.init_memory.tracking import verify_publish_guard_for_root
+
+        problems = verify_publish_guard_for_root(project_result.root)
+    except Exception:  # noqa: BLE001 - the guard never masks a deploy result.
+        return exit_code
+    if problems:
+        for problem in problems:
+            print(f"{COMMAND_LABEL}: {problem}", file=sys.stderr)
+        return 1
+    return exit_code
 
 
 def _deploy_to_chezmoi(
     written_paths: Iterable[Path],
     delete_targets: Sequence[Path] = (),
 ) -> int:
-    return deploy_to_chezmoi(
+    exit_code = deploy_to_chezmoi(
         written_paths,
         ChezmoiDeployBehavior(
             command_label=COMMAND_LABEL,
@@ -299,6 +312,19 @@ def _deploy_to_chezmoi(
             delete_target_root=Path.home(),
         ),
     )
+    if exit_code != 0:
+        return exit_code
+    try:
+        from sase.main.init_memory.tracking import verify_publish_guard_for_root
+
+        problems = verify_publish_guard_for_root(CHEZMOI_HOME)
+    except Exception:  # noqa: BLE001 - the guard never masks a deploy result.
+        return exit_code
+    if problems:
+        for problem in problems:
+            print(f"{COMMAND_LABEL}: {problem}", file=sys.stderr)
+        return 1
+    return exit_code
 
 
 def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]:
@@ -445,6 +471,24 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
         actions = (config_action, *actions)
     blockers = _memory_plan_blockers(root_plans)
     warnings = (*warnings, *_memory_root_plan_warnings(root_plans))
+    try:
+        from sase.main.init_memory.tracking import tracking_blockers_for_root
+
+        tracking = (
+            *(
+                tracking_blockers_for_root(inputs.project_root, label="memory")
+                if inputs.is_project_dir
+                else ()
+            ),
+            *(
+                tracking_blockers_for_root(inputs.home_root, label="memory")
+                if inputs.use_chezmoi
+                else ()
+            ),
+        )
+    except Exception:  # noqa: BLE001 - tracking never breaks planning.
+        tracking = ()
+    blockers = (*blockers, *tracking)
     return InitPlan(
         command="memory",
         label="Memory",

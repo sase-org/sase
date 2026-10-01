@@ -79,7 +79,11 @@ def _install_successful_git(
 
 
 def _without_project_detection(calls: list[list[str]]) -> list[list[str]]:
-    return [cmd for cmd in calls if cmd != _PROJECT_DETECTION_COMMAND]
+    return [
+        cmd
+        for cmd in calls
+        if cmd != _PROJECT_DETECTION_COMMAND and "--no-optional-locks" not in cmd
+    ]
 
 
 def test_init_memory_default_commits_and_pushes_project_changes(

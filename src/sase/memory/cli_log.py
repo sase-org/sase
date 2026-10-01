@@ -425,6 +425,12 @@ def _event_panel(event: MemoryReadEvent) -> Panel:
     detail.add_row("Artifacts dir", event.artifacts_dir or "none")
     detail.add_row("Byte count", str(event.byte_count))
     detail.add_row("Frontmatter stripped", str(event.frontmatter_stripped).lower())
+    detail.add_row("Blob OID", event.blob_oid or "none")
+    if event.included_blob_oids:
+        detail.add_row(
+            "Blob OIDs",
+            ", ".join(f"{path}={oid}" for path, oid in event.included_blob_oids),
+        )
     return Panel(detail, title=f"Memory Read Event {event.id}", border_style="cyan")
 
 

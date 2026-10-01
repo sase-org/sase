@@ -17,11 +17,37 @@ from sase.axe.runner_workspace import (
 )
 
 __all__ = [
+    "capture_instruction_snapshot",
+    "capture_launch_evidence",
     "capture_sdd_base_sha",
+    "capture_workspace_head",
     "enter_agent_workspace",
     "guard_workspace_not_occupied",
     "prepare_workspace_if_needed",
 ]
+
+
+def capture_workspace_head(workspace_dir: str) -> str | None:
+    """Return the project repo HEAD at launch (fail-open)."""
+    from sase.axe.launch_evidence import capture_workspace_head as _capture
+
+    return _capture(workspace_dir)
+
+
+def capture_instruction_snapshot(workspace_dir: str) -> list[dict[str, object]]:
+    """Return instruction blob OIDs for the project and home files (fail-open)."""
+    from sase.axe.launch_evidence import capture_instruction_snapshot as _capture
+
+    return _capture(workspace_dir)  # type: ignore[return-value]
+
+
+def capture_launch_evidence(
+    workspace_dir: str, agent_meta: dict[str, object]
+) -> dict[str, object]:
+    """Add workspace HEAD + instruction snapshot to *agent_meta* (fail-open)."""
+    from sase.axe.launch_evidence import capture_launch_evidence as _capture
+
+    return _capture(workspace_dir, agent_meta)  # type: ignore[return-value]
 
 
 def guard_workspace_not_occupied(

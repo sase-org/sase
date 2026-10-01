@@ -50,11 +50,20 @@ def build_memory_read_event(
     cwd: Path | None = None,
     now: datetime | None = None,
     read_id: str | None = None,
+    blob_oid: str | None = None,
 ) -> MemoryReadEvent:
     """Build a structured log event for a validated memory read."""
     cwd_path = (cwd or Path.cwd()).resolve(strict=False)
     project_name = project or project_memory_name(cwd_path)
     timestamp = _event_timestamp(now or datetime.now(tz=UTC))
+    resolved_oid = blob_oid
+    if resolved_oid is None:
+        try:
+            from sase.memory.blob_oid import git_blob_oid
+
+            resolved_oid = git_blob_oid(content.raw_text.encode("utf-8"))
+        except Exception:  # noqa: BLE001 - OID capture never blocks a read.
+            resolved_oid = None
     return MemoryReadEvent(
         schema_version=READ_LOG_SCHEMA_VERSION,
         id=read_id or uuid4().hex[:12],
@@ -72,6 +81,7 @@ def build_memory_read_event(
         kind="note",
         selectors=(content.path.canonical_path,),
         resolved_targets=(content.path.canonical_path,),
+        blob_oid=resolved_oid,
     )
 
 
@@ -91,6 +101,7 @@ def build_memory_read_batch_event(
     cwd: Path | None = None,
     now: datetime | None = None,
     read_id: str | None = None,
+    included_blob_oids: Mapping[str, str] | Sequence[tuple[str, str]] = (),
 ) -> MemoryReadEvent:
     """Build a structured log event for a resolved selector batch.
 
@@ -109,6 +120,11 @@ def build_memory_read_batch_event(
         tuple(scope_origin.items())
         if isinstance(scope_origin, Mapping)
         else tuple(scope_origin)
+    )
+    oid_pairs = (
+        tuple(included_blob_oids.items())
+        if isinstance(included_blob_oids, Mapping)
+        else tuple(included_blob_oids)
     )
     return MemoryReadEvent(
         schema_version=READ_LOG_SCHEMA_VERSION,
@@ -130,6 +146,7 @@ def build_memory_read_batch_event(
         included_targets=tuple(included_targets),
         depth=depth,
         scope_origin=scope_pairs,
+        included_blob_oids=oid_pairs,
     )
 
 
@@ -284,16 +301,17 @@ def _event_timestamp(now: datetime) -> str:
     return now.astimezone(UTC).isoformat()
 
 
-_VALID_SCHEMA_VERSIONS = frozenset({1, 2})
+_VALID_SCHEMA_VERSIONS = frozenset({1, 2, 3})
 _VALID_KINDS = frozenset({"note", "web", "strand"})
 
 
 def _event_from_mapping(data: Mapping[str, Any]) -> MemoryReadEvent | None:
-    """Parse one JSONL row, accepting both the v1 and v2 event shapes.
+    """Parse one JSONL row, accepting the v1, v2, and v3 event shapes.
 
     v1 rows (pre-web, ``schema_version: 1``) never had ``kind``/
     ``selectors``/etc.; they are upgraded in place to the note-only defaults
-    so every reader can treat the log as one uniform sequence.
+    so every reader can treat the log as one uniform sequence. v3 adds
+    ``blob_oid``/``included_blob_oids``; missing fields tolerate older rows.
     """
     schema_version = data.get("schema_version")
     if schema_version not in _VALID_SCHEMA_VERSIONS:
@@ -337,6 +355,12 @@ def _event_from_mapping(data: Mapping[str, Any]) -> MemoryReadEvent | None:
     scope_origin = _scope_origin_tuple(data.get("scope_origin"))
     if scope_origin is None:
         return None
+    blob_oid = data.get("blob_oid")
+    if blob_oid is not None and not isinstance(blob_oid, str):
+        return None
+    included_blob_oids = _scope_origin_tuple(data.get("included_blob_oids"))
+    if included_blob_oids is None:
+        return None
 
     return MemoryReadEvent(
         schema_version=schema_version,
@@ -358,6 +382,8 @@ def _event_from_mapping(data: Mapping[str, Any]) -> MemoryReadEvent | None:
         included_targets=included_targets,
         depth=depth,
         scope_origin=scope_origin,
+        blob_oid=blob_oid,
+        included_blob_oids=included_blob_oids,
     )
 
 
