@@ -69,10 +69,12 @@ _MIXIN_STACK = (
 
 #: Method names the view-owning mixins define. Reads of these on the
 #: screen (binding dispatch, tests) resolve to the focused view.
+#: ``dir`` (not ``vars``) so facades that compose split mixins via
+#: inheritance still forward inherited methods.
 _VIEW_METHOD_ATTRS = frozenset(
     name
     for mixin in _MIXIN_STACK
-    for name in vars(mixin)
+    for name in dir(mixin)
     if not (name.startswith("__") and name.endswith("__"))
 )
 
