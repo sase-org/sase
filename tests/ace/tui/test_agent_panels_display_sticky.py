@@ -455,7 +455,7 @@ def test_container_identity_change_retires_default() -> None:
 
 def test_unaccounted_bridge_holds_then_expires(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     """An emptied roster bridges briefly, then retires once the window lapses."""
-    import sase.ace.tui.actions.agents._display_panel_collection as coll
+    import sase.ace.tui.actions.agents._display_panel_collection_reconcile as coll
 
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[1, 1, 1], container_height=30)
@@ -480,7 +480,7 @@ def test_unaccounted_bridge_holds_then_expires(monkeypatch) -> None:  # type: ig
 
 def test_bridge_clears_when_identity_returns(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     """An identity that renders again within the window never unmounts."""
-    import sase.ace.tui.actions.agents._display_panel_collection as coll
+    import sase.ace.tui.actions.agents._display_panel_collection_reconcile as coll
 
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[1, 1, 1], container_height=30)
@@ -501,7 +501,7 @@ def test_bridge_clears_when_identity_returns(monkeypatch) -> None:  # type: igno
 
 def test_query_filtered_row_bridges_then_retires(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     """A roster-present but filtered row bridges, then retires on expiry."""
-    import sase.ace.tui.actions.agents._display_panel_collection as coll
+    import sase.ace.tui.actions.agents._display_panel_collection_reconcile as coll
 
     home = _agent(name="u1", tribe=None, suffix="t1")
     epic = _agent(name="e1", tribe="epic", suffix="t2")
@@ -544,7 +544,7 @@ def test_complete_history_retirement_reaches_next_sync() -> None:
 
 def test_countdown_hook_expires_bridges() -> None:
     """The countdown hook is a no-op until a bridge actually expires."""
-    import sase.ace.tui.actions.agents._display_panel_collection as coll
+    import sase.ace.tui.actions.agents._display_panel_collection_reconcile as coll
 
     agents = _three_panel_agents()
     app = _FakeApp(agents, [1, 1, 1], container_height=30)

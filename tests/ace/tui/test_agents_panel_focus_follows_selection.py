@@ -100,7 +100,7 @@ def test_parked_empty_strip_preserves_snap(monkeypatch: Any) -> None:
     bare._current_group_key = None  # type: ignore[attr-defined]
 
     from sase.ace.tui.actions.agents import (
-        _display_panel_collection as collection_mod,
+        _display_panel_collection_sync as collection_mod,
     )
 
     def _empty_slice(_owner: Any, _key: Any) -> tuple[list[int], list[Agent]]:

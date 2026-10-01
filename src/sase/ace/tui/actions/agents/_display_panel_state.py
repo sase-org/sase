@@ -37,6 +37,48 @@ class PanelRefreshStateMixin:
     _collapsed_panel_keys: set[PanelKey]
     _expanded_panel_keys: set[PanelKey]
 
+    def _session_sticky_query_value(self) -> str:
+        """Return the committed Agents query owning session-sticky panels."""
+        raise NotImplementedError
+
+    def _session_mounted_identity_map(
+        self,
+    ) -> dict[PanelKey, set[tuple[AgentType, str, str | None]]]:
+        """Return the identities mounted under each sticky key."""
+        raise NotImplementedError
+
+    def _session_sticky_unaccounted_since_map(
+        self,
+    ) -> dict[tuple[AgentType, str, str | None], float]:
+        """Return first-unaccounted monotonic timestamps per sticky identity."""
+        raise NotImplementedError
+
+    def _session_sticky_pending_retired_set(self) -> set[PanelKey]:
+        """Return authoritative retirements awaiting the next panel sync."""
+        raise NotImplementedError
+
+    def _session_mounted_backing_map(
+        self,
+    ) -> dict[
+        tuple[AgentType, str, str | None], set[tuple[AgentType, str, str | None]]
+    ]:
+        """Return container identities mapped to backing member identities."""
+        raise NotImplementedError
+
+    def _session_mounted_panel_key_set(self) -> set[PanelKey]:
+        """Return mounted-this-session keys for the active scope."""
+        raise NotImplementedError
+
+    def _sticky_placement_map(
+        self,
+    ) -> dict[tuple[AgentType, str, str | None], tuple[PanelKey, bool]]:
+        """Return roster identity -> (panel key, in active scope)."""
+        raise NotImplementedError
+
+    def _remember_session_mounted_occupancy(self) -> set[PanelKey]:
+        """Reconcile the session-sticky store against the rendered roster."""
+        raise NotImplementedError
+
     def _occupancy_keys_with_rows(self) -> set[PanelKey]:
         """Return occupancy keys that currently have rendered rows."""
         raise NotImplementedError

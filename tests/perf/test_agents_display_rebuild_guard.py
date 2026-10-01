@@ -308,7 +308,7 @@ def test_emptied_sticky_epic_widget_unmounts_once_bridge_expires(
     monkeypatch: Any,
 ) -> None:
     """The same bridged widget unmounts once the sticky bridge expires."""
-    import sase.ace.tui.actions.agents._display_panel_collection as coll
+    import sase.ace.tui.actions.agents._display_panel_collection_reconcile as coll
 
     epic = _agent("epic-worker", tribe="epic", suffix="e1", status="RUNNING")
     review = _agent("review-worker", tribe="review", suffix="r1", status="RUNNING")
