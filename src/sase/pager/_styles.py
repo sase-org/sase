@@ -12,55 +12,72 @@ PagerScreen .hidden {
     display: none;
 }
 
-PagerScreen #pager-subject {
+PagerScreen #pager-root {
+    height: 1fr;
+}
+
+PagerScreen #pager-panes {
+    height: 1fr;
+}
+
+PagerView {
+    layout: vertical;
+    height: 1fr;
+}
+
+PagerView .hidden {
+    display: none;
+}
+
+PagerView #pager-subject {
     height: 1;
     padding: 0 1;
     background: $boost;
 }
 
-PagerScreen #pager-trail {
+PagerView #pager-trail {
     height: 2;
     padding: 0 1;
     background: $surface;
     color: $text;
 }
 
-PagerScreen #pager-trail.compact {
+PagerView #pager-trail.compact {
     height: 1;
 }
 
-PagerScreen #pager-time {
+PagerView #pager-time {
     height: 1;
     padding: 0 1;
     background: $surface;
     color: $text;
 }
 
-PagerScreen #pager-time.two {
+PagerView #pager-time.two {
     height: 2;
 }
 
-PagerScreen #pager-chrome-rule {
+PagerView #pager-chrome-rule {
     height: 1;
     padding: 0 1;
     color: $text-muted;
 }
 
-PagerScreen #pager-body-scroll {
+PagerView #pager-body-scroll {
     height: 1fr;
 }
 
-PagerScreen #pager-body {
+PagerView #pager-body {
     width: 100%;
     padding: 0 1;
 }
 
-PagerScreen #pager-search-command {
+PagerView #pager-search-command {
     height: 1;
     padding: 0 1;
 }
 
-PagerScreen #pager-goto-command {
+PagerView #pager-goto-command {
     height: 1;
     padding: 0 1;
 }

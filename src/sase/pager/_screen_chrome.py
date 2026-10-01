@@ -88,7 +88,7 @@ class PagerChromeMixin:
             "diff_base": self._history_diff_base_for(state, ordinal),
         }
         try:
-            height = max(int(self.size.height), 1)
+            height = max(int(self._chrome_height()), 1)
         except Exception:
             height = 24
         if height <= 12:
@@ -143,20 +143,20 @@ class PagerChromeMixin:
             isinstance(history_state, dict)
             and str(history_state.get("view", "read")) == "diff"
         )
-        self.query_one("#pager-footer", Static).update(
-            footer_legend(
-                section_total=len(self.document.sections),
-                label_count=self._visible_label_count(),
-                pending_prefix=self._label_pending_prefix,
-                pending_action=self._pending_action,
-                trail_back_count=len(self._back_trail),
-                trail_forward_count=len(self._forward_trail),
-                status=self._footer_status,
-                history_available=available,
-                history_pinned=pinned,
-                history_diff_view=diff_view,
-            )
+        legend = footer_legend(
+            section_total=len(self.document.sections),
+            label_count=self._visible_label_count(),
+            pending_prefix=self._label_pending_prefix,
+            pending_action=self._pending_action,
+            trail_back_count=len(self._back_trail),
+            trail_forward_count=len(self._forward_trail),
+            status=self._footer_status,
+            history_available=available,
+            history_pinned=pinned,
+            history_diff_view=diff_view,
         )
+        # The footer is host-owned: only the focused view may paint it.
+        self.pager_host.paint_footer(self, legend)
 
     def _update_subject(self: Any) -> None:
         scroll = self._body_scroll()

@@ -260,7 +260,7 @@ class PagerTimeBandMixin:
         except Exception:
             return
         try:
-            height = max(int(self.size.height), 1)
+            height = max(int(self._chrome_height()), 1)
         except Exception:
             height = 24
         try:

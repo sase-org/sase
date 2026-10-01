@@ -14,7 +14,7 @@ from sase.pager._trail_chrome import (
     build_pager_trail_snapshot,
     render_trail_band,
 )
-from sase.pager.app import PagerExit, PendingAction
+from sase.pager.app import PendingAction
 from sase.pager.document import PagerSection
 from sase.pager.trail import PagerSearchState, PagerTrailEntry, append_bounded_trail
 
@@ -34,7 +34,7 @@ class PagerTrailMixin:
 
     def action_trail_back(self: Any) -> None:
         if not self._back_trail:
-            self.dismiss(PagerExit(trail_exhausted=True))
+            self.pager_host.close_view(self, trail_exhausted=True)
             return
         self._resolve_generation += 1
         history_bump = getattr(self, "_bump_history_generation", None)
@@ -196,7 +196,7 @@ class PagerTrailMixin:
             return
 
         width = self._trail_paint_width()
-        screen_height = max(int(self.size.height), 1)
+        screen_height = max(int(self._chrome_height()), 1)
         time_mode = "hidden"
         time_mode_fn = getattr(self, "_time_band_mode", None)
         if callable(time_mode_fn):

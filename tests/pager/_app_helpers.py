@@ -10,6 +10,7 @@ from sase.pager.app import SasePager
 from sase.pager.document import AttachedTarget, PagerDocument, PagerOrigin, PagerSection
 from sase.pager.link_context import LinkAnchor
 from sase.pager.screen import PagerScreen
+from sase.pager.view import PagerView
 
 
 def lines(prefix: str, count: int) -> str:
@@ -113,6 +114,11 @@ def pager_screen(app: SasePager) -> PagerScreen:
     screen = app.screen
     assert isinstance(screen, PagerScreen)
     return screen
+
+
+def pager_view(app: SasePager) -> PagerView:
+    """Return the focused per-document view of a single-pane pager."""
+    return pager_screen(app).focused_view
 
 
 def body_scroll(app: SasePager) -> VerticalScroll:

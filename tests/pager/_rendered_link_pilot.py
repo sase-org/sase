@@ -12,6 +12,7 @@ from textual.pilot import Pilot
 from sase.ace.testing.wait import wait_for
 from sase.pager.app import SasePager
 from sase.pager.screen import PagerScreen
+from sase.pager.view import PagerView
 from sase.pager._labels import PagerLabel
 
 
@@ -19,6 +20,11 @@ def pager_screen(app: SasePager) -> PagerScreen:
     screen = app.screen
     assert isinstance(screen, PagerScreen)
     return screen
+
+
+def pager_view(app: SasePager) -> PagerView:
+    """Return the focused per-document view of a single-pane pager."""
+    return pager_screen(app).focused_view
 
 
 def label_for(screen: PagerScreen, display: str) -> PagerLabel:
