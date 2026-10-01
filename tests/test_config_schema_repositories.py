@@ -111,7 +111,7 @@ def test_config_schema_documents_intrinsic_agents_sidecar_contract() -> None:
         in public_schema["properties"]["repos"]["properties"]["sidecar"]["description"]
     )
     assert (
-        "~/.sase/projects/<project_key>/repos/agents"
+        "~/.sase/projects/<project_key>/repos/<role>"
         in public_schema["properties"]["repos"]["properties"]["sidecar"]["description"]
     )
     assert "never exposed" in sidecar["auto_clone"]["description"]

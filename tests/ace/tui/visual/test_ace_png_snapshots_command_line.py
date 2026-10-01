@@ -35,6 +35,8 @@ from tests.ace.tui.visual.test_ace_png_snapshots_command_line_completion import 
 
 pytestmark = pytest.mark.visual
 
+__test__ = False
+
 __all__ = [
     "test_command_line_block_expanded_png_snapshot",
     "test_command_line_block_selected_png_snapshot",

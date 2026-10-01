@@ -72,8 +72,8 @@ def test_launch_query_rolls_back_partial_multi_prompt_launch(
 
     result = _launch_result()
 
-    def fail_launch(query: str, origin: object = None) -> list[AgentLaunchResult]:
-        del query
+    def fail_launch(query: str, **kwargs: object) -> list[AgentLaunchResult]:
+        del query, kwargs
         raise _MultiPromptPartialLaunchError([result], RuntimeError("boom"))
 
     rollback = MagicMock(

@@ -69,6 +69,11 @@ def _indicator_plain(page: AcePage) -> str | None:
     return indicator.render().plain
 
 
+def _badge_body(text: str) -> str:
+    """Return badge text without the ``inbox:`` group label."""
+    return text.removeprefix(f"{NotificationIndicator.GROUP_LABEL}: ")
+
+
 def _shipped_ace_config() -> dict[str, Any]:
     """Load packaged defaults so host ``notification_tabs`` cannot restyle chips."""
     return load_default_config(importlib_files)
@@ -471,7 +476,11 @@ async def wait_for_startup(page: AcePage) -> None:
             and page.app._agents_first_load_done
             and page.app._axe_first_load_done
             and not page.app._agent_detail_debouncer.is_pending
-            and (expected_badge is None or _indicator_plain(page) == expected_badge)
+            and (
+                expected_badge is None
+                or _badge_body(_indicator_plain(page) or "")
+                == _badge_body(expected_badge)
+            )
         ),
         timeout=15.0,
     )

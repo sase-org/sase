@@ -301,6 +301,7 @@ _VALUE_HINT_TABLE: Final[dict[str, str]] = dict.fromkeys(
         "args",
         "armer_key",
         "assignments",
+        "at",
         "attestation",
         "audit_id",
         "authors",

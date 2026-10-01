@@ -66,7 +66,7 @@ def catalog(h: Harness) -> list[dict[str, Any]]:
             t.get("last") is None and t.get("typical_duration_ms") is None
             for t in tools
         )
-        and "{failures,list,receipt,receipts,run,runs,show,stop,wait}" in helped.stdout
+        and "{failures,list,receipt,receipts,run,runs,show,stats,stop,wait}" in helped.stdout
     )
 
     h.snapshots["catalog"] = {

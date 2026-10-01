@@ -388,5 +388,7 @@ class TestRunStartedAtRecording:
         run_main(patches, tmp_path, is_home_mode=True)
 
         assert not (Path(artifacts_dir) / "running.json").exists()
-        assert setup_index_update.call_count == 3
+        # Four sources: artifacts setup, bootstrap meta, home running marker,
+        # launch-evidence meta (sase-1dr.1).
+        assert setup_index_update.call_count == 4
         cleanup_index_update.assert_called_once_with(artifacts_dir)

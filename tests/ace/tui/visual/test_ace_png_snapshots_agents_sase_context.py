@@ -30,6 +30,8 @@ from tests.ace.tui.visual.test_ace_png_snapshots_agents_sase_context_sessions im
 
 pytestmark = pytest.mark.visual
 
+__test__ = False
+
 __all__ = [
     "test_agents_bead_closed_by_agent_narrow_png_snapshot",
     "test_agents_bead_closed_by_agent_png_snapshot",

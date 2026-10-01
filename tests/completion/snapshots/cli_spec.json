@@ -20910,7 +20910,7 @@
                   "--at"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               },
               {
                 "choices": null,

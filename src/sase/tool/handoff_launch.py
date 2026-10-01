@@ -23,7 +23,7 @@ from sase.tool.routing import monitor_start_form
 
 
 @dataclass(frozen=True)
-class HandoffSubmitResult:
+class _HandoffSubmitResult:
     """Outcome of the shared reserve-and-submit half of a hand-off launch."""
 
     reservation: HandoffReservation
@@ -63,7 +63,7 @@ def submit_handoff_run(
     starter: Mapping[str, Any] | None = None,
     continuation_mode: str | None = None,
     detached: bool = False,
-) -> HandoffSubmitResult:
+) -> _HandoffSubmitResult:
     """Reserve a hand-off run and submit its adopting proc; never raises."""
 
     from sase.procs import new_proc_id
@@ -87,7 +87,7 @@ def submit_handoff_run(
         continuation_mode=continuation_mode,
     )
     if not reservation.reserved:
-        return HandoffSubmitResult(reservation=reservation, proc_id=proc_id)
+        return _HandoffSubmitResult(reservation=reservation, proc_id=proc_id)
     run_id = reservation.run_id
     label, command, _ = describe_handoff_command(resolved)
 
@@ -123,12 +123,12 @@ def submit_handoff_run(
         )
     except Exception as exc:  # noqa: BLE001 - submit failure settles launch_failed.
         settle_launch_failure(run_id, str(exc))
-        return HandoffSubmitResult(
+        return _HandoffSubmitResult(
             reservation=reservation,
             proc_id=proc_id,
             submit_error=str(exc),
         )
-    return HandoffSubmitResult(reservation=reservation, proc_id=proc_id)
+    return _HandoffSubmitResult(reservation=reservation, proc_id=proc_id)
 
 
 def execute_handoff(
@@ -243,7 +243,6 @@ def execute_handoff(
 
 
 __all__ = [
-    "HandoffSubmitResult",
     "describe_handoff_command",
     "execute_handoff",
     "submit_handoff_run",

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -233,6 +234,9 @@ def typical_cohorts(h: Harness) -> dict[str, Any]:
         return next(t for t in listed["tools"] if t["name"] == "quick")
 
     baseline = quick()
+    # `tool list` orders `last` by whole-second `created_ts` and breaks ties by
+    # random `run_id`, so sleep past the second boundary before the `--extra` run.
+    time.sleep(1.1)
     with_args = h.run(["tool", "run", "quick", "--", "--extra"], env=env, cwd=project)
     adhoc = h.run(
         ["tool", "run", "--", sys.executable, "-c", "print('q')"], env=env, cwd=project

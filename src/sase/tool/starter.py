@@ -35,7 +35,7 @@ IDENTITY_UNREADABLE = "identity-unreadable"
 
 
 @dataclass(frozen=True)
-class StarterResolution:
+class _StarterResolution:
     """Outcome of ``resolve_starter``: a starter wire dict or a typed reason."""
 
     starter: dict[str, Any] | None
@@ -50,7 +50,7 @@ def _meta_path(artifacts_dir: str) -> Path:
     return Path(artifacts_dir).expanduser() / "agent_meta.json"
 
 
-def resolve_starter(env: Mapping[str, str] | None = None) -> StarterResolution:
+def resolve_starter(env: Mapping[str, str] | None = None) -> _StarterResolution:
     """Resolve the starter record for the calling agent runner.
 
     Reads ``SASE_AGENT``, ``SASE_AGENT_NAME``, and the runner PID from
@@ -61,34 +61,34 @@ def resolve_starter(env: Mapping[str, str] | None = None) -> StarterResolution:
 
     environ: Mapping[str, str] = os.environ if env is None else env
     if not str(environ.get("SASE_AGENT") or "").strip():
-        return StarterResolution(starter=None, reason=NOT_AGENT)
+        return _StarterResolution(starter=None, reason=NOT_AGENT)
     agent = str(environ.get("SASE_AGENT_NAME") or "").strip()
     if not agent:
-        return StarterResolution(starter=None, reason=NO_AGENT_NAME)
+        return _StarterResolution(starter=None, reason=NO_AGENT_NAME)
     artifacts_dir = str(environ.get("SASE_ARTIFACTS_DIR") or "").strip()
     if not artifacts_dir:
-        return StarterResolution(starter=None, reason=NO_ARTIFACTS_DIR)
+        return _StarterResolution(starter=None, reason=NO_ARTIFACTS_DIR)
     try:
         with open(_meta_path(artifacts_dir), encoding="utf-8") as stream:
             meta = json.load(stream)
     except (OSError, ValueError):
-        return StarterResolution(starter=None, reason=META_UNREADABLE)
+        return _StarterResolution(starter=None, reason=META_UNREADABLE)
     if not isinstance(meta, dict):
-        return StarterResolution(starter=None, reason=META_UNREADABLE)
+        return _StarterResolution(starter=None, reason=META_UNREADABLE)
     raw_pid = meta.get("pid")
     try:
         pid = int(raw_pid)  # type: ignore[arg-type]
     except (TypeError, ValueError):
-        return StarterResolution(starter=None, reason=PID_MISSING)
+        return _StarterResolution(starter=None, reason=PID_MISSING)
     if pid <= 0:
-        return StarterResolution(starter=None, reason=PID_MISSING)
+        return _StarterResolution(starter=None, reason=PID_MISSING)
     identity = process_identity_token(pid)
     if not identity:
         fallback = meta.get("process_identity")
         if isinstance(fallback, str) and fallback:
             identity = fallback
     if not identity:
-        return StarterResolution(starter=None, reason=IDENTITY_UNREADABLE)
+        return _StarterResolution(starter=None, reason=IDENTITY_UNREADABLE)
     boot_id, _, _ = identity.partition(":")
     starter: dict[str, Any] = {
         "agent": agent,
@@ -96,7 +96,7 @@ def resolve_starter(env: Mapping[str, str] | None = None) -> StarterResolution:
         "boot_id": boot_id or None,
         "process_start_identity": identity,
     }
-    return StarterResolution(starter=starter)
+    return _StarterResolution(starter=starter)
 
 
 def _pid_is_zombie(pid: int) -> bool:
@@ -195,7 +195,6 @@ __all__ = [
     "NO_AGENT_NAME",
     "NO_ARTIFACTS_DIR",
     "PID_MISSING",
-    "StarterResolution",
     "resolve_starter",
     "starter_alive",
 ]

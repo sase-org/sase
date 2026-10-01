@@ -21,16 +21,6 @@ def _owner_ref(run: Mapping[str, Any]) -> tuple[str, str] | None:
     return kind, owner_id
 
 
-def owner_ref(run: Mapping[str, Any]) -> tuple[str, str] | None:
-    """Return ``(kind, id)`` for a proc- or monitor-owned run, else ``None``.
-
-    Public alias of the classification ``observe_owner_fact`` uses, so the
-    detached-run watchdog shares the owner rules instead of restating them.
-    """
-
-    return _owner_ref(run)
-
-
 def _wire_exit_code(value: object) -> int | None:
     if type(value) is int and _I32_MIN <= value <= _I32_MAX:
         return value
@@ -150,6 +140,5 @@ def owner_retention(run: Mapping[str, Any]) -> dict[str, Any]:
 __all__ = [
     "observe_owner_fact",
     "owner_fact_from_settlement",
-    "owner_ref",
     "owner_retention",
 ]

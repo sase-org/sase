@@ -37,6 +37,8 @@ from tests.ace.tui.visual.test_ace_png_snapshots_tool_runs_session import (
 
 pytestmark = pytest.mark.visual
 
+__test__ = False
+
 __all__ = [
     "test_tool_runs_admin_pane_png_snapshots",
     "test_tool_runs_card_png_snapshots",

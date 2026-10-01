@@ -347,10 +347,16 @@ def test_no_escapes_or_bytes_in_read_json_piped(
 
 
 def test_parser_help_covers_images_and_open() -> None:
-    from tests.main.parser_help_helpers import flat_help, parser_for
+    from tests.main.parser_help_helpers import (
+        assert_metavar_option_documented,
+        flat_help,
+        parser_for,
+    )
 
     show_help = flat_help(parser_for(("sase", "bead", "show")).format_help())
-    assert "-i, --images" in show_help
+    assert_metavar_option_documented(
+        show_help, "-i", "--images", "{auto,cells,kitty,never}"
+    )
     read_help = flat_help(parser_for(("sase", "bead", "read")).format_help())
     assert "--images" not in read_help
     open_help = flat_help(

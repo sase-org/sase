@@ -272,7 +272,7 @@ def test_continuation_flags_travel_in_envelope(
 ) -> None:
     from sase.tool import handoff_launch
     from sase.tool.handoff import HandoffReservation
-    from sase.tool.handoff_launch import HandoffSubmitResult
+    from sase.tool.handoff_launch import _HandoffSubmitResult
 
     _clean_env(monkeypatch, tmp_path)
     _agent_env(monkeypatch, tmp_path)
@@ -280,9 +280,9 @@ def test_continuation_flags_travel_in_envelope(
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
     seen: dict[str, object] = {}
 
-    def _fake_submit(resolved: object, **kwargs: object) -> HandoffSubmitResult:
+    def _fake_submit(resolved: object, **kwargs: object) -> _HandoffSubmitResult:
         seen.update(kwargs)
-        return HandoffSubmitResult(
+        return _HandoffSubmitResult(
             reservation=HandoffReservation(
                 run_id="0" * 32,
                 owner_kind="proc",
@@ -313,7 +313,7 @@ def test_agent_default_continuation_is_known(
 ) -> None:
     from sase.tool import handoff_launch
     from sase.tool.handoff import HandoffReservation
-    from sase.tool.handoff_launch import HandoffSubmitResult
+    from sase.tool.handoff_launch import _HandoffSubmitResult
 
     _clean_env(monkeypatch, tmp_path)
     _agent_env(monkeypatch, tmp_path)
@@ -321,9 +321,9 @@ def test_agent_default_continuation_is_known(
     monkeypatch.setenv("SASE_PROVIDER_SYNC_SOFT_CEILING_SECONDS", "8")
     seen: dict[str, object] = {}
 
-    def _fake_submit(resolved: object, **kwargs: object) -> HandoffSubmitResult:
+    def _fake_submit(resolved: object, **kwargs: object) -> _HandoffSubmitResult:
         seen.update(kwargs)
-        return HandoffSubmitResult(
+        return _HandoffSubmitResult(
             reservation=HandoffReservation(
                 run_id="0" * 32,
                 owner_kind="proc",

@@ -207,7 +207,10 @@ async def test_backspace_and_escape_cancel_pending_prefix() -> None:
 
 
 @pytest.mark.asyncio
-async def test_invalid_keys_flash_without_dismiss_or_app_leak() -> None:
+async def test_invalid_keys_flash_without_dismiss_or_app_leak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.ace.tui.modals.node_finder_modal._FLASH_S", 60.0)
     modal = _modal(_node("alpha"), _node("beta"))
     dismissed: list[object] = []
     modal.dismiss = dismissed.append  # type: ignore[method-assign]
@@ -325,7 +328,10 @@ async def test_clicking_a_row_dismisses_with_identity() -> None:
 
 
 @pytest.mark.asyncio
-async def test_quotation_mark_back_and_flash() -> None:
+async def test_quotation_mark_back_and_flash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.ace.tui.modals.node_finder_modal._FLASH_S", 60.0)
     modal = _modal(_node("alpha"), has_back=True)
     dismissed: list[object] = []
     modal.dismiss = dismissed.append  # type: ignore[method-assign]

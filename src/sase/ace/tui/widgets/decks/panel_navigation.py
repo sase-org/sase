@@ -306,7 +306,7 @@ class DeckPanelNavigationMixin:
         self._render_mode[DeckId.MAIN] = new_mode
         self._mode_subject[DeckId.MAIN] = document.subject
         if self._deck is DeckId.MAIN:
-            if is_new_subject:
+            if is_new_subject or bool(previous_document.cards) != bool(document.cards):
                 self.set_deck(DeckId.MAIN)
             else:
                 self._update_empty_state()

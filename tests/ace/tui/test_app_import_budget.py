@@ -14,10 +14,12 @@ _MAX_ELAPSED_SECONDS = 5.0
 # since the closure measured 3246. A second ~70 (mostly toobig splits, plus
 # FINAL-deck glance surfaces, agent tabs, update-gear state and deck views)
 # took it to 3425. Machine tabs, the ToolRun cutover leftovers, and the
-# catalog/stop actions took the closure to 3458. The deferred-module probe
-# below is the heavy-edge guard; this count only catches a wholesale closure
-# regression.
-_MAX_MODULE_COUNT = 3485
+# catalog/stop actions took the closure to 3458. Pager memory-history mixins
+# (read view, word diff, time band, timeline picker) imported eagerly through
+# PagerScreen and toobig splits (finalizers, monitor, agents display) took CI
+# to ~3490. The deferred-module probe below is the heavy-edge guard; this
+# count only catches a wholesale closure regression.
+_MAX_MODULE_COUNT = 3530
 
 
 def _measure_tui_app_import() -> dict[str, Any]:

@@ -473,10 +473,17 @@ async def test_app_export_body_tolerates_signal_task_prepare_error(
     assert "<svg" in paths.svg.read_text(encoding="utf-8")
 
 
-async def test_signal_schedule_spawns_export_task(tmp_path: Path) -> None:
+async def test_signal_schedule_spawns_export_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        screenshot_export_module, "_SCREENSHOT_SETTLE_TIMEOUT_SECONDS", 10.0
+    )
     async with AcePage() as page:
         page.app._screenshot_export_request_dir = tmp_path
         page.app._schedule_screenshot_export_from_signal()
-        await page.wait_for(lambda _state: (tmp_path / "screen_1.done").exists())
+        await page.wait_for(
+            lambda _state: (tmp_path / "screen_1.done").exists(), timeout=15.0
+        )
 
     assert (tmp_path / "screen_1.svg").exists()

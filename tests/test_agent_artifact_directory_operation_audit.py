@@ -84,6 +84,14 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "SASE_HOME/attachments/views, not an agent artifact directory."
         ),
     ),
+    "src/sase/bead/attachments/lifecycle.py:quarantine_local_object": DirOpReview(
+        exemption=(
+            "Moves a corrupt content-addressed attachment object into "
+            "SASE_HOME/attachments/quarantine and removes only its derived view "
+            "directory under SASE_HOME/attachments/views, not an agent artifact "
+            "directory."
+        ),
+    ),
     "src/sase/llm_provider/_plan_utils.py:move_plan_to_sase": DirOpReview(
         exemption=(
             "Moves a submitted scratch plan file into the machine-local "

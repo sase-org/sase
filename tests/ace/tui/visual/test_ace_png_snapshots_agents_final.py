@@ -43,6 +43,8 @@ from tests.ace.tui.visual.test_ace_png_snapshots_agents_final_session import (
 
 pytestmark = pytest.mark.visual
 
+__test__ = False
+
 __all__ = [
     "test_agents_final_failed_check_png_snapshot",
     "test_agents_final_narrow_tiers_png_snapshot",

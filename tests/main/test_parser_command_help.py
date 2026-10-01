@@ -255,7 +255,7 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     )
 
     assert "`sase memory list`" in memory_help
-    assert "{agent-docs,init,list,log,read,show,web}" in memory_help
+    assert "{agent-docs,history,init,list,log,read,show,web}" in memory_help
     assert "sase memory show generated_skills.md" in memory_help
     assert "`sase memory agent-docs list`" in agent_docs_help
     assert "provider instruction shim status" in agent_docs_list_help
