@@ -9,6 +9,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from sase.markdown_literals import (
+    EmphasisSentinels,
+    protect_emphasis_literals,
+    restore_emphasis_literals,
+)
 from sase.markdown_width import prettier_markdown_argv
 from sase.output import (
     print_file_operation,
@@ -601,14 +606,16 @@ def _unescape_prettier_underscores(text: str) -> str:
 def format_agent_prompt_markdown(text: str) -> str:
     """Format editable/launch-time agent prompt Markdown canonically.
 
-    Keeping this policy behind a named helper is what keeps launch-time
-    preprocessing and explicit prompt-editor formatting provably identical:
-    both call this function instead of invoking prettier independently, so
-    they stay pinned to the repo-wide Markdown wrap width without
-    duplicating the width or invoking the rest of the prompt preprocessing
-    pipeline.
+    Agent-prompt formatting is prettier reflow plus block normalization, but
+    inline ``_`` / ``*`` characters are preserved literally. Launch-time
+    preprocessing, the editor ``gf`` action, and the published prompt document
+    still share this one helper. Plain ``format_with_prettier`` intentionally
+    keeps raw prettier parity for repo-tracked Markdown.
     """
-    return format_with_prettier(text)
+    protected: str
+    sentinels: EmphasisSentinels
+    protected, sentinels = protect_emphasis_literals(text)
+    return restore_emphasis_literals(format_with_prettier(protected), sentinels)
 
 
 def strip_html_comments(text: str) -> str:

@@ -111,10 +111,10 @@ def render_prompt_document(
             ),
         )
 
-    from sase.file_references import format_with_prettier
+    from sase.file_references import format_agent_prompt_markdown
 
     return RenderedPromptArchive(
-        document=format_with_prettier(document),
+        document=format_agent_prompt_markdown(document),
         linked_records=linked,
         reference_labels=reference_labels,
     )

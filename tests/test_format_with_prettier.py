@@ -1,5 +1,6 @@
 """Tests for the parameterized prose wrap width of format_with_prettier."""
 
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -164,3 +165,157 @@ def test_preprocess_prompt_late_uses_named_agent_prompt_formatter() -> None:
         preprocess_prompt_late("just some prompt prose", file_ref_mode="skip")
 
     mock_formatter.assert_called_once()
+
+
+_LITERAL_CASES = [
+    "topic__cdx.md \u2026 topic__cld.md\n",
+    "/x/gh_sase-org__sase/a__cdx.md\n",
+    "__init__.py\n",
+    "self.__dict__\n",
+    "a___b and c___d\n",
+    "src/*.py and tests/*.py\n",
+    "x * y * z\n",
+    "Snake_case_name and _leading and trailing_\n",
+    "5 * 6\n",
+    "{%- set _ = ns.layout_lines.append(...) -%}\n",
+]
+
+
+def _rewriting_prettier_run(cmd: list[str], **kwargs: Any) -> Any:
+    """Simulate prettier's emphasis rewrites and underscore escapes."""
+    text = kwargs["input"]
+    text = text.replace("__", "**")
+    text = text.replace("*", "_")
+    while r"\_" in text:
+        text = text.replace(r"\_", "_")
+    # Simulate prettier escaping a surviving star.
+    text = text.replace("*", r"\*")
+    return subprocess.CompletedProcess(cmd, 0, stdout=text, stderr="")
+
+
+@pytest.mark.parametrize("text", _LITERAL_CASES)
+def test_agent_prompt_formatter_preserves_literals_against_rewriting_prettier(
+    text: str,
+) -> None:
+    """A hostile prettier cannot rewrite protected `_` / `*` literals."""
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch(
+            "sase.file_references.subprocess.run",
+            side_effect=_rewriting_prettier_run,
+        ),
+    ):
+        assert format_agent_prompt_markdown(text) == text
+
+
+def test_agent_prompt_formatter_missing_prettier_returns_input() -> None:
+    """Missing prettier falls back to the original prompt text."""
+    with patch("sase.file_references.shutil.which", return_value=None):
+        assert format_agent_prompt_markdown("a_b * c\n") == "a_b * c\n"
+
+
+def test_agent_prompt_formatter_failure_returns_input() -> None:
+    """A failing prettier falls back to the original prompt text."""
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch(
+            "sase.file_references.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, ["prettier"]),
+        ),
+    ):
+        assert format_agent_prompt_markdown("a_b * c\n") == "a_b * c\n"
+
+
+def test_agent_prompt_formatter_timeout_returns_input() -> None:
+    """A timed-out prettier falls back to the original prompt text."""
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch(
+            "sase.file_references.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["prettier"], 10.0),
+        ),
+    ):
+        assert format_agent_prompt_markdown("a_b * c\n") == "a_b * c\n"
+
+
+def test_agent_prompt_formatter_preserves_authored_underscore() -> None:
+    """An authored `_` survives because prettier never sees it protected."""
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch(
+            "sase.file_references.subprocess.run",
+            side_effect=_rewriting_prettier_run,
+        ),
+    ):
+        assert format_agent_prompt_markdown("foo_bar\n") == "foo_bar\n"
+
+
+_prettier_required = pytest.mark.skipif(
+    shutil.which("prettier") is None, reason="prettier is unavailable"
+)
+
+
+@_prettier_required
+@pytest.mark.parametrize("text", _LITERAL_CASES)
+def test_agent_prompt_formatter_preserves_table_literals_with_prettier(
+    text: str,
+) -> None:
+    """Every table row survives the real agent-prompt formatter."""
+    assert format_agent_prompt_markdown(text) == text
+
+
+@_prettier_required
+def test_preprocess_prompt_late_preserves_table_literals() -> None:
+    """Launch-time preprocessing preserves every non-Jinja table literal."""
+    from sase.llm_provider.preprocessing import preprocess_prompt_late
+    from sase.xprompt import is_jinja2_template
+
+    for text in _LITERAL_CASES:
+        # The table's Jinja row is invalid Jinja (`...` is not valid
+        # syntax) and `render_toplevel_jinja2` exits by design, so it is
+        # covered through `format_agent_prompt_markdown` above only.
+        if is_jinja2_template(text):
+            continue
+        assert preprocess_prompt_late(text, file_ref_mode="skip") == text
+    bare_handoff = "- wait_name=research.m.cdx label=research:202610/t/t__cdx.md\n"
+    assert preprocess_prompt_late(bare_handoff, file_ref_mode="skip") == bare_handoff
+
+
+@_prettier_required
+def test_agent_prompt_formatter_still_applies_block_formatting() -> None:
+    """List markers still normalize and long prose still wraps."""
+    assert format_agent_prompt_markdown("+ item\n") == "- item\n"
+    assert format_agent_prompt_markdown("* item\n") == "- item\n"
+    width = markdown_print_width()
+    paragraph = ("word " * 50).strip() + "\n"
+    formatted = format_agent_prompt_markdown(paragraph)
+    assert formatted != paragraph
+    assert all(len(line) <= width for line in formatted.splitlines())
+
+
+@_prettier_required
+def test_agent_prompt_formatter_wrap_parity_for_intraword_words() -> None:
+    """Intraword-only prose wraps exactly like raw prettier."""
+    paragraph = " ".join(["snake_case_name", "other_word", "x_y"] * 10) + "\n"
+    raw = format_with_prettier(paragraph)
+    assert "snake_case_name" in raw
+    assert "other_word" in raw
+    assert raw == format_agent_prompt_markdown(paragraph)
+
+
+@_prettier_required
+def test_agent_prompt_formatter_standalone_star_never_starts_line() -> None:
+    """A `*` at a wrap boundary stays glued instead of becoming a list."""
+    base = ("ab " * 50)[:88]
+    text = base + " * tail " + "tail " * 30 + "\n"
+    formatted = format_agent_prompt_markdown(text)
+    assert all(not line.lstrip().startswith("*") for line in formatted.splitlines())
+
+
+@_prettier_required
+def test_agent_prompt_formatter_joins_lines_with_space() -> None:
+    """Soft-wrapped literal lines rejoin with a preserved space."""
+    assert (
+        format_agent_prompt_markdown("ends foo_bar\nbaz__qux\n")
+        == "ends foo_bar baz__qux\n"
+    )

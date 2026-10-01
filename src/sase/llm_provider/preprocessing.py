@@ -160,7 +160,7 @@ def preprocess_prompt_late(
            tokens).
         4. Ordinary authored ``@path`` file reference processing or validation.
         5. Top-level Jinja2 rendering.
-        6. Prettier formatting.
+        6. Literal-preserving agent-prompt formatting.
         7. HTML comment stripping.
         8. Restore fenced code blocks.
 
@@ -238,7 +238,7 @@ def preprocess_prompt_late(
         prompt = render_toplevel_jinja2(prompt)
     prompt = artifact_jinja_protection.unprotect(prompt)
 
-    # 6. Prettier formatting (shared agent-prompt Markdown policy)
+    # 6. Literal-preserving agent-prompt formatting
     prompt = format_agent_prompt_markdown(prompt)
 
     # 7. HTML comment stripping
