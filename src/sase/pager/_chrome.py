@@ -201,7 +201,7 @@ def _format_char_count(count: int) -> str:
     return f"{count / 1_000_000:.1f}Mc"
 
 
-def subject_line(
+def subject_parts(
     document: PagerDocument,
     current_section: PagerSection,
     *,
@@ -213,8 +213,11 @@ def subject_line(
     syntax_hint: str | None = None,
     history_state: dict[str, object] | None = None,
     history_styles: Any | None = None,
-) -> Text:
-    """Build the sticky subject line: title left, position right.
+) -> tuple[Text, Text]:
+    """Return the subject line's ``(left, right)`` halves.
+
+    Same inputs and truncation as :func:`subject_line`; framed panes paint
+    the halves as border title/subtitle instead of one padded row.
 
     ``section_index``/``section_total`` are only shown once a document has
     more than one section — a single-section document's own index is not
@@ -373,6 +376,54 @@ def subject_line(
         left.append_text(context)
 
     right = Text(right_str, style="dim")
+    return (left, right)
+
+
+def subject_line(
+    document: PagerDocument,
+    current_section: PagerSection,
+    *,
+    section_index: int,
+    section_total: int,
+    scroll_percent: int,
+    char_count: int,
+    width: int,
+    syntax_hint: str | None = None,
+    history_state: dict[str, object] | None = None,
+    history_styles: Any | None = None,
+) -> Text:
+    """Build the sticky subject line: title left, position right.
+
+    ``section_index``/``section_total`` are only shown once a document has
+    more than one section — a single-section document's own index is not
+    information, per the beauty rule that absence costs nothing.
+
+    ``syntax_hint`` is a short language alias (``"py"``, ``"md"``, ``"diff"``)
+    shown only when syntax is actually enabled/prepared for the current
+    section; it is the first thing dropped at a narrow width, before either
+    the subject or the position information it sits beside.
+    ``history_state`` optionally carries the version moment (under
+    ``"moment"``) plus ``age``/``folded_honest`` for the history pill; it
+    truncates without wrapping at narrow widths.
+
+    Width is shed in a fixed order: the syntax hint, the ``⌘`` character
+    count, the pill context (the ``Δ`` segment is kept longest in the diff
+    view), the pill's shorter forms, and finally the title, which is
+    middle-truncated so the basename survives. The pill itself is never
+    cropped.
+    """
+    left, right = subject_parts(
+        document,
+        current_section,
+        section_index=section_index,
+        section_total=section_total,
+        scroll_percent=scroll_percent,
+        char_count=char_count,
+        width=width,
+        syntax_hint=syntax_hint,
+        history_state=history_state,
+        history_styles=history_styles,
+    )
     gap = max(width - cell_len(left.plain) - cell_len(right.plain), 1)
     line = Text(no_wrap=True, overflow="crop")
     line.append_text(left)
@@ -773,6 +824,7 @@ def footer_legend(
     history_pinned: bool = False,
     history_diff_view: bool = False,
     time_verbs: Sequence[tuple[str, str]] | None = None,
+    split: bool = False,
 ) -> Text:
     """Build the availability-driven footer legend.
 
@@ -785,6 +837,9 @@ def footer_legend(
     moment (``( vK``, ``) vK``/``) now``, ``} now``/``} deleted``,
     ``@ timeline``, ``= diff``/``= read``); it replaces the
     ``history_*`` booleans, which render the legacy ``( )`` form.
+
+    ``split`` adds the ``^F`` pane verb and names ``q`` "close pane",
+    since it closes only the focused pane while split.
     """
     verbs: list[tuple[str, str]] = []
     if status is not None:
@@ -822,10 +877,12 @@ def footer_legend(
         verbs.append(("^I", "forward"))
     if section_total > 1:
         verbs.append(("^N/^P", "entity"))
+    if split:
+        verbs.append(("^F", "pane"))
     verbs.append(("/", "search"))
     help_label = "trail/keys" if trail_back_count or trail_forward_count else "keys"
     verbs.append(("?", help_label))
-    verbs.append(("q", "close"))
+    verbs.append(("q", "close pane" if split else "close"))
 
     line = Text()
     for index, (key, label) in enumerate(verbs):
@@ -843,5 +900,6 @@ __all__ = [
     "section_rule",
     "section_accent",
     "subject_line",
+    "subject_parts",
     "time_verbs_for_moment",
 ]

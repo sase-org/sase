@@ -225,10 +225,20 @@ class PagerTimeBandMixin:
                     context=context,
                 )
             except Exception as exc:  # noqa: BLE001 - a press must not crash
+                try:
+                    if not self.is_mounted:
+                        return
+                except Exception:
+                    pass
                 if generation == self._resolve_generation and self.document is document:
                     self._set_footer_status(None)
                     self.notify(f"Could not resolve {target.ref} - {exc}")
                 return
+            try:
+                if not self.is_mounted:
+                    return
+            except Exception:
+                pass
             if generation != self._resolve_generation or self.document is not document:
                 return
             if resolved is None:
@@ -347,6 +357,12 @@ class PagerTimeBandMixin:
 
     def _update_chrome_rule_for_time_band(self: Any, time_visible: bool) -> None:
         """Hide the chrome rule while the trail or time band shows."""
+        if bool(getattr(self, "_pane_framed", False)):
+            try:
+                self.query_one("#pager-chrome-rule", Static).add_class("hidden")
+            except Exception:
+                pass
+            return
         try:
             rule = self.query_one("#pager-chrome-rule", Static)
         except Exception:

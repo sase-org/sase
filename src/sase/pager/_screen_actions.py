@@ -345,6 +345,11 @@ class PagerActionMixin:
                 historical = await asyncio.to_thread(
                     self._try_historical_link, history_section, ref
                 )
+                try:
+                    if not self.is_mounted:
+                        return
+                except Exception:
+                    pass
                 if (
                     generation != self._resolve_generation
                     or self.document is not document
@@ -370,10 +375,20 @@ class PagerActionMixin:
                     context=context,
                 )
             except Exception as exc:  # noqa: BLE001 - a press must never crash the pager
+                try:
+                    if not self.is_mounted:
+                        return
+                except Exception:
+                    pass
                 if generation == self._resolve_generation and self.document is document:
                     self._set_footer_status(None)
                     self.notify(f"Could not resolve {ref} - {exc}", severity="error")
                 return
+            try:
+                if not self.is_mounted:
+                    return
+            except Exception:
+                pass
             if generation != self._resolve_generation or self.document is not document:
                 return
             self._apply_resolution(
@@ -437,6 +452,11 @@ class PagerActionMixin:
         intent: str,
         context: Any | None = None,
     ) -> None:
+        try:
+            if not self.is_mounted:
+                return
+        except Exception:
+            pass
         from sase.pager.document import PagerDocument
 
         self._set_footer_status(None)
@@ -461,6 +481,11 @@ class PagerActionMixin:
         context: LinkResolutionContext | None = None,
         cache_identity: object | None = None,
     ) -> None:
+        try:
+            if not self.is_mounted:
+                return
+        except Exception:
+            pass
         self._set_footer_status(None)
         resolution = _as_link_resolution(result)
         target = resolution.target

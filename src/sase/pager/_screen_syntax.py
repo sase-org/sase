@@ -325,10 +325,18 @@ class PagerSyntaxMixin:
         return True
 
     def _publish_syntax_update(self: Any) -> None:
+        try:
+            if not self.is_mounted:
+                return
+        except Exception:
+            pass
         width = self._body_width
         if width is None:
             return
-        self._label_layer = self._build_label_layer(width)
+        try:
+            self._label_layer = self._build_label_layer(width)
+        except Exception:
+            return
         mark = getattr(self, "_goto_mark", None)
         accent_fn = getattr(self, "_goto_accent_for_mark", None)
         marks_fn = getattr(self, "_history_marks_for_body", None)
@@ -349,11 +357,14 @@ class PagerSyntaxMixin:
             change_marks=change_marks,
             removal_anchors=removal_anchors,
         )
-        if self._search.is_active:
-            self._search.refresh_styled_base()
-        else:
-            self.query_one("#pager-body", Static).update(self._body.renderable)
-        self._update_subject()
+        try:
+            if self._search.is_active:
+                self._search.refresh_styled_base()
+            else:
+                self.query_one("#pager-body", Static).update(self._body.renderable)
+            self._update_subject()
+        except Exception:
+            pass
 
 
 __all__ = ["MAX_DOCUMENT_SYNTAX_SPANS", "PagerSyntaxMixin"]

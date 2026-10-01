@@ -112,6 +112,11 @@ class PagerBodyMixin:
         row disappeared) or raised; the current document is kept either way,
         with a brief footer status standing in for the usual full recompose.
         """
+        try:
+            if not self.is_mounted:
+                return
+        except Exception:
+            pass
         if document is None:
             self._set_footer_status("Refresh failed — keeping current document")
             return
@@ -238,6 +243,11 @@ class PagerBodyMixin:
 
         def restore_after_layout() -> None:
             try:
+                try:
+                    if not self.is_mounted:
+                        return
+                except Exception:
+                    pass
                 if getattr(self, "document", None) is not document:
                     return
                 if self._body is not composed:

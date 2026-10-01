@@ -20,9 +20,22 @@ PagerScreen #pager-panes {
     height: 1fr;
 }
 
+PagerScreen #pager-panes.-single {
+    layout: vertical;
+}
+
+PagerScreen #pager-panes.-below {
+    layout: vertical;
+}
+
+PagerScreen #pager-panes.-beside {
+    layout: horizontal;
+}
+
 PagerView {
     layout: vertical;
     height: 1fr;
+    width: 1fr;
 }
 
 PagerView .hidden {

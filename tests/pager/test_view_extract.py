@@ -16,7 +16,15 @@ from sase.pager.screen import PagerScreen
 from sase.pager.view import PagerView
 from tests.pager._app_helpers import long_document, pager_screen, pager_view
 
-_HOST_ACTIONS = {"close_pager", "show_help"}
+_HOST_ACTIONS = {
+    "close_pager",
+    "show_help",
+    "split_below",
+    "split_beside",
+    "focus_other",
+    "grow_pane",
+    "shrink_pane",
+}
 
 
 def test_every_screen_binding_resolves_to_the_focused_view() -> None:

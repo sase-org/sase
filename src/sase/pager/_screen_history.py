@@ -147,6 +147,11 @@ class PagerHistoryMixin:
             }
 
         provider, timeline = await asyncio.to_thread(_load)
+        try:
+            if not self.is_mounted:
+                return
+        except Exception:
+            pass
         if generation != self._history_generation or self.document is not document:
             return
         if provider is None:

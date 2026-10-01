@@ -7,7 +7,13 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
-from sase.pager._chrome import footer_legend, subject_line, time_verbs_for_moment
+from sase.pager._chrome import (
+    footer_legend,
+    section_accent,
+    subject_line,
+    subject_parts,
+    time_verbs_for_moment,
+)
 from sase.pager._layout import current_section_index
 from sase.pager.history.styles import HistoryStyles, history_styles_for_theme
 
@@ -20,6 +26,8 @@ class PagerChromeMixin:
         theme_fn = getattr(self, "_current_syntax_theme", None)
         theme = theme_fn() if callable(theme_fn) else None
         return history_styles_for_theme(theme)
+
+    _chrome_signature: object | None
 
     def _set_footer_status(self: Any, status: str | None) -> None:
         self._footer_status = status
@@ -151,6 +159,7 @@ class PagerChromeMixin:
             raw_verbs = history_state.get("time_verbs")
             if isinstance(raw_verbs, list):
                 time_verbs = raw_verbs
+        split = bool(getattr(self, "_pane_framed", False))
         legend = footer_legend(
             section_total=len(self.document.sections),
             label_count=self._visible_label_count(),
@@ -163,6 +172,7 @@ class PagerChromeMixin:
             history_pinned=pinned,
             history_diff_view=diff_view,
             time_verbs=time_verbs,
+            split=split,
         )
         # The footer is host-owned: only the focused view may paint it.
         self.pager_host.paint_footer(self, legend)
@@ -172,8 +182,23 @@ class PagerChromeMixin:
         total = len(self.document.sections)
         width = max(scroll.size.width, 1)
         subject_widget = self.query_one("#pager-subject", Static)
+        framed = bool(getattr(self, "_pane_framed", False))
+        focused = bool(getattr(self, "_pane_focused", True))
         if total == 0:
-            subject_widget.update(Text(self.document.title, style="bold"))
+            if framed:
+                self._apply_framed_chrome(
+                    Text(self.document.title, style="bold"),
+                    Text("", style="dim"),
+                    kind="",
+                    focused=focused,
+                )
+                try:
+                    subject_widget.add_class("hidden")
+                    self.query_one("#pager-chrome-rule", Static).add_class("hidden")
+                except Exception:
+                    pass
+            else:
+                subject_widget.update(Text(self.document.title, style="bold"))
             return
 
         offsets = self._body.section_offsets if self._body is not None else (0,)
@@ -188,6 +213,49 @@ class PagerChromeMixin:
         )
         char_count = sum(len(part.plain_text) for part in self.document.sections)
         _, _, history_state = self._history_chrome_state()
+        if framed:
+            try:
+                pane_width = max(int(self.size.width) - 2, 1)
+            except Exception:
+                pane_width = width
+            left, right = subject_parts(
+                self.document,
+                section,
+                section_index=index + 1,
+                section_total=total,
+                scroll_percent=percent,
+                char_count=char_count,
+                width=max(pane_width, width),
+                syntax_hint=self._current_syntax_hint(),
+                history_state=history_state,
+                history_styles=self._history_styles(),
+            )
+            if not focused:
+                left = left.copy()
+                left.stylize("dim")
+                right = right.copy()
+                right.stylize("dim")
+            self._apply_framed_chrome(left, right, kind=section.kind, focused=focused)
+            try:
+                subject_widget.add_class("hidden")
+                self.query_one("#pager-chrome-rule", Static).add_class("hidden")
+            except Exception:
+                pass
+            return
+        # Single-pane chrome: clear any framed border and show the rows.
+        try:
+            if getattr(self, "_chrome_signature", None) is not None:
+                self._chrome_signature = None  # type: ignore[assignment]
+                self.border_title = ""  # type: ignore[assignment]
+                self.border_subtitle = ""  # type: ignore[assignment]
+                try:
+                    self.styles.border = ("none", "transparent")
+                except Exception:
+                    pass
+            subject_widget.remove_class("hidden")
+            self.query_one("#pager-chrome-rule", Static).remove_class("hidden")
+        except Exception:
+            pass
         subject_widget.update(
             subject_line(
                 self.document,
@@ -202,6 +270,43 @@ class PagerChromeMixin:
                 history_styles=self._history_styles(),
             )
         )
+
+    def _apply_framed_chrome(
+        self: Any, left: Text, right: Text, *, kind: str, focused: bool
+    ) -> None:
+        """Paint the pane frame border and title/subtitle when split."""
+        accent = section_accent(kind or "")
+        if focused:
+            border_color: object = accent
+        else:
+            try:
+                from textual.color import Color
+
+                border_color = Color.parse(accent).with_alpha(0.35)
+            except Exception:
+                border_color = accent
+        signature = (
+            str(border_color),
+            left.plain,
+            tuple((span.start, span.end, span.style) for span in left.spans),
+            right.plain,
+            focused,
+        )
+        if getattr(self, "_chrome_signature", None) == signature:
+            return
+        self._chrome_signature = signature  # type: ignore[assignment]
+        try:
+            self.styles.border = ("round", border_color)  # type: ignore[arg-type]
+        except Exception:
+            pass
+        try:
+            self.border_title = left  # type: ignore[assignment]
+        except Exception:
+            pass
+        try:
+            self.border_subtitle = right  # type: ignore[assignment]
+        except Exception:
+            pass
 
 
 __all__ = ["PagerChromeMixin"]

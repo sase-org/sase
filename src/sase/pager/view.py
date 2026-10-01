@@ -14,6 +14,7 @@ focused view may paint the shared footer.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Protocol
 
 from rich.rule import Rule
@@ -26,7 +27,13 @@ from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
 from sase.ace.tui.util.trace import tui_trace
 from sase.ace.tui.widgets.vim_search_controller import VimSearchController
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
-from sase.pager._layout import ComposedBody
+from sase.pager._layout import (
+    ComposedBody,
+    ReadingAnchor,
+    reading_anchor_at_row,
+    row_for_reading_anchor,
+)
+from sase.pager._line_mark import LineMark
 from sase.pager._screen_actions import PagerActionMixin, _DanglingRefKey
 from sase.pager._screen_body import PagerBodyMixin
 from sase.pager._screen_chrome import PagerChromeMixin
@@ -48,8 +55,7 @@ class PagerViewHost(Protocol):
     """What a ``PagerView`` needs from its hosting screen.
 
     Views never import ``PagerScreen``; the screen satisfies this
-    protocol structurally. Later split phases extend it with focus
-    requests and other-pane display.
+    protocol structurally.
     """
 
     def paint_footer(self, view: PagerView, legend: object) -> None:
@@ -60,8 +66,34 @@ class PagerViewHost(Protocol):
         """Close *view*; dismiss the pager when the last view closes."""
         ...
 
+    def focus_view(self, view: PagerView) -> None:
+        """Move logical focus to *view* (a no-op when already focused)."""
+        ...
 
-class PagerView(
+
+@dataclass(frozen=True, slots=True)
+class PagerViewSeed:
+    """A faithful clone payload for opening a split pane.
+
+    The new view shares the same document but owns independent trail,
+    history, syntax-prepared and dangling-ref state, so stepping versions
+    in one pane never moves the other.
+    """
+
+    document: PagerDocument
+    reading_anchor: ReadingAnchor | None = None
+    goto_mark: LineMark | None = None
+    back_trail: tuple[PagerTrailEntry, ...] = ()
+    forward_trail: tuple[PagerTrailEntry, ...] = ()
+    history_states: tuple[tuple[str, object], ...] = ()
+    history_supported: tuple[tuple[str, bool], ...] = ()
+    history_view_sticky: object | None = None
+    syntax_prepared: tuple[tuple[tuple[str, str | None], object], ...] = ()
+    syntax_attempted: tuple[tuple[str, str | None], ...] = ()
+    dangling_refs: tuple[tuple[object, str], ...] = ()
+
+
+class PagerView(  # type: ignore[misc]
     PagerTimeBandMixin,
     PagerHistoryMixin,
     PagerDiffMixin,
@@ -124,6 +156,10 @@ class PagerView(
         self._forward_trail: list[PagerTrailEntry] = []
         self._trail_render_signature: object | None = None
         self._footer_status: str | None = None
+        self._pane_framed = False
+        self._pane_focused = True
+        self._split_anchor: ReadingAnchor | None = None
+        self._chrome_signature: object | None = None
         self._init_goto_state()
         self._init_syntax_state()
         self._init_history_state()
@@ -140,13 +176,255 @@ class PagerView(
 
         Single-pane rendering historically measured the whole screen
         (footer rows included); keep measuring it so budgets stay
-        byte-identical until framed split panes compact per-pane chrome
-        deliberately.
+        byte-identical. Framed split panes compact per-pane chrome
+        deliberately against their own height.
         """
+        if getattr(self, "_pane_framed", False):
+            try:
+                return max(int(self.size.height), 1)
+            except Exception:
+                pass
         try:
             return max(int(self.screen.size.height), 1)
         except Exception:
             return max(int(self.size.height), 1)
+
+    def set_pane_role(self, *, framed: bool, focused: bool) -> None:
+        """Apply the host's split role to this pane.
+
+        Unfocused panes drop their label badges (like
+        ``links_enabled=False``) and cancel transient input; refocused
+        panes rebuild their labels. Called for every layout change, so it
+        is idempotent and safe before mount.
+        """
+        framed = bool(framed)
+        focused = bool(focused)
+        if framed == self._pane_framed and focused == self._pane_focused:
+            return
+        was_focused = self._pane_focused
+        self._pane_framed = framed
+        self._pane_focused = focused
+        if framed and not focused and was_focused:
+            self._cancel_transient_input()
+        try:
+            if not self.is_mounted:
+                return
+        except Exception:
+            return
+        if framed and not focused:
+            self._label_layer = PagerLabelLayer(
+                labels=(),
+                hint_to_label_index={},
+                labels_by_section=tuple(() for _section in self.document.sections),
+                target_count=0,
+                mode="document",
+            )
+            self._chrome_signature = None
+            try:
+                self._update_subject()
+                self._update_footer()
+            except Exception:
+                pass
+            return
+        # Focused (or single) panes repaint labels and chrome.
+        self._body_width = None
+        try:
+            self._ensure_body()
+        except Exception:
+            pass
+        self._chrome_signature = None
+        try:
+            self._update_trail()
+            self._update_footer()
+            self._update_subject()
+        except Exception:
+            pass
+
+    def _cancel_transient_input(self) -> None:
+        """Drop prefix, arms, goto prompt and typing search on focus loss."""
+        self._label_pending_prefix = ""
+        try:
+            self._pending_action = "follow"  # type: ignore[assignment]
+        except Exception:
+            pass
+        try:
+            if getattr(self, "_goto_active", False):
+                self._close_goto_prompt()
+        except Exception:
+            pass
+        try:
+            if getattr(self._search, "mode", "off") == "typing":
+                self._search.exit(restore_scroll=False, refresh=False)
+        except Exception:
+            pass
+        try:
+            self._footer_status = None
+        except Exception:
+            pass
+
+    def split_seed(self) -> PagerViewSeed:
+        """Capture a faithful clone payload for opening a split pane."""
+        anchor: ReadingAnchor | None = None
+        try:
+            body = self._body
+            if body is not None:
+                anchor = reading_anchor_at_row(body, int(self._body_scroll().scroll_y))
+        except Exception:
+            anchor = None
+        try:
+            back = tuple(self._back_trail)
+        except Exception:
+            back = ()
+        try:
+            forward = tuple(self._forward_trail)
+        except Exception:
+            forward = ()
+        history_states: list[tuple[str, object]] = []
+        try:
+            states = dict(getattr(self, "_history_states", {}) or {})
+            import dataclasses
+
+            for identity, state in states.items():
+                try:
+                    clone = dataclasses.replace(
+                        state,
+                        body_cache=dict(getattr(state, "body_cache", {}) or {}),
+                        comparison_cache=dict(
+                            getattr(state, "comparison_cache", {}) or {}
+                        ),
+                        expanded_folds=set(
+                            getattr(state, "expanded_folds", set()) or set()
+                        ),
+                    )
+                except Exception:
+                    clone = state
+                history_states.append((identity, clone))
+        except Exception:
+            history_states = []
+        try:
+            supported = tuple(
+                (key, bool(value))
+                for key, value in dict(
+                    getattr(self, "_history_supported", {}) or {}
+                ).items()
+            )
+        except Exception:
+            supported = ()
+        try:
+            sticky = getattr(self, "_history_view_sticky", None)
+        except Exception:
+            sticky = None
+        try:
+            prepared = tuple(
+                (key, value)
+                for key, value in dict(
+                    getattr(self, "_syntax_prepared", {}) or {}
+                ).items()
+            )
+        except Exception:
+            prepared = ()
+        try:
+            attempted = tuple(set(getattr(self, "_syntax_attempted", set()) or set()))
+        except Exception:
+            attempted = ()
+        try:
+            dangling = tuple(
+                (key, value)
+                for key, value in dict(
+                    getattr(self, "_dangling_refs", {}) or {}
+                ).items()
+            )
+        except Exception:
+            dangling = ()
+        return PagerViewSeed(
+            document=self.document,
+            reading_anchor=anchor,
+            goto_mark=getattr(self, "_goto_mark", None),
+            back_trail=back,
+            forward_trail=forward,
+            history_states=tuple(history_states),
+            history_supported=supported,
+            history_view_sticky=sticky,
+            syntax_prepared=prepared,
+            syntax_attempted=attempted,
+            dangling_refs=dangling,
+        )
+
+    def apply_split_seed(self, seed: PagerViewSeed) -> None:
+        """Install *seed* before mount; the anchor scrolls after layout."""
+        self.document = seed.document
+        self._back_trail = list(seed.back_trail)
+        self._forward_trail = list(seed.forward_trail)
+        try:
+            self._goto_mark = seed.goto_mark
+        except Exception:
+            pass
+        try:
+            self._history_states = dict(seed.history_states)  # type: ignore[arg-type]
+        except Exception:
+            pass
+        try:
+            self._history_supported = dict(seed.history_supported)
+        except Exception:
+            pass
+        try:
+            self._history_view_sticky = seed.history_view_sticky  # type: ignore[assignment]
+        except Exception:
+            pass
+        try:
+            self._syntax_prepared = dict(seed.syntax_prepared)  # type: ignore[arg-type]
+        except Exception:
+            pass
+        try:
+            self._syntax_attempted = set(seed.syntax_attempted)
+        except Exception:
+            pass
+        try:
+            self._dangling_refs = dict(seed.dangling_refs)  # type: ignore[arg-type]
+        except Exception:
+            pass
+        self._split_anchor = seed.reading_anchor
+        self._body = None
+        self._body_width = None
+        self._label_layer = None
+
+    def _build_label_layer(self, width: int, hint_offset: int = 0) -> PagerLabelLayer:
+        if getattr(self, "_pane_framed", False) and not getattr(
+            self, "_pane_focused", True
+        ):
+            self._label_window_scope = None
+            return PagerLabelLayer(
+                labels=(),
+                hint_to_label_index={},
+                labels_by_section=tuple(() for _section in self.document.sections),
+                target_count=0,
+                mode="document",
+            )
+        return super()._build_label_layer(width, hint_offset=hint_offset)  # type: ignore[misc]
+
+    def on_click(self, event: object) -> None:
+        """Focus this pane when clicked in a split."""
+        try:
+            host = self.pager_host
+            focus = getattr(host, "focus_view", None)
+            if callable(focus):
+                focus(self)  # type: ignore[arg-type]
+        except Exception:
+            pass
+
+    def on_mouse_down(self, event: object) -> None:
+        """Focus this pane on any mouse press, like a click."""
+        self.on_click(event)
+
+    def on_descendant_focus(self, event: object) -> None:
+        """Sync logical focus when Textual focus lands inside this pane."""
+        try:
+            host = self.pager_host
+            focus = getattr(host, "focus_view", None)
+            if callable(focus):
+                focus(self)  # type: ignore[arg-type]
+        except Exception:
+            pass
 
     def on_unmount(self) -> None:
         cancel_pump_free_tasks(self)
@@ -169,6 +447,33 @@ class PagerView(
             self._update_footer()
             self._update_subject()
             self.watch(self.app, "theme", self._on_app_theme_changed, init=False)
+            anchor = self._split_anchor
+            self._split_anchor = None
+            if anchor is not None:
+                composed = self._body
+                document = self.document
+
+                def _scroll_to_seed() -> None:
+                    try:
+                        if not self.is_mounted:
+                            return
+                        if self.document is not document:
+                            return
+                        body = self._body
+                        if body is None or body is not composed:
+                            return
+                        target = row_for_reading_anchor(body, anchor)
+                        scroll = self._body_scroll()
+                        clamped = max(0, min(target, int(scroll.max_scroll_y)))
+                        scroll.scroll_to(y=clamped, animate=False, immediate=True)
+                        self._update_chrome_position()
+                    except Exception:
+                        pass
+
+                try:
+                    self.call_after_refresh(_scroll_to_seed)
+                except Exception:
+                    pass
             self._start_syntax_preparation_after_paint()
             self._start_history_discovery_after_paint()
 
@@ -193,4 +498,4 @@ class PagerView(
         return self._handle_label_key(event)
 
 
-__all__ = ["PagerView", "PagerViewHost"]
+__all__ = ["PagerView", "PagerViewHost", "PagerViewSeed"]

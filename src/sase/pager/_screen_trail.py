@@ -99,9 +99,17 @@ class PagerTrailMixin:
         )
 
     def _restore_trail_scroll(self: Any, *, x: int, y: int) -> None:
-        self._body_scroll().scroll_to(x=x, y=y, animate=False, immediate=True)
-        self._update_subject()
-        self._update_trail()
+        try:
+            if not self.is_mounted:
+                return
+        except Exception:
+            pass
+        try:
+            self._body_scroll().scroll_to(x=x, y=y, animate=False, immediate=True)
+            self._update_subject()
+            self._update_trail()
+        except Exception:
+            pass
 
     def _current_view_state(self: Any) -> PagerTrailEntry:
         section = self._current_section_or_none()
@@ -238,6 +246,7 @@ class PagerTrailMixin:
 
         trail = self.query_one("#pager-trail", Static)
         rule = self.query_one("#pager-chrome-rule", Static)
+        framed = bool(getattr(self, "_pane_framed", False))
         snapshot = self._trail_snapshot()
         if not snapshot.visible:
             signature: object = (snapshot.signature, "hidden")
@@ -247,7 +256,8 @@ class PagerTrailMixin:
             trail.update("")
             trail.add_class("hidden")
             trail.remove_class("compact")
-            rule.remove_class("hidden")
+            if not framed:
+                rule.remove_class("hidden")
             return
 
         width = self._trail_paint_width()
