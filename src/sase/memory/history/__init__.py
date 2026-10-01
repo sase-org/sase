@@ -10,12 +10,32 @@ classification, cause attribution, snapshots, and diffing stay in
 
 from __future__ import annotations
 
+from sase.memory.history.feed_document import (
+    FeedDocumentResult,
+    FeedFold,
+    FeedSubject,
+    build_feed_document,
+    build_feed_section,
+    feed_subject_target,
+    is_feed_section,
+    parse_feed_subject_target,
+    resolve_feed_subject,
+)
 from sase.memory.history.pager_provider import (
     MemoryHistoryProvider,
     build_history_document,
 )
 
 __all__: list[str] = [
+    "FeedDocumentResult",
+    "FeedFold",
+    "FeedSubject",
     "MemoryHistoryProvider",
+    "build_feed_document",
+    "build_feed_section",
     "build_history_document",
+    "feed_subject_target",
+    "is_feed_section",
+    "parse_feed_subject_target",
+    "resolve_feed_subject",
 ]

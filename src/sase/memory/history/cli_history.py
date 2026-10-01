@@ -17,7 +17,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from rich.console import Console
 
@@ -282,20 +282,7 @@ def _handle_pager(
     )
 
     if not selectors:
-        print(
-            "note: history feed pager arrives in its assigned phase; "
-            "showing text feed for now.",
-            file=sys.stderr,
-        )
-        console = Console()
-        _handle_feed(
-            console,
-            service,
-            scopes,
-            args,
-            now_epoch=int(time.time()),
-            output_format="text",
-        )
+        _handle_feed_pager(service, scopes, args)
         return
     requested_view = "diff" if bool(getattr(args, "diff", False)) else "read"
     sections: list[Any] = []
@@ -351,6 +338,83 @@ def _handle_pager(
         origin=PagerOrigin.FILE,
     )
     SasePager(pager_document).run()
+
+
+def _feed_query_bounds(
+    args: argparse.Namespace,
+) -> tuple[int | None, int | None, str | None]:
+    """Return ``(since_epoch, limit, since_raw)`` for feed queries."""
+    limit = getattr(args, "limit", None)
+    since_raw = getattr(args, "since", None)
+    since = _parse_date_bound(since_raw, end_of_day=False) if since_raw else None
+    return since, limit, since_raw
+
+
+def _handle_feed_pager(
+    service: HistoryService,
+    scopes: list[Any],
+    args: argparse.Namespace,
+) -> None:
+    """Open the cross-file changes feed in the pager (one section per day)."""
+    from sase.memory.history.feed_document import (
+        build_feed_document,
+        parse_feed_subject_target,
+        resolve_feed_subject,
+    )
+    from sase.pager.app import SasePager
+
+    since, limit, since_raw = _feed_query_bounds(args)
+    show_all = bool(getattr(args, "all", False))
+    window_label = f"since {since_raw}" if since_raw else None
+    scopes_label = " + ".join(scope.scope_key for scope in scopes)
+    scopes_by_key = {scope.scope_key: scope for scope in scopes}
+    try:
+        # Always include hidden changesets: regen-only groups collapse
+        # client-side so their count line can expand in place, while
+        # ``-a/--all`` pre-expands every group instead.
+        feed = service.feed(scopes, since=since, limit=limit, include_hidden=True)
+    except Exception as exc:
+        raise HistoryScopeError(f"cannot build history feed: {exc}") from exc
+    expanded: frozenset[str] | Literal["all"] = "all" if show_all else frozenset()
+    result = build_feed_document(
+        feed, scopes_label, window_label=window_label, expanded_regen=expanded
+    )
+
+    def _resolve_ref(ref: str, *, context: Any | None = None) -> Any | None:
+        if parse_feed_subject_target(ref) is not None:
+            from sase.pager.targets import LinkResolution
+
+            target = resolve_feed_subject(service, scopes_by_key, ref)
+            if target is None:
+                return LinkResolution(
+                    unresolved_message=f"{ref} could not be resolved.",
+                    retryable=False,
+                )
+            return target
+        from sase.pager.resolve import resolve_link
+
+        return resolve_link(ref, context=context)
+
+    def _refresh_document() -> Any | None:
+        try:
+            fresh = service.feed(scopes, since=since, limit=limit, include_hidden=True)
+        except Exception:
+            return None
+        try:
+            return build_feed_document(
+                fresh,
+                scopes_label,
+                window_label=window_label,
+                expanded_regen=expanded,
+            ).document
+        except Exception:
+            return None
+
+    SasePager(
+        result.document,
+        resolve_ref_fn=_resolve_ref,
+        refresh_document_fn=_refresh_document,
+    ).run()
 
 
 def _handle_feed(

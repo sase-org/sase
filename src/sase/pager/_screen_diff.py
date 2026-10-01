@@ -540,6 +540,7 @@ class PagerDiffMixin:
             return
         state = self._history_states.get(section.identity)
         if state is None:
+            self._expand_document_fold(section_index, fold_index)
             return
         if fold_index in state.expanded_folds:
             return
@@ -571,6 +572,45 @@ class PagerDiffMixin:
             )
         except (ValueError, TypeError):
             state.expanded_folds.discard(fold_index)
+            return
+        anchor = self._capture_history_anchor(section_index)
+        sections = list(self.document.sections)
+        sections[section_index] = replacement
+        self.document = replace(self.document, sections=tuple(sections))
+        self._body = None
+        self._body_width = None
+        self._label_layer = None
+        self._ensure_body()
+        self._restore_history_anchor(section_index, replacement, anchor)
+        self._update_footer()
+        self._update_subject()
+        try:
+            self._schedule_syntax_preparation()
+        except Exception:
+            pass
+
+    def _expand_document_fold(self: Any, section_index: int, fold_index: int) -> None:
+        """Expand a caller-owned fold (e.g. a feed regen-only group).
+
+        Documents such as the memory changes feed carry their own
+        ``expand_fold_fn`` hook that recomposes one section in place.
+        Like diff folds this pushes no trail entry; unlike them it needs
+        no history state.
+        """
+        expander = getattr(self.document, "expand_fold_fn", None)
+        if expander is None:
+            return
+        try:
+            section = self.document.sections[section_index]
+        except IndexError:
+            return
+        try:
+            replacement = expander(section.identity, fold_index)
+        except Exception:
+            return
+        if replacement is None or not isinstance(replacement, PagerSection):
+            return
+        if replacement.identity != section.identity:
             return
         anchor = self._capture_history_anchor(section_index)
         sections = list(self.document.sections)

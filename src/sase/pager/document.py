@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -130,6 +130,7 @@ class PagerDocument:
     title: str
     origin: PagerOrigin
     link_context: LinkResolutionContext | None = None
+    expand_fold_fn: Callable[[str, int], PagerSection | None] | None = None
 
     def __post_init__(self) -> None:
         if not self.title.strip():

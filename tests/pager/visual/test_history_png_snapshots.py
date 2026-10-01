@@ -2,12 +2,13 @@
 
 Covers the sase-1dr.6 read view in three honest states — past read view,
 dirty now, and deletion tombstone — plus the sase-1dr.8 word-diff view in
-its past and dirty forms, at 120x40 and 60x30 in dark and light themes.
-Sections use fixed bodies, fixed commit/blob OIDs, canned comparisons,
-and an empty age string so screenshots never depend on checkout history
-or today's time. The real provider registry is cleared so no git/file I/O
-can leak in; history chrome/gutter state is injected deterministically
-after mount.
+its past and dirty forms, plus the sase-1dr.10 changes feed in its
+collapsed and regen-expanded forms, at 120x40 and 60x30 in dark and light
+themes. Sections use fixed bodies, fixed commit/blob OIDs, canned
+comparisons, and fixed feed epochs (the visual lane pins ``TZ=UTC``) so
+screenshots never depend on checkout history or today's time. The real
+provider registry is cleared so no git/file I/O can leak in; history
+chrome/gutter state is injected deterministically after mount.
 """
 
 from __future__ import annotations
@@ -358,10 +359,114 @@ def _inject_history_state(screen: PagerScreen, state: str) -> None:
     screen._update_footer()
 
 
+_FEED_EPOCH_DAY_ONE = 1790486400
+_FEED_EPOCH_DAY_TWO = 1790400000
+
+
+def _feed_fixture() -> dict[str, object]:
+    """Return a fixed two-day feed with home and regen-only changesets."""
+    return {
+        "changesets": [
+            {
+                "scope_key": "project:sase",
+                "commit": "dddddddddddddddddddddddddddddddddddddddd",
+                "committer_time": _FEED_EPOCH_DAY_ONE,
+                "provenance": {
+                    "subject": "feat(tabs): inherit agent tab across launches",
+                    "bead": "sase-1bc.5",
+                    "agent": "athena.sase-1bc.5",
+                },
+                "boilerplate": False,
+                "regen_only": False,
+                "authored": [
+                    {
+                        "subject_id": "note:project:sase/dispatch",
+                        "ordinal": 4,
+                        "class": "authored",
+                        "summary": {
+                            "section_paths": ["Remote dispatch"],
+                            "words_added": 44,
+                            "words_removed": 10,
+                        },
+                        "path": "sase/memory/dispatch.md",
+                    }
+                ],
+                "consequences": [
+                    {
+                        "subject_id": "instructions:project:sase/.",
+                        "ordinal": 12,
+                        "class": "rendered",
+                        "summary": {},
+                        "path": "AGENTS.md",
+                    }
+                ],
+            },
+            {
+                "scope_key": "home",
+                "commit": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "committer_time": _FEED_EPOCH_DAY_ONE + 600,
+                "provenance": {
+                    "subject": "feat(home): tune prompt hosts",
+                    "bead": "",
+                    "agent": "",
+                },
+                "boilerplate": False,
+                "regen_only": False,
+                "authored": [],
+                "consequences": [],
+            },
+            {
+                "scope_key": "project:sase",
+                "commit": "ffffffffffffffffffffffffffffffffffffffff",
+                "committer_time": _FEED_EPOCH_DAY_TWO,
+                "provenance": {
+                    "subject": "chore: regenerate managed files",
+                    "bead": "",
+                    "agent": "",
+                },
+                "boilerplate": False,
+                "regen_only": True,
+                "authored": [],
+                "consequences": [
+                    {
+                        "subject_id": "instructions:project:sase/.",
+                        "ordinal": 11,
+                        "class": "regen_only",
+                        "summary": {},
+                        "path": "AGENTS.md",
+                    }
+                ],
+            },
+        ],
+        "hidden_changeset_count": 0,
+    }
+
+
+def _document_for_state(state: str) -> PagerDocument:
+    """Return the golden document for *state* (feed states use the builder)."""
+    if state == "feed":
+        from sase.memory.history.feed_document import build_feed_document
+
+        return build_feed_document(_feed_fixture(), "project:sase + home").document
+    if state == "feed-expanded":
+        from sase.memory.history.feed_document import build_feed_document
+
+        return build_feed_document(
+            _feed_fixture(), "project:sase + home", expanded_regen="all"
+        ).document
+    section = _section_for_state(state)
+    return PagerDocument(
+        sections=(section,),
+        title=_TITLE,
+        origin=PagerOrigin.FILE,
+    )
+
+
 @pytest.mark.parametrize("size", _SIZES)
 @pytest.mark.parametrize("light", [False, True])
 @pytest.mark.parametrize(
-    "state", ["past", "dirty", "tombstone", "past-diff", "dirty-diff"]
+    "state",
+    ["past", "dirty", "tombstone", "past-diff", "dirty-diff", "feed", "feed-expanded"],
 )
 async def test_history_png_snapshot(
     pager_png_visual: AcePngSnapshotFixture,
@@ -371,12 +476,7 @@ async def test_history_png_snapshot(
 ) -> None:
     clear_history_provider_factories()
     try:
-        section = _section_for_state(state)
-        document = PagerDocument(
-            sections=(section,),
-            title=_TITLE,
-            origin=PagerOrigin.FILE,
-        )
+        document = _document_for_state(state)
         theme_label = "light" if light else "dark"
         app = _SnapshotPager(
             document,
@@ -385,11 +485,13 @@ async def test_history_png_snapshot(
         async with app.run_test(size=size) as pilot:
             screen = app.screen
             assert isinstance(screen, PagerScreen)
-            if state.endswith("-diff"):
+            if state.endswith("-diff") or state.startswith("feed"):
                 # Diff-view sections carry their own word-diff styling and
-                # skip syntax preparation by design.
+                # feed sections carry fixed builder text: neither needs
+                # syntax preparation before capture.
                 await pilot.pause()
             else:
+                section = document.sections[0]
                 await wait_for(
                     pilot,
                     lambda: (
@@ -397,7 +499,7 @@ async def test_history_png_snapshot(
                         and not screen._syntax_pass_running
                     ),
                 )
-            _inject_history_state(screen, state)
+                _inject_history_state(screen, state)
             await pilot.pause()
             pager_png_visual.assert_page_png(
                 _SvgExport(app),
