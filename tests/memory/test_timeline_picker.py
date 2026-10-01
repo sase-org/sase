@@ -5,11 +5,14 @@ from __future__ import annotations
 import time
 
 from sase.memory.history.timeline_picker import (
+    _normalize_picker_compare,
     build_picker_rows,
     filter_picker_rows,
     hidden_picker_rows,
     hidden_summary_text,
+    picker_footer_preview,
     picker_header_text,
+    picker_pill_text,
     visible_picker_rows,
 )
 
@@ -181,6 +184,166 @@ def test_header_names_subject_counts_and_filter() -> None:
     assert filtered.endswith("— / keymap")
 
 
+def _clean_timeline() -> dict[str, object]:
+    versions: list[dict[str, object]] = []
+    for ordinal, committer in ((25, 1790486400), (24, 1790054400), (1, 1788000000)):
+        versions.append(
+            {
+                "ordinal": ordinal,
+                "class": "authored",
+                "commit": f"{ordinal:040d}",
+                "committer_time": committer,
+                "path": "sase/memory/gotchas.md",
+                "summary": {
+                    "section_paths": ["Default Keymap Config"],
+                    "words_added": 31,
+                    "words_removed": 4,
+                },
+                "provenance": {
+                    "agent": "athena.sase-1bc.12",
+                    "bead": "sase-1bc.12",
+                    "subject": "feat(tui): keymaps",
+                },
+            }
+        )
+    return {"versions": versions}
+
+
+def test_rows_carry_structured_column_cells() -> None:
+    rows = build_picker_rows(_timeline(), now_epoch=_NOW)
+
+    committed = rows[2]
+    assert committed["date"] != ""
+    assert committed["age"] != ""
+    assert committed["change"] == "§ Default Keymap Config"
+    assert committed["words"] == "+31w -4w"
+    assert committed["by"] == "sase-1bc.12"
+    assert committed["sha"] == "a" * 7
+    assert committed["detail"] == ""
+    assert committed["is_now_alias"] is False
+
+    pseudo = rows[0]
+    assert pseudo["date"] == ""
+    assert pseudo["detail"] == "uncommitted · not durable until committed"
+
+
+def test_clean_now_row_is_synthesized_first_with_alias_tag() -> None:
+    rows = build_picker_rows(
+        _clean_timeline(), now_epoch=_NOW, now_matches_newest=True, newest=25
+    )
+
+    assert [row["label"] for row in rows] == ["now", "v25", "v24", "v1"]
+    now_row = rows[0]
+    assert now_row["pseudo"] is True
+    assert now_row["detail"] == "≡ v25 · the live file"
+    assert filter_picker_rows(rows, "live file")[0]["label"] == "now"
+    newest_row = rows[1]
+    assert newest_row["is_now_alias"] is True
+    assert rows[2]["is_now_alias"] is False
+
+
+def test_clean_now_row_without_d3_has_no_alias() -> None:
+    rows = build_picker_rows(
+        _clean_timeline(), now_epoch=_NOW, now_matches_newest=False, newest=25
+    )
+
+    assert rows[0]["label"] == "now"
+    assert rows[0]["detail"] == "the live file"
+    assert all(row["is_now_alias"] is False for row in rows)
+
+
+def test_dirty_now_row_keeps_uncommitted_detail() -> None:
+    rows = build_picker_rows(_timeline(), now_epoch=_NOW)
+
+    assert rows[0]["label"] == "now"
+    assert rows[0]["class"] == "uncommitted"
+    assert rows[0]["detail"] == "uncommitted · not durable until committed"
+
+
+def test_dates_gain_a_year_outside_the_current_year() -> None:
+    old = dict(_clean_timeline()["versions"][0])  # type: ignore[index]
+    old["committer_time"] = 1670000000  # Dec 2022
+    rows = build_picker_rows({"versions": [old]}, now_epoch=_NOW)
+
+    assert rows[1]["date"].endswith("2022")
+    assert rows[1]["date"].startswith("Dec")
+    assert rows[0]["label"] == "now"
+
+
+def test_header_carries_the_open_version_pill() -> None:
+    header = picker_header_text(
+        subject_display="gotchas.md",
+        total_committed=25,
+        hidden_count=4,
+        show_hidden=False,
+        query="",
+        pill_text="⟲ PAST · v24",
+    )
+
+    assert header == "gotchas.md · 25 versions · 4 hidden · [⟲ PAST · v24] — / filter"
+
+
+def test_pill_text_covers_every_kind() -> None:
+    assert picker_pill_text("past", 24, 25) == "⟲ PAST · v24"
+    assert picker_pill_text("now", 25, 25) == "● NOW · v25"
+    assert picker_pill_text("now_dirty", 0, 25) == "◌ NOW"
+    assert picker_pill_text("deleted", 12, 12) == "✖ DELETED"
+    assert picker_pill_text("loading", 0, 0) == ""
+
+
+def test_normalize_compare_always_reads_older_to_newer() -> None:
+    assert _normalize_picker_compare(open_ordinal=24, cursor_ordinal=21) == (21, 24)
+    assert _normalize_picker_compare(open_ordinal=21, cursor_ordinal=24) == (21, 24)
+    assert _normalize_picker_compare(open_ordinal=0, cursor_ordinal=24) == (24, 0)
+    assert _normalize_picker_compare(open_ordinal=24, cursor_ordinal=0) == (24, 0)
+    assert _normalize_picker_compare(open_ordinal=24, cursor_ordinal=24) is None
+    assert _normalize_picker_compare(open_ordinal=0, cursor_ordinal=0) is None
+
+
+def test_footer_previews_open_and_compare_actions() -> None:
+    open_row = {"ordinal": 24, "class": "authored", "label": "v24"}
+    older_row = {"ordinal": 21, "class": "authored", "label": "v21"}
+    now_row = {"ordinal": 0, "class": "", "label": "now"}
+
+    assert (
+        picker_footer_preview(open_row, open_ordinal=24, open_class="")
+        == "● open v24 · . hidden · / filter · esc close"
+    )
+    assert (
+        picker_footer_preview(older_row, open_ordinal=24, open_class="")
+        == "⏎ open v21 · = compare v21 → v24 · . hidden · / filter · esc close"
+    )
+    assert (
+        picker_footer_preview(
+            {"ordinal": 25, "class": "authored", "label": "v25"},
+            open_ordinal=24,
+            open_class="",
+        )
+        == "⏎ open v25 · = compare v24 → v25 · . hidden · / filter · esc close"
+    )
+    assert (
+        picker_footer_preview(now_row, open_ordinal=24, open_class="")
+        == "⏎ open now · = compare v24 → now · . hidden · / filter · esc close"
+    )
+    assert (
+        picker_footer_preview(now_row, open_ordinal=0, open_class="")
+        == "● open now · . hidden · / filter · esc close"
+    )
+    assert picker_footer_preview(None, open_ordinal=24) == (
+        "⏎ open · . hidden · / filter · esc close"
+    )
+
+
+def test_footer_sheds_hints_but_keeps_actions_when_narrow() -> None:
+    row = {"ordinal": 129, "class": "authored", "label": "v129"}
+
+    preview = picker_footer_preview(row, open_ordinal=130, open_class="", width=52)
+    assert preview == "⏎ open v129 · = compare v129 → v130 · esc close"
+    assert picker_footer_preview(
+        row, open_ordinal=130, open_class="", width=0
+    ).endswith("· . hidden · / filter · esc close")
+
+
 def test_large_timelines_stay_fast() -> None:
     versions: list[dict[str, object]] = []
     for ordinal in range(1, 501):
@@ -209,6 +372,7 @@ def test_large_timelines_stay_fast() -> None:
     picker_window(len(rows), 250, 20)
     elapsed = time.perf_counter() - started
 
-    assert len(rows) == 500
+    assert len(rows) == 501
+    assert rows[0]["label"] == "now"
     assert [row["label"] for row in matches] == ["v499"]
     assert elapsed < 2.0

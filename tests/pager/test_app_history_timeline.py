@@ -173,6 +173,14 @@ def _list_text(picker: TimelinePickerScreen) -> str:
     return picker.query_one("#pager-timeline-list", Static).visual.plain  # type: ignore[attr-defined]
 
 
+def _footer_text(picker: TimelinePickerScreen) -> str:
+    return picker.query_one("#pager-timeline-footer", Static).visual.plain  # type: ignore[attr-defined]
+
+
+def _header_text(picker: TimelinePickerScreen) -> str:
+    return picker.query_one("#pager-timeline-header", Static).visual.plain  # type: ignore[attr-defined]
+
+
 async def test_at_lists_versions_and_footer_names_timeline(
     fake_history_provider: object,
 ) -> None:
@@ -245,6 +253,91 @@ async def test_equals_compares_row_with_open_version(
         assert pin is not None and pin.compare_base == 3
         state = screen._history_states[_IDENTITY]
         assert (3, 0) in state.comparison_cache
+
+
+async def test_picker_header_names_honest_count_and_pill(
+    fake_history_provider: object,
+) -> None:
+    app = SasePager(_live_document())
+    async with app.run_test(size=(100, 24)) as pilot:
+        await _ready_screen(pilot, app)
+        picker = await _open_picker(pilot, app)
+
+        header = _header_text(picker)
+        assert "3 versions · 1 hidden" in header
+        assert "[◌ NOW]" in header
+
+
+async def test_picker_marks_open_row_and_previews_cursor_actions(
+    fake_history_provider: object,
+) -> None:
+    app = SasePager(_live_document())
+    async with app.run_test(size=(100, 24)) as pilot:
+        await _ready_screen(pilot, app)
+        picker = await _open_picker(pilot, app)
+
+        # Cursor starts on the open now row: both markers show.
+        assert "●▸" in _list_text(picker)
+        assert "● open now" in _footer_text(picker)
+
+        await pilot.press("j")
+        await pilot.pause()
+        assert "⏎ open v3" in _footer_text(picker)
+        assert "= compare v3 → now" in _footer_text(picker)
+        # The open row keeps its marker away from the cursor.
+        assert "● " in _list_text(picker)
+
+
+async def test_equals_with_newer_cursor_compares_older_to_newer(
+    fake_history_provider: object,
+) -> None:
+    app = SasePager(_live_document())
+    async with app.run_test(size=(100, 24)) as pilot:
+        screen = await _ready_screen(pilot, app)
+        await _open_picker(pilot, app)
+
+        # Rows are now, v3, v1: jump to the oldest version first.
+        await pilot.press("j")
+        await pilot.pause()
+        await pilot.press("j")
+        await pilot.pause()
+        await pilot.press("enter")
+        await wait_for(
+            pilot,
+            lambda: (
+                int(getattr(screen.document.sections[0].version_pin, "ordinal", 0) or 0)
+                == 1
+            ),
+        )
+        back_count = len(screen._back_trail)
+
+        picker = await _open_picker(pilot, app)
+        assert "● open v1" in _footer_text(picker)
+
+        # Move up to the newer v3 row: the preview reads older → newer.
+        await pilot.press("k")
+        await pilot.pause()
+        assert "= compare v1 → v3" in _footer_text(picker)
+
+        await pilot.press("=")
+        await wait_for(
+            pilot,
+            lambda: (
+                int(getattr(screen.document.sections[0].version_pin, "ordinal", 0) or 0)
+                == 3
+            ),
+        )
+        await wait_for(
+            pilot,
+            lambda: (
+                getattr(screen.document.sections[0].version_pin, "view", "read")
+                == "diff"
+            ),
+        )
+
+        pin = screen.document.sections[0].version_pin
+        assert pin is not None and pin.compare_base == 1
+        assert len(screen._back_trail) > back_count
 
 
 async def test_period_toggles_hidden_versions(

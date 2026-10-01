@@ -18,6 +18,8 @@ import datetime
 from collections.abc import Mapping
 from typing import Any
 
+from rich.cells import cell_len
+
 from sase.memory.history import render_text
 from sase.memory.history.vocabulary import (
     glyph_for,
@@ -52,9 +54,17 @@ def _ordinal_label(class_name: str, ordinal: int) -> str:
     return f"v{ordinal}"
 
 
-def _format_day(epoch: int) -> str:
-    """Return a short picker date (``Sep 27``)."""
-    return datetime.datetime.fromtimestamp(epoch).strftime("%b %d")
+def _format_day(epoch: int, now_epoch: int = 0) -> str:
+    """Return a short picker date (``Sep 27``, with year when past)."""
+    moment = datetime.datetime.fromtimestamp(epoch)
+    if now_epoch:
+        try:
+            now_year = datetime.datetime.fromtimestamp(now_epoch).year
+        except (TypeError, ValueError, OverflowError, OSError):
+            now_year = moment.year
+        if moment.year != now_year:
+            return moment.strftime("%b %d %Y")
+    return moment.strftime("%b %d")
 
 
 def _words_suffix(summary: dict[str, Any], class_name: str) -> str:
@@ -94,21 +104,48 @@ def _display_for_row(
     return "  ".join(part for part in cells if part)
 
 
+def _newest_committed_ordinal(versions: object) -> int:
+    """Return the newest committed ordinal in a timeline wire list."""
+    newest = 0
+    if not isinstance(versions, (list, tuple)):
+        return 0
+    for version in versions:
+        if not isinstance(version, dict):
+            continue
+        try:
+            ordinal = int(version.get("ordinal", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if ordinal > newest:
+            newest = ordinal
+    return newest
+
+
 def build_picker_rows(
-    timeline: dict[str, Any], *, now_epoch: int
+    timeline: dict[str, Any],
+    *,
+    now_epoch: int,
+    now_matches_newest: bool = False,
+    newest: int | None = None,
 ) -> tuple[dict[str, Any], ...]:
     """Build picker rows for a core timeline wire dict.
 
     Each row carries ``ordinal``, ``class``, ``label``, ``glyph``,
     ``display``, ``haystack`` (lowercase filter text over section,
-    agent, bead, subject, words, and path), and ``hidden``. Building
-    rows is O(n) dict reads only, so timelines with hundreds of
-    versions open instantly; the modal renders a window of them.
+    agent, bead, subject, words, and path), ``hidden``, ``pseudo``,
+    and the structured column cells the modal lays out
+    (``date``, ``age``, ``change``, ``words``, ``by``, ``sha``,
+    ``detail``, ``is_now_alias``). The ``now`` row is always first:
+    the live worktree row when core reports one, otherwise a
+    synthesized clean-now row. Building rows is O(n) dict reads only,
+    so timelines with hundreds of versions open instantly; the modal
+    renders a window of them.
     """
     rows: list[dict[str, Any]] = []
     versions = timeline.get("versions", ())
     if not isinstance(versions, (list, tuple)):
         return ()
+    resolved_newest = _newest_committed_ordinal(versions) if newest is None else newest
     for version in versions:
         if not isinstance(version, dict):
             continue
@@ -144,6 +181,10 @@ def build_picker_rows(
                 short="",
                 pseudo_detail=detail,
             )
+            if class_name == "uncommitted":
+                column_detail = "uncommitted · not durable until committed"
+            else:
+                column_detail = "staged"
             haystack = " ".join((detail, label, path)).lower()
             rows.append(
                 {
@@ -155,13 +196,21 @@ def build_picker_rows(
                     "haystack": haystack,
                     "hidden": False,
                     "pseudo": True,
+                    "date": "",
+                    "age": "",
+                    "change": "",
+                    "words": "",
+                    "by": "",
+                    "sha": "",
+                    "detail": column_detail,
+                    "is_now_alias": False,
                 }
             )
             continue
         if ordinal <= 0:
             continue
         committer_time = int(version.get("committer_time", 0) or 0)
-        date = _format_day(committer_time) if committer_time else ""
+        date = _format_day(committer_time, now_epoch) if committer_time else ""
         age = (
             render_text.format_age(now_epoch, committer_time) if committer_time else ""
         )
@@ -202,7 +251,46 @@ def build_picker_rows(
                 "haystack": haystack,
                 "hidden": _row_is_hidden(version, class_name),
                 "pseudo": False,
+                "date": date,
+                "age": age,
+                "change": summary,
+                "words": words,
+                "by": bead or agent,
+                "sha": short,
+                "detail": "",
+                "is_now_alias": bool(
+                    now_matches_newest
+                    and resolved_newest
+                    and ordinal == resolved_newest
+                ),
             }
+        )
+    if resolved_newest > 0 and not any(row.get("label") == "now" for row in rows):
+        if now_matches_newest:
+            detail = f"≡ v{resolved_newest} · the live file"
+        else:
+            detail = "the live file"
+        display = f"now  {detail}"
+        rows.insert(
+            0,
+            {
+                "ordinal": 0,
+                "class": "",
+                "label": "now",
+                "glyph": "●",
+                "display": display,
+                "haystack": f"now live file {detail}".lower(),
+                "hidden": False,
+                "pseudo": True,
+                "date": "",
+                "age": "",
+                "change": "",
+                "words": "",
+                "by": "",
+                "sha": "",
+                "detail": detail,
+                "is_now_alias": False,
+            },
         )
     return tuple(rows)
 
@@ -255,17 +343,119 @@ def picker_header_text(
     hidden_count: int,
     show_hidden: bool,
     query: str,
+    pill_text: str = "",
 ) -> str:
     """Return the picker title line for the modal header."""
     noun = "version" if total_committed == 1 else "versions"
     header = f"{subject_display} · {total_committed} {noun}"
     if hidden_count and not show_hidden:
         header += f" · {hidden_count} hidden"
+    if pill_text:
+        header += f" · [{pill_text}]"
     if query:
         header += f" — / {query}"
     else:
         header += " — / filter"
     return header
+
+
+def picker_pill_text(kind: str, ordinal: int, newest: int) -> str:
+    """Return the open version's short pill text for the picker header."""
+    if kind == "past":
+        return f"⟲ PAST · v{ordinal}"
+    if kind == "now":
+        return f"● NOW · v{newest}"
+    if kind == "now_dirty":
+        return "◌ NOW"
+    if kind == "deleted":
+        return "✖ DELETED"
+    return ""
+
+
+def _version_name(ordinal: int) -> str:
+    """Return the picker name for an ordinal (``now`` for the worktree)."""
+    return "now" if ordinal == 0 else f"v{ordinal}"
+
+
+def _cursor_key(row: Mapping[str, Any]) -> tuple[int, str]:
+    """Return the ``(ordinal, class)`` identity for a cursor row."""
+    try:
+        ordinal = int(row.get("ordinal", -1) or 0)
+    except (TypeError, ValueError):
+        ordinal = -1
+    return (ordinal, str(row.get("class", "") or ""))
+
+
+def _normalize_picker_compare(
+    *,
+    open_ordinal: int,
+    cursor_ordinal: int,
+) -> tuple[int, int] | None:
+    """Return the ``(base, target)`` pair for a picker ``=`` press.
+
+    Comparisons always read older to newer (``0`` means now); ``None``
+    means the cursor sits on the open version, so there is nothing to
+    compare. When the cursor is newer than the open version, the
+    cursor's version becomes the shown target and the previously open
+    version becomes the base.
+    """
+    open_ordinal = int(open_ordinal or 0)
+    cursor_ordinal = int(cursor_ordinal or 0)
+    if cursor_ordinal == 0:
+        if open_ordinal == 0:
+            return None
+        return (open_ordinal, 0)
+    if cursor_ordinal == open_ordinal:
+        return None
+    if open_ordinal == 0:
+        return (cursor_ordinal, 0)
+    return (min(open_ordinal, cursor_ordinal), max(open_ordinal, cursor_ordinal))
+
+
+def picker_footer_preview(
+    cursor_row: Mapping[str, Any] | None,
+    *,
+    open_ordinal: int,
+    open_class: str = "",
+    width: int = 0,
+) -> str:
+    """Return the live footer previewing the cursor row's actions.
+
+    When *width* is positive and the full preview would overflow it,
+    the middle hints give way so the actions and ``esc close`` stay on
+    one line.
+    """
+    tail = "· . hidden · / filter · esc close"
+    if cursor_row is None:
+        full = f"⏎ open {tail}"
+        short = "⏎ open · esc close"
+    else:
+        cursor_ordinal, cursor_class = _cursor_key(cursor_row)
+        label = str(cursor_row.get("label", "") or _version_name(cursor_ordinal))
+        same = cursor_ordinal == int(open_ordinal or 0) and (
+            cursor_ordinal != 0 or cursor_class == str(open_class or "")
+        )
+        endpoints = _normalize_picker_compare(
+            open_ordinal=open_ordinal,
+            cursor_ordinal=cursor_ordinal,
+        )
+        if same or endpoints is None:
+            verb = "● open" if same else "⏎ open"
+            full = f"{verb} {label} {tail}"
+            short = f"{verb} {label} · esc close"
+        else:
+            base, target = endpoints
+            full = (
+                f"⏎ open {label} · = compare {_version_name(base)}"
+                f" → {_version_name(target)} {tail}"
+            )
+            short = (
+                f"⏎ open {label} · = compare {_version_name(base)}"
+                f" → {_version_name(target)} · esc close"
+            )
+    if width > 0 and cell_len(full) > width:
+        return short
+    return full
 
 
 __all__ = [
@@ -275,6 +465,8 @@ __all__ = [
     "filter_picker_rows",
     "hidden_picker_rows",
     "hidden_summary_text",
+    "picker_footer_preview",
     "picker_header_text",
+    "picker_pill_text",
     "visible_picker_rows",
 ]

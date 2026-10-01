@@ -158,6 +158,100 @@ def _picker_for_state(state: str) -> TimelinePickerScreen:
     return picker
 
 
+def _picker_many() -> TimelinePickerScreen:
+    versions: list[dict[str, object]] = []
+    for ordinal in range(260, 0, -1):
+        versions.append(
+            {
+                "ordinal": ordinal,
+                "class": "authored",
+                "commit": f"{ordinal:040d}",
+                "committer_time": 1790486400 - ordinal * 3600,
+                "path": "sase/memory/garden.md",
+                "summary": {
+                    "section_paths": [f"Section {ordinal}"],
+                    "words_added": ordinal % 97,
+                    "words_removed": ordinal % 5,
+                },
+                "provenance": {
+                    "agent": f"athena.sase-1dr.{ordinal}",
+                    "bead": f"sase-1dr.{ordinal}",
+                    "subject": f"edit number {ordinal}",
+                },
+            }
+        )
+    rows = build_picker_rows(
+        {"versions": versions},
+        now_epoch=_NOW_EPOCH,
+        now_matches_newest=True,
+        newest=260,
+    )
+    hidden = hidden_picker_rows(rows)
+    header = picker_header_text(
+        subject_display="garden.md",
+        total_committed=260,
+        hidden_count=len(hidden),
+        show_hidden=False,
+        query="",
+        pill_text="⟲ PAST · v130",
+    )
+    return TimelinePickerScreen(
+        title=header,
+        rows=rows,
+        current_ordinal=130,
+        current_class="",
+        hidden_summary=hidden_summary_text(hidden),
+        initial_cursor=132,
+    )
+
+
+@pytest.mark.parametrize("light", [False, True])
+async def test_timeline_picker_many_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+    light: bool,
+) -> None:
+    clear_history_provider_factories()
+    try:
+        pin = committed_pin_for_ordinal(
+            _SUBJECT_ID,
+            130,
+            commit=f"{130:040d}",
+        )
+        section = PagerSection(
+            identity=_IDENTITY,
+            title=_TITLE,
+            kind="file",
+            body="# Garden note\n",
+            subject_ref=_SUBJECT_ID,
+            raw_source=RawSourceSpec(language="markdown"),
+            version_pin=pin,
+        )
+        document = PagerDocument(
+            sections=(section,),
+            title=_TITLE,
+            origin=PagerOrigin.FILE,
+        )
+        theme_label = "light" if light else "dark"
+        app = _SnapshotPager(
+            document,
+            theme_name="textual-light" if light else None,
+        )
+        async with app.run_test(size=(60, 30)) as pilot:
+            screen = app.screen
+            assert isinstance(screen, PagerScreen)
+            await pilot.pause()
+            app.push_screen(_picker_many())
+            await pilot.pause()
+            await pilot.pause()
+            pager_png_visual.assert_page_png(
+                _SvgExport(app),
+                f"timeline_picker_many_{theme_label}_60x30",
+                title=f"SasePager: timeline picker many ({theme_label})",
+            )
+    finally:
+        clear_history_provider_factories()
+
+
 @pytest.mark.parametrize("size", _SIZES)
 @pytest.mark.parametrize("light", [False, True])
 @pytest.mark.parametrize("state", ["default", "filtered"])
