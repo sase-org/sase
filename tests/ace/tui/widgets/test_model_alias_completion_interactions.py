@@ -120,7 +120,7 @@ async def test_equals_alias_enter_submits_unexpanded_text_while_menu_is_open() -
 
 async def test_equals_alias_ctrl_t_opens_when_auto_directive_menu_is_disabled() -> None:
     app = ModelAliasCompletionTestApp(
-        settings=PromptCompletionSettings(auto_directive_menu=False, next_word="chain"),
+        settings=PromptCompletionSettings(auto_directive_menu=False),
     )
     async with app.run_test() as pilot:
         ta = app.query_one(PromptInputBar).active_text_area()

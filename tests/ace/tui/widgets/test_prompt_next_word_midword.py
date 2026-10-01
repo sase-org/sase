@@ -10,6 +10,7 @@ from sase.ace.tui.widgets.next_word_completion import (
     fit_midword_ghost_with_tail,
     midword_peek_words,
 )
+from sase.ace.tui.widgets.next_word_menu import NEXT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.next_word_placement import next_word_midword_eligible
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -246,24 +247,23 @@ async def test_old_core_result_stays_silent(
         assert ta.suggestion == ""
 
 
-async def test_explicit_midword_never_opens_a_menu(
+async def test_typed_midword_miss_yields_ctrl_t_to_word_completion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.ace.tui.widgets.next_word_completion import NEXT_WORD_NO_GUESS_HINT
-
     app = _auto_app()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        bar = app.query_one(PromptInputBar)
         _patch_result(monkeypatch, ta, _completionless_result(["it", "now"]))
-        ta.load_text("Can you help me impl")
+        ta.load_text("implement it. Can you help me impl")
         ta.cursor_location = (0, len(ta.text))
         await pilot.press("e")
         assert ta._next_word_chain is not None
         assert ta._next_word_chain.midword is True
+        assert ta._next_word_chain.typed is True
         await pilot.press("ctrl+t")
+        assert ta.text.endswith("implement")
         assert ta._file_completion_active is False
-        assert NEXT_WORD_NO_GUESS_HINT in _bar_hint(bar)
+        assert ta._completion_kind != NEXT_WORD_COMPLETION_KIND
 
 
 async def test_chain_mode_shows_no_midword_ghost() -> None:

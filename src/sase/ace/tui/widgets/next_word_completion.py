@@ -41,7 +41,11 @@ _NEXT_WORD_SUFFIX_CHARS = set(
 
 @dataclass(frozen=True, slots=True)
 class NextWordChain:
-    """Armed chain state: the document snapshot at the last word commit."""
+    """Armed chain state: the document snapshot anchoring the chain.
+
+    The snapshot is taken at the last word commit, accept, explicit
+    ``Ctrl+T``, or ``auto``-mode typing trigger.
+    """
 
     anchor_offset: int
     anchor_text: str
@@ -49,6 +53,11 @@ class NextWordChain:
     #: ``complete_current_word`` result (suffix-plus-continuation
     #: composition with old-core silence). Boundary arms leave this False.
     midword: bool = False
+    #: Whether ``auto`` typing armed the chain (a typed word character or a
+    #: typed trigger after a word) rather than a word commit, an accept, or an
+    #: explicit ``Ctrl+T``. A typed chain is not a request: the prompt's
+    #: ``Ctrl+T`` yields it to manual completion unless a guess is pending.
+    typed: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -462,7 +462,9 @@ class PromptTextAreaKeyHandlingMixin(
 
         # Ctrl+T ladder rows 2-3 before the manual dispatcher (row 4).
         # Row 2 takes the visible ghost's or revealed peek's first word;
-        # row 3 reveals a pending peek or shows the gated guess or hint.
+        # row 3 handles chains armed by a commit, an accept, or an
+        # explicit press, plus pending peeks. An ``auto``-typed chain with
+        # nothing to reveal falls through to the manual dispatcher (row 4).
         if event.key == "ctrl+t" and (
             self._next_word_ghost_visible() or self._next_word_peek_visible()
         ):

@@ -581,8 +581,9 @@ async def test_auto_armed_boundary_ctrl_t_without_guess_teaches_recent_files() -
         ta.load_text("zzz qqq")
         ta.cursor_location = (0, len(ta.text))
         await pilot.press("space")
-        # The typed space already armed the chain, so Ctrl+T takes the
-        # armed-chain row rather than the unarmed boundary dispatch.
+        # The typed space already armed the chain, but a typed chain yields
+        # Ctrl+T: it now takes the boundary dispatch, which re-arms and
+        # teaches Ctrl+G r.
         assert ta._next_word_chain_is_armed() is True
 
         await pilot.press("ctrl+t")

@@ -113,7 +113,9 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         except Exception:
             pass
 
-    def _anchor_next_word_chain(self, *, midword: bool) -> tuple[str, int] | None:
+    def _anchor_next_word_chain(
+        self, *, midword: bool, typed: bool = False
+    ) -> tuple[str, int] | None:
         """Reset the chain, ghost, peek, and hint anchors without predicting.
 
         Returns the ``(text, offset)`` snapshot, or ``None`` when the chain
@@ -131,7 +133,7 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
             return None
         self._cancel_next_word_reveal()
         self._next_word_chain = NextWordChain(
-            anchor_offset=offset, anchor_text=text, midword=midword
+            anchor_offset=offset, anchor_text=text, midword=midword, typed=typed
         )
         self._next_word_ghost = None
         try:
@@ -149,6 +151,7 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         *,
         reveal: Literal["immediate", "delayed"] = "immediate",
         complete_current_word: bool = False,
+        typed: bool = False,
     ) -> None:
         """Arm the chain at the cursor and show a gated ghost when it fits.
 
@@ -162,7 +165,9 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         if not self._next_word_enabled():
             self._clear_next_word_chain()
             return
-        anchored = self._anchor_next_word_chain(midword=complete_current_word)
+        anchored = self._anchor_next_word_chain(
+            midword=complete_current_word, typed=typed
+        )
         if anchored is None:
             return
         text, offset = anchored
@@ -363,13 +368,36 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
             return True
         return self._explicit_next_word_ctrl_t()
 
+    def _typed_next_word_chain_yields_ctrl_t(self) -> bool:
+        """Return whether ``Ctrl+T`` should skip an ``auto``-typed chain.
+
+        ``auto`` arms a chain after almost every keystroke, so an armed chain
+        alone is not a request. A typed chain owns the press only while its
+        guess waits for the reveal beat (row 3 reveals it); otherwise the
+        manual dispatcher (row 4) completes the token and requests next words
+        itself at a whitespace boundary or a prose word end.
+        """
+        chain = getattr(self, "_next_word_chain", None)
+        if chain is None or not chain.typed or not self._next_word_chain_is_armed():
+            return False
+        try:
+            if self._next_word_peek_pending():  # type: ignore[attr-defined]
+                return False
+        except Exception:
+            pass
+        return True
+
     def _explicit_next_word_ctrl_t(self) -> bool:
         """Run the ``Ctrl+T`` explicit request, teaching recent files on a miss.
 
         A no-guess outcome at a whitespace boundary (no token under the
         cursor, the old file-history slot) names ``Ctrl+G r``, whether
         the chain was armed by this press or earlier by ``auto`` typing.
+        A chain armed by ``auto`` typing yields ``Ctrl+T`` to manual
+        completion unless a peek waits for the reveal beat.
         """
+        if self._typed_next_word_chain_yields_ctrl_t():
+            return False
         consumed = self._explicit_next_word_request()
         if consumed and self._next_word_hint == NEXT_WORD_NO_GUESS_HINT:
             try:

@@ -7707,7 +7707,10 @@ next-word chain: each accepted suggestion requests another. An explicit `Ctrl+T`
 starts a chain at a whitespace boundary with no token under the cursor. At the end of a
 prose word, `Ctrl+T` first tries ordinary current-word completion; it requests next
 words only when that completion has no candidate. Structured tokens, such as paths and
-Jinja tags, keep their own completion behavior.
+Jinja tags, keep their own completion behavior. This also holds in `auto`: a guess
+requested while typing owns `Ctrl+T` only while its ghost or peek is showing or waiting
+to be revealed; otherwise `Ctrl+T` completes structured tokens, paths, and prompt-local
+and history words exactly as in `chain` mode.
 
 Where a confident guess appears depends on the cursor:
 
@@ -7775,11 +7778,11 @@ example, after typing `imple`, the ghost might be `ment it now`. If the word is 
 complete, the ghost starts with a space (` it now`); an exact word with no continuation
 stays silent. A current-word peek displays the completed word first. `Ctrl+T` inserts
 its missing suffix, or the next continuation word if no suffix is missing. `Ctrl+L`
-inserts the suffix and continuation. For a current-word request already started by
-`auto`, `Ctrl+T` shows that suffix and continuation directly instead of opening a
-whole-word menu. If the core supplies no current-word completion, that request shows no
-suggestion. The completed word counts toward `next_word_max_words`, leaving at most
-`next_word_max_words - 1` continuation words.
+inserts the suffix and continuation. A current-word request that found a guess shows it
+as a ghost or peek, and `Ctrl+T` takes it. When that request shows nothing (including
+when the core supplies no current-word completion), `Ctrl+T` runs ordinary completion
+instead of repeating the request. The completed word counts toward
+`next_word_max_words`, leaving at most `next_word_max_words - 1` continuation words.
 
 When the text **before the cursor** exceeds 4000 characters, a typing-triggered
 current-word request runs off the keystroke path after
@@ -7789,7 +7792,8 @@ explicit `Ctrl+T` request or measure text after the cursor.
 Ghosts and peeks stay off in NORMAL mode, during file completion, during a snippet
 session, while text is selected, and for the whole of a Jinja `{{ }}` or `{% %}` tag.
 The gate and plan feedback note editor hosts the same autosuggest — ghost, peek, hint,
-`Ctrl+T`, and `Ctrl+L` — with no completion menu there.
+`Ctrl+T`, and `Ctrl+L` — with no completion menu there, so `Ctrl+T` there still
+re-requests a typing-armed guess and shows the hint.
 
 Principles: `Ctrl+T` never inserts an unseen guess, always moves forward, and stays
 silent when unsure.

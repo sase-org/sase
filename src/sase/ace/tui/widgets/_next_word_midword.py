@@ -75,13 +75,14 @@ class NextWordMidwordMixin(NextWordGhostStateMixin):
         ) -> None: ...
         def _prompt_completion_settings(self) -> Any: ...
         def _anchor_next_word_chain(
-            self, *, midword: bool
+            self, *, midword: bool, typed: bool = False
         ) -> tuple[str, int] | None: ...
         def _arm_next_word_chain(
             self,
             *,
             reveal: Literal["immediate", "delayed"] = "immediate",
             complete_current_word: bool = False,
+            typed: bool = False,
         ) -> None: ...
         def _set_next_word_peek(
             self,
@@ -141,7 +142,9 @@ class NextWordMidwordMixin(NextWordGhostStateMixin):
         if len(text[:offset]) > NEXT_WORD_SYNC_MAX_DRAFT_CHARS:
             self._defer_next_word_midword_request(text, offset)
             return False
-        self._arm_next_word_chain(reveal="delayed", complete_current_word=True)
+        self._arm_next_word_chain(
+            reveal="delayed", complete_current_word=True, typed=True
+        )
         return self._next_word_ghost_visible() or self._next_word_peek_visible()
 
     def _compose_next_word_midword_result(
@@ -265,7 +268,7 @@ class NextWordMidwordMixin(NextWordGhostStateMixin):
         predict whose result applies only when its snapshot (generation,
         text, cursor) is still current.
         """
-        anchored = self._anchor_next_word_chain(midword=True)
+        anchored = self._anchor_next_word_chain(midword=True, typed=True)
         if anchored is None:
             return
         snapshot_text, snapshot_offset = anchored

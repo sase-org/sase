@@ -157,7 +157,9 @@ class GateNoteInput(
         except Exception:
             pass
 
-    def _anchor_next_word_chain(self, *, midword: bool) -> tuple[str, int] | None:
+    def _anchor_next_word_chain(
+        self, *, midword: bool, typed: bool = False
+    ) -> tuple[str, int] | None:
         """Reset chain, ghost, peek, and hint anchors without predicting."""
         try:
             self._cancel_next_word_midword_request()
@@ -170,7 +172,7 @@ class GateNoteInput(
             return None
         self._cancel_next_word_reveal()
         self._next_word_chain = NextWordChain(
-            anchor_offset=offset, anchor_text=text, midword=midword
+            anchor_offset=offset, anchor_text=text, midword=midword, typed=typed
         )
         self._next_word_ghost = None
         try:
@@ -188,12 +190,15 @@ class GateNoteInput(
         *,
         reveal: Literal["immediate", "delayed"] = "immediate",
         complete_current_word: bool = False,
+        typed: bool = False,
     ) -> None:
         """Arm the chain at the cursor and show a gated ghost when it fits."""
         if not self._next_word_enabled():
             self._clear_next_word_chain()
             return
-        anchored = self._anchor_next_word_chain(midword=complete_current_word)
+        anchored = self._anchor_next_word_chain(
+            midword=complete_current_word, typed=typed
+        )
         if anchored is None:
             return
         text, offset = anchored

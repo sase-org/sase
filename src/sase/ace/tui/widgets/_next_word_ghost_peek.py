@@ -57,6 +57,7 @@ class NextWordGhostPeekMixin(NextWordMidwordMixin):
             *,
             reveal: Literal["immediate", "delayed"] = "immediate",
             complete_current_word: bool = False,
+            typed: bool = False,
         ) -> None: ...
 
     def _next_word_peek_visible(self) -> bool:
@@ -377,7 +378,7 @@ class NextWordGhostPeekMixin(NextWordMidwordMixin):
             return False
         if not self._next_word_ghost_allowed():
             return False
-        self._arm_next_word_chain(reveal="delayed")
+        self._arm_next_word_chain(reveal="delayed", typed=True)
         return self._next_word_ghost_visible()
 
     def _restart_next_word_reveal(self) -> None:
