@@ -1,4 +1,4 @@
-"""Prompt ``g`` prefix continuation actions for PromptInputBar."""
+"""Prompt ``g`` prefix pane and panel actions for PromptInputBar."""
 
 from __future__ import annotations
 
@@ -15,11 +15,8 @@ else:
     _MixinBase = object
 
 
-__all__ = ["PromptGPrefixContinuationsMixin"]
-
-
-class PromptGPrefixContinuationsMixin(_MixinBase):
-    """Implementations behind each prompt ``g`` prefix continuation."""
+class PromptInputBarGPrefixPanelActionsMixin(_MixinBase):
+    """Prompt ``g`` continuations that act on panes or open panels."""
 
     if TYPE_CHECKING:
         _mode: str

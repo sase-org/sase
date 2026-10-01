@@ -1,4 +1,4 @@
-"""Prompt ``g`` prefix availability gates and hint labels."""
+"""Prompt ``g`` prefix hint availability and labels for PromptInputBar."""
 
 from __future__ import annotations
 
@@ -13,11 +13,8 @@ else:
     _MixinBase = object
 
 
-__all__ = ["PromptGPrefixMetadataMixin"]
-
-
-class PromptGPrefixMetadataMixin(_MixinBase):
-    """Availability predicates and labels behind each ``g`` continuation."""
+class PromptInputBarGPrefixHintMetadataMixin(_MixinBase):
+    """Availability gates and labels behind the prompt ``g`` hint panel."""
 
     if TYPE_CHECKING:
         _mode: str

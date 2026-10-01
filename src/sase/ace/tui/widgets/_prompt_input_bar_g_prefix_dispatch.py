@@ -1,4 +1,4 @@
-"""Prompt ``g`` prefix binding table and dispatch for PromptInputBar."""
+"""Prompt ``g`` prefix binding table and key dispatch for PromptInputBar."""
 
 from __future__ import annotations
 
@@ -13,9 +13,6 @@ if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 else:
     _MixinBase = object
-
-
-__all__ = ["PromptGPrefixDispatchMixin"]
 
 
 @dataclass(frozen=True)
@@ -198,7 +195,7 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
 )
 
 
-class PromptGPrefixDispatchMixin(_MixinBase):
+class PromptInputBarGPrefixDispatchMixin(_MixinBase):
     """Prompt ``g`` prefix dispatch and hint entry generation."""
 
     def dispatch_g_prefix_key(
