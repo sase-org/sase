@@ -662,7 +662,7 @@ The pane supports the full bead workflow:
 | `s`                 | Cycle the selected bead's status using the type-aware sequence below            |
 | `z`                 | Snooze the selected task bead (or edit/cancel an existing snooze)               |
 | `e`                 | Edit the bead's valid fields                                                    |
-| `N`                 | Append a note without replacing prior notes                                     |
+| `N`                 | Append a note; `@path` attaches a snapshot and `Ctrl+T` cycles its audience     |
 | `n`                 | Create a task bead in the selected project (filing reason required)             |
 | `c`                 | Close with a required reason and optional note, or reopen a closed bead         |
 | `w`                 | Launch an epic or launchable task; phase work launches with its epic            |
@@ -672,6 +672,14 @@ The pane supports the full bead workflow:
 | `b`                 | Enter issue-action prefix mode                                                  |
 | `$`                 | Arm the [link rail](#contextual-artifact-links), e.g. to follow the linked plan |
 | `R`                 | Open the [Refresh panel](#refresh-panel)                                        |
+
+`N` appends a note and leaves earlier notes in place. In that modal, `@<path>` attaches
+a file snapshot: `Tab` completes paths, pasting a file path attaches it, and `@@`
+inserts a literal `@`. `Ctrl+T` cycles the attachment audience from automatic, to
+private, to public. Public asks you to confirm before the note is saved. The bead detail
+lists each attachment's `🌐` or `🔒` chip from the stored descriptor and leaves
+availability badges and thumbnails to the attachment viewer. See
+[From the Beads pane](beads.md#from-the-beads-pane).
 
 When a bead has several issue links, `E`, `% u`, and the `b`-mode `v`, `e`, `s`, and `u`
 actions first open a selector. In `b` prefix mode, press `v` to view the cached body,
@@ -2937,7 +2945,7 @@ clan. Help is not a leader command: press the app-level `?` to open the Help mod
 | `,H`       | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel |
 | `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read                                              |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state                                                   |
-| `,u`       | Mark all loaded unread completed agents as read; with none unread, restore the last bulk-read set to unread                                    |
+| `,u`       | Mark every loaded unread completed agent read, across tabs and collapsed clans; within 10 seconds, press it again to restore that same set     |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))                                                    |
 | `,U`       | Open Update panel (SASE, providers)                                                                                                            |
 | `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable                                                                 |
@@ -5495,9 +5503,16 @@ bar, giving you a single color to scan for.
 Switching to the Agents tab does not bulk-dismiss completion notifications. sase's TUI
 projects active completion notifications onto unread rows, then acknowledges rows one at
 a time when you select or navigate into a terminal unread row. Bulk acknowledgement is
-explicit through `,u`, which marks loaded unread completed agents read. Plan approvals
-and user questions are never auto-dismissed by this flow; they always require explicit
-`y` / `n` confirmation from their respective modals.
+explicit through `,u`. That command marks every loaded unread completed agent read: rows
+on every Agents tab, members of collapsed clans and tribes, and rows that belong to a
+query which is not the visible tab. Clan containers, session members, workflow children,
+monitors, gates, and named procs stay out of the set, and the gold unread pill counts
+the same rows, so the toast count matches the header. The toast reads
+`Marked N completed agents read · press ,u within 10s to undo`. Press `,u` again within
+those 10 seconds to restore that same set (`Restored N completed agents unread`). After
+the window, or when nothing is unread, `,u` reports `No unread completed agents`. Plan
+approvals and user questions are never auto-dismissed by this flow; they always require
+explicit `y` / `n` confirmation from their respective modals.
 
 ### Agent Revival
 
@@ -6851,46 +6866,46 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 
 ### INSERT Mode (Default)
 
-| Key                          | Action                                                                                                                                                                                                                                                                                                 |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Enter`                      | Open the submission panel for a non-empty agent prompt; pressing `Enter` again confirms the primary launch action. Does not accept a completion candidate                                                                                                                                              |
-| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the Prompts overlay on Stash                                                                                                                                                                                                                         |
-| `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                                                                                                                                                                                                    |
-| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker                                                                                                                                                                                |
-| `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                                                                                                                                                                                               |
-| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                                                                                                                                                                                                         |
-| `Ctrl+F`                     | With a completion menu open, accept the highlighted candidate; otherwise move one character forward                                                                                                                                                                                                    |
-| `Ctrl+G`                     | Start the prompt-local prefix (`g` or `Ctrl+G` again opens `$EDITOR`)                                                                                                                                                                                                                                  |
-| `Ctrl+G Enter`               | Submit only the selected pane                                                                                                                                                                                                                                                                          |
-| `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                                                                                                                                                                                |
-| `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                                                                                                                                                                                             |
-| `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                                                                                                                                                                               |
-| `Ctrl+G G`                   | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                                                                                                                                                                                 |
-| `Ctrl+G m`                   | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                                                                                                                                                                                    |
-| `Ctrl+G D`                   | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                                                                                                                                                                                           |
-| `Ctrl+G d`                   | Edit the xprompt definition under the cursor in the prompt bar                                                                                                                                                                                                                                         |
-| `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                                                                                                                                                                               |
-| `Ctrl+G w`                   | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                                                                                                                                                                               |
-| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                                                                                                                                                                                                           |
-| `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                                                                                                                                                                                         |
-| `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                                                                                                                                                                               |
-| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open or retarget one mini-xprompt pane                                                                                                                                                                                                                                                                 |
-| `Ctrl+G t` / `Ctrl+G Ctrl+T` | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                                                                                                                       |
-| `Ctrl+G X`                   | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                                                                                                                                                                                   |
-| `Ctrl+G L`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                                                                                                                                                                                   |
-| `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                                                                                                                                                                                          |
-| `Ctrl+G p`                   | Open the Prompts overlay on Stash                                                                                                                                                                                                                                                                      |
-| `Ctrl+G r`                   | Open the recent-files history menu (recently referenced files and `@kind:payload` references)                                                                                                                                                                                                          |
-| `Ctrl+Y`                     | Open the workflow YAML editor                                                                                                                                                                                                                                                                          |
-| `Ctrl+K`                     | Open the Prompts overlay on History from a single-line prompt, scoped to that prompt's project (see [Prompts Overlay](#prompt-history-modal))                                                                                                                                                          |
-| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its last row                                                                                                                                                          |
-| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its first row                                                                                                                                                         |
-| `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, history words, or next-word ghosts; at a whitespace boundary it requests next words instead — recent files moved to `Ctrl+G r`; a second press accepts the highlighted word-menu row or takes one ghost word; see [Completion](#completion)) |
-| `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                                                                                                                                                                                                   |
-| `Tab`                        | Expand a snippet or advance its tabstop; otherwise indent a bullet or nest an ordered item under a preceding marker                                                                                                                                                                                    |
-| `Shift+Tab`                  | Retreat to the previous snippet tabstop; otherwise dedent a bullet or unnest an ordered item into its enclosing run                                                                                                                                                                                    |
-| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                                                                                                                                                                                        |
-| `Escape` / `Ctrl+]`          | Switch to vim NORMAL mode; `Ctrl+]` is the race-free alternative when typing following NORMAL commands quickly                                                                                                                                                                                         |
+| Key                          | Action                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Enter`                      | Open the submission panel for a non-empty agent prompt; pressing `Enter` again confirms the primary launch action. Does not accept a completion candidate                                                                                                                                                                       |
+| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the Prompts overlay on Stash                                                                                                                                                                                                                                                  |
+| `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                                                                                                                                                                                                                             |
+| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker                                                                                                                                                                                                         |
+| `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                                                                                                                                                                                                                        |
+| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                                                                                                                                                                                                                                  |
+| `Ctrl+F`                     | With a completion menu open, accept the highlighted candidate; otherwise move one character forward                                                                                                                                                                                                                             |
+| `Ctrl+G`                     | Start the prompt-local prefix (`g` or `Ctrl+G` again opens `$EDITOR`)                                                                                                                                                                                                                                                           |
+| `Ctrl+G Enter`               | Submit only the selected pane                                                                                                                                                                                                                                                                                                   |
+| `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                                                                                                                                                                                                         |
+| `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                                                                                                                                                                                                                      |
+| `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                                                                                                                                                                                                        |
+| `Ctrl+G G`                   | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                                                                                                                                                                                                          |
+| `Ctrl+G m`                   | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                                                                                                                                                                                                             |
+| `Ctrl+G D`                   | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                                                                                                                                                                                                                    |
+| `Ctrl+G d`                   | Edit the xprompt definition under the cursor in the prompt bar                                                                                                                                                                                                                                                                  |
+| `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                                                                                                                                                                                                        |
+| `Ctrl+G w`                   | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                                                                                                                                                                                                        |
+| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                                                                                                                                                                                                                                    |
+| `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                                                                                                                                                                                                                  |
+| `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                                                                                                                                                                                                        |
+| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open or retarget one mini-xprompt pane                                                                                                                                                                                                                                                                                          |
+| `Ctrl+G t` / `Ctrl+G Ctrl+T` | Open a new/rename-in-place snippet target pane via the location picker (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))                                                                                                                                                                |
+| `Ctrl+G X`                   | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                                                                                                                                                                                                            |
+| `Ctrl+G L`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                                                                                                                                                                                                            |
+| `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                                                                                                                                                                                                                   |
+| `Ctrl+G p`                   | Open the Prompts overlay on Stash                                                                                                                                                                                                                                                                                               |
+| `Ctrl+G r`                   | Open the recent-files history menu (recently referenced files and `@kind:payload` references)                                                                                                                                                                                                                                   |
+| `Ctrl+Y`                     | Open the workflow YAML editor                                                                                                                                                                                                                                                                                                   |
+| `Ctrl+K`                     | Open the Prompts overlay on History from a single-line prompt, scoped to that prompt's project (see [Prompts Overlay](#prompt-history-modal))                                                                                                                                                                                   |
+| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its last row                                                                                                                                                                                   |
+| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its first row                                                                                                                                                                                  |
+| `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, history words, or next-word ghosts and border peeks; at a whitespace boundary it requests next words instead — recent files moved to `Ctrl+G r`; a second press accepts the highlighted word-menu row or takes one ghost or peek word; see [Completion](#completion)) |
+| `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                                                                                                                                                                                                                            |
+| `Tab`                        | Expand a snippet or advance its tabstop; otherwise indent a bullet or nest an ordered item under a preceding marker                                                                                                                                                                                                             |
+| `Shift+Tab`                  | Retreat to the previous snippet tabstop; otherwise dedent a bullet or unnest an ordered item into its enclosing run                                                                                                                                                                                                             |
+| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                                                                                                                                                                                                                 |
+| `Escape` / `Ctrl+]`          | Switch to vim NORMAL mode; `Ctrl+]` is the race-free alternative when typing following NORMAL commands quickly                                                                                                                                                                                                                  |
 
 In prompt INSERT mode, sase's TUI auto-pairs safe openers for `()`, `[]`, `{}`, `<>`,
 single quotes, double quotes, and backticks. Typing the matching closer over an
@@ -7427,10 +7442,13 @@ token under the cursor:
   xprompt-bound. The menu opens automatically while typing inside a tag — right after
   `{{` / `{%` auto-pair, on `|` and `.`, and on identifier characters — unless
   `ace.prompt_completion.auto_jinja_menu` is off; manual `Ctrl+T` still works when off.
-  A `|` inside a tag always inserts literally as a filter pipe and never triggers
-  `%{...}` alternation normalization. String literals and new-name positions
-  (`{% set x`, `{% for x`) offer no menu, and the open menu suppresses the Jinja
-  diagnostics panel so a momentarily empty `{{ }}` never flashes red.
+  With the menu off, an in-tag cursor still claims completion, so placeholder,
+  directive, `@`, and `#` menus leave the tag alone. Next-word ghosts and peeks stay off
+  for the whole tag, whether or not the Jinja menu is open. A `|` inside a tag always
+  inserts literally as a filter pipe and never triggers `%{...}` alternation
+  normalization. String literals and new-name positions (`{% set x`, `{% for x`) offer
+  no menu, and the open menu suppresses the Jinja diagnostics panel so a momentarily
+  empty `{{ }}` never flashes red.
 - **Directive completion**: When the cursor is on a `%`-prefixed directive token (e.g.,
   `%m`), completion lists user-facing prompt directives and accepts aliases into their
   canonical forms. For example, `%m` completes to `%model` and `%w` completes to
@@ -7652,47 +7670,105 @@ token under the cursor:
 
 - **Next-word prediction**: See [Next-word prediction](#next-word-prediction) below.
 
-| Key                 | Action                                                                                               |
-| ------------------- | ---------------------------------------------------------------------------------------------------- |
-| `Ctrl+T`            | Start completion, insert shared prefix, accept the highlighted word-menu row, or take one ghost word |
-| `Ctrl+N` / `Down`   | Next candidate                                                                                       |
-| `Ctrl+P` / `Up`     | Previous candidate                                                                                   |
-| `Ctrl+F` / `Ctrl+L` | Accept highlighted candidate (`Ctrl+L` is the retained alias), or take the whole ghost               |
-| `Right`             | Move right, or take the whole ghost when one is visible                                              |
-| `Alt+F`             | Move one word right, or take one ghost word when one is visible                                      |
-| `Enter`             | Submit the prompt as typed; never accept a candidate                                                 |
-| `Ctrl+D`            | Delete a highlighted recent file, saved placeholder, history word, or predicted next word            |
-| `Escape`            | Cancel completion                                                                                    |
+| Key               | Action                                                                                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Ctrl+T`          | Start completion, insert a shared prefix, accept the highlighted word-menu row, reveal a waiting peek, or take one word of a visible ghost or revealed peek |
+| `Ctrl+N` / `Down` | Next candidate                                                                                                                                              |
+| `Ctrl+P` / `Up`   | Previous candidate                                                                                                                                          |
+| `Ctrl+F`          | Accept the highlighted completion-menu row                                                                                                                  |
+| `Ctrl+L`          | Accept the highlighted completion-menu row, or take the whole visible ghost or revealed peek                                                                |
+| `Right`           | Move right; at the true end of a line, take the whole inline ghost                                                                                          |
+| `Alt+F`           | Move one word right; at the true end of a line, take one inline ghost word                                                                                  |
+| `Enter`           | Submit the prompt as typed; a completion candidate stays unaccepted                                                                                         |
+| `Ctrl+D`          | Delete a highlighted recent file, saved placeholder, history word, or predicted next word                                                                   |
+| `Escape`          | Cancel completion                                                                                                                                           |
 
 #### Next-word prediction
 
-After every prompt-local or history-word commit, `Ctrl+T` arms a next-word chain.
-Confident guesses from your own typed prompt history appear as dim inline ghost text
-with a `[^T] word  [^F] all` border hint. The `Ctrl+T` ladder is: first press arms the
-chain and shows the ghost, next `Ctrl+T` (or `Alt+F`) takes one ghost word, `Ctrl+F`,
-`Right`, or `Ctrl+L` takes the whole ghost, and each accept predicts again without
-flicker. Typing characters that continue the ghost consumes them; a different character,
+After a prompt-local or history-word commit, and on an explicit `Ctrl+T` at the end of a
+prose word or at a whitespace boundary, sase's TUI arms a next-word chain. Confident
+guesses from your own typed prompt history appear as dim inline ghost text, or as a
+border peek when the guess cannot sit in the line. The border hint is
+`[^T] word  [^L] all`.
+
+Where the guess appears depends on the cursor:
+
+- The rest of the logical line is blank, and the cursor is on that line's last wrapped
+  row: an inline ghost at end of line.
+- Only a short closing tail follows (at most eight non-space characters, each a closer,
+  quote, or clause mark from `)]}"'”’.,;:!?…*_`; spaces between them are allowed; a
+  backtick is outside that set): an inline ghost sits in front of the tail, again only
+  on the last wrapped row.
+- Other text follows on the line, the inline ghost does not fit the remaining width of
+  the wrapped row, or the cursor is on an earlier wrapped row: a border peek. The peek
+  shows a violet `⇢`, the first word in bold, later words dimmed, and the same
+  `[^T] word  [^L] all` hint. A narrow border drops trailing preview words, then
+  `[^L] all`, then `[^T] word`. It keeps every word whole. When even `⇢` plus the first
+  word does not fit, the peek stays hidden.
+- A letter, digit, `_`, `'`, `’`, or `-` follows the cursor: the chain stays quiet.
+  Typing inside a word produces no ghost and no peek.
+
+Ghosts and peeks are capped at `ace.prompt_completion.next_word_max_words` (default `4`,
+clamped to 1–8). A leading space is omitted at the start of the text, after whitespace,
+and after an opening bracket or quote. A peek is cut before the first preview word that
+already matches, ignoring case, the first word after the cursor. When that first peek
+word is already there, no peek is shown. A guess that rests on a unigram alone never
+reaches the ghost, the peek, or the menu.
+
+The `Ctrl+T` ladder starts by arming the chain. A confident guess shows as a ghost or a
+peek. A weaker guess opens a `next word ⇢ "…"` menu naming the evidence context: each
+row shows the word, a violet confidence meter, and a dim `⇢ continuation` preview, and
+accepting a row inserts that word with its separator and continues the chain. With a
+ghost or a revealed peek already visible, the next `Ctrl+T` takes one word. `Ctrl+L`
+takes the whole visible ghost or the whole revealed peek. `Right` takes the whole ghost
+only when it sits at the true end of the line; in front of a closing tail, `Right` stays
+motion and drops the rendered suggestion so the motion does not insert it. `Alt+F` takes
+one ghost word only at that same end of line, and stays word motion in front of a
+closing tail. A peek is accepted with `Ctrl+T` (one word) and `Ctrl+L` (the whole peek).
+`Ctrl+F` accepts an open completion menu, and otherwise moves one character forward.
+Each accept predicts again without flicker.
+
+An automatic guess shows its ghost text immediately and waits 350 ms before the border
+hint. An automatic peek stays hidden for that same beat. An explicit `Ctrl+T` reveals
+immediately. While a peek is still waiting, `Ctrl+T` reveals it and inserts nothing.
+
+Typing characters that continue the ghost consumes them. A different character,
 Backspace, a cursor move, undo, or redo clears the visible ghost. The chain stays armed
 only while the text and cursor are still exactly where it was armed, so after that clear
 `Ctrl+T` uses ordinary completion, or the end-of-word request when the cursor is still
-at the end of a prose word. When the chain is armed but no ghost can be shown (uncertain
-gate, mid-line cursor, or no width), `Ctrl+T` opens a `next word ⇢ "…"` menu naming the
-evidence context instead: each row shows the word, a violet confidence meter, and a dim
-`⇢ continuation` preview, and accepting a row inserts it with its separator and
-continues the chain. `Ctrl+T` at the end of a prose word with no current-word completion
-runs the same explicit request, and an armed chain with nothing to offer shows
-`no next-word guess` (or `warming next words…` while the model warms, and never a menu
-inside structural syntax). `Ctrl+T` at a whitespace boundary with no token under the
-cursor runs the same explicit request instead of opening file history: a confident guess
-shows as a ghost, a weak one opens the `next_word` menu, and nothing to offer shows
-`no next-word guess  [^G r] recent files`, teaching the moved menu. Ghosts show only at
-end of line, capped at `ace.prompt_completion.next_word_max_words`, and never from a
-unigram. `Ctrl+D` on a highlighted next-word row forgets it through the history-word
-deletions store. Set `ace.prompt_completion.next_word: auto` to also show the gated
-ghost right after a typed space that ends a prose word at end of line (after `, ` a
-ghost may appear; after `. ` never, because the context is `<s>` only), or `off` to
-disable the chain. Principles: `Ctrl+T` never inserts an unseen guess, always moves
-forward, and stays silent when unsure.
+at the end of a prose word. When the chain is armed and nothing can be shown, `Ctrl+T`
+opens the next-word menu. An armed chain with nothing to offer shows
+`no next-word guess`, or `warming next words…` while the model warms. Inside structural
+syntax the hint appears and the menu stays closed. `Ctrl+T` at a whitespace boundary
+with next-word prediction enabled runs this same request. A miss shows
+`no next-word guess  [^G r] recent files`, pointing at the recent-files menu on
+`Ctrl+G r`. With `next_word: off`, that whitespace-boundary `Ctrl+T` opens recent files
+directly. `Ctrl+D` on a highlighted next-word row forgets it through the history-word
+deletions store.
+
+`ace.prompt_completion.next_word` defaults to `chain`. `chain` arms after those word
+commits and on explicit `Ctrl+T`. `auto` also predicts after a typed non-word character
+that follows a word token — clause punctuation between the word and the trigger is
+skipped, so a ghost may appear after `, ` — and, while you type a word with only a
+boundary after the cursor, completes that word. After a sentence-final `.`, `?`, `!`, or
+`…`, the model starts a fresh empty context and stays silent. `off` disables the chain.
+
+In `auto`, a mid-word guess is the untyped suffix plus any continuation (`ment it now`).
+When the typed word is already the predicted word and a continuation follows, the ghost
+starts with a space (` it now`). An exact word with no continuation stays silent. The
+peek's first word is the completed word, and accepting it inserts only the missing
+suffix. A mid-word `Ctrl+T` composes that suffix and continuation directly, because a
+menu row would repeat the prefix already typed. An older prediction core that has no
+word-completion field shows nothing for that request. The continuation is capped at
+`next_word_max_words - 1`, because the cap counts the completed word. A draft longer
+than 4000 characters defers the mid-word request off the keystroke path, using
+`ace.prompt_completion.debounce_ms` (default `90`).
+
+Ghosts and peeks stay off in NORMAL mode, during file completion, during a snippet
+session, while text is selected, and for the whole of a Jinja `{{ }}` or `{% %}` tag.
+
+Principles: `Ctrl+T` never inserts an unseen guess, always moves forward, and stays
+silent when unsure.
 
 Press `Ctrl+R` to open the recursive fuzzy file finder. With a token such as `src/alp`,
 `src/` becomes the search root and `alp` pre-seeds the fuzzy query; with no token, the

@@ -161,7 +161,7 @@ or `--yes` flag: unless you pass `--check`, it applies the service plan immediat
 | `sase memory log --path <path>`         | Show a path-level summary and matching individual read events.                                                      |
 | `sase memory log --id <read-id>`        | Show one full audited read event by id or unambiguous id prefix.                                                    |
 | `sase memory init`                      | Refresh home and SASE-managed project memory plus provider copies for existing `AGENTS.md`.                         |
-| `sase memory init --check`              | Report memory initialization drift without writing files.                                                           |
+| `sase memory init --check`              | Report memory drift without writing. Fails when a managed memory or instruction file is untracked or gitignored.    |
 | `sase memory init -M`                   | Mark the repository as SASE-managed, then initialize project memory.                                                |
 | `sase memory init -C`                   | Write memory files but skip the project git commit/pull/push path.                                                  |
 | `sase init memory`                      | Compatibility alias for `sase memory init`.                                                                         |
@@ -519,10 +519,28 @@ memory when a description is missing.
 By default, project memory initialization runs `commit_hooks.before`, stages generated
 project files, commits them with the standard memory-init commit message, pulls with
 rebase, and pushes. This path does not run `commit_hooks.after`. Use
-`sase memory init --check` for a read-only drift check, or
+`sase memory init --check` to report drift without writing, or
 `sase memory init --no-commit` when you want to review generated project files before
 committing. `--no-commit` only skips the project deploy path; home memory deployment
 still follows `use_chezmoi` when it is enabled.
+
+`--check` also fails when a managed file is untracked or gitignored. The managed set is
+every existing file under `sase/memory/` and the legacy `memory/` directory (including a
+symlink that points at a file), plus managed instruction files: a discovered project
+`AGENTS.md` that SASE recognizes as a managed instruction document, the provider shims
+beside it, and `AGENTS.md.tmpl` sources under a chezmoi root. When discovery finds no
+project `AGENTS.md`, the root `AGENTS.md` and its shims are in the set instead. The
+project root is checked when the working directory is a project. The home root is
+checked only when `use_chezmoi` is on. A git failure for one repository is skipped, so a
+missing git binary does not by itself fail the check. The blocker names the file and
+asks you to commit it so its history can start.
+
+After a committing project deploy succeeds, the command checks that project root again.
+After a chezmoi home deploy succeeds, it checks the chezmoi source the same way. The
+command exits `1` and prints to stderr when a managed file was left untracked, ignored,
+or with uncommitted changes. `--no-commit` skips the project check because it skips the
+project commit. A git error or an unexpected failure in the guard leaves the deploy's
+own result in place.
 
 Memory drift is judged against the running build's generator templates, so the build
 that answers matters. When the invoked project carries its own `.venv/bin/sase` but the
@@ -569,7 +587,11 @@ command also accepts `-d/--depth`, `-f/--format`, and `-p/--project`, and it all
 expected to arrive through instruction loading. The command strips one leading YAML
 frontmatter block from stdout and appends `## Children` when nested reference notes
 exist, but the audit log records only metadata such as path, agent name, timestamp, cwd,
-byte count, and reason.
+byte count, reason, and the git blob OID of the bytes that were read. A batch also
+records each included target as `path=oid`. `sase memory log --id` shows **Blob OID**
+and **Blob OIDs**; older events that lack the fields still load. An agent launch stores
+the workspace `HEAD` and an instruction-file snapshot on `agent_meta.json` without
+blocking launch. See [Audited Reads](memory.md#audited-reads).
 
 This audited path is distinct from `#memory/<stem>` xprompt inclusion: an explicitly
 authored `#memory/<stem>` reference in a prompt expands the same note body at launch

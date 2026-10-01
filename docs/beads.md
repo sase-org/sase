@@ -957,6 +957,27 @@ the exact `sase bead attachment publish` command to offer through `/sase_gate`),
 human to confirm on a TTY (`-y` skips the prompt), and always refuses sensitive paths,
 known-secret values, over-cap sizes, and private bead stores.
 
+#### From the Beads pane
+
+Press `N` on the Beads pane to append a note. The modal hint reads
+`@<path> attaches a file snapshot · Tab completes paths · paste a file path to attach it · @@ for a literal @ · Ctrl+T toggles audience`.
+`Ctrl+T` cycles the audience label from automatic
+(`Attachments: automatic (SASE decides)`) to private (`🔒 private (narrows freely)`) to
+public (`🌐 public (confirms on save)`). Saving while public is selected opens a
+confirmation titled **Publish attachments**: "Publish new attachments publicly where
+policy allows? Policy-blocked files stay private, and publication is irreversible."
+Confirm is **Publish**; cancel returns to the note. `Ctrl+T` outside that modal reports
+`Open a bead note (N) first to toggle attachment audience`. Other panes also bind `N`;
+the audience cycle belongs to this add-note modal.
+
+The pane's note body lists each attachment with the audience chip from its stored
+descriptor (`🌐` for public, `🔒` for private or for a descriptor that has no visibility
+field). The pane does not probe the content store, so availability badges and thumbnails
+stay in `sase bead show` and the attachment viewer. A note from the pane uploads through
+the same pre-publication path and durable outbox as `sase bead note`. Empty attachment
+sets skip that path. The CLI flags above remain the policy source, and agents still
+cannot widen an audience.
+
 Old readers treat every attachment as private: a pre-visibility descriptor (no
 `visibility` field) is always private, which is safe for mixed fleets.
 

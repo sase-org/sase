@@ -147,7 +147,17 @@ reference notes (`type: reference`). Core notes are excluded because they are in
 to arrive through instruction loading rather than ad hoc reads. The command strips one
 leading YAML frontmatter block from stdout and appends a `## Children` section when the
 note has nested reference children. The audit event records metadata such as path, agent
-name, timestamp, cwd, byte count, and reason.
+name, timestamp, cwd, byte count, reason, and the git blob OID of the bytes that were
+read. A batch also records each included target's blob OID as `path=oid`.
+`sase memory log --id` shows those as **Blob OID** and **Blob OIDs**. Older rows written
+before the fields existed still display; a missing OID prints as `none`.
+
+An agent launch records the same kind of as-seen evidence on `agent_meta.json` and never
+blocks the launch when capture fails. `workspace_head` is the workspace git `HEAD`.
+`instruction_snapshot` lists the workspace `AGENTS.md` and provider shims that exist,
+plus one home instruction file, each as `path`, `repo` (`project`, `none`, or
+`chezmoi`), `blob_oid`, and `tracked`. A blob that is missing from the owning repository
+is copied to `~/.sase/instruction_snapshots/<oid>`.
 
 Every read requires a non-empty reason via `-r` or `--reason` and agent attribution from
 `SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json` (`name`,
