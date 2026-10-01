@@ -113,6 +113,7 @@ class PromptPredictionRequest:
     max_words: int = 4
     confidence: str = "balanced"
     include_draft: bool = True
+    complete_current_word: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Return the ``sase_core_rs``-facing dict for this request."""
@@ -124,6 +125,7 @@ class PromptPredictionRequest:
             "max_words": self.max_words,
             "confidence": self.confidence,
             "include_draft": self.include_draft,
+            "complete_current_word": self.complete_current_word,
         }
 
 
@@ -208,6 +210,38 @@ def _prompt_prediction_candidate_from_dict(
 
 
 @dataclass(frozen=True)
+class PromptPredictionWordCompletion:
+    """A gated current-word completion: typed prefix, completed word, suffix.
+
+    ``word`` keeps the typed casing; ``suffix`` is the characters to insert
+    (empty when the typed word is already the predicted word).
+    """
+
+    prefix: str
+    word: str
+    suffix: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the ``sase_core_rs``-facing dict for this completion."""
+        return {
+            "prefix": self.prefix,
+            "word": self.word,
+            "suffix": self.suffix,
+        }
+
+
+def _prompt_prediction_word_completion_from_dict(
+    data: dict[str, Any],
+) -> PromptPredictionWordCompletion:
+    """Build a completion from a Rust wire dict (unversioned record)."""
+    return PromptPredictionWordCompletion(
+        prefix=str(data["prefix"]),
+        word=str(data["word"]),
+        suffix=str(data["suffix"]),
+    )
+
+
+@dataclass(frozen=True)
 class PromptPredictionResult:
     """One next-word prediction result: gate verdict, ghost, and menu rows."""
 
@@ -217,6 +251,7 @@ class PromptPredictionResult:
     confident: bool = False
     ghost: list[str] = field(default_factory=list)
     candidates: list[PromptPredictionCandidate] = field(default_factory=list)
+    word_completion: PromptPredictionWordCompletion | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return the ``sase_core_rs``-facing dict for this result."""
@@ -235,6 +270,7 @@ def prompt_prediction_result_from_dict(
 ) -> PromptPredictionResult:
     """Build a result from a Rust wire dict, rejecting schema drift."""
     _require_wire_schema(data, "PromptPredictionResult")
+    completion = data.get("word_completion")
     return PromptPredictionResult(
         schema_version=int(data["schema_version"]),
         blocked_reason=_optional_str(data.get("blocked_reason")),
@@ -245,6 +281,9 @@ def prompt_prediction_result_from_dict(
             _prompt_prediction_candidate_from_dict(dict(row))
             for row in data.get("candidates", [])
         ],
+        word_completion=None
+        if completion is None
+        else _prompt_prediction_word_completion_from_dict(dict(completion)),
     )
 
 
@@ -481,6 +520,81 @@ def _prompt_prediction_replay_sweep_point_from_dict(
     )
 
 
+# symvision: tools/prompt_prediction_replay
+@dataclass(frozen=True)
+class PromptPredictionReplayMidwordMetrics:
+    """Mid-word metrics for one typed-prefix length."""
+
+    k: int = 0
+    positions: int = 0
+    coverage: float = 0.0
+    precision: float | None = None
+    savings: float = 0.0
+
+
+def _prompt_prediction_replay_midword_metrics_from_dict(
+    data: dict[str, Any],
+) -> PromptPredictionReplayMidwordMetrics:
+    """Build mid-word metrics from a Rust wire dict (unversioned record)."""
+    precision = data.get("precision")
+    return PromptPredictionReplayMidwordMetrics(
+        k=int(data.get("k", 0)),
+        positions=int(data.get("positions", 0)),
+        coverage=float(data.get("coverage", 0.0)),
+        precision=None if precision is None else float(precision),
+        savings=float(data.get("savings", 0.0)),
+    )
+
+
+# symvision: tools/prompt_prediction_replay
+@dataclass(frozen=True)
+class PromptPredictionReplayMidwordCohort:
+    """One cohort slice of the mid-word report: per-k metrics."""
+
+    cohort: str
+    by_k: list[PromptPredictionReplayMidwordMetrics] = field(default_factory=list)
+
+
+def _prompt_prediction_replay_midword_cohort_from_dict(
+    data: dict[str, Any],
+) -> PromptPredictionReplayMidwordCohort:
+    """Build a mid-word cohort slice from a Rust wire dict."""
+    return PromptPredictionReplayMidwordCohort(
+        cohort=str(data.get("cohort", "")),
+        by_k=[
+            _prompt_prediction_replay_midword_metrics_from_dict(dict(row))
+            for row in data.get("by_k", [])
+        ],
+    )
+
+
+# symvision: tools/prompt_prediction_replay
+@dataclass(frozen=True)
+class PromptPredictionReplayMidwordPreset:
+    """Mid-word completion metrics for one confidence preset."""
+
+    preset: str
+    by_k: list[PromptPredictionReplayMidwordMetrics] = field(default_factory=list)
+    cohorts: list[PromptPredictionReplayMidwordCohort] = field(default_factory=list)
+
+
+def _prompt_prediction_replay_midword_preset_from_dict(
+    data: dict[str, Any],
+) -> PromptPredictionReplayMidwordPreset:
+    """Build a mid-word preset slice from a Rust wire dict."""
+    return PromptPredictionReplayMidwordPreset(
+        preset=str(data.get("preset", "")),
+        by_k=[
+            _prompt_prediction_replay_midword_metrics_from_dict(dict(row))
+            for row in data.get("by_k", [])
+        ],
+        cohorts=[
+            _prompt_prediction_replay_midword_cohort_from_dict(dict(row))
+            for row in data.get("cohorts", [])
+        ],
+    )
+
+
 @dataclass(frozen=True)
 class PromptPredictionReplayReport:
     """Aggregate-only prequential replay report (never prompt text)."""
@@ -509,6 +623,7 @@ class PromptPredictionReplayReport:
     corpus_bytes: int = 0
     corpus_rows_used: int = 0
     corpus_contexts: int = 0
+    midword: list[PromptPredictionReplayMidwordPreset] | None = None
 
 
 def prompt_prediction_replay_report_from_dict(
@@ -547,6 +662,12 @@ def prompt_prediction_replay_report_from_dict(
         corpus_bytes=int(data.get("corpus_bytes", 0)),
         corpus_rows_used=int(data.get("corpus_rows_used", 0)),
         corpus_contexts=int(data.get("corpus_contexts", 0)),
+        midword=None
+        if data.get("midword") is None
+        else [
+            _prompt_prediction_replay_midword_preset_from_dict(dict(row))
+            for row in data.get("midword", [])
+        ],
     )
 
 

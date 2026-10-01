@@ -121,6 +121,85 @@ def test_rank_prefix(model: PromptPredictionModel) -> None:
     assert ranked.matches[0].key == "implement"
 
 
+def test_predict_word_completion_round_trip(
+    model: PromptPredictionModel,
+) -> None:
+    request = PromptPredictionRequest(
+        text_before_cursor="help me imple",
+        project="sase",
+        complete_current_word=True,
+    )
+    assert request.to_dict()["complete_current_word"] is True
+    result = model.predict(request)
+    assert result.word_completion is not None
+    assert result.word_completion.prefix == "imple"
+    assert result.word_completion.word == "implement"
+    assert result.word_completion.suffix == "ment"
+
+
+def test_result_without_word_completion_parses_to_none() -> None:
+    result = prompt_prediction_result_from_dict(
+        {"schema_version": 1, "blocked_reason": None}
+    )
+    assert result.word_completion is None
+
+
+def test_result_with_word_completion_parses() -> None:
+    result = prompt_prediction_result_from_dict(
+        {
+            "schema_version": 1,
+            "blocked_reason": None,
+            "confident": True,
+            "word_completion": {
+                "prefix": "imple",
+                "word": "implement",
+                "suffix": "ment",
+            },
+        }
+    )
+    assert result.word_completion is not None
+    assert result.word_completion.prefix == "imple"
+    assert result.word_completion.word == "implement"
+    assert result.word_completion.suffix == "ment"
+    assert result.word_completion.to_dict() == {
+        "prefix": "imple",
+        "word": "implement",
+        "suffix": "ment",
+    }
+
+
+def test_replay_report_without_midword_parses_to_none() -> None:
+    report = prompt_prediction_replay_report_from_dict(
+        {
+            "schema_version": 1,
+            "cautious": {"coverage": 0.0, "precision": None},
+            "cohorts": [],
+            "sweep": [],
+        }
+    )
+    assert report.midword is None
+
+
+def test_replay_report_carries_midword_section() -> None:
+    report = evaluate_prompt_prediction_replay(
+        _replay_rows(),
+        PromptPredictionReplayOptions(now_epoch=1000),
+    )
+    assert report.midword is not None
+    assert [preset.preset for preset in report.midword] == [
+        "cautious",
+        "balanced",
+        "eager",
+    ]
+    for preset in report.midword:
+        assert [cell.k for cell in preset.by_k] == [1, 2, 3, 4]
+        assert [cohort.cohort for cohort in preset.cohorts] == [
+            "novel",
+            "mid",
+            "near-duplicate",
+        ]
+
+
 def test_compose_rejects_unknown_role(
     corpus: PromptPredictionCorpus,
 ) -> None:

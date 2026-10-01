@@ -19,6 +19,11 @@ import json
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rich.console import Console
+    from rich.table import Table
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +36,9 @@ from sase.core.prompt_prediction_facade import (  # noqa: E402
 from sase.core.prompt_prediction_wire import (  # noqa: E402
     PromptPredictionReplayCohort,
     PromptPredictionReplayGateMetrics,
+    PromptPredictionReplayMidwordCohort,
+    PromptPredictionReplayMidwordMetrics,
+    PromptPredictionReplayMidwordPreset,
     PromptPredictionReplayOptions,
     PromptPredictionReplayReport,
 )
@@ -97,6 +105,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         type=int,
         default=300,
         help="prefixes to sample for --bench (default: 300)",
+    )
+    parser.add_argument(
+        "--midword",
+        action="store_true",
+        help="also print the mid-word completion tables (per preset and "
+        "per typed-prefix length k=1..4): coverage, precision of the "
+        "completed word, and keystroke savings. Calibrate "
+        "min_prefix_chars against these tables.",
     )
     return parser.parse_args(argv)
 
@@ -252,6 +268,69 @@ def _print_tables(
         console.print(table)
 
 
+def _print_midword_tables(report: PromptPredictionReplayReport) -> None:
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    midword: list[PromptPredictionReplayMidwordPreset] | None = report.midword
+    if not midword:
+        console.print(
+            "[bold]mid-word completion[/bold] not reported by this core "
+            "(rebuild sase_core_rs past the mid-word replay)"
+        )
+        return
+    for preset in midword:
+        _print_midword_preset(console, preset)
+
+
+def _print_midword_preset(
+    console: Console, preset: PromptPredictionReplayMidwordPreset
+) -> None:
+    from rich.console import Console
+    from rich.table import Table
+
+    table = Table(title=f"mid-word completion ({preset.preset})")
+    table.add_column("k", justify="right")
+    table.add_column("trials", justify="right")
+    table.add_column("coverage", justify="right")
+    table.add_column("precision", justify="right")
+    table.add_column("savings", justify="right")
+    for cell in preset.by_k:
+        _add_midword_row(table, cell)
+    console.print(table)
+    cohorts = Table(title=f"mid-word precision by cohort ({preset.preset})")
+    cohorts.add_column("cohort")
+    for cell in preset.by_k:
+        cohorts.add_column(f"k={cell.k}", justify="right")
+    for cohort in preset.cohorts:
+        _add_midword_cohort_row(cohorts, cohort)
+    console.print(cohorts)
+
+
+def _add_midword_row(
+    table: Table, cell: PromptPredictionReplayMidwordMetrics
+) -> None:
+    from rich.table import Table  # noqa: F811 (annotation-only reference)
+
+    table.add_row(
+        f"{cell.k}",
+        f"{cell.positions}",
+        f"{cell.coverage:.1%}",
+        _format_precision(cell.precision),
+        f"{cell.savings:.1%}",
+    )
+
+
+def _add_midword_cohort_row(
+    cohorts: Table, cohort: PromptPredictionReplayMidwordCohort
+) -> None:
+    cohorts.add_row(
+        cohort.cohort,
+        *[_format_precision(cell.precision) for cell in cohort.by_k],
+    )
+
+
 def _percentile(sorted_ms: list[float], pct: float) -> float:
     if not sorted_ms:
         return 0.0
@@ -293,6 +372,13 @@ def _run_bench(args: argparse.Namespace) -> int:
     predict_ms: list[float] = []
     ghost_ms: list[float] = []
     rank_ms: list[float] = []
+    # Draft-length buckets (characters of the request text, which is the
+    # per-request draft): per bucket, the boundary ghost-only request and
+    # the mid-word typing-path request that phase midword-autosuggest
+    # sends per keystroke.
+    _BUCKETS = (1_000, 4_000, 10_000, 20_000)
+    bucket_ghost: dict[int, list[float]] = {cap: [] for cap in _BUCKETS}
+    bucket_typing: dict[int, list[float]] = {cap: [] for cap in _BUCKETS}
     blocked = 0
     confident = 0
     sampled = 0
@@ -306,6 +392,7 @@ def _run_bench(args: argparse.Namespace) -> int:
         if len(text) > 20_000:
             text = text[:20_000]
             truncated += 1
+        bucket = next(cap for cap in _BUCKETS if len(text) <= cap)
         request = PromptPredictionRequest(
             text_before_cursor=text,
             project=row.project,
@@ -329,7 +416,23 @@ def _run_bench(args: argparse.Namespace) -> int:
         )
         ghost_started = time.perf_counter()
         model.predict(ghost_request)
-        ghost_ms.append((time.perf_counter() - ghost_started) * 1000.0)
+        ghost_elapsed = (time.perf_counter() - ghost_started) * 1000.0
+        ghost_ms.append(ghost_elapsed)
+        bucket_ghost[bucket].append(ghost_elapsed)
+        # The mid-word typing-path request: zero menu rows with
+        # current-word completion on. Sampled texts end in a full word, so
+        # this exercises detection plus the restricted gate and gated
+        # continuation, representative of per-keystroke cost.
+        typing_request = PromptPredictionRequest(
+            text_before_cursor=text,
+            project=row.project,
+            limit=0,
+            complete_current_word=True,
+        )
+        typing_started = time.perf_counter()
+        model.predict(typing_request)
+        typing_elapsed = (time.perf_counter() - typing_started) * 1000.0
+        bucket_typing[bucket].append(typing_elapsed)
         # Rank the current word on every fourth sample: truncate the last
         # word to a 3-letter prefix when it is long enough to complete.
         if sampled % 4 == 0 and len(words[cut - 1]) >= 4:
@@ -368,6 +471,29 @@ def _run_bench(args: argparse.Namespace) -> int:
         f"rank_p50_ms={_percentile(rank_ms, 50):.3f} "
         f"rank_p95_ms={_percentile(rank_ms, 95):.3f} "
         f"rank_max_ms={max(rank_ms, default=0.0):.3f}"
+    )
+    # Draft-length buckets: p50/p95 per bucket for the ghost-only and the
+    # typing-path request. The sync threshold is the largest bucket whose
+    # typing-path p95 stays within 1 ms; with no qualifying bucket the
+    # smallest bucket holds.
+    threshold = _BUCKETS[0]
+    for cap in _BUCKETS:
+        bucket_ghost[cap].sort()
+        bucket_typing[cap].sort()
+        typing_p95 = _percentile(bucket_typing[cap], 95)
+        print(
+            f"draft_bucket<={cap} "
+            f"n={len(bucket_typing[cap])} "
+            f"ghost_p50_ms={_percentile(bucket_ghost[cap], 50):.3f} "
+            f"ghost_p95_ms={_percentile(bucket_ghost[cap], 95):.3f} "
+            f"typing_p50_ms={_percentile(bucket_typing[cap], 50):.3f} "
+            f"typing_p95_ms={typing_p95:.3f}"
+        )
+        if bucket_typing[cap] and typing_p95 <= 1.0:
+            threshold = cap
+    print(
+        "sync_threshold recommendation: "
+        f"NEXT_WORD_SYNC_MAX_DRAFT_CHARS={threshold}"
     )
     return 0
 
@@ -416,6 +542,25 @@ def main(argv: list[str] | None = None) -> int:
                     "cautious": vars(report.cautious),
                     "balanced": vars(report.balanced),
                     "eager": vars(report.eager),
+                    "midword": None
+                    if report.midword is None
+                    else [
+                        {
+                            "preset": preset.preset,
+                            "by_k": [vars(cell) for cell in preset.by_k],
+                            "cohorts": [
+                                {
+                                    "cohort": cohort.cohort,
+                                    "by_k": [
+                                        vars(cell)
+                                        for cell in cohort.by_k
+                                    ],
+                                }
+                                for cohort in preset.cohorts
+                            ],
+                        }
+                        for preset in report.midword
+                    ],
                     "cohorts": [
                         {
                             "cohort": cohort.cohort,
@@ -440,6 +585,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     _print_tables(report, args.confidence, args.sweep)
+    if args.midword:
+        _print_midword_tables(report)
     return 0
 
 

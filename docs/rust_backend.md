@@ -300,6 +300,72 @@ thin everywhere that matters (balanced novel +0.1pp over its 65% bar, cautious o
 +0.0pp over 85%, eager overall +2.9pp over 60%), so re-run the tool before loosening any
 preset.
 
+#### Current-word completion
+
+Setting request `complete_current_word` with the cursor inside a partial word runs the
+prefix-restricted path (`predict_completion` in `model.rs`) instead of the boundary
+gate. `split_partial_word` (`tokenize.rs`) splits the trailing token off the cursor text
+— leading affixes (`(`, quotes, `*`, `_`, backtick, `[`) stripped, prefix kept exactly
+as typed — and returns `None` for text ending in whitespace or boundary punctuation, or
+a trailing token that cannot be a word (structural, hash-like, secret-like, over 32
+characters): those fall through to the ordinary boundary path, so results stay identical
+with the flag off. Candidates are restricted to vocabulary keys starting with the
+casefolded prefix (`’` folds to `'`), scored and gated over that restricted distribution
+with a conservative denominator (`score_and_gate_restricted`); the menu still ranks the
+restricted words, but a prefix shorter than the preset `min_prefix_chars` forces the
+gate to `None` (non-confident, no completion). The draft counts only the text before the
+prefix, so the partial word is never observed as its own successor. The completed word
+keeps the typed casing and the suffix comes from the corpus surface (`completion_word`):
+an all-caps prefix of 2+ letters uppercases the suffix, and a surface whose casefold
+does not extend the typed casefold yields no completion. The ghost drops the completed
+word itself and keeps at most `max_words - 1` following words.
+
+Python wire: request `complete_current_word` (default `False`) round-trips through
+`PromptPredictionRequest.to_dict`; the result carries the frozen
+`PromptPredictionWordCompletion` record (`prefix` as typed, `word`, `suffix` to insert —
+empty when the typed word is already the predicted word), parsed with
+`.get("word_completion")` so an older core without the field yields `None`.
+
+Calibration (`tools/prompt_prediction_replay --midword`; report-time cutoff: rows with k
+below a preset's `min_prefix_chars` report coverage 0.0 / precision null by design,
+verified in `replay.rs midword_metrics_for` — they are not gate measurements). Full
+replay 2026-10-01 (11,643 rows; 1,978 scored; 142,733 positions). Rule (plan
+`202609/next_word_autosuggest.md` §8.2): smallest k with overall precision at or above
+the preset target (cautious 85%, balanced 75%, eager 60%) and novel precision within 10
+points of overall:
+
+| preset   |   k | coverage | precision | savings | novel precision | mid precision | near-dup precision |
+| -------- | --: | -------: | --------: | ------: | --------------: | ------------: | -----------------: |
+| cautious |   3 |    40.2% |     94.4% |   13.2% |           91.5% |         96.0% |              98.7% |
+| cautious |   4 |    34.6% |     94.9% |    7.9% |           92.1% |         96.3% |              99.0% |
+| balanced |   2 |    47.8% |     91.7% |   28.0% |           86.5% |         93.8% |              98.7% |
+| balanced |   3 |    49.8% |     94.6% |   20.3% |           91.1% |         96.0% |              99.2% |
+| balanced |   4 |    45.2% |     95.1% |   12.7% |           91.6% |         96.2% |              99.3% |
+| eager    |   1 |    72.7% |     75.9% |   61.0% |           63.2% |         80.0% |              95.8% |
+| eager    |   2 |    69.7% |     84.9% |   50.8% |           76.2% |         87.7% |              97.3% |
+| eager    |   3 |    65.2% |     90.9% |   36.6% |           85.1% |         92.3% |              98.7% |
+| eager    |   4 |    60.0% |     92.0% |   23.1% |           86.2% |         93.0% |              99.0% |
+
+Cautious k=3 (94.4% overall / 91.5% novel, gap 2.9pp) and balanced k=2 (91.7% / 86.5%,
+gap 5.2pp) pass with margin, so their finals equal the seeds (3 and 2). Eager k=1 (75.9%
+/ 63.2%, gap 12.7pp) fails the novel gate, while k=2 (84.9% / 76.2%, gap 8.7pp) passes —
+final 2, so `PRESET_EAGER.min_prefix_chars` moved 1 → 2 in `predict.rs` (with a doc note
+and the field doc now reading finals 3/2/2). The post-edit wheel confirms the cutoff: a
+`--score-every 200` smoke replay reports eager k=1 suppressed (coverage 0.0, precision
+null) with k=2..4 unchanged, since the seed edit only moves the suppression boundary,
+never the measurements.
+
+2026-10-01 `--bench` on the same history (300 samples; rows_total=11643 rows_used=3273
+tokens=237949 contexts=225485 successor_entries=320677; compile_ms=891.4 per_1k_ms=272.3
+approx_mb=54.40; sampled=300 blocked=209 confident=33; full log
+`/tmp/sase_1dq2_bench.log`): `predict` p50=1.099 / p95=1.901 / max=2.663 ms, ghost-only
+request p50=0.238 / p95=0.603 / max=0.952 ms, `rank_prefix` (n=12) p50=0.213 / p95=0.317
+ms. Draft buckets (typing-path latency): ≤1000 chars n=87 p50=0.225 / p95=0.566 ms;
+≤4000 n=4 p50=0.634 / p95=0.917 ms; ≤10000 and ≤20000 empty. Chosen
+`NEXT_WORD_SYNC_MAX_DRAFT_CHARS=4000` — the largest bucket with typing-path p95 ≤ 1 ms —
+is recorded here only; phase `sase-1dq.6` consumes it. The sample above 1000 chars is
+thin (n=4), so re-run the bench before trusting tighter thresholds.
+
 #### Prediction cost
 
 The replay's own scorer reports latency p50 ~1.2ms / p95 ~2.2ms and `approx_bytes`
