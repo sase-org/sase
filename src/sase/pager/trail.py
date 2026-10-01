@@ -12,6 +12,7 @@ from sase.ace.tui.widgets._vim_search import (
 )
 from sase.ace.tui.widgets.vim_search_controller import VimSearchMode
 from sase.pager._labels import LabelWindowScope
+from sase.pager._layout import ReadingAnchor
 from sase.pager._line_mark import LineMark
 from sase.pager.document import PagerDocument
 
@@ -51,6 +52,7 @@ class PagerTrailEntry:
     label_anchor: LabelWindowScope | None
     line_mark: LineMark | None = None
     version_pins: tuple[tuple[str, object], ...] = ()
+    reading_anchor: ReadingAnchor | None = None
 
 
 def append_bounded_trail(

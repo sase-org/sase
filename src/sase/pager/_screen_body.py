@@ -15,7 +15,13 @@ from sase.pager._labels import (
     PagerLabelLayer,
     build_label_layer,
 )
-from sase.pager._layout import ComposedBody, compose_body, current_section_index
+from sase.pager._layout import (
+    ComposedBody,
+    compose_body,
+    current_section_index,
+    reading_anchor_at_row,
+    row_for_reading_anchor,
+)
 from sase.pager._screen_widgets import PagerBodyScroll
 from sase.pager.app import PendingAction
 from sase.pager.document import PagerDocument, PagerSection
@@ -175,17 +181,79 @@ class PagerBodyMixin:
         time (``PagerSection.__post_init__``); this only recomputes the
         width-dependent layout - section row offsets and transition rules -
         per ``tui_perf`` rule 8.
+
+        When the width really changed, the top logical line stays put: the
+        reading anchor at the current ``scroll_y`` is captured from the old
+        body and restored after layout (``max_scroll_y`` only reflects the
+        new height then). Same-width recomposes for label repaints never move
+        the scroll.
         """
         width = self._body_paint_width()
         if self._body is not None and width == self._body_width:
             return
+        old_body = self._body
+        old_width: int | None = getattr(self, "_last_composed_width", None)
+        if old_width is None:
+            old_width = self._body_width
+        anchor = None
+        anchor_scroll_y = 0
+        if old_body is not None and old_width is not None and width != old_width:
+            try:
+                anchor_scroll_y = int(self._body_scroll().scroll_y)
+            except Exception:
+                anchor_scroll_y = 0
+            try:
+                anchor = reading_anchor_at_row(old_body, anchor_scroll_y)
+            except Exception:
+                anchor = None
         self._body_width = width
         self._label_layer = self._build_label_layer(width)
         body = self._compose_body_at_width(width)
         self._body = body
+        self._last_composed_width = width
         self.query_one("#pager-body", Static).update(body.renderable)
         if getattr(self, "_goto_active", False):
             self._update_goto_command()
+        if anchor is not None:
+            self._restore_reading_anchor(anchor, scroll_y=anchor_scroll_y)
+
+    def _restore_reading_anchor(self: Any, anchor: Any, *, scroll_y: int) -> None:
+        """Restore *anchor* after layout; a newer compose or scroll wins."""
+        composed = self._body
+        if composed is None:
+            return
+        try:
+            target = row_for_reading_anchor(composed, anchor)
+        except Exception:
+            return
+        generation = int(getattr(self, "_body_generation", 0) or 0) + 1
+        try:
+            self._body_generation = generation
+        except Exception:
+            pass
+        document = getattr(self, "document", None)
+        call_after_refresh = getattr(self, "call_after_refresh", None)
+        if not callable(call_after_refresh):
+            return
+
+        def restore_after_layout() -> None:
+            try:
+                if getattr(self, "document", None) is not document:
+                    return
+                if self._body is not composed:
+                    return
+                if int(getattr(self, "_body_generation", 0) or 0) != generation:
+                    return
+                scroll = self._body_scroll()
+                if int(scroll.scroll_y) != int(scroll_y):
+                    return
+                clamped = max(0, min(target, int(scroll.max_scroll_y)))
+                scroll.scroll_to(y=clamped, animate=False, immediate=True)
+                self._update_chrome_position()
+            except Exception:
+                return
+
+        call_after_refresh(restore_after_layout)
 
     def _body_paint_width(self: Any) -> int:
         """Return the width the body Static actually paints into."""

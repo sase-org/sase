@@ -7,9 +7,12 @@ from rich.text import Text
 
 from sase.pager._labels import build_label_layer
 from sase.pager._layout import (
+    ReadingAnchor,
     _section_row_offsets,
     compose_body,
     current_section_index,
+    reading_anchor_at_row,
+    row_for_reading_anchor,
     search_corpus,
     styled_search_base,
 )
@@ -136,6 +139,75 @@ def test_compose_body_rails_a_marked_range() -> None:
     assert rows[1].startswith(" 2┃ ")
     assert rows[2].startswith(" 3┃ ")
     assert rows[3].startswith(" 4│ ")
+
+
+def test_reading_anchor_round_trips_a_wrapped_line_across_widths() -> None:
+    document = PagerDocument(
+        sections=(_section("a", "x" * 50 + "\n" + "y\n"),),
+        title="a",
+        origin=PagerOrigin.FILE,
+    )
+    narrow = compose_body(document, width=20)
+    wide = compose_body(document, width=80)
+
+    # the 50-char line wraps at width 20 (content 16) but not at 80.
+    assert len(narrow.section_line_rows[0]) == 2
+    assert len(wide.section_line_rows[0]) == 2
+    narrow_second_row = narrow.section_line_rows[0][0] + 1
+    assert narrow_second_row < narrow.section_line_rows[0][1]
+
+    anchor = reading_anchor_at_row(narrow, narrow_second_row)
+
+    assert anchor == ReadingAnchor(section_index=0, line=1, row_offset=1)
+    assert row_for_reading_anchor(wide, anchor) == wide.section_line_rows[0][0]
+    assert row_for_reading_anchor(narrow, anchor) == narrow_second_row
+
+
+def test_reading_anchor_on_a_section_rule_belongs_to_that_section() -> None:
+    document = PagerDocument(
+        sections=(_section("a", "alpha\n"), _section("b", "beta\n")),
+        title="2 files",
+        origin=PagerOrigin.FILE,
+    )
+    body = compose_body(document, width=40)
+
+    rule_row = body.section_offsets[1]
+    anchor = reading_anchor_at_row(body, rule_row)
+
+    assert anchor == ReadingAnchor(section_index=1, line=1, row_offset=0)
+    assert row_for_reading_anchor(body, anchor) == rule_row + 1
+
+
+def test_reading_anchor_clamps_offset_and_line_to_the_new_width() -> None:
+    document = PagerDocument(
+        sections=(_section("a", "x" * 50 + "\n"),),
+        title="a",
+        origin=PagerOrigin.FILE,
+    )
+    narrow = compose_body(document, width=20)
+    wide = compose_body(document, width=80)
+
+    deep = ReadingAnchor(section_index=0, line=1, row_offset=3)
+    assert row_for_reading_anchor(wide, deep) == wide.section_line_rows[0][0]
+    assert row_for_reading_anchor(narrow, deep) == (narrow.section_line_rows[0][0] + 3)
+
+    # out-of-range sections and lines clamp instead of raising.
+    assert (
+        row_for_reading_anchor(
+            wide, ReadingAnchor(section_index=9, line=99, row_offset=-5)
+        )
+        == wide.section_line_rows[0][0]
+    )
+
+
+def test_reading_anchor_of_an_empty_document_is_the_origin() -> None:
+    document = PagerDocument(sections=(), title="empty", origin=PagerOrigin.FILE)
+    body = compose_body(document, width=40)
+
+    assert reading_anchor_at_row(body, 0) == ReadingAnchor(
+        section_index=0, line=1, row_offset=0
+    )
+    assert row_for_reading_anchor(body, ReadingAnchor(0, 1, 0)) == 0
 
 
 def test_current_section_index_picks_the_last_offset_at_or_before_scroll_y() -> None:

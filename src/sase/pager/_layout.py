@@ -49,6 +49,92 @@ class ComposedBody:
     section_line_rows: tuple[tuple[int, ...], ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class ReadingAnchor:
+    """A width-independent reading position: section, logical line, wrap offset.
+
+    ``line`` is 1-based. ``row_offset`` counts wrapped continuation rows below
+    the line's first visual row.
+    """
+
+    section_index: int
+    line: int
+    row_offset: int
+
+
+def _section_body_start(offsets: tuple[int, ...], section_index: int) -> int:
+    """Return the first body row of *section_index* (past its divider rule)."""
+    return offsets[section_index] + (1 if section_index > 0 else 0)
+
+
+def _section_body_end(body: ComposedBody, section_index: int) -> int:
+    """Return the exclusive end row of *section_index*'s body rows."""
+    if section_index + 1 < len(body.section_offsets):
+        return body.section_offsets[section_index + 1]
+    return body.total_height
+
+
+def reading_anchor_at_row(body: ComposedBody, row: int) -> ReadingAnchor:
+    """Capture the logical line at absolute *row* of *body*.
+
+    A row sitting on a section divider rule anchors to that section's first
+    line, so a width change never strands the viewport on a rule row that
+    may move.
+    """
+    section_count = len(body.section_line_rows)
+    if section_count == 0 or body.total_height <= 0:
+        return ReadingAnchor(section_index=0, line=1, row_offset=0)
+    clamped = max(0, min(row, body.total_height - 1))
+    for index in range(1, len(body.section_offsets)):
+        if clamped == body.section_offsets[index]:
+            return ReadingAnchor(section_index=index, line=1, row_offset=0)
+    section_index = 0
+    for index, _offset in enumerate(body.section_offsets):
+        if _section_body_start(body.section_offsets, index) <= clamped:
+            section_index = index
+        else:
+            break
+    rows = body.section_line_rows[section_index]
+    if not rows:
+        return ReadingAnchor(section_index=section_index, line=1, row_offset=0)
+    line_pos = 0
+    for pos, start in enumerate(rows):
+        if start <= clamped:
+            line_pos = pos
+        else:
+            break
+    return ReadingAnchor(
+        section_index=section_index,
+        line=line_pos + 1,
+        row_offset=clamped - rows[line_pos],
+    )
+
+
+def row_for_reading_anchor(body: ComposedBody, anchor: ReadingAnchor) -> int:
+    """Return the absolute row of *anchor* in *body*, clamping the offset.
+
+    The wrapped height of a logical line depends on width, so a
+    continuation-row offset recorded at one width is clamped into the same
+    line's wrapped rows at the new width.
+    """
+    section_count = len(body.section_line_rows)
+    if section_count == 0 or body.total_height <= 0:
+        return 0
+    section_index = max(0, min(anchor.section_index, section_count - 1))
+    rows = body.section_line_rows[section_index]
+    if not rows:
+        return _section_body_start(body.section_offsets, section_index)
+    line = max(1, min(anchor.line, len(rows)))
+    start = rows[line - 1]
+    if line < len(rows):
+        end = rows[line]
+    else:
+        end = _section_body_end(body, section_index)
+    wrapped = max(end - start, 1)
+    offset = max(0, min(anchor.row_offset, wrapped - 1))
+    return start + offset
+
+
 def _section_row_offsets(heights: tuple[int, ...]) -> tuple[int, ...]:
     """Return the row where each section's own rule (or the top) sits.
 
@@ -312,9 +398,12 @@ def styled_search_base(
 
 __all__ = [
     "ComposedBody",
+    "ReadingAnchor",
     "compose_body",
     "current_section_index",
+    "reading_anchor_at_row",
     "render_section_with_labels",
+    "row_for_reading_anchor",
     "search_corpus",
     "styled_search_base",
 ]

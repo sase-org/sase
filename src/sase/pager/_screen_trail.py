@@ -8,7 +8,11 @@ from textual.widgets import Static
 
 from sase.ace.tui.widgets.vim_search_controller import VimSearchController
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
-from sase.pager._layout import ComposedBody
+from sase.pager._layout import (
+    ComposedBody,
+    reading_anchor_at_row,
+    row_for_reading_anchor,
+)
 from sase.pager._trail_chrome import (
     PagerTrailSnapshot,
     build_pager_trail_snapshot,
@@ -80,10 +84,17 @@ class PagerTrailMixin:
         self._update_footer()
         self._update_subject()
         self._start_syntax_preparation_after_paint()
+        target_y = state.scroll_y
+        if state.reading_anchor is not None and self._body is not None:
+            try:
+                target_y = row_for_reading_anchor(self._body, state.reading_anchor)
+            except Exception:
+                target_y = state.scroll_y
+        scroll_x = state.scroll_x
         self.call_after_refresh(
             lambda: self._restore_trail_scroll(
-                x=state.scroll_x,
-                y=state.scroll_y,
+                x=scroll_x,
+                y=target_y,
             )
         )
 
@@ -98,6 +109,14 @@ class PagerTrailMixin:
         pins: tuple[tuple[str, object], ...] = tuple(
             (item.identity, item.version_pin) for item in self.document.sections
         )
+        scroll_y = int(scroll.scroll_y)
+        anchor = None
+        body = getattr(self, "_body", None)
+        if body is not None:
+            try:
+                anchor = reading_anchor_at_row(body, scroll_y)
+            except Exception:
+                anchor = None
         return PagerTrailEntry(
             document=self.document,
             document_identity=self._document_identity(),
@@ -106,11 +125,12 @@ class PagerTrailMixin:
             section_title=section.title if section is not None else self.document.title,
             section_kind=section.kind if section is not None else "",
             scroll_x=int(scroll.scroll_x),
-            scroll_y=int(scroll.scroll_y),
+            scroll_y=scroll_y,
             search=self._current_search_state(),
             label_anchor=self._label_window_scope,
             line_mark=self._goto_mark,
             version_pins=pins,
+            reading_anchor=anchor,
         )
 
     def _current_search_state(self: Any) -> PagerSearchState:

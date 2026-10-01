@@ -110,6 +110,8 @@ class PagerView(
         self._refresh_in_flight = False
         self._body: ComposedBody | None = None
         self._body_width: int | None = None
+        self._last_composed_width: int | None = None
+        self._body_generation = 0
         self._label_layer: PagerLabelLayer | None = None
         self._label_pending_prefix = ""
         self._label_window_scope: LabelWindowScope | None = None
