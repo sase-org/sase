@@ -29,6 +29,17 @@ PagerScreen #pager-trail.compact {
     height: 1;
 }
 
+PagerScreen #pager-time {
+    height: 1;
+    padding: 0 1;
+    background: $surface;
+    color: $text;
+}
+
+PagerScreen #pager-time.two {
+    height: 2;
+}
+
 PagerScreen #pager-chrome-rule {
     height: 1;
     padding: 0 1;

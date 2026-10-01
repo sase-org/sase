@@ -227,7 +227,9 @@ class PagerBodyMixin:
             removal_anchors=removal_anchors,
         )
 
-    def _build_label_layer(self: Any, width: int) -> PagerLabelLayer:
+    def _build_label_layer(
+        self: Any, width: int, hint_offset: int = 0
+    ) -> PagerLabelLayer:
         if not self.links_enabled:
             self._label_window_scope = None
             return PagerLabelLayer(
@@ -245,6 +247,7 @@ class PagerBodyMixin:
             section_offsets=section_offsets,
             dangling_refs=self._dangling_refs.keys(),
             is_dangling=self._is_target_dangling,
+            hint_offset=hint_offset,
         )
         if layer.target_count <= PAGER_LABEL_TWO_KEY_CAPACITY:
             self._label_window_scope = None
@@ -258,6 +261,7 @@ class PagerBodyMixin:
             section_offsets=section_offsets,
             dangling_refs=self._dangling_refs.keys(),
             is_dangling=self._is_target_dangling,
+            hint_offset=hint_offset,
         )
 
     def _current_label_window_scope(self: Any) -> LabelWindowScope:

@@ -137,6 +137,20 @@ class _TargetMarker:
     accent: str
 
 
+def prefix_free_hint_sequence(count: int) -> tuple[str, ...]:
+    """Return *count* prefix-free hints in assignment order.
+
+    The pager time band assigns the leading hints to its own targets before
+    body targets, so both layers derive from this one sequence.
+    """
+    _, target_to_hint = build_jump_hint_maps(
+        list(range(max(0, count))),
+        excluded=PAGER_RESERVED_JUMP_COMMAND_KEYS,
+        prefix_free=True,
+    )
+    return tuple(target_to_hint[index] for index in range(max(0, count)))
+
+
 def build_label_layer(
     document: PagerDocument,
     *,
@@ -145,12 +159,16 @@ def build_label_layer(
     section_offsets: Sequence[int] | None = None,
     dangling_refs: AbstractSet[object] = frozenset(),
     is_dangling: DanglingPredicate | None = None,
+    hint_offset: int = 0,
 ) -> PagerLabelLayer:
     """Assign stable labels to pager targets in document order.
 
     Normal documents use document-scoped labels.  Documents larger than the
     two-key label capacity switch to the dormant window mode and only allocate
-    labels for the requested row band.
+    labels for the requested row band. ``hint_offset`` reserves the leading
+    hints for chrome targets painted ahead of the body (the time band's
+    provenance and cause labels); body labels then continue the same
+    sequence so every letter stays stable.
     """
     occurrences = tuple(_iter_target_occurrences(document))
     mode: LabelLayerMode = (
@@ -168,12 +186,11 @@ def build_label_layer(
     else:
         scope = None
 
-    target_ids = list(range(len(selected)))
-    hint_to_label_index, label_index_to_hint = build_jump_hint_maps(
-        target_ids,
-        excluded=PAGER_RESERVED_JUMP_COMMAND_KEYS,
-        prefix_free=True,
-    )
+    offset = max(0, int(hint_offset))
+    sequence = prefix_free_hint_sequence(len(selected) + offset)
+    body_hints = sequence[offset:]
+    hint_to_label_index = {hint: index for index, hint in enumerate(body_hints)}
+    label_index_to_hint = dict(enumerate(body_hints))
     labels = tuple(
         PagerLabel(
             index=index,
@@ -485,6 +502,7 @@ __all__ = [
     "PagerLabel",
     "PagerLabelLayer",
     "build_label_layer",
+    "prefix_free_hint_sequence",
     "render_section_with_labels",
     "row_for_character_offset",
     "style_target_accents",

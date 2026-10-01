@@ -13,7 +13,6 @@ from sase.pager._trail_chrome import (
     PagerTrailSnapshot,
     build_pager_trail_snapshot,
     render_trail_band,
-    trail_band_row_count,
 )
 from sase.pager.app import PagerExit, PendingAction
 from sase.pager.document import PagerSection
@@ -180,6 +179,8 @@ class PagerTrailMixin:
         )
 
     def _update_trail(self: Any) -> None:
+        from sase.pager._time_band import chrome_row_budget
+
         trail = self.query_one("#pager-trail", Static)
         rule = self.query_one("#pager-chrome-rule", Static)
         snapshot = self._trail_snapshot()
@@ -196,10 +197,14 @@ class PagerTrailMixin:
 
         width = self._trail_paint_width()
         screen_height = max(int(self.size.height), 1)
-        rows = trail_band_row_count(
-            visible=snapshot.visible,
-            screen_height=screen_height,
-        )
+        time_mode = "hidden"
+        time_mode_fn = getattr(self, "_time_band_mode", None)
+        if callable(time_mode_fn):
+            try:
+                time_mode = str(time_mode_fn() or "hidden")
+            except Exception:
+                time_mode = "hidden"
+        rows, _ = chrome_row_budget(screen_height, snapshot.visible, time_mode)
         signature = (snapshot.signature, width, rows)
         if self._trail_render_signature == signature:
             return

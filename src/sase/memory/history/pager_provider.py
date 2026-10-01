@@ -129,6 +129,32 @@ def _scope_for_section(service: HistoryService, section: PagerSection) -> Any | 
         return None
 
 
+def _instruction_file_traits(
+    scope: Any, selector: str
+) -> tuple[bool | None, bool | None]:
+    """Return ``(template, managed)`` for an instruction-file selector.
+
+    ``(None, None)`` means the selector is not an instruction file. Chezmoi
+    ``*.tmpl`` sources are always templates; a ``managed=False`` instruction
+    file is a hand-edited subdirectory ``AGENTS.md``.
+    """
+    normalized = selector.replace("\\", "/").strip().lstrip("./")
+    candidates = [normalized, normalized.removesuffix(".tmpl")]
+    instruction_files = getattr(scope, "instruction_files", ()) or ()
+    for entry in instruction_files:
+        agents_path = str(getattr(entry, "agents_path", "") or "").lstrip("./")
+        shim_paths = [
+            str(path).lstrip("./") for path in getattr(entry, "shim_paths", ())
+        ]
+        for candidate in candidates:
+            if candidate == agents_path or candidate in shim_paths:
+                is_template = bool(getattr(entry, "template", False))
+                if candidate != normalized:
+                    is_template = True
+                return (is_template, bool(getattr(entry, "managed", False)))
+    return (None, None)
+
+
 def _selector_for_section(section: PagerSection) -> str | None:
     ref = section.subject_ref or section.identity
     # Subject refs are file: URIs or repo-relative paths; strip the scheme.
@@ -244,9 +270,24 @@ class MemoryHistoryProvider:
         if scope is None or selector is None:
             return {"versions": [], "error": "unsupported"}
         try:
-            return dict(service.timeline(scope, selector, include_hidden=True))
+            timeline = dict(service.timeline(scope, selector, include_hidden=True))
         except Exception as exc:
             return {"versions": [], "error": str(exc)}
+        try:
+            sync = service.sync(scope)
+            timeline["upstream_ahead"] = sync.get("upstream_ahead")
+            timeline["health"] = sync.get("health")
+        except Exception:
+            pass
+        try:
+            template, managed = _instruction_file_traits(scope, selector)
+            if template is not None:
+                timeline["is_template"] = template
+            if managed is not None:
+                timeline["managed"] = managed
+        except Exception:
+            pass
+        return timeline
 
     def load_version(self, section: PagerSection, ordinal: int) -> PagerSection | None:
         service = self._require_service()

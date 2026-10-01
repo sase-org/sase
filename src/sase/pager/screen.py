@@ -29,6 +29,7 @@ from sase.pager._screen_goto import PagerGotoMixin
 from sase.pager._screen_history import PagerHistoryMixin
 from sase.pager._screen_search import PagerSearchMixin
 from sase.pager._screen_syntax import PagerSyntaxMixin
+from sase.pager._screen_time_band import PagerTimeBandMixin
 from sase.pager._screen_trail import PagerTrailMixin
 from sase.pager._screen_widgets import PagerBody, PagerBodyScroll
 from sase.pager._styles import PAGER_CSS
@@ -39,6 +40,7 @@ from sase.pager.trail import PagerTrailEntry
 
 
 class PagerScreen(
+    PagerTimeBandMixin,
     PagerHistoryMixin,
     PagerDiffMixin,
     PagerBodyMixin,
@@ -135,6 +137,7 @@ class PagerScreen(
         self._init_syntax_state()
         self._init_history_state()
         self._init_diff_state()
+        self._init_time_band_state()
 
     def on_unmount(self) -> None:
         cancel_pump_free_tasks(self)
@@ -143,6 +146,7 @@ class PagerScreen(
         with Vertical(id="pager-root"):
             yield Static(id="pager-subject")
             yield Static(id="pager-trail", classes="hidden")
+            yield Static(id="pager-time", classes="hidden")
             yield Static(id="pager-chrome-rule")
             with PagerBodyScroll(id="pager-body-scroll"):
                 yield PagerBody(id="pager-body")

@@ -56,6 +56,7 @@ class SectionTimeState:
     error: str | None = None
     status: str = "live"
     timeline: tuple[dict[str, object], ...] = ()
+    timeline_meta: dict[str, object] = field(default_factory=dict)
     visible_ordinals: tuple[int, ...] = ()
     current_pin: VersionPin | None = None
     live_section: object | None = None

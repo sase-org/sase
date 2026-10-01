@@ -182,6 +182,12 @@ class PagerHistoryMixin:
             )
             self._history_states[section.identity] = state
         state.timeline = rows  # type: ignore[assignment]
+        try:
+            meta = dict(timeline)
+            meta.pop("versions", None)
+            state.timeline_meta = meta
+        except Exception:
+            pass
         state.visible_ordinals = visible
         state.status = status
         state.loading = False

@@ -61,6 +61,26 @@ class PagerChromeMixin:
             "view": view,
             "diff_base": self._history_diff_base_for(state, ordinal),
         }
+        try:
+            height = max(int(self.size.height), 1)
+        except Exception:
+            height = 24
+        if height <= 12:
+            # The time band folds into the subject chip at this height, so
+            # the honest state rides along instead of vanishing with it.
+            band_fn = getattr(self, "_time_band_data", None)
+            if callable(band_fn):
+                try:
+                    band_data = band_fn()
+                except Exception:
+                    band_data = None
+                if band_data is not None and getattr(
+                    band_data, "honest_kind", "ok"
+                ) not in ("ok", None):
+                    history_state["folded_honest"] = (
+                        getattr(band_data, "honest_kind", ""),
+                        getattr(band_data, "honest_detail", None),
+                    )
         return (True, ordinal > 0, history_state)
 
     def _history_diff_base_for(self: Any, state: Any, ordinal: int) -> int | None:

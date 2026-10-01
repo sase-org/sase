@@ -265,6 +265,17 @@ def subject_line(
     return line
 
 
+_FOLDED_HONEST_LABELS: dict[str, tuple[str, str]] = {
+    "untracked": ("UNTRACKED", "yellow"),
+    "ignored": ("IGNORED", "yellow"),
+    "no_vcs": ("NO VCS", "dim"),
+    "shallow": ("SHALLOW", "dim"),
+    "template": ("TEMPLATE", "dim"),
+    "indexing": ("indexing…", "dim"),
+    "unavailable": ("history unavailable", "dim"),
+}
+
+
 def _history_chip(state: dict[str, object] | None) -> Text | None:
     """Return the violet past / dim now / amber dirty subject chip."""
     if not state:
@@ -275,6 +286,12 @@ def _history_chip(state: dict[str, object] | None) -> Text | None:
         if diff_suffix:
             chip.append(f" · {diff_suffix}", style="dim")
         return chip
+    folded = state.get("folded_honest")
+    if isinstance(folded, tuple) and len(folded) == 2:
+        label, style = _FOLDED_HONEST_LABELS.get(
+            str(folded[0] or ""), ("history", "dim")
+        )
+        return Text(label, style=style)
     ordinal = int(cast(Any, state.get("ordinal", 0)) or 0)
     if ordinal > 0:
         total = int(cast(Any, state.get("total", 0)) or 0)
