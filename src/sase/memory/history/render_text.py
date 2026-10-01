@@ -47,11 +47,6 @@ def _format_date(epoch: int) -> str:
     return datetime.datetime.fromtimestamp(epoch).strftime("%Y-%m-%d")
 
 
-def format_banner_date(epoch: int) -> str:
-    """Return a tombstone banner date (``Jul 13 2026``)."""
-    return datetime.datetime.fromtimestamp(epoch).strftime("%b %d %Y")
-
-
 def _format_day(epoch: int) -> str:
     """Return a feed day header (``Mon Sep 28``)."""
     return datetime.datetime.fromtimestamp(epoch).strftime("%a %b %d")

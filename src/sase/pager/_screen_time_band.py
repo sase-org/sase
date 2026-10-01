@@ -76,6 +76,12 @@ class PagerTimeBandMixin:
         )
         ordinal = int(getattr(pin, "ordinal", 0) or 0)
         try:
+            from sase.pager.history.moment import moment_for_state
+
+            moment = moment_for_state(state)
+        except Exception:
+            moment = None
+        try:
             pinned_now = int(getattr(self, "_time_band_now_epoch", None) or 0)
         except Exception:
             pinned_now = 0
@@ -88,6 +94,7 @@ class PagerTimeBandMixin:
             dirty=getattr(state, "status", "") == "dirty-now",
             now_epoch=pinned_now or int(time.time()),
             total_visible=len(getattr(state, "visible_ordinals", ()) or ()),
+            moment=moment,
         )
 
     def _timeline_for_time_band(self: Any, state: Any) -> dict[str, Any]:
@@ -309,6 +316,16 @@ class PagerTimeBandMixin:
                 except Exception:
                     hints = {}
         width = self._time_band_paint_width()
+        try:
+            history_styles = self._history_styles()
+        except Exception:
+            history_styles = None
+        tint = ""
+        if data is not None and data.mode == "past" and history_styles is not None:
+            try:
+                tint = str(history_styles.band_past_tint or "")
+            except Exception:
+                tint = ""
         if data is None:
             signature: object = ("hidden", width, rows)
         else:
@@ -323,6 +340,14 @@ class PagerTimeBandMixin:
                 data.upstream_branch,
                 data.newest.ordinal if data.newest is not None else None,
                 data.current.ordinal if data.current is not None else 0,
+                data.view,
+                data.diff,
+                data.newer_count,
+                data.tombstone,
+                data.commit_subject,
+                data.path_at_version,
+                tint,
+                getattr(history_styles, "signature", None),
                 tuple(sorted(hints)),
                 width,
                 rows,
@@ -335,18 +360,35 @@ class PagerTimeBandMixin:
             widget.add_class("hidden")
             widget.remove_class("two")
             self._update_chrome_rule_for_time_band(False)
+            try:
+                widget.styles.clear_rule("background")
+            except Exception:
+                pass
             return
         # ``hints`` maps hint -> target index for key handling; rendering
         # needs the inverse (target index -> hint capsule).
         paint_hints = {index: hint for hint, index in hints.items()}
         try:
-            rendered = render_time_band(data, width=width, rows=rows, hints=paint_hints)
+            rendered = render_time_band(
+                data, width=width, rows=rows, hints=paint_hints, styles=history_styles
+            )
         except Exception:
             widget.update("")
             widget.add_class("hidden")
             widget.remove_class("two")
             self._update_chrome_rule_for_time_band(False)
+            try:
+                widget.styles.clear_rule("background")
+            except Exception:
+                pass
             return
+        try:
+            if tint:
+                widget.styles.background = tint
+            else:
+                widget.styles.clear_rule("background")
+        except Exception:
+            pass
         widget.update(rendered)
         widget.remove_class("hidden")
         if rows == 2:

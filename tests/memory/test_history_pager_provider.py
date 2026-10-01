@@ -23,9 +23,7 @@ from sase.memory.history.pager_provider import (
 )
 from sase.memory.history.pager_provider_core import (
     _MemoryHistoryProvider,
-    _tombstone_banner,
 )
-from sase.memory.history.render_text import format_banner_date
 from sase.memory.history.service import HistoryService
 from sase.pager.document import PagerOrigin
 from sase.pager.history.provider import (
@@ -167,51 +165,33 @@ def test_build_history_document_for_selector(fixture_repo: Path) -> None:
     assert "Original line." in document.sections[0].plain_text
 
 
-def test_tombstone_banner_uses_date_actor_and_separator() -> None:
+def test_tombstone_body_has_no_injected_line(fixture_repo: Path) -> None:
     epoch = 1787677072
-    banner = _tombstone_banner(
-        {
+    response: dict[str, object] = {
+        "existed": True,
+        "body": "# Gone\n",
+        "version": {
+            "ordinal": 3,
             "class": "deleted",
+            "path": "sase/memory/gone.md",
+            "commit": "1" * 40,
             "committer_time": epoch,
-            "author_time": epoch - 60,
-            "author_name": "SASE Test",
-            "provenance": {"agent": "athena.test", "bead": "sase-1"},
-        }
-    )
-
-    assert "✖ deleted " in banner
-    assert str(epoch) not in banner
-    assert " · last content shown" in banner
-    assert "by athena.test" in banner
-    assert (
-        _tombstone_banner(
-            {
-                "class": "deleted",
-                "committer_time": epoch,
-                "provenance": {"agent": "athena.test"},
-            }
-        )
-        .split(" by ")[0]
-        .endswith(format_banner_date(epoch))
-    )
-
-
-def test_tombstone_banner_falls_back_to_author_name_then_unknown() -> None:
-    epoch = 1787677072
-    by_author = _tombstone_banner(
-        {
-            "class": "deleted",
             "author_time": epoch,
             "author_name": "SASE Test",
-            "provenance": {},
-        }
+            "provenance": {"agent": "athena.test"},
+        },
+    }
+    provider = _MemoryHistoryProvider(
+        service=_CannedVersionService(response, fixture_repo),  # type: ignore[arg-type]
     )
+    section = path_section(fixture_repo / "sase/memory/note.md")
 
-    assert "by SASE Test" in by_author
-    assert str(epoch) not in by_author
-    unknown = _tombstone_banner({"class": "deleted"})
+    derived = provider.load_version(section, 3)
 
-    assert "by unknown" in unknown
+    # The deletion notice lives in band tombstone chrome now: the body
+    # is exactly the last content, so line numbers match the file.
+    assert derived is not None
+    assert derived.plain_text == "# Gone\n"
 
 
 class _CannedVersionService:
@@ -263,7 +243,7 @@ def test_load_version_uses_version_path_for_title_and_links(
     assert pin is not None and pin.ordinal == 2
 
 
-def test_load_version_renders_tombstone_banner(fixture_repo: Path) -> None:
+def test_load_version_keeps_tombstone_pin(fixture_repo: Path) -> None:
     epoch = 1787677072
     response: dict[str, object] = {
         "existed": True,
@@ -287,10 +267,9 @@ def test_load_version_renders_tombstone_banner(fixture_repo: Path) -> None:
     derived = provider.load_version(section, 3)
 
     assert derived is not None
-    banner_line = derived.plain_text.splitlines()[0]
-    assert str(epoch) not in banner_line
-    assert " · last content shown" in banner_line
-    assert "by athena.test" in banner_line
+    assert derived.plain_text == "# Gone\n"
+    pin = derived.version_pin
+    assert pin is not None and pin.ordinal == 3
 
 
 def test_entry_point_factory_builds_provider() -> None:

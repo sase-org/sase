@@ -53,6 +53,7 @@ class TimeBandVersion:
     frontmatter_phrase: str | None = None
     bead: str | None = None
     agent: str | None = None
+    author: str | None = None
     sources: tuple[tuple[str, str], ...] = ()
     config_paths: tuple[str, ...] = ()
     regen_only: bool = False
@@ -84,6 +85,15 @@ class TimeBandData:
     managed: bool = True
     now_epoch: int = 0
     total_visible: int = 0
+    # Identity-model readings (from ``VersionMoment`` when the caller
+    # passes one; the band never recomputes these on its own).
+    view: Literal["read", "diff"] = "read"
+    diff: tuple[int, int] | None = None
+    newer_count: int = 0
+    commit_subject: str | None = None
+    path_at_version: str | None = None
+    tombstone: bool = False
+    now_matches_newest: bool = False
 
 
 def _honest_state_kind(
@@ -208,6 +218,7 @@ def _version_from_row(row: Mapping[str, Any], ordinal: int) -> TimeBandVersion:
     hidden = bool(row.get("hidden", False) or row.get("hidden_by_default", False))
     bead = provenance_map.get("bead")
     agent = provenance_map.get("agent")
+    author_name = row.get("author_name")
     return TimeBandVersion(
         ordinal=ordinal,
         commit=str(row.get("commit", "") or ""),
@@ -222,6 +233,7 @@ def _version_from_row(row: Mapping[str, Any], ordinal: int) -> TimeBandVersion:
         frontmatter_phrase=str(summary_map.get("frontmatter_phrase") or "") or None,
         bead=str(bead) if bead else None,
         agent=str(agent) if agent else None,
+        author=str(author_name).strip() if author_name else None,
         sources=tuple(sources),
         config_paths=config_paths,
         regen_only=bool(cause_map.get("regen_only", False)),
@@ -233,6 +245,61 @@ def _version_from_row(row: Mapping[str, Any], ordinal: int) -> TimeBandVersion:
     )
 
 
+def _moment_readings(moment: Any | None) -> dict[str, Any]:
+    """Return the band's identity-model readings for *moment* (or defaults)."""
+    readings: dict[str, Any] = {
+        "view": "read",
+        "diff": None,
+        "newer_count": 0,
+        "commit_subject": None,
+        "path_at_version": None,
+        "tombstone": False,
+        "now_matches_newest": False,
+        "dirty": None,
+        "kind": None,
+        "ordinal": None,
+        "newest": None,
+    }
+    if moment is None or not hasattr(moment, "kind"):
+        return readings
+    try:
+        view = str(getattr(moment, "view", "read") or "read")
+        readings["view"] = view if view in ("read", "diff") else "read"
+    except Exception:
+        pass
+    try:
+        raw_diff = getattr(moment, "diff", None)
+        if raw_diff is not None:
+            readings["diff"] = (int(raw_diff[0]), int(raw_diff[1]))
+    except Exception:
+        pass
+    for key in ("newer_count", "ordinal", "newest"):
+        try:
+            readings[key] = int(getattr(moment, key, 0) or 0)
+        except (TypeError, ValueError):
+            pass
+    for key in ("commit_subject", "path_at_version"):
+        try:
+            value = getattr(moment, key, None)
+            readings[key] = value if isinstance(value, str) and value else None
+        except Exception:
+            pass
+    try:
+        readings["now_matches_newest"] = bool(
+            getattr(moment, "now_matches_newest", False)
+        )
+    except Exception:
+        pass
+    try:
+        kind = str(getattr(moment, "kind", "") or "")
+    except Exception:
+        kind = ""
+    readings["kind"] = kind
+    readings["tombstone"] = kind == "deleted"
+    readings["dirty"] = kind == "now_dirty"
+    return readings
+
+
 def build_time_band_data(
     *,
     subject_id: str,
@@ -242,6 +309,7 @@ def build_time_band_data(
     loading: bool = False,
     now_epoch: int = 0,
     total_visible: int = 0,
+    moment: Any | None = None,
 ) -> TimeBandData | None:
     """Build the band model for one section's moment, or ``None`` to hide.
 
@@ -249,7 +317,10 @@ def build_time_band_data(
     are committed versions. ``timeline`` carries the provider's timeline
     wire plus ``upstream_ahead``, ``health``, ``is_template``, and
     ``managed`` annotations. ``None`` while indexing yields the dim
-    ``indexing…`` notice row.
+    ``indexing…`` notice row. When ``moment`` (a ``VersionMoment``) is
+    given, the current and newest versions, the dirty flag, the view, the
+    diff endpoints, the newer count, and the tombstone state all come
+    from it; the band never recomputes them on its own.
     """
     kind, detail = _honest_state_kind(timeline, indexing=loading)
     subject_kind = _subject_kind_of(subject_id)
@@ -309,10 +380,35 @@ def build_time_band_data(
                 total_visible=total_visible,
             )
         return None
-    newest = versions[-1]
+    readings = _moment_readings(moment)
+    by_ordinal = {version.ordinal: version for version in versions}
+    if readings["newest"]:
+        newest = by_ordinal.get(readings["newest"], versions[-1])
+    else:
+        newest = versions[-1]
+    if readings["dirty"] is not None:
+        dirty = bool(readings["dirty"])
     current: TimeBandVersion | None = None
     spark_current: int | None = None
-    if current_ordinal > 0:
+    if moment is not None and readings["kind"] in (
+        "now",
+        "now_dirty",
+        "deleted",
+        "past",
+    ):
+        shown = readings["ordinal"] or 0
+        if readings["kind"] in ("now", "now_dirty"):
+            mode: Literal["now", "past", "notice"] = "now"
+        else:
+            for index, version in enumerate(versions):
+                if version.ordinal == shown:
+                    current = version
+                    spark_current = index
+                    break
+            if current is None:
+                return None
+            mode = "past"
+    elif current_ordinal > 0:
         for index, version in enumerate(versions):
             if version.ordinal == current_ordinal:
                 current = version
@@ -320,11 +416,14 @@ def build_time_band_data(
                 break
         if current is None:
             return None
-        mode: Literal["now", "past", "notice"] = "past"
+        mode = "past"
     else:
         mode = "now"
     if kind == "template":
         is_template = True
+    tombstone = bool(readings["tombstone"]) or (
+        current is not None and current.class_name == "deleted"
+    )
     return TimeBandData(
         mode=mode,
         subject_id=subject_id,
@@ -343,6 +442,13 @@ def build_time_band_data(
         managed=managed,
         now_epoch=now_epoch,
         total_visible=total_visible,
+        view=readings["view"],
+        diff=readings["diff"],
+        newer_count=int(readings["newer_count"] or 0),
+        commit_subject=readings["commit_subject"],
+        path_at_version=readings["path_at_version"],
+        tombstone=tombstone,
+        now_matches_newest=bool(readings["now_matches_newest"]),
     )
 
 

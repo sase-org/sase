@@ -30,6 +30,7 @@ from sase.pager._time_band_vocab import TimeState
 from sase.pager._time_band_vocab import UNCOMMITTED_STYLE
 from sase.pager._time_band_vocab import chrome_row_budget
 from sase.pager._time_band_vocab import format_age
+from sase.pager._time_band_vocab import render_scrubber
 from sase.pager._time_band_vocab import render_sparkline
 from sase.pager._time_band_vocab import short_display_for_subject_id
 
@@ -54,6 +55,7 @@ __all__ = [
     "chrome_row_budget",
     "format_age",
     "ref_for_target",
+    "render_scrubber",
     "render_sparkline",
     "render_time_band",
     "short_display_for_subject_id",

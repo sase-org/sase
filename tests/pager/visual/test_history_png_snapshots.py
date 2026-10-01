@@ -27,7 +27,6 @@ from sase.pager.history.models import (
     committed_pin_for_ordinal,
     live_pin_for_subject,
 )
-from sase.memory.history.pager_provider_core import _tombstone_banner
 from sase.pager.history.provider import clear_history_provider_factories
 from sase.pager.screen import PagerScreen
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -82,20 +81,10 @@ _FRAME_BODY = _PAST_BODY + "".join(
     for number in range(7, 130)
 )
 
-_TOMBSTONE_VERSION = {
-    "class": "deleted",
-    "committer_time": 1577880000,
-    "author_time": 1577880000,
-    "author_name": "Test Author",
-    "provenance": {"agent": "Test Author"},
-}
-
+#: The tombstone body is exactly the last content: the deletion notice
+#: moved from the body into band tombstone chrome (band phase).
 _TOMBSTONE_BODY = (
-    f"{_tombstone_banner(_TOMBSTONE_VERSION)}\n"
-    "\n"
-    "# Garden note\n"
-    "\n"
-    "This note was removed when the beds were replanted.\n"
+    "# Garden note\n\nThis note was removed when the beds were replanted.\n"
 )
 
 _DIFF_PAST_BODY = (

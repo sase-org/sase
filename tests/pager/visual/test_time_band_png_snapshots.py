@@ -12,6 +12,8 @@ deterministically after mount.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from sase.ace.testing.wait import wait_for
@@ -129,6 +131,52 @@ def _past_timeline() -> dict[str, object]:
     }
 
 
+def _diff_range_timeline() -> dict[str, object]:
+    """Four versions for the non-adjacent ``timeband_diff-range`` golden."""
+    rows = [
+        _version_row(1, _COMMIT_V1, _BLOB_V1, _V1_TIME, "created"),
+        _version_row(2, _COMMIT_V2, _BLOB_V2, _V2_TIME, "authored"),
+        _version_row(
+            3,
+            "3333333333333333333333333333333333333333",
+            "ccddeeff00112233445566778899aabbccddeeff",
+            _V2_TIME + 86400,
+            "authored",
+        ),
+        _version_row(
+            4,
+            "4444444444444444444444444444444444444444",
+            "eeff00112233445566778899aabbccddeeff0011",
+            _V2_TIME + 2 * 86400,
+            "promoted",
+        ),
+    ]
+    return {
+        "subject_id": _SUBJECT_ID,
+        "state": "tracked",
+        "versions": rows,
+    }
+
+
+def _many_timeline() -> dict[str, object]:
+    """260 versions for the bucketed ``timeband_many-versions`` golden."""
+    rows = [
+        _version_row(
+            ordinal,
+            f"{ordinal:040d}",
+            f"{ordinal + 1:040d}",
+            _V1_TIME + ordinal * 3600,
+            "authored",
+        )
+        for ordinal in range(1, 261)
+    ]
+    return {
+        "subject_id": _SUBJECT_ID,
+        "state": "tracked",
+        "versions": rows,
+    }
+
+
 def _cause_timeline() -> dict[str, object]:
     return {
         "subject_id": "instructions:project:demo/.",
@@ -224,6 +272,40 @@ def _section_for_state(state: str) -> PagerSection:
             raw_source=raw,
             version_pin=pin,
         )
+    if state == "diff-range":
+        pin = committed_pin_for_ordinal(
+            _SUBJECT_ID,
+            4,
+            commit="4444444444444444444444444444444444444444",
+            blob_oid="eeff00112233445566778899aabbccddeeff0011",
+            view="diff",
+            compare_base=1,
+        )
+        return PagerSection(
+            identity=_IDENTITY,
+            title=_TITLE,
+            kind="file",
+            body=_PAST_BODY,
+            subject_ref=_SUBJECT_ID,
+            raw_source=raw,
+            version_pin=pin,
+        )
+    if state == "many-versions":
+        pin = committed_pin_for_ordinal(
+            _SUBJECT_ID,
+            130,
+            commit=f"{130:040d}",
+            blob_oid=f"{131:040d}",
+        )
+        return PagerSection(
+            identity=_IDENTITY,
+            title=_TITLE,
+            kind="file",
+            body=_PAST_BODY,
+            subject_ref=_SUBJECT_ID,
+            raw_source=raw,
+            version_pin=pin,
+        )
     if state == "untracked":
         return PagerSection(
             identity=_IDENTITY,
@@ -247,7 +329,44 @@ def _inject_time_band_state(screen: PagerScreen, state: str) -> None:
     """Populate deterministic per-section history state for *state*."""
     screen._time_band_now_epoch = _NOW  # type: ignore[attr-defined]
     identity = screen.document.sections[0].identity
-    if state == "past":
+    if state == "diff-range":
+        pin = replace(
+            committed_pin_for_ordinal(
+                _SUBJECT_ID,
+                4,
+                commit="4444444444444444444444444444444444444444",
+                blob_oid="eeff00112233445566778899aabbccddeeff0011",
+                view="diff",
+                compare_base=1,
+            ),
+            explicit_base=True,
+        )
+        time_state = SectionTimeState(
+            provider_key="fixture",
+            subject_id=_SUBJECT_ID,
+            scope_key="project",
+            status="live",
+            visible_ordinals=(1, 2, 3, 4),
+            current_pin=pin,
+        )
+        timeline = _diff_range_timeline()
+    elif state == "many-versions":
+        pin = committed_pin_for_ordinal(
+            _SUBJECT_ID,
+            130,
+            commit=f"{130:040d}",
+            blob_oid=f"{131:040d}",
+        )
+        time_state = SectionTimeState(
+            provider_key="fixture",
+            subject_id=_SUBJECT_ID,
+            scope_key="project",
+            status="live",
+            visible_ordinals=tuple(range(1, 261)),
+            current_pin=pin,
+        )
+        timeline = _many_timeline()
+    elif state == "past":
         pin = committed_pin_for_ordinal(
             _SUBJECT_ID, 2, commit=_COMMIT_V2, blob_oid=_BLOB_V2
         )
@@ -318,7 +437,9 @@ def _other_document() -> PagerDocument:
 
 @pytest.mark.parametrize("size", _SIZES)
 @pytest.mark.parametrize("light", [False, True])
-@pytest.mark.parametrize("state", ["past", "now", "cause", "untracked"])
+@pytest.mark.parametrize(
+    "state", ["past", "now", "cause", "untracked", "diff-range", "many-versions"]
+)
 async def test_time_band_png_snapshot(
     pager_png_visual: AcePngSnapshotFixture,
     size: tuple[int, int],
@@ -341,13 +462,18 @@ async def test_time_band_png_snapshot(
         async with app.run_test(size=size) as pilot:
             screen = app.screen
             assert isinstance(screen, PagerScreen)
-            await wait_for(
-                pilot,
-                lambda: (
-                    _syntax_key_for_section(section) in screen._syntax_prepared
-                    and not screen._syntax_pass_running
-                ),
-            )
+            if state == "diff-range":
+                # Diff-view sections carry their own word-diff styling and
+                # never enter syntax preparation.
+                await pilot.pause()
+            else:
+                await wait_for(
+                    pilot,
+                    lambda: (
+                        _syntax_key_for_section(section) in screen._syntax_prepared
+                        and not screen._syntax_pass_running
+                    ),
+                )
             _inject_time_band_state(screen, state)
             await pilot.pause()
             pager_png_visual.assert_page_png(

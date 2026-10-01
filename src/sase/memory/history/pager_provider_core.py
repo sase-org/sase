@@ -20,10 +20,8 @@ from sase.memory.history._pager_provider_common import (
     wire_history_path,
     wire_subject_id,
 )
-from sase.memory.history.render_text import format_banner_date
 from sase.memory.history.scopes import HistoryScopeError, git_repo_root
 from sase.memory.history.service import HistoryService
-from sase.memory.history.vocabulary import label_for
 from sase.pager.document import PagerSection
 from sase.pager.history.models import VersionPin, committed_pin_for_ordinal
 from sase.pager.syntax_policy import classify_source
@@ -324,24 +322,6 @@ class _MemoryHistoryProvider:
         return self.load_version(section, 0)
 
 
-def _tombstone_banner(version: dict[str, Any]) -> str:
-    """Return the deletion tombstone banner for one version wire dict."""
-    epoch = int(version.get("committer_time", 0) or 0) or int(
-        version.get("author_time", 0) or 0
-    )
-    date = format_banner_date(epoch) if epoch else "unknown date"
-    provenance = version.get("provenance", {})
-    if not isinstance(provenance, dict):
-        provenance = {}
-    actor = (
-        str(provenance.get("agent") or "").strip()
-        or str(version.get("author_name") or "").strip()
-        or "unknown"
-    )
-    label = label_for(str(version.get("class", "") or "deleted"))
-    return f"✖ {label} {date} by {actor} · last content shown"
-
-
 def _derived_section(
     section: PagerSection,
     scope: Any,
@@ -360,11 +340,11 @@ def _derived_section(
         version = {}
     commit = version.get("commit")
     blob_oid = version.get("blob_oid")
-    class_name = str(version.get("class", "") or "")
     subject_id = wire_subject_id(response, selector)
     historical_path = wire_history_path(response, selector)
-    if class_name == "deleted":
-        body = f"{_tombstone_banner(version)}\n\n{body}"
+    # Deletions surface through band tombstone chrome (the pill and the
+    # ``✖ deleted … showing last content`` row); the body stays exactly
+    # the last content so line numbers, search, and copy match the file.
     pin: VersionPin = committed_pin_for_ordinal(
         subject_id,
         ordinal,

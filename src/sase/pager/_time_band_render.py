@@ -1,20 +1,27 @@
 """Row renderers for the pager time band.
 
 Paints a :class:`sase.pager._time_band_model.TimeBandData` model into Rich
-``Text`` rows: the one-row life strip at now, the meaning plus time rows in
-the past, cause rows for instruction subjects, and honest-state notices.
-The timeline model lives in :mod:`sase.pager._time_band_model` and shared
-vocabulary in :mod:`sase.pager._time_band_vocab`.
+``Text`` rows: the one-row life strip at now, the timeline plus meaning
+rows in the past, cause rows for instruction subjects, tombstone chrome
+for deletions, and honest-state notices. The timeline model lives in
+:mod:`sase.pager._time_band_model` and shared vocabulary (including the
+playhead scrubber) in :mod:`sase.pager._time_band_vocab`.
 
 Row plan (the band is the feature's signature visual):
 
-- At now: a one-row life strip — sparkline, ``last changed …``, and
-  ``◌ uncommitted`` when dirty.
-- In the past: two rows — a meaning row (class glyph, section path, word
-  delta, frontmatter semantics; bead, agent, short SHA on the right) and a
-  time row (sparkline, absolute date, ``→ now``, dirty and upstream
-  markers).
-- Instruction subjects show a cause row instead of the meaning row.
+- At now: a one-row life strip — scrubber, ``last changed …``, and
+  ``◌ edits not durable until committed`` when dirty.
+- In the past: two rows — a timeline row (playhead scrubber with
+  labelled ends, absolute date, commit subject, ``N newer``, upstream
+  marker) and a meaning row (class glyph, section path, word delta,
+  frontmatter semantics; bead, agent, short SHA on the right) sitting
+  directly above the body it describes. With one row only the meaning
+  row is kept, because the pill already carries the identity.
+- In the diff view the timeline row spells out the compared range and
+  both endpoints (``Δ v23 → v24``), colour-matched to the body's delete
+  and insert tones.
+- Instruction subjects show a cause row instead of the meaning row; a
+  deletion shows a tombstone row instead of the meaning row.
 - Honest states (untracked, ignored, no VCS, shallow, template, indexing,
   unavailable) render inside the band and never block the body: states
   with no usable history collapse the band to one honest row, while
@@ -25,6 +32,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Mapping
+from typing import Any
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -36,12 +44,12 @@ from sase.pager._time_band_model import time_band_targets
 from sase.pager._time_band_vocab import ALIAS_SEPARATOR
 from sase.pager._time_band_vocab import BAND_LABEL_STYLE
 from sase.pager._time_band_vocab import CLASS_GLYPHS
+from sase.pager._time_band_vocab import DELETED_STYLE
 from sase.pager._time_band_vocab import DIM_STYLE
 from sase.pager._time_band_vocab import DIVERGED_CHIP
 from sase.pager._time_band_vocab import PAST_STYLE
 from sase.pager._time_band_vocab import UNCOMMITTED_STYLE
-from sase.pager._time_band_vocab import format_age
-from sase.pager._time_band_vocab import render_sparkline
+from sase.pager._time_band_vocab import render_scrubber
 
 
 def render_time_band(
@@ -50,12 +58,15 @@ def render_time_band(
     width: int,
     rows: int,
     hints: Mapping[int, str] | None = None,
+    styles: Any | None = None,
 ) -> Text:
     """Render the band for *data*, clipped to *width* cells per row.
 
     *rows* is the budgeted row count from :func:`chrome_row_budget` (0–2).
     *hints* maps target indexes from :func:`time_band_targets` to their
-    jump-hint capsules, painted before each target occurrence.
+    jump-hint capsules, painted before each target occurrence. *styles*
+    is the theme-aware :class:`HistoryStyles` set; legacy constants apply
+    without it.
     """
     width = max(0, int(width))
     rows = max(0, min(int(rows), 2))
@@ -68,19 +79,26 @@ def render_time_band(
         return text
     hint_map = dict(hints or {})
     if data.mode == "now":
-        return _fit_text(_life_strip_row(data, hint_map), width)
+        return _fit_text(_life_strip_row(data, width, styles), width)
     ordered = time_band_targets(data)
     if rows == 1:
-        # Degraded past band: the meaning row survives, the time row drops.
+        # Degraded past band: the meaning row survives, because the pill
+        # already carries the identity. A deletion keeps its tombstone.
+        if data.tombstone:
+            return _fit_text(_tombstone_row(data, width, styles), width)
         if data.subject_kind == "instructions":
             return _fit_text(_cause_row(data, ordered, hint_map, width), width)
-        return _fit_text(_meaning_row(data, ordered, hint_map, width), width)
-    if data.subject_kind == "instructions":
+        return _fit_text(_meaning_row(data, ordered, hint_map, width, styles), width)
+    text.append_text(_fit_text(_timeline_row(data, width, styles), width))
+    text.append("\n")
+    if data.tombstone:
+        text.append_text(_fit_text(_tombstone_row(data, width, styles), width))
+    elif data.subject_kind == "instructions":
         text.append_text(_fit_text(_cause_row(data, ordered, hint_map, width), width))
     else:
-        text.append_text(_fit_text(_meaning_row(data, ordered, hint_map, width), width))
-    text.append("\n")
-    text.append_text(_fit_text(_time_row(data, width), width))
+        text.append_text(
+            _fit_text(_meaning_row(data, ordered, hint_map, width, styles), width)
+        )
     return text
 
 
@@ -89,9 +107,36 @@ def _glyph_for_class(class_name: str) -> str:
     return CLASS_GLYPHS.get(class_name, "?")
 
 
-def _format_absolute(epoch: int) -> str:
-    """Return an absolute local date and time (``Sep 22 2026 14:03``)."""
+def _format_full(epoch: int) -> str:
+    """Return a full absolute date and time (``Mon Aug 24 2026 12:41``)."""
+    return datetime.datetime.fromtimestamp(epoch).strftime("%a %b %d %Y %H:%M")
+
+
+def _format_day(epoch: int) -> str:
+    """Return an absolute date without the time (``Tue Aug 25 2026``)."""
+    return datetime.datetime.fromtimestamp(epoch).strftime("%a %b %d %Y")
+
+
+def _format_compact(epoch: int) -> str:
+    """Return a compact absolute date and time (``Aug 24 2026 12:41``)."""
     return datetime.datetime.fromtimestamp(epoch).strftime("%b %d %Y %H:%M")
+
+
+def _format_short(epoch: int) -> str:
+    """Return a month-day date for diff bases (``Aug 24``)."""
+    return datetime.datetime.fromtimestamp(epoch).strftime("%b %d")
+
+
+def _style_role(styles: Any | None, attr: str, fallback: str) -> str:
+    """Return one history colour role, falling back to legacy constants."""
+    if styles is not None:
+        try:
+            value = getattr(styles, attr, None)
+        except Exception:
+            value = None
+        if isinstance(value, str) and value:
+            return value
+    return fallback
 
 
 def _honest_row_text(kind: str, detail: str | None) -> Text:
@@ -155,11 +200,31 @@ def _fit_text(text: Text, width: int) -> Text:
     return cropped
 
 
-def _sparkline_for_data(data: TimeBandData, width: int) -> Text:
-    """Render the life sparkline for *data* within *width* cells."""
-    volumes = [version.volume for version in data.versions]
-    classes = [version.class_name for version in data.versions]
-    return render_sparkline(volumes, classes, data.spark_current, width)
+def _scrubber_args(
+    data: TimeBandData,
+    *,
+    shown_ordinal: int | None,
+    track_width: int,
+    endpoints: str,
+    styles: Any | None,
+) -> dict[str, Any]:
+    """Return the shared :func:`render_scrubber` arguments for *data*."""
+    return {
+        "ordinals": [version.ordinal for version in data.versions],
+        "volumes": [version.volume for version in data.versions],
+        "hidden": [bool(version.hidden) for version in data.versions],
+        "deleted": [version.class_name == "deleted" for version in data.versions],
+        "shown_ordinal": shown_ordinal,
+        "view": data.view,
+        "diff_base": data.diff[0] if data.diff is not None else None,
+        "diff_target": data.diff[1] if data.diff is not None else None,
+        "dirty": data.dirty,
+        "tombstone": data.tombstone,
+        "now_matches_newest": data.now_matches_newest,
+        "track_width": track_width,
+        "endpoints": endpoints,
+        "styles": styles,
+    }
 
 
 def _who_text(data: TimeBandData, version: TimeBandVersion | None) -> str:
@@ -172,30 +237,65 @@ def _who_text(data: TimeBandData, version: TimeBandVersion | None) -> str:
     return version.agent or version.bead or ""
 
 
-def _life_strip_row(data: TimeBandData, hint_map: Mapping[int, str]) -> Text:
-    """Render the one-row life strip shown at now."""
-    del hint_map
+def _version_by_ordinal(data: TimeBandData, ordinal: int) -> TimeBandVersion | None:
+    """Return the band version for *ordinal*, if present."""
+    for version in data.versions:
+        if version.ordinal == ordinal:
+            return version
+    return None
+
+
+def _life_strip_row(data: TimeBandData, width: int, styles: Any | None) -> Text:
+    """Render the one-row life strip shown at now: scrubber plus history."""
     text = Text(no_wrap=True, overflow="crop")
     prefix = _honest_prefix(data.honest_kind, data.honest_detail)
     if prefix is not None:
         text.append_text(prefix)
         text.append(" · ", style=DIM_STYLE)
-    if data.newest is not None and data.newest.committer_time:
-        age = format_age(data.now_epoch, data.newest.committer_time)
-        who = _who_text(data, data.newest)
-        spark = _sparkline_for_data(data, 24)
-        text.append_text(spark)
-        text.append(f"  last changed {age} ago", style=DIM_STYLE)
-        if who:
-            text.append(f" · {who}", style=DIM_STYLE)
-    elif data.versions:
-        text.append_text(_sparkline_for_data(data, 24))
-        text.append("  no committed versions", style=DIM_STYLE)
-    else:
+    if not data.versions:
         text.append("no history yet", style=DIM_STYLE)
-    if data.dirty:
-        text.append("  ◌ uncommitted", style=UNCOMMITTED_STYLE)
-    return text
+        return text
+    who = _who_text(data, data.newest)
+    when = ""
+    if data.newest is not None and data.newest.committer_time:
+        when = f"last changed {_format_day(data.newest.committer_time)}"
+    # Shedding: the owner first, then the scrubber down to 8 cells,
+    # then the endpoint labels.
+    show_who = True
+    track_width = 60
+    endpoint_mode = "full"
+    while True:
+        scrubber = render_scrubber(
+            **_scrubber_args(
+                data,
+                shown_ordinal=None,
+                track_width=track_width,
+                endpoints=endpoint_mode,
+                styles=styles,
+            )
+        )
+        row = Text(no_wrap=True, overflow="crop")
+        row.append_text(scrubber)
+        if when:
+            row.append(f"  {when}", style=DIM_STYLE)
+            if show_who and who:
+                row.append(f" · {who}", style=DIM_STYLE)
+        if data.dirty:
+            row.append("  ◌ edits not durable until committed", style=UNCOMMITTED_STYLE)
+        if cell_len(row.plain) <= max(width, 0):
+            text.append_text(row)
+            return text
+        if show_who:
+            show_who = False
+        elif track_width > 8:
+            track_width = max(8, track_width - 12)
+        elif endpoint_mode == "full":
+            endpoint_mode = "short"
+        elif endpoint_mode == "short":
+            endpoint_mode = "none"
+        else:
+            text.append_text(row)
+            return text
 
 
 def _meaning_text(version: TimeBandVersion) -> tuple[str, str]:
@@ -244,19 +344,23 @@ def _meaning_row(
     ordered: tuple[TimeBandTarget, ...],
     hint_map: Mapping[int, str],
     width: int,
+    styles: Any | None = None,
 ) -> Text:
     """Render the past meaning row with SHA→agent→bead→section shedding."""
     version = data.current
     text = Text(no_wrap=True, overflow="crop")
     if version is None:
         return text
+    past = _style_role(styles, "past", PAST_STYLE)
     prefix = _honest_prefix(data.honest_kind, data.honest_detail)
     segments: list[Text] = []
     if prefix is not None:
         segments.append(prefix)
     glyph, summary = _meaning_text(version)
+    if data.path_at_version:
+        summary = f"{summary} · as {data.path_at_version}"
     left = Text(no_wrap=True, overflow="crop")
-    left.append(f"{glyph} ", style=PAST_STYLE)
+    left.append(f"{glyph} ", style=past)
     left.append(summary)
     segments.append(left)
     # Right-side provenance in bead · agent · SHA order; shed SHA, agent,
@@ -285,7 +389,7 @@ def _meaning_row(
             return text
         if shed == "sections" and shed_sections:
             sections_dropped = Text(no_wrap=True, overflow="crop")
-            sections_dropped.append(f"{glyph} ", style=PAST_STYLE)
+            sections_dropped.append(f"{glyph} ", style=past)
             head = summary.split(" § ")[0].rstrip("· ")
             words = _words_text(version)
             sections_dropped.append(head + (f" · {words}" if words else ""))
@@ -414,47 +518,159 @@ def _alias_chip(data: TimeBandData, version: TimeBandVersion) -> Text | None:
     return None
 
 
-def _time_row(data: TimeBandData, width: int) -> Text:
-    """Render the past time row: sparkline, date, and trailing markers."""
+def _newer_text(data: TimeBandData) -> str:
+    """Return the right-aligned ``N newer`` segment (``+ uncommitted`` dirty)."""
+    if data.newer_count > 0 and data.dirty:
+        return f"{data.newer_count} newer + uncommitted"
+    if data.newer_count > 0:
+        return f"{data.newer_count} newer"
+    if data.dirty:
+        return "+ uncommitted"
+    return ""
+
+
+def _upstream_text(data: TimeBandData) -> str:
+    """Return the ``⇡N on origin/<branch>`` marker, or ``""``."""
+    if not data.upstream_ahead:
+        return ""
+    marker = f"⇡{data.upstream_ahead}"
+    if data.upstream_branch:
+        marker = f"{marker} on {data.upstream_branch}"
+    return marker
+
+
+def _timeline_row(data: TimeBandData, width: int, styles: Any | None) -> Text:
+    """Render the past timeline row: scrubber, date, subject, and markers.
+
+    Shedding order: the commit subject, the ⇡N marker, ``N newer``, the
+    weekday and time (the date stays), the scrubber down to 8 cells, and
+    finally the endpoint labels.
+    """
     text = Text(no_wrap=True, overflow="crop")
     version = data.current
     if version is None:
         return text
-    right = Text(no_wrap=True, overflow="crop")
-    right.append("→ now", style=DIM_STYLE)
-    if data.dirty:
-        right.append(" ◌", style=UNCOMMITTED_STYLE)
-    upstream: Text | None = None
-    if data.upstream_ahead:
-        upstream = Text(no_wrap=True, overflow="crop")
-        marker = f"⇡{data.upstream_ahead}"
-        if data.upstream_branch:
-            marker = f"{marker} on {data.upstream_branch}"
-        upstream.append(marker, style=DIM_STYLE)
-    date = _format_absolute(version.committer_time) if version.committer_time else ""
-    # Shedding order: the absolute date first, then the ⇡N marker.
-    spark_room = max(width - cell_len(right.plain) - 4, 1)
-    if date:
-        date_piece = f"  {date}"
-        if upstream is not None:
-            probe = f"{date_piece}  {upstream.plain}"
+    delete = _style_role(styles, "delete", DELETED_STYLE)
+    insert = _style_role(styles, "insert", "green")
+    is_diff = data.view == "diff" and data.diff is not None
+    has_upstream = bool(_upstream_text(data))
+    has_newer = bool(_newer_text(data))
+
+    def middle_text(*, subject: bool, full_date: bool) -> Text:
+        middle = Text(no_wrap=True, overflow="crop")
+        if is_diff:
+            base, target = data.diff or (0, 0)
+            middle.append("comparing ", style=DIM_STYLE)
+            if base > 0:
+                base_version = _version_by_ordinal(data, base)
+                middle.append(f"v{base}", style=f"bold {delete}")
+                if base_version is not None and base_version.committer_time:
+                    if data.dirty and target == 0:
+                        when = _format_day(base_version.committer_time)
+                    else:
+                        when = _format_short(base_version.committer_time)
+                    middle.append(f" {when}", style=f"bold {delete}")
+                middle.append(" → ", style=DIM_STYLE)
+            if target == 0:
+                middle.append("uncommitted edits", style=insert)
+            else:
+                target_version = _version_by_ordinal(data, target)
+                middle.append(f"v{target}", style=f"bold {insert}")
+                if target_version is not None and target_version.committer_time:
+                    when = _format_compact(target_version.committer_time)
+                    middle.append(f" {when}", style=f"bold {insert}")
+            return middle
+        if version.committer_time:
+            if full_date:
+                middle.append(_format_full(version.committer_time), style=DIM_STYLE)
+            else:
+                day = datetime.datetime.fromtimestamp(version.committer_time).strftime(
+                    "%b %d %Y"
+                )
+                middle.append(day, style=DIM_STYLE)
+        if subject and data.commit_subject:
+            if len(middle.plain):
+                middle.append(" · ", style=DIM_STYLE)
+            middle.append(data.commit_subject)
+        return middle
+
+    def right_text(*, newer: bool, upstream: bool) -> Text:
+        right = Text(no_wrap=True, overflow="crop")
+        if newer and has_newer:
+            right.append(_newer_text(data), style=DIM_STYLE)
+        if upstream and has_upstream:
+            if len(right.plain):
+                right.append("  ")
+            right.append(_upstream_text(data), style=DIM_STYLE)
+        return right
+
+    show_subject = True
+    show_upstream = True
+    show_newer = True
+    full_date = True
+    track_width = 60
+    endpoint_mode = "full"
+    while True:
+        scrubber = render_scrubber(
+            **_scrubber_args(
+                data,
+                shown_ordinal=None if is_diff else version.ordinal,
+                track_width=track_width,
+                endpoints=endpoint_mode,
+                styles=styles,
+            )
+        )
+        middle = middle_text(subject=show_subject, full_date=full_date)
+        right = right_text(newer=show_newer, upstream=show_upstream)
+        row = Text(no_wrap=True, overflow="crop")
+        row.append_text(scrubber)
+        if len(middle.plain):
+            row.append("  ")
+            row.append_text(middle)
+        if len(right.plain):
+            gap = max(max(width, 0) - cell_len(row.plain) - cell_len(right.plain), 1)
+            row.append(" " * gap)
+            row.append_text(right)
+        if cell_len(row.plain) <= max(width, 0):
+            text.append_text(row)
+            return text
+        if show_subject and not is_diff and data.commit_subject:
+            show_subject = False
+        elif show_upstream and has_upstream:
+            show_upstream = False
+        elif show_newer and has_newer:
+            show_newer = False
+        elif full_date and not is_diff and version.committer_time:
+            full_date = False
+        elif track_width > 8:
+            track_width = max(8, track_width - 8)
+        elif endpoint_mode == "full":
+            endpoint_mode = "short"
+        elif endpoint_mode == "short":
+            endpoint_mode = "none"
         else:
-            probe = date_piece
-        if len(data.versions) + cell_len(probe) + cell_len(right.plain) + 4 <= width:
-            spark_room = max(width - cell_len(probe) - cell_len(right.plain) - 4, 1)
-        else:
-            date = ""
-    spark_width = min(len(data.versions), spark_room)
-    text.append_text(_sparkline_for_data(data, max(spark_width, 1)))
-    if date:
-        text.append(f"  {date}", style=DIM_STYLE)
-    rest = width - cell_len(text.plain) - cell_len(right.plain)
-    if upstream is not None and cell_len(upstream.plain) + 3 <= rest:
-        text.append("  ")
-        text.append_text(upstream)
-        rest = width - cell_len(text.plain) - cell_len(right.plain)
-    text.append(" " * max(rest, 1))
-    text.append_text(right)
+            text.append_text(row)
+            return text
+
+
+def _tombstone_row(data: TimeBandData, width: int, styles: Any | None) -> Text:
+    """Render the deletion notice as chrome: date, actor, and last content."""
+    del width
+    text = Text(no_wrap=True, overflow="crop")
+    version = data.current
+    if version is None:
+        return text
+    delete = _style_role(styles, "delete", DELETED_STYLE)
+    if version.committer_time:
+        when = _format_full(version.committer_time)
+    else:
+        when = "unknown date"
+    actor = version.agent or version.author or "unknown"
+    text.append("✖ deleted ", style=f"bold {delete}")
+    text.append(
+        f"{when} by {actor} · showing last content (v{version.ordinal})",
+        style=DIM_STYLE,
+    )
     return text
 
 
