@@ -147,17 +147,36 @@ reference notes (`type: reference`). Core notes are excluded because they are in
 to arrive through instruction loading rather than ad hoc reads. The command strips one
 leading YAML frontmatter block from stdout and appends a `## Children` section when the
 note has nested reference children. The audit event records metadata such as path, agent
-name, timestamp, cwd, byte count, reason, and the git blob OID of the bytes that were
-read. A batch also records each included target's blob OID as `path=oid`.
-`sase memory log --id` shows those as **Blob OID** and **Blob OIDs**. Older rows written
-before the fields existed still display; a missing OID prints as `none`.
+name, timestamp, cwd, byte count, reason, and content hashes in Git's SHA-1 blob format
+(**blob OIDs**). An OID identifies content, not the commit that contained it, and does
+not require that content to be committed. For a flat note, the hash covers the UTF-8
+text including frontmatter, with line endings normalized by the text reader. For a
+strand, it covers the UTF-8 body without frontmatter, so it is not the blob OID of the
+complete strand file.
 
-An agent launch records the same kind of as-seen evidence on `agent_meta.json` and never
-blocks the launch when capture fails. `workspace_head` is the workspace git `HEAD`.
-`instruction_snapshot` lists the workspace `AGENTS.md` and provider shims that exist,
-plus one home instruction file, each as `path`, `repo` (`project`, `none`, or
-`chezmoi`), `blob_oid`, and `tracked`. A blob that is missing from the owning repository
-is copied to `~/.sase/instruction_snapshots/<oid>`.
+A single flat-note read records `blob_oid`. A batch (including a strand or web read, or
+a note with inline references) records target/hash pairs in `included_blob_oids`: flat
+notes use canonical paths, and strands use `web:keyword` selectors.
+`sase memory log --id <read-id>` always shows **Blob OID**, and shows **Blob OIDs** as
+`target=oid` pairs when present. The single-OID field is normally `none` for a batch.
+Older rows without these fields still load; failed hash capture does not block a read.
+
+Agent launch also attempts to record evidence in `agent_meta.json`; capture failure does
+not block launch. `workspace_head` is the workspace Git `HEAD`, when available.
+`instruction_snapshot` inventories readable root `AGENTS.md` and provider shims in the
+workspace, plus the first readable home instruction file in this order: `AGENTS.md`,
+`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`. This is a launch-time file
+inventory, not proof that a provider loaded every listed file; nested instruction files
+are not included.
+
+Each entry has `path`, `repo` (`project`, `none`, or `chezmoi`), `blob_oid`, and
+`tracked`. These hashes cover the files' actual bytes. Workspace entries use `project`
+when an owning Git repository is found, otherwise `none`. Home entries use `chezmoi`
+when that integration is enabled, otherwise `none`, and always report `tracked: false`.
+Bytes absent from an identified workspace repository are copied to
+`~/.sase/instruction_snapshots/<oid>`; home bytes are also copied when no repository is
+found. A workspace file without an owning repository gets an OID but no byte snapshot.
+Snapshot writes are best effort.
 
 Every read requires a non-empty reason via `-r` or `--reason` and agent attribution from
 `SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json` (`name`,

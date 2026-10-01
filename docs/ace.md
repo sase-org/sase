@@ -673,12 +673,13 @@ The pane supports the full bead workflow:
 | `$`                 | Arm the [link rail](#contextual-artifact-links), e.g. to follow the linked plan |
 | `R`                 | Open the [Refresh panel](#refresh-panel)                                        |
 
-`N` appends a note and leaves earlier notes in place. In that modal, `@<path>` attaches
-a file snapshot: `Tab` completes paths, pasting a file path attaches it, and `@@`
-inserts a literal `@`. `Ctrl+T` cycles the attachment audience from automatic, to
-private, to public. Public asks you to confirm before the note is saved. The bead detail
-lists each attachment's `🌐` or `🔒` chip from the stored descriptor and leaves
-availability badges and thumbnails to the attachment viewer. See
+`N` opens a modal for appending a note and leaves earlier notes in place. Add `@<path>`
+to capture a file snapshot when you save with `Ctrl+S`: `Tab` completes paths, pasting a
+single existing file path inserts an attachment reference, and `@@` inserts a literal
+`@`. `Ctrl+T` cycles the attachment audience through automatic, private, and public.
+Public asks you to confirm on save; policy can still reject the note and return you to
+the editor. The bead detail lists each attachment's `🌐` or `🔒` chip from the stored
+descriptor and leaves availability badges and thumbnails to the attachment viewer. See
 [From the Beads pane](beads.md#from-the-beads-pane).
 
 When a bead has several issue links, `E`, `% u`, and the `b`-mode `v`, `e`, `s`, and `u`
@@ -2945,7 +2946,7 @@ clan. Help is not a leader command: press the app-level `?` to open the Help mod
 | `,H`       | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel |
 | `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read                                              |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state                                                   |
-| `,u`       | Mark every loaded unread completed agent read, across tabs and collapsed clans; within 10 seconds, press it again to restore that same set     |
+| `,u`       | Mark all loaded unread completed agents read, across tabs and collapsed clans; with none newly unread, press again within 10 seconds to undo   |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))                                                    |
 | `,U`       | Open Update panel (SASE, providers)                                                                                                            |
 | `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable                                                                 |
@@ -5508,9 +5509,12 @@ on every Agents tab, members of collapsed clans and tribes, and rows that belong
 query which is not the visible tab. Clan containers, session members, workflow children,
 monitors, gates, and named procs stay out of the set, and the gold unread pill counts
 the same rows, so the toast count matches the header. The toast reads
-`Marked N completed agents read · press ,u within 10s to undo`. Press `,u` again within
-those 10 seconds to restore that same set (`Restored N completed agents unread`). After
-the window, or when nothing is unread, `,u` reports `No unread completed agents`. Plan
+`Marked N completed agents read · press ,u within 10s to undo`. With no new unread
+completions, press `,u` again within those 10 seconds to restore the marked agents that
+are still loaded and terminal (`Restored N completed agents unread`). A newly unread
+completion cancels the undo; the next `,u` marks the current unread set read instead.
+When nothing is unread and no valid undo remains, `,u` reports
+`No unread completed agents`. This undo belongs to the current TUI session. Plan
 approvals and user questions are never auto-dismissed by this flow; they always require
 explicit `y` / `n` confirmation from their respective modals.
 
@@ -6874,7 +6878,7 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker                                                                                                                                                                                                         |
 | `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                                                                                                                                                                                                                        |
 | `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                                                                                                                                                                                                                                  |
-| `Ctrl+F`                     | With a completion menu open, accept the highlighted candidate; otherwise move one character forward                                                                                                                                                                                                                             |
+| `Ctrl+F`                     | Accept a highlighted completion-menu candidate; with no menu, take the whole inline ghost when the rest of the line is blank, or move one character forward                                                                                                                                                                     |
 | `Ctrl+G`                     | Start the prompt-local prefix (`g` or `Ctrl+G` again opens `$EDITOR`)                                                                                                                                                                                                                                                           |
 | `Ctrl+G Enter`               | Submit only the selected pane                                                                                                                                                                                                                                                                                                   |
 | `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                                                                                                                                                                                                         |
@@ -7675,100 +7679,110 @@ token under the cursor:
 | `Ctrl+T`          | Start completion, insert a shared prefix, accept the highlighted word-menu row, reveal a waiting peek, or take one word of a visible ghost or revealed peek |
 | `Ctrl+N` / `Down` | Next candidate                                                                                                                                              |
 | `Ctrl+P` / `Up`   | Previous candidate                                                                                                                                          |
-| `Ctrl+F`          | Accept the highlighted completion-menu row                                                                                                                  |
+| `Ctrl+F`          | Accept the highlighted completion-menu row; otherwise act like `Right`, including accepting an inline ghost when the rest of the line is blank              |
 | `Ctrl+L`          | Accept the highlighted completion-menu row, or take the whole visible ghost or revealed peek                                                                |
-| `Right`           | Move right; at the true end of a line, take the whole inline ghost                                                                                          |
-| `Alt+F`           | Move one word right; at the true end of a line, take one inline ghost word                                                                                  |
+| `Right`           | Move right; with only whitespace or nothing after the cursor on this line, take the whole inline ghost                                                      |
+| `Alt+F`           | Move one word right; with only whitespace or nothing after the cursor on this line, take one inline ghost word                                              |
 | `Enter`           | Submit the prompt as typed; a completion candidate stays unaccepted                                                                                         |
 | `Ctrl+D`          | Delete a highlighted recent file, saved placeholder, history word, or predicted next word                                                                   |
 | `Escape`          | Cancel completion                                                                                                                                           |
 
 #### Next-word prediction
 
-After a prompt-local or history-word commit, and on an explicit `Ctrl+T` at the end of a
-prose word or at a whitespace boundary, sase's TUI arms a next-word chain. Confident
-guesses from your own typed prompt history appear as dim inline ghost text, or as a
-border peek when the guess cannot sit in the line. The border hint is
-`[^T] word  [^L] all`.
+Next-word prediction suggests prose from your typed prompt history and the current
+prompt draft, with the prompt archive as an optional additional source. **Ghost text**
+is a dim suggestion inline at the cursor. A **border peek** is a suggestion on the
+prompt box's border when it cannot appear inline. Neither changes your prompt until you
+accept it. The hint `[^T] word  [^L] all` means `Ctrl+T` accepts one word and `Ctrl+L`
+accepts the suggestion.
 
-Where the guess appears depends on the cursor:
+With prediction enabled, accepting a prompt-local or history-word completion starts a
+next-word chain: each accepted suggestion requests another. An explicit `Ctrl+T` also
+starts a chain at a whitespace boundary with no token under the cursor. At the end of a
+prose word, `Ctrl+T` first tries ordinary current-word completion; it requests next
+words only when that completion has no candidate. Structured tokens, such as paths and
+Jinja tags, keep their own completion behavior.
 
-- The rest of the logical line is blank, and the cursor is on that line's last wrapped
-  row: an inline ghost at end of line.
-- Only a short closing tail follows (at most eight non-space characters, each a closer,
-  quote, or clause mark from `)]}"'”’.,;:!?…*_`; spaces between them are allowed; a
-  backtick is outside that set): an inline ghost sits in front of the tail, again only
-  on the last wrapped row.
-- Other text follows on the line, the inline ghost does not fit the remaining width of
-  the wrapped row, or the cursor is on an earlier wrapped row: a border peek. The peek
-  shows a violet `⇢`, the first word in bold, later words dimmed, and the same
-  `[^T] word  [^L] all` hint. A narrow border drops trailing preview words, then
-  `[^L] all`, then `[^T] word`. It keeps every word whole. When even `⇢` plus the first
-  word does not fit, the peek stays hidden.
-- A letter, digit, `_`, `'`, `’`, or `-` follows the cursor: the chain stays quiet.
-  Typing inside a word produces no ghost and no peek.
+Where a confident guess appears depends on the cursor:
 
-Ghosts and peeks are capped at `ace.prompt_completion.next_word_max_words` (default `4`,
-clamped to 1–8). A leading space is omitted at the start of the text, after whitespace,
-and after an opening bracket or quote. A peek is cut before the first preview word that
-already matches, ignoring case, the first word after the cursor. When that first peek
-word is already there, no peek is shown. A guess that rests on a unigram alone never
-reaches the ghost, the peek, or the menu.
+- If the rest of the logical line is blank and the cursor is on its last wrapped row,
+  the guess appears inline. Here, “blank” includes trailing whitespace.
+- If only a short closing tail follows, the guess appears inline before that tail, again
+  only on the last wrapped row. A tail has at most eight non-space characters, all from
+  `)]}"'”’.,;:!?…*_`; spaces between them are allowed, and backticks are excluded.
+- If other text follows, the cursor is on an earlier wrapped row, or even the first
+  suggested word plus the closing tail will not fit, the guess appears as a border peek.
+  The peek shows a violet `⇢`, its first word in bold, and later words dimmed.
+- If a letter, digit, `_`, `'`, `’`, or `-` immediately follows the cursor, no ghost or
+  peek appears. This keeps suggestions quiet when editing inside an existing word.
 
-The `Ctrl+T` ladder starts by arming the chain. A confident guess shows as a ghost or a
-peek. A weaker guess opens a `next word ⇢ "…"` menu naming the evidence context: each
-row shows the word, a violet confidence meter, and a dim `⇢ continuation` preview, and
-accepting a row inserts that word with its separator and continues the chain. With a
-ghost or a revealed peek already visible, the next `Ctrl+T` takes one word. `Ctrl+L`
-takes the whole visible ghost or the whole revealed peek. `Right` takes the whole ghost
-only when it sits at the true end of the line; in front of a closing tail, `Right` stays
-motion and drops the rendered suggestion so the motion does not insert it. `Alt+F` takes
-one ghost word only at that same end of line, and stays word motion in front of a
-closing tail. A peek is accepted with `Ctrl+T` (one word) and `Ctrl+L` (the whole peek).
-`Ctrl+F` accepts an open completion menu, and otherwise moves one character forward.
-Each accept predicts again without flicker.
+`ace.prompt_completion.next_word_max_words` caps suggestions (default `4`, clamped to
+1–8). An inline ghost drops trailing words until it fits beside any closing tail. A
+narrow border drops trailing preview words, then `[^L] all`, then `[^T] word`, without
+cutting a word. If even `⇢` and the first word do not fit, the peek stays hidden.
+**Border shortening affects only the display:** `Ctrl+L` can insert later words omitted
+from a narrow peek. Use `Ctrl+T` to accept one word at a time.
 
-An automatic guess shows its ghost text immediately and waits 350 ms before the border
-hint. An automatic peek stays hidden for that same beat. An explicit `Ctrl+T` reveals
-immediately. While a peek is still waiting, `Ctrl+T` reveals it and inserts nothing.
+A leading space is omitted at the start of the text, after whitespace, and after an
+opening bracket or quote. A peek is cut before the first suggested word that matches,
+ignoring case, the first word after the cursor; if its first word already follows the
+cursor, no peek is shown. A guess based only on a word's overall frequency, without
+contextual evidence, never reaches the ghost, peek, or next-word menu.
+
+The first explicit request shows a confident guess as a ghost or peek. A weaker guess,
+or a confident guess that fits neither surface, can open a `next word ⇢ "…"` menu naming
+the evidence context. Each row shows a word, a violet confidence meter, and a dim
+`⇢ continuation` preview. Accepting a row inserts its word with a separator and
+continues the chain. With a ghost or a revealed peek already visible, the next `Ctrl+T`
+accepts one word. `Ctrl+L` accepts the inline ghost or all words stored in the revealed
+peek. Each accept requests another prediction immediately.
+
+`Right` and `Ctrl+F` accept the whole inline ghost only when the rest of the line is
+blank; `Alt+F` accepts one ghost word in that same position. Before a closing tail or
+with a border peek, these keys move the cursor. An open completion menu takes priority:
+`Ctrl+F` and `Ctrl+L` accept its highlighted row.
+
+An automatic guess shows inline ghost text immediately. Its border hint waits until text
+and cursor have stayed unchanged for 350 ms; an automatic peek stays hidden for that
+same interval. An explicit `Ctrl+T` reveals immediately. While a peek is still waiting,
+the first `Ctrl+T` reveals it and inserts nothing; the next accepts one word.
 
 Typing characters that continue the ghost consumes them. A different character,
-Backspace, a cursor move, undo, or redo clears the visible ghost. The chain stays armed
-only while the text and cursor are still exactly where it was armed, so after that clear
-`Ctrl+T` uses ordinary completion, or the end-of-word request when the cursor is still
-at the end of a prose word. When the chain is armed and nothing can be shown, `Ctrl+T`
-opens the next-word menu. An armed chain with nothing to offer shows
-`no next-word guess`, or `warming next words…` while the model warms. Inside structural
-syntax the hint appears and the menu stays closed. `Ctrl+T` at a whitespace boundary
-with next-word prediction enabled runs this same request. A miss shows
-`no next-word guess  [^G r] recent files`, pointing at the recent-files menu on
-`Ctrl+G r`. With `next_word: off`, that whitespace-boundary `Ctrl+T` opens recent files
-directly. `Ctrl+D` on a highlighted next-word row forgets it through the history-word
-deletions store.
+Backspace, a cursor move, undo, or redo clears the suggestion. The chain remains usable
+only while its text and cursor match the position where it was started. An armed chain
+with no candidates shows `no next-word guess`, or `warming next words…` while the model
+loads. Structural syntax does not open a next-word menu. At a whitespace boundary, a
+miss adds `[^G r] recent files`, pointing to the recent-files menu on `Ctrl+G r`. With
+`next_word: off`, that whitespace-boundary `Ctrl+T` opens recent files directly.
+`Ctrl+D` on a highlighted next-word row forgets it through the history-word deletions
+store.
 
-`ace.prompt_completion.next_word` defaults to `chain`. `chain` arms after those word
-commits and on explicit `Ctrl+T`. `auto` also predicts after a typed non-word character
-that follows a word token — clause punctuation between the word and the trigger is
-skipped, so a ghost may appear after `, ` — and, while you type a word with only a
-boundary after the cursor, completes that word. After a sentence-final `.`, `?`, `!`, or
-`…`, the model starts a fresh empty context and stays silent. `off` disables the chain.
+`ace.prompt_completion.next_word` defaults to `chain`. `chain` starts after those word
+completion accepts and on the explicit requests described above. `auto` also predicts
+after a typed non-word character following a word token; trailing punctuation is skipped
+when finding that token, so a ghost may appear after `, `. It also completes a partially
+typed word when no word character follows the cursor. After sentence-final `.`, `?`,
+`!`, or `…`, the model stays silent until another word begins. `off` disables next-word
+prediction.
 
-In `auto`, a mid-word guess is the untyped suffix plus any continuation (`ment it now`).
-When the typed word is already the predicted word and a continuation follows, the ghost
-starts with a space (` it now`). An exact word with no continuation stays silent. The
-peek's first word is the completed word, and accepting it inserts only the missing
-suffix. A mid-word `Ctrl+T` composes that suffix and continuation directly, because a
-menu row would repeat the prefix already typed. An older prediction core that has no
-word-completion field shows nothing for that request. The continuation is capped at
-`next_word_max_words - 1`, because the cap counts the completed word. A draft longer
-than 4000 characters defers the mid-word request off the keystroke path, using
-`ace.prompt_completion.debounce_ms` (default `90`).
+In `auto`, current-word completion inserts the untyped suffix plus any continuation. For
+example, after typing `imple`, the ghost might be `ment it now`. If the word is already
+complete, the ghost starts with a space (` it now`); an exact word with no continuation
+stays silent. A current-word peek displays the completed word first. `Ctrl+T` inserts
+its missing suffix, or the next continuation word if no suffix is missing. `Ctrl+L`
+inserts the suffix and continuation. For a current-word request already started by
+`auto`, `Ctrl+T` shows that suffix and continuation directly instead of opening a
+whole-word menu. If the core supplies no current-word completion, that request shows no
+suggestion. The completed word counts toward `next_word_max_words`, leaving at most
+`next_word_max_words - 1` continuation words.
+
+When the text **before the cursor** exceeds 4000 characters, a typing-triggered
+current-word request runs off the keystroke path after
+`ace.prompt_completion.debounce_ms` (default `90` ms). This cutoff does not apply to an
+explicit `Ctrl+T` request or measure text after the cursor.
 
 Ghosts and peeks stay off in NORMAL mode, during file completion, during a snippet
-session, while text is selected, and for the whole of a Jinja `{{ }}` or `{% %}` tag.
-
-Principles: `Ctrl+T` never inserts an unseen guess, always moves forward, and stays
-silent when unsure.
+session, while text is selected, and inside a Jinja `{{ }}` or `{% %}` tag.
 
 Press `Ctrl+R` to open the recursive fuzzy file finder. With a token such as `src/alp`,
 `src/` becomes the search root and `alp` pre-seeds the fuzzy query; with no token, the

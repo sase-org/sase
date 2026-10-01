@@ -524,23 +524,30 @@ rebase, and pushes. This path does not run `commit_hooks.after`. Use
 committing. `--no-commit` only skips the project deploy path; home memory deployment
 still follows `use_chezmoi` when it is enabled.
 
-`--check` also fails when a managed file is untracked or gitignored. The managed set is
+The tracking part of `--check` also fails when an existing managed file is untracked,
+including when Git ignores it. It does not require tracked files to have a clean index
+or worktree; the separate drift check compares generated content. The managed set is
 every existing file under `sase/memory/` and the legacy `memory/` directory (including a
 symlink that points at a file), plus managed instruction files: a discovered project
 `AGENTS.md` that SASE recognizes as a managed instruction document, the provider shims
-beside it, and `AGENTS.md.tmpl` sources under a chezmoi root. When discovery finds no
-project `AGENTS.md`, the root `AGENTS.md` and its shims are in the set instead. The
-project root is checked when the working directory is a project. The home root is
-checked only when `use_chezmoi` is on. A git failure for one repository is skipped, so a
-missing git binary does not by itself fail the check. The blocker names the file and
-asks you to commit it so its history can start.
+beside discovered `AGENTS.md` files, and `AGENTS.md.tmpl` sources under the checked
+root. If this instruction-file scan finds nothing, existing root `AGENTS.md` and shims
+are included regardless of their contents. Tracking uses resolved paths for symlinks, so
+their targets are checked rather than the symlink's own Git entry. The project root is
+checked when the working directory is a project. The home root is checked only when
+`use_chezmoi` is on. Files without an identifiable owning Git repository, and
+repositories whose tracked-file lookup fails, are skipped by this tracking check. A
+missing Git binary therefore does not itself produce a tracking blocker. A reported
+blocker names the file and asks you to commit it so its history can start.
 
 After a committing project deploy succeeds, the command checks that project root again.
 After a chezmoi home deploy succeeds, it checks the chezmoi source the same way. The
 command exits `1` and prints to stderr when a managed file was left untracked, ignored,
 or with uncommitted changes. `--no-commit` skips the project check because it skips the
-project commit. A git error or an unexpected failure in the guard leaves the deploy's
-own result in place.
+project commit; it does not skip chezmoi deployment or its guard. These guards run
+**after** deployment and do not undo files, commits, or pushes when they report a
+problem. A Git error skips the affected tracking or cleanliness check, and an unexpected
+guard failure leaves the deploy's own result in place.
 
 Memory drift is judged against the running build's generator templates, so the build
 that answers matters. When the invoked project carries its own `.venv/bin/sase` but the
@@ -587,11 +594,13 @@ command also accepts `-d/--depth`, `-f/--format`, and `-p/--project`, and it all
 expected to arrive through instruction loading. The command strips one leading YAML
 frontmatter block from stdout and appends `## Children` when nested reference notes
 exist, but the audit log records only metadata such as path, agent name, timestamp, cwd,
-byte count, reason, and the git blob OID of the bytes that were read. A batch also
-records each included target as `path=oid`. `sase memory log --id` shows **Blob OID**
-and **Blob OIDs**; older events that lack the fields still load. An agent launch stores
-the workspace `HEAD` and an instruction-file snapshot on `agent_meta.json` without
-blocking launch. See [Audited Reads](memory.md#audited-reads).
+byte count, reason, and content hashes in Git's SHA-1 blob format. A flat note's hash
+covers its text including frontmatter; a strand's hash covers only its body. Batch reads
+record target/hash pairs. `sase memory log --id <read-id>` shows **Blob OID** and, when
+present, **Blob OIDs**; older events that lack the fields still load. Agent launch also
+attempts to store the workspace `HEAD` and an instruction-file inventory in
+`agent_meta.json`, without blocking launch on capture failure. See
+[Audited Reads](memory.md#audited-reads) for the hash and snapshot details.
 
 This audited path is distinct from `#memory/<stem>` xprompt inclusion: an explicitly
 authored `#memory/<stem>` reference in a prompt expands the same note body at launch

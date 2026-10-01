@@ -246,14 +246,21 @@ Materialized content lands in a content-keyed cache:
 ```
 
 Lookup order is cache hit (re-hashed before it is trusted), then
-`git cat-file blob <vcs_sha>:<vcs_relpath>` in one checkout of the repo, then a bounded
-walk of at most `artifacts.capture.max_history_scan` durable commits touching the path —
-which recovers content whose recorded sha was squash-rewritten or pruned. The checkout
-is chosen owner-first: when the row names a project, `vcs_repo` is matched against that
-project's repositories for the row's workspace, and then against the caller's
-current-directory repositories. Each materialization builds its own resolver, so a
-long-lived TUI sees clones that appear after it started. The cache is transient:
-deleting it costs only re-materialization.
+`git cat-file blob <vcs_sha>:<vcs_relpath>` in each known checkout of the selected
+repository, then a bounded history scan in each checkout. The scan visits at most
+`artifacts.capture.max_history_scan` commits per checkout touching the path and
+reachable from `origin` remote-tracking refs. Every recovered blob must match the
+recorded SHA-256, including blobs found at the recorded commit. This can recover content
+after a squash rewrite or loss of that commit if identical bytes survive in the scanned
+history.
+
+The **repository** is chosen owner-first: when the row names a project, `vcs_repo` is
+matched by name or alias against that project's repositories for the row's workspace.
+Only if no repository matches does lookup use the caller's current-directory inventory.
+A content miss in the selected repository does not retry a same-named repository in the
+caller's project. Resolvers are scoped to a call or batch, so a long-lived TUI sees
+clones that appear between requests. The cache is transient: deleting it requires
+re-materialization.
 
 ### Diagnosing an unresolvable reference
 
@@ -261,10 +268,11 @@ If `sase artifact path` on a VCS-backed row exits 1, the content could not be re
 from any known checkout. Work through it in this order:
 
 1. `sase artifact show <ref>` — read the locator to get the repo, commit, and relpath.
-2. `sase repo list` — confirm the `vcs_repo` name still exists in the owning project's
-   inventory (or in the current directory's inventory when the row names no project) and
-   has at least one existing clone. An unknown repo name leaves the resolver with no
-   checkout to try.
+2. `sase repo list --project <project>` — confirm the `vcs_repo` name or alias exists in
+   the row's owning project and has at least one existing clone. An unknown repo name
+   leaves the resolver with no checkout to try unless the caller's inventory supplies a
+   match. If the row names no project, use `sase repo list` for the current directory's
+   inventory.
 3. In a checkout of that repo, `git fetch` and retry. Resolution measures reachability
    from remote-tracking refs, so a stale clone is the common cause.
 4. `git cat-file blob <vcs_sha>:<vcs_relpath>` — if the object is gone (a rewritten or

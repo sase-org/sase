@@ -372,9 +372,11 @@ request p50=0.238 / p95=0.603 / max=0.952 ms, `rank_prefix` (n=12) p50=0.213 / p
 ms. Draft buckets (typing-path latency): ≤1000 chars n=87 p50=0.225 / p95=0.566 ms;
 ≤4000 n=4 p50=0.634 / p95=0.917 ms; ≤10000 and ≤20000 empty. Chosen
 `NEXT_WORD_SYNC_MAX_DRAFT_CHARS=4000` — the largest bucket with typing-path p95 ≤ 1 ms —
-is the TUI cutoff. A mid-word `auto` request whose draft is longer than 4000 characters
-defers off the keystroke path and uses `ace.prompt_completion.debounce_ms`. The sample
-above 1000 chars is thin (n=4), so re-run the bench before trusting tighter thresholds.
+is the TUI cutoff. A typing-triggered current-word `auto` request with more than 4000
+characters **before the cursor** defers off the keystroke path and uses
+`ace.prompt_completion.debounce_ms`. Text after the cursor does not count, and explicit
+requests remain synchronous. The sample above 1000 chars is thin (n=4), so re-run the
+bench before trusting tighter thresholds.
 
 #### Prediction cost
 

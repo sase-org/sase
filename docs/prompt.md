@@ -29,19 +29,22 @@ submissions are recorded, once per submission, through a human entry point - the
 prompt bar (including cancelled drafts and failed submits), `sase run` or
 `sase prompt run` from a terminal, the mobile gateway, or Telegram. A machine-originated
 launch (agents and LaunchApproval, routine/job launches, bead work, plan/epic approval,
-restarts, monitor commands, gate commands, and a nested ToolRun `sase run` while
-`SASE_TOOL_RUN_ID` is set — a blank marker counts as absent — plus member-agent
-relaunches and mentor-apply launches) writes no history row, no `<placeholder>` tags,
-and no Stash entry: a generated reuse of already-typed text does not even bump that
-row's `last_used`. Rows written before origins existed carry no `origin`, and legacy
-`generated` rows remain until they are pruned. When the same text is recorded twice, the
-merge keeps the newest timestamps but never downgrades: `typed` beats `generated` beats
-no origin, just like a successful launch is never downgraded to cancelled. The next-word
-prediction corpus excludes `generated` rows. The recorded text is the canonical
-submitted text: the prompt after project-alias and project-tag canonicalization, but
-before any swarm, repeat, alt, admission, provider-guard, or force-reuse rewriting. One
-submission records one row, no matter how many agents it fans out to — a swarm records
-its `#research_swarm(…)` invocation rather than its members, `%r:N` records the parent
+restarts, monitor commands, gate commands, member-agent relaunches, mentor-apply
+launches, and `sase run` invoked inside a tool run) writes no history row, no
+`<placeholder>` tags, and no Stash entry: a generated reuse of already-typed text does
+not even bump that row's `last_used`. For the tool-run case, `sase run` treats any
+nonempty `SASE_TOOL_RUN_ID` value as automation; an unset or empty value does not
+suppress history on its own.
+
+Rows written before origins existed carry no `origin`, and legacy `generated` rows
+remain until they are pruned. When the same text is recorded twice, the merge keeps the
+newest timestamps but never downgrades: `typed` beats `generated` beats no origin, just
+like a successful launch is never downgraded to cancelled. The next-word prediction
+corpus excludes `generated` rows. The recorded text is the canonical submitted text: the
+prompt after project-alias and project-tag canonicalization, but before any swarm,
+repeat, alt, admission, provider-guard, or force-reuse rewriting. One submission records
+one row, no matter how many agents it fans out to — a swarm records its
+`#research_swarm(…)` invocation rather than its members, `%r:N` records the parent
 rather than its `%id:<base>.k` slots, and a force-reused launch records the pre-rewrite
 prompt. A user-authored `---` multi-prompt still records the whole text plus each
 long-enough segment. Readers aggregate and deduplicate records across shards, so reusing

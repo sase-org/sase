@@ -959,24 +959,36 @@ known-secret values, over-cap sizes, and private bead stores.
 
 #### From the Beads pane
 
-Press `N` on the Beads pane to append a note. The modal hint reads
-`@<path> attaches a file snapshot · Tab completes paths · paste a file path to attach it · @@ for a literal @ · Ctrl+T toggles audience`.
-`Ctrl+T` cycles the audience label from automatic
-(`Attachments: automatic (SASE decides)`) to private (`🔒 private (narrows freely)`) to
-public (`🌐 public (confirms on save)`). Saving while public is selected opens a
-confirmation titled **Publish attachments**: "Publish new attachments publicly where
-policy allows? Policy-blocked files stay private, and publication is irreversible."
-Confirm is **Publish**; cancel returns to the note. `Ctrl+T` outside that modal reports
-`Open a bead note (N) first to toggle attachment audience`. Other panes also bind `N`;
-the audience cycle belongs to this add-note modal.
+Select a bead in the Beads pane and press `N` to open the add-note editor. Earlier notes
+remain in place. Add `@<path>` to capture a file snapshot on save: `Tab` completes
+paths, pasting a single existing file path inserts an attachment reference, and `@@`
+inserts a literal `@`. Relative paths use the selected bead project's workspace when
+available, otherwise the TUI's working directory. Press `Ctrl+S` or **Add note** to
+save.
+
+Before saving, use `Ctrl+T` to cycle the audience request through automatic
+(`Attachments: automatic (SASE decides)`), private (`🔒 private (narrows freely)`), and
+public (`🌐 public (confirms on save)`). Automatic applies the audience policy above;
+private requests private storage; public requests publication for the note's new
+attachments. Existing attachments keep their audience. This key is configurable as
+`beads_toggle_note_audience`.
+
+Saving with public selected opens **Publish attachments**. Choose **Publish** to confirm
+or cancel to return to the editor. Confirmation does not override policy: an attachment
+that cannot be made public rejects the whole note and reopens the editor with an error.
+The dialog currently says policy-blocked files stay private, but the save path refuses
+the public request instead. Select automatic or private and save again to avoid
+requesting publication; sensitive-path restrictions still apply. Publication is
+irreversible. The audience cycle belongs to this add-note modal; outside it, the
+Beads-pane action reports `Open a bead note (N) first to toggle attachment audience`.
 
 The pane's note body lists each attachment with the audience chip from its stored
 descriptor (`🌐` for public, `🔒` for private or for a descriptor that has no visibility
 field). The pane does not probe the content store, so availability badges and thumbnails
-stay in `sase bead show` and the attachment viewer. A note from the pane uploads through
-the same pre-publication path and durable outbox as `sase bead note`. Empty attachment
-sets skip that path. The CLI flags above remain the policy source, and agents still
-cannot widen an audience.
+stay in `sase bead show` and the attachment viewer. On save, SASE prepares attachment
+uploads before appending the note, then registers uploads for the post-commit outbox,
+using the same path as `sase bead note`. Notes without attachments skip these steps. The
+audience policy applies to both interfaces, and agents cannot widen an audience.
 
 Old readers treat every attachment as private: a pre-visibility descriptor (no
 `visibility` field) is always private, which is safe for mixed fleets.
