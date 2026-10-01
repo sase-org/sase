@@ -325,7 +325,7 @@ async def test_conflict_toasts_and_refreshes(
 
     install_write_fakes(monkeypatch, snapshots, delete=fake_delete)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.memory_pane.load_memory_scope_snapshot",
+        "sase.ace.tui.modals.memory_pane_loading.load_memory_scope_snapshot",
         fake_scope_load,
     )
 

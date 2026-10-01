@@ -16,7 +16,7 @@ from sase.ace.tui.memory_panel_catalog import (
     MemoryScopeRef,
     MemoryScopeSnapshot,
 )
-from sase.ace.tui.modals import memory_pane as memory_pane_module
+from sase.ace.tui.modals import memory_pane_loading as memory_pane_module
 from sase.ace.tui.modals.memory_pane import MemoryPane
 from sase.ace.tui.modals.memory_panel_load import (
     MemoryPanelInitialLoad,

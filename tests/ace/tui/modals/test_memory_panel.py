@@ -11,7 +11,7 @@ from textual.widgets import Input
 
 from sase.ace.testing import wait_for
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
-from sase.ace.tui.modals import memory_pane as memory_pane_module
+from sase.ace.tui.modals import memory_pane_loading as memory_pane_module
 from sase.ace.tui.modals.memory_pane import MemoryPane, MemoryPaneSession
 from sase.ace.tui.modals.memory_panel_load import (
     MemoryPanelInitialLoad,
