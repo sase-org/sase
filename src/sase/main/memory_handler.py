@@ -87,12 +87,20 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         _handle_memory_log_command(args)
         sys.exit(0)
 
+    if sub == "history":
+        from sase.memory.history.cli_history import (
+            handle_memory_history_command,
+        )
+
+        handle_memory_history_command(args)
+        sys.exit(0)
+
     if sub == "web":
         _handle_memory_web_command(args)
         sys.exit(0)
 
     print(
-        "Usage: sase memory {agent-docs,init,list,log,read,show,web}",
+        "Usage: sase memory {agent-docs,history,init,list,log,read,show,web}",
         file=sys.stderr,
     )
     sys.exit(1)

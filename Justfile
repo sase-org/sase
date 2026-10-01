@@ -395,6 +395,8 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1dq(PromptPredictionWordCompletion)' \
+        --epic-symbol 'sase-1dr.6(is_hidden_by_default)' \
+        --epic-symbol 'sase-1dr.6(label_for)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -81,6 +81,15 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   version that the Python adapter checks before calling; the adapters gather inputs
   (filesystem measurements, protection facts, configured thresholds) and handle
   host-side follow-ups such as dropping reaped directories from the agent artifact index
+- Memory history over git alone (`memory_history_sync`, `memory_history_subjects`,
+  `memory_history_resolve`, `memory_history_timeline`, `memory_history_version`,
+  `memory_history_compare`, `memory_history_feed`, and
+  `memory_history_wire_schema_version`), called through
+  `sase.core.memory_history_facade` with scopes assembled by
+  `sase.memory.history.scopes`. The Rust core owns lineage, shim aliasing,
+  classification, cause attribution, the per-scope snapshot, and prose comparison;
+  Python owns scope inputs, the thread-safe service, the CLI, the visual vocabulary, and
+  all rendering.
 - Git object-sharing planning for managed workspaces (`plan_git_object_sharing`)
 - AXE configuration composition and entry-edit planning (`axe_config_compose`,
   `axe_config_plan_entry`), including routine/job input aliases, description-shape

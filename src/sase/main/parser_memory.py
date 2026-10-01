@@ -158,6 +158,103 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_memory_view_arguments(show_parser)
 
+    history_parser = memory_subparsers.add_parser(
+        "history",
+        help="Browse committed memory and instruction-file history",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Browse the committed history of SASE memory notes, webs, strands, "
+            "and agent instruction files (AGENTS.md plus its provider shims, "
+            "project and home). With no selector, shows the cross-file "
+            "changes feed; with selectors, shows each subject's timeline. "
+            "Viewing history never records an audited read."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase memory history\n"
+            "  sase memory history gotchas.md\n"
+            "  sase memory history glossary:stitch -A v7\n"
+            "  sase memory history AGENTS.md -d\n"
+            "  sase memory history tui.md -f json\n"
+            "  sase memory history -S home --since 2026-09-01 -l 20"
+        ),
+    )
+    history_parser.add_argument(
+        "selectors",
+        metavar="SELECTOR",
+        nargs="*",
+        help=(
+            "Memory or instruction selectors: a flat note name (tui.md), a "
+            "repo-relative path (sase/memory/tui.md), a bare web name "
+            "(glossary), a web:keyword strand reference (glossary:stitch), an "
+            "instruction path (AGENTS.md, CLAUDE.md, src/sase/ace/AGENTS.md, "
+            "~/AGENTS.md), or a historical name (build_and_run.md). With no "
+            "selector, shows the changes feed."
+        ),
+    )
+    history_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Show hidden versions (moves, reflows) and regen-only changesets",
+    )
+    history_parser.add_argument(
+        "-A",
+        "--at",
+        metavar="REV",
+        default=None,
+        help=(
+            "Show one version: an ordinal (7 or v7), ~N (~1 is newest), a "
+            "commit SHA prefix, now for the worktree file, or a YYYY-MM-DD "
+            "date (latest version at or before it)"
+        ),
+    )
+    history_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        help="Show the change instead of the body",
+    )
+    history_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("json", "pager", "text"),
+        default="text",
+        help=(
+            "Output format (default: text). json emits the Rust wire "
+            "unchanged; pager arrives with the pager time axis."
+        ),
+    )
+    history_parser.add_argument(
+        "-l",
+        "--limit",
+        type=nonnegative_int,
+        default=None,
+        metavar="N",
+        help="Keep at most N feed changesets or timeline versions",
+    )
+    history_parser.add_argument(
+        "-p",
+        "--project",
+        metavar="REF",
+        default=None,
+        help="Project to resolve memory from (default: infer from current directory)",
+    )
+    history_parser.add_argument(
+        "-s",
+        "--since",
+        metavar="DATE",
+        default=None,
+        help="Only include changes at or after YYYY-MM-DD",
+    )
+    history_parser.add_argument(
+        "-S",
+        "--scope",
+        choices=("all", "home", "project"),
+        default="all",
+        help="History scopes to query (default: all)",
+    )
+
     _register_memory_web_parser(memory_subparsers)
 
     log_parser = memory_subparsers.add_parser(
