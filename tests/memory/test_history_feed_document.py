@@ -309,7 +309,7 @@ def test_feed_pager_wires_resolve_refresh_and_all_flag(
     import argparse
     from types import SimpleNamespace
 
-    from sase.memory.history import cli_history
+    from sase.memory.history import cli_history_command
 
     captured: dict[str, Any] = {}
 
@@ -342,7 +342,7 @@ def test_feed_pager_wires_resolve_refresh_and_all_flag(
     scopes = [SimpleNamespace(scope_key="project:sase", scope_kind="project")]
     args = argparse.Namespace(all=False, limit=None, since=None)
 
-    cli_history._handle_feed_pager(service, scopes, args)  # noqa: SLF001
+    cli_history_command._handle_feed_pager(service, scopes, args)  # noqa: SLF001
 
     assert captured.get("ran") is True
     document = captured["document"]
@@ -368,7 +368,7 @@ def test_feed_pager_all_flag_pre_expands_regen(
     import argparse
     from types import SimpleNamespace
 
-    from sase.memory.history import cli_history
+    from sase.memory.history import cli_history_command
 
     captured: dict[str, Any] = {}
 
@@ -385,7 +385,7 @@ def test_feed_pager_all_flag_pre_expands_regen(
         def feed(self, scopes: Any, **kwargs: Any) -> dict[str, Any]:
             return _feed()
 
-    cli_history._handle_feed_pager(  # noqa: SLF001
+    cli_history_command._handle_feed_pager(  # noqa: SLF001
         _FakeService(),
         [SimpleNamespace(scope_key="project:sase", scope_kind="project")],
         argparse.Namespace(all=True, limit=None, since=None),
