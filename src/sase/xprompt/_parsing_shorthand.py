@@ -2,7 +2,10 @@
 
 import re
 
-from ._parsing_args import find_matching_paren_for_args
+from ._parsing_args import (
+    double_colon_text_start,
+    find_matching_paren_for_args,
+)
 
 
 # Pattern to match shorthand syntax: #name: text
@@ -24,13 +27,13 @@ _PAREN_SHORTHAND_PATTERN = re.compile(
 DOUBLE_COLON_SHORTHAND_PATTERN = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: name
-    r":: "  # Double colon followed by space
+    r"::(?: |(?=[ \t]*(?:\r?\n|\Z)))"  # Double colon plus space or EOL/EOF
 )
 
 # Pattern to find the start of the next xprompt directive at a line boundary.
 # Used by double-colon shorthand to know where its text ends.
 _NEXT_DIRECTIVE_PATTERN = re.compile(
-    r"\n(?=#[a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*(?:\(|::? ))"
+    r"\n(?=#[a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*(?:\(|::? |::[ \t]*(?:\r?\n|\Z)))"
 )
 
 
@@ -87,8 +90,9 @@ def _preprocess_paren_shorthand(prompt: str, xprompt_names: set[str]) -> str:
 
         # Check for "):: " (double-colon) or "): " (single-colon) after paren
         after_paren = prompt[paren_close + 1 :]
-        if after_paren.startswith(":: "):
-            text_start = paren_close + 4  # skip "):: "
+        double_start = double_colon_text_start(prompt, paren_close + 1)
+        if double_start is not None:
+            text_start = double_start
             text_end = find_double_colon_text_end(prompt, text_start)
         elif after_paren.startswith(": "):
             text_start = paren_close + 3  # skip "): "
@@ -124,7 +128,11 @@ def preprocess_shorthand_syntax(prompt: str, xprompt_names: set[str]) -> str:
         if name not in xprompt_names:
             continue
 
-        text_start = match.end()
+        colon_idx = match.start() + match.group(0).find("::")
+        text_start_opt = double_colon_text_start(prompt, colon_idx)
+        if text_start_opt is None:
+            continue
+        text_start = text_start_opt
         text_end = find_double_colon_text_end(prompt, text_start)
         text = prompt[text_start:text_end].rstrip()
 

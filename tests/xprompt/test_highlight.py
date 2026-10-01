@@ -444,3 +444,10 @@ def _isolate_scanners(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(highlight, "scan_artifact_refs", lambda text: ())
     monkeypatch.setattr(highlight, "fenced_block_details", lambda text: [])
     monkeypatch.setattr(highlight, "inline_literal_ranges", lambda text: [])
+
+
+def test_double_colon_eol_layers_delimiter_and_next_line_value() -> None:
+    text = "#foo(a=1)::\nbody"
+    parts = _parts(text)
+    assert ("::", "xprompt.arg_delimiter") in parts
+    assert ("body", "xprompt.arg_value") in parts

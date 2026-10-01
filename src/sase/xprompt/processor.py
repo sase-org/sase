@@ -34,6 +34,7 @@ from ._jinja import (
 )
 from ._parsing import (
     decode_xprompt_args,
+    double_colon_text_start,
     find_double_colon_text_end,
     find_shorthand_text_end,
     find_matching_paren_for_args,
@@ -314,17 +315,15 @@ def _consume_trailing_shorthand_text(prompt: str, end: int) -> tuple[list[str], 
     The payload is bound directly from source, never re-serialized into
     ``[[...]]`` and re-lexed, so prose containing ``]]`` survives intact.
     """
-    after = prompt[end:]
-    is_double = after.startswith(":: ")
-    if not is_double and not after.startswith(": "):
+    double_start = double_colon_text_start(prompt, end)
+    if double_start is not None:
+        text_start = double_start
+        text_end = find_double_colon_text_end(prompt, text_start)
+    elif prompt[end:].startswith(": "):
+        text_start = end + 2
+        text_end = find_shorthand_text_end(prompt, text_start)
+    else:
         return [], end
-
-    text_start = end + (3 if is_double else 2)
-    text_end = (
-        find_double_colon_text_end(prompt, text_start)
-        if is_double
-        else find_shorthand_text_end(prompt, text_start)
-    )
     shorthand_text = prompt[text_start:text_end].rstrip()
     if not shorthand_text:
         return [], end

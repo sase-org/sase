@@ -265,3 +265,17 @@ def test_expand_research_swarm_style_shorthand_preserves_parentheses() -> None:
         "%w #fork #research/more %m:opus",
         "%w #fork #research/image",
     ]
+
+
+def test_expand_inline_double_colon_eol_matches_same_line() -> None:
+    catalog = {
+        "three": xp(
+            "three",
+            "Plan {{ feature }}\n---\nBuild {{ feature }}\n---\nTest {{ feature }}",
+            inputs=[InputArg(name="feature", type=InputType.TEXT)],
+        )
+    }
+    with patch_catalog(catalog):
+        eol = expand_xprompt_swarms(["#three::\nlogin flow"])
+        same = expand_xprompt_swarms(["#three:: login flow"])
+    assert eol == same == ["Plan login flow", "Build login flow", "Test login flow"]

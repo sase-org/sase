@@ -272,3 +272,9 @@ def test_fork_agent_arg_completion_rejected_inside_double_colon_free_text() -> N
 
     prompt = "#ask:: after #fork:"
     assert detect_xprompt_arg_completion_at_cursor(prompt, len(prompt), entries) is None
+
+
+def test_detect_typed_argument_hint_ignores_double_colon_eol_free_text() -> None:
+    entries = (_entry("ask", _input_hint("prompt")),)
+    text = "#ask::\nbody"
+    assert detect_xprompt_arg_hint_at_cursor(text, len(text), entries) is None

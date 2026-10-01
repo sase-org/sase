@@ -5,6 +5,7 @@ from enum import Enum
 import re
 
 from ._parsing_args import (
+    double_colon_text_start,
     find_matching_paren_for_args,
     parse_workflow_reference,
 )
@@ -89,6 +90,11 @@ class XPromptReference:
     def parse_arguments(self) -> tuple[list[str], dict[str, str]]:
         """Parse this reference's argument payload using workflow arg rules."""
         if self.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND:
+            if self.shorthand_text_start is not None:
+                payload_start = self.shorthand_text_start - (
+                    self.end - len(self.argument_source)
+                )
+                return [self.argument_source[payload_start:]], {}
             return [self.argument_source[3:]], {}
         if self.arg_kind is XPromptReferenceArgKind.COLON_SHORTHAND:
             return [self.argument_source[2:]], {}
@@ -117,9 +123,9 @@ def _reference_arg_kind_from_match(
     if match.group("plus") is not None:
         return XPromptReferenceArgKind.PLUS
 
-    after_match = prompt[match.end() : end]
-    if after_match.startswith(":: "):
+    if end != match.end() and double_colon_text_start(prompt, match.end()) is not None:
         return XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+    after_match = prompt[match.end() : end]
     if after_match.startswith(": "):
         return XPromptReferenceArgKind.COLON_SHORTHAND
     return XPromptReferenceArgKind.NONE
@@ -134,23 +140,27 @@ def _reference_span(prompt: str, match: re.Match[str]) -> tuple[int, int | None]
             return match.end(), None
 
         end = paren_end + 1
-        after_paren = prompt[end:]
-        if after_paren.startswith(":: "):
-            return find_double_colon_text_end(prompt, end + 3), end + 3
-        if after_paren.startswith(": "):
+        double_start = double_colon_text_start(prompt, end)
+        if double_start is not None:
+            return find_double_colon_text_end(prompt, double_start), double_start
+        if prompt[end:].startswith(": "):
             return find_shorthand_text_end(prompt, end + 2), end + 2
+        after_paren = prompt[end:]
         if after_paren.startswith(":") and len(after_paren) > 1:
-            return end + 1 + len(after_paren[1:].split(maxsplit=1)[0]), None
+            # Avoid eating the second colon of a `::` delimiter here; the
+            # double-colon check above already handled valid delimiters.
+            if double_colon_text_start(prompt, end) is None:
+                return end + 1 + len(after_paren[1:].split(maxsplit=1)[0]), None
+            return end, None
         return end, None
 
     if match.group("colon_arg") is not None or match.group("plus") is not None:
         return match.end(), None
 
-    after_match = prompt[match.end() :]
-    if after_match.startswith(":: "):
-        text_start = match.end() + 3
-        return find_double_colon_text_end(prompt, text_start), text_start
-    if after_match.startswith(": "):
+    double_start = double_colon_text_start(prompt, match.end())
+    if double_start is not None:
+        return find_double_colon_text_end(prompt, double_start), double_start
+    if prompt[match.end() :].startswith(": "):
         text_start = match.end() + 2
         return find_shorthand_text_end(prompt, text_start), text_start
     return match.end(), None

@@ -101,12 +101,12 @@ when that argument is omitted, it reads `SASE_EPIC_PLAN_REF` instead.
 
 `summary=` accepts the usual directive values: a bare token, a quoted string for text
 containing spaces or special characters, or a multiline `[[...]]` text block. The `::`
-shorthand requires a space after `::` and captures everything until the next top-level
-line that starts a directive (`%`) or xprompt reference (`#`). That captured text
-becomes only the summary, so use `summary=` when ordinary work instructions follow the
-declaration directly. `summary=` and `summary_script=` are mutually exclusive, and both
-belong only on the create-only `%clan` declaration; `%id(..., clan=...)` joiners cannot
-declare or replace a summary.
+shorthand requires a following space or end of line and captures everything until the
+next top-level line that starts a directive (`%`) or xprompt reference (`#`). That
+captured text becomes only the summary, so use `summary=` when ordinary work
+instructions follow the declaration directly. `summary=` and `summary_script=` are
+mutually exclusive, and both belong only on the create-only `%clan` declaration;
+`%id(..., clan=...)` joiners cannot declare or replace a summary.
 
 A summary executable may run synchronously twice: first while SASE extracts launch
 directives, before dependency waits, runner-slot admission, and workspace preparation,

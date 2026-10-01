@@ -799,9 +799,10 @@ not rewrite the source into that form.
 ### Double-Colon Shorthand
 
 `#name:: text` captures text until the next line that starts with an xprompt reference
-followed by `(`, `: `, or `:: `, or until the end of the string. Blank lines do not
-terminate it, and neither do lines that start with a `%` directive, a bare `#name`, or a
-`#name:arg` reference:
+followed by `(`, `: `, `:: `, or `::` at end of line, or until the end of the string.
+`::` may end its line, in which case the payload starts on the next line. Blank lines do
+not terminate it, and neither do lines that start with a `%` directive, a bare `#name`,
+or a `#name:arg` reference:
 
 ```
 #instructions:: Follow these rules:
@@ -810,6 +811,11 @@ terminate it, and neither do lines that start with a `%` directive, a bare `#nam
 2. Be accurate
 
 #review: Now review the code.
+```
+
+```
+#template(style=formal)::
+Please review the following code.
 ```
 
 ### Paren + Shorthand
@@ -2232,8 +2238,8 @@ launch, wait, display, and cleanup contract.
 The declaring `%clan` can also attach one launch-time description with `summary=`,
 `summary_script=`, or the `%clan...::` text-block shorthand. These forms are mutually
 exclusive, and clan joiners cannot replace the description. The `::` form requires a
-following space and captures up to the next top-level line beginning with a `%`
-directive or `#` reference. The captured text becomes metadata rather than member
+following space or end of line and captures up to the next top-level line beginning with
+a `%` directive or `#` reference. The captured text becomes metadata rather than member
 instructions; use the explicit `summary=` form when the work prompt follows immediately.
 Script-backed summaries may run synchronously during directive extraction and again
 after the primary workspace, sidecars, and linked repositories are prepared. Both

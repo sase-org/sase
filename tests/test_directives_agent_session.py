@@ -446,3 +446,12 @@ def test_clan_tribe_conflict_inside_disabled_region_is_ignored() -> None:
     assert cleaned == "%clan:example\n%tribe:research\nDo work"
     assert directives.clan is None
     assert directives.tribe is None
+
+
+def test_clan_double_colon_eol_binds_next_line_summary() -> None:
+    prompt = "%clan:research::\nSummary\n%model:opus\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+
+    assert directives.clan == "research"
+    assert directives.clan_summary == "Summary"
+    assert "::" not in cleaned

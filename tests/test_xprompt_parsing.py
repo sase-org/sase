@@ -191,3 +191,16 @@ def test_paren_double_colon_shorthand_empty_parens() -> None:
     """Test #name():: text -> #name([[text]])."""
     result = _preprocess_paren_shorthand("#test():: hello world", {"test"})
     assert result == "#test([[hello world]])"
+
+
+def test_double_colon_eol_workflow_and_preprocess() -> None:
+    assert parse_workflow_reference("foo::\none") == ("foo", ["one"], {})
+    assert parse_workflow_reference("foo(a=1)::\none") == (
+        "foo",
+        ["one"],
+        {"a": "1"},
+    )
+    assert preprocess_shorthand_syntax("#foo::\none", {"foo"}) == "#foo([[one]])"
+    from sase.xprompt._parsing_shorthand import find_double_colon_text_end
+
+    assert find_double_colon_text_end("#a:: x\n#b::\ny", 5) == 6

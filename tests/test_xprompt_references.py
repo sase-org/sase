@@ -186,3 +186,34 @@ def test_workflow_kind_standalone_workflow() -> None:
     )
 
     assert workflow.prompt_kind() is WorkflowKind.STANDALONE_WORKFLOW
+
+
+def test_double_colon_eol_binds_next_line_payload() -> None:
+    ref = _single_ref("#foo::\none\ntwo")
+
+    assert ref.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+    assert ref.shorthand_text_start == 7
+    assert ref.parse_arguments() == (["one\ntwo"], {})
+
+    paren = _single_ref("#foo(a=1)::\none")
+
+    assert paren.arg_kind is XPromptReferenceArgKind.PAREN
+    assert paren.shorthand_text_start is not None
+    assert paren.parse_arguments() == (["one"], {"a": "1"})
+
+    for prompt in ("#foo::  \none", "#foo::\r\none", "#foo::\t\none"):
+        eol = _single_ref(prompt)
+        assert eol.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+        assert eol.parse_arguments() == (["one"], {})
+
+    eof = _single_ref("#foo::")
+    assert eof.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+    assert eof.parse_arguments() == ([""], {})
+
+    refs = iter_xprompt_references("#a:: x\n#b::\ny")
+    assert len(refs) == 2
+    assert refs[0].parse_arguments() == (["x"], {})
+    assert refs[1].parse_arguments() == (["y"], {})
+
+    single = _single_ref("#foo:\nbar")
+    assert single.arg_kind is XPromptReferenceArgKind.NONE

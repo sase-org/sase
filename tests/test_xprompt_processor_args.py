@@ -150,3 +150,17 @@ def test_process_xprompt_paren_arg_plus_is_not_decoded() -> None:
         result = process_xprompt_references("#describe(Compare C++ and Rust)")
 
     assert result == "Compare C++ and Rust"
+
+
+def test_process_xprompt_double_colon_eol_binds_next_lines() -> None:
+    """`#name::` at EOL binds following lines like `:: text`."""
+    xprompt = XPrompt(
+        name="rs",
+        content="{{ prompt }}",
+        inputs=[InputArg(name="prompt", type=InputType.TEXT)],
+    )
+
+    with patch("sase.xprompt.processor.get_all_xprompts", return_value={"rs": xprompt}):
+        assert process_xprompt_references("#rs::\nhello\nworld") == "hello\nworld"
+        assert process_xprompt_references("#rs(g=yes)::\nhello") == "hello"
+        assert "::" not in process_xprompt_references("#rs::\nhello\nworld")

@@ -3,6 +3,28 @@
 from dataclasses import dataclass
 
 
+def double_colon_text_start(text: str, colon_idx: int) -> int | None:
+    """Return the payload start for a ``::`` delimiter at *colon_idx*."""
+    if text[colon_idx : colon_idx + 2] != "::":
+        return None
+    if colon_idx > 0 and text[colon_idx - 1] == ":":
+        return None
+    if len(text) > colon_idx + 2 and text[colon_idx + 2] == ":":
+        return None
+    cursor = colon_idx + 2
+    while cursor < len(text) and text[cursor] in (" ", "\t"):
+        cursor += 1
+    if cursor >= len(text):
+        return len(text)
+    if text[cursor] == "\n":
+        return cursor + 1
+    if text[cursor] == "\r" and cursor + 1 < len(text) and text[cursor + 1] == "\n":
+        return cursor + 2
+    if text[colon_idx + 2] == " ":
+        return colon_idx + 3
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class XPromptArgSpan:
     """Raw source locations for one parsed xprompt argument.
@@ -390,13 +412,15 @@ def parse_workflow_reference(
             # Handle text after closing paren: "): text" or "):: text"
             # (free text, never decoded) or a bare "):value" (decoded like
             # any other bare colon argument).
-            rest = workflow_ref[close_paren + 1 :]
-            if rest.startswith(":: "):
-                positional_args.append(rest[3:])
-            elif rest.startswith(": "):
-                positional_args.append(rest[2:])
-            elif rest.startswith(":") and len(rest) > 1:
-                positional_args.append(decode_xprompt_arg_value(rest[1:]))
+            double_start = double_colon_text_start(workflow_ref, close_paren + 1)
+            if double_start is not None:
+                positional_args.append(workflow_ref[double_start:])
+            elif workflow_ref[close_paren + 1 :].startswith(": "):
+                positional_args.append(workflow_ref[close_paren + 3 :])
+            else:
+                rest = workflow_ref[close_paren + 1 :]
+                if rest.startswith(":") and len(rest) > 1:
+                    positional_args.append(decode_xprompt_arg_value(rest[1:]))
 
             return workflow_name, positional_args, named_args
         return workflow_name, [], {}
@@ -405,11 +429,10 @@ def parse_workflow_reference(
     if ":" in workflow_ref:
         colon_idx = workflow_ref.index(":")
         workflow_name = workflow_ref[:colon_idx]
+        double_start = double_colon_text_start(workflow_ref, colon_idx)
+        if double_start is not None:
+            return workflow_name, [workflow_ref[double_start:]], {}
         rest = workflow_ref[colon_idx + 1 :]
-        # Double-colon shorthand: workflow:: text -> strip the extra colon.
-        # This is free text, never decoded.
-        if rest.startswith(": "):
-            return workflow_name, [rest[2:]], {}
         # Single-colon multi-line shorthand: workflow: text. Free text, never
         # decoded. We strip leading space for multi-line syntax aesthetics.
         if rest.startswith(" "):

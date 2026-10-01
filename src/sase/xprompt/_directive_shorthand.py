@@ -14,6 +14,7 @@ from ._parsing import (
     find_matching_paren_for_args,
     parse_args,
 )
+from ._parsing_args import double_colon_text_start
 from ._parsing_shorthand import format_as_text_block
 
 _DIRECTIVE_TEXT_BLOCK_ARGUMENTS = {"clan": "summary"}
@@ -72,10 +73,11 @@ def preprocess_directive_double_colon_shorthand(prompt: str) -> str:
             suffix_start = match_end
             next_search_start = match_end
 
+        double_start = double_colon_text_start(prompt, suffix_start)
         if (
             target_arg is None
             or (close_index is None and colon_arg is None)
-            or not prompt.startswith(":: ", suffix_start)
+            or double_start is None
         ):
             search_start = next_search_start
             continue
@@ -87,7 +89,7 @@ def preprocess_directive_double_colon_shorthand(prompt: str) -> str:
             assert colon_arg is not None
             args = _colon_arg_as_positional(colon_arg)
 
-        text_start = suffix_start + 3
+        text_start = double_start
         text_end = find_directive_double_colon_text_end(
             prompt,
             text_start,

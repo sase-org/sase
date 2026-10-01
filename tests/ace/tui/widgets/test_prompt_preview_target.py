@@ -537,3 +537,11 @@ def test_image_directory_raises_directory_error(tmp_path: Path) -> None:
             project=None,
             base_dir=str(tmp_path),
         )
+
+
+def test_skips_double_colon_eol_argument_text() -> None:
+    text = "#foo::\nbody text"
+    expected = PreviewToken("xprompt", text, "foo", 0, len(text))
+
+    assert _detect(text, "#foo") == expected
+    assert _detect(text, "body") is None

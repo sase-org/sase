@@ -554,3 +554,18 @@ def test_disabled_region_directives_are_not_rewritten() -> None:
 def test_alt_branch_directives_are_not_rewritten() -> None:
     prompt = "%alt(%id:a | %id:b)\nDo work"
     assert set_prompt_name(prompt, "real") == ("%id:real\n%alt(%id:a | %id:b)\nDo work")
+
+
+def test_demote_prompt_clan_declaration_removes_eol_shorthand_summary() -> None:
+    from sase.xprompt.directive_edit import demote_prompt_clan_declaration
+
+    prompt = (
+        "%id:research.worker\n"
+        "%clan(research, tribe=study)::\n"
+        "Body here\n"
+        "%model:opus\n"
+        "Do work"
+    )
+    assert demote_prompt_clan_declaration(prompt) == (
+        "%id(worker, clan=research)\n%model:opus\nDo work"
+    )

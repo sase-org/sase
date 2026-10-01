@@ -18,6 +18,7 @@ from ._parsing import (
     find_matching_brace_for_args,
     find_matching_paren_for_args,
 )
+from ._parsing_args import double_colon_text_start
 
 _TIME_XPROMPT_RE = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
@@ -113,14 +114,15 @@ def _directive_spans(
             paren_end = find_matching_paren_for_args(prompt, match.end() - 1)
             if paren_end is not None:
                 match_end = paren_end + 1
-        if (
-            remove_clan_shorthand
-            and name == "clan"
-            and prompt.startswith(":: ", match_end)
-        ):
+        clan_start = (
+            double_colon_text_start(prompt, match_end)
+            if (remove_clan_shorthand and name == "clan")
+            else None
+        )
+        if clan_start is not None:
             shorthand_end = find_directive_double_colon_text_end(
                 prompt,
-                match_end + 3,
+                clan_start,
                 ignored_ranges=alt_inner_regions,
             )
             line_start = prompt.rfind("\n", 0, match.start()) + 1
