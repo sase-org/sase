@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.artifact_ref_target_models import ArtifactRefDocumentOwner
+from sase.memory.history.render_text import format_banner_date
 from sase.memory.history.scopes import HistoryScopeError, git_repo_root
 from sase.memory.history.service import HistoryService
 from sase.memory.history.vocabulary import is_hidden_by_default, label_for
@@ -233,7 +234,7 @@ def dirty_now_from_timeline(timeline: dict[str, Any]) -> bool:
     return False
 
 
-class MemoryHistoryProvider:
+class _MemoryHistoryProvider:
     """Pager history provider for memory and instruction files."""
 
     provider_key = "memory-history"
@@ -361,6 +362,24 @@ class MemoryHistoryProvider:
         return self.load_version(section, 0)
 
 
+def _tombstone_banner(version: dict[str, Any]) -> str:
+    """Return the deletion tombstone banner for one version wire dict."""
+    epoch = int(version.get("committer_time", 0) or 0) or int(
+        version.get("author_time", 0) or 0
+    )
+    date = format_banner_date(epoch) if epoch else "unknown date"
+    provenance = version.get("provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    actor = (
+        str(provenance.get("agent") or "").strip()
+        or str(version.get("author_name") or "").strip()
+        or "unknown"
+    )
+    label = label_for(str(version.get("class", "") or "deleted"))
+    return f"✖ {label} {date} by {actor} · last content shown"
+
+
 def _derived_section(
     section: PagerSection,
     scope: Any,
@@ -375,22 +394,19 @@ def _derived_section(
     else:
         body = str(response.get("body", "") or "")
     version = response.get("version", {})
-    commit = version.get("commit") if isinstance(version, dict) else None
-    blob_oid = version.get("blob_oid") if isinstance(version, dict) else None
-    class_name = (
-        str(version.get("class", "") or "") if isinstance(version, dict) else ""
-    )
+    if not isinstance(version, dict):
+        version = {}
+    commit = version.get("commit")
+    blob_oid = version.get("blob_oid")
+    class_name = str(version.get("class", "") or "")
     subject = response.get("subject", {})
     subject_id = str(
         subject.get("id", selector) if isinstance(subject, dict) else selector
     )
-    paths = list(subject.get("paths", ()) if isinstance(subject, dict) else ())
-    historical_path = paths[0] if paths else selector
+    version_path = version.get("path")
+    historical_path = str(version_path) if version_path else selector
     if class_name == "deleted":
-        author = str(version.get("author", "") or "unknown").strip() or "unknown"
-        epoch = version.get("committer_time", version.get("author_time", ""))
-        label = label_for(class_name)
-        body = f"✖ {label} by {author} at {epoch} — last content shown\n\n{body}"
+        body = f"{_tombstone_banner(version)}\n\n{body}"
     pin: VersionPin = committed_pin_for_ordinal(
         subject_id,
         ordinal,
@@ -488,13 +504,13 @@ def _compare_against_empty(
         return None
 
 
-def memory_history_provider_factory() -> MemoryHistoryProvider:
+def memory_history_provider_factory() -> _MemoryHistoryProvider:
     """Entry-point factory for the memory history pager provider."""
     try:
         service = HistoryService()
     except Exception:
-        return MemoryHistoryProvider(service=None)
-    return MemoryHistoryProvider(service=service)
+        return _MemoryHistoryProvider(service=None)
+    return _MemoryHistoryProvider(service=service)
 
 
 def build_history_document(
@@ -642,7 +658,6 @@ def selector_to_core_selector(raw: str, repo_root: Path) -> str:
 
 
 __all__ = [
-    "MemoryHistoryProvider",
     "build_history_document",
     "dirty_now_from_timeline",
     "history_marks_from_comparison",

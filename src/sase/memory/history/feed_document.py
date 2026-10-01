@@ -46,7 +46,7 @@ from sase.pager.history.diff import FOLD_TARGET_KIND, FOLD_TOKEN
 FEED_SECTION_PREFIX = "history-feed:"
 
 #: Attached-target kind for authored subject rows. The target is a JSON
-#: envelope (see :func:`feed_subject_target`) naming scope, selector, and
+#: envelope (see :func:`_feed_subject_target`) naming scope, selector, and
 #: revision; the CLI's ``resolve_ref_fn`` turns it into a diff-view
 #: document, which pushes a trail entry through the normal follow path.
 FEED_SUBJECT_KIND = "history-feed-subject"
@@ -64,7 +64,7 @@ _FEED_DIM_STYLE = "dim"
 
 
 @dataclass(frozen=True, slots=True)
-class FeedSubject:
+class _FeedSubject:
     """One authored subject row's navigation payload."""
 
     scope_key: str
@@ -74,7 +74,7 @@ class FeedSubject:
 
 
 @dataclass(frozen=True, slots=True)
-class FeedFold:
+class _FeedFold:
     """One collapsed regen-only group inside a day section."""
 
     section_identity: str
@@ -84,14 +84,14 @@ class FeedFold:
 
 
 @dataclass(frozen=True, slots=True)
-class FeedDocumentResult:
+class _FeedDocumentResult:
     """A built feed document plus its in-place fold table."""
 
     document: PagerDocument
-    folds: tuple[FeedFold, ...] = ()
+    folds: tuple[_FeedFold, ...] = ()
 
 
-def feed_subject_target(subject: FeedSubject) -> str:
+def _feed_subject_target(subject: _FeedSubject) -> str:
     """Return the attached-target string for one authored subject row."""
     return json.dumps(
         {
@@ -104,8 +104,8 @@ def feed_subject_target(subject: FeedSubject) -> str:
     )
 
 
-def parse_feed_subject_target(ref: str) -> FeedSubject | None:
-    """Return the :class:`FeedSubject` encoded in *ref*, if any."""
+def parse_feed_subject_target(ref: str) -> _FeedSubject | None:
+    """Return the :class:`_FeedSubject` encoded in *ref*, if any."""
     try:
         payload = json.loads(ref)
     except (TypeError, ValueError):
@@ -126,14 +126,9 @@ def parse_feed_subject_target(ref: str) -> FeedSubject | None:
         and revision
     ):
         return None
-    return FeedSubject(
+    return _FeedSubject(
         scope_key=scope_key, selector=selector, revision=revision, display=""
     )
-
-
-def is_feed_section(section: PagerSection) -> bool:
-    """Return whether *section* belongs to a memory changes feed."""
-    return section.identity.startswith(FEED_SECTION_PREFIX)
 
 
 def _day_key(epoch: int) -> str:
@@ -347,12 +342,12 @@ def _render_subject_row(
     build.text(f"          {glyph_for(class_name)} ", style=row_style)
     selector = _entry_selector(entry)
     revision = _entry_revision(entry, changeset_commit)
-    subject = FeedSubject(
+    subject = _FeedSubject(
         scope_key=scope_key, selector=selector, revision=revision, display=display
     )
     if selector:
         build.target(
-            FEED_SUBJECT_KIND, feed_subject_target(subject), display, style=row_style
+            FEED_SUBJECT_KIND, _feed_subject_target(subject), display, style=row_style
         )
     else:
         build.text(display, style=row_style)
@@ -376,17 +371,17 @@ def _render_regen_count_line(
     build.text("\n")
 
 
-def build_feed_section(
+def _build_feed_section(
     day_key: str,
     day_title: str,
     day_changesets: list[dict[str, Any]],
     *,
     regen_expanded: bool = False,
-) -> tuple[PagerSection, tuple[FeedFold, ...]]:
+) -> tuple[PagerSection, tuple[_FeedFold, ...]]:
     """Build one day section, collapsing regen-only changesets by default."""
     build = _BodyBuilder()
     identity = f"{FEED_SECTION_PREFIX}{day_key}"
-    folds: list[FeedFold] = []
+    folds: list[_FeedFold] = []
     visible = [
         item for item in day_changesets if not bool(item.get("regen_only", False))
     ]
@@ -397,7 +392,7 @@ def build_feed_section(
     if hidden and not regen_expanded:
         _render_regen_count_line(build, len(hidden), fold_index=0)
         folds.append(
-            FeedFold(
+            _FeedFold(
                 section_identity=identity,
                 fold_index=0,
                 day_key=day_key,
@@ -439,7 +434,7 @@ def build_feed_document(
     *,
     window_label: str | None = None,
     expanded_regen: frozenset[str] | Literal["all"] = frozenset(),
-) -> FeedDocumentResult:
+) -> _FeedDocumentResult:
     """Build the pager feed document for one ``memory_history_feed`` result.
 
     Changesets group by local day (newest first, wire order preserved);
@@ -464,7 +459,7 @@ def build_feed_document(
             group["title"] = _day_header(epoch)
     expand_all = expanded_regen == "all"
     sections: list[PagerSection] = []
-    folds: list[FeedFold] = []
+    folds: list[_FeedFold] = []
     if not days:
         build = _BodyBuilder()
         build.text("(no memory changes in this window)", style=_FEED_DIM_STYLE)
@@ -483,7 +478,7 @@ def build_feed_document(
     for key, group in days.items():
         items = list(group["items"])
         expanded = expand_all or key in expanded_regen
-        section, section_folds = build_feed_section(
+        section, section_folds = _build_feed_section(
             key, str(group["title"]), items, regen_expanded=expanded
         )
         sections.append(section)
@@ -494,7 +489,7 @@ def build_feed_document(
         origin=PagerOrigin.FILE,
         expand_fold_fn=_make_feed_expander(days, expanded_regen),
     )
-    return FeedDocumentResult(document=document, folds=tuple(folds))
+    return _FeedDocumentResult(document=document, folds=tuple(folds))
 
 
 def _make_feed_expander(
@@ -516,7 +511,7 @@ def _make_feed_expander(
         if day_key in expanded:
             return None
         expanded.add(day_key)
-        section, _ = build_feed_section(
+        section, _ = _build_feed_section(
             day_key, str(group["title"]), list(group["items"]), regen_expanded=True
         )
         return section
@@ -562,13 +557,7 @@ __all__ = [
     "FEED_PROVENANCE_KIND",
     "FEED_SECTION_PREFIX",
     "FEED_SUBJECT_KIND",
-    "FeedDocumentResult",
-    "FeedFold",
-    "FeedSubject",
     "build_feed_document",
-    "build_feed_section",
-    "feed_subject_target",
-    "is_feed_section",
     "parse_feed_subject_target",
     "resolve_feed_subject",
 ]

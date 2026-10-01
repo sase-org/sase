@@ -30,16 +30,35 @@ def _historical_notice(
 ) -> str | None:
     """Notice when a selector used a historical name or alias."""
     subject = dict(resolved.get("subject", {}))
-    paths = list(subject.get("paths", ()))
-    if not paths:
+    if subject.get("kind") == "instructions":
         return None
-    current = paths[-1]
+    current = _current_subject_path(subject)
+    if current is None:
+        return None
     current_base = current.rsplit("/", 1)[-1]
     raw_base = raw.rsplit("/", 1)[-1].removeprefix("~/")
     core_base = core_selector.rsplit("/", 1)[-1]
     if raw_base != current_base and core_base != current_base:
         return f"{raw} is now {current}"
     return None
+
+
+def _current_subject_path(subject: dict[str, Any]) -> str | None:
+    """Return the subject's current path from its newest committed row."""
+    versions = subject.get("versions", ())
+    if isinstance(versions, (list, tuple)):
+        for row in versions:
+            if not isinstance(row, dict):
+                continue
+            if bool(row.get("diverged", False)):
+                continue
+            path = row.get("path")
+            if path:
+                return str(path)
+    paths = list(subject.get("paths", ()))
+    if not paths:
+        return None
+    return str(paths[-1])
 
 
 def _latest_committed(

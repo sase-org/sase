@@ -231,6 +231,15 @@ def test_historical_name_reports_a_notice(
     _ = capsys
 
 
+def test_instruction_selectors_produce_no_rename_notice(
+    fixture_repo: dict[str, str],
+) -> None:
+    for selector in ("AGENTS.md", "CLAUDE.md"):
+        text = _run(_args(selectors=[selector]))
+
+        assert "is now" not in text
+
+
 def test_ambiguous_basename_lists_candidates(
     fixture_repo: dict[str, str],
 ) -> None:

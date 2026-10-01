@@ -18,6 +18,7 @@ nav:
       - Agent Providers: agent_providers.md
   - The Basics:
       - Memory: memory.md
+      - Memory History: memory_history.md
       - sase's TUI: ace.md
       - Artifacts Pane Contract: artifacts_pane_contract.md
       - Artifacts Visual Grammar: artifacts_pane_visual_grammar.md

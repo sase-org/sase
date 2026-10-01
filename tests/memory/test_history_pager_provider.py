@@ -14,7 +14,8 @@ from sase.memory.history import pager_provider as provider_mod
 from sase.memory.history import scopes as history_scopes
 from sase.memory.history.cli_history import handle_memory_history_command
 from sase.memory.history.pager_provider import (
-    MemoryHistoryProvider,
+    _MemoryHistoryProvider,
+    _tombstone_banner,
     build_history_document,
     dirty_now_from_timeline,
     history_marks_from_comparison,
@@ -22,6 +23,7 @@ from sase.memory.history.pager_provider import (
     newest_committed_row,
     visible_ordinals_for_timeline,
 )
+from sase.memory.history.render_text import format_banner_date
 from sase.memory.history.service import HistoryService
 from sase.pager.document import PagerOrigin
 from sase.pager.history.provider import (
@@ -113,7 +115,7 @@ def test_timeline_helpers_use_hidden_bit_and_status(
 def test_provider_recognizes_memory_and_declines_unrelated(
     fixture_repo: Path,
 ) -> None:
-    provider = MemoryHistoryProvider(service=HistoryService())
+    provider = _MemoryHistoryProvider(service=HistoryService())
     memory_section = path_section(fixture_repo / "sase/memory/note.md")
     assert provider.recognizes(memory_section) is True
     other = path_section(fixture_repo / "AGENTS.md")
@@ -126,7 +128,7 @@ def test_provider_recognizes_memory_and_declines_unrelated(
 
 def test_provider_loads_version_and_compares(fixture_repo: Path) -> None:
     service = HistoryService()
-    provider = MemoryHistoryProvider(service=service)
+    provider = _MemoryHistoryProvider(service=service)
     section = path_section(fixture_repo / "sase/memory/note.md")
     timeline = provider.load_timeline(section)
     assert len([r for r in timeline.get("versions", ()) if isinstance(r, dict)]) >= 2
@@ -160,6 +162,132 @@ def test_build_history_document_for_selector(fixture_repo: Path) -> None:
     assert document.origin is PagerOrigin.FILE
     assert len(document.sections) == 1
     assert "Original line." in document.sections[0].plain_text
+
+
+def test_tombstone_banner_uses_date_actor_and_separator() -> None:
+    epoch = 1787677072
+    banner = _tombstone_banner(
+        {
+            "class": "deleted",
+            "committer_time": epoch,
+            "author_time": epoch - 60,
+            "author_name": "SASE Test",
+            "provenance": {"agent": "athena.test", "bead": "sase-1"},
+        }
+    )
+
+    assert "✖ deleted " in banner
+    assert str(epoch) not in banner
+    assert " · last content shown" in banner
+    assert "by athena.test" in banner
+    assert (
+        _tombstone_banner(
+            {
+                "class": "deleted",
+                "committer_time": epoch,
+                "provenance": {"agent": "athena.test"},
+            }
+        )
+        .split(" by ")[0]
+        .endswith(format_banner_date(epoch))
+    )
+
+
+def test_tombstone_banner_falls_back_to_author_name_then_unknown() -> None:
+    epoch = 1787677072
+    by_author = _tombstone_banner(
+        {
+            "class": "deleted",
+            "author_time": epoch,
+            "author_name": "SASE Test",
+            "provenance": {},
+        }
+    )
+
+    assert "by SASE Test" in by_author
+    assert str(epoch) not in by_author
+    unknown = _tombstone_banner({"class": "deleted"})
+
+    assert "by unknown" in unknown
+
+
+class _CannedVersionService:
+    """HistoryService stub returning one canned version response."""
+
+    def __init__(self, response: dict[str, object], repo_root: Path) -> None:
+        self._response = response
+        self._repo_root = repo_root
+
+    def project_scope(self, checkout: object) -> argparse.Namespace:
+        return argparse.Namespace(repo_root=str(self._repo_root))
+
+    def version(
+        self,
+        scope: object,
+        selector: str,
+        revision: str,
+        *,
+        include_body: bool = False,
+    ) -> dict[str, object]:
+        return dict(self._response)
+
+
+def test_load_version_uses_version_path_for_title_and_links(
+    fixture_repo: Path,
+) -> None:
+    response: dict[str, object] = {
+        "existed": True,
+        "body": "# Note\n",
+        "version": {
+            "ordinal": 2,
+            "class": "moved",
+            "path": "memory/build_and_run.md",
+            "commit": "0" * 40,
+        },
+    }
+    provider = _MemoryHistoryProvider(
+        service=_CannedVersionService(response, fixture_repo),  # type: ignore[arg-type]
+    )
+    section = path_section(fixture_repo / "sase/memory/note.md")
+
+    derived = provider.load_version(section, 2)
+
+    assert derived is not None
+    assert derived.title == "build_and_run.md"
+    assert derived.owner is not None
+    assert derived.owner.source_directory == str(fixture_repo / "memory")
+    pin = derived.version_pin
+    assert pin is not None and pin.ordinal == 2
+
+
+def test_load_version_renders_tombstone_banner(fixture_repo: Path) -> None:
+    epoch = 1787677072
+    response: dict[str, object] = {
+        "existed": True,
+        "body": "# Gone\n",
+        "version": {
+            "ordinal": 3,
+            "class": "deleted",
+            "path": "sase/memory/gone.md",
+            "commit": "1" * 40,
+            "committer_time": epoch,
+            "author_time": epoch,
+            "author_name": "SASE Test",
+            "provenance": {"agent": "athena.test"},
+        },
+    }
+    provider = _MemoryHistoryProvider(
+        service=_CannedVersionService(response, fixture_repo),  # type: ignore[arg-type]
+    )
+    section = path_section(fixture_repo / "sase/memory/note.md")
+
+    derived = provider.load_version(section, 3)
+
+    assert derived is not None
+    banner_line = derived.plain_text.splitlines()[0]
+    assert str(epoch) not in banner_line
+    assert " · last content shown" in banner_line
+    assert "by athena.test" in banner_line
 
 
 def test_entry_point_factory_builds_provider() -> None:
@@ -211,7 +339,7 @@ def test_diff_view_renders_real_core_comparison(fixture_repo: Path) -> None:
     from sase.pager.history.diff import build_diff_body
 
     service = HistoryService()
-    provider = MemoryHistoryProvider(service=service)
+    provider = _MemoryHistoryProvider(service=service)
     section = path_section(fixture_repo / "sase/memory/note.md")
     comparison = provider.compare_versions(section, 1, 2)
     assert isinstance(comparison, dict)

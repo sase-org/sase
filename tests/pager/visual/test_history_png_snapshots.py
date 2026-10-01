@@ -27,6 +27,7 @@ from sase.pager.history.models import (
     committed_pin_for_ordinal,
     live_pin_for_subject,
 )
+from sase.memory.history.pager_provider import _tombstone_banner
 from sase.pager.history.provider import clear_history_provider_factories
 from sase.pager.screen import PagerScreen
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -73,8 +74,16 @@ _DIRTY_BODY = (
     "- Label the seed trays.\n"
 )
 
+_TOMBSTONE_VERSION = {
+    "class": "deleted",
+    "committer_time": 1577880000,
+    "author_time": 1577880000,
+    "author_name": "Test Author",
+    "provenance": {"agent": "Test Author"},
+}
+
 _TOMBSTONE_BODY = (
-    "✖ deleted by Test Author at 20200101 — last content shown\n"
+    f"{_tombstone_banner(_TOMBSTONE_VERSION)}\n"
     "\n"
     "# Garden note\n"
     "\n"

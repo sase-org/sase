@@ -162,16 +162,23 @@ not committed.
 
 ## Performance
 
+Targets below are design goals; the numbers next to them are current measurements on the
+sase repo. Gaps are known follow-up work, not regressions to chase here.
+
 - First paint is unchanged for every pager document: history loads after paint while the
   band shows `indexing…`, and a time key pressed while loading runs as soon as the data
   arrives.
-- Warm version steps complete within 30 ms from key press to paint (prefetched blob,
-  comparison, repaint). No git or file IO happens on the keystroke or render path.
-- Index, measured on the sase repo: cold build with shims and classification within 1.5
-  s off-thread, incremental update over 100 commits within 100 ms, warm freshness check
-  within 30 ms.
-- `sase memory history <note>` against a warm snapshot completes within 300 ms end to
-  end.
+- Warm version step: p95 ≈ 6 ms from key press to paint against a 30 ms target (met).
+  Stepping reuses the prefetched blob, comparison, and repaint, so no git or file IO
+  happens on the keystroke or render path.
+- Warm freshness check / per-query: ≈ 45–90 ms against a 30 ms target. A warm timeline
+  query currently costs around 55–60 ms; narrowing that gap means fewer git probes per
+  query.
+- Cold index build: ≈ 2.3 s against a 1.5 s target, measured off-thread with shims and
+  classification. Incremental updates over recent commits stay near instant.
+- CLI end to end: `sase memory history gotchas.md -f text` completes in ≈ 1.7 s.
+  Interpreter and CLI start-up dominate that number (≈ 1.4 s of it); the history query
+  itself is a fraction of a second.
 - Optional git maintenance speeds up cold builds:
   `git commit-graph write --changed-paths` and Git ≥ 2.51. SASE only suggests this and
   never runs it automatically.

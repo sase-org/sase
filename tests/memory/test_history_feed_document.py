@@ -13,11 +13,10 @@ from typing import Any
 
 from sase.memory.history.feed_document import (
     FEED_SUBJECT_KIND,
-    FeedSubject,
+    _FeedSubject,
+    _build_feed_section,
+    _feed_subject_target,
     build_feed_document,
-    build_feed_section,
-    feed_subject_target,
-    is_feed_section,
     parse_feed_subject_target,
     resolve_feed_subject,
 )
@@ -130,7 +129,6 @@ def test_feed_builds_one_section_per_day() -> None:
     assert first.identity.startswith("history-feed:")
     assert first.title == _expected_day_title(_DAY_ONE)
     assert second.title == _expected_day_title(_DAY_TWO)
-    assert all(is_feed_section(section) for section in result.document.sections)
     assert result.document.origin is PagerOrigin.FILE
 
 
@@ -225,14 +223,14 @@ def test_feed_empty_window_shows_a_notice_section() -> None:
 
 
 def test_feed_subject_target_round_trip() -> None:
-    subject = FeedSubject(
+    subject = _FeedSubject(
         scope_key="home",
         selector="home/sase/memory/tui.md",
         revision="v2",
         display="tui",
     )
 
-    parsed = parse_feed_subject_target(feed_subject_target(subject))
+    parsed = parse_feed_subject_target(_feed_subject_target(subject))
 
     assert parsed is not None
     assert parsed.scope_key == "home"
@@ -275,8 +273,8 @@ def test_resolve_feed_subject_routes_scope_and_revision(
         "sase.memory.history.pager_provider.build_history_document", _fake_build
     )
     scope = object()
-    ref = feed_subject_target(
-        FeedSubject(
+    ref = _feed_subject_target(
+        _FeedSubject(
             scope_key="project:sase",
             selector="sase/memory/note.md",
             revision="v2",
@@ -296,8 +294,8 @@ def test_resolve_feed_subject_routes_scope_and_revision(
 
 def test_resolve_feed_subject_declines_unknown_refs() -> None:
     assert resolve_feed_subject(object(), {}, "bead:sase-1bu.7") is None
-    ref = feed_subject_target(
-        FeedSubject(scope_key="nope", selector="x.md", revision="v1", display="x")
+    ref = _feed_subject_target(
+        _FeedSubject(scope_key="nope", selector="x.md", revision="v1", display="x")
     )
     assert resolve_feed_subject(object(), {}, ref) is None
 
@@ -410,11 +408,11 @@ def test_build_feed_section_collapses_and_expands() -> None:
         ),
     ]
 
-    section, folds = build_feed_section("2026-09-27", "Sun Sep 27", day)
+    section, folds = _build_feed_section("2026-09-27", "Sun Sep 27", day)
 
     assert section.identity == "history-feed:2026-09-27"
     assert len(folds) == 1
-    expanded, expanded_folds = build_feed_section(
+    expanded, expanded_folds = _build_feed_section(
         "2026-09-27", "Sun Sep 27", day, regen_expanded=True
     )
     assert expanded_folds == ()
