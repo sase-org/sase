@@ -65,6 +65,7 @@ def _build_scoped_repo(root: Path) -> None:
         "_contention.py",
         "_suite_gate.py",
         "_suite_gate_budget.py",
+        "_suite_gate_demand.py",
         "_suite_gate_env.py",
         "_suite_gate_holders.py",
         "_suite_gate_lease.py",

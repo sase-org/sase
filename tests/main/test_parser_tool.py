@@ -51,10 +51,11 @@ def test_tool_help_advertises_implemented_verbs() -> None:
         "run",
         "runs",
         "show",
+        "stats",
         "stop",
         "wait",
     ]
-    assert "{failures,list,receipt,receipts,run,runs,show,stop,wait}" in help_text
+    assert "{failures,list,receipt,receipts,run,runs,show,stats,stop,wait}" in help_text
     usage_line = next(
         line for line in raw_help.splitlines() if line.startswith("usage:")
     )

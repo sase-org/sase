@@ -37823,7 +37823,7 @@
                   "--days"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "int"
               },
               {
                 "choices": null,
@@ -37855,7 +37855,7 @@
                   "--tool"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "text"
               }
             ],
             "path": [

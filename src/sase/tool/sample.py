@@ -192,11 +192,11 @@ class LoadSampler:
             return None
         try:
             total = tree_rss_kib(self.child_pid, proc_root=self.proc_root)
+            if total is None and not Path(self.proc_root).is_dir():
+                self.tree_rss_unavailable = TREE_RSS_UNAVAILABLE
         except Exception:  # noqa: BLE001 - a scan error skips that tick.
             return None
         if total is None:
-            if not Path(self.proc_root).is_dir():
-                self.tree_rss_unavailable = TREE_RSS_UNAVAILABLE
             return None
         self.tree_rss_samples += 1
         if self.peak_tree_rss_kib is None or total > self.peak_tree_rss_kib:

@@ -14,6 +14,7 @@ from sase.telemetry.metrics import TOOL_RUN_ATTEMPTS
 from sase.tool._executor_shared import default_continuation_mode
 from sase.tool.argv import ResolvedToolArgv, ToolRunUsageError, resolve_run_argv
 from sase.tool.demand import demand_context as build_demand_context
+from sase.tool.demand import note_demand_failure
 from sase.tool.executor_continuation import agent_default_continuation_mode
 from sase.tool.executor_display import warn_once
 from sase.tool.executor_models import RecordedRunContext, ToolRunCliRequest
@@ -181,8 +182,13 @@ def _execute_resolved(
 
     # A foreground run is bounded by the caller's own harness, so the
     # starter records its provider and ceilings; the body writes them right
-    # after the spawn. Nothing known means no write.
-    foreground_demand = build_demand_context(os.environ) if recorded else None
+    # after the spawn. Nothing known means no write. Capture is fail-open:
+    # a broken agent-meta file never stops the spawn.
+    try:
+        foreground_demand = build_demand_context(os.environ) if recorded else None
+    except Exception as exc:  # noqa: BLE001 - context capture is fail-open.
+        note_demand_failure(exc)
+        foreground_demand = None
     ctx = RecordedRunContext(
         run_id=run_id,
         recorded=recorded,

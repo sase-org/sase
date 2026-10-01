@@ -37,7 +37,7 @@ from tests._suite_gate_budget import (  # noqa: E402
 )
 from tests._suite_gate_demand import record_worker_grant  # noqa: E402
 from tests._suite_gate_env import gate_directory, gate_timeout  # noqa: E402
-from tests._suite_gate_lease import WorkerTokenLease  # noqa: E402
+from tests._suite_gate_lease import WorkerTokenLease, WorkerTokenTimeout  # noqa: E402
 from tests._test_selection import (  # noqa: E402
     Selection,
     SelectionOptions,
@@ -806,9 +806,11 @@ def _parallel_worker_grant() -> tuple[int, WorkerTokenLease | None]:
     started = time.monotonic()
     try:
         granted = lease.acquire(floor, ceiling, exact=exact)
-    except pytest.UsageError:
-        # The acquire timed out waiting for tokens: record the refusal with
-        # the elapsed wait, then re-raise.
+    except WorkerTokenTimeout:
+        # The acquire waited past its deadline without tokens: record the
+        # refusal with the elapsed wait, then re-raise. Other UsageErrors
+        # (missing capacity metadata, an explicit slots mismatch) are
+        # configuration problems, not waits, and record nothing.
         record_worker_grant(
             path="lease",
             requested_floor=floor,

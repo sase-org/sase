@@ -456,6 +456,21 @@ def test_foreground_records_terminal_cause_exited(
         assert shown["run"]["terminal_cause"] == "exited"
 
 
+def test_foreground_demand_capture_failure_still_spawns(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _home(monkeypatch, tmp_path)
+
+    def _broken(_env: object) -> object:
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad agent meta")
+
+    monkeypatch.setattr("sase.tool.executor_entry.build_demand_context", _broken)
+    assert _run("--", "sh", "-c", "exit 0") == 0
+    capsys.readouterr()
+
+
 def test_foreground_spawn_failure_records_exited_with_code(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

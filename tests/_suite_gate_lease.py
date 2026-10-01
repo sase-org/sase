@@ -53,6 +53,17 @@ from tests._suite_gate_progress import read_progress_sidecar, remove_progress_si
 
 _POLL_INTERVAL_SECONDS = 2.0
 _STATUS_INTERVAL_SECONDS = 30.0
+
+
+class WorkerTokenTimeout(pytest.UsageError):
+    """A lease acquire that waited past its deadline without tokens.
+
+    A subclass of ``pytest.UsageError`` so existing ``except
+    pytest.UsageError`` callers keep working; only the token-wait
+    refusal recorder catches this subclass specifically.
+    """
+
+
 #: Every lease this process holds, keyed by lease id, so a progress event can
 #: reach the lease whose tokens it should refresh.
 _leases_by_id: dict[str, WorkerTokenLease] = {}
@@ -137,7 +148,7 @@ class WorkerTokenLease:
                 next_status = now + self._status_interval
 
             if now >= deadline:
-                raise pytest.UsageError(
+                raise WorkerTokenTimeout(
                     timeout_message(
                         self._timeout,
                         floor,

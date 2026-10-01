@@ -214,6 +214,45 @@ def test_read_demand_grants_skips_oversized_lines_and_caps_count(
     assert grants[0]["grant_id"] == "g0"
 
 
+def test_read_demand_grants_drops_out_of_range_with_diagnostic(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "demand.jsonl"
+    path.write_text(
+        "\n".join(
+            [
+                _grant_line("run-1"),
+                _grant_line("run-1", grant_id="negative", granted=-1),
+                _grant_line("run-1", grant_id="huge", requested_ceiling=2**40),
+                _grant_line("run-1", grant_id="negative", granted=-1),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    grants, diagnostics = read_demand_grants(path, "run-1")
+    assert [grant["grant_id"] for grant in grants] == ["g1"]
+    assert diagnostics == [
+        "ignored out-of-range demand grant negative",
+        "ignored out-of-range demand grant huge",
+    ]
+
+
+def test_read_demand_grants_ignores_grants_past_the_read_cap(
+    tmp_path: Path,
+) -> None:
+    # The reader caps the file at 64 KiB; a grant past the cap is unread.
+    read_cap = 64 * 1024
+    path = tmp_path / "demand.jsonl"
+    filler = json.dumps({"schema_version": 1, "kind": "sample", "padding": "x" * 4000})
+    lines = [filler] * ((read_cap // (len(filler) + 1)) + 2)
+    lines.append(_grant_line("run-1"))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert path.stat().st_size > read_cap
+    grants, _ = read_demand_grants(path, "run-1")
+    assert grants == []
+
+
 def test_demand_file_path_beside_events(tmp_path: Path) -> None:
     events = tmp_path / "run-1" / "events.jsonl"
     assert demand_file_path(events) == tmp_path / "run-1" / DEMAND_FILE_NAME

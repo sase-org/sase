@@ -48,7 +48,25 @@ _DEMAND_MAX_BYTES = 64 * 1024
 _DEMAND_MAX_LINE_BYTES = 4 * 1024
 _DEMAND_MAX_GRANTS = 64
 
+#: Integer ranges mirrored from the core demand wire: ``u32`` for the
+#: floor/ceiling/granted/budget/selected-files fields, ``u64`` for
+#: ``wait_ms``, ``i64`` for ``observed_ts_ms``.
+_U32_MAX = 2**32 - 1
+_U64_MAX = 2**64 - 1
+_I64_MIN = -(2**63)
+_I64_MAX = 2**63 - 1
+
 _warned_no_demand = False
+
+
+def note_demand_failure(exc: BaseException) -> None:
+    """Warn at most once and count a demand-capture failure; never raises."""
+
+    global _warned_no_demand
+    if not _warned_no_demand:
+        _warned_no_demand = True
+        warn_once(f"{_DEMAND_WRITE_WARNING} ({exc})")
+    inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="demand")
 
 
 def demand_context(
@@ -103,7 +121,6 @@ def record_run_demand(
     a failure.
     """
 
-    global _warned_no_demand
     # Skip a no-op write: the core reports it replayed, and an empty fragment
     # carries no fact worth a store round-trip.
     if context is None and usage is None and not grants and not diagnostics:
@@ -120,10 +137,7 @@ def record_run_demand(
     try:
         tool_run_record_demand(request)
     except Exception as exc:  # noqa: BLE001 - recording is fail-open.
-        if not _warned_no_demand:
-            _warned_no_demand = True
-            warn_once(f"{_DEMAND_WRITE_WARNING} ({exc})")
-        inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="demand")
+        note_demand_failure(exc)
         return False
     return True
 
@@ -144,14 +158,17 @@ def read_demand_grants(
     Reads at most 64 KiB, skips lines over 4 KiB, and takes at most 64
     grants. Keeps only ``schema_version == 1``, ``kind == "worker_grant"``
     records for this run; a cross-run record adds one diagnostic. A grant is
-    forwarded only when its fields have the right primitive types; the core
+    forwarded only when its fields have the right primitive types within the
+    core wire ranges; an out-of-range value drops that grant with one
+    diagnostic instead of failing the whole request at the binding. The core
     validates the rest. A missing file reads as no grants. Never raises.
     """
 
     if path is None:
         return [], []
     try:
-        raw = Path(path).read_bytes()[:_DEMAND_MAX_BYTES]
+        with Path(path).open("rb") as handle:
+            raw = handle.read(_DEMAND_MAX_BYTES)
     except OSError:
         return [], []
     grants: list[dict[str, Any]] = []
@@ -186,6 +203,10 @@ def read_demand_grants(
             continue
         if _valid_grant(grant):
             grants.append(dict(grant))
+        elif _grant_out_of_range(grant):
+            diagnostic = f"ignored out-of-range demand grant {_grant_display_id(grant)}"
+            if diagnostic not in diagnostics:
+                diagnostics.append(diagnostic)
     return grants, diagnostics
 
 
@@ -197,12 +218,15 @@ def _is_optional_str(value: object) -> bool:
     return value is None or isinstance(value, str)
 
 
-def _is_optional_int(value: object) -> bool:
-    return value is None or type(value) is int
-
-
 def _valid_grant(grant: Mapping[str, Any]) -> bool:
-    """Return whether *grant* has the primitive types the core expects."""
+    """Return whether *grant* fits the primitive types and ranges the core expects.
+
+    The core wire is ``u32`` for ``requested_floor``, ``requested_ceiling``,
+    ``granted``, ``budget``, and ``selected_files``, ``u64`` for ``wait_ms``,
+    and ``i64`` for ``observed_ts_ms``. An out-of-range value would make the
+    binding reject the whole request — losing the run's usage with it — so
+    such grants are dropped (see ``_grant_out_of_range``).
+    """
 
     grant_id = grant.get("grant_id")
     if not isinstance(grant_id, str) or not grant_id:
@@ -211,18 +235,63 @@ def _valid_grant(grant: Mapping[str, Any]) -> bool:
         return False
     if not isinstance(grant.get("path"), str) or not grant.get("path"):
         return False
-    if not _is_int(grant.get("observed_ts_ms")):
+    if not _is_i64(grant.get("observed_ts_ms")):
         return False
     if not _is_optional_str(grant.get("lane")):
         return False
-    for key in ("requested_floor", "requested_ceiling", "granted", "wait_ms"):
-        if not _is_int(grant.get(key)):
+    for key in ("requested_floor", "requested_ceiling", "granted"):
+        if not _is_u32(grant.get(key)):
             return False
-    if not _is_optional_int(grant.get("budget")):
+    if not _is_u64(grant.get("wait_ms")):
         return False
-    if not _is_optional_int(grant.get("selected_files")):
+    if not _is_optional_u32(grant.get("budget")):
+        return False
+    if not _is_optional_u32(grant.get("selected_files")):
         return False
     return _is_optional_str(grant.get("escalated_from"))
+
+
+def _is_u32(value: object) -> bool:
+    return _is_int(value) and 0 <= value <= _U32_MAX  # type: ignore[operator]
+
+
+def _is_u64(value: object) -> bool:
+    return _is_int(value) and 0 <= value <= _U64_MAX  # type: ignore[operator]
+
+
+def _is_i64(value: object) -> bool:
+    return _is_int(value) and _I64_MIN <= value <= _I64_MAX  # type: ignore[operator]
+
+
+def _is_optional_u32(value: object) -> bool:
+    return value is None or _is_u32(value)
+
+
+def _grant_display_id(grant: Mapping[str, Any]) -> str:
+    grant_id = grant.get("grant_id")
+    if isinstance(grant_id, str) and grant_id:
+        return grant_id
+    return "<unknown>"
+
+
+def _grant_out_of_range(grant: Mapping[str, Any]) -> bool:
+    """Return whether *grant* is well-typed but outside the core wire ranges."""
+
+    observed = grant.get("observed_ts_ms")
+    if _is_int(observed) and not _is_i64(observed):
+        return True
+    for key in ("requested_floor", "requested_ceiling", "granted"):
+        value = grant.get(key)
+        if _is_int(value) and not _is_u32(value):
+            return True
+    wait = grant.get("wait_ms")
+    if _is_int(wait) and not _is_u64(wait):
+        return True
+    for key in ("budget", "selected_files"):
+        value = grant.get(key)
+        if _is_int(value) and not _is_u32(value):
+            return True
+    return False
 
 
 def _proc_stat_ppid_rss(stat_path: Path) -> tuple[int, int] | None:
@@ -369,6 +438,7 @@ __all__ = [
     "demand_file_path",
     "format_ceiling_seconds",
     "format_cpu_cores",
+    "note_demand_failure",
     "read_demand_grants",
     "record_run_demand",
     "tree_rss_kib",

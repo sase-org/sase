@@ -280,12 +280,12 @@ def test_acquire_timeout_records_a_refusal_and_reraises(
     runner = _leased_runner(monkeypatch, tmp_path, 7)
 
     def _timeout(self: object, floor: int, ceiling: int, *, exact: bool) -> int:
-        raise pytest.UsageError("timed out waiting for tokens")
+        raise runner.WorkerTokenTimeout("timed out waiting for tokens")
 
     monkeypatch.setattr(runner.WorkerTokenLease, "acquire", _timeout)
     runner._GRANT_LANE = "fast"
 
-    with pytest.raises(pytest.UsageError):
+    with pytest.raises(runner.WorkerTokenTimeout):
         runner._parallel_worker_grant()
 
     grant = _sole_grant(demand_path)
@@ -293,6 +293,26 @@ def test_acquire_timeout_records_a_refusal_and_reraises(
     assert grant["granted"] == 0
     assert grant["wait_ms"] >= 0
     assert grant["lane"] == "fast"
+
+
+def test_acquire_capacity_mismatch_records_no_grant(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    demand_path = _demand_channel(monkeypatch, tmp_path)
+    runner = _leased_runner(monkeypatch, tmp_path, 7)
+
+    def _mismatch(self: object, floor: int, ceiling: int, *, exact: bool) -> int:
+        raise pytest.UsageError(
+            "SASE_TEST_GATE_SLOTS requests 12 worker tokens, but the active"
+            " pool was started with 8."
+        )
+
+    monkeypatch.setattr(runner.WorkerTokenLease, "acquire", _mismatch)
+
+    with pytest.raises(pytest.UsageError, match="SASE_TEST_GATE_SLOTS"):
+        runner._parallel_worker_grant()
+
+    assert not demand_path.exists()
 
 
 def test_bypass_grant_is_recorded(

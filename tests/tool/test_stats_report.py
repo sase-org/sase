@@ -42,6 +42,68 @@ def test_parser_stats_options() -> None:
     assert args.tool_stats_tool == "check"
 
 
+def test_stats_help_documents_options_and_caveats(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as error:
+        _parse(["tool", "stats", "-h"])
+    assert error.value.code == 0
+    out = capsys.readouterr().out
+    for option in ("-a", "--all", "-d", "--days", "-j", "--json", "-t", "--tool"):
+        assert option in out
+    assert "read-only" in out
+    assert "baseline" in out
+
+
+def test_human_render_escapes_bracketed_names(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.tool.stats_report_render import print_human
+
+    tool = _fixture_tool("tests [x86]")
+    tool["stages"] = [
+        {
+            "description": "oops [/foo] bar",
+            "runs": 1,
+            "ok": 1,
+            "failed": 0,
+            "incomplete": 0,
+            "p50_ms": 1000,
+            "p90_ms": 1000,
+            "p90_over_p50": 1.0,
+            "total_hours": 0.1,
+        }
+    ]
+    tool["routes"] = [
+        {
+            "route": "inline",
+            "runs": 1,
+            "settled": 1,
+            "p50_ms": 1000,
+            "p90_ms": 1000,
+            "under_2m": 1,
+            "under_5m": 1,
+            "kills": 0,
+        }
+    ]
+    tool["providers"] = [
+        {
+            "provider": "acme [beta]",
+            "runs": 1,
+            "outcomes": {"succeeded": 1, "failed": 0, "censored": 0},
+            "p50_ms": 1000,
+            "p90_ms": 1000,
+            "kills": 0,
+            "kill_hours": 0.0,
+        }
+    ]
+    print_human(_fixture_envelope(tools=[tool]), detail_tool="tests [x86]")
+    out = capsys.readouterr().out
+    assert "tests [x86]" in out
+    assert "oops [/foo] bar" in out
+    assert "acme [beta]" in out
+
+
 def _now_ts() -> int:
     return int(time.time())
 
@@ -459,7 +521,10 @@ def test_end_to_end_two_tools(
     assert envelope["schema_version"] == 1
     assert envelope["host"]
     by_tool = {t["tool_name"]: t for t in envelope["tools"]}
-    assert by_tool["tiny"]["runs"] >= 1
-    assert by_tool["tiny"]["outcomes"]["succeeded"] >= 1
-    assert by_tool["failer"]["runs"] >= 1
-    assert by_tool["failer"]["outcomes"]["failed"] >= 1
+    assert set(by_tool) == {"tiny", "failer"}
+    assert by_tool["tiny"]["runs"] == 1
+    assert by_tool["tiny"]["outcomes"]["succeeded"] == 1
+    assert by_tool["tiny"]["outcomes"]["failed"] == 0
+    assert by_tool["failer"]["runs"] == 1
+    assert by_tool["failer"]["outcomes"]["failed"] == 1
+    assert by_tool["failer"]["outcomes"]["succeeded"] == 0

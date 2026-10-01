@@ -130,6 +130,13 @@ the grant carrying `grant_id`, `source`, `observed_ts_ms`, `lane` (`scoped`, `fa
 `requested_ceiling`, `granted` (`0` for a refused or timed-out lease), `budget`,
 `wait_ms`, `selected_files`, and `escalated_from`.
 
+The reader is bounded: at most 64 KiB per file, lines over 4 KiB skipped, at most 64
+grants, exact-int types only, and an out-of-range value drops that grant with an
+`ignored out-of-range demand grant <id>` diagnostic instead of failing the whole
+request. Usage carries typed availability reasons instead of zeros: `rusage unavailable`
+when the child settled without `wait4` figures, and `tree RSS unavailable on this host`
+when the host has no process tree to sample.
+
 ## Run output versus retained output
 
 A human at a terminal gets the child's stdout and stderr passed through unchanged; the
@@ -303,7 +310,8 @@ Definitions, in plain words:
   monitor-owned.
 - A **ceiling kill** is an `inline`, `signaled` run by a named agent that died inside
   85%–100% (+60 s grace) of its recorded ceiling, or inside 530–550 s without recorded
-  context (the legacy signature). **Waste** buckets are exclusive: killed at ceiling,
+  context (the legacy signature). A run with recorded context but no ceiling is never
+  counted as a ceiling kill. **Waste** buckets are exclusive: killed at ceiling,
   timeout, stopped, lost, interrupted, then any other signal.
 - **Repeats** are exact-state repetition: same project, tool, definition, extra args,
   and complete fingerprint, ordered by creation. A repeat after a signaled, interrupted,
@@ -325,12 +333,12 @@ stage rows while run summaries survive to `summary_days`.
 
 Each held reconsider condition from the tool-routing research has a stats field:
 
-| Condition  | Stats field                                                                                  |
-| ---------- | -------------------------------------------------------------------------------------------- |
-| Rest of E6 | Per-stage backtest coverage and width                                                        |
-| E7         | `pressure.busy_memory_over_threshold_share`, concurrent-duplicate hours, token-wait timeouts |
-| E8         | Run counts from each host (`ssh <host> sase tool stats -j`)                                  |
-| E4b        | `sase tool receipts`, not this report                                                        |
+| Condition  | Stats field                                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| Rest of E6 | Per-stage backtest coverage and width                                                                 |
+| E7         | `pressure.busy_memory_over_threshold_share`, concurrent-duplicate hours, token-wait runs and timeouts |
+| E8         | Run counts from each host (`ssh <host> sase tool stats -j`)                                           |
+| E4b        | `sase tool receipts`, not this report                                                                 |
 
 ## Failure semantics
 
