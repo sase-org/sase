@@ -320,6 +320,12 @@ class PromptSoftCompletionMixin(_MixinBase):
             ghost_visible = False
         if ghost_visible:
             return True
+        try:
+            peek_visible = bool(self._next_word_peek_visible())  # type: ignore[attr-defined]
+        except Exception:
+            peek_visible = False
+        if peek_visible:
+            return True
         bar = self._find_prompt_bar()
         if bar and getattr(bar, "_completion_panel_kind", None) == "jinja":
             return True

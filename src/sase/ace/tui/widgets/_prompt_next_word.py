@@ -72,14 +72,22 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         return next_word_chain_armed(chain, text=text, cursor_offset=offset)
 
     def _clear_next_word_chain(self) -> None:
-        """Clear the ghost, disarm the chain, and restore the subtitle."""
+        """Clear ghost and peek, disarm the chain, restore the subtitle."""
         self._next_word_chain = None
         self._clear_next_word_ghost()
+        try:
+            self._clear_next_word_peek()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def _on_prompt_completion_context_changed(self) -> None:
-        """Validate the ghost after text or cursor changes, then refresh soft."""
+        """Validate ghost and peek after text/cursor changes, refresh soft."""
         try:
             self._validate_next_word_ghost()
+        except Exception:
+            pass
+        try:
+            self._validate_next_word_peek()  # type: ignore[attr-defined]
         except Exception:
             pass
         try:
@@ -112,6 +120,10 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         self._cancel_next_word_reveal()
         self._next_word_chain = NextWordChain(anchor_offset=offset, anchor_text=text)
         self._next_word_ghost = None
+        try:
+            self._next_word_peek = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self._next_word_hint = None
         if not self._next_word_ghost_allowed():
             self._hide_next_word_hint()
@@ -135,26 +147,43 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         if not getattr(result, "confident", False) or not result.ghost:
             self._hide_next_word_hint()
             return
-        if not self._set_next_word_ghost(
+        if self._set_next_word_ghost(
             list(result.ghost),
             separator,
             reveal=reveal,
         ):
-            self._hide_next_word_hint()
+            return
+        if self._set_next_word_peek(  # type: ignore[attr-defined]
+            list(result.ghost),
+            reveal=reveal,
+        ):
+            return
+        self._hide_next_word_hint()
 
     def _explicit_next_word_request(self) -> bool:
-        """Handle ``Ctrl+T`` row 3: ghost, menu, or a transient hint.
+        """Handle ``Ctrl+T`` row 3: ghost, peek, menu, or a transient hint.
 
         Returns True when the chain was armed (the press is consumed even
-        when only a hint is shown). A confident ghost wins; otherwise the
-        top candidates open the ``next_word`` menu, including when a ghost
-        cannot be shown (peek placement or no width). Structural contexts
-        with nothing to offer show the hint instead of a menu.
+        when only a hint is shown). An unrevealed peek is revealed without
+        inserting. A confident guess wins as a ghost or peek; otherwise
+        the top candidates open the ``next_word`` menu. Structural
+        contexts with nothing to offer show the hint instead of a menu.
         """
         if not self._next_word_chain_is_armed():
             return False
         if self._next_word_ghost_visible():
             return False
+        try:
+            peek_visible = bool(self._next_word_peek_visible())  # type: ignore[attr-defined]
+        except Exception:
+            peek_visible = False
+        if peek_visible:
+            return False
+        try:
+            if bool(self._reveal_next_word_peek()):  # type: ignore[attr-defined]
+                return True
+        except Exception:
+            pass
         _, max_words, confidence = self._next_word_settings()
         try:
             text = self.text
@@ -201,8 +230,12 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
                 separator = next_word_leading_separator(text_before)
                 if self._set_next_word_ghost(list(result.ghost), separator):
                     return True
-            # A confident ghost that cannot be shown (peek placement or no
-            # width) falls through to the menu below.
+                if self._set_next_word_peek(  # type: ignore[attr-defined]
+                    list(result.ghost),
+                ):
+                    return True
+            # A confident guess that fits neither surface falls through
+            # to the menu below.
         return self._open_next_word_menu_for_result(result)
 
     def _open_next_word_menu_for_result(self, result: PromptPredictionResult) -> bool:
@@ -276,11 +309,16 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         return consumed
 
     def _refresh_visible_next_word_surface(self) -> None:
-        """Show a ghost when a warm model lands while the chain is armed."""
+        """Show a ghost or peek when a warm model lands while armed."""
         if not self._next_word_chain_is_armed():
             return
         if self._next_word_ghost_visible():
             return
+        try:
+            if bool(self._next_word_peek_visible()):  # type: ignore[attr-defined]
+                return
+        except Exception:
+            pass
         if not self._next_word_ghost_allowed():
             return
         _, max_words, confidence = self._next_word_settings()
@@ -303,4 +341,9 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
             separator = next_word_leading_separator(text[:offset])
         except Exception:
             return
-        self._set_next_word_ghost(list(result.ghost), separator)
+        if self._set_next_word_ghost(list(result.ghost), separator):
+            return
+        try:
+            self._set_next_word_peek(list(result.ghost))  # type: ignore[attr-defined]
+        except Exception:
+            pass

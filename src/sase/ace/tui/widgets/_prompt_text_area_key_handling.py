@@ -133,6 +133,7 @@ class PromptTextAreaKeyHandlingMixin(
         def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
         def _next_word_ghost_visible(self) -> bool: ...
         def _next_word_ghost_at_eol(self) -> bool: ...
+        def _next_word_peek_visible(self) -> bool: ...
         def _accept_next_word_one(self) -> bool: ...
         def _accept_next_word_all(self) -> bool: ...
         def _explicit_next_word_request(self) -> bool: ...
@@ -417,10 +418,12 @@ class PromptTextAreaKeyHandlingMixin(
                     self._accept_file_completion()
                     return
 
-        # Ghost accept-all on ``ctrl+l`` before soft completion. Pane focus
-        # moved to the normal-mode ``K`` / ``J`` keys, so an unconsumed
-        # ``ctrl+l`` still falls through to ``dismiss_toasts`` as before.
-        if event.key == "ctrl+l" and self._next_word_ghost_visible():
+        # Ghost/peek accept-all on ``ctrl+l`` before soft completion. Pane
+        # focus moved to the normal-mode ``K`` / ``J`` keys, so an
+        # unconsumed ``ctrl+l`` still falls through to ``dismiss_toasts``.
+        if event.key == "ctrl+l" and (
+            self._next_word_ghost_visible() or self._next_word_peek_visible()
+        ):
             event.stop()
             event.prevent_default()
             self._accept_next_word_all()
@@ -458,9 +461,11 @@ class PromptTextAreaKeyHandlingMixin(
             return
 
         # Ctrl+T ladder rows 2-3 before the manual dispatcher (row 4).
-        # Row 2 takes the visible ghost's first word; row 3 shows the
-        # gated ghost or a transient hint when the chain is armed.
-        if event.key == "ctrl+t" and self._next_word_ghost_visible():
+        # Row 2 takes the visible ghost's or revealed peek's first word;
+        # row 3 reveals a pending peek or shows the gated guess or hint.
+        if event.key == "ctrl+t" and (
+            self._next_word_ghost_visible() or self._next_word_peek_visible()
+        ):
             event.stop()
             event.prevent_default()
             self._clear_soft_completion(cancel_timer=True)

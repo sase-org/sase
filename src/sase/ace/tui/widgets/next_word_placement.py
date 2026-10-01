@@ -5,15 +5,25 @@ Classifies the cursor into ``none`` / ``inline_eol`` / ``inline_tail`` /
 words against the tail-shifted remainder of the cursor's wrapped row, so
 widget code stays thin and unit tests never need a mounted TextArea. The
 Rust core owns gating; this module only decides where a gated guess may
-be shown inline.
+be shown inline. It also owns the mid-sentence peek helpers: the
+redundancy trim and the styled, width-degrading border-subtitle peek
+(§4.3), which never moves prose.
 """
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from enum import Enum
-from collections.abc import Sequence
 
 from rich.cells import cell_len
+from rich.text import Text
+
+from sase.ace.tui.widgets._ranking_signal_rows import (
+    SEQUENCE_COLOR,
+    SEQUENCE_GLYPH,
+)
 
 
 class NextWordPlacement(Enum):
@@ -45,6 +55,33 @@ _NEXT_WORD_PLACEMENT_WORD_CHARS = frozenset({"_", "'", "’", "-"})
 #: Trailing clause punctuation skipped when looking for the word token
 #: before a typed trigger character.
 _NEXT_WORD_TRIGGER_TRAILING_PUNCT = frozenset(",;:!?.)]}“”\"'’*…")
+
+#: Peek hint segments: the full ``[^T] word  [^L] all`` matches
+#: ``NEXT_WORD_GHOST_HINT`` in ``next_word_completion`` (kept in sync by
+#: test, not by import, to avoid a placement/completion import cycle).
+NEXT_WORD_PEEK_HINT_WORD = "[^T] word"
+NEXT_WORD_PEEK_HINT_ALL = "[^L] all"
+
+#: Word tokens for the peek redundancy trim: the placement word rules
+#: (alphanumeric plus ``_ ' ’ -``).
+_NEXT_WORD_PEEK_WORD_RE = re.compile(r"[A-Za-z0-9_'\-’]+")
+
+
+@dataclass(frozen=True, slots=True)
+class NextWordPeek:
+    """Mid-sentence peek state: a gated guess anchored at a snapshot.
+
+    ``words`` are the trimmed preview words, ``revealed`` tracks the
+    reveal beat (explicit requests and accepts reveal immediately while
+    auto peeks wait), and ``word_completion`` stays ``None`` until the
+    mid-word phase composes suffix-plus-continuation peeks.
+    """
+
+    anchor_offset: int
+    anchor_text: str
+    words: tuple[str, ...]
+    revealed: bool
+    word_completion: object | None = None
 
 
 def _is_placement_word_char(character: str) -> bool:
@@ -143,6 +180,134 @@ def fit_next_word_ghost_with_tail(
     return []
 
 
+def _next_word_following_words(text_after_cursor: str) -> list[str]:
+    """Return the word tokens following the cursor for the peek trim.
+
+    Whitespace and punctuation are skipped; tokens follow the placement
+    word rules so ``don't`` stays one word.
+    """
+    return _NEXT_WORD_PEEK_WORD_RE.findall(text_after_cursor)
+
+
+def trim_next_word_peek_words(
+    words: Sequence[str],
+    text_after_cursor: str,
+) -> list[str]:
+    """Cut a peek before the first word the text already has (§4.3).
+
+    The peek words are compared casefolded against the first word after
+    the cursor. The peek is cut before the first peek word equal to that
+    following word; when the very first peek word already follows, no
+    peek is offered. A guess the text already contains is never shown.
+    """
+    trimmed = [word for word in words if word]
+    if not trimmed:
+        return []
+    following = _next_word_following_words(text_after_cursor)
+    if not following:
+        return list(trimmed)
+    first_following = following[0].casefold()
+    for index, word in enumerate(trimmed):
+        if word.casefold() == first_following:
+            return list(trimmed[:index])
+    return list(trimmed)
+
+
+def _peek_text_style(
+    variables: Mapping[str, str] | None, name: str, *, fallback: str
+) -> str:
+    """Return the theme style for the peek's first or preview words.
+
+    ``$text``/``$text-muted`` resolve from the app theme variables, but a
+    theme may express them as Textual ``auto`` specs that Rich cannot
+    parse for a border subtitle. Values are validated with Rich: anything
+    unparseable falls back (bold default reads as ``$text``, dim reads
+    as ``$text-muted`` in every theme).
+    """
+    if variables is not None:
+        try:
+            value = variables.get(name)
+        except Exception:
+            value = None
+        if value:
+            candidate = str(value)
+            try:
+                from rich.style import Style as _RichStyle
+
+                _RichStyle.parse(candidate)
+            except Exception:
+                pass
+            else:
+                return candidate
+    return fallback
+
+
+def build_next_word_peek_text(
+    words: Sequence[str],
+    *,
+    variables: Mapping[str, str] | None = None,
+    available_width: int,
+) -> Text | None:
+    """Build the styled violet peek for *words* within *available_width*.
+
+    The glyph uses the sequence violet, the first word (what ``Ctrl+T``
+    inserts) is bold ``$text``, preview words use ``$text-muted``, and
+    the hints keep the existing subtitle style. Degradation drops
+    trailing preview words first, then ``[^L] all``, then ``[^T] word``;
+    a word is never cut. Returns ``None`` when even ``⇢ <first>`` does
+    not fit, so the cursor readout keeps priority.
+    """
+    trimmed = [word for word in words if word]
+    if not trimmed or available_width <= 0:
+        return None
+    try:
+        text_style = _peek_text_style(variables, "text", fallback="bold")
+        preview_style = _peek_text_style(variables, "text-muted", fallback="dim")
+    except Exception:
+        text_style = "bold"
+        preview_style = "dim"
+    first_style = text_style if text_style.startswith("bold") else f"bold {text_style}"
+
+    def _plain(preview_count: int, *, with_word: bool, with_all: bool) -> str:
+        parts = [SEQUENCE_GLYPH, " ", " ".join(trimmed[:preview_count])]
+        if with_word or with_all:
+            parts.append("  ")
+        if with_word:
+            parts.append(NEXT_WORD_PEEK_HINT_WORD)
+        if with_word and with_all:
+            parts.append("  ")
+        if with_all:
+            parts.append(NEXT_WORD_PEEK_HINT_ALL)
+        return "".join(parts)
+
+    def _build(preview_count: int, *, with_word: bool, with_all: bool) -> Text:
+        result = Text(no_wrap=True)
+        result.append(SEQUENCE_GLYPH, style=f"bold {SEQUENCE_COLOR}")
+        result.append(" ")
+        result.append(trimmed[0], style=first_style or "bold")
+        for word in trimmed[1:preview_count]:
+            result.append(" ")
+            result.append(word, style=preview_style)
+        if with_word or with_all:
+            result.append("  ")
+        if with_word:
+            result.append(NEXT_WORD_PEEK_HINT_WORD)
+        if with_word and with_all:
+            result.append("  ")
+        if with_all:
+            result.append(NEXT_WORD_PEEK_HINT_ALL)
+        return result
+
+    for count in range(len(trimmed), 0, -1):
+        if cell_len(_plain(count, with_word=True, with_all=True)) <= available_width:
+            return _build(count, with_word=True, with_all=True)
+    if cell_len(_plain(1, with_word=True, with_all=False)) <= available_width:
+        return _build(1, with_word=True, with_all=False)
+    if cell_len(_plain(1, with_word=False, with_all=False)) <= available_width:
+        return _build(1, with_word=False, with_all=False)
+    return None
+
+
 def next_word_auto_space_eligible(text: str, cursor_offset: int) -> bool:
     """Return whether a just-typed character may trigger an ``auto`` ghost.
 
@@ -170,10 +335,15 @@ def next_word_auto_space_eligible(text: str, cursor_offset: int) -> bool:
 __all__ = [
     "NEXT_WORD_CLOSING_TAIL_CHARS",
     "NEXT_WORD_MAX_TAIL_CHARS",
+    "NEXT_WORD_PEEK_HINT_ALL",
+    "NEXT_WORD_PEEK_HINT_WORD",
+    "NextWordPeek",
     "NextWordPlacement",
+    "build_next_word_peek_text",
     "classify_next_word_placement",
     "fit_next_word_ghost_with_tail",
     "next_word_auto_space_eligible",
     "next_word_is_last_wrapped_section",
     "next_word_rest_of_line",
+    "trim_next_word_peek_words",
 ]

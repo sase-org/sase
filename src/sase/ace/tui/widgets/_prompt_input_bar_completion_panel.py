@@ -105,7 +105,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         _mode_subtitle: str
         _search_command_visible: bool
         _soft_completion_visible: bool
-        _subtitle_base: str
+        _subtitle_base: str | Text
 
         def _update_height(self) -> None: ...
         def _maybe_show_active_jinja_diagnostics(self) -> None: ...
@@ -309,8 +309,13 @@ class PromptInputBarCompletionMixin(_MixinBase):
             self._subtitle_base = subtitle
             self.border_subtitle = self._render_subtitle(subtitle)
 
-    def show_next_word_hint(self, text: str) -> None:
-        """Render a next-word ghost or transient hint in the border subtitle."""
+    def show_next_word_hint(self, text: str | Text) -> None:
+        """Render a next-word ghost, peek, or transient hint in the subtitle.
+
+        Ghosts and transient hints pass ``str``; the mid-sentence peek
+        passes a styled ``Text`` so the violet glyph and word spans
+        survive subtitle composition.
+        """
         if self._completion_panel_kind == "jinja":
             return
         self._next_word_hint_visible = True
@@ -354,7 +359,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._subtitle_base = self._mode_subtitle
         self.border_subtitle = self._render_subtitle(self._mode_subtitle)
 
-    def _render_subtitle(self, base: str) -> Text:
+    def _render_subtitle(self, base: str | Text) -> Text:
         """Compose *base*, search pill, and cursor readout, width-aware.
 
         The readout wins over both prompt hints and the search pill: when all
@@ -365,8 +370,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
         panel; the readout has no other home.
         Builds a ``rich.text.Text`` rather than a markup string so literal
         ``[`` characters in *base* (e.g. ``"[Enter] send"``) are never parsed
-        as markup.
+        as markup. A peek ``Text`` is never truncated mid-word: when it no
+        longer fits beside the readout (e.g. after a resize), it is dropped
+        so the readout keeps priority.
         """
+        if isinstance(base, Text):
+            return self._render_peek_subtitle(base)
         try:
             text_area = self.active_text_area()
         except Exception:
@@ -436,6 +445,65 @@ class PromptInputBarCompletionMixin(_MixinBase):
             base_text.truncate(remaining, overflow="ellipsis")
             result = Text(no_wrap=True)
             result.append_text(base_text)
+            result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+            result.append_text(readout)
+            return result
+
+        result = Text(no_wrap=True, overflow="ellipsis")
+        result.append_text(readout)
+        result.truncate(usable, overflow="ellipsis")
+        return result
+
+    def _render_peek_subtitle(self, peek: Text) -> Text:
+        """Compose a styled peek with the search pill and cursor readout.
+
+        The peek builder already degraded the peek to fit the live width,
+        so this only composes: when a resize has made it stale, the peek
+        is dropped (never cut) and the pill/readout contract below holds.
+        """
+        try:
+            text_area = self.active_text_area()
+        except Exception:
+            return Text(peek.plain, no_wrap=True)
+        line, column = cursor_readout_position(text_area)
+        readout = format_cursor_readout(line, column, vim_mode=text_area._vim_mode)
+        readout_width = cursor_readout_cell_width(line, column)
+        divider_width = cell_len(_CURSOR_READOUT_DIVIDER)
+        usable = max(0, self.size.width - _SUBTITLE_BORDER_RESERVED_CELLS)
+        search_pill = self._search_readout_pill(text_area)
+        peek_width = cell_len(peek.plain)
+
+        if search_pill is not None:
+            pill_width = cell_len(search_pill.plain)
+            if (
+                peek_width + divider_width + pill_width + divider_width + readout_width
+                <= usable
+            ):
+                result = Text(no_wrap=True)
+                result.append_text(peek.copy())
+                result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                result.append_text(search_pill)
+                result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                result.append_text(readout)
+                return result
+            if pill_width + divider_width + readout_width <= usable:
+                result = Text(no_wrap=True)
+                result.append_text(search_pill)
+                result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                result.append_text(readout)
+                return result
+            count_pill = self._search_readout_pill(text_area, include_query=False)
+            if count_pill is not None:
+                count_width = cell_len(count_pill.plain)
+                if count_width + divider_width + readout_width <= usable:
+                    result = Text(no_wrap=True)
+                    result.append_text(count_pill)
+                    result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                    result.append_text(readout)
+                    return result
+        elif peek_width + divider_width + readout_width <= usable:
+            result = Text(no_wrap=True)
+            result.append_text(peek.copy())
             result.append(_CURSOR_READOUT_DIVIDER, style="dim")
             result.append_text(readout)
             return result

@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from unittest.mock import patch
 
+import pytest
 from textual.widgets import Static
 
 from sase.ace.tui.widgets._next_word_rows import (
@@ -238,7 +239,7 @@ def _panel_title(bar: PromptInputBar) -> str:
     return title.plain if hasattr(title, "plain") else str(title)
 
 
-async def test_row3_midline_opens_menu_with_title() -> None:
+async def test_row3_midline_confident_shows_peek_not_menu() -> None:
     app = NextWordMenuTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -248,6 +249,29 @@ async def test_row3_midline_opens_menu_with_title() -> None:
         ta._arm_next_word_chain()
         await pilot.pause()
         assert ta._next_word_ghost_visible() is False
+        # A confident midline guess becomes a border peek, not a menu.
+        assert ta._next_word_peek_visible() is True
+        assert "implement" in _menu_bar_hint(bar)
+        await pilot.press("ctrl+t")
+        assert ta.text == "Can you help me implement here"
+        assert ta._file_completion_active is False
+
+
+async def test_row3_midline_without_confidence_opens_menu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = NextWordMenuTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        bar = app.query_one(PromptInputBar)
+        ta.load_text("Can you help me here")
+        ta.cursor_location = (0, len("Can you help me"))
+        weak = _result([_candidate("implement", continuation=["it", "now"])])
+        monkeypatch.setattr(ta, "_predict_next_words", lambda *args, **kwargs: weak)
+        ta._arm_next_word_chain()
+        await pilot.pause()
+        assert ta._next_word_ghost_visible() is False
+        assert ta._next_word_peek_visible() is False
         await pilot.press("ctrl+t")
         assert ta._file_completion_active is True
         assert ta._completion_kind == "next_word"
@@ -284,12 +308,17 @@ async def test_row4b_mid_word_stays_noop() -> None:
         await pilot.pause()
 
 
-async def test_menu_accept_inserts_separator_and_continues_chain() -> None:
+async def test_menu_accept_inserts_separator_and_continues_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = NextWordMenuTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("Can you help me here")
         ta.cursor_location = (0, len("Can you help me"))
+        # Without confidence there is no peek: the menu still opens midline.
+        weak = _result([_candidate("implement", continuation=["it", "now"])])
+        monkeypatch.setattr(ta, "_predict_next_words", lambda *args, **kwargs: weak)
         ta._arm_next_word_chain()
         await pilot.pause()
         await pilot.press("ctrl+t")

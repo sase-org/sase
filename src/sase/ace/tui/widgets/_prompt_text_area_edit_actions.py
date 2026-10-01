@@ -41,6 +41,12 @@ class PromptTextAreaEditActionsMixin(PromptTextAreaListEditingMixin):
                 validate()
             except Exception:
                 pass
+        validate_peek = getattr(self, "_validate_next_word_peek", None)
+        if callable(validate_peek):
+            try:
+                validate_peek()
+            except Exception:
+                pass
         self._refresh_file_completion_from_cursor()
         self._refresh_xprompt_arg_hint_from_cursor()
 
@@ -113,6 +119,12 @@ class PromptTextAreaEditActionsMixin(PromptTextAreaListEditingMixin):
         if callable(validate):
             try:
                 validate()
+            except Exception:
+                pass
+        validate_peek = getattr(self, "_validate_next_word_peek", None)
+        if callable(validate_peek):
+            try:
+                validate_peek()
             except Exception:
                 pass
         self._refresh_file_completion_from_cursor()
