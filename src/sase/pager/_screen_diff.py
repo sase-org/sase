@@ -301,10 +301,13 @@ class PagerDiffMixin:
         except Exception:
             return
         try:
+            styles_fn = getattr(self, "_history_styles", None)
+            styles = styles_fn() if callable(styles_fn) else None
             rendered = build_diff_body(
                 comparison,
                 read_section.plain_text,
                 expanded=frozenset(state.expanded_folds),
+                history_styles=styles,
             )
         except Exception:
             self.notify("Diff render failed — keeping read view.", severity="warning")
@@ -468,10 +471,13 @@ class PagerDiffMixin:
         if read_section is None:
             return ()
         try:
+            styles_fn = getattr(self, "_history_styles", None)
+            styles = styles_fn() if callable(styles_fn) else None
             rendered = build_diff_body(
                 comparison,
                 read_section.plain_text,
                 expanded=frozenset(state.expanded_folds),
+                history_styles=styles,
             )
         except Exception:
             return ()
@@ -565,10 +571,13 @@ class PagerDiffMixin:
             state.expanded_folds.discard(fold_index)
             return
         try:
+            styles_fn = getattr(self, "_history_styles", None)
+            styles = styles_fn() if callable(styles_fn) else None
             rendered = build_diff_body(
                 comparison,
                 read_section.plain_text,
                 expanded=frozenset(state.expanded_folds),
+                history_styles=styles,
             )
             replacement = replace(
                 read_section,

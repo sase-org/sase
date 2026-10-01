@@ -74,6 +74,14 @@ _DIRTY_BODY = (
     "- Label the seed trays.\n"
 )
 
+#: Long past-read body for the `past-frame` golden: the time band scrolls
+#: out of view on small terminals, so the past-accent gutter rail is the
+#: cue. The head matches `_PAST_BODY` so the fixture change marks stay put.
+_FRAME_BODY = _PAST_BODY + "".join(
+    f"Row {number}: turn the compost and check the cold frame.\n"
+    for number in range(7, 130)
+)
+
 _TOMBSTONE_VERSION = {
     "class": "deleted",
     "committer_time": 1577880000,
@@ -208,7 +216,7 @@ class _SvgExport:
 
 def _section_for_state(state: str) -> PagerSection:
     raw = RawSourceSpec(language="markdown")
-    if state == "past":
+    if state in ("past", "past-frame"):
         pin = committed_pin_for_ordinal(
             _SUBJECT_ID,
             2,
@@ -219,7 +227,7 @@ def _section_for_state(state: str) -> PagerSection:
             identity=_IDENTITY,
             title=_TITLE,
             kind="file",
-            body=_PAST_BODY,
+            body=_FRAME_BODY if state == "past-frame" else _PAST_BODY,
             subject_ref=_SUBJECT_ID,
             raw_source=raw,
             version_pin=pin,
@@ -335,7 +343,7 @@ def _fixture_timeline_rows(
 
 def _inject_history_state(screen: PagerScreen, state: str) -> None:
     """Populate deterministic per-section history state for *state*."""
-    if state == "past":
+    if state in ("past", "past-frame"):
         pin = committed_pin_for_ordinal(
             _SUBJECT_ID,
             2,
@@ -529,7 +537,16 @@ def _document_for_state(state: str) -> PagerDocument:
 @pytest.mark.parametrize("light", [False, True])
 @pytest.mark.parametrize(
     "state",
-    ["past", "dirty", "tombstone", "past-diff", "dirty-diff", "feed", "feed-expanded"],
+    [
+        "past",
+        "past-frame",
+        "dirty",
+        "tombstone",
+        "past-diff",
+        "dirty-diff",
+        "feed",
+        "feed-expanded",
+    ],
 )
 async def test_history_png_snapshot(
     pager_png_visual: AcePngSnapshotFixture,

@@ -159,3 +159,86 @@ def test_apply_gutter_wraps_wide_characters_by_cell_width() -> None:
     for row in rows:
         content = row[4:]
         assert cell_len(content) <= 10
+
+
+def test_apply_gutter_rail_style_paints_every_plain_separator() -> None:
+    from sase.pager.history.styles import default_history_styles
+
+    styles = default_history_styles()
+    result = apply_gutter(
+        Text("one\ntwo\nthree"),
+        content_width=20,
+        number_width=2,
+        rail_style=styles.rail_past,
+    )
+    rows = result.text.plain.split("\n")
+
+    assert [row[2] for row in rows] == ["│", "│", "│"]
+    for row_index in range(3):
+        offset = result.text.plain.index("│", row_index * 8)
+        style = result.text.get_style_at_offset(_CONSOLE, offset)
+        assert style.color is not None
+        assert style.color.get_truecolor().hex.lower() == styles.rail_past.lower()
+
+
+def test_apply_gutter_change_marks_win_over_the_rail() -> None:
+    from sase.pager.history.styles import default_history_styles
+
+    styles = default_history_styles()
+    result = apply_gutter(
+        Text("one\ntwo\nthree"),
+        content_width=20,
+        number_width=2,
+        rail_style=styles.rail_past,
+        change_marks={2: "changed"},
+    )
+    rows = result.text.plain.split("\n")
+
+    assert rows[0][2] == "│"
+    assert rows[1][2] == "▌"
+    assert rows[2][2] == "│"
+
+
+def test_apply_gutter_goto_emphasis_wins_over_change_marks_and_rail() -> None:
+    from sase.pager.history.styles import default_history_styles
+
+    styles = default_history_styles()
+    result = apply_gutter(
+        Text("one\ntwo\nthree"),
+        content_width=20,
+        number_width=2,
+        emphasis_range=(2, 2),
+        accent="#FFAF5F",
+        rail_style=styles.rail_past,
+        change_marks={2: "added"},
+    )
+    rows = result.text.plain.split("\n")
+
+    assert rows[0][2] == "│"
+    assert rows[1][2] == "┃"
+    assert rows[2][2] == "│"
+
+
+def test_apply_gutter_change_marks_come_from_the_style_set() -> None:
+    from sase.pager.history.styles import default_history_styles
+
+    styles = default_history_styles()
+    result = apply_gutter(
+        Text("one\ntwo\nthree\nfour"),
+        content_width=20,
+        number_width=2,
+        change_marks={1: "added", 2: "changed"},
+        removal_anchors={3},
+    )
+    added = result.text.get_style_at_offset(_CONSOLE, result.text.plain.index("▌"))
+    assert added.color is not None
+    assert added.color.get_truecolor().hex.lower() == styles.gutter_add.lower()
+    changed = result.text.get_style_at_offset(
+        _CONSOLE, result.text.plain.index("▌", result.text.plain.index("▌") + 1)
+    )
+    assert changed.color is not None
+    assert changed.color.get_truecolor().hex.lower() == styles.gutter_change.lower()
+    assert styles.gutter_change.lower() != "#ff00ff"
+    removal = result.text.get_style_at_offset(_CONSOLE, result.text.plain.index("╴"))
+    assert removal.color is not None
+    assert removal.color.get_truecolor().hex.lower() == styles.gutter_remove.lower()

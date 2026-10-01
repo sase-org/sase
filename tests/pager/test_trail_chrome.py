@@ -280,3 +280,152 @@ def test_full_trail_band_uses_ctrl_i_for_forward_hint() -> None:
 
     assert "^I forward 1" in text
     assert "<tab> forward" not in text
+
+
+def _committed_pin(ordinal: int, view: str = "read", base: int | None = None) -> object:
+    from dataclasses import replace
+
+    from sase.pager.history.models import committed_pin_for_ordinal
+
+    pin = committed_pin_for_ordinal("note:project:demo/note", ordinal)
+    if view == "diff":
+        pin = replace(
+            pin, view="diff", compare_base=base, explicit_base=base is not None
+        )
+    return pin
+
+
+def _now_diff_pin(base: int) -> object:
+    from dataclasses import replace
+
+    from sase.pager.history.models import live_pin_for_subject
+
+    pin = live_pin_for_subject("note:project:demo/note")
+    return replace(pin, view="diff", compare_base=base, explicit_base=True)
+
+
+def test__suffix_for_pin_names_read_diff_and_now() -> None:
+    from sase.pager._trail_chrome import _suffix_for_pin
+    from sase.pager.history.models import live_pin_for_subject
+
+    assert _suffix_for_pin(None) == ""
+    assert _suffix_for_pin(_committed_pin(24)) == "@v24"
+    assert _suffix_for_pin(_committed_pin(24, "diff", base=23)) == "@v23→v24"
+    assert _suffix_for_pin(_now_diff_pin(25)) == "@v25→now"
+    assert _suffix_for_pin(live_pin_for_subject("s")) == ""
+
+
+def test_suffix_for_moment_names_past_diff_and_tombstone() -> None:
+    from sase.pager._trail_chrome import suffix_for_moment
+    from sase.pager.history.moment import build_moment
+
+    assert suffix_for_moment(None) == ""
+    rows = [
+        {
+            "ordinal": ordinal,
+            "commit": f"{ordinal:040d}",
+            "blob_oid": f"blob-{ordinal:036d}",
+            "committer_time": 1790000000,
+            "class": "authored",
+        }
+        for ordinal in (23, 24, 25)
+    ]
+    meta = {"worktree_oid": "wt", "head_oid": "hd"}
+    past = build_moment(
+        rows=rows,
+        meta=meta,
+        visible_ordinals=(23, 24, 25),
+        pin=_committed_pin(24),  # type: ignore[arg-type]
+        status="live",
+    )
+    assert suffix_for_moment(past) == "@v24"
+
+    diff_pin = _committed_pin(24, "diff", base=23)
+    diff = build_moment(
+        rows=rows,
+        meta=meta,
+        visible_ordinals=(23, 24, 25),
+        pin=diff_pin,  # type: ignore[arg-type]
+        status="live",
+    )
+    assert suffix_for_moment(diff) == "@v23→v24"
+
+    tomb_rows = [{**rows[0]}, {**rows[1]}, {**rows[2], "class": "deleted"}]
+    from sase.pager.history.models import live_pin_for_subject
+
+    deleted = build_moment(
+        rows=tomb_rows,
+        meta=meta,
+        visible_ordinals=(23, 24, 25),
+        pin=live_pin_for_subject("s"),
+        status="tombstone",
+    )
+    assert suffix_for_moment(deleted) == "@✖"
+
+
+def test_snapshot_carries_version_suffixes_in_entries_and_signature() -> None:
+    back = [_trail_entry("overview"), _trail_entry("design", kind="bead")]
+    current_section = _section("pager.md", kind="ref:plan")
+    current_document = _document("pager.md", current_section)
+    forward = [_trail_entry("review")]
+
+    snapshot = build_pager_trail_snapshot(
+        back=back,
+        document=current_document,
+        document_identity="file:/tmp/pager.md",
+        current_section=current_section,
+        forward=forward,
+        version_pins={
+            "file:/tmp/overview": _committed_pin(21),
+            "file:/tmp/review": _committed_pin(23, "diff", base=22),
+        },
+        current_suffix="@v24",
+    )
+
+    assert [entry.version_suffix for entry in snapshot.entries] == [
+        "@v21",
+        "",
+        "@v24",
+        "@v22→v23",
+    ]
+    assert snapshot.entries[0].signature[-1] == "@v21"
+    assert snapshot.current.signature[-1] == "@v24"
+
+    row = _render_trail_path_row(snapshot, width=120)
+    assert "@v21" in row.plain
+    assert "@v24" in row.plain
+    assert "@v22→v23" in row.plain
+    suffix_style = next(
+        span.style for span in row.spans if row.plain[span.start : span.end] == "@v21"
+    )
+    from sase.pager.history.styles import default_history_styles
+
+    assert suffix_style == default_history_styles().past
+
+
+def test_suffix_sheds_before_labels_truncate() -> None:
+    from dataclasses import replace
+
+    from sase.pager._trail_chrome_model import PagerTrailSnapshot
+
+    snapshot = _snapshot(["overview", "pager.md", "review"], 1)
+
+    suffixed = PagerTrailSnapshot(
+        entries=tuple(
+            replace(
+                entry, version_suffix="@v24" if entry.state == "current" else "@v21"
+            )
+            for entry in snapshot.entries
+        ),
+        current_index=snapshot.current_index,
+    )
+    full = _render_trail_path_row(suffixed, width=120).plain
+    assert "@v24" in full and "pager.md" in full
+
+    shed = _render_trail_path_row(suffixed, width=40).plain
+    assert "@v24" not in shed and "@v21" not in shed
+    assert "pager.md" in shed and "overview" in shed and "review" in shed
+
+    truncated = _render_trail_path_row(suffixed, width=34).plain
+    assert "@v24" not in truncated and "@v21" not in truncated
+    assert "…" in truncated

@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
+from typing import Any
 
 from rich.console import Console, Group, RenderableType
 from rich.text import Text
@@ -164,6 +165,8 @@ def compose_body(
     goto_accent: str | None = None,
     change_marks: Mapping[int, Mapping[int, str]] | None = None,
     removal_anchors: Mapping[int, set[int]] | None = None,
+    rail_styles: Mapping[int, str] | None = None,
+    history_styles: Any | None = None,
 ) -> ComposedBody:
     """Render *document* at ``width``: gutterized bodies plus transition rules.
 
@@ -172,7 +175,10 @@ def compose_body(
     exactly as before. ``line_mark`` is the last jump or link landing; its
     inclusive range paints an accent rail with ``goto_accent``.
     ``change_marks``/``removal_anchors`` carry read-view history marks per
-    section index; a goto rail wins when both coincide.
+    section index; a goto rail wins when both coincide. ``rail_styles``
+    paints the plain gutter separator of each section index — the
+    past-accent rail for sections pinned in the past — under change
+    marks but over nothing else.
     """
     sections = document.sections
     if not sections:
@@ -213,6 +219,7 @@ def compose_body(
         section_anchors = (
             None if removal_anchors is None else removal_anchors.get(index)
         )
+        section_rail = None if rail_styles is None else rail_styles.get(index)
         painted, height, line_rows = _paint_section_body(
             renderable,
             section,
@@ -225,6 +232,8 @@ def compose_body(
             removal_anchors=set(section_anchors)
             if section_anchors is not None
             else None,
+            rail_style=section_rail,
+            history_styles=history_styles,
         )
         parts.append(painted)
         heights.append(height)
@@ -257,6 +266,8 @@ def _paint_section_body(
     accent: str | None,
     change_marks: dict[int, str] | None = None,
     removal_anchors: set[int] | None = None,
+    rail_style: str | None = None,
+    history_styles: Any | None = None,
 ) -> tuple[RenderableType, int, tuple[int, ...]]:
     """Gutterize a ``Text`` body; keep a no-gutter fallback for other renderables."""
     if isinstance(renderable, Text):
@@ -268,6 +279,8 @@ def _paint_section_body(
             accent=accent,
             change_marks=change_marks,
             removal_anchors=removal_anchors,
+            rail_style=rail_style,
+            history_styles=history_styles,
         )
         return guttered.text, guttered.row_count, guttered.line_rows
     console = Console(width=max(paint_width, 1), color_system=None, highlight=False)

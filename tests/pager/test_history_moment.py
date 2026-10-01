@@ -535,7 +535,7 @@ def _document() -> PagerDocument:
     return PagerDocument(sections=(section,), title="doc", origin=PagerOrigin.FILE)
 
 
-def test_chip_counts_absolute_versions_for_clean_now() -> None:
+def test_pill_names_newest_version_for_clean_now() -> None:
     line = subject_line(
         _document(),
         _document().sections[0],
@@ -546,11 +546,11 @@ def test_chip_counts_absolute_versions_for_clean_now() -> None:
         width=80,
         history_state={"ordinal": 25, "total": 25, "kind": "now"},
     )
-    assert "25 versions" in line.plain
+    assert "NOW · v25" in line.plain
     assert "PAST" not in line.plain
 
 
-def test_chip_names_absolute_version_and_age_for_past() -> None:
+def test_pill_names_absolute_version_and_age_for_past() -> None:
     line = subject_line(
         _document(),
         _document().sections[0],
@@ -561,4 +561,5 @@ def test_chip_names_absolute_version_and_age_for_past() -> None:
         width=80,
         history_state={"ordinal": 24, "total": 25, "kind": "past", "age": "1mo"},
     )
-    assert "PAST v24/25 · 1mo" in line.plain
+    assert "PAST · v24 of 25" in line.plain
+    assert "1mo" in line.plain

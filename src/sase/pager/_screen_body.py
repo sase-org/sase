@@ -283,6 +283,9 @@ class PagerBodyMixin:
         removal_anchors = None
         if callable(marks_fn):
             change_marks, removal_anchors = marks_fn()
+        styles_fn = getattr(self, "_history_styles", None)
+        styles = styles_fn() if callable(styles_fn) else None
+        rail_styles = self._history_rail_styles(styles)
         return compose_body(
             self.document,
             width,
@@ -293,7 +296,38 @@ class PagerBodyMixin:
             goto_accent=accent,
             change_marks=change_marks,
             removal_anchors=removal_anchors,
+            rail_styles=rail_styles,
+            history_styles=styles,
         )
+
+    def _history_rail_styles(self: Any, styles: Any) -> dict[int, str] | None:
+        """Return per-section gutter rail styles from each section's moment.
+
+        Past pins get the past-accent rail, deleted subjects the muted
+        deleted rail, and every other kind gets none.
+        """
+        states = getattr(self, "_history_states", None)
+        if not states or styles is None:
+            return None
+        try:
+            from sase.pager.history.moment import moment_for_state
+        except Exception:
+            return None
+        rails: dict[int, str] = {}
+        for index, section in enumerate(self.document.sections):
+            state = states.get(section.identity)
+            if state is None:
+                continue
+            try:
+                moment = moment_for_state(state)
+            except Exception:
+                continue
+            kind = getattr(moment, "kind", "") if moment is not None else ""
+            if kind == "past":
+                rails[index] = str(styles.rail_past)
+            elif kind == "deleted":
+                rails[index] = str(styles.rail_deleted)
+        return rails or None
 
     def _build_label_layer(
         self: Any, width: int, hint_offset: int = 0

@@ -9,7 +9,7 @@ from rich.cells import cell_len
 from sase.memory.history import vocabulary as shared_vocabulary
 from sase.memory.history import render_text as shared_render_text
 from sase.pager import _time_band as time_band
-from sase.pager._chrome import _history_chip
+from sase.pager._chrome import subject_line
 from sase.pager._labels import build_label_layer, prefix_free_hint_sequence
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 
@@ -584,10 +584,23 @@ def test_band_hints_lead_the_shared_sequence() -> None:
     assert sorted(plain.hint_to_label_index) == list(sequence[: len(plain.labels)])
 
 
+def _subject_with_state(history_state: dict[str, object]) -> str:
+    section = PagerSection(identity="s", title="s", kind="file", body="x\n")
+    document = PagerDocument(sections=(section,), title="d", origin=PagerOrigin.FILE)
+    return subject_line(
+        document,
+        section,
+        section_index=1,
+        section_total=1,
+        scroll_percent=0,
+        char_count=10,
+        width=80,
+        history_state=history_state,
+    ).plain
+
+
 def test_folded_honest_state_reaches_the_subject_chip() -> None:
-    chip = _history_chip(
+    assert "UNTRACKED" in _subject_with_state(
         {"ordinal": 0, "total": 3, "folded_honest": ("untracked", None)}
     )
-    assert chip is not None and "UNTRACKED" in chip.plain
-    plain = _history_chip({"ordinal": 2, "total": 5, "age": "3d"})
-    assert plain is not None and "PAST" in plain.plain
+    assert "PAST" in _subject_with_state({"ordinal": 2, "total": 5, "age": "3d"})

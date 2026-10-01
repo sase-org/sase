@@ -7,25 +7,19 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
-from sase.pager._chrome import footer_legend, subject_line
+from sase.pager._chrome import footer_legend, subject_line, time_verbs_for_moment
 from sase.pager._layout import current_section_index
-from sase.pager.syntax_theme import contrast_ratio, history_palette_from_theme
-
-
-def _history_past_style(theme: object | None) -> str:
-    """Return the contrast-checked past accent for the current host theme."""
-    palette = history_palette_from_theme(theme)
-    past = str(palette.get("past", "#9d7cd8"))
-    try:
-        if contrast_ratio(past, "#000000") < 3.0:
-            return "#9d7cd8"
-    except Exception:
-        return "#9d7cd8"
-    return past
+from sase.pager.history.styles import HistoryStyles, history_styles_for_theme
 
 
 class PagerChromeMixin:
     """Render the visible pager chrome around the scrollable body."""
+
+    def _history_styles(self: Any) -> HistoryStyles:
+        """Return the cached theme-aware history style set."""
+        theme_fn = getattr(self, "_current_syntax_theme", None)
+        theme = theme_fn() if callable(theme_fn) else None
+        return history_styles_for_theme(theme)
 
     def _set_footer_status(self: Any, status: str | None) -> None:
         self._footer_status = status
@@ -40,7 +34,6 @@ class PagerChromeMixin:
         states = getattr(self, "_history_states", None)
         if not states:
             return (False, False, None)
-        _ = _history_past_style(getattr(self, "_current_syntax_theme", lambda: None)())
         try:
             section = self._current_section()
         except Exception:
@@ -77,6 +70,12 @@ class PagerChromeMixin:
             kind = ""
             view = str(getattr(pin, "view", "read") or "read")
             age = ""
+        if moment is not None and moment.view == "diff" and moment.diff is not None:
+            diff_base: int | None = moment.diff[0]
+            diff_target: int | None = moment.diff[1]
+        else:
+            diff_base = self._history_diff_base_for(state, ordinal)
+            diff_target = ordinal if view == "diff" else None
         history_state: dict[str, object] = {
             "ordinal": ordinal,
             "total": total,
@@ -85,12 +84,16 @@ class PagerChromeMixin:
             "tombstone": kind == "deleted" or state.status == "tombstone",
             "age": age,
             "view": view,
-            "diff_base": self._history_diff_base_for(state, ordinal),
+            "diff_base": diff_base,
+            "diff_target": diff_target,
+            "moment": moment,
+            "time_verbs": time_verbs_for_moment(moment),
         }
         try:
             height = max(int(self._chrome_height()), 1)
         except Exception:
             height = 24
+        history_state["band_folded"] = height <= 12
         if height <= 12:
             # The time band folds into the subject chip at this height, so
             # the honest state rides along instead of vanishing with it.
@@ -143,6 +146,11 @@ class PagerChromeMixin:
             isinstance(history_state, dict)
             and str(history_state.get("view", "read")) == "diff"
         )
+        time_verbs = None
+        if isinstance(history_state, dict):
+            raw_verbs = history_state.get("time_verbs")
+            if isinstance(raw_verbs, list):
+                time_verbs = raw_verbs
         legend = footer_legend(
             section_total=len(self.document.sections),
             label_count=self._visible_label_count(),
@@ -154,6 +162,7 @@ class PagerChromeMixin:
             history_available=available,
             history_pinned=pinned,
             history_diff_view=diff_view,
+            time_verbs=time_verbs,
         )
         # The footer is host-owned: only the focused view may paint it.
         self.pager_host.paint_footer(self, legend)
@@ -190,6 +199,7 @@ class PagerChromeMixin:
                 width=width,
                 syntax_hint=self._current_syntax_hint(),
                 history_state=history_state,
+                history_styles=self._history_styles(),
             )
         )
 

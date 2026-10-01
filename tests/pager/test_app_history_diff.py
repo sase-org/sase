@@ -184,7 +184,8 @@ async def test_equals_toggles_read_and_diff_views(
         assert "unchanged line" in body
         assert "expand" in body
         assert "= read" in footer.visual.plain  # type: ignore[attr-defined]
-        assert "diff vs v1" in screen.query_one("#pager-subject", Static).visual.plain  # type: ignore[attr-defined]
+        subject = screen.query_one("#pager-subject", Static).visual.plain  # type: ignore[attr-defined]
+        assert "Δ" in subject and "v1" in subject and "→" in subject
 
         await pilot.press("=")
         await wait_for(

@@ -313,6 +313,7 @@ def build_diff_body(
     target_body: str,
     *,
     expanded: frozenset[int] | set[int] = frozenset(),
+    history_styles: Any | None = None,
 ) -> _DiffBody:
     """Build the diff-view body for one version comparison.
 
@@ -320,8 +321,18 @@ def build_diff_body(
     render a red marker row; unchanged runs longer than twice the
     context collapse into ``┄ N unchanged lines · expand ┄`` fold
     labels (3 lines of context stay visible on each side). *expanded*
-    holds fold indices that render in full instead.
+    holds fold indices that render in full instead. Word insert/delete
+    tones come from *history_styles* when given, else the legacy
+    ``INSERT_STYLE``/``DELETE_STYLE`` fallbacks.
     """
+    insert_style = INSERT_STYLE
+    delete_style = DELETE_STYLE
+    if history_styles is not None:
+        try:
+            insert_style = f"bold {history_styles.insert}"
+            delete_style = f"strike {history_styles.delete}"
+        except (AttributeError, TypeError):
+            pass
     inner = _comparison_of(comparison)
     unified = unified_diff_for_comparison(inner)
     ops_by_line = _word_ops_by_line(inner)
@@ -383,6 +394,8 @@ def build_diff_body(
                         body,
                         target_lines[hidden_line - 1],
                         ops_by_line.get(hidden_line),
+                        insert_style=insert_style,
+                        delete_style=delete_style,
                     )
                     body.append("\n")
                     body_lines += 1
@@ -412,7 +425,14 @@ def build_diff_body(
             change_lines.append(body_lines)
         ops = ops_by_line.get(lineno)
         if ops is not None:
-            body.append_text(_render_word_line(ops, target_lines[lineno - 1]))
+            body.append_text(
+                _render_word_line(
+                    ops,
+                    target_lines[lineno - 1],
+                    insert_style=insert_style,
+                    delete_style=delete_style,
+                )
+            )
             body.append("\n")
             body_lines += 1
             change_lines.append(body_lines)
@@ -436,10 +456,19 @@ def build_diff_body(
 
 
 def _append_target_line(
-    body: Text, line: str, ops: list[dict[str, Any]] | None
+    body: Text,
+    line: str,
+    ops: list[dict[str, Any]] | None,
+    *,
+    insert_style: str | None = INSERT_STYLE,
+    delete_style: str | None = DELETE_STYLE,
 ) -> None:
     if ops:
-        body.append_text(_render_word_line(ops, line))
+        body.append_text(
+            _render_word_line(
+                ops, line, insert_style=insert_style, delete_style=delete_style
+            )
+        )
     else:
         body.append(line)
 

@@ -189,6 +189,7 @@ class PagerTrailMixin:
         return self._current_section()
 
     def _trail_snapshot(self: Any) -> PagerTrailSnapshot:
+        version_pins, current_suffix = self._trail_version_info()
         return build_pager_trail_snapshot(
             back=self._back_trail,
             document=self.document,
@@ -196,7 +197,41 @@ class PagerTrailMixin:
             current_section=self._current_section_or_none(),
             current_line_mark=self._goto_mark,
             forward=self._forward_trail,
+            version_pins=version_pins,
+            current_suffix=current_suffix,
         )
+
+    def _trail_version_info(self: Any) -> tuple[dict[str, object], str]:
+        """Return version pins by identity plus the live moment's suffix.
+
+        Pins come from each section's history state (falling back to the
+        section's own pin); the current suffix comes from the live
+        moment, which also names tombstones. Fails open to no suffixes.
+        """
+        pins: dict[str, object] = {}
+        suffix = ""
+        try:
+            from sase.pager._trail_chrome import suffix_for_moment
+            from sase.pager.history.moment import moment_for_state
+
+            states = getattr(self, "_history_states", None) or {}
+            current = self._current_section_or_none()
+            for section in self.document.sections:
+                state = states.get(section.identity)
+                pin = None
+                if state is not None:
+                    pin = getattr(state, "current_pin", None)
+                if pin is None:
+                    pin = getattr(section, "version_pin", None)
+                if pin is not None:
+                    pins[section.identity] = pin
+                if current is not None and section.identity == current.identity:
+                    suffix = suffix_for_moment(
+                        moment_for_state(state) if state is not None else None
+                    )
+        except Exception:
+            return ({}, "")
+        return (pins, suffix)
 
     def _update_trail(self: Any) -> None:
         from sase.pager._time_band import chrome_row_budget
@@ -229,11 +264,19 @@ class PagerTrailMixin:
         if self._trail_render_signature == signature:
             return
         self._trail_render_signature = signature
+        styles_fn = getattr(self, "_history_styles", None)
+        version_style = None
+        if callable(styles_fn):
+            try:
+                version_style = styles_fn().past
+            except Exception:
+                version_style = None
         trail.update(
             render_trail_band(
                 snapshot,
                 width=width,
                 screen_height=screen_height,
+                version_style=version_style,
             )
         )
         trail.remove_class("hidden")

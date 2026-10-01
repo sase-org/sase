@@ -29,6 +29,7 @@ def render_trail_band(
     *,
     width: int,
     screen_height: int,
+    version_style: str | None = None,
 ) -> Text:
     """Render the active breadcrumb band, clipped to *width* cells per row."""
 
@@ -41,11 +42,15 @@ def render_trail_band(
         == 1
     )
     if compact:
-        return _render_compact_trail_row(snapshot, width=width)
+        return _render_compact_trail_row(
+            snapshot, width=width, version_style=version_style
+        )
     text = Text(no_wrap=True, overflow="crop")
     text.append_text(_render_trail_orientation_row(snapshot, width=width))
     text.append("\n")
-    text.append_text(_render_trail_path_row(snapshot, width=width))
+    text.append_text(
+        _render_trail_path_row(snapshot, width=width, version_style=version_style)
+    )
     return text
 
 
@@ -82,6 +87,7 @@ def _render_compact_trail_row(
     snapshot: PagerTrailSnapshot,
     *,
     width: int,
+    version_style: str | None = None,
 ) -> Text:
     """Render the short-height one-line trail layout."""
 
@@ -89,7 +95,9 @@ def _render_compact_trail_row(
     if width == 0:
         return Text(no_wrap=True, overflow="crop")
 
-    current = _render_current_only(snapshot.current, width=width)
+    current = _render_current_only(
+        snapshot.current, width=width, version_style=version_style
+    )
     direction = _compact_inline_direction(snapshot, current)
     directionless = current
     for middle in (direction, directionless):
@@ -102,7 +110,9 @@ def _render_compact_trail_row(
             if row is not None:
                 return row
 
-    return _render_current_only(snapshot.current, width=width)
+    return _render_current_only(
+        snapshot.current, width=width, version_style=version_style
+    )
 
 
 def _orientation_left(snapshot: PagerTrailSnapshot, suffix: Text) -> Text:

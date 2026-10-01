@@ -157,7 +157,8 @@ def test_subject_chips_and_footer_verbs() -> None:
         width=80,
         history_state={"ordinal": 2, "total": 5, "age": "3d"},
     )
-    assert "PAST v2/5" in past.plain
+    assert "PAST · v2 of 5" in past.plain
+    assert "3d" in past.plain
     dirty = subject_line(
         document,
         document.sections[0],
@@ -168,9 +169,15 @@ def test_subject_chips_and_footer_verbs() -> None:
         width=80,
         history_state={"ordinal": 0, "total": 5, "dirty": True},
     )
-    assert "uncommitted" in dirty.plain
-    footer = footer_legend(section_total=1, history_available=True, history_pinned=True)
-    assert "( )" in footer.plain and "edits now" in footer.plain
+    assert "NOW · uncommitted" in dirty.plain
+    assert "on top of v5" in dirty.plain
+    footer = footer_legend(
+        section_total=1,
+        history_pinned=True,
+        time_verbs=[("( v1", ""), (") now", ""), ("@", "timeline"), ("=", "diff")],
+    )
+    assert "( v1" in footer.plain and "E edit now" in footer.plain
+    assert footer.plain.count("E edit") == 1
     plain_footer = footer_legend(section_total=1)
     assert "( )" not in plain_footer.plain
 
@@ -193,17 +200,19 @@ def test_diff_subject_chips_and_footer_verbs() -> None:
             "age": "3d",
             "view": "diff",
             "diff_base": 1,
+            "diff_target": 2,
         },
     )
-    assert "PAST v2/5" in diff.plain
-    assert "diff vs v1" in diff.plain
-    read_footer = footer_legend(section_total=1, history_available=True)
+    assert "PAST · v2 of 5" in diff.plain
+    assert "Δ" in diff.plain and "v1" in diff.plain and "→" in diff.plain
+    read_footer = footer_legend(
+        section_total=1, time_verbs=[("( v1", ""), ("@", "timeline"), ("=", "diff")]
+    )
     assert "= diff" in read_footer.plain
     diff_footer = footer_legend(
         section_total=1,
-        history_available=True,
         history_pinned=True,
-        history_diff_view=True,
+        time_verbs=[("( v1", ""), ("@", "timeline"), ("=", "read")],
     )
     assert "= read" in diff_footer.plain
 

@@ -34,6 +34,7 @@ class PagerTrailDisplayEntry:
     section_kind: str
     state: TrailEntryState
     line_mark: LineMark | None = None
+    version_suffix: str = ""
 
     @property
     def icon(self) -> str:
@@ -75,7 +76,7 @@ class PagerTrailDisplayEntry:
         return " · ".join(unique)
 
     @property
-    def signature(self) -> tuple[str, str, str, str, str, str, str]:
+    def signature(self) -> tuple[str, str, str, str, str, str, str, str]:
         mark = self.line_mark
         mark_key = (
             ""
@@ -90,6 +91,7 @@ class PagerTrailDisplayEntry:
             self.section_kind,
             self.state,
             mark_key,
+            self.version_suffix,
         )
 
 
@@ -127,7 +129,7 @@ class PagerTrailSnapshot:
     @property
     def signature(
         self,
-    ) -> tuple[int, tuple[tuple[str, str, str, str, str, str, str], ...]]:
+    ) -> tuple[int, tuple[tuple[str, str, str, str, str, str, str, str], ...]]:
         return (self.current_index, tuple(entry.signature for entry in self.entries))
 
 

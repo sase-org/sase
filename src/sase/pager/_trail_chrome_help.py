@@ -205,13 +205,20 @@ def _binding_rows(
             ("?", "Show trail and keys"),
             ("", ""),
             ("Time", ""),
-            ("( / )", "Older / newer version (skips hidden)"),
+            ("( / )", "Older / newer version (the footer shows where)"),
             ("{ / }", "First version / now or tombstone"),
             ("=", "Read / diff view (sticky for the session)"),
             ("@", "Timeline picker (list, filter, two-point compare)"),
             ("[ / ]", "Previous / next change, either view"),
             ("yy", "Copy unified diff in the diff view"),
             ("E", "Edit now from a past version"),
+            ("", ""),
+            ("State pill", ""),
+            ("● NOW", "The live file, clean"),
+            ("◌ NOW", "Uncommitted edits on top of the newest version"),
+            ("⟲ PAST", "A pinned committed version (vK of N)"),
+            ("✖ DELETED", "The subject was deleted; last content shown"),
+            ("Δ vA → vB", "Diff from an older base to a newer target"),
         ]
     )
     return tuple((key, label) for key, label in rows if key or label)

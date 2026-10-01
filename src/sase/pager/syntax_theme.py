@@ -38,8 +38,8 @@ def syntax_palette_from_theme(theme: Any | None) -> SyntaxPalette:
 def _contrast_ratio(foreground: str | None, background: str | None) -> float:
     """Return WCAG contrast ratio for two CSS colors."""
 
-    fg = _parse_color(foreground) or Color.parse("#ffffff")
-    bg = _parse_color(background) or Color.parse("#000000")
+    fg = parse_color(foreground) or Color.parse("#ffffff")
+    bg = parse_color(background) or Color.parse("#000000")
     fg_lum = _relative_luminance(fg)
     bg_lum = _relative_luminance(bg)
     lighter = max(fg_lum, bg_lum)
@@ -84,41 +84,41 @@ def _syntax_palette_from_values(
     warning: str | None,
     error: str | None,
 ) -> SyntaxPalette:
-    bg = _readable_color(background, fallback="#000000")
-    fg = _readable_color(foreground, fallback=_contrast_text(bg))
+    bg = readable_color(background, fallback="#000000")
+    fg = readable_color(foreground, fallback=contrast_text(bg))
     muted = _muted_foreground(fg, bg)
     secondary_arg = _derive_argument_color(secondary, foreground=fg, background=bg)
     accent_arg = _derive_argument_color(accent, foreground=fg, background=bg)
 
     styles: dict[SyntaxRole, HighlightStyle] = {
-        SyntaxRole.KEYWORD: HighlightStyle(_ensure_contrast(accent, bg, fg), bold=True),
-        SyntaxRole.TYPE: HighlightStyle(_ensure_contrast(primary, bg, fg)),
-        SyntaxRole.FUNCTION: HighlightStyle(_ensure_contrast(secondary, bg, fg)),
-        SyntaxRole.DECORATOR: HighlightStyle(_ensure_contrast(accent_arg, bg, fg)),
-        SyntaxRole.CONSTANT: HighlightStyle(_ensure_contrast(warning, bg, fg)),
-        SyntaxRole.NUMBER: HighlightStyle(_ensure_contrast(warning, bg, fg)),
-        SyntaxRole.STRING: HighlightStyle(_ensure_contrast(success, bg, fg)),
+        SyntaxRole.KEYWORD: HighlightStyle(ensure_contrast(accent, bg, fg), bold=True),
+        SyntaxRole.TYPE: HighlightStyle(ensure_contrast(primary, bg, fg)),
+        SyntaxRole.FUNCTION: HighlightStyle(ensure_contrast(secondary, bg, fg)),
+        SyntaxRole.DECORATOR: HighlightStyle(ensure_contrast(accent_arg, bg, fg)),
+        SyntaxRole.CONSTANT: HighlightStyle(ensure_contrast(warning, bg, fg)),
+        SyntaxRole.NUMBER: HighlightStyle(ensure_contrast(warning, bg, fg)),
+        SyntaxRole.STRING: HighlightStyle(ensure_contrast(success, bg, fg)),
         SyntaxRole.COMMENT: HighlightStyle(muted, italic=True),
         SyntaxRole.ERROR: HighlightStyle(
-            _ensure_contrast(error, bg, fg), underline=True
+            ensure_contrast(error, bg, fg), underline=True
         ),
         SyntaxRole.MARKDOWN_HEADING: HighlightStyle(
-            _ensure_contrast(primary, bg, fg), bold=True
+            ensure_contrast(primary, bg, fg), bold=True
         ),
         SyntaxRole.MARKDOWN_STRONG: HighlightStyle(fg, bold=True),
         SyntaxRole.MARKDOWN_EMPHASIS: HighlightStyle(fg, italic=True),
         SyntaxRole.MARKDOWN_CODE: HighlightStyle(
-            _ensure_contrast(secondary_arg, bg, fg)
+            ensure_contrast(secondary_arg, bg, fg)
         ),
         SyntaxRole.PROJECT_TAG: HighlightStyle(
-            _ensure_contrast(accent, bg, fg), bold=True
+            ensure_contrast(accent, bg, fg), bold=True
         ),
-        SyntaxRole.DIFF_ADDED: HighlightStyle(_ensure_contrast(success, bg, fg)),
-        SyntaxRole.DIFF_DELETED: HighlightStyle(_ensure_contrast(error, bg, fg)),
+        SyntaxRole.DIFF_ADDED: HighlightStyle(ensure_contrast(success, bg, fg)),
+        SyntaxRole.DIFF_DELETED: HighlightStyle(ensure_contrast(error, bg, fg)),
         SyntaxRole.DIFF_HEADER: HighlightStyle(
-            _ensure_contrast(secondary, bg, fg), bold=True
+            ensure_contrast(secondary, bg, fg), bold=True
         ),
-        SyntaxRole.DIFF_HUNK: HighlightStyle(_ensure_contrast(secondary_arg, bg, fg)),
+        SyntaxRole.DIFF_HUNK: HighlightStyle(ensure_contrast(secondary_arg, bg, fg)),
     }
     rich_styles = {
         role: Style.parse(style.rich_style) if style.rich_style else Style()
@@ -140,8 +140,8 @@ def _syntax_palette_from_values(
     )
 
 
-def _readable_color(value: str | None, *, fallback: str) -> str:
-    color = _parse_color(value)
+def readable_color(value: str | None, *, fallback: str) -> str:
+    color = parse_color(value)
     if color is None:
         color = Color.parse(fallback)
     return color.hex
@@ -149,15 +149,15 @@ def _readable_color(value: str | None, *, fallback: str) -> str:
 
 def _muted_foreground(foreground: str, background: str) -> str:
     muted = Color.parse(foreground).blend(Color.parse(background), 0.35).hex
-    return _ensure_contrast(muted, background, foreground)
+    return ensure_contrast(muted, background, foreground)
 
 
-def _ensure_contrast(
+def ensure_contrast(
     value: str | None,
     background: str,
     neutral: str,
 ) -> str:
-    color = _parse_color(value)
+    color = parse_color(value)
     if color is None:
         color = Color.parse(neutral)
     if _contrast_ratio(color.hex, background) >= MIN_SYNTAX_CONTRAST:
@@ -165,7 +165,7 @@ def _ensure_contrast(
 
     target = Color.parse(neutral)
     if _contrast_ratio(target.hex, background) < MIN_SYNTAX_CONTRAST:
-        target = Color.parse(_contrast_text(background))
+        target = Color.parse(contrast_text(background))
     for step in range(1, 11):
         candidate = color.blend(target, step / 10).hex
         if _contrast_ratio(candidate, background) >= MIN_SYNTAX_CONTRAST:
@@ -179,12 +179,12 @@ def _derive_argument_color(
     foreground: str,
     background: str,
 ) -> str | None:
-    if _parse_color(base) is None:
+    if parse_color(base) is None:
         return None
     return derive_argument_color(base, foreground=foreground, background=background)
 
 
-def _contrast_text(background: str) -> str:
+def contrast_text(background: str) -> str:
     black = "#000000"
     white = "#ffffff"
     return (
@@ -194,7 +194,7 @@ def _contrast_text(background: str) -> str:
     )
 
 
-def _parse_color(value: str | None) -> Color | None:
+def parse_color(value: str | None) -> Color | None:
     if not value:
         return None
     try:
@@ -230,14 +230,14 @@ def history_palette_from_theme(theme: Any | None) -> dict[str, str]:
     from the theme warning hue. Callers invalidate on host theme change.
     """
     values = _theme_values(theme)
-    background = _readable_color(values[1], fallback="#000000")
-    foreground = _readable_color(values[0], fallback=_contrast_text(background))
+    background = readable_color(values[1], fallback="#000000")
+    foreground = readable_color(values[0], fallback=contrast_text(background))
     warning = values[6] or "#FFB000"
-    past = _ensure_contrast("#9d7cd8", background, foreground)
+    past = ensure_contrast("#9d7cd8", background, foreground)
     past = _keep_hue_distance(past, warning, background, foreground)
-    insert = _ensure_contrast("#3FB950", background, foreground)
-    delete = _ensure_contrast("#F85149", background, foreground)
-    return {
+    insert = ensure_contrast("#3FB950", background, foreground)
+    delete = ensure_contrast("#F85149", background, foreground)
+    palette = {
         "past": past,
         "insert": insert,
         "delete": delete,
@@ -245,8 +245,21 @@ def history_palette_from_theme(theme: Any | None) -> dict[str, str]:
         "gutter_change": past,
         "gutter_remove": delete,
         "tombstone": delete,
-        "uncommitted": _ensure_contrast(warning, background, foreground),
+        "uncommitted": ensure_contrast(warning, background, foreground),
     }
+    # Badge-phase roles: the changed-mark blue, the pill capsules, the
+    # body rails, and the past band tint. Computed in pager core's style
+    # set so every history surface reads one source.
+    try:
+        from sase.pager.history.styles import extra_history_palette_roles
+
+        palette.update(extra_history_palette_roles(theme, palette))
+        # Changed-line marks are the familiar VCS blue, distinct from the
+        # violet past rail and the red removal tick.
+        palette["gutter_change"] = palette["modified"]
+    except Exception:
+        pass
+    return palette
 
 
 def _keep_hue_distance(
@@ -256,8 +269,8 @@ def _keep_hue_distance(
     try:
         from textual.color import Color as _Color
 
-        past_hue = _hue_of(_Color.parse(past))
-        warning_hue = _hue_of(_Color.parse(warning or "#FFB000"))
+        past_hue = hue_of(_Color.parse(past))
+        warning_hue = hue_of(_Color.parse(warning or "#FFB000"))
         if past_hue is None or warning_hue is None:
             return past
         distance = abs(past_hue - warning_hue)
@@ -268,12 +281,12 @@ def _keep_hue_distance(
         candidate = _Color.parse("#9d7cd8").hex
         if _contrast_ratio(candidate, background) >= 3.0:
             return candidate
-        return _ensure_contrast(candidate, background, foreground)
+        return ensure_contrast(candidate, background, foreground)
     except Exception:
         return past
 
 
-def _hue_of(color: Any) -> float | None:
+def hue_of(color: Any) -> float | None:
     try:
         _, _, _, hue = color.hsv if hasattr(color, "hsv") else (None, None, None, None)
         return float(hue) if hue is not None else None
@@ -298,6 +311,11 @@ __all__ = [
     "MIN_SYNTAX_CONTRAST",
     "SyntaxPalette",
     "contrast_ratio",
+    "contrast_text",
+    "ensure_contrast",
     "history_palette_from_theme",
+    "hue_of",
+    "parse_color",
+    "readable_color",
     "syntax_palette_from_theme",
 ]

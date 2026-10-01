@@ -7,8 +7,8 @@ from textual.theme import BUILTIN_THEMES
 from sase.pager.syntax import SyntaxRole
 from sase.pager.syntax_theme import (
     MIN_SYNTAX_CONTRAST,
+    contrast_ratio,
     syntax_palette_from_theme,
-    _contrast_ratio,
 )
 
 
@@ -33,7 +33,7 @@ def test_palette_is_readable_against_builtin_dark_and_light_backgrounds() -> Non
         assert palette.signature
         for style in palette.styles.values():
             assert (
-                _contrast_ratio(style.color, palette.background) >= MIN_SYNTAX_CONTRAST
+                contrast_ratio(style.color, palette.background) >= MIN_SYNTAX_CONTRAST
             )
 
 
@@ -42,7 +42,7 @@ def test_palette_falls_back_to_neutral_colors_for_invalid_custom_theme_values() 
 
     assert palette.background == "#777777"
     for style in palette.styles.values():
-        assert _contrast_ratio(style.color, palette.background) >= MIN_SYNTAX_CONTRAST
+        assert contrast_ratio(style.color, palette.background) >= MIN_SYNTAX_CONTRAST
 
 
 class _BrokenTheme:

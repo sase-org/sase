@@ -20,27 +20,54 @@ _ELLIPSIS = "…"
 _SEPARATOR = " › "
 
 
+def _default_version_style() -> str:
+    """Return the past-accent style for trail version suffixes."""
+    from sase.pager.history.styles import default_history_styles
+
+    return default_history_styles().past
+
+
 def render_trail_path_row(
     snapshot: PagerTrailSnapshot,
     *,
     width: int,
+    version_style: str | None = None,
 ) -> Text:
-    """Render the chronological path row with exact counted gaps."""
+    """Render the chronological path row with exact counted gaps.
+
+    The version suffix is shed before any label is truncated: the full
+    path first tries with suffixes, then budgeted labels without them.
+    """
 
     width = max(0, int(width))
     if width == 0:
         return Text(no_wrap=True, overflow="crop")
+    style = version_style or _default_version_style()
 
     all_indices = frozenset(range(snapshot.total))
-    full = _render_path_for_indices(snapshot, all_indices, width=width, full=True)
+    full = _render_path_for_indices(
+        snapshot,
+        all_indices,
+        width=width,
+        full=True,
+        with_suffix=True,
+        version_style=style,
+    )
     if full is not None:
         return full
 
     included: frozenset[int] = frozenset({snapshot.current_index})
-    best = render_current_only(snapshot.current, width=width)
+    best = render_current_only(snapshot.current, width=width, version_style=style)
     for index in _path_priority(snapshot):
         trial = frozenset((*included, index))
-        rendered = _render_path_for_indices(snapshot, trial, width=width, full=False)
+        rendered = _render_path_for_indices(
+            snapshot,
+            trial,
+            width=width,
+            full=False,
+            with_suffix=False,
+            version_style=style,
+        )
         if rendered is not None:
             included = trial
             best = rendered
@@ -69,16 +96,28 @@ def _render_path_for_indices(
     *,
     width: int,
     full: bool,
+    with_suffix: bool,
+    version_style: str,
 ) -> Text | None:
     tokens = _path_tokens(snapshot, indices)
     if full:
-        rendered = _render_path_tokens(tokens, full_labels=True)
+        rendered = _render_path_tokens(
+            tokens,
+            full_labels=True,
+            with_suffix=with_suffix,
+            version_style=version_style,
+        )
         return rendered if cell_len(rendered.plain) <= width else None
 
-    budgets = _label_budgets(tokens, width=width)
+    budgets = _label_budgets(tokens, width=width, with_suffix=with_suffix)
     if budgets is None:
         return None
-    rendered = _render_path_tokens(tokens, label_budgets=budgets)
+    rendered = _render_path_tokens(
+        tokens,
+        label_budgets=budgets,
+        with_suffix=with_suffix,
+        version_style=version_style,
+    )
     if cell_len(rendered.plain) <= width:
         return rendered
     return None
@@ -107,12 +146,13 @@ def _label_budgets(
     tokens: tuple[int | PagerTrailDisplayEntry, ...],
     *,
     width: int,
+    with_suffix: bool = False,
 ) -> dict[int, int] | None:
     entries = [token for token in tokens if isinstance(token, PagerTrailDisplayEntry)]
     if not entries:
         return {}
 
-    structural = _path_structural_width(tokens)
+    structural = _path_structural_width(tokens, with_suffix=with_suffix)
     minimum = sum(1 for entry in entries if entry.state == "current")
     minimum += sum(3 for entry in entries if entry.state != "current")
     if structural + minimum > width:
@@ -185,6 +225,8 @@ def _label_cap(entry: PagerTrailDisplayEntry, *, width: int) -> int:
 
 def _path_structural_width(
     tokens: tuple[int | PagerTrailDisplayEntry, ...],
+    *,
+    with_suffix: bool = False,
 ) -> int:
     width = 0
     for index, token in enumerate(tokens):
@@ -193,15 +235,16 @@ def _path_structural_width(
         if isinstance(token, int):
             width += cell_len(f"{_ELLIPSIS}{token}")
             continue
-        width += _crumb_overhead(token)
+        width += _crumb_overhead(token, with_suffix=with_suffix)
     return width
 
 
-def _crumb_overhead(entry: PagerTrailDisplayEntry) -> int:
+def _crumb_overhead(entry: PagerTrailDisplayEntry, *, with_suffix: bool) -> int:
     icon = entry.icon
+    suffix_width = cell_len(entry.version_suffix) if with_suffix else 0
     if entry.state == "current":
-        return cell_len(f"[{_CURRENT_MARKER} {icon} ]")
-    return cell_len(f"{icon} ")
+        return cell_len(f"[{_CURRENT_MARKER} {icon} ]") + suffix_width
+    return cell_len(f"{icon} ") + suffix_width
 
 
 def _render_path_tokens(
@@ -209,6 +252,8 @@ def _render_path_tokens(
     *,
     full_labels: bool = False,
     label_budgets: dict[int, int] | None = None,
+    with_suffix: bool = False,
+    version_style: str = "",
 ) -> Text:
     text = Text(no_wrap=True, overflow="crop")
     for index, token in enumerate(tokens):
@@ -221,51 +266,79 @@ def _render_path_tokens(
         if not full_labels:
             assert label_budgets is not None
             label = _fit_label(label, label_budgets[id(token)])
-        _append_crumb(text, token, label=label)
+        _append_crumb(
+            text,
+            token,
+            label=label,
+            suffix=token.version_suffix if with_suffix else "",
+            version_style=version_style,
+        )
     return text
 
 
-def _append_crumb(text: Text, entry: PagerTrailDisplayEntry, *, label: str) -> None:
+def _append_crumb(
+    text: Text,
+    entry: PagerTrailDisplayEntry,
+    *,
+    label: str,
+    suffix: str = "",
+    version_style: str = "",
+) -> None:
     if entry.state == "current":
         text.append("[", style=_CURRENT_STYLE)
         text.append(f"{_CURRENT_MARKER} ", style=_CURRENT_STYLE)
         text.append(f"{entry.icon} ", style=f"bold {entry.accent} reverse")
         text.append(label, style=_CURRENT_STYLE)
+        if suffix:
+            text.append(suffix, style=version_style or _CURRENT_STYLE)
         text.append("]", style=_CURRENT_STYLE)
         return
 
     style = _STATE_STYLES[entry.state]
     text.append(f"{entry.icon} ", style=f"bold {entry.accent}")
     _append_path_label(text, label, style=style, root_style=_MUTED_STYLE)
+    if suffix:
+        text.append(suffix, style=version_style)
 
 
-def render_current_only(entry: PagerTrailDisplayEntry, *, width: int) -> Text:
+def render_current_only(
+    entry: PagerTrailDisplayEntry,
+    *,
+    width: int,
+    version_style: str | None = None,
+) -> Text:
     width = max(0, width)
     if width <= 0:
         return Text(no_wrap=True, overflow="crop")
+    style = version_style or _default_version_style()
 
-    for bracketed, include_icon in (
-        (True, True),
-        (True, False),
-        (False, True),
-        (False, False),
-    ):
-        overhead = _current_only_overhead(entry, bracketed, include_icon)
-        budget = width - overhead
-        if budget < 1:
-            continue
-        label = _fit_label(entry.short_label, budget)
-        rendered = Text(no_wrap=True, overflow="crop")
-        if bracketed:
-            rendered.append("[", style=_CURRENT_STYLE)
-        rendered.append(f"{_CURRENT_MARKER} ", style=_CURRENT_STYLE)
-        if include_icon:
-            rendered.append(f"{entry.icon} ", style=f"bold {entry.accent} reverse")
-        rendered.append(label, style=_CURRENT_STYLE)
-        if bracketed:
-            rendered.append("]", style=_CURRENT_STYLE)
-        if cell_len(rendered.plain) <= width:
-            return rendered
+    for suffix in (entry.version_suffix, ""):
+        for bracketed, include_icon in (
+            (True, True),
+            (True, False),
+            (False, True),
+            (False, False),
+        ):
+            overhead = _current_only_overhead(
+                entry, bracketed, include_icon, suffix=suffix
+            )
+            budget = width - overhead
+            if budget < 1:
+                continue
+            label = _fit_label(entry.short_label, budget)
+            rendered = Text(no_wrap=True, overflow="crop")
+            if bracketed:
+                rendered.append("[", style=_CURRENT_STYLE)
+            rendered.append(f"{_CURRENT_MARKER} ", style=_CURRENT_STYLE)
+            if include_icon:
+                rendered.append(f"{entry.icon} ", style=f"bold {entry.accent} reverse")
+            rendered.append(label, style=_CURRENT_STYLE)
+            if suffix:
+                rendered.append(suffix, style=style)
+            if bracketed:
+                rendered.append("]", style=_CURRENT_STYLE)
+            if cell_len(rendered.plain) <= width:
+                return rendered
 
     if cell_len(_CURRENT_MARKER) <= width:
         return Text(_CURRENT_MARKER, style=_CURRENT_STYLE, no_wrap=True)
@@ -276,11 +349,13 @@ def _current_only_overhead(
     entry: PagerTrailDisplayEntry,
     bracketed: bool,
     include_icon: bool,
+    *,
+    suffix: str = "",
 ) -> int:
     prefix = f"{_CURRENT_MARKER} "
     if bracketed:
         prefix = f"[{prefix}"
     if include_icon:
         prefix += f"{entry.icon} "
-    suffix = "]" if bracketed else ""
-    return cell_len(prefix) + cell_len(suffix)
+    tail = f"{suffix}]" if bracketed else suffix
+    return cell_len(prefix) + cell_len(tail)
