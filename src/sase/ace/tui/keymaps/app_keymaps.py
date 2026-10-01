@@ -430,6 +430,8 @@ class MemoryPanelKeymaps:
     publish: str = "I"
     open_source: str = "o"
     open_viewer: str = "Z"
+    open_history: str = "H"
+    open_changes: str = "C"
     copy_body: str = "y"
     copy_source_path: str = "Y"
     refresh: str = "r"

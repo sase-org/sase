@@ -371,6 +371,8 @@ _MEMORY_BINDING_META: tuple[tuple[str, str], ...] = (
     ("publish", "Publish"),
     ("open_source", "Open in Editor"),
     ("open_viewer", "Open in Viewer"),
+    ("open_history", "History"),
+    ("open_changes", "Changes"),
     ("copy_body", "Copy Body"),
     ("copy_source_path", "Copy Source Path"),
     ("refresh", "Refresh"),

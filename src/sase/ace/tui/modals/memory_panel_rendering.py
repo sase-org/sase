@@ -367,9 +367,10 @@ def _build_note_property_grid(
     read_summary: MemoryReadPathSummary | None,
     source_path: str,
     accent: str,
+    history: RenderableType | None = None,
 ) -> RenderableType:
     """Build the aligned type/parent/size/read/source metadata grid."""
-    rows: list[tuple[str, str]] = [
+    rows: list[tuple[str, str | RenderableType]] = [
         ("Type", _type_label(note)),
         ("Parent", _parent_label(note)),
         ("Children", str(child_count)),
@@ -394,18 +395,28 @@ def _build_note_property_grid(
                 f"{format_relative_time(read_summary.last_read_at)}",
             )
         )
+    if history is not None:
+        rows.append(("History", history))
     rows.append(("Source", source_path))
 
     return build_property_grid(rows, accent=accent)
 
 
-def build_property_grid(rows: list[tuple[str, str]], *, accent: str) -> RenderableType:
+def build_property_grid(
+    rows: list[tuple[str, str | RenderableType]], *, accent: str
+) -> RenderableType:
     """Build an aligned two-column metadata grid."""
     grid = Table.grid(expand=True, padding=(0, 2, 0, 0))
     grid.add_column(no_wrap=True)
     grid.add_column(ratio=1, overflow="fold")
     for label, value in rows:
-        grid.add_row(Text(label, style=_COLOR_LABEL), Text(value, style=accent))
+        if isinstance(value, Text):
+            rendered: RenderableType = value
+        elif isinstance(value, str):
+            rendered = Text(value, style=accent)
+        else:
+            rendered = value
+        grid.add_row(Text(label, style=_COLOR_LABEL), rendered)
     return grid
 
 
@@ -417,6 +428,7 @@ def build_note_card_meta(
     parent: tuple[MemoryNote, ...] | None = None,
     children: tuple[MemoryNote, ...] | None = None,
     focused_link_number: int | None = None,
+    history: RenderableType | None = None,
 ) -> RenderableType:
     """Build the badge row, link chips, divider, and property grid.
 
@@ -452,6 +464,7 @@ def build_note_card_meta(
             read_summary=snapshot.read_summaries.get(note.relative_path),
             source_path=memory_note_source_path(snapshot.scope, note),
             accent=accent,
+            history=history,
         )
     )
     return Group(*sections)
@@ -512,14 +525,19 @@ def build_panel_footer(
     has_strand_navigation: bool = False,
     can_mutate: bool = False,
     unpublished: bool = False,
+    history_enabled: bool = False,
 ) -> str:
     """Build the footer strip, showing only currently-conditional keymaps.
 
     Link and back keys appear when chips or a trail are present.
     Edit/delete appear when a writable note is selected; publish appears
-    when this scope is unpublished.
+    when this scope is unpublished. History and changes appear only
+    while the ``memory_history`` beta is on.
     """
     parts: list[str] = []
+    if history_enabled and has_notes:
+        parts.append(f"{key_display_name(keymaps.open_history)} history")
+        parts.append(f"{key_display_name(keymaps.open_changes)} changes")
     if ring_size > 1:
         parts.append(
             f"{key_display_name(keymaps.next_scope)}/"

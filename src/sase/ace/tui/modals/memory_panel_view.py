@@ -34,6 +34,8 @@ if TYPE_CHECKING:
     from textual.widget import Widget as _MixinBase
     from textual.widgets import OptionList
 
+    from rich.console import RenderableType
+
     from sase.ace.tui.keymaps import MemoryPanelKeymaps
     from sase.ace.tui.memory_panel_catalog import (
         MemoryRailNode,
@@ -72,6 +74,12 @@ class MemoryPanelViewMixin(_MixinBase):
         def _selected_is_writable(self) -> bool: ...
 
         def _selected_row(self) -> MemoryRailNode | None: ...
+
+        def _history_renderable_for_node(
+            self, node: MemoryRailNode | None
+        ) -> RenderableType | None: ...
+
+        def _history_enabled_for_panel(self) -> bool: ...
 
     def _loading_header_text(self) -> Text:
         return Text("MEMORY  ·  loading…", style=f"bold {self._accent}")
@@ -138,6 +146,7 @@ class MemoryPanelViewMixin(_MixinBase):
             ),
             can_mutate=self._selected_is_writable(),
             unpublished=self._scope_is_unpublished(),
+            history_enabled=self._history_enabled_for_panel(),
         )
         footer_widget = self.query_one("#memory-panel-footer", Static)
         footer_widget.update(footer)
@@ -246,6 +255,7 @@ class MemoryPanelViewMixin(_MixinBase):
                 children=children,
                 focused_link_number=focused_link_number,
                 strand_read_state=self._strand_read_status.get(node.identity),
+                history=self._history_renderable_for_node(node),
             )
         )
 

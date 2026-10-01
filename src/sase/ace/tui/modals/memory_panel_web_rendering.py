@@ -37,6 +37,7 @@ def build_rail_node_card_meta(
     children: tuple[MemoryNote, ...] | None = None,
     focused_link_number: int | None = None,
     strand_read_state: str | None = None,
+    history: RenderableType | None = None,
 ) -> RenderableType:
     """Build metadata for a note, web, or strand row."""
     if node.strand is None and node.web is None:
@@ -47,6 +48,7 @@ def build_rail_node_card_meta(
             parent=parent,
             children=children,
             focused_link_number=focused_link_number,
+            history=history,
         )
     if parent is None or children is None:
         parent, children = memory_rail_node_relations(snapshot, node)
@@ -85,7 +87,9 @@ def build_rail_node_card_meta(
         sections.append(chip_rows)
     sections.append(Text("-" * 44, style="dim"))
     if node.strand is not None and node.web is not None:
-        sections.append(_build_strand_property_grid(snapshot, node, accent=accent))
+        sections.append(
+            _build_strand_property_grid(snapshot, node, accent=accent, history=history)
+        )
     elif node.web is not None:
         sections.append(_build_web_property_grid(snapshot, node, accent=accent))
     return Group(*sections)
@@ -120,7 +124,7 @@ def _build_web_property_grid(
     web = node.web
     assert web is not None
     strand_word = web.strand_noun if len(web.strands) == 1 else f"{web.strand_noun}s"
-    rows = [
+    rows: list[tuple[str, str | RenderableType]] = [
         ("Strands", f"{len(web.strands)} {strand_word}"),
         ("Roster", web.roster),
         ("Links", f"{web.link_reference} · {web.link_rendering}"),
@@ -131,12 +135,16 @@ def _build_web_property_grid(
 
 
 def _build_strand_property_grid(
-    snapshot: MemoryScopeSnapshot, node: MemoryRailNode, *, accent: str
+    snapshot: MemoryScopeSnapshot,
+    node: MemoryRailNode,
+    *,
+    accent: str,
+    history: RenderableType | None = None,
 ) -> RenderableType:
     strand = node.strand
     web = node.web
     assert strand is not None and web is not None
-    rows = [
+    rows: list[tuple[str, str | RenderableType]] = [
         ("Web", web.slug),
         ("Keyword", strand.keyword),
         ("Slug", strand.slug),
@@ -149,12 +157,16 @@ def _build_strand_property_grid(
     if strand.metadata:
         rows.append(("Metadata", _metadata_value(strand.metadata)))
     _append_file_rows(snapshot, node.note, rows)
+    if history is not None:
+        rows.append(("History", history))
     rows.append(("Source", memory_note_source_path(snapshot.scope, node.note)))
     return build_property_grid(rows, accent=accent)
 
 
 def _append_file_rows(
-    snapshot: MemoryScopeSnapshot, note: MemoryNote, rows: list[tuple[str, str]]
+    snapshot: MemoryScopeSnapshot,
+    note: MemoryNote,
+    rows: list[tuple[str, str | RenderableType]],
 ) -> None:
     stats = snapshot.stats.get(note.relative_path)
     digest = snapshot.digests.get(note.relative_path)

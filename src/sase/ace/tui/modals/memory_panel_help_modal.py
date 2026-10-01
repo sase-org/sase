@@ -60,8 +60,19 @@ class MemoryPanelHelpModal(ModalScreen[None]):
         return title
 
     def _content(self) -> RenderableType:
+        try:
+            from .memory_panel_history import history_enabled
+
+            show_history = history_enabled()
+        except Exception:
+            show_history = False
+        rows = [
+            (key, description)
+            for key, description in memory_help_bindings(self._keymaps)
+            if show_history or description not in {"History", "Changes"}
+        ]
         text = Text()
-        for index, (key, description) in enumerate(memory_help_bindings(self._keymaps)):
+        for index, (key, description) in enumerate(rows):
             if index:
                 text.append("\n")
             text.append(f" {key} ", style=f"bold reverse {_ACCENT}")

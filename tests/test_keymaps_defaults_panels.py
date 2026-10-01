@@ -147,6 +147,8 @@ def test_default_config_covers_all_memory_keymaps() -> None:
         "publish": "I",
         "open_source": "o",
         "open_viewer": "Z",
+        "open_history": "H",
+        "open_changes": "C",
         "copy_body": "y",
         "copy_source_path": "Y",
         "refresh": "r",

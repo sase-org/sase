@@ -1217,6 +1217,8 @@ commas:
 | `publish`            | `I`                 | Open the publish confirmation (`sase memory init`).                                          |
 | `open_source`        | `o`                 | Open the note or strand body in `$EDITOR`.                                                   |
 | `open_viewer`        | `Z`                 | Hand the source file to the artifact viewer.                                                 |
+| `open_history`       | `H`                 | Open the selected note, web, or strand in the pager at now (needs `memory_history` beta).    |
+| `open_changes`       | `C`                 | Open the cross-file memory changes feed (needs `memory_history` beta).                       |
 | `copy_body`          | `y`                 | Copy the note or strand body to the clipboard.                                               |
 | `copy_source_path`   | `Y`                 | Copy the source path to the clipboard.                                                       |
 | `refresh`            | `r`                 | Re-read the current scope.                                                                   |
