@@ -15,6 +15,12 @@ from sase.pager.syntax_policy import PagerSyntaxSession
 
 PendingAction = Literal["follow", "copy", "edit"]
 
+#: The pending-action values a ``PagerView`` may hold internally. This is the
+#: public contract above plus the ``"other"`` (other-pane follow, armed by
+#: ``ctrl+w``) arm, which attached handlers never see: they receive
+#: ``"follow"`` for it instead.
+ViewPendingAction = Literal["follow", "copy", "edit", "other"]
+
 #: A caller-registered handler for one non-scanned `AttachedTarget` kind
 #: (design doc section D3: "the scanner cannot recover ... objects, not
 #: substrings"). Takes over a label press entirely; `resolve_ref` is never
@@ -97,4 +103,5 @@ __all__ = [
     "PendingAction",
     "ResolveRef",
     "SasePager",
+    "ViewPendingAction",
 ]

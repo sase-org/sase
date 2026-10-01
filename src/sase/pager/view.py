@@ -46,7 +46,11 @@ from sase.pager._screen_time_band import PagerTimeBandMixin
 from sase.pager._screen_timeline import PagerTimelineMixin
 from sase.pager._screen_trail import PagerTrailMixin
 from sase.pager._screen_widgets import PagerBody, PagerBodyScroll
-from sase.pager.app import AttachedTargetHandler, PendingAction, ResolveRef
+from sase.pager.app import (
+    AttachedTargetHandler,
+    ResolveRef,
+    ViewPendingAction,
+)
 from sase.pager.document import PagerDocument
 from sase.pager.trail import PagerTrailEntry
 
@@ -68,6 +72,24 @@ class PagerViewHost(Protocol):
 
     def focus_view(self, view: PagerView) -> None:
         """Move logical focus to *view* (a no-op when already focused)."""
+        ...
+
+    def focus_other_view(self, source: PagerView) -> None:
+        """Focus the pane that is not *source* (a no-op when single)."""
+        ...
+
+    def show_in_other_view(
+        self,
+        source: PagerView,
+        document: PagerDocument,
+        line: int | None,
+        end_line: int | None = None,
+    ) -> None:
+        """Open *document* in the pane that is not *source*.
+
+        With one pane this opens a split (stacked when it fits, else side
+        by side); focus never moves.
+        """
         ...
 
 
@@ -148,7 +170,7 @@ class PagerView(  # type: ignore[misc]
         self._label_pending_prefix = ""
         self._label_window_scope: LabelWindowScope | None = None
         self._last_activated_label: PagerLabel | None = None
-        self._pending_action: PendingAction = "follow"
+        self._pending_action: ViewPendingAction = "follow"
         self._dangling_refs: dict[_DanglingRefKey, str] = {}
         self._resolve_generation = 0
         self._search = VimSearchController(self)
@@ -244,7 +266,7 @@ class PagerView(  # type: ignore[misc]
         """Drop prefix, arms, goto prompt and typing search on focus loss."""
         self._label_pending_prefix = ""
         try:
-            self._pending_action = "follow"  # type: ignore[assignment]
+            self._pending_action = "follow"
         except Exception:
             pass
         try:

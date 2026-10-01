@@ -181,6 +181,7 @@ class PagerScreen(ModalScreen[PagerExit]):
         Binding("r", "refresh", "Refresh"),
         Binding("y", "arm_copy", "Copy"),
         Binding("E", "arm_edit", "Edit"),
+        Binding("ctrl+w", "arm_other", "Other pane", show=False),
         Binding("question_mark", "show_help", "Keys"),
         Binding("backslash", "split_below", "Split below", show=False),
         Binding("vertical_line", "split_beside", "Split beside", show=False),
@@ -653,6 +654,9 @@ class PagerScreen(ModalScreen[PagerExit]):
     def action_arm_edit(self) -> None:
         self._view_action("arm_edit")
 
+    def action_arm_other(self) -> None:
+        self._view_action("arm_other")
+
     def action_close_pager(self) -> None:
         self.close_view(self.focused_view)
 
@@ -668,6 +672,111 @@ class PagerScreen(ModalScreen[PagerExit]):
         self._focused_index = 1 - self._focused_index
         self._split_state = toggle_focus(self._split_state)
         self._apply_split_state()
+
+    def focus_other_view(self, source: PagerView) -> None:
+        """Focus the pane that is not *source* (a no-op when single)."""
+        if self._split_state.layout is PagerSplitLayout.SINGLE:
+            return
+        for view in list(self._views):
+            if view is not source:
+                self.focus_view(view)
+                return
+
+    def show_in_other_view(
+        self,
+        source: PagerView,
+        document: PagerDocument,
+        line: int | None,
+        end_line: int | None = None,
+    ) -> None:
+        """Open *document* in the pane that is not *source*.
+
+        With two panes the other pane pushes a trail entry and navigates.
+        With one pane this opens a split clone of the source — stacked when
+        it fits, else side by side — and the new pane then pushes its
+        current view onto its trail and navigates, so backspace in it
+        returns to the source document. When neither orientation fits, the
+        source follows in place with an information toast. Focus never
+        moves.
+        """
+        try:
+            split = self._split_state.layout is not PagerSplitLayout.SINGLE
+        except Exception:
+            split = len(getattr(self, "_views", ())) > 1
+        if split:
+            for view in list(self._views):
+                if view is not source:
+                    try:
+                        view._push_trail_entry()
+                        view._navigate_to_document(
+                            document, line=line, end_line=end_line
+                        )
+                    except Exception:
+                        pass
+                    return
+            return
+        if self._split_in_flight:
+            return
+        width, height = self._panes_size()
+        if split_fits(PagerSplitLayout.BELOW, 50, width, height):
+            layout = PagerSplitLayout.BELOW
+        elif split_fits(PagerSplitLayout.BESIDE, 50, width, height):
+            layout = PagerSplitLayout.BESIDE
+        else:
+            try:
+                source._push_trail_entry()
+                source._navigate_to_document(document, line=line, end_line=end_line)
+            except Exception:
+                pass
+            self.notify("No room for a split — opened here.", severity="information")
+            return
+        if source not in self._views:
+            try:
+                source = self.focused_view
+            except Exception:
+                return
+        self._split_in_flight = True
+
+        async def _open() -> None:
+            try:
+                if source not in self._views:
+                    return
+                seed: PagerViewSeed = source.split_seed()
+                try:
+                    first = self.query_one("#pager-panes", Vertical)
+                except Exception:
+                    return
+                new_view = PagerView(
+                    seed.document,
+                    links_enabled=source.links_enabled,
+                    attached_handlers=source._attached_handlers,
+                    resolve_ref=source._resolve_ref,
+                    syntax_enabled=source.syntax_enabled,
+                    refresh_document_fn=source._refresh_document_fn,
+                )
+                new_view.apply_split_seed(seed)
+                await first.mount(new_view)
+                if source not in self._views:
+                    try:
+                        await new_view.remove()
+                    except Exception:
+                        pass
+                    return
+                self._views = [source, new_view]
+                self._focused_index = 0
+                self._split_state = PagerSplitState(layout=layout, focused=0, ratio=50)
+                self._apply_split_state()
+                try:
+                    new_view._push_trail_entry()
+                    new_view._navigate_to_document(
+                        document, line=line, end_line=end_line
+                    )
+                except Exception:
+                    pass
+            finally:
+                self._split_in_flight = False
+
+        self.run_worker(_open(), exclusive=True)
 
     def action_grow_pane(self) -> None:
         self._step_pane_ratio(+1)

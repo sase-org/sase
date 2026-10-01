@@ -195,6 +195,11 @@ def _binding_rows(
             ("0-9 / a-z / A-Z", "Follow a painted link"),
             ("y..., yy", "Copy a link's ref or path / this section"),
             ("E..., EE", "Edit a link in $EDITOR / this section"),
+            (
+                "ctrl+w...",
+                "Follow a painted link in the other pane; opens a split when single",
+            ),
+            ("ctrl+w ctrl+w", "Focus the other pane"),
         ]
     rows.extend(
         [

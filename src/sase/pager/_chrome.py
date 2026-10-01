@@ -861,9 +861,10 @@ def footer_legend(
             if history_pinned:
                 verbs.append(("E", "edits now"))
                 label_has_edit = True
-    action_key = {"copy": "y", "edit": "E"}.get(pending_action)
+    action_key = {"copy": "y", "edit": "E", "other": "^W"}.get(pending_action)
     if action_key is not None:
-        verbs.append((f"{action_key}{pending_prefix}…", pending_action))
+        action_label = "other pane" if pending_action == "other" else pending_action
+        verbs.append((f"{action_key}{pending_prefix}…", action_label))
     elif pending_prefix:
         verbs.append((f"{pending_prefix}…", "link"))
     elif label_count:

@@ -23,7 +23,7 @@ from sase.pager._layout import (
     row_for_reading_anchor,
 )
 from sase.pager._screen_widgets import PagerBodyScroll
-from sase.pager.app import PendingAction
+from sase.pager.app import ViewPendingAction
 from sase.pager.document import PagerDocument, PagerSection
 
 
@@ -36,7 +36,7 @@ class PagerBodyMixin:
     _label_window_scope: LabelWindowScope | None
     _label_pending_prefix: str
     _last_activated_label: PagerLabel | None
-    _pending_action: PendingAction
+    _pending_action: ViewPendingAction
     _refresh_document_fn: Callable[[], PagerDocument | None] | None
     _refresh_in_flight: bool
 

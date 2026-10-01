@@ -20,7 +20,7 @@ from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
 from sase.ace.tui.widgets._prompt_jump_target import build_jump_editor_argv
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
 from sase.pager._layout import ComposedBody
-from sase.pager.app import PendingAction
+from sase.pager.app import ViewPendingAction
 from sase.pager.document import (
     PagerDocument,
     PagerOrigin,
@@ -40,9 +40,13 @@ from sase.pager.resolve import (
 )
 
 #: The key that arms each non-follow pending action, so a second press of
-#: that same key can be recognized as the doubled ``yy``/``EE`` form (design
-#: doc section D8) instead of an invalid label key.
-_PENDING_ACTION_KEYS: dict[PendingAction, str] = {"copy": "y", "edit": "E"}
+#: that same key can be recognized as the doubled ``yy``/``EE``/``ctrl+w
+#: ctrl+w`` form (design doc section D8) instead of an invalid label key.
+_PENDING_ACTION_KEYS: dict[ViewPendingAction, str] = {
+    "copy": "y",
+    "edit": "E",
+    "other": "ctrl+w",
+}
 _DanglingRefKey = tuple[
     object,
     tuple[tuple[Path, int | None], ...],
@@ -62,7 +66,7 @@ class PagerActionMixin:
     _label_layer: PagerLabelLayer | None
     _label_window_scope: LabelWindowScope | None
     _last_activated_label: PagerLabel | None
-    _pending_action: PendingAction
+    _pending_action: ViewPendingAction
     _dangling_refs: dict[_DanglingRefKey, str]
 
     def _handle_label_key(self: Any, event: Key) -> bool:
@@ -113,6 +117,26 @@ class PagerActionMixin:
 
     def action_arm_edit(self: Any) -> None:
         self._arm_pending_action("edit")
+
+    def action_arm_other(self: Any) -> None:
+        """Arm an other-pane follow (``ctrl+w``).
+
+        A doubled ``ctrl+w`` (pressed while already armed, with no label
+        prefix pending) focuses the other pane instead — the vim alias of
+        ``ctrl+f`` — and is a no-op when single. Either way the arm clears.
+        """
+        if self._pending_action == "other":
+            self._pending_action = "follow"
+            self._label_pending_prefix = ""
+            self._repaint_label_state()
+            try:
+                self.pager_host.focus_other_view(self)
+            except Exception:
+                pass
+            return
+        self._pending_action = "other"
+        self._label_pending_prefix = ""
+        self._repaint_label_state()
 
     def _arm_pending_action(self: Any, action: Literal["copy", "edit"]) -> None:
         if self._pending_action == action:
@@ -222,12 +246,15 @@ class PagerActionMixin:
         self._last_activated_label = label
         action = self._pending_action
         self._pending_action = "follow"
+        other_pane = action == "other"
         target = label.target
         context = self._link_context_for_section_index(label.section_index)
 
         handler = self._attached_handlers.get(target.kind)
         if handler is not None:
-            handler(target, action)
+            # The internal ``"other"`` arm never reaches attached handlers;
+            # they see the public ``"follow"`` contract value instead.
+            handler(target, action if action != "other" else "follow")
             return
 
         origin = self._origin_for_section_index(label.section_index)
@@ -237,7 +264,9 @@ class PagerActionMixin:
         if action == "edit":
             self._edit_target(target, context=context, origin=origin)
             return
-        self._follow_target(target, context=context, origin=origin)
+        self._follow_target(
+            target, context=context, origin=origin, other_pane=other_pane
+        )
 
     def _repaint_label_state(self: Any) -> None:
         self._body_width = None
@@ -300,6 +329,7 @@ class PagerActionMixin:
         *,
         context: LinkResolutionContext | None,
         origin: PagerOrigin,
+        other_pane: bool = False,
     ) -> None:
         destination = target_action_destination(target, origin)
         if destination is None:
@@ -310,7 +340,17 @@ class PagerActionMixin:
             intent="follow",
             context=context,
             cache_identity=target_resolution_cache_identity(target, origin),
+            other_pane=other_pane,
         )
+
+    def _show_document_in_other_view(
+        self: Any,
+        document: PagerDocument,
+        line: int | None,
+        end_line: int | None = None,
+    ) -> None:
+        """Open *document* in the other pane, leaving focus on this view."""
+        self.pager_host.show_in_other_view(self, document, line, end_line)
 
     def _resolve_and_dispatch(
         self: Any,
@@ -319,6 +359,7 @@ class PagerActionMixin:
         intent: Literal["follow", "edit"],
         context: LinkResolutionContext | None = None,
         cache_identity: object | None = None,
+        other_pane: bool = False,
     ) -> None:
         key = self._dangling_ref_key(cache_identity or ref, context)
         cached = self._dangling_refs.get(key)
@@ -357,7 +398,11 @@ class PagerActionMixin:
                     return
                 if historical is not None:
                     self._apply_historical_section(
-                        historical, ref, intent=intent, context=context
+                        historical,
+                        ref,
+                        intent=intent,
+                        context=context,
+                        other_pane=other_pane,
                     )
                     return
                 if getattr(self, "_history_miss_notice", None) is not None:
@@ -397,6 +442,7 @@ class PagerActionMixin:
                 intent=intent,
                 context=context,
                 cache_identity=cache_identity,
+                other_pane=other_pane,
             )
 
         spawn_pump_free_task(
@@ -451,6 +497,7 @@ class PagerActionMixin:
         *,
         intent: str,
         context: Any | None = None,
+        other_pane: bool = False,
     ) -> None:
         try:
             if not self.is_mounted:
@@ -469,6 +516,9 @@ class PagerActionMixin:
             origin=self.document.origin,
             link_context=self.document.link_context,
         )
+        if other_pane:
+            self._show_document_in_other_view(document, line=None)
+            return
         self._push_trail_entry()
         self._navigate_to_document(document, line=None)
 
@@ -480,6 +530,7 @@ class PagerActionMixin:
         intent: Literal["follow", "edit"],
         context: LinkResolutionContext | None = None,
         cache_identity: object | None = None,
+        other_pane: bool = False,
     ) -> None:
         try:
             if not self.is_mounted:
@@ -505,6 +556,13 @@ class PagerActionMixin:
             self._show_media(target)
             return
         if target.document is not None:
+            if other_pane:
+                self._show_document_in_other_view(
+                    target.document,
+                    target.scroll_line,
+                    target.scroll_end_line,
+                )
+                return
             self._push_trail_entry()
             self._navigate_to_document(
                 target.document,

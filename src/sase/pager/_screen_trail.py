@@ -18,7 +18,7 @@ from sase.pager._trail_chrome import (
     build_pager_trail_snapshot,
     render_trail_band,
 )
-from sase.pager.app import PendingAction
+from sase.pager.app import ViewPendingAction
 from sase.pager.document import PagerSection
 from sase.pager.trail import PagerSearchState, PagerTrailEntry, append_bounded_trail
 
@@ -33,7 +33,7 @@ class PagerTrailMixin:
     _label_pending_prefix: str
     _label_window_scope: LabelWindowScope | None
     _last_activated_label: PagerLabel | None
-    _pending_action: PendingAction
+    _pending_action: ViewPendingAction
     _trail_render_signature: object | None
 
     def action_trail_back(self: Any) -> None:

@@ -159,6 +159,35 @@ async def test_pager_screen_modal_label_key_does_not_reach_host_binding() -> Non
         assert app.host_a_count == 0
 
 
+async def test_pager_screen_modal_ctrl_w_follows_in_other_pane_as_follow() -> None:
+    app = _PagerHost()
+    handled: list[tuple[object, str]] = []
+    async with app.run_test(size=(80, 12)) as pilot:
+        screen = PagerScreen(
+            _attached_label_document(11),
+            attached_handlers={
+                _COMMIT_TARGET_KIND: lambda target, action: handled.append(
+                    (target.target, action)
+                )
+            },
+        )
+        app.push_screen(screen)
+        await pilot.pause()
+
+        await pilot.press("ctrl+w")
+        await pilot.pause()
+
+        assert screen._pending_action == "other"
+
+        await pilot.press("a")
+        await pilot.pause()
+
+        assert screen._last_activated_label is not None
+        assert screen._last_activated_label.hint == "a"
+        assert handled == [("target-10", "follow")]
+        assert app.host_a_count == 0
+
+
 async def test_pager_screen_tab_forward_does_not_reach_priority_host_binding() -> None:
     app = _PriorityTabPagerHost()
     source = _multi_section_document()

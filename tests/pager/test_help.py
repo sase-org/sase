@@ -21,6 +21,17 @@ def test_help_lists_line_addressed_link_landing() -> None:
     assert text.index("; or :") < text.index("path:12") < text.index("backspace")
 
 
+def test_help_lists_other_pane_rows_when_labels_exist() -> None:
+    text = _pager_help_text(section_total=1, label_count=3).plain
+
+    assert "ctrl+w..." in text
+    assert "Follow a painted link in the other pane" in text
+    assert "ctrl+w ctrl+w" in text
+    assert "Focus the other pane" in text
+
+    assert "ctrl+w" not in _pager_help_text(section_total=1).plain
+
+
 def test_help_inserts_section_rows_after_back_and_before_forward() -> None:
     text = _pager_help_text(section_total=3).plain
 

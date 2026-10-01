@@ -345,6 +345,13 @@ def test_footer_legend_promotes_pending_prefix_over_follow_hint() -> None:
     assert "follow" not in line.plain
 
 
+def test_footer_legend_names_other_pane_arm() -> None:
+    line = footer_legend(section_total=1, label_count=3, pending_action="other")
+
+    assert "^W… other pane" in line.plain
+    assert "follow" not in line.plain
+
+
 def test_goto_command_line_idle_shows_range_and_gold_sigil() -> None:
     line = goto_command_line(
         digits="",
