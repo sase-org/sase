@@ -248,6 +248,30 @@ def test_muse_stream_reports_a_non_completed_terminal_outcome() -> None:
     assert "[muse] run terminal failed: model stream closed" in stderr_content
 
 
+def test_muse_stream_textless_terminal_is_not_a_missing_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    payload = _envelope(
+        "run.terminal.failed",
+        {"terminal": "failed", "reason": "model stream closed", "text": ""},
+    )
+
+    _, stderr_content, _, _ = _run_fixture_stream(payload, exit_code=1)
+
+    assert "[muse] run terminal failed: model stream closed" in stderr_content
+    errors_path = tmp_path / "tool_calls_writer_errors.jsonl"
+    reasons = set()
+    if errors_path.exists():
+        reasons = {
+            json.loads(line)["reason"]
+            for line in errors_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+    assert "muse_missing_run_terminal_event" not in reasons
+
+
 def test_muse_stream_labels_exit_code_two_as_a_usage_error() -> None:
     _, stderr_content, return_code, _ = _run_fixture_stream(
         _envelope("run.terminal.completed", {"terminal": "completed", "text": "hello"}),

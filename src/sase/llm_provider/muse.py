@@ -41,6 +41,7 @@ from .model_manifest import (
 from .types import InvokeResult, LLMInvocationError, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
+    from .retry_config import ProviderRetryConfig
     from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
@@ -417,6 +418,40 @@ class MuseProvider(LLMProvider):
                 "quota exceeded",
                 "insufficient_quota",
             ],
+        )
+
+    @hookimpl
+    def llm_default_retry_config(self) -> ProviderRetryConfig:
+        from .retry_config import (
+            _RETRY_CONTINUATION_NUDGE,
+            ProviderRetryConfig,
+        )
+
+        # Muse has no headless resume, so a SASE retry starts a fresh
+        # `muse exec` session (new `--session-id`) with the nudge prepended.
+        # On-disk edits survive because `preserve_workspace=True`. A fresh
+        # session is also what escapes the session-scoped 504s seen here.
+        return ProviderRetryConfig(
+            max_retries=3,
+            error_patterns=[
+                # Captured live from the 2026-10-01 `bob-cli-31.4` failure
+                # (Muse 1.4.2-R4684.1). It is Muse's zero-byte chain terminal,
+                # printed after its own turn retry budget is exhausted.
+                "no data is reaching this machine from the model service",
+                # The machine error kinds Muse lists in that give-up summary's
+                # `all [...]` suffix. They are a second anchor in case a later
+                # build rewords the prose, the same dual-anchor rationale as
+                # Grok's `max_tokens_truncation`.
+                "model_stream_first_event_timeout",
+                "model_stream_idle_timeout",
+                # The sibling give-up prose for the transport, service,
+                # router, and stream-ended failure classes. It comes from
+                # scanning the shipped binary and has not been observed live.
+                "kept failing until the whole turn retry budget was exhausted",
+            ],
+            wait_times=[60, 300, 1800],
+            continuation_prompt=_RETRY_CONTINUATION_NUDGE,
+            preserve_workspace=True,
         )
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:

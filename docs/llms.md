@@ -954,8 +954,10 @@ while Muse used its own default.
 Muse has no headless resume (`muse resume` is interactive-only), so interrupt handling
 reuses the accumulated-context restart that Qwen, OpenCode, and Codex use: SASE
 reconstructs a continuation prompt and relaunches. The session log is kept for manual
-recovery. Muse ships no `llm_default_retry_config`; it already retries its own model
-stream internally, and a nonzero exit falls into SASE's generic retry path.
+recovery. Muse retries its model stream internally. When that budget is exhausted on a
+transient model-service failure, it exits 1. Muse's provider-supplied retry defaults
+then re-run the agent in a fresh Muse session, with the workspace preserved and the
+resume nudge prepended.
 
 ### Skills and Instruction File
 
@@ -2894,8 +2896,8 @@ provider are retried.
 ### Provider-Supplied Retry Defaults
 
 Providers can also declare retry defaults through the `llm_default_retry_config()` hook.
-Claude, Codex, and Grok declare a recovery entry that is merged with their configured
-policy.
+Claude, Codex, Grok, and Muse declare a recovery entry that is merged with their
+configured policy.
 
 Claude:
 
@@ -2934,6 +2936,23 @@ Grok:
 - **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
 - **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude and
   Codex
+- **preserve_workspace**: `true`
+
+Muse:
+
+- **error patterns**: `"no data is reaching this machine from the model service"` —
+  captured live from the 2026-10-01 `bob-cli-31.4` failure (Muse 1.4.2-R4684.1), Muse's
+  zero-byte chain terminal printed after its own turn retry budget is exhausted;
+  `"model_stream_first_event_timeout"` and `"model_stream_idle_timeout"` — the machine
+  error kinds from that give-up summary's `all [...]` suffix, a second anchor in case a
+  later build rewords the prose; and
+  `"kept failing until the whole turn retry budget was exhausted"` — the sibling give-up
+  prose for the transport, service, router, and stream-ended failure classes, from
+  scanning the shipped binary, not yet observed live
+- **max_retries**: 3
+- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
+- **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude,
+  Codex, and Grok
 - **preserve_workspace**: `true`
 
 Fakey:

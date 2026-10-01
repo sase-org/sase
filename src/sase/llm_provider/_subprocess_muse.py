@@ -105,6 +105,10 @@ class _MuseStreamState:
     live_reply_file: IO[str] | None = None
     timestamps_file: IO[str] | None = None
     terminal_texts: list[str] = field(default_factory=list)
+    # Whether any `run.terminal.*` envelope arrived, even one carrying no
+    # reply text. A textless terminal event still proves the stream schema
+    # is intact, so it must not read as a missing terminal.
+    saw_run_terminal: bool = False
     # Delta fragments per run stream, in first-seen order. Salvage-only: they
     # rebuild a reply when no terminal event arrives, and are never returned
     # otherwise.
@@ -302,6 +306,7 @@ def _capture_run_terminal(
     state: _MuseStreamState,
 ) -> None:
     """Record the authoritative reply text and the run's terminal outcome."""
+    state.saw_run_terminal = True
     if state.open_stream_key == _run_stream_key(payload):
         _close_delta_chunk(state)
 
@@ -338,6 +343,10 @@ def _resolve_muse_content(state: _MuseStreamState) -> str:
     # schema drift behind a blank reply, so record it and fall back to the
     # streamed deltas rather than losing the answer. Deltas concatenate within
     # a run stream and are joined across streams, like the terminal texts.
+    # A textless terminal event still counts as arrived: the event proves the
+    # schema is intact, so only a truly missing terminal is diagnosed.
+    if state.saw_run_terminal:
+        return "\n\n".join("".join(parts) for parts in state.streamed_texts.values())
     _record_schema_diagnostic(
         reason="muse_missing_run_terminal_event",
         extra={
