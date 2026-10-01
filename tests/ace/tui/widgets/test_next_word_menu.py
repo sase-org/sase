@@ -35,6 +35,8 @@ from sase.core.prompt_prediction_wire import (
     PromptPredictionModelConfig,
     PromptPredictionResult,
     PromptPredictionRow,
+)
+from sase.core.prompt_prediction_wire_prediction import (
     _PromptPredictionSourceShares,
 )
 

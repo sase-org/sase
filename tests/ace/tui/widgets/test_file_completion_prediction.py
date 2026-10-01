@@ -13,9 +13,11 @@ from sase.ace.tui.widgets._file_completion_prediction import (
 from sase.core.prompt_prediction_wire import (
     PromptPredictionCandidate,
     PromptPredictionResult,
-    _PromptPredictionSourceShares,
     PromptPrefixRankMatch,
     PromptPrefixRankResult,
+)
+from sase.core.prompt_prediction_wire_prediction import (
+    _PromptPredictionSourceShares,
 )
 
 
