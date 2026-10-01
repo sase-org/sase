@@ -525,7 +525,7 @@ ace:
     word_ranking_signals: true
     placeholder_ranking: smart
     placeholder_ranking_signals: true
-    next_word: chain
+    next_word: auto
     next_word_max_words: 4
     next_word_confidence: balanced
     next_word_sources: [history]

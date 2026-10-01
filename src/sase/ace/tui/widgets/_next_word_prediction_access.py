@@ -81,7 +81,7 @@ class NextWordPredictionAccessMixin(_MixinBase):
         try:
             settings = getattr(self, "_prompt_completion_settings", None)
             if callable(settings):
-                mode = getattr(settings(), "next_word", "chain")
+                mode = getattr(settings(), "next_word", "auto")
                 if mode == "off":
                     return None
         except Exception:

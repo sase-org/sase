@@ -53,7 +53,7 @@ class FileCompletionPredictionMixin(
             settings = getattr(self, "_prompt_completion_settings", None)
             if callable(settings):
                 parsed = settings()
-                mode = getattr(parsed, "next_word", "chain")
+                mode = getattr(parsed, "next_word", "auto")
                 if mode == "off":
                     return None
                 if getattr(parsed, "word_ranking", "smart") != "smart":

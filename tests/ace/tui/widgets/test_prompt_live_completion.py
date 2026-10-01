@@ -114,9 +114,10 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parse_prompt_completion_settings({"next_word": "chain"}).next_word == "chain"
     assert parse_prompt_completion_settings({"next_word": "off"}).next_word == "off"
     assert (
-        parse_prompt_completion_settings({"next_word": "sometimes"}).next_word
-        == "chain"
+        parse_prompt_completion_settings({"next_word": "sometimes"}).next_word == "auto"
     )
+    assert parse_prompt_completion_settings({"next_word": True}).next_word == "auto"
+    assert parse_prompt_completion_settings({"next_word": False}).next_word == "off"
     assert parse_prompt_completion_settings({}).next_word_sources == ("history",)
     assert parse_prompt_completion_settings(
         {"next_word_sources": ["archive", "history"]}

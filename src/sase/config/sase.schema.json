@@ -2249,9 +2249,9 @@
             },
             "next_word": {
               "type": "string",
-              "description": "Next-word prediction chain mode: 'chain' arms ghost text after word commits, 'auto' also shows the gated ghost right after a typed space, 'off' disables predictions",
+              "description": "Next-word prediction mode: 'auto' predicts after each typed character and completes the current word, 'chain' arms ghost text only after word commits and explicit Ctrl+T, 'off' disables predictions",
               "enum": ["off", "chain", "auto"],
-              "default": "chain"
+              "default": "auto"
             },
             "next_word_max_words": {
               "type": "integer",

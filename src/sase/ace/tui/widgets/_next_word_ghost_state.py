@@ -87,11 +87,11 @@ class NextWordGhostStateMixin(_MixinBase):
         """Return ``(mode, max_words, confidence)`` with safe defaults."""
         getter = getattr(self, "_prompt_completion_settings", None)
         settings = getter() if callable(getter) else None
-        mode = getattr(settings, "next_word", "chain")
+        mode = getattr(settings, "next_word", "auto")
         max_words = getattr(settings, "next_word_max_words", 4)
         confidence = getattr(settings, "next_word_confidence", "balanced")
         if mode not in {"off", "chain", "auto"}:
-            mode = "chain"
+            mode = "auto"
         try:
             max_words = max(1, min(8, int(max_words)))
         except (TypeError, ValueError):

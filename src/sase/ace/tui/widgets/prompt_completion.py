@@ -57,7 +57,7 @@ class PromptCompletionSettings:
     word_ranking_signals: bool = True
     placeholder_ranking: PlaceholderRankingMode = "smart"
     placeholder_ranking_signals: bool = True
-    next_word: NextWordMode = "chain"
+    next_word: NextWordMode = "auto"
     next_word_max_words: int = 4
     next_word_confidence: NextWordConfidence = "balanced"
     next_word_sources: tuple[str, ...] = ("history",)
@@ -448,15 +448,15 @@ def _parse_ranking_mode(value: Any, *, default: WordRankingMode) -> WordRankingM
 
 
 def _parse_next_word_mode(value: Any) -> NextWordMode:
-    """Parse ``next_word`` with a conservative ``chain`` fallback."""
+    """Parse ``next_word`` with an ``auto`` default fallback."""
     if isinstance(value, bool):
-        return "chain" if value else "off"
+        return "auto" if value else "off"
     normalized = str(value).strip().lower()
     if normalized in {"off", "false", "no", "0", "none", "disabled"}:
         return "off"
-    if normalized in {"chain", "on", "true", "yes", "1"}:
+    if normalized == "chain":
         return "chain"
-    if normalized == "auto":
+    if normalized in {"auto", "on", "true", "yes", "1"}:
         return "auto"
     return DEFAULT_PROMPT_COMPLETION_SETTINGS.next_word
 

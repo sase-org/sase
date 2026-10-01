@@ -323,7 +323,9 @@ async def test_auto_xprompt_menu_toggle_disables_slash_skill_auto_open() -> None
         with patch.object(
             type(ta),
             "_prompt_completion_settings",
-            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+            return_value=PromptCompletionSettings(
+                auto_xprompt_menu=False, next_word="chain"
+            ),
         ):
             await pilot.press("/")
             await pilot.press("s")
@@ -377,7 +379,9 @@ async def test_auto_xprompt_menu_toggle_disables_auto_open_only() -> None:
         with patch.object(
             type(ta),
             "_prompt_completion_settings",
-            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+            return_value=PromptCompletionSettings(
+                auto_xprompt_menu=False, next_word="chain"
+            ),
         ):
             await pilot.press("#")
             await pilot.press("f")

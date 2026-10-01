@@ -437,7 +437,7 @@ async def test_auto_space_after_sentence_end_shows_nothing() -> None:
 
 
 async def test_auto_space_only_fires_in_auto_mode() -> None:
-    app = NextWordTestApp()
+    app = NextWordTestApp(settings=PromptCompletionSettings(next_word="chain"))
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("Can you help me,")

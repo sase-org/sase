@@ -7689,12 +7689,18 @@ token under the cursor:
 
 #### Next-word prediction
 
-Next-word prediction suggests prose from your typed prompt history and the current
-prompt draft, with the prompt archive as an optional additional source. **Ghost text**
-is a dim suggestion inline at the cursor. A **border peek** is a suggestion on the
-prompt box's border when it cannot appear inline. Neither changes your prompt until you
-accept it. The hint `[^T] word  [^L] all` means `Ctrl+T` accepts one word and `Ctrl+L`
-accepts the suggestion.
+Confident guesses from your own typed prompt history appear automatically as you type,
+with no `Ctrl+T` needed to see them. They show as dim inline ghost text, or as a border
+peek when the guess cannot sit in the line without shifting your prose (mid-sentence
+guesses always use the peek, because inline text there would slide the rest of the
+sentence right on every keystroke). The border hint is `[^T] word  [^L] all`.
+
+`ace.prompt_completion.next_word` selects how guesses trigger. `auto` (the default)
+predicts after each typed character: a typed word character completes the word being
+typed, and any other typed character asks for the next words. `chain` shows nothing
+while typing and arms only after a prompt-local or history-word commit, or on an
+explicit `Ctrl+T` at the end of a prose word or at a whitespace boundary. `off` disables
+predictions; with `off`, `Ctrl+T` at a whitespace boundary opens recent files directly.
 
 With prediction enabled, accepting a prompt-local or history-word completion starts a
 next-word chain: each accepted suggestion requests another. An explicit `Ctrl+T` also
@@ -7757,13 +7763,12 @@ miss adds `[^G r] recent files`, pointing to the recent-files menu on `Ctrl+G r`
 `Ctrl+D` on a highlighted next-word row forgets it through the history-word deletions
 store.
 
-`ace.prompt_completion.next_word` defaults to `chain`. `chain` starts after those word
-completion accepts and on the explicit requests described above. `auto` also predicts
-after a typed non-word character following a word token; trailing punctuation is skipped
-when finding that token, so a ghost may appear after `, `. It also completes a partially
-typed word when no word character follows the cursor. After sentence-final `.`, `?`,
-`!`, or `…`, the model stays silent until another word begins. `off` disables next-word
-prediction.
+In `auto`, a typed non-word character that follows a word token asks for the next words
+— clause punctuation between the word and the trigger is skipped, so a ghost may appear
+after `, ` — and, while you type a word with only a boundary after the cursor, the
+request completes that word. After a sentence-final `.`, `?`, `!`, or `…`, the model
+starts a fresh empty context and stays silent. If the keystroke was consumed by a
+visible ghost, the ghost is kept and no new request is made.
 
 In `auto`, current-word completion inserts the untyped suffix plus any continuation. For
 example, after typing `imple`, the ghost might be `ment it now`. If the word is already
@@ -7782,7 +7787,12 @@ current-word request runs off the keystroke path after
 explicit `Ctrl+T` request or measure text after the cursor.
 
 Ghosts and peeks stay off in NORMAL mode, during file completion, during a snippet
-session, while text is selected, and inside a Jinja `{{ }}` or `{% %}` tag.
+session, while text is selected, and for the whole of a Jinja `{{ }}` or `{% %}` tag.
+The gate and plan feedback note editor hosts the same autosuggest — ghost, peek, hint,
+`Ctrl+T`, and `Ctrl+L` — with no completion menu there.
+
+Principles: `Ctrl+T` never inserts an unseen guess, always moves forward, and stays
+silent when unsure.
 
 Press `Ctrl+R` to open the recursive fuzzy file finder. With a token such as `src/alp`,
 `src/` becomes the search root and `alp` pre-seeds the fuzzy query; with no token, the

@@ -264,7 +264,7 @@ async def test_gate_note_off_shows_nothing() -> None:
 
 
 async def test_gate_note_chain_mode_ignores_typing() -> None:
-    app = GateNoteTestApp()
+    app = GateNoteTestApp(settings=PromptCompletionSettings(next_word="chain"))
     panel = GateInputPanel(_note_request())
     async with app.run_test(size=(120, 40)) as pilot:
         app.push_screen(panel, app.results.append)

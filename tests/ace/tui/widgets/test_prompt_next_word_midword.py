@@ -267,7 +267,7 @@ async def test_explicit_midword_never_opens_a_menu(
 
 
 async def test_chain_mode_shows_no_midword_ghost() -> None:
-    app = NextWordTestApp()
+    app = NextWordTestApp(settings=PromptCompletionSettings(next_word="chain"))
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("Can you help me impl")

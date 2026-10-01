@@ -262,7 +262,7 @@ def test_prompt_completion_next_word_default_contract() -> None:
     prompt_completion = public_schema["properties"]["ace"]["properties"][
         "prompt_completion"
     ]
-    assert default_config["ace"]["prompt_completion"]["next_word"] == "chain"
+    assert default_config["ace"]["prompt_completion"]["next_word"] == "auto"
     assert default_config["ace"]["prompt_completion"]["next_word_max_words"] == 4
     assert (
         default_config["ace"]["prompt_completion"]["next_word_confidence"] == "balanced"
@@ -272,7 +272,7 @@ def test_prompt_completion_next_word_default_contract() -> None:
         "chain",
         "auto",
     ]
-    assert prompt_completion["properties"]["next_word"]["default"] == "chain"
+    assert prompt_completion["properties"]["next_word"]["default"] == "auto"
     assert prompt_completion["properties"]["next_word_max_words"]["default"] == 4
     assert prompt_completion["properties"]["next_word_max_words"]["minimum"] == 1
     assert prompt_completion["properties"]["next_word_max_words"]["maximum"] == 8
