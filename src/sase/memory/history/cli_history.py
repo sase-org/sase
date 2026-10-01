@@ -297,14 +297,7 @@ def _handle_pager(
             output_format="text",
         )
         return
-    if bool(getattr(args, "diff", False)):
-        # Word-diff pager rendering belongs to sase-1dr.8: keep the read
-        # view and preserve the existing text diff path for now.
-        print(
-            "note: history word-diff pager arrives in sase-1dr.8; "
-            "opening the read view instead.",
-            file=sys.stderr,
-        )
+    requested_view = "diff" if bool(getattr(args, "diff", False)) else "read"
     sections: list[Any] = []
     for raw in selectors:
         deployed = None
@@ -342,6 +335,7 @@ def _handle_pager(
             scope=scope,
             subject=core_selector,
             initial_revision=revision,
+            view=requested_view,
             service=service,
             title=deployed or raw,
         )

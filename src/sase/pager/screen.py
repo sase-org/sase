@@ -24,6 +24,7 @@ from sase.pager._layout import ComposedBody
 from sase.pager._screen_actions import PagerActionMixin, _DanglingRefKey
 from sase.pager._screen_body import PagerBodyMixin
 from sase.pager._screen_chrome import PagerChromeMixin
+from sase.pager._screen_diff import PagerDiffMixin
 from sase.pager._screen_goto import PagerGotoMixin
 from sase.pager._screen_history import PagerHistoryMixin
 from sase.pager._screen_search import PagerSearchMixin
@@ -39,6 +40,7 @@ from sase.pager.trail import PagerTrailEntry
 
 class PagerScreen(
     PagerHistoryMixin,
+    PagerDiffMixin,
     PagerBodyMixin,
     PagerActionMixin,
     PagerTrailMixin,
@@ -63,6 +65,13 @@ class PagerScreen(
         Binding("right_parenthesis", "history_newer", "Newer", show=False),
         Binding("left_curly_bracket", "history_first", "First", show=False),
         Binding("right_curly_bracket", "history_now", "Now", show=False),
+        Binding("equals_sign", "history_toggle_diff", "Diff", show=False),
+        Binding(
+            "left_square_bracket", "history_prev_change", "Prev change", show=False
+        ),
+        Binding(
+            "right_square_bracket", "history_next_change", "Next change", show=False
+        ),
         Binding("q,escape", "close_pager", "Close"),
         Binding("j,down", "scroll_down", "Down"),
         Binding("k,up", "scroll_up", "Up"),
@@ -125,6 +134,7 @@ class PagerScreen(
         self._init_goto_state()
         self._init_syntax_state()
         self._init_history_state()
+        self._init_diff_state()
 
     def on_unmount(self) -> None:
         cancel_pump_free_tasks(self)

@@ -173,6 +173,39 @@ def test_subject_chips_and_footer_verbs() -> None:
     assert "( )" not in plain_footer.plain
 
 
+def test_diff_subject_chips_and_footer_verbs() -> None:
+    document = PagerDocument(
+        sections=(_section("a"),), title="doc", origin=PagerOrigin.FILE
+    )
+    diff = subject_line(
+        document,
+        document.sections[0],
+        section_index=1,
+        section_total=1,
+        scroll_percent=0,
+        char_count=10,
+        width=80,
+        history_state={
+            "ordinal": 2,
+            "total": 5,
+            "age": "3d",
+            "view": "diff",
+            "diff_base": 1,
+        },
+    )
+    assert "PAST v2/5" in diff.plain
+    assert "diff vs v1" in diff.plain
+    read_footer = footer_legend(section_total=1, history_available=True)
+    assert "= diff" in read_footer.plain
+    diff_footer = footer_legend(
+        section_total=1,
+        history_available=True,
+        history_pinned=True,
+        history_diff_view=True,
+    )
+    assert "= read" in diff_footer.plain
+
+
 def test_history_palette_contrast_and_hue() -> None:
     palette = history_palette_from_theme(None)
     assert palette["past"].lower().startswith("#9d7cd8") or palette["past"].startswith(

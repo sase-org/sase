@@ -51,17 +51,46 @@ class PagerChromeMixin:
         pin = state.current_pin or section.version_pin
         ordinal = pin.ordinal if pin is not None else 0
         total = len(state.visible_ordinals)
+        view = str(getattr(pin, "view", "read") or "read")
         history_state: dict[str, object] = {
             "ordinal": ordinal,
             "total": total,
             "dirty": state.status == "dirty-now",
             "tombstone": state.status == "tombstone",
             "age": "",
+            "view": view,
+            "diff_base": self._history_diff_base_for(state, ordinal),
         }
         return (True, ordinal > 0, history_state)
 
+    def _history_diff_base_for(self: Any, state: Any, ordinal: int) -> int | None:
+        try:
+            from sase.pager.history.diff import diff_endpoints
+        except Exception:
+            return None
+        try:
+            pin = state.current_pin
+            compare_base = getattr(pin, "compare_base", None)
+            base_override = int(compare_base) if compare_base is not None else None
+        except (TypeError, ValueError):
+            base_override = None
+        try:
+            endpoints = diff_endpoints(
+                ordinal=ordinal,
+                visible_ordinals=tuple(state.visible_ordinals),
+                dirty=bool(state.status == "dirty-now"),
+                compare_base=base_override,
+            )
+        except Exception:
+            return None
+        return None if endpoints is None else endpoints[0]
+
     def _update_footer(self: Any) -> None:
-        available, pinned, _ = self._history_chrome_state()
+        available, pinned, history_state = self._history_chrome_state()
+        diff_view = (
+            isinstance(history_state, dict)
+            and str(history_state.get("view", "read")) == "diff"
+        )
         self.query_one("#pager-footer", Static).update(
             footer_legend(
                 section_total=len(self.document.sections),
@@ -73,6 +102,7 @@ class PagerChromeMixin:
                 status=self._footer_status,
                 history_available=available,
                 history_pinned=pinned,
+                history_diff_view=diff_view,
             )
         )
 

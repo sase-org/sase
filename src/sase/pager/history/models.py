@@ -63,6 +63,7 @@ class SectionTimeState:
     generation: int = 0
     body_cache: dict[tuple[int, str], object] = field(default_factory=dict)
     comparison_cache: dict[tuple[int, int], object] = field(default_factory=dict)
+    expanded_folds: set[int] = field(default_factory=set)
 
 
 def live_pin_for_subject(subject_id: str, *, selector: str = "now") -> VersionPin:

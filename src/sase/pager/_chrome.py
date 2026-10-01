@@ -269,8 +269,12 @@ def _history_chip(state: dict[str, object] | None) -> Text | None:
     """Return the violet past / dim now / amber dirty subject chip."""
     if not state:
         return None
+    diff_suffix = _history_diff_suffix(state)
     if bool(state.get("tombstone")):
-        return Text("✖ deleted", style="red")
+        chip = Text("✖ deleted", style="red")
+        if diff_suffix:
+            chip.append(f" · {diff_suffix}", style="dim")
+        return chip
     ordinal = int(cast(Any, state.get("ordinal", 0)) or 0)
     if ordinal > 0:
         total = int(cast(Any, state.get("total", 0)) or 0)
@@ -278,13 +282,37 @@ def _history_chip(state: dict[str, object] | None) -> Text | None:
         label = f"⟲ PAST v{ordinal}/{total}" if total else f"⟲ PAST v{ordinal}"
         if age:
             label = f"{label} · {age}"
+        if diff_suffix:
+            label = f"{label} · {diff_suffix}"
         return Text(label, style="#9d7cd8")
     if bool(state.get("dirty")):
-        return Text("◌ uncommitted", style="yellow")
+        chip = Text("◌ uncommitted", style="yellow")
+        if diff_suffix:
+            chip.append(f" · {diff_suffix}", style="dim")
+        return chip
     total = int(cast(Any, state.get("total", 0)) or 0)
     if total:
-        return Text(f"v{total} versions", style="dim")
+        label = f"v{total} versions"
+        if diff_suffix:
+            label = f"{label} · {diff_suffix}"
+        return Text(label, style="dim")
     return None
+
+
+def _history_diff_suffix(state: dict[str, object]) -> str:
+    """Return the ``diff vs vN`` suffix when the section shows the diff view."""
+    if str(state.get("view", "read") or "read") != "diff":
+        return ""
+    base = state.get("diff_base")
+    if base is None:
+        return "diff"
+    try:
+        ordinal = int(cast(Any, base))
+    except (TypeError, ValueError):
+        return "diff"
+    if ordinal <= 0:
+        return "diff vs start"
+    return f"diff vs v{ordinal}"
 
 
 def section_rule(
@@ -323,6 +351,7 @@ def footer_legend(
     status: str | None = None,
     history_available: bool = False,
     history_pinned: bool = False,
+    history_diff_view: bool = False,
 ) -> Text:
     """Build the availability-driven footer legend.
 
@@ -336,6 +365,7 @@ def footer_legend(
         verbs.append(("…", status))
     if history_available:
         verbs.append(("( )", "version"))
+        verbs.append(("=", "read" if history_diff_view else "diff"))
         if history_pinned:
             verbs.append(("E", "edits now"))
     action_key = {"copy": "y", "edit": "E"}.get(pending_action)

@@ -1,14 +1,18 @@
-"""Deterministic PNG goldens for memory-history pager read states.
+"""Deterministic PNG goldens for memory-history pager read and diff states.
 
 Covers the sase-1dr.6 read view in three honest states — past read view,
-dirty now, and deletion tombstone — at 120x40 and 60x30 in dark and light
-themes. Sections use fixed bodies, fixed commit/blob OIDs, and an empty age
-string so screenshots never depend on checkout history or today's time. The
-real provider registry is cleared so no git/file I/O can leak in; history
-chrome/gutter state is injected deterministically after mount.
+dirty now, and deletion tombstone — plus the sase-1dr.8 word-diff view in
+its past and dirty forms, at 120x40 and 60x30 in dark and light themes.
+Sections use fixed bodies, fixed commit/blob OIDs, canned comparisons,
+and an empty age string so screenshots never depend on checkout history
+or today's time. The real provider registry is cleared so no git/file I/O
+can leak in; history chrome/gutter state is injected deterministically
+after mount.
 """
 
 from __future__ import annotations
+
+from dataclasses import replace
 
 import pytest
 
@@ -16,6 +20,7 @@ from sase.ace.testing.wait import wait_for
 from sase.pager.app import SasePager
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection, RawSourceSpec
 from sase.pager._screen_syntax import _syntax_key_for_section  # noqa: PLC2701
+from sase.pager.history.diff import build_diff_body
 from sase.pager.history.models import (
     SectionTimeState,
     committed_pin_for_ordinal,
@@ -74,6 +79,95 @@ _TOMBSTONE_BODY = (
     "\n"
     "This note was removed when the beds were replanted.\n"
 )
+
+_DIFF_PAST_BODY = (
+    "# Garden note\n"
+    "\n"
+    "Soil is ready for spring planting.\n"
+    "Added: compost row along the north bed.\n"
+    "Changed: water schedule is now thrice weekly.\n"
+    "Keep the stone path clear of weeds.\n"
+    "\n"
+    "## Next steps\n"
+    "\n"
+    "- Sow carrots in the east row.\n"
+    "- Label the seed trays.\n"
+)
+
+_DIFF_OLD_LINE = "Changed: water schedule is now twice weekly."
+_DIFF_NEW_LINE = "Changed: water schedule is now thrice weekly."
+_DIFF_PREFIX = "Changed: water schedule is now "
+_DIFF_SUFFIX = " weekly."
+
+
+def _diff_past_comparison() -> dict[str, object]:
+    start = len(_DIFF_PREFIX)
+    return {
+        "frontmatter": {"type_change": "promoted", "entries": []},
+        "line_marks": [5],
+        "word_ops": [
+            {
+                "target_line": 5,
+                "ops": [
+                    {"kind": "equal", "text": _DIFF_PREFIX, "start": 0, "end": start},
+                    {"kind": "delete", "text": "twice", "start": start, "end": start},
+                    {
+                        "kind": "insert",
+                        "text": "thrice",
+                        "start": start,
+                        "end": start + len("thrice"),
+                    },
+                    {
+                        "kind": "equal",
+                        "text": _DIFF_SUFFIX,
+                        "start": start + len("thrice"),
+                        "end": len(_DIFF_NEW_LINE),
+                    },
+                ],
+            }
+        ],
+        "hunks": [
+            {"target_start": 5, "target_end": 6, "section_path": ["Garden note"]}
+        ],
+        "removal_anchors": [{"after_target_line": 10, "removed_count": 1}],
+        "stats": {"words_added": 1, "words_removed": 1},
+        "unified_diff": (f"@@ -5 +5 @@\n-{_DIFF_OLD_LINE}\n+{_DIFF_NEW_LINE}\n"),
+    }
+
+
+_DIRTY_DIFF_PREFIX = "Uncommitted: "
+_DIRTY_DIFF_ADDED = "drafted a new herb spiral sketch."
+
+
+def _diff_dirty_comparison() -> dict[str, object]:
+    start = len(_DIRTY_DIFF_PREFIX)
+    return {
+        "frontmatter": {"entries": [], "type_change": None},
+        "line_marks": [4],
+        "word_ops": [
+            {
+                "target_line": 4,
+                "ops": [
+                    {
+                        "kind": "equal",
+                        "text": _DIRTY_DIFF_PREFIX,
+                        "start": 0,
+                        "end": start,
+                    },
+                    {
+                        "kind": "insert",
+                        "text": _DIRTY_DIFF_ADDED,
+                        "start": start,
+                        "end": start + len(_DIRTY_DIFF_ADDED),
+                    },
+                ],
+            }
+        ],
+        "hunks": [{"target_start": 4, "target_end": 5}],
+        "removal_anchors": [],
+        "stats": {"words_added": 6, "words_removed": 0},
+        "unified_diff": (f"@@ -3,0 +4 @@\n+{_DIRTY_DIFF_PREFIX}{_DIRTY_DIFF_ADDED}\n"),
+    }
 
 
 class _SnapshotPager(SasePager):
@@ -136,6 +230,39 @@ def _section_for_state(state: str) -> PagerSection:
             raw_source=raw,
             version_pin=pin,
         )
+    if state == "past-diff":
+        pin = committed_pin_for_ordinal(
+            _SUBJECT_ID,
+            2,
+            commit=_COMMIT_V2,
+            blob_oid=_BLOB_V2,
+            view="diff",
+            compare_base=1,
+        )
+        rendered = build_diff_body(_diff_past_comparison(), _DIFF_PAST_BODY)
+        return PagerSection(
+            identity=_IDENTITY,
+            title=_TITLE,
+            kind="file",
+            body=rendered.text,
+            subject_ref=_SUBJECT_ID,
+            raw_source=raw,
+            targets=rendered.fold_targets,
+            version_pin=pin,
+        )
+    if state == "dirty-diff":
+        pin = replace(live_pin_for_subject(_SUBJECT_ID), view="diff", compare_base=3)
+        rendered = build_diff_body(_diff_dirty_comparison(), _DIRTY_BODY)
+        return PagerSection(
+            identity=_IDENTITY,
+            title=_TITLE,
+            kind="file",
+            body=rendered.text,
+            subject_ref=_SUBJECT_ID,
+            raw_source=raw,
+            targets=rendered.fold_targets,
+            version_pin=pin,
+        )
     return PagerSection(
         identity=_IDENTITY,
         title=_TITLE,
@@ -185,6 +312,35 @@ def _inject_history_state(screen: PagerScreen, state: str) -> None:
             visible_ordinals=(1, 2, 3),
             current_pin=pin,
         )
+    elif state == "past-diff":
+        pin = committed_pin_for_ordinal(
+            _SUBJECT_ID,
+            2,
+            commit=_COMMIT_V2,
+            blob_oid=_BLOB_V2,
+            view="diff",
+            compare_base=1,
+        )
+        time_state = SectionTimeState(
+            provider_key="fixture",
+            subject_id=_SUBJECT_ID,
+            scope_key="project",
+            status="live",
+            visible_ordinals=(1, 2, 3),
+            current_pin=pin,
+        )
+        time_state.comparison_cache[(1, 2)] = _diff_past_comparison()
+    elif state == "dirty-diff":
+        pin = replace(live_pin_for_subject(_SUBJECT_ID), view="diff", compare_base=3)
+        time_state = SectionTimeState(
+            provider_key="fixture",
+            subject_id=_SUBJECT_ID,
+            scope_key="project",
+            status="dirty-now",
+            visible_ordinals=(1, 2, 3),
+            current_pin=pin,
+        )
+        time_state.comparison_cache[(3, 0)] = _diff_dirty_comparison()
     else:
         time_state = SectionTimeState(
             provider_key="fixture",
@@ -204,7 +360,9 @@ def _inject_history_state(screen: PagerScreen, state: str) -> None:
 
 @pytest.mark.parametrize("size", _SIZES)
 @pytest.mark.parametrize("light", [False, True])
-@pytest.mark.parametrize("state", ["past", "dirty", "tombstone"])
+@pytest.mark.parametrize(
+    "state", ["past", "dirty", "tombstone", "past-diff", "dirty-diff"]
+)
 async def test_history_png_snapshot(
     pager_png_visual: AcePngSnapshotFixture,
     size: tuple[int, int],
@@ -227,13 +385,18 @@ async def test_history_png_snapshot(
         async with app.run_test(size=size) as pilot:
             screen = app.screen
             assert isinstance(screen, PagerScreen)
-            await wait_for(
-                pilot,
-                lambda: (
-                    _syntax_key_for_section(section) in screen._syntax_prepared
-                    and not screen._syntax_pass_running
-                ),
-            )
+            if state.endswith("-diff"):
+                # Diff-view sections carry their own word-diff styling and
+                # skip syntax preparation by design.
+                await pilot.pause()
+            else:
+                await wait_for(
+                    pilot,
+                    lambda: (
+                        _syntax_key_for_section(section) in screen._syntax_prepared
+                        and not screen._syntax_pass_running
+                    ),
+                )
             _inject_history_state(screen, state)
             await pilot.pause()
             pager_png_visual.assert_page_png(

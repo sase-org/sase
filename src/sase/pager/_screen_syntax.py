@@ -158,6 +158,11 @@ class PagerSyntaxMixin:
             return {}
         texts: dict[int, Text] = {}
         for index, section in enumerate(self.document.sections):
+            # Diff-view sections carry their own word-diff styling; syntax
+            # preparation must never paint over it.
+            pin = getattr(section, "version_pin", None)
+            if pin is not None and getattr(pin, "view", "read") == "diff":
+                continue
             entry = prepared.get(_syntax_key_for_section(section))
             if entry is not None:
                 texts[index] = entry.styled_text
@@ -168,6 +173,9 @@ class PagerSyntaxMixin:
             return False
         attempted = self._syntax_attempted
         for section in self.document.sections:
+            pin = getattr(section, "version_pin", None)
+            if pin is not None and getattr(pin, "view", "read") == "diff":
+                continue
             if _syntax_key_for_section(section) in attempted:
                 continue
             if section_syntax_language(section) is not None:

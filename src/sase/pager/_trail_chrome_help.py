@@ -207,6 +207,9 @@ def _binding_rows(
             ("Time", ""),
             ("( / )", "Older / newer version (skips hidden)"),
             ("{ / }", "First version / now or tombstone"),
+            ("=", "Read / diff view (sticky for the session)"),
+            ("[ / ]", "Previous / next change, either view"),
+            ("yy", "Copy unified diff in the diff view"),
             ("E", "Edit now from a past version"),
         ]
     )

@@ -118,6 +118,10 @@ class PagerHistoryMixin:
                     await self._apply_step_intent(
                         identity, intent, document, generation
                     )
+                elif intent == "toggle-diff":
+                    toggle = getattr(self, "_toggle_diff_for_state", None)
+                    if callable(toggle):
+                        toggle(identity)
         finally:
             self._history_indexing = False
             if self._history_coalesced:
@@ -185,11 +189,20 @@ class PagerHistoryMixin:
             timeline.get("error") if isinstance(timeline.get("error"), str) else None
         )  # type: ignore[attr-defined]
         if state.current_pin is None:
-            from sase.pager.history.models import live_pin_for_subject
-
-            state.current_pin = live_pin_for_subject(state.subject_id)
+            section_pin = getattr(section, "version_pin", None)
+            if isinstance(section_pin, VersionPin):
+                # Honor the arrival pin (CLI `-A`/`-d` and feed links open
+                # straight into a version or the diff view).
+                state.current_pin = section_pin
+            else:
+                state.current_pin = live_pin_for_subject(state.subject_id)
         self._update_footer()
         self._update_subject()
+        pin = state.current_pin
+        if pin is not None and getattr(pin, "view", "read") == "diff":
+            ensure = getattr(self, "_ensure_diff_view", None)
+            if callable(ensure):
+                ensure(section.identity)
 
     def action_history_older(self: Any) -> None:
         self._queue_or_apply_step("older")
@@ -342,11 +355,19 @@ class PagerHistoryMixin:
             return (None, None)
         change_marks: dict[int, dict[int, str]] = {}
         removal_anchors: dict[int, set[int]] = {}
+        sticky = getattr(self, "_history_view_sticky", None)
         for index, section in enumerate(self.document.sections):
             state = states.get(section.identity)
             if state is None:
                 continue
             pin = state.current_pin or section.version_pin
+            # The diff view carries its own word styling; read-view gutter
+            # marks are target-line addressed and would misalign here.
+            effective_view = (
+                sticky if sticky is not None else getattr(pin, "view", "read")
+            )
+            if effective_view == "diff":
+                continue
             ordinal = pin.ordinal if pin is not None else 0
             if ordinal <= 0:
                 continue
@@ -521,6 +542,14 @@ class PagerHistoryMixin:
             pin = replacement.version_pin
             if pin is None:
                 pin = live_pin_for_subject(state.subject_id)
+            # Fold expansions do not survive a version swap.
+            state.expanded_folds.clear()
+            sticky = getattr(self, "_history_view_sticky", None)
+            if sticky is not None:
+                try:
+                    pin = replace(pin, view=sticky)
+                except Exception:
+                    pass
             state.current_pin = pin
         sections[index] = replacement
         self.document = replace(self.document, sections=tuple(sections))
@@ -537,6 +566,14 @@ class PagerHistoryMixin:
         self._update_subject()
         self._update_trail()
         self._schedule_syntax_preparation()
+        # Re-apply the sticky diff view after the read swap lands, so the
+        # diff render is never clobbered by the section installed above.
+        if state is not None:
+            current = state.current_pin
+            if current is not None and getattr(current, "view", "read") == "diff":
+                ensure = getattr(self, "_ensure_diff_view", None)
+                if callable(ensure):
+                    ensure(replacement.identity)
 
     def _capture_history_anchor(self: Any, section_index: int) -> tuple[int, int]:
         try:

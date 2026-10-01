@@ -211,3 +211,84 @@ def test_registry_discovers_memory_factory() -> None:
             assert provider is None or provider.provider_key == "memory-history"
     finally:
         clear_history_provider_factories()
+
+
+def test_build_history_document_honors_diff_view(fixture_repo: Path) -> None:
+    service = HistoryService()
+    scope = service.project_scope(fixture_repo)
+    read = build_history_document(scope=scope, subject="note.md", service=service)
+    read_pin = read.sections[0].version_pin
+    assert read_pin is not None
+    assert getattr(read_pin, "view", "read") == "read"
+    diff = build_history_document(
+        scope=scope, subject="note.md", view="diff", service=service
+    )
+    diff_pin = diff.sections[0].version_pin
+    assert diff_pin is not None and diff_pin.view == "diff"
+    based = build_history_document(
+        scope=scope,
+        subject="note.md",
+        initial_revision="v2",
+        view="diff",
+        compare_base="v1",
+        service=service,
+    )
+    based_pin = based.sections[0].version_pin
+    assert based_pin is not None
+    assert based_pin.ordinal == 2
+    assert based_pin.view == "diff"
+    assert based_pin.compare_base == 1
+
+
+def test_diff_view_renders_real_core_comparison(fixture_repo: Path) -> None:
+    from sase.pager.history.diff import build_diff_body
+
+    with override_flags(memory_history=True):
+        service = HistoryService()
+        provider = MemoryHistoryProvider(service=service)
+        section = path_section(fixture_repo / "sase/memory/note.md")
+        comparison = provider.compare_versions(section, 1, 2)
+        assert isinstance(comparison, dict)
+        assert "unified_diff" in comparison
+        target = provider.load_version(section, 2)
+        assert target is not None
+        rendered = build_diff_body(comparison, target.plain_text)
+        assert "Added line." in rendered.text.plain
+        assert rendered.change_lines
+
+
+def test_cli_diff_flag_opens_diff_view(
+    fixture_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.pager.app as pager_app
+
+    captured: dict[str, object] = {}
+
+    class _FakePager:
+        def __init__(self, document: object) -> None:
+            captured["document"] = document
+
+        def run(self) -> None:
+            captured["ran"] = True
+
+    monkeypatch.setattr(pager_app, "SasePager", _FakePager)
+    with override_flags(memory_history=True):
+        args = argparse.Namespace(
+            selectors=["note.md"],
+            all=False,
+            at=None,
+            diff=True,
+            format="pager",
+            limit=None,
+            project=None,
+            since=None,
+            scope="project",
+        )
+        handle_memory_history_command(
+            args, console=Console(width=120), service=HistoryService()
+        )
+    assert captured.get("ran") is True
+    document = captured["document"]
+    assert document is not None and len(document.sections) == 1  # type: ignore[union-attr]
+    pin = document.sections[0].version_pin  # type: ignore[union-attr]
+    assert pin is not None and pin.view == "diff"

@@ -134,6 +134,22 @@ class PagerActionMixin:
         section = self._current_section()
         pin = getattr(section, "version_pin", None)
         pinned_ordinal = int(getattr(pin, "ordinal", 0) or 0) if pin is not None else 0
+        if action == "copy":
+            is_diff, ready, unified = self._diff_unified_for_section(section)
+            if is_diff:
+                if ready and unified:
+                    self._copy_ref(unified, label="unified diff")
+                    return
+                if ready:
+                    self.notify(
+                        "No unified diff recorded for this change.",
+                        severity="information",
+                    )
+                else:
+                    self.notify(
+                        "Diff still loading — try again.", severity="information"
+                    )
+                return
         if action == "copy" and pinned_ordinal > 0:
             commit = str(getattr(pin, "commit", "") or "")
             live_ref = section.subject_ref or section.identity

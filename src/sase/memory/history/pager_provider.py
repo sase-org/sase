@@ -509,17 +509,25 @@ def build_history_document(
         owner = None
     from sase.pager.history.models import live_pin_for_subject
 
+    requested_view = view if view in ("read", "diff") else "read"
+    base_ordinal: int | None = None
+    if isinstance(compare_base, str) and compare_base.strip():
+        cleaned = compare_base.strip().removeprefix("v")
+        if cleaned.isdigit():
+            base_ordinal = int(cleaned)
     if ordinal == 0:
         pin: VersionPin = live_pin_for_subject(subject)
+        if requested_view == "diff":
+            pin = replace(pin, view="diff")
     else:
         pin = committed_pin_for_ordinal(
             subject,
             ordinal,
             commit=version.get("commit") if isinstance(version, dict) else None,
             blob_oid=version.get("blob_oid") if isinstance(version, dict) else None,
-            view="read",  # type: ignore[arg-type]
+            view=requested_view,  # type: ignore[arg-type]
+            compare_base=base_ordinal,
         )
-        del view, compare_base
     section = PagerSection(
         identity=f"history:{subject}:{revision}",
         title=title or subject.rsplit("/", 1)[-1],
