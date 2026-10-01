@@ -11,7 +11,7 @@ from sase.agent.status_buckets import QUEUED_STATUS, agent_status_bucket
 from ...models.finalizer_row_state import presented_status_label
 
 from ...agent_count_chip import format_agent_count_chip
-from ...models._agent_clan import ClanStatusCounts
+from ...models._agent_clan import ClanStatusCounts, clan_project_labels
 from ...models.agent import Agent
 from ...models.fold_scale import CLAN_FOLD_SCALE
 from ...models.fold_state import FoldLevel
@@ -21,6 +21,7 @@ from ...models.tribe_display import (
 )
 from .._agent_list_render_agent_status import append_queued_status_extras
 from .._agent_list_styling import _CLAN_NAME_STYLE
+from .._clan_project_label import append_clan_project_label
 from ._agent_display_clan_roster import duration_label
 from ._fold_language import append_fold_header_line
 from ._identity_header_compact import (
@@ -59,6 +60,13 @@ def append_clan_identity_fields(
         f"{agent.agent_clan or agent.display_name}\n",
         style=_CLAN_NAME_STYLE,
     )
+
+    project_labels = clan_project_labels(agent)
+    if project_labels:
+        field = "Project: " if len(project_labels) == 1 else "Projects: "
+        text.append(field, style=CLAN_FIELD_LABEL_STYLE)
+        append_clan_project_label(text, project_labels, limit=None)
+        text.append("\n")
 
     if agent.clan_tribes:
         tribe_colors = tribe_identity_colors(agent.clan_tribes)
@@ -143,6 +151,10 @@ def build_clan_compact_lines(
         first.append_text(chip)
 
     second = Text()
+    project_labels = clan_project_labels(agent)
+    if project_labels:
+        append_clan_project_label(second, project_labels)
+        second.append(" · ", style=CHIP_SEPARATOR_STYLE)
     tribes = tuple(agent.clan_tribes or ())
     if tribes:
         tribe_colors = tribe_identity_colors(tribes)

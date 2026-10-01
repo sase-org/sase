@@ -276,6 +276,46 @@ def clan_running_lane_rows(agent: Agent) -> tuple[Agent, ...]:
     return tuple(rows)
 
 
+def clan_project_labels(agent: Agent) -> tuple[str, ...]:
+    """Return the clan's member project labels, dominant project first.
+
+    Computed at render time from :func:`clan_members` — the same direct
+    members that feed the count chip — so the label always matches the
+    members the chip counts. Each member contributes
+    ``member.project_display_name`` when set, otherwise
+    ``project_file_parent_name(member.project_file)``; members with
+    neither are skipped. Labels de-duplicate case-insensitively, keeping
+    the first spelling seen, and sort by member count descending, then
+    case-folded label. Returns ``()`` for non-clan rows and for clans
+    with no project members.
+    """
+    from .agent import project_file_parent_name
+
+    if not agent.is_clan_container:
+        return ()
+    counts: dict[str, int] = {}
+    spellings: dict[str, str] = {}
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for member in clan_members(agent):
+        if member.identity in seen:
+            continue
+        seen.add(member.identity)
+        label = member.project_display_name or (
+            project_file_parent_name(member.project_file) if member.project_file else ""
+        )
+        if not label:
+            continue
+        folded = label.casefold()
+        if folded not in spellings:
+            spellings[folded] = label
+            counts[folded] = 0
+        counts[folded] += 1
+    return tuple(
+        spellings[folded]
+        for folded in sorted(counts, key=lambda key: (-counts[key], key))
+    )
+
+
 def clan_member_counts(
     agent: Agent,
     unread_ids: Collection[tuple[AgentType, str, str | None]] = (),
@@ -525,5 +565,6 @@ __all__ = [
     "clan_member_status_priority",
     "clan_member_counts",
     "clan_members",
+    "clan_project_labels",
     "status_display_agent",
 ]

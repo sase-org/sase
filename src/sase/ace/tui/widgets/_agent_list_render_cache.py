@@ -15,7 +15,11 @@ from rich.text import Text
 from textual.widgets.option_list import Option
 
 from ..agent_completion import WaitDependencyStatusCounts
-from ..models._agent_clan import ClanStatusCounts, clan_member_counts
+from ..models._agent_clan import (
+    ClanStatusCounts,
+    clan_member_counts,
+    clan_project_labels,
+)
 from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent import Agent, AgentType
 from ..models.agent_bead import agent_has_confirmed_bead
@@ -256,6 +260,7 @@ def agent_render_key(
     turn_lanes: TurnLaneCounts | None = None,
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
+    clan_projects: tuple[str, ...] | None = None,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -273,6 +278,11 @@ def agent_render_key(
         )
         if agent.is_clan_container and clan_counts is None
         else clan_counts
+    )
+    visible_clan_projects = (
+        clan_project_labels(agent)
+        if agent.is_clan_container and clan_projects is None
+        else clan_projects
     )
     node_unread = is_unread and is_agents_tab_agent_node(agent)
     semantic_tribes = tuple(
@@ -389,6 +399,7 @@ def agent_render_key(
         agent_has_confirmed_bead(agent),
         ordered_row_providers(agent),
         visible_clan_counts,
+        visible_clan_projects,
         clan_unknown_wait_count,
         agent.hidden,
         agent.retry_attempt,

@@ -58,7 +58,7 @@ def test_clan_mirrors_lone_testing_member_status_and_style() -> None:
     assert container.monitor_state == "running"
     container_text = format_member(container)
     member_text = format_member(testing, 1)
-    assert container_text.plain.startswith("(TESTING")
+    assert container_text.plain.startswith("tmp (TESTING")
     assert style_at(container_text, container_text.plain.index("TESTING")) == (
         style_at(member_text, member_text.plain.index("TESTING"))
     )
@@ -95,7 +95,7 @@ def test_clan_mirrors_lone_failed_monitor_stop_label_and_counts(
     assert container.monitor_state == monitor_state
     container_text = format_member(container)
     member_text = format_member(tested, 1)
-    assert container_text.plain.startswith("(TESTED")
+    assert container_text.plain.startswith("tmp (TESTED")
     assert "[W1 F1 D9]" in container_text.plain
     assert style_at(container_text, container_text.plain.index("TESTED")) == (
         style_at(member_text, member_text.plain.index("TESTED"))
@@ -128,7 +128,7 @@ def test_clan_lone_failed_label_stays_in_failed_count_and_bucket() -> None:
         is_selected=False,
         clan_counts=ClanStatusCounts(failed=1, waiting=1, done=1),
     )[0].plain
-    assert rendered.startswith("(TESTED) [W1 F1 D1]")
+    assert rendered.startswith("tmp (TESTED) [W1 F1 D1]")
 
 
 def test_clan_stays_running_when_two_members_are_running() -> None:
@@ -186,7 +186,7 @@ def test_clan_mirrors_lone_starting_member() -> None:
     assert container.status_display_source is starting
     container_text = format_member(container)
     member_text = format_member(starting, 1)
-    assert container_text.plain.startswith("(STARTING")
+    assert container_text.plain.startswith("tmp (STARTING")
     assert style_at(container_text, container_text.plain.index("STARTING")) == (
         style_at(member_text, member_text.plain.index("STARTING"))
     )

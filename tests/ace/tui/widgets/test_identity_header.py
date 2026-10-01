@@ -433,6 +433,7 @@ def test_clan_non_detached_document_is_unchanged() -> None:
     assert header.strip() == (
         "CLAN\n"
         "Name: research\n"
+        "Project: tmp\n"
         "Tribes: @epic @review\n"
         "Status: FAILED [F1 D1]\n"
         "Runtime: 2m\n"

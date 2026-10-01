@@ -17,6 +17,7 @@ from ..models.tribe_display import (
 from ..provider_styles import provider_emoji_badge
 from ._agent_list_helpers import ordered_row_providers
 from ._agent_list_render_layout import render_tier_gutter
+from ._clan_project_label import append_clan_project_label
 from ._agent_list_render_rail import (
     gate_glyph_style as _gate_glyph_style,
     monitor_glyph_style as _monitor_glyph_style,
@@ -130,6 +131,7 @@ def append_agent_row_prefix(
     tier_styles: tuple[str, ...] = (),
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
+    clan_projects: tuple[str, ...] = (),
 ) -> Text:
     """Build the left-side chrome that precedes the status parenthetical."""
     text = render_tier_gutter(tier_styles)
@@ -267,5 +269,7 @@ def append_agent_row_prefix(
                 f" @{tribe_label}",
                 style=tribe_style(tribe_label, tribe_colors),
             )
+    else:
+        append_clan_project_label(text, clan_projects, bold=is_selected)
 
     return text

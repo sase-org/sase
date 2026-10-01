@@ -16,6 +16,7 @@ from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
 from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
     clan_tree_agents,
+    multi_project_clan_agents,
     queued_clan_agents,
     running_clan_runtime_agents,
 )
@@ -269,4 +270,33 @@ async def test_clan_unread_count_png_snapshots(
             page,
             "agents_clan_unread_expanded_120x40",
             title="ACE unread clan expanded",
+        )
+
+
+async def test_multi_project_clan_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 10, 1, 12, 5, 0))
+    patch_startup_loaders(monkeypatch, agents=multi_project_clan_agents())
+
+    async with AcePage(query='"visual-multi"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert page.app._agents[0].is_clan_container is True
+        # The one-member tie between chezmoi and sase breaks alphabetically.
+        # Styled spans split the label across SVG text nodes, so use the
+        # styled assertion (spaces are compacted away, punctuation remains).
+        assert_page_svg_styled_text_contains(page, "bob-cli, chezmoi +1")
+        prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        combined = prompt_header_and_body_text(prompt)
+        assert "Projects: bob-cli, chezmoi, sase" in combined
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_multi_project_120x40",
+            title="ACE multi-project clan",
         )

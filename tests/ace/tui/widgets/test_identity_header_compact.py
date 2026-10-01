@@ -398,6 +398,158 @@ def test_clan_compact_and_expanded_show_finalizing_for_lone_running_member() -> 
     assert "FINALIZING" in text.plain
 
 
+def _project_clan_member(
+    name: str,
+    *,
+    status: str,
+    start: datetime,
+    project_display_name: str | None,
+    project_file: str = "/tmp/demo.sase",
+) -> object:
+    member = make_clan_agent(name, status=status, start=start)
+    assert not isinstance(member, str)
+    member.project_file = project_file
+    member.project_display_name = project_display_name
+    return member
+
+
+def test_clan_compact_second_line_starts_with_project_label() -> None:
+    first = _project_clan_member(
+        "research.first",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        project_display_name="bob-cli",
+    )
+    second = _project_clan_member(
+        "research.second",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        project_display_name="bob-cli",
+    )
+    container = project_clan_tree([first, second])[0]  # type: ignore[list-item]
+    container.clan_tribes = ("epic",)
+    args = _clan_compact_args(container)
+    _first, second_row = _rows(
+        build_clan_compact_lines(
+            fold_level=FoldLevel.COLLAPSED,
+            **args,  # type: ignore[arg-type]
+        )
+    )
+    assert second_row.startswith("bob-cli · @epic · ")
+    assert "2 agents" in second_row
+
+
+def test_clan_compact_caps_two_labels_with_overflow() -> None:
+    members = [
+        _project_clan_member(
+            f"research.{name}",
+            status="RUNNING",
+            start=datetime(2026, 7, 17, 12, 0, 0),
+            project_display_name=label,
+        )
+        for name, label in (
+            ("one", "bob-cli"),
+            ("two", "sase"),
+            ("three", "chezmoi"),
+        )
+    ]
+    container = project_clan_tree(members)[0]  # type: ignore[list-item]
+    args = _clan_compact_args(container)
+    _first, second_row = _rows(
+        build_clan_compact_lines(
+            fold_level=FoldLevel.COLLAPSED,
+            **args,  # type: ignore[arg-type]
+        )
+    )
+    assert second_row.startswith("bob-cli, chezmoi +1 · ")
+
+
+def test_clan_expanded_shows_project_field_for_one_label() -> None:
+    from rich.text import Text
+
+    from sase.ace.tui.widgets.prompt_panel._agent_display_clan_identity import (
+        append_clan_identity_fields,
+    )
+
+    member = _project_clan_member(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        project_display_name="bob-cli",
+    )
+    container = project_clan_tree([member])[0]  # type: ignore[list-item]
+    args = _clan_compact_args(container)
+    text = Text()
+    append_clan_identity_fields(
+        text,
+        fold_level=FoldLevel.COLLAPSED,
+        **args,  # type: ignore[arg-type]
+    )
+    assert "Project: bob-cli\n" in text.plain
+    assert "Projects:" not in text.plain
+    assert text.plain.index("Project:") < text.plain.index("Status:")
+
+
+def test_clan_expanded_shows_projects_field_for_several_labels() -> None:
+    from rich.text import Text
+
+    from sase.ace.tui.widgets.prompt_panel._agent_display_clan_identity import (
+        append_clan_identity_fields,
+    )
+
+    members = [
+        _project_clan_member(
+            f"research.{name}",
+            status="RUNNING",
+            start=datetime(2026, 7, 17, 12, 0, 0),
+            project_display_name=label,
+        )
+        for name, label in (("one", "bob-cli"), ("two", "sase"))
+    ]
+    container = project_clan_tree(members)[0]  # type: ignore[list-item]
+    args = _clan_compact_args(container)
+    text = Text()
+    append_clan_identity_fields(
+        text,
+        fold_level=FoldLevel.COLLAPSED,
+        **args,  # type: ignore[arg-type]
+    )
+    assert "Projects: bob-cli, sase\n" in text.plain
+
+
+def test_clan_headers_omit_project_fields_without_labels() -> None:
+    from rich.text import Text
+
+    from sase.ace.tui.widgets.prompt_panel._agent_display_clan_identity import (
+        append_clan_identity_fields,
+    )
+
+    member = _project_clan_member(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        project_display_name=None,
+        project_file="",
+    )
+    container = project_clan_tree([member])[0]  # type: ignore[list-item]
+    container.clan_tribes = ("epic",)
+    args = _clan_compact_args(container)
+    _first, second_row = _rows(
+        build_clan_compact_lines(
+            fold_level=FoldLevel.COLLAPSED,
+            **args,  # type: ignore[arg-type]
+        )
+    )
+    assert second_row.startswith("@epic · ")
+    text = Text()
+    append_clan_identity_fields(
+        text,
+        fold_level=FoldLevel.COLLAPSED,
+        **args,  # type: ignore[arg-type]
+    )
+    assert "Project" not in text.plain
+
+
 def test_clan_compact_and_expanded_show_starting_for_lone_starting_member() -> None:
     from rich.text import Text
 

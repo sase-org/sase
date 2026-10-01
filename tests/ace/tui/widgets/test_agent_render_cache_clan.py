@@ -327,6 +327,54 @@ def test_cached_merged_clan_row_omits_inline_default_tribe_label() -> None:
     assert "@alpha" in with_named[0].plain
 
 
+def test_cached_clan_row_rebuilds_when_member_in_new_project_joins() -> None:
+    cache = AgentRenderCache()
+    clan, _member = _clan_with_member(member_status="RUNNING")
+
+    before = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
+    assert "bob-cli" not in before[0].plain
+
+    newcomer = _agent(
+        cl_name="research.other",
+        status="RUNNING",
+        raw_suffix="20260425143200",
+    )
+    newcomer.agent_name = "research.other"
+    newcomer.agent_clan = "research"
+    newcomer.agent_clan_generation = "generation"
+    newcomer.project_file = "/projects/bob-cli/bob-cli.sase"
+    clan.runtime_children.append(newcomer)
+
+    after = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
+
+    assert before[0] is not after[0]
+    assert "bob-cli" in after[0].plain
+
+
+def test_cached_clan_row_rebuilds_when_member_display_name_changes() -> None:
+    cache = AgentRenderCache()
+    clan, member = _clan_with_member(member_status="RUNNING")
+
+    before = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
+    member.project_display_name = "bob-cli"
+
+    after = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
+
+    assert before[0] is not after[0]
+    assert "bob-cli" not in before[0].plain
+    assert "bob-cli" in after[0].plain
+
+
+def test_cached_clan_row_reuses_entry_when_projects_unchanged() -> None:
+    cache = AgentRenderCache()
+    clan, _member = _clan_with_member(member_status="RUNNING")
+
+    first = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
+    second = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
+
+    assert first[0] is second[0]
+
+
 def test_cached_clan_row_distinguishes_split_and_unsuppressed_contexts() -> None:
     cache = AgentRenderCache()
     clan = _agent(status="RUNNING")

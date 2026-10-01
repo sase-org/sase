@@ -2391,19 +2391,23 @@ selectable synthetic container, never an agent, and ends in an orchid `<name>` a
 rolled-up status and member counts. A real multi-member session root remains a teal
 agent row and ends in an azure `<name>`; ordinary agent annotations and lone plan
 proposers with only their display-only planner child remain gold. Clan `@tribe` labels
-follow the orchid name. A clan's outer fold is binary: from a collapsed clan row, press
-`l` once to reveal its direct agents, session rows, and visible workflow rows. The clan
-row's fold count and status chrome count those direct clan agent nodes once; nested
-session or workflow members do not inflate them. To reveal descendants within a session
-or workflow, move to that row and press `l` there; pressing `l` again on the clan row
-itself has no effect. Lowercase `h` moves to the validated parent without changing fold
-state. Sequential session members use `--<suffix>` names and run one after another.
-Killing or dismissing a clan row cascades to the clan's live members; acting on one
-member leaves its siblings alone. Direct clan members always sort by the clan-local
-status priority Failed, Stopped, Running, Queued, Waiting, Done in every grouping mode;
-Starting shares Running's rank. Launch recency orders only members in the same status
-bucket. A session row moves as one unit with its follow-ups and workflow steps,
-preserving their adjacency and internal order.
+follow the orchid name. A clan row starts with the teal project label of its direct
+members in the title slot, for example `bob-cli (RUNNING) [R5 W3] research.35`. A clan
+spanning several projects shows the dominant project first, at most two labels, then
+`+N`. The CLAN header repeats the label as a `Project:`/`Projects:` field and at the
+start of the compact second line. A clan's outer fold is binary: from a collapsed clan
+row, press `l` once to reveal its direct agents, session rows, and visible workflow
+rows. The clan row's fold count and status chrome count those direct clan agent nodes
+once; nested session or workflow members do not inflate them. To reveal descendants
+within a session or workflow, move to that row and press `l` there; pressing `l` again
+on the clan row itself has no effect. Lowercase `h` moves to the validated parent
+without changing fold state. Sequential session members use `--<suffix>` names and run
+one after another. Killing or dismissing a clan row cascades to the clan's live members;
+acting on one member leaves its siblings alone. Direct clan members always sort by the
+clan-local status priority Failed, Stopped, Running, Queued, Waiting, Done in every
+grouping mode; Starting shares Running's rank. Launch recency orders only members in the
+same status bucket. A session row moves as one unit with its follow-ups and workflow
+steps, preserving their adjacency and internal order.
 
 Clan rows aggregate member status using the same operational precedence: human-input
 questions, pending plan review, failure, and running/starting states outrank queued

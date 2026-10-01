@@ -88,7 +88,7 @@ def test_clan_row_shows_finalizing_for_lone_running_member_declaring() -> None:
     assert container.status_display_source is member
     container_text = format_member(container)
     member_text = format_member(member, 1)
-    assert container_text.plain.startswith("(FINALIZING)")
+    assert container_text.plain.startswith("tmp (FINALIZING)")
     assert "[R1 W2 D4]" in container_text.plain
     assert style_at(container_text, container_text.plain.index("FINALIZING")) == (
         style_at(member_text, member_text.plain.index("FINALIZING"))
@@ -102,7 +102,7 @@ def test_clan_row_shows_finalizing_for_lone_running_member_executing() -> None:
     assert container.status == "RUNNING"
     assert container.status_display_source is member
     container_text = format_member(container)
-    assert container_text.plain.startswith("(FINALIZING)")
+    assert container_text.plain.startswith("tmp (FINALIZING)")
     assert "[R1 W2 D4]" in container_text.plain
 
 
@@ -152,7 +152,7 @@ def test_clan_row_shows_finalizing_for_lone_running_session_member() -> None:
     container, *_ = project_clan_tree(members)
 
     assert container.status_display_source is root
-    assert format_member(container).plain.startswith("(FINALIZING")
+    assert format_member(container).plain.startswith("tmp (FINALIZING")
 
 
 def test_clan_two_running_members_one_finalizing_stays_running() -> None:
@@ -167,7 +167,7 @@ def test_clan_two_running_members_one_finalizing_stays_running() -> None:
 
     assert container.status == "RUNNING"
     assert container.status_display_source is None
-    assert format_member(container).plain.startswith("(RUNNING")
+    assert format_member(container).plain.startswith("tmp (RUNNING")
 
 
 def test_clan_finalizing_member_plus_failed_has_no_pointer() -> None:
@@ -181,7 +181,7 @@ def test_clan_finalizing_member_plus_failed_has_no_pointer() -> None:
 
     assert container.status == "FAILED"
     assert container.status_display_source is None
-    assert format_member(container).plain.startswith("(FAILED")
+    assert format_member(container).plain.startswith("tmp (FAILED")
 
 
 def test_clan_finalizing_settles_back_to_running_then_clears() -> None:
@@ -191,7 +191,7 @@ def test_clan_finalizing_settles_back_to_running_then_clears() -> None:
     done_one = make_clan_member("research.one", "one", status="DONE")
     done_two = make_clan_member("research.two", "two", status="DONE")
     container, *members = project_clan_tree([done_one, done_two, member])
-    assert format_member(container).plain.startswith("(FINALIZING)")
+    assert format_member(container).plain.startswith("tmp (FINALIZING)")
 
     member.finalizer_status = finalizer_status_from_mapping(
         {
@@ -214,7 +214,7 @@ def test_clan_finalizing_settles_back_to_running_then_clears() -> None:
             ],
         }
     )
-    assert format_member(container).plain.startswith("(RUNNING")
+    assert format_member(container).plain.startswith("tmp (RUNNING")
 
     member.status = "DONE"
     reprojection, *_ = project_clan_tree([container, *members])

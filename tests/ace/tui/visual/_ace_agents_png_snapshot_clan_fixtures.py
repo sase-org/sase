@@ -331,6 +331,43 @@ def queued_clan_agents() -> list[Agent]:
     )
 
 
+def multi_project_clan_agents() -> list[Agent]:
+    """Return one clan spanning three projects with a dominant label.
+
+    Two members run in ``bob-cli`` with one each in ``sase`` and ``chezmoi``,
+    so the clan row reads ``bob-cli, chezmoi +1`` (the one-member tie breaks
+    alphabetically) and the CLAN header lists all three projects.
+    """
+    generation = "20261001120000"
+
+    def member(name: str, minute: int, project: str) -> Agent:
+        moment = datetime(2026, 10, 1, 12, minute, 0)
+        return Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-multi-{name}",
+            project_file=f"/workspace/{project}/{project}.sase",
+            status="RUNNING",
+            start_time=moment,
+            run_start_time=moment,
+            raw_suffix=f"2026100112{minute:02d}00-{name}",
+            agent_name=f"multi.{name}",
+            agent_clan="multi",
+            agent_clan_generation=generation,
+            llm_provider="codex",
+            model="gpt-5",
+        )
+
+    return sort_and_reorder(
+        [
+            member("one", 0, "bob-cli"),
+            member("two", 1, "bob-cli"),
+            member("three", 2, "sase"),
+            member("four", 3, "chezmoi"),
+        ],
+        [],
+    )
+
+
 def decorate_clan_panel_sections(rows: list[Agent]) -> list[Agent]:
     """Give panel-only fixtures representative in-memory aggregate sections."""
     container = next(row for row in rows if row.is_clan_container)

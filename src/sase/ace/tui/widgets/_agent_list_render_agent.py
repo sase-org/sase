@@ -17,7 +17,11 @@ from ..wait_status_presentation import (
     WAIT_UNKNOWN_GLYPH,
     WAIT_UNKNOWN_GLYPH_STYLE,
 )
-from ..models._agent_clan import ClanStatusCounts, clan_member_counts
+from ..models._agent_clan import (
+    ClanStatusCounts,
+    clan_member_counts,
+    clan_project_labels,
+)
 from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_session_members import (
@@ -157,9 +161,15 @@ def format_agent_option(
     turn_lanes: TurnLaneCounts | None = None,
     show_machine_chip: bool = False,
     tab_chip: tuple[str, str] | None = None,
+    clan_projects: tuple[str, ...] | None = None,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     tribe_label = _inline_tribe_label(tribe_label)
+    visible_clan_projects = (
+        clan_project_labels(agent)
+        if clan_projects is None and agent.is_clan_container
+        else clan_projects or ()
+    )
     text = append_agent_row_prefix(
         agent,
         is_selected=is_selected,
@@ -171,6 +181,7 @@ def format_agent_option(
         tier_styles=tier_styles,
         show_machine_chip=show_machine_chip,
         tab_chip=tab_chip,
+        clan_projects=visible_clan_projects,
     )
     append_agent_row_status(
         text,
@@ -381,6 +392,9 @@ def cached_format_agent_option(
         if agent.is_clan_container
         else None
     )
+    visible_clan_projects = (
+        clan_project_labels(agent) if agent.is_clan_container else ()
+    )
     is_container_row = agent.is_clan_container or is_sequential_agent_session_container(
         agent
     )
@@ -409,6 +423,7 @@ def cached_format_agent_option(
         turn_lanes=lanes,
         show_machine_chip=show_machine_chip,
         tab_chip=tab_chip,
+        clan_projects=visible_clan_projects,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -437,6 +452,7 @@ def cached_format_agent_option(
         turn_lanes=lanes,
         show_machine_chip=show_machine_chip,
         tab_chip=tab_chip,
+        clan_projects=visible_clan_projects,
     )
     cache.put_agent(key, parts)
     return parts

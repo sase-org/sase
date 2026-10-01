@@ -56,8 +56,9 @@ def test_clan_and_member_rows_render_identity_colors_tribes_and_depth_guides() -
         now=datetime(2026, 7, 17, 10, 5, 0),
     )
 
-    assert container_text.plain == "(RUNNING) ×2 [R1] research @epic"
+    assert container_text.plain == "tmp (RUNNING) ×2 [R1] research @epic"
     assert "[agent]" not in container_text.plain
+    assert _style_at(container_text, container_text.plain.index("tmp")) == "#00D7AF"
     assert _style_at(container_text, container_text.plain.rindex("research")) == (
         "#D75FFF"
     )

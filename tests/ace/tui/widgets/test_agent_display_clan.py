@@ -53,6 +53,7 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
     assert header.strip() == (
         "CLAN\n"
         "Name: research\n"
+        "Project: tmp\n"
         "Tribes: @epic @review\n"
         "Status: FAILED [F1 D1]\n"
         "Runtime: 2m\n"
