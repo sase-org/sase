@@ -403,14 +403,13 @@ def init_agent_state(self: Any) -> None:
     self._last_unread_ids = set()
     self._delivered_notification_activity_cursors = set()
     self._notification_snapshot_cache = None
-    self._notification_snapshot_version = 0
     self._notification_snapshot_generation = None
     # Pending-ack fence (epic sase-1d7): the op counter and the in-flight
     # ack overlay. Entries retire against the store generation.
     self._pending_ack_op_seq = 0
     self._pending_ack_overlay = {}
     # Coalescing ack writer (epic sase-1d7 phase ack-pipeline): queued
-    # (op_id, keys, identities) plus snapshot copies, drained one Rust
+    # (op_id, keys, identities), drained by one ack_agent_completions Rust
     # call per batch.
     self._unread_ack_queue = []
     self._unread_ack_write_in_flight = False

@@ -117,8 +117,8 @@ class AgentUnreadNavigationMixin(
             elif needs_full_refresh:
                 before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))
                 changed = self._clear_agent_unread_and_dismiss_notification(agent)
-                if changed and not self._repaint_changed_unread_rows(before_unread):
-                    return
+                if changed:
+                    self._repaint_changed_unread_rows(before_unread)
                 self._refresh_agents_display(  # type: ignore[attr-defined]
                     list_changed=False, defer_detail=True
                 )

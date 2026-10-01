@@ -19,7 +19,7 @@ _JUMP_CACHE_ATTR = "_unread_jump_candidates_cache"
 _PROBE_CACHE_ATTR = "_has_unread_probe_cache"
 
 
-def get_unread_set_generation(app: Any) -> int:
+def _get_unread_set_generation(app: Any) -> int:
     """Return the unread-set generation (0 when never bumped)."""
     try:
         return int(getattr(app, _UNREAD_GEN_ATTR, 0) or 0)
@@ -129,7 +129,7 @@ def unread_jump_cache_key(app: Any) -> tuple[Any, ...]:
         unread_len = 0
     return (
         get_roster_generation(app),
-        get_unread_set_generation(app),
+        _get_unread_set_generation(app),
         unread_len,
         _fold_snapshot_key(app),
         _group_fold_key(app),
@@ -160,7 +160,7 @@ def bump_unread_set_generation(app: Any, *, removed: Any = None) -> int:
     let the next jump rebuild. Always drops the O(1) footer probe
     cache; it recomputes from ``bool(unread)`` on next read.
     """
-    generation = get_unread_set_generation(app) + 1
+    generation = _get_unread_set_generation(app) + 1
     try:
         setattr(app, _UNREAD_GEN_ATTR, generation)
     except (AttributeError, TypeError):
@@ -209,12 +209,7 @@ def bump_unread_set_generation(app: Any, *, removed: Any = None) -> int:
     return generation
 
 
-def note_unread_set_changed(app: Any, *, removed: Any = None) -> int:
-    """Bump the unread generation after an unread-set mutation (alias)."""
-    return bump_unread_set_generation(app, removed=removed)
-
-
-def has_unread_probe_cache_key(app: Any) -> tuple[Any, ...]:
+def _has_unread_probe_cache_key(app: Any) -> tuple[Any, ...]:
     """Return the cheap key for the O(1) footer unread probe."""
     from ._roster_generation import get_roster_generation
 
@@ -225,7 +220,7 @@ def has_unread_probe_cache_key(app: Any) -> tuple[Any, ...]:
         unread_len = 0
     return (
         get_roster_generation(app),
-        get_unread_set_generation(app),
+        _get_unread_set_generation(app),
         unread_len,
     )
 
@@ -237,7 +232,7 @@ def cached_has_unread_probe(app: Any) -> bool:
     unread generations plus unread length; recomputation is a single
     ``bool()`` so the footer never pays for candidate discovery.
     """
-    key = has_unread_probe_cache_key(app)
+    key = _has_unread_probe_cache_key(app)
     cached = getattr(app, _PROBE_CACHE_ATTR, None)
     if isinstance(cached, tuple) and len(cached) == 2 and cached[0] == key:
         return bool(cached[1])
@@ -256,8 +251,5 @@ def cached_has_unread_probe(app: Any) -> bool:
 __all__ = [
     "bump_unread_set_generation",
     "cached_has_unread_probe",
-    "get_unread_set_generation",
-    "has_unread_probe_cache_key",
-    "note_unread_set_changed",
     "unread_jump_cache_key",
 ]

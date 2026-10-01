@@ -40,7 +40,6 @@ class _DeferredAckApp(UnreadJumpApp):
         self.thread_calls: list[Callable[[], None]] = []
         self.notifications: list[tuple[str, str | None]] = []
         self._notification_snapshot_cache = None
-        self._notification_snapshot_version = 0
         self._pending_ack_op_seq = 0
         self._pending_ack_overlay: dict[Any, Any] = {}
 

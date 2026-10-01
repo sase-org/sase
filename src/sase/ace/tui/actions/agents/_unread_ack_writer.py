@@ -255,14 +255,6 @@ def _complete_batch_on_ui(
                 matched_ids=set(dismissed_ids),
                 generation=generation,
             )
-        except TypeError:
-            # Older test doubles override the pre-pipeline signature.
-            complete(
-                request,
-                dismissed_count=len(dismissed_ids),
-                error=error,
-                store_bytes=store_bytes,
-            )
         except Exception:
             log.exception("Failed to complete acknowledged-agent notification write")
 

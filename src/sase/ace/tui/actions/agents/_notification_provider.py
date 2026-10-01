@@ -238,9 +238,6 @@ class AgentNotificationProviderMixin:
         self._notification_snapshot_generation = (  # type: ignore[attr-defined]
             incoming if incoming is not None else cached
         )
-        self._notification_snapshot_version = (  # type: ignore[attr-defined]
-            getattr(self, "_notification_snapshot_version", 0) + 1
-        )
         sync_deadline = getattr(
             self,
             "_sync_notification_deadline_from_snapshot",

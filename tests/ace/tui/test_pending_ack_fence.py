@@ -62,7 +62,6 @@ class _FenceApp(UnreadJumpApp):
         self.notifications: list[tuple[str, str | None]] = []
         self._notification_snapshot_cache = None
         self._notification_snapshot_generation = None
-        self._notification_snapshot_version = 0
         self._pending_ack_op_seq = 0
         self._pending_ack_overlay = {}
 

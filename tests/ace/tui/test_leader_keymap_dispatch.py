@@ -505,6 +505,26 @@ def test_leader_u_notifies_when_bulk_read_is_restored() -> None:
     assert app.refresh_count == 0
 
 
+def test_leader_u_off_tab_finishes_perf_sample() -> None:
+    """An off-tab ,u still closes the leader perf sample like ,j/,J."""
+    from types import SimpleNamespace
+
+    app = _FakeApp(current_tab="patches")
+    begins: list[str] = []
+    paints: list[bool] = []
+    app._jk_perf_begin = begins.append  # type: ignore[attr-defined]
+    app._jk_perf = SimpleNamespace(mark_painted=lambda: paints.append(True))  # type: ignore[attr-defined]
+    app.call_after_refresh = lambda callback: callback()  # type: ignore[attr-defined]
+
+    handled = app._handle_leader_key("u")
+
+    assert handled is True
+    assert app.mark_all_unread_count == 0
+    assert app.refresh_count == 1
+    assert begins == [",u"]
+    assert paints == [True]
+
+
 def test_leader_u_records_and_repeat_invokes_bulk_toggle_again() -> None:
     app = _FakeApp(current_tab="agents")
 

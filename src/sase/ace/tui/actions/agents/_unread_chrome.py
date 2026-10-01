@@ -80,6 +80,7 @@ def _apply_unread_chrome(
             "visible_patched": 0,
             "collapsed_skipped": 0,
             "panel_rebuilds": 0,
+            "patch_failed": 0,
         }
     if getattr(app, "current_tab", None) != "agents":
         # Off-tab rows: only counts change, painted when the tab returns.
@@ -88,6 +89,7 @@ def _apply_unread_chrome(
             "visible_patched": 0,
             "collapsed_skipped": 0,
             "panel_rebuilds": 0,
+            "patch_failed": 0,
         }
 
     combined = set(changed) | status_changed_set
@@ -193,6 +195,7 @@ def _apply_unread_chrome(
     collapsed_skipped = 0
     visible_patched = 0
     panel_rebuilds = 0
+    patch_failed = 0
     for agent, panel_key, _global_idx in patch_plan:
         if panel_key is not None and panel_key not in affected_panel_keys:
             affected_panel_keys.append(panel_key)
@@ -223,12 +226,17 @@ def _apply_unread_chrome(
         # A visible-row patch fails only for a real reason (such as width
         # growth): rebuild just that panel, never the whole display.
         rebuild_panel = getattr(app, "_refresh_affected_panel_widgets", None)
-        if callable(rebuild_panel) and panel_key is not None:
+        if panel_key is not None and callable(rebuild_panel):
             try:
-                rebuild_panel({panel_key})
+                rebuilt = rebuild_panel({panel_key})
             except Exception:
-                pass
-        panel_rebuilds += 1
+                rebuilt = False
+            if rebuilt:
+                panel_rebuilds += 1
+            else:
+                patch_failed += 1
+        else:
+            patch_failed += 1
 
     _refresh_affected_panel_titles(app, panel_index, affected_panel_keys)
     update_info = getattr(app, "_update_agents_info_panel", None)
@@ -279,6 +287,7 @@ def _apply_unread_chrome(
         "visible_patched": visible_patched,
         "collapsed_skipped": collapsed_skipped,
         "panel_rebuilds": panel_rebuilds,
+        "patch_failed": patch_failed,
     }
 
 

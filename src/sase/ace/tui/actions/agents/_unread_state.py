@@ -15,13 +15,19 @@ from ...models.agent_nodes import (
     is_agents_tab_agent_node,
 )
 from ...models.agent_status import is_unread_completed_status
-from ._unread_set_generation import bump_unread_set_generation
 
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
 
 log = logging.getLogger(__name__)
+
+
+def _bump_unread_set_generation(app: Any, *, removed: Any = None) -> int:
+    """Defer the unread-set generation import off the TUI startup path."""
+    from ._unread_set_generation import bump_unread_set_generation
+
+    return bump_unread_set_generation(app, removed=removed)
 
 
 class BulkUnreadToggleOutcome(Enum):
@@ -159,19 +165,9 @@ class AgentUnreadStateMixin:
         if getattr(self, "_pending_bulk_read_armed_at", None) is not None:
             self._pending_bulk_read_armed_at = None
 
-    def _bulk_read_undo_window_open(self) -> bool:
-        """Return True when the armed bulk-read undo is still in its window."""
-        if not getattr(self, "_pending_bulk_read_agent_ids", None):
-            return False
-        from ._unread_bulk_scope import bulk_read_undo_window_open
-
-        return bulk_read_undo_window_open(
-            getattr(self, "_pending_bulk_read_armed_at", None)
-        )
-
     def _expire_bulk_read_undo(self) -> None:
         """Drop a bulk-read undo snapshot whose window has closed."""
-        if not self._bulk_read_undo_window_open():
+        if not self._has_bulk_read_undo_available():
             self._invalidate_bulk_read_undo()
 
     def _toggle_all_unread_done_agents_read(self) -> _BulkUnreadToggleResult:
@@ -189,7 +185,7 @@ class AgentUnreadStateMixin:
         if target_agents:
             return self._mark_current_unread_done_agents_read(target_agents)
 
-        if self._bulk_read_undo_window_open():
+        if self._has_bulk_read_undo_available():
             pending_ids = getattr(self, "_pending_bulk_read_agent_ids", None)
             if pending_ids is not None:
                 return self._restore_bulk_read_undo(pending_ids)
@@ -198,10 +194,6 @@ class AgentUnreadStateMixin:
         # later mark can never resurrect it.
         self._expire_bulk_read_undo()
         return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
-
-    def _mark_all_unread_done_agents_read(self) -> _BulkUnreadToggleResult:
-        """Compatibility wrapper for the configured bulk-read action."""
-        return self._toggle_all_unread_done_agents_read()
 
     def _mark_current_unread_done_agents_read(
         self,
@@ -221,7 +213,7 @@ class AgentUnreadStateMixin:
         self._pending_bulk_read_armed_at = time.monotonic()
         unread_ids.difference_update(target_identities)
         self._manual_unread_ids().difference_update(target_identities)
-        bump_unread_set_generation(self, removed=target_identities)
+        _bump_unread_set_generation(self, removed=target_identities)
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
@@ -289,7 +281,7 @@ class AgentUnreadStateMixin:
         restored_identities = {agent.identity for agent in target_agents}
         unread_ids.update(restored_identities)
         self._manual_unread_ids().update(restored_identities)
-        bump_unread_set_generation(self)
+        _bump_unread_set_generation(self)
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
@@ -408,7 +400,7 @@ class AgentUnreadStateMixin:
             unread_ids.difference_update(identities)
             if unread_ids != before:
                 changed_unread_state = True
-                bump_unread_set_generation(self, removed=identities)
+                _bump_unread_set_generation(self, removed=identities)
 
         manual_ids = getattr(self, "_manual_unread_agent_ids", None)
         if isinstance(manual_ids, set):
@@ -585,7 +577,7 @@ class AgentUnreadStateMixin:
             self._unread_completed_agent_ids = unread_ids  # type: ignore[attr-defined]
         before_unread = set(unread_ids)
         unread_ids.update(request.identities)
-        bump_unread_set_generation(self)
+        _bump_unread_set_generation(self)
 
         manual_ids = self._manual_unread_ids()
         manual_ids.update(request.restore_manual_ids)
@@ -612,9 +604,9 @@ class AgentUnreadStateMixin:
 
         Returns True only when the agent moved from unread to read. When the
         agent is in a terminal status, any active completion notification
-        targeting the same ``(cl_name, raw_suffix)`` is dismissed and the
-        notification indicator is refreshed so the one-to-one row/notification
-        contract holds.
+        targeting the same ``(cl_name, raw_suffix)`` is queued on the
+        coalescing ack writer and the notification indicator resyncs
+        asynchronously so the one-to-one row/notification contract holds.
         """
         if (
             not is_agents_tab_agent_node(agent)
@@ -627,7 +619,7 @@ class AgentUnreadStateMixin:
             return False
 
         unread_ids.discard(agent.identity)
-        bump_unread_set_generation(self, removed={agent.identity})
+        _bump_unread_set_generation(self, removed={agent.identity})
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
@@ -683,7 +675,7 @@ class AgentUnreadStateMixin:
             self._invalidate_bulk_read_undo()
             manual_ids.add(identity)
             unread_ids.add(identity)
-            bump_unread_set_generation(self)
+            _bump_unread_set_generation(self)
             from ._pending_ack_fence import release_pending_ack_entries
 
             # An explicit manual mark overrides any in-flight ack for this

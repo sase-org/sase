@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ..agents._unread_bulk_scope import BULK_READ_UNDO_WINDOW_SECONDS
 from ..agents._unread_state import BulkUnreadToggleOutcome
 from ..refresh_panel import FULL_HISTORY_MIGRATION_BANNER, refresh_panel_enabled
 from ._types import TabName
@@ -294,6 +293,10 @@ class LeaderModeMixin:
                 with LeaderModeMixin._leader_bulk_ack_span(self):
                     result = self._toggle_all_unread_done_agents_read()  # type: ignore[attr-defined]
                 if result.outcome is BulkUnreadToggleOutcome.MARKED_READ:
+                    from ..agents._unread_bulk_scope import (
+                        BULK_READ_UNDO_WINDOW_SECONDS,
+                    )
+
                     self.notify(  # type: ignore[attr-defined]
                         "Marked "
                         f"{result.count} completed agents read · press "
@@ -307,9 +310,9 @@ class LeaderModeMixin:
                 else:
                     self.notify("No unread completed agents")  # type: ignore[attr-defined]
                     self._refresh_current_tab()  # type: ignore[attr-defined]
-                LeaderModeMixin._finish_leader_perf(self)
-                return True
-            self._refresh_current_tab()  # type: ignore[attr-defined]
+            else:
+                self._refresh_current_tab()  # type: ignore[attr-defined]
+            LeaderModeMixin._finish_leader_perf(self)
             return True
 
         if key == leader_keys["kill_and_edit"]:

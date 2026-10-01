@@ -11,17 +11,33 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 # Host-level per-refresh fields that never join the structural signature.
-# They are display-soft (observed time, cache age, host counts,
-# freshness/health, feed diagnostics) and change between polls without any
-# content change, so an unchanged refresh patches them onto the live rows
-# (header/banner repaint through the render cache) instead of reprojecting.
-# Audit (epic sase-1d7, phase fleet-signature-cheap): rows render
-# fleet_freshness / fleet_connection_health / feed-error fields in the row
-# summary line, fleet_observed_at_unix only in the gone-row "last seen"
-# label (deliberately stable between polls), host counts and cache age in
-# group-banner keys, and fleet_diagnostic in the detail header. All of them
-# stay fresh through the skip-path patch below; the header problem text
-# additionally reads the new projection's diagnostics and feed issues.
+# They change between polls without any content change, so an unchanged
+# refresh patches them onto the live rows instead of reprojecting.
+# Only the subset actually rendered repaints rows/banners: freshness,
+# connection health, host status/feed error, diagnostic, the six host
+# counts, and cache age only when the fresh row is stale. The row summary
+# (_append_fleet_summary) shows feed-invalid/health/freshness; banners
+# (_authoritative_machine_summary/_host_feed_status_label) show counts and
+# stale age; the detail header shows the diagnostic. The skip path rebuilds
+# only panels owning a rendered-changed row via
+# _refresh_affected_panel_widgets (falling back to a full display refresh),
+# refreshes info/detail once when the selected diagnostic changed, and
+# otherwise only patches the header. fleet_observed_at_unix is never
+# rendered live (gone-row "last seen" is stable), and fresh-host cache age
+# never repaints, so those stay header-only.
+_FLEET_RENDERED_VOLATILE_FIELDS = (
+    "fleet_freshness",
+    "fleet_connection_health",
+    "fleet_host_status",
+    "fleet_host_feed_error",
+    "fleet_diagnostic",
+    "fleet_host_running_count",
+    "fleet_host_total_count",
+    "fleet_host_waiting_count",
+    "fleet_host_failed_count",
+    "fleet_host_done_count",
+    "fleet_host_unknown_count",
+)
 _FLEET_VOLATILE_ROW_FIELDS = (
     "fleet_freshness",
     "fleet_connection_health",
@@ -110,15 +126,18 @@ def _fleet_refresh_signature(
 def _patch_fleet_volatile_row_fields(
     live_agents: list[Agent],
     fresh_by_identity: dict[Any, Agent],
-) -> int:
+) -> list[int]:
     """Patch host-soft fields from fresh rows onto live rows by identity.
 
-    Returns the number of fields updated. Clan containers are synthetic and
-    local rows never match the fleet map, so only live fleet rows change,
-    and only in scalar display fields: tree links are untouched.
+    Returns the indices into *live_agents* whose rendered fields changed.
+    Clan containers are synthetic and local rows never match the fleet map,
+    so only live fleet rows change, and only in scalar display fields: tree
+    links are untouched. ``fleet_observed_at_unix`` never counts as
+    rendered, and ``fleet_host_cache_age_seconds`` counts only when the
+    fresh row's ``fleet_freshness`` is ``"stale"``.
     """
-    patched = 0
-    for live in live_agents:
+    changed: list[int] = []
+    for idx, live in enumerate(live_agents):
         if getattr(live, "is_clan_container", False):
             continue
         try:
@@ -128,18 +147,35 @@ def _patch_fleet_volatile_row_fields(
         fresh = fresh_by_identity.get(identity)
         if fresh is None:
             continue
+        try:
+            fresh_freshness = getattr(fresh, "fleet_freshness", None)
+        except Exception:
+            fresh_freshness = None
+        row_rendered_changed = False
         for field_name in _FLEET_VOLATILE_ROW_FIELDS:
             try:
                 new_value = getattr(fresh, field_name)
             except Exception:
                 continue
             try:
-                if getattr(live, field_name) != new_value:
-                    setattr(live, field_name, new_value)
-                    patched += 1
+                old_value = getattr(live, field_name, None)
             except Exception:
                 continue
-    return patched
+            try:
+                if old_value != new_value:
+                    setattr(live, field_name, new_value)
+                    if field_name in _FLEET_RENDERED_VOLATILE_FIELDS:
+                        row_rendered_changed = True
+                    elif (
+                        field_name == "fleet_host_cache_age_seconds"
+                        and fresh_freshness == "stale"
+                    ):
+                        row_rendered_changed = True
+            except Exception:
+                continue
+        if row_rendered_changed:
+            changed.append(idx)
+    return changed
 
 
 class AgentFleetProjectionMixin:
@@ -249,8 +285,9 @@ class AgentFleetProjectionMixin:
     ) -> bool:
         """Skip the projection when the incoming fleet state is unchanged.
 
-        Host-soft fields are patched onto the live rows so the header and
-        group banners repaint through the render cache without running
+        Host-soft fields are patched onto the live rows; rows whose
+        rendered fields changed rebuild only their owning panels via
+        ``_refresh_affected_panel_widgets`` without running
         ``project_clan_tree``.
         """
         signature, fleet_rows = incoming
@@ -263,12 +300,88 @@ class AgentFleetProjectionMixin:
                 fresh_by_identity.setdefault(row.identity, row)
             except Exception:
                 continue
-        _patch_fleet_volatile_row_fields(
-            list(getattr(self, "_agents", [])),
-            fresh_by_identity,
-        )
+        live_agents = list(getattr(self, "_agents", []))
+        try:
+            current_idx = int(getattr(self, "current_idx", -1))
+        except Exception:
+            current_idx = -1
+        selected_diag_before: Any = None
+        selected_idx: int | None = None
+        if 0 <= current_idx < len(live_agents):
+            selected_idx = current_idx
+            try:
+                selected_diag_before = getattr(
+                    live_agents[current_idx], "fleet_diagnostic", None
+                )
+            except Exception:
+                selected_diag_before = None
+        changed = _patch_fleet_volatile_row_fields(live_agents, fresh_by_identity)
         self._update_agents_header()  # type: ignore[attr-defined]
+        if not changed:
+            return True
+        affected_keys: set[Any] = set()
+        try:
+            panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
+            keys_per_agent = list(getattr(panel_index, "keys_per_agent", []))
+        except Exception:
+            panel_index = None
+            keys_per_agent = []
+        if panel_index is not None and keys_per_agent:
+            for idx in changed:
+                try:
+                    affected_keys.add(keys_per_agent[idx])
+                except Exception:
+                    continue
+        if affected_keys:
+            refresh = getattr(self, "_refresh_affected_panel_widgets", None)
+            refreshed = False
+            if callable(refresh):
+                try:
+                    refreshed = bool(refresh(affected_keys))
+                except Exception:
+                    refreshed = False
+            if refreshed:
+                self._refresh_skip_path_detail_if_diagnostic_changed(
+                    live_agents, selected_idx, selected_diag_before
+                )
+                return True
+            fallback = getattr(self, "_refresh_agents_display", None)
+            if callable(fallback):
+                try:
+                    fallback(list_changed=True)
+                except Exception:
+                    pass
+                return True
         return True
+
+    def _refresh_skip_path_detail_if_diagnostic_changed(
+        self,
+        live_agents: list[Any],
+        selected_idx: int | None,
+        selected_diag_before: Any,
+    ) -> None:
+        """Refresh info/detail once when the selected diagnostic changed."""
+        if selected_idx is None:
+            return
+        try:
+            after = getattr(live_agents[selected_idx], "fleet_diagnostic", None)
+        except Exception:
+            return
+        if after == selected_diag_before:
+            return
+        detail_refresh = getattr(self, "_refresh_agent_focus_detail", None)
+        if callable(detail_refresh):
+            try:
+                detail_refresh()
+                return
+            except Exception:
+                pass
+        info_refresh = getattr(self, "_update_agents_info_panel", None)
+        if callable(info_refresh):
+            try:
+                info_refresh()
+            except Exception:
+                pass
 
     def _reproject_agents_from_current_mode(
         self,

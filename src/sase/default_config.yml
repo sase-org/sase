@@ -1511,7 +1511,7 @@ axe:
           description: |-
             Archive old dismissed notifications out of the live JSONL store
 
-            Moves dismissed rows past the 14-day retention window from notifications.jsonl into
+            Moves dismissed rows past the 3-day retention window from notifications.jsonl into
             notifications-archive.jsonl under the store lock. Unread and still-actionable rows stay in the live
             file. Runs here so a multi-megabyte re-parse and rewrite never sits on sase's TUI refresh cadence.
         - name: managed_tmp_reap

@@ -833,6 +833,7 @@ SASE_TUI_TRACE=1 SASE_TUI_PERF=1 sase tui
 # ... press ,u / ,j /,J on the Agents tab, then quit with q ...
 jq -c 'select(.span == "leader.unread_bulk_ack" or .span == "leader.unread_jump"
   or .span == "unread.ack_complete" or .span == "unread.reconcile"
+  or .span == "unread.chrome_apply"
   or .span == "agent_nodes.projection_index")' ~/.sase/perf/tui_trace.jsonl
 jq -c 'select(.action == ",u" or .action == ",j" or .action == ",J")' \
   ~/.sase/perf/tui_jk.jsonl

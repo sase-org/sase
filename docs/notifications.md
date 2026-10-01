@@ -1906,7 +1906,7 @@ The store keeps itself O(live). The hourly `notification_store_compact` housekee
 drives compaction so a multi-megabyte re-parse does not sit on an interactive path. When
 `notifications.jsonl` crosses 4 MiB or holds at least 1,000 dismissed rows, a
 cache-missing read or rewrite may still compact under the same exclusive lock: dismissed
-rows older than a 14-day retention window are appended to a sibling
+rows older than a 3-day retention window are appended to a sibling
 `notifications-archive.jsonl` and dropped from the live file, then the live file is
 replaced atomically so a crash mid-compaction loses no row. Snoozed rows are never
 archived while snoozed, and dismissed rows inside the retention window stay put so the

@@ -8,8 +8,10 @@ info-row nodes chip expands the rail on click.
 
 from __future__ import annotations
 
-from datetime import datetime
+import itertools
+from datetime import datetime, timedelta
 
+import sase.ace.tui.actions.agents._display_panel_patches as _display_panel_patches
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import AgentDetail, AgentList
@@ -282,10 +284,21 @@ async def test_sidebar_chip_click_expands_rail(monkeypatch) -> None:
 
 
 async def test_runtime_tick_skipped_in_rail(monkeypatch) -> None:
-    """Runtime patches pause in rail mode and resume on expand."""
+    """Runtime patches pause in rail mode and resume on expand.
+
+    The tick is change-only, so each call advances a day to guarantee the
+    rendered runtime text changes between patch calls.
+    """
     patch_startup_loaders(monkeypatch, agents=_agents())
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _goto_agents(page, 4)
+        base = _display_panel_patches.local_now()
+        ticks = itertools.count(1)
+        monkeypatch.setattr(
+            _display_panel_patches,
+            "local_now",
+            lambda: base + timedelta(days=next(ticks)),
+        )
         assert page.app._patch_agent_runtime_rows() > 0
         await page.press("ctrl+s")
         await wait_for_visual_idle(page)

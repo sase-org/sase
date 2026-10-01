@@ -512,7 +512,7 @@ Silent, missing, unreadable, malformed, and truncated output are called out expl
 instead of being reported as a Python traceback.
 
 The `notification_store_compact` job bounds `~/.sase/notifications/notifications.jsonl`
-by moving dismissed rows older than 14 days into `notifications-archive.jsonl`. Unread
+by moving dismissed rows older than 3 days into `notifications-archive.jsonl`. Unread
 and still-actionable rows stay in the live file. sase's TUI snapshot reads are memoized
 against an mtime+size token, so this pass lives on `housekeeping` rather than the TUI
 refresh cadence that previously re-parsed the whole store every tick.
