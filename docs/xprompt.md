@@ -2130,7 +2130,7 @@ Directives use the same argument syntax as xprompt references:
 %model:muse/muse-spark-1.3   # Meta Muse Code — never auto-detected from PATH
 %model:grok/grok-4.7         # xAI Grok Build — never auto-detected; also in alias selectors
 %model:@fast                 # Configured/implicit model alias; Model shows ← @fast
-%model(opus, medium=codex/gpt-6-sol) # This agent uses opus; medium follow-ups use Codex
+%model(opus, medium=codex/gpt-6.1-sol) # This agent uses opus; medium follow-ups use Codex
 %model(medium=@large) # Leave this agent on its normal launch model; route medium follow-ups through @large
 %effort:xhigh                # Set the reasoning-effort level for this prompt
 %e:xhigh                     # Same, using alias
@@ -2295,10 +2295,10 @@ shortcut lists concrete model rows only, including provider-qualified matches su
 
 Accepting a row such as `@large` replaces the whole live `=query` token, including text
 to the right of a mid-token caret, with `%m:@large`. Accepting a concrete model such as
-`gpt-6-sol` replaces the whole live `==query` token with `%m:gpt-6-sol`. At prompt or
-line end the expansion appends one ASCII space; before a tab it appends none; before an
-existing ASCII space it preserves the rest of that whitespace run and leaves the caret
-after the first space. When the trigger's `---` segment already holds a standalone
+`gpt-6.1-sol` replaces the whole live `==query` token with `%m:gpt-6.1-sol`. At prompt
+or line end the expansion appends one ASCII space; before a tab it appends none; before
+an existing ASCII space it preserves the rest of that whitespace run and leaves the
+caret after the first space. When the trigger's `---` segment already holds a standalone
 `%model`/`%m` directive, accepting instead deletes the shortcut token and rewrites the
 earliest such directive in place with the selected value, removing any further
 standalone model directives in the segment so exactly one remains; the caret lands at
@@ -2360,9 +2360,9 @@ The parenthesized `%model` form accepts keyword arguments that temporarily repla
 aliases for one launch lineage:
 
 ```text
-%model(opus, medium=codex/gpt-6-sol, small=@xsmall)
+%model(opus, medium=codex/gpt-6.1-sol, small=@xsmall)
 %model(xsmall=@small, medium=@large@high)
-%model(large=@xlarge, xlarge=codex/gpt-6-sol@max)
+%model(large=@xlarge, xlarge=codex/gpt-6.1-sol@max)
 ```
 
 The optional positional value selects the current agent's model. Each `alias=value`
@@ -2732,11 +2732,11 @@ instead of a separate directive:
 
 ```
 %model:opus@xhigh            # opus, run at xhigh effort
-%m:codex/gpt-6-sol@high        # alias form, with an explicit provider/model
+%m:codex/gpt-6.1-sol@high        # alias form, with an explicit provider/model
 ```
 
 The suffix is split off the clean model before alias/provider resolution, so the
-resolved model stays `opus` / `codex/gpt-6-sol`. To preserve an `@` that is genuinely
+resolved model stays `opus` / `codex/gpt-6.1-sol`. To preserve an `@` that is genuinely
 part of a model id, wrap the value in a backtick literal (`` %model:`literal@id` ``) —
 backtick literals are never split.
 
@@ -3213,7 +3213,7 @@ parentheses (`%m(opus)`) launch a single agent.
 
 When a prompt fans out to multiple models, the spawned agents share a single base name
 and carry a runtime suffix so they can be told apart at a glance. Given
-`%{%m:opus | %m:gpt-6-sol} %i:foo`, the two agents are named `foo.cld` and `foo.cdx`.
+`%{%m:opus | %m:gpt-6.1-sol} %i:foo`, the two agents are named `foo.cld` and `foo.cdx`.
 The runtime suffix is a short alias declared by the provider plugin (via the
 `llm_provider_short_name` hook) — `cld`, `cdx`, `agy`, `qwn`, `opc` for the built-in
 providers — falling back to the full provider name for plugins that don't declare one.

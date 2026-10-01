@@ -79,7 +79,7 @@ providers:
   codex:
     models:
       - gpt-6-astra
-      - gpt-6-sol
+      - gpt-6.1-sol
       - gpt-6-luna
       - gpt-5.6-sol
       - gpt-5.6-terra
@@ -97,7 +97,7 @@ providers:
       - gpt-4o-mini
     short_aliases:
       gpt-6-astra: astra
-      gpt-6-sol: gpt6sol
+      gpt-6.1-sol: gpt61sol
       gpt-6-luna: gpt6luna
       codex-mini-latest: mini
       gpt-5.6-sol: gpt56sol
@@ -111,7 +111,7 @@ providers:
       gpt-4.1-mini: gpt41m
       gpt-4o-mini: gpt4om
     tiers:
-      large: gpt-6-sol
+      large: gpt-6.1-sol
       small: codex-mini-latest
   grok:
     models:
@@ -217,8 +217,8 @@ aliases:
       muse/muse-spark-1.3-contributor@xhigh"
     description: "Medium launch alias for ordinary implementation work."
   large:
-    target: "claude/opus@high | codex/gpt-6-sol@xhigh | grok/grok-4.7@xhigh"
+    target: "claude/opus@high | codex/gpt-6.1-sol@xhigh | grok/grok-4.7@xhigh"
     description: "Large launch alias for planning-heavy work and default launches."
   xlarge:
-    target: "claude/opus@xhigh || codex/gpt-6-sol@xhigh || grok/grok-4.7@xhigh"
+    target: "claude/opus@xhigh || codex/gpt-6.1-sol@xhigh || grok/grok-4.7@xhigh"
     description: "Extra-large launch alias for maximum-effort work."

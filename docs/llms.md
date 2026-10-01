@@ -496,7 +496,7 @@ extracted from `item.completed` events.
 
 | Tier    | Model               |
 | ------- | ------------------- |
-| `large` | `gpt-6-sol`         |
+| `large` | `gpt-6.1-sol`       |
 | `small` | `codex-mini-latest` |
 
 <!-- END GENERATED: model-tiers-codex -->
@@ -1286,7 +1286,7 @@ llm_provider:
   default_effort: xhigh # default reasoning effort when a prompt sets none (default: unset)
   default_model: "@large" # used when a launch has no %model directive (default: @large)
   epic_lander_model: "@large" # epic land agents below bead.big_epic_phase_threshold (default: @large)
-  big_epic_lander_model: codex/gpt-6-sol # epic land agents at/above the threshold (default: @xlarge)
+  big_epic_lander_model: codex/gpt-6.1-sol # epic land agents at/above the threshold (default: @xlarge)
   model_alias_history_limit: 10 # runs shown per alias in Launch Control history (minimum: 1)
   # Override examples; shipped size-alias targets are generated below.
   model_aliases:
@@ -1294,7 +1294,7 @@ llm_provider:
       xsmall: claude/haiku@minimal | codex/gpt-4.1-mini@low # custom xsmall pool
       small: claude/haiku | codex/gpt-4.1-mini # custom small pool
       medium: claude/sonnet@xhigh | codex/gpt-5.5@xhigh
-      large: codex/gpt-6-sol@xhigh | claude/opus@xhigh
+      large: codex/gpt-6.1-sol@xhigh | claude/opus@xhigh
       xlarge: claude/sonnet@max # custom maximum-effort target
     custom:
       blogger:
@@ -1413,14 +1413,14 @@ llm_provider:
   model_aliases:
     builtin:
       large: "@xlarge"
-      medium: codex/gpt-6-sol@xhigh
+      medium: codex/gpt-6.1-sol@xhigh
 ```
 
 Then prompts can use the alias with a leading `@`:
 
 ```
 %model:@fast
-%{%m:@fast | %m:gpt-6-sol}
+%{%m:@fast | %m:gpt-6.1-sol}
 ```
 
 Agents launched through the `@<alias>` spelling show that launch-time provenance in
@@ -1577,8 +1577,8 @@ this section covers both. The current shipped size-alias defaults are generated 
 | `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks. | `claude/claude-haiku-4-5@xhigh \| codex/gpt-6-luna@medium \| agy/gemini-3.8-flash-high \| muse/muse-spark-1.3-contributor@medium` |
 | `@small`  | Small launch alias for straightforward task and phase work.                          | `claude/sonnet@high \| codex/gpt-6-luna@high \| grok/grok-4.6@medium \| muse/muse-spark-1.3-contributor@high`                     |
 | `@medium` | Medium launch alias for ordinary implementation work.                                | `claude/sonnet@xhigh \| codex/gpt-6-luna@xhigh \| grok/grok-4.6@high \| muse/muse-spark-1.3-contributor@xhigh`                    |
-| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-6-sol@xhigh \| grok/grok-4.7@xhigh`                                                                |
-| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \|\| codex/gpt-6-sol@xhigh \|\| grok/grok-4.7@xhigh`                                                           |
+| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-6.1-sol@xhigh \| grok/grok-4.7@xhigh`                                                              |
+| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \|\| codex/gpt-6.1-sol@xhigh \|\| grok/grok-4.7@xhigh`                                                         |
 
 <!-- END GENERATED: model-alias-defaults -->
 
@@ -1609,14 +1609,14 @@ precedence over a role's shipped target.
 llm_provider:
   default_model: "@large"
   epic_lander_model: "@large"
-  big_epic_lander_model: codex/gpt-6-sol # large epic land agents only
+  big_epic_lander_model: codex/gpt-6.1-sol # large epic land agents only
   model_alias_history_limit: 10
   model_aliases:
     builtin:
       xsmall: claude/haiku@minimal | codex/gpt-4.1-mini@low
       small: claude/haiku | codex/gpt-4.1-mini
       medium: codex/o3@xhigh | claude/sonnet@xhigh
-      large: codex/gpt-6-sol@xhigh | claude/opus@xhigh
+      large: codex/gpt-6.1-sol@xhigh | claude/opus@xhigh
       xlarge: claude/sonnet@max
 ```
 
@@ -1631,7 +1631,7 @@ A prompt can override the five size aliases (or a custom alias) for its SASE-cre
 launch lineage with keyword arguments on `%model(...)`:
 
 ```text
-%model(opus, medium=codex/gpt-6-sol)
+%model(opus, medium=codex/gpt-6.1-sol)
 %model(medium=claude/sonnet)
 ```
 
@@ -1723,7 +1723,7 @@ picker and completion order. This table is generated from
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | agy      | `gemini-3.8-flash-high`, `gemini-3.8-flash-medium`, `gemini-3.8-flash-low`, `gemini-3.7-flash-high`, `gemini-3.7-flash-medium`, `gemini-3.7-flash-low`, `gemini-3.6-flash-high`, `gemini-3.6-flash-medium`, `gemini-3.6-flash-low`, `gemini-3.5-flash-high`, `gemini-3.5-flash-medium`, `gemini-3.5-flash-low`, `gemini-3.1-pro-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium` |
 | claude   | `opus`, `sonnet`, `haiku`, `claude-haiku-4-5`, `claude-fable-5`                                                                                                                                                                                                                                                                                                                                                                     |
-| codex    | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                                                                                                                                    |
+| codex    | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                                                                                                                                  |
 | grok     | `grok-4.7`, `grok-4.6`                                                                                                                                                                                                                                                                                                                                                                                                              |
 | muse     | `muse-spark-1.3`, `muse-spark-1.3-contributor`, `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                                                                                                                                    |
 | opencode | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                                                                                                                                                                           |
@@ -1749,7 +1749,7 @@ yourself.
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | agy      | `gemini-3.8-flash-high` → `flash38h`, `gemini-3.8-flash-medium` → `flash38m`, `gemini-3.8-flash-low` → `flash38l`, `gemini-3.7-flash-high` → `flash37h`, `gemini-3.7-flash-medium` → `flash37m`, `gemini-3.7-flash-low` → `flash37l`, `gemini-3.6-flash-high` → `flash36h`, `gemini-3.6-flash-medium` → `flash36m`, `gemini-3.6-flash-low` → `flash36l`, `gemini-3.5-flash-high` → `flash35h`, `gemini-3.5-flash-medium` → `flash35m`, `gemini-3.5-flash-low` → `flash35l`, `gemini-3.1-pro-high` → `pro31h`, `gemini-3.1-pro-low` → `pro31l`, `claude-sonnet-4-6` → `sonnet46`, `claude-opus-4-6-thinking` → `opus46t`, `gpt-oss-120b-medium` → `gptoss120m` |
 | claude   | `claude-haiku-4-5` → `haiku45`, `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| codex    | `gpt-6-astra` → `astra`, `gpt-6-sol` → `gpt6sol`, `gpt-6-luna` → `gpt6luna`, `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.6-terra` → `gpt56terra`, `gpt-5.6-luna` → `gpt56luna`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-5.3-codex` → `gpt53`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                                                                                                                                      |
+| codex    | `gpt-6-astra` → `astra`, `gpt-6.1-sol` → `gpt61sol`, `gpt-6-luna` → `gpt6luna`, `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.6-terra` → `gpt56terra`, `gpt-5.6-luna` → `gpt56luna`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-5.3-codex` → `gpt53`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                                                                                                                                   |
 | grok     | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | muse     | `muse-spark-1.3` → `spark13`, `muse-spark-1.3-contributor` → `spark13c`, `muse-spark-1.2` → `spark12`, `muse-spark-1.2-contributor` → `spark12c`, `muse-spark-1.1` → `spark11`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -1918,7 +1918,7 @@ its own generated tier table with the same values:
 | -------- | ----------------------------- | ---------------------- |
 | agy      | `gemini-3.7-flash-high`       | `gemini-3.7-flash-low` |
 | claude   | `opus`                        | `sonnet`               |
-| codex    | `gpt-6-sol`                   | `codex-mini-latest`    |
+| codex    | `gpt-6.1-sol`                 | `codex-mini-latest`    |
 | grok     | `grok-4.7`                    | `grok-4.6`             |
 | muse     | `muse-spark-1.3`              | `muse-spark-1.3`       |
 | opencode | `anthropic/claude-sonnet-4-5` | `openai/gpt-5-mini`    |
@@ -2020,13 +2020,13 @@ llm_provider:
   provider: claude
   default_model: "@large"
   epic_lander_model: "@large"
-  big_epic_lander_model: codex/gpt-6-sol # threshold-selected epic landers run on Codex
+  big_epic_lander_model: codex/gpt-6.1-sol # threshold-selected epic landers run on Codex
   model_aliases:
     builtin:
       xsmall: claude/haiku@minimal | codex/gpt-4.1-mini@low
       small: claude/haiku | codex/gpt-4.1-mini
       medium: codex/gpt-5.5@xhigh | claude/sonnet@xhigh
-      large: codex/gpt-6-sol@xhigh | claude/opus@xhigh
+      large: codex/gpt-6.1-sol@xhigh | claude/opus@xhigh
       xlarge: claude/sonnet@max # xlarge phase/epic maximum-effort target
 ```
 
@@ -2096,10 +2096,10 @@ target. If the disable is cleared or expires before the alias override expires, 
 stored override resumes automatically. A **soft** disable does not pause the override.
 
 An override may carry a canonical reasoning-effort suffix, such as
-`codex/gpt-6-sol@medium` or `@large@medium`. The write resolves and snapshots the clean
-provider/model plus `medium`, while preserving the original `raw_model`. That effort
-survives state reloads and shapes the next matching launch. An explicit outer reference
-such as `@large@xhigh` still wins over the stored override effort.
+`codex/gpt-6.1-sol@medium` or `@large@medium`. The write resolves and snapshots the
+clean provider/model plus `medium`, while preserving the original `raw_model`. That
+effort survives state reloads and shapes the next matching launch. An explicit outer
+reference such as `@large@xhigh` still wins over the stored override effort.
 
 `SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` still force the tier for
 tier-based launches. A concrete temporary override supplies a provider and model

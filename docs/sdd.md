@@ -388,7 +388,7 @@ context, but they are not part of the prompt-plan link validator.
 
 Plan files may carry an optional top-level `model:` field in YAML frontmatter to record
 the model the work should run under. The value uses the same syntax `%model` accepts: a
-bare known model name (e.g. `opus`), a provider-qualified id (e.g. `codex/gpt-6-sol`),
+bare known model name (e.g. `opus`), a provider-qualified id (e.g. `codex/gpt-6.1-sol`),
 or a configured local alias (e.g. `#pro`).
 
 ```yaml

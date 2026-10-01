@@ -5300,9 +5300,10 @@ suffixes are supplied by the LLM provider plugins via the `llm_provider_short_na
 (built-in defaults: `cld` for Claude, `cdx` for Codex, `agy` for Antigravity).
 Additional provider plugins can contribute their own short names. Model-name shorthands
 come from the `llm_model_short_aliases` hook (e.g. `fable` for `claude-fable-5`,
-`gpt6sol` for `gpt-6-sol`; see [Model Short Aliases](llms.md#model-short-aliases)) and
-are resolved against the configured model so the suffix stays compact regardless of how
-the model was spelled in the prompt or config. Single-runtime spawns omit the suffix.
+`gpt61sol` for `gpt-6.1-sol`; see [Model Short Aliases](llms.md#model-short-aliases))
+and are resolved against the configured model so the suffix stays compact regardless of
+how the model was spelled in the prompt or config. Single-runtime spawns omit the
+suffix.
 
 An explicit `%id:<name>` launch fails before spawning if `<name>` is already reserved.
 The prompt is saved as a cancelled history entry and the error suggests the lowest free
@@ -7451,9 +7452,9 @@ token under the cursor:
   of a logical line or immediately after a literal ASCII space, completion opens a model
   shortcut menu. `=alias` lists alias rows only; for example, typing `=la` can select
   `@large` and rewrite the whole token to `%m:@large`. `==model` lists concrete model
-  rows only; for example, typing `==gpt` can select `gpt-6-sol` and rewrite the token to
-  `%m:gpt-6-sol`, while provider-qualified input such as `==codex/g` narrows to that
-  provider. The second equals sign switches an open alias shortcut panel into the
+  rows only; for example, typing `==gpt` can select `gpt-6.1-sol` and rewrite the token
+  to `%m:gpt-6.1-sol`, while provider-qualified input such as `==codex/g` narrows to
+  that provider. The second equals sign switches an open alias shortcut panel into the
   explicit model panel. If the token already has a following ASCII space, sase's TUI
   reuses it and leaves the cursor after that space; before a tab it inserts no extra
   space; before a newline or prompt end it appends one ASCII space. Typing `@` directly

@@ -18,9 +18,9 @@ EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 @pytest.mark.parametrize(
     "line",
     [
-        "%m:gpt-6-sol ",
+        "%m:gpt-6.1-sol ",
         "%model:@large ",
-        "%m:codex/gpt-6-sol ",
+        "%m:codex/gpt-6.1-sol ",
         "fix it %m:opus ",
     ],
 )
@@ -31,7 +31,7 @@ def test_helper_matches(line: str) -> None:
 @pytest.mark.parametrize(
     "line",
     [
-        "%m:gpt-6-sol@high ",
+        "%m:gpt-6.1-sol@high ",
         "%m: ",
         "%m:opus  ",
         "%model(opus ",
@@ -67,8 +67,8 @@ async def test_typed_model_space_at_opens_effort_menu() -> None:
     app = ModelExplicitCompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        await _type(pilot, "%m:gpt-6-sol @")
-        assert ta.text == "%m:gpt-6-sol@"
+        await _type(pilot, "%m:gpt-6.1-sol @")
+        assert ta.text == "%m:gpt-6.1-sol@"
         assert ta.cursor_location == (0, len(ta.text))
         assert ta._file_completion_active
         assert ta._completion_kind == "directive_arg"
@@ -94,8 +94,8 @@ async def test_disabled_auto_menu_still_swallows_space() -> None:
     )
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        await _type(pilot, "%m:gpt-6-sol @")
-        assert ta.text == "%m:gpt-6-sol@"
+        await _type(pilot, "%m:gpt-6.1-sol @")
+        assert ta.text == "%m:gpt-6.1-sol@"
         assert not ta._file_completion_active
 
 
@@ -111,6 +111,6 @@ async def test_undo_restores_space() -> None:
     app = ModelExplicitCompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        await _type(pilot, "%m:gpt-6-sol @")
+        await _type(pilot, "%m:gpt-6.1-sol @")
         ta.action_undo()
-        assert ta.text == "%m:gpt-6-sol "
+        assert ta.text == "%m:gpt-6.1-sol "

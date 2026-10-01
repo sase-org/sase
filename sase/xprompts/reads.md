@@ -55,7 +55,7 @@ xprompts:
 ---
 
 %id(cdx, clan=reads-{@1})
-%model:codex/gpt-6-sol
+%model:codex/gpt-6.1-sol
 #_article_search_agent
 
 ---
