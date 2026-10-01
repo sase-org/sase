@@ -30,6 +30,7 @@ from sase.pager._screen_history import PagerHistoryMixin
 from sase.pager._screen_search import PagerSearchMixin
 from sase.pager._screen_syntax import PagerSyntaxMixin
 from sase.pager._screen_time_band import PagerTimeBandMixin
+from sase.pager._screen_timeline import PagerTimelineMixin
 from sase.pager._screen_trail import PagerTrailMixin
 from sase.pager._screen_widgets import PagerBody, PagerBodyScroll
 from sase.pager._styles import PAGER_CSS
@@ -43,6 +44,7 @@ class PagerScreen(
     PagerTimeBandMixin,
     PagerHistoryMixin,
     PagerDiffMixin,
+    PagerTimelineMixin,
     PagerBodyMixin,
     PagerActionMixin,
     PagerTrailMixin,
@@ -68,6 +70,7 @@ class PagerScreen(
         Binding("left_curly_bracket", "history_first", "First", show=False),
         Binding("right_curly_bracket", "history_now", "Now", show=False),
         Binding("equals_sign", "history_toggle_diff", "Diff", show=False),
+        Binding("at", "history_timeline", "Timeline", show=False),
         Binding(
             "left_square_bracket", "history_prev_change", "Prev change", show=False
         ),

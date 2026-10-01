@@ -456,20 +456,25 @@ def diff_endpoints(
     visible_ordinals: tuple[int, ...] = (),
     dirty: bool = False,
     compare_base: int | None = None,
+    explicit_base: bool = False,
 ) -> tuple[int, int] | None:
     """Return the ``(base, target)`` comparison ordinals for a diff view.
 
     Committed versions compare against their parent (or an explicit
-    *compare_base*, which the timeline picker sets in a later phase);
-    ordinal 1 falls back to the empty-base comparison. A dirty ``now``
-    compares the worktree (target 0) against the newest committed
-    version; a clean ``now`` shows the newest version's own change.
-    ``None`` means there is nothing to compare yet.
+    *compare_base*, which the timeline picker sets); ordinal 1 falls
+    back to the empty-base comparison. A dirty ``now`` compares the
+    worktree (target 0) against the newest committed version; a clean
+    ``now`` shows the newest version's own change. A picker base
+    (*explicit_base*) with target ``now`` compares that version
+    against the worktree instead. ``None`` means there is nothing to
+    compare yet.
     """
     if ordinal > 0:
         if compare_base is not None:
             return (compare_base, ordinal)
         return (ordinal - 1, ordinal)
+    if explicit_base and compare_base is not None and compare_base > 0:
+        return (compare_base, 0)
     if not visible_ordinals:
         return None
     newest = max(visible_ordinals)

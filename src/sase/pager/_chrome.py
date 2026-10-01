@@ -383,6 +383,7 @@ def footer_legend(
     if history_available:
         verbs.append(("( )", "version"))
         verbs.append(("=", "read" if history_diff_view else "diff"))
+        verbs.append(("@", "timeline"))
         if history_pinned:
             verbs.append(("E", "edits now"))
     action_key = {"copy": "y", "edit": "E"}.get(pending_action)

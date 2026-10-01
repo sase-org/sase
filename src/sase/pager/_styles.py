@@ -112,6 +112,38 @@ PagerHelpScreen #pager-help-footer {
     background: $boost;
     color: $text-muted;
 }
+
+TimelinePickerScreen {
+    background: transparent;
+    align: center middle;
+}
+
+TimelinePickerScreen #pager-timeline {
+    width: 88;
+    max-width: 94%;
+    height: 80%;
+    max-height: 90%;
+    border: round $accent;
+    background: $surface;
+}
+
+TimelinePickerScreen #pager-timeline-header {
+    height: 1;
+    padding: 0 1;
+    background: $boost;
+}
+
+TimelinePickerScreen #pager-timeline-list {
+    height: 1fr;
+    padding: 1 2;
+}
+
+TimelinePickerScreen #pager-timeline-footer {
+    height: 1;
+    padding: 0 1;
+    background: $boost;
+    color: $text-muted;
+}
 """
 
 __all__ = ["PAGER_CSS"]

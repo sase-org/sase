@@ -79,6 +79,7 @@ class PagerDiffMixin:
             visible_ordinals=tuple(state.visible_ordinals) if state is not None else (),
             dirty=bool(state is not None and state.status == "dirty-now"),
             compare_base=base_override,
+            explicit_base=bool(getattr(pin, "explicit_base", False)),
         )
 
     def action_history_toggle_diff(self: Any) -> None:
@@ -291,7 +292,12 @@ class PagerDiffMixin:
 
             pin = live_pin_for_subject(state.subject_id)
         try:
-            new_pin = replace(pin, view="diff", compare_base=base if base > 0 else None)
+            new_pin = replace(
+                pin,
+                view="diff",
+                compare_base=base if base > 0 else None,
+                explicit_base=bool(getattr(pin, "explicit_base", False)),
+            )
         except Exception:
             return
         try:

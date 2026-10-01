@@ -17,6 +17,7 @@ from sase.pager.history.provider import (
     history_provider_for_section,
     register_history_provider_factory,
 )
+from sase.pager.history.timeline import filter_rows, picker_window, visible_rows
 
 __all__ = [
     "HistoryMissingError",
@@ -26,8 +27,11 @@ __all__ = [
     "VersionPin",
     "clear_history_provider_factories",
     "committed_pin_for_ordinal",
+    "filter_rows",
     "history_factories_snapshot",
     "history_provider_for_section",
     "live_pin_for_subject",
+    "picker_window",
     "register_history_provider_factory",
+    "visible_rows",
 ]

@@ -21,7 +21,9 @@ class VersionPin:
     are committed versions. ``commit``/``blob_oid`` are full hex strings
     when known. ``view`` selects the read body or its change; when
     ``view`` is ``diff``, ``compare_base`` names the base ordinal the
-    read gutter was computed against.
+    read gutter was computed against. ``explicit_base`` marks a base
+    the timeline picker set: only then may a ``now`` target compare
+    against a committed base instead of the default endpoints.
     """
 
     subject_id: str
@@ -31,6 +33,7 @@ class VersionPin:
     blob_oid: str | None = None
     view: HistoryView = "read"
     compare_base: int | None = None
+    explicit_base: bool = False
 
     @property
     def is_live(self) -> bool:

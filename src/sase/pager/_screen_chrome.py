@@ -92,14 +92,17 @@ class PagerChromeMixin:
             pin = state.current_pin
             compare_base = getattr(pin, "compare_base", None)
             base_override = int(compare_base) if compare_base is not None else None
+            explicit = bool(getattr(pin, "explicit_base", False))
         except (TypeError, ValueError):
             base_override = None
+            explicit = False
         try:
             endpoints = diff_endpoints(
                 ordinal=ordinal,
                 visible_ordinals=tuple(state.visible_ordinals),
                 dirty=bool(state.status == "dirty-now"),
                 compare_base=base_override,
+                explicit_base=explicit,
             )
         except Exception:
             return None
