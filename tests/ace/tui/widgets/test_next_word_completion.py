@@ -9,7 +9,6 @@ from sase.ace.tui.widgets.next_word_completion import (
     NextWordChain,
     NextWordGhost,
     build_next_word_ghost_text,
-    fit_next_word_ghost,
     next_word_auto_space_eligible,
     next_word_chain_armed,
     next_word_ghost_expected,
@@ -38,16 +37,6 @@ def test_build_and_split_ghost() -> None:
     assert split_next_word_one("it now") == "it"
     assert split_next_word_one("") == ""
     assert split_next_word_one(" ") == ""
-
-
-def test_fit_truncates_to_whole_words_and_caps() -> None:
-    words = ["implement", "it", "now"]
-    assert fit_next_word_ghost(words, " ", 100, 4) == words
-    assert fit_next_word_ghost(words, " ", 100, 2) == ["implement", "it"]
-    # " implement" is 10 cells; width 10 fits first word only.
-    assert fit_next_word_ghost(words, " ", 10, 4) == ["implement"]
-    assert fit_next_word_ghost(words, " ", 5, 4) == []
-    assert fit_next_word_ghost(words, " ", 0, 4) == []
 
 
 def test_chain_armed_requires_offset_and_text() -> None:

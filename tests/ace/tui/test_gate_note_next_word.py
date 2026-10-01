@@ -300,6 +300,30 @@ async def test_gate_note_auto_mode_suggests_after_space() -> None:
         assert note._next_word_ghost_visible() is True
 
 
+async def test_gate_note_typing_through_ghost_reveals_hint_after_pause() -> None:
+    settings = PromptCompletionSettings(next_word="auto")
+    app = GateNoteTestApp(settings=settings)
+    panel = GateInputPanel(_note_request())
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(panel, app.results.append)
+        await pilot.pause()
+        note = panel.query_one("#gate-input-note", GateNoteInput)
+        note.focus()
+        await pilot.pause()
+        note.text = "Can you help me,"
+        note.cursor_location = (0, len(note.text))
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+        assert note.suggestion.startswith("implement")
+        await pilot.press("i", "m")
+        assert note.text == "Can you help me, im"
+        assert note.suggestion.startswith("plement")
+        await pilot.pause(0.6)
+        assert note._next_word_ghost_visible() is True
+        assert "[^T] word" in _note_hint(note)
+
+
 async def test_gate_note_auto_midword_completes() -> None:
     settings = PromptCompletionSettings(next_word="auto")
     app = GateNoteTestApp(settings=settings)

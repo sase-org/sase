@@ -134,6 +134,30 @@ async def test_typing_space_inside_parens_shows_tail_ghost(
         assert "[^T] word" in _bar_hint(bar)
 
 
+async def test_typing_through_ghost_restarts_reveal_beat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _auto_app()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        bar = app.query_one(PromptInputBar)
+        ta.load_text("Can you help me")
+        ta.cursor_location = (0, len(ta.text))
+        _patch_confident(monkeypatch, ta, ["implement", "it"])
+        await pilot.press("space")
+        await pilot.pause(0.6)
+        assert ta.suggestion == "implement it"
+        assert "[^T] word" in _bar_hint(bar)
+        # Typing through the ghost keeps it and calms the hint...
+        await pilot.press("i", "m")
+        assert ta.suggestion == "plement it"
+        assert "[^T] word" not in _bar_hint(bar)
+        # ...and the hint returns once typing pauses at the new cursor.
+        await pilot.pause(0.6)
+        assert ta._next_word_ghost_visible() is True
+        assert "[^T] word" in _bar_hint(bar)
+
+
 async def test_explicit_ctrl_t_shows_hint_immediately() -> None:
     app = NextWordTestApp()
     async with app.run_test() as pilot:

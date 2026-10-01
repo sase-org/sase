@@ -351,9 +351,15 @@ class NextWordGhostPeekMixin(NextWordMidwordMixin):
         words; a typed word character with no word character after the
         cursor requests a mid-word completion instead. Inline placements
         render at once as ghost text; peeks and hints wait for the reveal
-        beat. Everything else follows the chain contract.
+        beat. Everything else follows the chain contract. A keystroke the
+        visible ghost consumed keeps that ghost, makes no request, and
+        restarts the reveal beat so its hint still shows once typing
+        pauses.
         """
         if character is None or len(character) != 1 or not character.isprintable():
+            return False
+        if self._next_word_ghost_visible():
+            self._restart_next_word_reveal()
             return False
         if character.isalnum() or character in {"-", "_", "'", "’"}:
             return self._maybe_auto_next_word_midword(character)
@@ -373,6 +379,19 @@ class NextWordGhostPeekMixin(NextWordMidwordMixin):
             return False
         self._arm_next_word_chain(reveal="delayed")
         return self._next_word_ghost_visible()
+
+    def _restart_next_word_reveal(self) -> None:
+        """Restart the reveal beat at the current text and cursor.
+
+        Typing through a ghost moves the cursor, so a beat scheduled for
+        the earlier snapshot would never fire its hint.
+        """
+        try:
+            text = self.text
+            offset = self._absolute_offset(self.cursor_location)
+        except Exception:
+            return
+        self._schedule_next_word_reveal(text, offset)
 
     def _accept_next_word_peek_one(self) -> bool:
         """Insert the peek's first word with menu separator rules.

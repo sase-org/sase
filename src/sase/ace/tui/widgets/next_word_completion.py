@@ -94,28 +94,6 @@ def split_next_word_one(ghost_text: str) -> str:
     return f"{leading}{first}"
 
 
-def fit_next_word_ghost(
-    words: list[str],
-    separator: str,
-    available_width: int,
-    max_words: int,
-) -> list[str]:
-    """Truncate *words* to whole words that fit in *available_width*.
-
-    Caps at *max_words* first, then drops trailing words until the joined
-    ghost fits. Returns ``[]`` when even the first word does not fit.
-    """
-    if available_width <= 0 or not words:
-        return []
-    capped = list(words[: max(1, max_words)])
-    while capped:
-        ghost = build_next_word_ghost_text(capped, separator)
-        if cell_len(ghost) <= available_width:
-            return capped
-        capped.pop()
-    return []
-
-
 def next_word_chain_armed(
     chain: NextWordChain | None,
     *,
@@ -238,7 +216,6 @@ __all__ = [
     "build_midword_ghost_text",
     "build_next_word_ghost_text",
     "fit_midword_ghost_with_tail",
-    "fit_next_word_ghost",
     "midword_peek_words",
     "next_word_auto_space_eligible",
     "next_word_chain_armed",

@@ -100,6 +100,16 @@ def test_fit_with_tail_subtracts_tail_cells() -> None:
     assert fit_next_word_ghost_with_tail([], " ", 100, 4, ")") == []
 
 
+def test_fit_without_tail_truncates_to_whole_words_and_caps() -> None:
+    words = ["implement", "it", "now"]
+    assert fit_next_word_ghost_with_tail(words, " ", 100, 4, "") == words
+    assert fit_next_word_ghost_with_tail(words, " ", 100, 2, "") == ["implement", "it"]
+    # " implement" is 10 cells; width 10 fits first word only.
+    assert fit_next_word_ghost_with_tail(words, " ", 10, 4, "") == ["implement"]
+    assert fit_next_word_ghost_with_tail(words, " ", 5, 4, "") == []
+    assert fit_next_word_ghost_with_tail(words, " ", 0, 4, "") == []
+
+
 def test_auto_trigger_generalized_beyond_end_of_line() -> None:
     # End of line still triggers.
     assert next_word_auto_space_eligible("hello ", 6) is True

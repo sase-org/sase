@@ -572,6 +572,25 @@ async def test_boundary_ctrl_t_without_guess_teaches_recent_files() -> None:
         assert NEXT_WORD_NO_GUESS_RECENT_FILES_HINT in _bar_hint(bar)
 
 
+async def test_auto_armed_boundary_ctrl_t_without_guess_teaches_recent_files() -> None:
+    """An ``auto``-armed boundary miss still names ``Ctrl+G r``."""
+    app = NextWordTestApp(settings=PromptCompletionSettings(next_word="auto"))
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        bar = app.query_one(PromptInputBar)
+        ta.load_text("zzz qqq")
+        ta.cursor_location = (0, len(ta.text))
+        await pilot.press("space")
+        # The typed space already armed the chain, so Ctrl+T takes the
+        # armed-chain row rather than the unarmed boundary dispatch.
+        assert ta._next_word_chain_is_armed() is True
+
+        await pilot.press("ctrl+t")
+
+        assert ta._file_completion_active is False
+        assert NEXT_WORD_NO_GUESS_RECENT_FILES_HINT in _bar_hint(bar)
+
+
 async def test_boundary_ctrl_t_off_opens_file_history() -> None:
     """With next-word off, a whitespace ``Ctrl+T`` keeps file history."""
     history = CompletionCandidate(

@@ -63,6 +63,7 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         def _prompt_prediction_is_cold(self) -> bool: ...
         def _schedule_prompt_prediction_load(self) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
+        def _extract_token_around_cursor(self) -> tuple[int, int, str] | None: ...
         def _update_file_completion_panel(self, token: str) -> None: ...
 
     def _next_word_chain_is_armed(self) -> bool:
@@ -360,9 +361,25 @@ class PromptNextWordMixin(NextWordGhostDisplayMixin):
         self._arm_next_word_chain()
         if self._next_word_ghost_visible():
             return True
+        return self._explicit_next_word_ctrl_t()
+
+    def _explicit_next_word_ctrl_t(self) -> bool:
+        """Run the ``Ctrl+T`` explicit request, teaching recent files on a miss.
+
+        A no-guess outcome at a whitespace boundary (no token under the
+        cursor, the old file-history slot) names ``Ctrl+G r``, whether
+        the chain was armed by this press or earlier by ``auto`` typing.
+        """
         consumed = self._explicit_next_word_request()
         if consumed and self._next_word_hint == NEXT_WORD_NO_GUESS_HINT:
-            self._show_next_word_transient_hint(NEXT_WORD_NO_GUESS_RECENT_FILES_HINT)
+            try:
+                at_boundary = self._extract_token_around_cursor() is None
+            except Exception:
+                at_boundary = False
+            if at_boundary:
+                self._show_next_word_transient_hint(
+                    NEXT_WORD_NO_GUESS_RECENT_FILES_HINT
+                )
         return consumed
 
     def _refresh_visible_next_word_surface(self) -> None:
