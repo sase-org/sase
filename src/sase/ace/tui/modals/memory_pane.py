@@ -191,6 +191,10 @@ class MemoryPane(
         self._pending_delete_strand: tuple[str, str] | None = None
         self._history_cache: dict[tuple[str, str, str], dict] = {}
         self._history_latest: dict[tuple[str, str], dict] = {}
+        # Keys whose summary load settled unavailable. Renders keep the
+        # "…" placeholder without respawning workers; scope reloads clear
+        # the set so a repaired checkout retries.
+        self._history_failed: set[tuple[str, str]] = set()
         self._history_worker: Worker[tuple[str, str, dict | None]] | None = None
         self._history_request: tuple[str, str] | None = None
         self._history_service: Any | None = None

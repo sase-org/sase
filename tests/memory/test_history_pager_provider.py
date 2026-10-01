@@ -10,8 +10,6 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from sase.feature_flags import override_flags
-from sase.feature_flags.registry import FeatureFlag
 from sase.memory.history import pager_provider as provider_mod
 from sase.memory.history import scopes as history_scopes
 from sase.memory.history.cli_history import handle_memory_history_command
@@ -117,32 +115,27 @@ def test_provider_recognizes_memory_and_declines_unrelated(
 ) -> None:
     provider = MemoryHistoryProvider(service=HistoryService())
     memory_section = path_section(fixture_repo / "sase/memory/note.md")
-    assert provider.recognizes(memory_section) in (True, False)
-    # Recognition depends on the beta flag: force it on for this assertion.
-    with override_flags(memory_history=True):
-        assert provider.recognizes(memory_section) is True
-        other = path_section(fixture_repo / "AGENTS.md")
-        # AGENTS.md is an instruction file, also recognized.
-        assert provider.recognizes(other) is True
-    with override_flags(memory_history=False):
-        assert provider.recognizes(memory_section) is False
+    assert provider.recognizes(memory_section) is True
+    other = path_section(fixture_repo / "AGENTS.md")
+    # AGENTS.md is an instruction file, also recognized.
+    assert provider.recognizes(other) is True
+    plain = fixture_repo / "unrelated.txt"
+    plain.write_text("nothing to do with memory\n", encoding="utf-8")
+    assert provider.recognizes(path_section(plain)) is False
 
 
 def test_provider_loads_version_and_compares(fixture_repo: Path) -> None:
-    with override_flags(memory_history=True):
-        service = HistoryService()
-        provider = MemoryHistoryProvider(service=service)
-        section = path_section(fixture_repo / "sase/memory/note.md")
-        timeline = provider.load_timeline(section)
-        assert (
-            len([r for r in timeline.get("versions", ()) if isinstance(r, dict)]) >= 2
-        )
-        first = provider.load_version(section, 1)
-        assert first is not None
-        assert "Original line." in first.plain_text
-        assert first.version_pin is not None and first.version_pin.ordinal == 1
-        comparison = provider.compare_versions(section, 1, 2)
-        assert comparison is None or isinstance(comparison, dict)
+    service = HistoryService()
+    provider = MemoryHistoryProvider(service=service)
+    section = path_section(fixture_repo / "sase/memory/note.md")
+    timeline = provider.load_timeline(section)
+    assert len([r for r in timeline.get("versions", ()) if isinstance(r, dict)]) >= 2
+    first = provider.load_version(section, 1)
+    assert first is not None
+    assert "Original line." in first.plain_text
+    assert first.version_pin is not None and first.version_pin.ordinal == 1
+    comparison = provider.compare_versions(section, 1, 2)
+    assert comparison is None or isinstance(comparison, dict)
 
 
 def test_history_marks_from_comparison_shape() -> None:
@@ -169,46 +162,20 @@ def test_build_history_document_for_selector(fixture_repo: Path) -> None:
     assert "Original line." in document.sections[0].plain_text
 
 
-def test_flag_off_keeps_text_default_and_rejects_pager(
-    fixture_repo: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    with override_flags(memory_history=False):
-        args = argparse.Namespace(
-            selectors=["note.md"],
-            all=False,
-            at=None,
-            diff=False,
-            format="pager",
-            limit=None,
-            project=None,
-            since=None,
-            scope="project",
-        )
-        with pytest.raises(SystemExit) as excinfo:
-            handle_memory_history_command(
-                args, console=Console(width=120), service=HistoryService()
-            )
-        assert excinfo.value.code == 2
-        assert "memory_history" in capsys.readouterr().err
-
-
-def test_entry_point_factory_respects_flag() -> None:
-    with override_flags(memory_history=False):
-        assert provider_mod.memory_history_provider_factory() is None
-    with override_flags(memory_history=True):
-        provider = provider_mod.memory_history_provider_factory()
-        assert provider is not None
+def test_entry_point_factory_builds_provider() -> None:
+    provider = provider_mod.memory_history_provider_factory()
+    assert provider is not None
+    assert provider.provider_key == "memory-history"
 
 
 def test_registry_discovers_memory_factory() -> None:
     clear_history_provider_factories()
     try:
         register_history_provider_factory(provider_mod.memory_history_provider_factory)
-        with override_flags(memory_history=True):
-            section = path_section(Path.cwd() / "sase/memory/tui.md")
-            # Factory either recognizes or declines without raising.
-            provider = history_provider_for_section(section)
-            assert provider is None or provider.provider_key == "memory-history"
+        section = path_section(Path.cwd() / "sase/memory/tui.md")
+        # Factory either recognizes or declines without raising.
+        provider = history_provider_for_section(section)
+        assert provider is None or provider.provider_key == "memory-history"
     finally:
         clear_history_provider_factories()
 
@@ -243,18 +210,17 @@ def test_build_history_document_honors_diff_view(fixture_repo: Path) -> None:
 def test_diff_view_renders_real_core_comparison(fixture_repo: Path) -> None:
     from sase.pager.history.diff import build_diff_body
 
-    with override_flags(memory_history=True):
-        service = HistoryService()
-        provider = MemoryHistoryProvider(service=service)
-        section = path_section(fixture_repo / "sase/memory/note.md")
-        comparison = provider.compare_versions(section, 1, 2)
-        assert isinstance(comparison, dict)
-        assert "unified_diff" in comparison
-        target = provider.load_version(section, 2)
-        assert target is not None
-        rendered = build_diff_body(comparison, target.plain_text)
-        assert "Added line." in rendered.text.plain
-        assert rendered.change_lines
+    service = HistoryService()
+    provider = MemoryHistoryProvider(service=service)
+    section = path_section(fixture_repo / "sase/memory/note.md")
+    comparison = provider.compare_versions(section, 1, 2)
+    assert isinstance(comparison, dict)
+    assert "unified_diff" in comparison
+    target = provider.load_version(section, 2)
+    assert target is not None
+    rendered = build_diff_body(comparison, target.plain_text)
+    assert "Added line." in rendered.text.plain
+    assert rendered.change_lines
 
 
 def test_cli_diff_flag_opens_diff_view(
@@ -272,21 +238,20 @@ def test_cli_diff_flag_opens_diff_view(
             captured["ran"] = True
 
     monkeypatch.setattr(pager_app, "SasePager", _FakePager)
-    with override_flags(memory_history=True):
-        args = argparse.Namespace(
-            selectors=["note.md"],
-            all=False,
-            at=None,
-            diff=True,
-            format="pager",
-            limit=None,
-            project=None,
-            since=None,
-            scope="project",
-        )
-        handle_memory_history_command(
-            args, console=Console(width=120), service=HistoryService()
-        )
+    args = argparse.Namespace(
+        selectors=["note.md"],
+        all=False,
+        at=None,
+        diff=True,
+        format="pager",
+        limit=None,
+        project=None,
+        since=None,
+        scope="project",
+    )
+    handle_memory_history_command(
+        args, console=Console(width=120), service=HistoryService()
+    )
     assert captured.get("ran") is True
     document = captured["document"]
     assert document is not None and len(document.sections) == 1  # type: ignore[union-attr]

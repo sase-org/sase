@@ -79,8 +79,6 @@ class MemoryPanelViewMixin(_MixinBase):
             self, node: MemoryRailNode | None
         ) -> RenderableType | None: ...
 
-        def _history_enabled_for_panel(self) -> bool: ...
-
     def _loading_header_text(self) -> Text:
         return Text("MEMORY  ·  loading…", style=f"bold {self._accent}")
 
@@ -146,7 +144,6 @@ class MemoryPanelViewMixin(_MixinBase):
             ),
             can_mutate=self._selected_is_writable(),
             unpublished=self._scope_is_unpublished(),
-            history_enabled=self._history_enabled_for_panel(),
         )
         footer_widget = self.query_one("#memory-panel-footer", Static)
         footer_widget.update(footer)

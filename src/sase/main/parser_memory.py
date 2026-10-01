@@ -221,9 +221,8 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=("json", "pager", "text"),
         default=None,
         help=(
-            "Output format (default: pager on a TTY when the "
-            "memory_history beta is on, else text). json emits the Rust "
-            "wire unchanged; text prints timelines and bodies."
+            "Output format (default: pager on a TTY, else text). json emits "
+            "the Rust wire unchanged; text prints timelines and bodies."
         ),
     )
     history_parser.add_argument(

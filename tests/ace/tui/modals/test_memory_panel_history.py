@@ -81,19 +81,10 @@ def test_memory_bindings_include_history_and_changes() -> None:
     assert "C" in descriptions
 
 
-def test_panel_footer_shows_history_only_when_enabled() -> None:
+def test_panel_footer_always_shows_history_with_notes() -> None:
     keymaps = MemoryPanelKeymaps()
-    hidden = build_panel_footer(
-        keymaps, has_notes=True, has_source_path=True, ring_size=1
-    )
-    assert "H history" not in hidden
-    assert "C changes" not in hidden
     shown = build_panel_footer(
-        keymaps,
-        has_notes=True,
-        has_source_path=True,
-        ring_size=1,
-        history_enabled=True,
+        keymaps, has_notes=True, has_source_path=True, ring_size=1
     )
     assert "H history" in shown
     assert "C changes" in shown
@@ -102,7 +93,6 @@ def test_panel_footer_shows_history_only_when_enabled() -> None:
         has_notes=False,
         has_source_path=False,
         ring_size=1,
-        history_enabled=True,
     )
     assert "history" not in empty
 
@@ -253,7 +243,6 @@ def test_history_row_loads_without_blocking() -> None:
         calls.append((scope_key, selector))
 
     pane._ensure_history_load = _fake_ensure  # type: ignore[method-assign]
-    pane._history_enabled_for_panel = lambda: True  # type: ignore[method-assign]
 
     from sase.ace.tui.memory_panel_catalog import MemoryRailNode
 
@@ -273,6 +262,58 @@ def test_history_row_loads_without_blocking() -> None:
     assert isinstance(rendered, Text)
     assert rendered.plain == "…"
     assert calls == [("sase", "sase/memory/gotchas.md")]
+
+
+def test_unavailable_history_load_does_not_respawn_workers() -> None:
+    """A settled-unavailable summary keeps the placeholder, no new worker."""
+    from types import SimpleNamespace
+
+    from textual.worker import WorkerState
+
+    from sase.ace.tui.modals.memory_pane import MemoryPane
+    from sase.ace.tui.memory_panel_catalog import MemoryRailNode
+
+    pane = MemoryPane.__new__(MemoryPane)
+    pane._ring = (scope_ref("sase", "sase", content_root="/tmp/from-ring"),)
+    pane._scope_index = 0
+    pane._loading = False
+    pane._accent = "#87D7FF"
+    pane._history_latest = {}
+    pane._history_failed = set()
+    pane._history_request = None
+    pane._history_worker = None
+    pane._history_service = None
+    pane._closed = True  # skip the post-completion re-render probe
+    scheduled: list[tuple] = []
+    pane.run_worker = lambda *a, **k: scheduled.append((a, k)) or None  # type: ignore[method-assign]
+
+    node = MemoryRailNode(note=memory_note("gotchas"), depth=0)
+    key = ("sase", "sase/memory/gotchas.md")
+
+    # First render schedules the load; completion with no summary marks it.
+    rendered = pane._history_renderable_for_node(node)
+    assert isinstance(rendered, Text) and rendered.plain == "…"
+    assert len(scheduled) == 1
+    event = SimpleNamespace(
+        state=WorkerState.SUCCESS,
+        worker=SimpleNamespace(result=(key[0], key[1], None)),
+    )
+    pane._on_history_state_changed(event)  # type: ignore[arg-type]
+    assert key in pane._history_failed
+
+    # Later renders keep the placeholder without scheduling again.
+    scheduled.clear()
+    rendered = pane._history_renderable_for_node(node)
+    assert isinstance(rendered, Text) and rendered.plain == "…"
+    assert scheduled == []
+
+    # A scope reload clears the miss so a repaired checkout retries.
+    pane._history_request = None
+    pane._history_worker = None
+    pane._history_failed.clear()
+    rendered = pane._history_renderable_for_node(node)
+    assert isinstance(rendered, Text) and rendered.plain == "…"
+    assert len(scheduled) == 1
 
 
 def test_config_schema_accepts_history_keymaps() -> None:

@@ -2,8 +2,8 @@
 
 A note card with the History row in dark and light themes at 120x40.
 History data is injected deterministically (no git/file I/O): the
-``memory_history`` beta is forced on, the timeline summary is pinned,
-and the mini sparkline reuses the pager ``render_sparkline`` cells.
+timeline summary is pinned, and the mini sparkline reuses the pager
+``render_sparkline`` cells.
 """
 
 from __future__ import annotations
@@ -90,12 +90,8 @@ def _setup(monkeypatch: pytest.MonkeyPatch) -> None:
         ),
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
-    # Force the beta on and keep history off the real git/service path:
-    # the summary below is injected directly into the pane cache.
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.memory_panel_history.history_enabled",
-        lambda: True,
-    )
+    # Keep history off the real git/service path: the summary below
+    # is injected directly into the pane cache.
 
 
 def _panel_pane(page: AcePage) -> MemoryPane | None:

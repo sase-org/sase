@@ -43,17 +43,6 @@ def _project_root_for_args(args: argparse.Namespace) -> Path:
     return Path.cwd()
 
 
-def _history_beta_enabled() -> bool:
-    """Return whether the memory-history pager beta is on."""
-    try:
-        from sase.feature_flags import current_flags
-        from sase.feature_flags.registry import FeatureFlag
-
-        return bool(current_flags().enabled(FeatureFlag.memory_history))
-    except Exception:
-        return False
-
-
 def handle_memory_history_command(
     args: argparse.Namespace,
     *,
@@ -69,18 +58,10 @@ def handle_memory_history_command(
         scope_arg = getattr(args, "scope", None) or "all"
         scopes = active_service.scopes_for(scope_arg, project_root)
         requested = getattr(args, "format", None)
-        beta_on = _history_beta_enabled()
         if requested is None:
-            output_format = "pager" if (beta_on and sys.stdout.isatty()) else "text"
+            output_format = "pager" if sys.stdout.isatty() else "text"
         else:
             output_format = requested
-        if output_format == "pager" and not beta_on:
-            print(
-                "sase memory history -f pager needs the memory_history beta "
-                "(disabled: ordinary pager behavior, text TTY default).",
-                file=sys.stderr,
-            )
-            sys.exit(2)
         if output_format not in ("json", "text", "pager"):
             print(
                 f"invalid --format {output_format!r}: expected json, pager, or text",

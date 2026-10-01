@@ -128,6 +128,16 @@ resolves memory from a named project instead of the one inferred from the curren
 directory; `read` accepts the same flag. No audit event is written and no agent identity
 is required.
 
+## Memory History
+
+Every committed version of every memory note, web, strand, and agent instruction file
+can be browsed in the pager — a time axis over the same files this guide describes. See
+[Memory History](memory_history.md): subjects and versions, the time band, keys (`(`,
+`)`, `=`, `@`, `[`, `]`), the glyph table, the `sase memory history` CLI (with
+`--format json` for agents), what is and is not tracked, and the performance budgets. In
+the Memory panel, `H` opens the selected note, web, or strand at now and `C` opens the
+cross-file changes feed. Viewing history never writes an audited read.
+
 ## Audited Reads
 
 Agents should read reference memory through `sase memory read` so the access is

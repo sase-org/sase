@@ -32,9 +32,11 @@ def test_version_pin_display() -> None:
 
 
 def test_registry_declines_without_factories() -> None:
+    # Launch unflagged memory history: a memory section is always recognized.
+    # The registry still declines sections no provider recognizes.
     clear_history_provider_factories()
     try:
-        assert history_provider_for_section(_section("sase/memory/tui.md")) is None
+        assert history_provider_for_section(_section("unrelated.txt")) is None
     finally:
         clear_history_provider_factories()
 

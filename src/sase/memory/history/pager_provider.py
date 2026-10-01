@@ -15,8 +15,6 @@ from pathlib import Path
 from typing import Any
 
 from sase.artifact_ref_target_models import ArtifactRefDocumentOwner
-from sase.feature_flags import current_flags
-from sase.feature_flags.registry import FeatureFlag
 from sase.memory.history.scopes import HistoryScopeError, git_repo_root
 from sase.memory.history.service import HistoryService
 from sase.memory.history.vocabulary import is_hidden_by_default, label_for
@@ -34,13 +32,6 @@ _INSTRUCTION_NAMES = (
 )
 _SHIM_SUFFIXES = (".md", ".yml", ".yaml", ".toml")
 _HOME_TEMPLATE_SUFFIX = ".tmpl"
-
-
-def _history_enabled() -> bool:
-    try:
-        return bool(current_flags().enabled(FeatureFlag.memory_history))
-    except Exception:
-        return False
 
 
 def _section_text_parts(section: PagerSection) -> tuple[str, ...]:
@@ -256,8 +247,6 @@ class MemoryHistoryProvider:
         return self._service
 
     def recognizes(self, section: PagerSection) -> bool:
-        if not _history_enabled():
-            return False
         try:
             return _recognizes_section(section)
         except Exception:
@@ -499,14 +488,12 @@ def _compare_against_empty(
         return None
 
 
-def memory_history_provider_factory() -> MemoryHistoryProvider | None:
-    """Entry-point factory: no registration when the beta is off."""
-    if not _history_enabled():
-        return None
+def memory_history_provider_factory() -> MemoryHistoryProvider:
+    """Entry-point factory for the memory history pager provider."""
     try:
         service = HistoryService()
     except Exception:
-        return None
+        return MemoryHistoryProvider(service=None)
     return MemoryHistoryProvider(service=service)
 
 

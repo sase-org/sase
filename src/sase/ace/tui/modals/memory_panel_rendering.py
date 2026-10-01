@@ -525,17 +525,16 @@ def build_panel_footer(
     has_strand_navigation: bool = False,
     can_mutate: bool = False,
     unpublished: bool = False,
-    history_enabled: bool = False,
 ) -> str:
     """Build the footer strip, showing only currently-conditional keymaps.
 
     Link and back keys appear when chips or a trail are present.
     Edit/delete appear when a writable note is selected; publish appears
-    when this scope is unpublished. History and changes appear only
-    while the ``memory_history`` beta is on.
+    when this scope is unpublished. History and changes appear whenever
+    notes are listed.
     """
     parts: list[str] = []
-    if history_enabled and has_notes:
+    if has_notes:
         parts.append(f"{key_display_name(keymaps.open_history)} history")
         parts.append(f"{key_display_name(keymaps.open_changes)} changes")
     if ring_size > 1:

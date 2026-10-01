@@ -47,6 +47,7 @@ class MemoryPaneLoadingMixin(_MixinBase):
         _closed: bool
         _current_note: str | None
         _expanded_webs: set[str]
+        _history_failed: set[tuple[str, str]]
         _history_worker: Worker[tuple[str, str, dict | None]] | None
         _host_visible: bool
         _launch_workspace: str | None
@@ -187,6 +188,7 @@ class MemoryPaneLoadingMixin(_MixinBase):
             if not isinstance(result, MemoryPanelInitialLoad):
                 return
             self._loading = False
+            self._history_failed.clear()
             self._ring = result.ring
             self._scope_index = result.scope_index
             self._apply_snapshot(
@@ -208,6 +210,7 @@ class MemoryPaneLoadingMixin(_MixinBase):
                 return
             if not self._ring or result.scope.key != self._ring[self._scope_index].key:
                 return  # Stale: the user cycled again before this load landed.
+            self._history_failed.clear()
             self._loading = False
             preferred = self._scope_selection_memory.get(result.scope.key)
             self._apply_snapshot(result, preferred_note=preferred)

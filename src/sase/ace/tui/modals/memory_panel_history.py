@@ -22,17 +22,6 @@ from typing import Any
 _HISTORY_SPARKLINE_WIDTH = 8
 
 
-def history_enabled() -> bool:
-    """Return whether the ``memory_history`` beta flag is on."""
-    try:
-        from sase.feature_flags import current_flags
-        from sase.feature_flags.registry import FeatureFlag
-
-        return bool(current_flags().enabled(FeatureFlag.memory_history))
-    except Exception:
-        return False
-
-
 def selector_for_node(node: Any) -> str | None:
     """Return the history selector for a rail *node*, if any.
 
@@ -325,7 +314,6 @@ def history_value_text(summary: dict[str, Any] | None, *, accent: str) -> Any:
 __all__ = [
     "fetch_history_summary",
     "history_cache_key",
-    "history_enabled",
     "history_scope_for_panel_ref",
     "history_scopes_for_ring",
     "history_value_text",

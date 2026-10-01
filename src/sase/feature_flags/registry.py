@@ -37,7 +37,6 @@ class FeatureFlag(StrEnum):
     refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
     typed_launch_units = "typed_launch_units"
-    memory_history = "memory_history"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -203,16 +202,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="beta",
         description="Beta gate for typed launch units, %if, and %proc.",
         bead="sase-s7",
-    ),
-    FeatureFlag.memory_history: FeatureFlagDefinition(
-        key=FeatureFlag.memory_history,
-        kind="beta",
-        description=(
-            "Memory and instruction pager sections receive history, TTY "
-            "history defaults to the pager, and later panel consumers may "
-            "expose history."
-        ),
-        bead="sase-1dv",
     ),
 }
 

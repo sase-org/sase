@@ -25,6 +25,7 @@ class MemoryPaneHistoryMixin(_MixinBase):
         _accent: str
         _closed: bool
         _history_cache: dict[tuple[str, str, str], dict]
+        _history_failed: set[tuple[str, str]]
         _history_latest: dict[tuple[str, str], dict]
         _history_open_worker: Worker[None] | None
         _history_request: tuple[str, str] | None
@@ -37,11 +38,6 @@ class MemoryPaneHistoryMixin(_MixinBase):
         def _render_note_card(self) -> None: ...
 
         def _selected_row(self) -> Any | None: ...
-
-    def _history_enabled_for_panel(self) -> bool:
-        from .memory_panel_history import history_enabled
-
-        return history_enabled()
 
     def _history_service_or_none(self) -> Any | None:
         if self._history_service is not None:
@@ -80,14 +76,12 @@ class MemoryPaneHistoryMixin(_MixinBase):
     def _history_renderable_for_node(self, node: Any | None) -> Any | None:
         """Return the History row value without blocking.
 
-        Returns ``None`` when the row is omitted (flag off, web rows, or
-        no selection). Otherwise returns the cached summary or a dim
+        Returns ``None`` when the row is omitted (web rows or no
+        selection). Otherwise returns the cached summary or a dim
         ``…`` placeholder and schedules the off-thread load.
         """
         from rich.text import Text
 
-        if not self._history_enabled_for_panel():
-            return None
         keyed = self._history_key_for_node(node)
         if keyed is None:
             return None
@@ -107,6 +101,8 @@ class MemoryPaneHistoryMixin(_MixinBase):
         if not self._ring or self._loading:
             return
         request = (scope_key, selector)
+        if request in self._history_failed:
+            return
         if self._history_request == request:
             if (
                 self._history_worker is not None
@@ -159,6 +155,12 @@ class MemoryPaneHistoryMixin(_MixinBase):
         if event.state != WorkerState.SUCCESS:
             if event.state == WorkerState.CANCELLED:
                 self._history_request = None
+            else:
+                # A worker error settles like an unavailable summary: keep
+                # the placeholder instead of respawning on every render.
+                if self._history_request is not None:
+                    self._history_failed.add(self._history_request)
+                self._history_request = None
             return
         result = event.worker.result
         if not isinstance(result, tuple) or len(result) != 3:
@@ -167,13 +169,11 @@ class MemoryPaneHistoryMixin(_MixinBase):
         self._history_request = None
         if summary is not None:
             self._history_latest[(scope_key, selector)] = summary
+            self._history_failed.discard((scope_key, selector))
         else:
-            # Fail-open: keep the placeholder unless a cached value exists.
-            if (scope_key, selector) in self._history_latest:
-                pass
-            else:
-                # Record nothing; the placeholder stays until the next paint.
-                pass
+            # Fail-open: keep the "…" placeholder, and remember the miss so
+            # renders stop respawning workers for it. Scope reloads retry.
+            self._history_failed.add((scope_key, selector))
         if self._closed or not self.is_mounted:
             return
         current = self._history_key_for_node(self._selected_row())
@@ -189,17 +189,10 @@ class MemoryPaneHistoryMixin(_MixinBase):
     def action_open_history(self) -> None:
         """Open the selected note, web, or strand in the pager at now."""
         from .memory_panel_history import (
-            history_enabled,
             history_scope_for_panel_ref,
             selector_for_node,
         )
 
-        if not history_enabled():
-            self.notify(
-                "memory history needs the memory_history beta",
-                severity="warning",
-            )
-            return
         node = self._selected_row()
         if node is None or not self._ring:
             return
@@ -293,14 +286,6 @@ class MemoryPaneHistoryMixin(_MixinBase):
 
     def action_open_changes(self) -> None:
         """Open the cross-file changes feed for the enabled scopes."""
-        from .memory_panel_history import history_enabled
-
-        if not history_enabled():
-            self.notify(
-                "memory history needs the memory_history beta",
-                severity="warning",
-            )
-            return
         if not self._ring:
             return
         ring = tuple(self._ring)
