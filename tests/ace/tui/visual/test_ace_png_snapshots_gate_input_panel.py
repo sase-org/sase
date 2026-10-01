@@ -7,6 +7,8 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.gate_input_panel import GateInputPanel
 from sase.ace.tui.modals.gate_input_panel_model import build_gate_input_request
+from sase.ace.tui.modals.gate_input_panel_note import GateNoteInput
+from sase.ace.tui.widgets.next_word_completion import NEXT_WORD_GHOST_HINT
 from sase.notification_gates.models import GateOption
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -221,3 +223,55 @@ async def test_gate_input_panel_note_png_snapshot(
         sentinel="Note",
         size=(120, 40),
     )
+
+
+async def test_gate_note_next_word_ghost_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    option = _panel_option(
+        "override",
+        "Override warning",
+        icon="⚠️",
+        feedback="required",
+    )
+    request = build_gate_input_request(
+        (option,),
+        ("override",),
+        branch_index=0,
+        branch_label="Override warning",
+        feedback_mode="required",
+    )
+    patch_startup_loaders(monkeypatch, agents=[])
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(
+            GateInputPanel(
+                request,
+                headline="Approve production deployment",
+                kind="custom",
+                request_id="deploy-production-42",
+            )
+        )
+        await page.expect_modal("GateInputPanel")
+        await wait_for_svg_contains(page, "Note")
+        note = page.app.screen.query_one("#gate-input-note", GateNoteInput)
+        note.text = "Can you help me"
+        note.cursor_location = (0, len(note.text))
+        await wait_for_visual_idle(page)
+        note.suggestion = " implement it"
+        note.show_next_word_hint(NEXT_WORD_GHOST_HINT)
+        await wait_for_svg_contains(page, "implement")
+        await wait_for_svg_contains(page, "word")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "gate_note_next_word_ghost_120x40",
+            title="ACE gate note next-word ghost",
+        )

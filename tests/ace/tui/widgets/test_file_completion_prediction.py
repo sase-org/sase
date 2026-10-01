@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.widgets import _file_completion_prediction as prediction_module
+from sase.ace.tui.widgets import _next_word_prediction_access as prediction_module
 from sase.ace.tui.widgets._file_completion_prediction import (
     FileCompletionPredictionMixin,
 )

@@ -1772,7 +1772,10 @@ under every option that declared the id. An incompatible duplicate blocks submit
 panel shows the conflict. Confirming the panel always submits; cancelling never does,
 and the next open of the same selection restores the draft. Every freeform box in the
 panel is a vim editor (insert and normal modes). Tab and Shift+Tab walk the fields;
-Ctrl+S submits; a `path` field also accepts Ctrl+T to cycle filesystem completions.
+Ctrl+S submits; a `path` field also accepts Ctrl+T to cycle filesystem completions. The
+reviewer note editor also offers next-word autosuggest from typed prompt history:
+`Ctrl+T` takes one word, `Ctrl+L` takes all, and a mid-sentence guess appears as a
+border peek rather than inline ghost text.
 
 **Feedback is one rule everywhere.** The reviewer's free-text note is injected as
 `input.feedback` for a selected option **iff that option's effective `input_schema`

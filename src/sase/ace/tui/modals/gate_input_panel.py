@@ -17,7 +17,6 @@ from sase.ace.tui.keymaps import (
     key_display_name,
 )
 from sase.ace.tui.widgets.typed_input_form import TypedInputForm
-from sase.ace.tui.widgets.vim_mode_routing import VimModeRoutingMixin
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.models import InputType, XPromptValidationError
 
@@ -27,6 +26,7 @@ from .gate_input_panel_model import (
     GateInputRequest,
     collect_option_inputs,
 )
+from .gate_input_panel_note import GateNoteInput
 from .gate_input_panel_sections import GateInputSection
 
 
@@ -39,15 +39,7 @@ class GateInputPanelResult:
     draft: GateInputDraft
 
 
-class _NoteInput(VimModeRoutingMixin, VimTextArea):
-    """Multi-line vim editor for the reviewer's note."""
-
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        kwargs.setdefault("soft_wrap", True)
-        kwargs.setdefault("show_line_numbers", False)
-        kwargs.setdefault("tab_behavior", "focus")
-        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
-        self.show_line_numbers = False
+_NoteInput = GateNoteInput
 
 
 class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
@@ -179,6 +171,35 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         self._refresh_submit_state()
+        try:
+            note = self.query_one("#gate-input-note", GateNoteInput)
+        except Exception:
+            return
+        try:
+            changed = getattr(event, "text_area", None)
+        except Exception:
+            changed = None
+        if changed is not None and changed is not note:
+            try:
+                control = getattr(event, "control", None)
+            except Exception:
+                control = None
+            if control is not note:
+                return
+        note.validate_next_word_surfaces()
+
+    def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
+        try:
+            note = self.query_one("#gate-input-note", GateNoteInput)
+        except Exception:
+            return
+        try:
+            moved = getattr(event, "text_area", None)
+        except Exception:
+            moved = None
+        if moved is not None and moved is not note:
+            return
+        note.validate_next_word_surfaces()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "gate-input-submit":
