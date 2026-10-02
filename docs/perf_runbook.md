@@ -897,6 +897,35 @@ generation. Set `SASE_TUI_TELEMETRY_MAX_BYTES` to another per-file byte limit, o
 for no size rotation. This bound is separate from the opt-in trace files under
 `~/.sase/perf/`.
 
+### GC pause and memory heartbeat rows
+
+The GC telemetry service (`src/sase/ace/tui/util/gc_telemetry.py`, installed from
+`_start_post_first_paint_services`) adds two more row kinds to `tui_stalls.jsonl`:
+
+- `tui_gc_pause` — one row per gen-2 collection and per collection ≥ 50 ms, with
+  `generation`, `duration_s`, `thread`, `trigger` (`"automatic"` unless the collection
+  ran under `gc_trigger(...)`, e.g. an intentional idle collection), `collected` /
+  `uncollectable`, and `app_instance_id`. Rows are rate-capped at 60/min;
+  `suppressed_count` reports pauses folded into a row since the previous admitted one.
+  Heartbeat totals stay exact either way.
+- `tui_memory_heartbeat` — every 5 minutes (plus once ~15 s after startup), with
+  `rss_bytes` / `vmswap_bytes` (from `/proc/self/status`, `null` off Linux),
+  `major_faults` and `major_faults_delta` (from `/proc/self/stat`), `gc_count` /
+  `gc_threshold` / `gc_freeze_count`, exact per-generation `count` / `total_s` / `max_s`
+  for the window they cover (`gc_generations`), and instance `uptime_s`.
+
+Every row carries `app_instance_id` (also on `tui_startup` and `tui_agent_load` rows),
+so a busy hour spanning restarts splits cleanly per instance. Filter one instance's GC
+share with:
+
+```bash
+jq -c 'select(.event == "tui_gc_pause" and .app_instance_id == "<id>")
+  | {generation, duration_s, trigger, thread}' ~/.sase/logs/tui_stalls.jsonl
+```
+
+Disable with `SASE_TUI_GC_TELEMETRY_DISABLE=1`. The service never auto-installs under
+the `sase.ace.testing` harness.
+
 ## Startup telemetry capture
 
 `~/.sase/logs/tui_startup.jsonl` (`sase/logs/tui_telemetry.py:log_tui_startup`) gets one

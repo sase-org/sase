@@ -236,6 +236,13 @@ def init_runtime_state(
     self._sdd_beads_dir = None
     self._stall_watchdog = None
     self._stall_watchdog_suspend_signals_wired = False
+    from ..util.gc_telemetry import new_app_instance_id
+
+    # One short random ID per app instance (a re-exec is a new instance).
+    # Carried on pause, heartbeat, startup, and agent-load records so one
+    # busy hour with several restarts stays attributable per instance.
+    self._app_instance_id = new_app_instance_id()
+    self._gc_telemetry = None
 
     # Phase 7 event-driven auto-refresh state.  When the inotify
     # watcher is active, ``_on_artifact_change`` flips the dirty

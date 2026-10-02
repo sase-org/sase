@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..util.gc_telemetry import GCTelemetry
 
 log = logging.getLogger(__name__)
 
@@ -13,6 +16,7 @@ class StartupMountMixin:
     """Mixin for ``on_mount`` and mount-adjacent UI state helpers."""
 
     _stall_watchdog: Any
+    _gc_telemetry: GCTelemetry | None
 
     def on_mount(self: Any) -> None:
         """Set up the app synchronously and defer slow reads until first paint."""
@@ -171,6 +175,15 @@ class StartupMountMixin:
             start_tui_heap_sampler(self)
         except Exception:
             log.exception("Failed to start TUI heap sampler")
+
+        try:
+            # Function-local import so the ace testing harness can replace
+            # install with a no-op (mirroring the stall watchdog patch).
+            from ..util.gc_telemetry import install_gc_telemetry
+
+            self._gc_telemetry = install_gc_telemetry(app=self)
+        except Exception:
+            log.exception("Failed to start GC telemetry")
 
         if self.refresh_interval > 0:
             self._countdown_remaining = self.refresh_interval

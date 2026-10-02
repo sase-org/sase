@@ -12,6 +12,7 @@ from sase.ace.tui.actions.lifecycle import NotificationStartupState
 from sase.ace.tui.actions import artifacts as _artifacts_actions
 from sase.ace.tui.modals import plugins_browser_pane as _plugins_browser_pane
 from sase.ace.tui.modals import project_inventory_panes as _project_inventory_panes
+from sase.ace.tui.util import gc_telemetry as _gc_telemetry
 from sase.ace.tui.util import stall_watchdog as _stall_watchdog
 from sase.repo_inventory import RepoInventory
 from sase.workspace_provider.inventory import WorkspaceInventory
@@ -37,6 +38,10 @@ _ORIGINAL_SCHEDULE_USAGE_REFRESH_FALLBACK = AceApp._schedule_usage_refresh_fallb
 _ORIGINAL_LOAD_AGENTS_FROM_DISK = _agent_loading.load_agents_from_disk_with_state
 _ORIGINAL_READ_NOTIFICATION_SNAPSHOT = _notifications.read_notification_snapshot
 _ORIGINAL_START_STALL_WATCHDOG = _stall_watchdog.start_event_loop_stall_watchdog
+# A pytest process hosts many app instances: installing the process-global
+# gc.callbacks recorder (or a raised threshold2 / gc.freeze() from the later
+# gc-policy phase) there would change GC behavior for the whole suite.
+_ORIGINAL_INSTALL_GC_TELEMETRY = _gc_telemetry.install_gc_telemetry
 _ORIGINAL_LOAD_PLUGINS_CATALOG = _plugins_browser_pane._load_plugins_catalog
 _ORIGINAL_COLLECT_REPO_INVENTORY = _project_inventory_panes.collect_repo_inventory
 _ORIGINAL_COLLECT_WORKSPACE_INVENTORY = (
@@ -328,6 +333,14 @@ def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
             patch.object(
                 _stall_watchdog,
                 "start_event_loop_stall_watchdog",
+                _noop_startup_service,
+            )
+        )
+    if _gc_telemetry.install_gc_telemetry is _ORIGINAL_INSTALL_GC_TELEMETRY:
+        stack.enter_context(
+            patch.object(
+                _gc_telemetry,
+                "install_gc_telemetry",
                 _noop_startup_service,
             )
         )

@@ -459,6 +459,7 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
             "timestamp": datetime.now(UTC).isoformat(),
             "event": "tui_agent_load_slow",
             "pid": os.getpid(),
+            "app_instance_id": getattr(self, "_app_instance_id", None),
             "source": source,
             "load_kind": load_kind,
             "threshold_seconds": threshold_seconds,

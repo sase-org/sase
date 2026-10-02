@@ -400,6 +400,11 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1eu(GridSpec)' \
         --epic-symbol 'sase-1eu(geometry)' \
         --epic-symbol 'sase-1eu(main_pane)' \
+        --epic-symbol 'sase-1ez.2(recent_collections)' \
+        --epic-symbol 'sase-1ez.2(register_heartbeat_provider)' \
+        --epic-symbol 'sase-1ez.2(unregister_heartbeat_provider)' \
+        --epic-symbol 'sase-1ez.4(gc_trigger)' \
+        --epic-symbol 'sase-1ez.4(latest_rss_bytes)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

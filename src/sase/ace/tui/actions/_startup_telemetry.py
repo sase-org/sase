@@ -37,6 +37,21 @@ from ..util.pump_tasks import spawn_pump_free_task
 log = logging.getLogger(__name__)
 
 
+def _cheap_sase_version() -> str | None:
+    """Return the imported release string, or ``None`` when unavailable.
+
+    A git-derived source revision would need a subprocess, which is never
+    cheap on the startup path, so the release string is what identifies the
+    imported snapshot here.
+    """
+    try:
+        from sase import __version__
+
+        return __version__ if isinstance(__version__, str) else None
+    except Exception:
+        return None
+
+
 class StartupTelemetryMixin:
     """Mixin recording one durable JSONL startup-timing record per session."""
 
@@ -140,12 +155,15 @@ class StartupTelemetryMixin:
                 return None
             return round(end - start, 6)
 
+        from ..util.gc_telemetry import app_instance_id
         from ..util.startup_clock import pre_mount_split_fields
 
         record = {
             "timestamp": datetime.now(UTC).isoformat(),
             "event": "tui_startup",
             "pid": os.getpid(),
+            "app_instance_id": app_instance_id(self),
+            "sase_version": _cheap_sase_version(),
             "initial_tab": self._startup_initial_tab,
             "source": getattr(self, "_agents_refresh_active_source", "unknown"),
             "tier": getattr(load_state, "tier", None),

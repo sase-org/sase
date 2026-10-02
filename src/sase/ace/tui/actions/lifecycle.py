@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ...patch import Patch
     from ..modals.notification_modal_tags import NotificationTagTab
     from ..quit_impact import TuiExitImpact
+    from ..util.gc_telemetry import GCTelemetry
     from textual.timer import Timer
 
 # Type alias for tab names (used in type hints)
@@ -38,6 +39,7 @@ class LifecycleMixin:
     _last_unread_ids: set[str]
     _delivered_notification_activity_cursors: set[NotificationActivityCursor]
     _startup_deferred_fallback_timer: Timer | None
+    _gc_telemetry: GCTelemetry | None
 
     def on_unmount(self) -> None:
         """Clean up resources when Textual tears the app down."""
@@ -47,6 +49,7 @@ class LifecycleMixin:
 
         set_startup_window(False)
         stop_tui_heap_sampler(self)
+        self._stop_gc_telemetry()
         fallback_timer = getattr(self, "_startup_deferred_fallback_timer", None)
         self._startup_deferred_fallback_timer = None
         if fallback_timer is not None:
@@ -456,6 +459,7 @@ class LifecycleMixin:
         try:
             cleanup(self._save_current_selection)
             cleanup(self._stop_tui_stall_watchdog)
+            cleanup(self._stop_gc_telemetry)
             cleanup(stop_artifact_watcher)
             cleanup(cancel_notification_deadlines)
             cleanup(cancel_async_refresh_tasks)
@@ -479,5 +483,18 @@ class LifecycleMixin:
         self._stall_watchdog = None
         try:
             watchdog.stop()
+        except Exception:
+            pass
+
+    def _stop_gc_telemetry(self) -> None:
+        """Stop GC telemetry, restoring ``gc.callbacks`` as it was found."""
+        handle = getattr(self, "_gc_telemetry", None)
+        if handle is None:
+            return
+        self._gc_telemetry = None
+        try:
+            from ..util.gc_telemetry import uninstall_gc_telemetry
+
+            uninstall_gc_telemetry(handle)
         except Exception:
             pass

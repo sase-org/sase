@@ -19,6 +19,12 @@ from pathlib import Path
 from collections.abc import Iterator
 from typing import Any
 
+#: Set just before the ``os.execv`` TUI restart with ``time.monotonic_ns()``.
+#: ``CLOCK_MONOTONIC`` survives exec, so the stamp is directly comparable to
+#: the new process's clock. Consumed once and cleared so children of the new
+#: process never inherit a stale anchor.
+EXEC_MONO_NS_ENV = "SASE_TUI_EXEC_MONO_NS"
+
 _process_start_mono: float | None = None
 _cli_ready_mono: float | None = None
 _app_imported_mono: float | None = None
@@ -28,9 +34,26 @@ _compose_start_mono: float | None = None
 _compose_end_mono: float | None = None
 
 
+def _consume_exec_anchor() -> float | None:
+    """Return the pre-exec monotonic anchor, clearing it from the environment."""
+    raw = os.environ.pop(EXEC_MONO_NS_ENV, None)
+    if not raw:
+        return None
+    try:
+        anchor = int(raw) / 1_000_000_000
+    except ValueError:
+        return None
+    if anchor <= 0 or anchor > time.monotonic():
+        return None
+    return anchor
+
+
 def _monotonic_at_os_process_start() -> float:
     """Best-effort monotonic timestamp of OS process start (Linux)."""
     now = time.monotonic()
+    anchor = _consume_exec_anchor()
+    if anchor is not None:
+        return anchor
     try:
         ticks = os.sysconf("SC_CLK_TCK")
         stat = Path("/proc/self/stat").read_text(encoding="utf-8")

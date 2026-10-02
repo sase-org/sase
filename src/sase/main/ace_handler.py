@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, cast
 
@@ -111,6 +112,12 @@ def _exec_ace_restart_if_requested(exit_action: "AceExitAction | None") -> None:
     )
     exec_args = [sys.executable, "-m", "sase", *argv]
     try:
+        from sase.ace.tui.util.startup_clock import EXEC_MONO_NS_ENV
+
+        # CLOCK_MONOTONIC survives exec: the new process reads this back as
+        # its interpreter-start anchor instead of deriving a bogus one from
+        # /proc (whose starttime predates the exec by the old process age).
+        os.environ[EXEC_MONO_NS_ENV] = str(time.monotonic_ns())
         os.execv(sys.executable, exec_args)
     except OSError as exc:
         print(f"sase tui restart failed: {exc}", file=sys.stderr)
