@@ -57,7 +57,7 @@ def selector_for_node(node: Any) -> str | None:
         return None
 
 
-def history_scope_for_panel_ref(ref: Any, service: Any) -> Any | None:
+def _history_scope_for_panel_ref(ref: Any, service: Any) -> Any | None:
     """Return the history scope for a panel scope-ring entry.
 
     Project entries build from ``content_root``; the home entry uses the
@@ -84,7 +84,7 @@ def history_scopes_for_ring(ring: tuple[Any, ...], service: Any) -> list[Any]:
     scopes: list[Any] = []
     seen: set[str] = set()
     for ref in ring:
-        scope = history_scope_for_panel_ref(ref, service)
+        scope = _history_scope_for_panel_ref(ref, service)
         if scope is None:
             continue
         key = str(getattr(scope, "scope_key", "") or "")
@@ -110,20 +110,18 @@ def _core_selector_for(raw_selector: str, scope: Any, service: Any = None) -> st
 def fetch_history_summary(
     service: Any, scope: Any, raw_selector: str
 ) -> dict[str, Any] | None:
-    """Sync one scope and return the panel summary for *raw_selector*.
+    """Return the panel summary for *raw_selector* via ``timeline()``.
+
+    Never calls ``sync()`` first: core queries sync internally, and
+    the app-scoped history service memoizes timelines, so the row
+    never pays a redundant sync per selection.
 
     Fail-open: any error returns ``None`` so the card keeps its
     placeholder instead of blocking or crashing the worker.
     """
     try:
         core_selector = _core_selector_for(raw_selector, scope)
-        try:
-            sync = service.sync(scope)
-        except Exception:
-            sync = {}
         tip = ""
-        if isinstance(sync, dict):
-            tip = str(sync.get("tip", "") or sync.get("head", "") or "")
         try:
             timeline = service.timeline(scope, core_selector, include_hidden=True)
         except Exception:
@@ -184,7 +182,7 @@ def _format_age(now_epoch: int, then_epoch: int) -> str:
 def _sparkline_renderable(volumes: list[int], classes: list[str]) -> Any:
     """Render the mini sparkline without a current highlight."""
     try:
-        from sase.pager._time_band import render_sparkline
+        from sase.pager.history_kit import render_sparkline
 
         return render_sparkline(volumes, classes, None, _HISTORY_SPARKLINE_WIDTH)
     except Exception:
@@ -314,7 +312,6 @@ def history_value_text(summary: dict[str, Any] | None, *, accent: str) -> Any:
 __all__ = [
     "fetch_history_summary",
     "history_cache_key",
-    "history_scope_for_panel_ref",
     "history_scopes_for_ring",
     "history_value_text",
     "selector_for_node",

@@ -256,6 +256,12 @@ class StartupMountMixin:
             self._schedule_feature_flag_cleanup_notice()
         except Exception:
             log.debug("Failed to schedule feature-flag cleanup notice", exc_info=True)
+        try:
+            from sase.ace.tui.memory_history import schedule_history_warmup
+
+            schedule_history_warmup(self)
+        except Exception:
+            log.debug("Failed to schedule memory history warm-up", exc_info=True)
         release_deferred = getattr(self, "_release_startup_deferred_loads", None)
         if callable(release_deferred) and getattr(
             self, "_post_mount_background_loads_started", False

@@ -78,6 +78,10 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
 
         def _filter_input(self) -> Any: ...
 
+        def _history_invalidate_scope_key(
+            self, scope_key: str, *, clear_failures: bool = False
+        ) -> None: ...
+
         def _mark_scope_unpublished(self, scope_key: str | None = None) -> None: ...
 
         def _selected_row(self) -> MemoryRailNode | None: ...
@@ -398,6 +402,7 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
             return
         self._refresh_prompt_memory_catalogs()
         self._mark_scope_unpublished(payload.scope_key)
+        self._history_invalidate_scope_key(payload.scope_key)
         if not self.is_mounted or self._closed or payload.snapshot is None:
             return
         if (

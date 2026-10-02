@@ -44,6 +44,10 @@ class MemoryPanelPublishActionsMixin(_MixinBase):
 
         def _current_scope(self) -> MemoryScopeRef | None: ...
 
+        def _history_invalidate_scope_key(
+            self, scope_key: str, *, clear_failures: bool = False
+        ) -> None: ...
+
         def _refresh_prompt_memory_catalogs(self) -> None: ...
 
         def _start_scope_load(self) -> None: ...
@@ -153,6 +157,7 @@ class MemoryPanelPublishActionsMixin(_MixinBase):
             return
         self._refresh_prompt_memory_catalogs()
         self._clear_scope_unpublished(payload.scope_key)
+        self._history_invalidate_scope_key(payload.scope_key)
         if (
             self.is_mounted
             and not self._closed

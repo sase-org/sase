@@ -21,7 +21,7 @@ from sase.memory.history._pager_provider_common import (
     wire_subject_id,
 )
 from sase.memory.history.scopes import HistoryScopeError, git_repo_root
-from sase.memory.history.service import HistoryService
+from sase.memory.history.service import HistoryService, shared_history_service
 from sase.pager.document import PagerSection
 from sase.pager.history.models import VersionPin, committed_pin_for_ordinal
 from sase.pager.syntax_policy import classify_source
@@ -202,7 +202,7 @@ class _MemoryHistoryProvider:
 
     def _require_service(self) -> HistoryService:
         if self._service is None:
-            self._service = HistoryService()
+            self._service = shared_history_service()
         return self._service
 
     def recognizes(self, section: PagerSection) -> bool:
@@ -442,9 +442,13 @@ def _compare_against_empty(
 
 
 def memory_history_provider_factory() -> _MemoryHistoryProvider:
-    """Entry-point factory for the memory history pager provider."""
+    """Entry-point factory for the memory history pager provider.
+
+    Providers share the process-wide :func:`shared_history_service`
+    instead of building one service per lookup.
+    """
     try:
-        service = HistoryService()
+        service = shared_history_service()
     except Exception:
         return _MemoryHistoryProvider(service=None)
     return _MemoryHistoryProvider(service=service)

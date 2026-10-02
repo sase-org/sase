@@ -227,8 +227,31 @@ class HistoryService:
         return matches[0]
 
 
+_SHARED_LOCK = threading.Lock()
+_SHARED_SERVICE: HistoryService | None = None
+
+
+def shared_history_service() -> HistoryService:
+    """Return the process-wide shared :class:`HistoryService`, building it lazily.
+
+    Thread-safe: concurrent callers share the one built instance. A
+    construction failure is never cached, so the next call retries.
+    The pager provider factory and ACE both use this instead of
+    building a service per lookup (epic design
+    ``plan:202610/memory_history_tui.md`` §5.2).
+    """
+    global _SHARED_SERVICE
+    with _SHARED_LOCK:
+        if _SHARED_SERVICE is not None:
+            return _SHARED_SERVICE
+        service = HistoryService()
+        _SHARED_SERVICE = service
+        return service
+
+
 __all__ = [
     "HistoryAmbiguityError",
     "HistoryNotFoundError",
     "HistoryService",
+    "shared_history_service",
 ]

@@ -27,6 +27,9 @@ _ALLOWLIST = {
     TUI_ROOT / "copy_targets.py",
     # Parses the ``ref:<kind>`` pane-id encoding for artifact-ref rendering.
     TUI_ROOT / "actions" / "clipboard" / "_artifact_reference_resolution.py",
+    # Parses the ``ref:`` encoding of git HEAD files for stat-only
+    # history change tokens, not pane dispatch.
+    TUI_ROOT / "memory_history.py",
 }
 
 _DISPATCH_RE = re.compile(

@@ -77,6 +77,10 @@ class MemoryPaneLoadingMixin(_MixinBase):
 
         def _filter_input(self) -> Any: ...
 
+        def _history_invalidate_scope_key(
+            self, scope_key: str, *, clear_failures: bool = False
+        ) -> None: ...
+
         def _mark_scope_unpublished(self, scope_key: str | None = None) -> None: ...
 
         def _on_history_state_changed(self, event: Worker.StateChanged) -> None: ...
@@ -282,6 +286,10 @@ class MemoryPaneLoadingMixin(_MixinBase):
                 self._current_note
             )
         self._mark_scope_unpublished()
+        # Returning from $EDITOR may have rewritten the note or the git
+        # state behind it: invalidate memoized history before the reload
+        # refetches the visible subject.
+        self._history_invalidate_scope_key(self._ring[self._scope_index].key)
         self._start_scope_load()
 
     def _ensure_strand_read_for_current_selection(self) -> None:

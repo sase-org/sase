@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.cells import cell_len
 
 from sase.memory.history.timeline_picker import build_picker_rows
-from sase.pager._timeline_picker import _format_picker_row, _picker_columns
+from sase.pager._timeline_picker_rows import format_picker_row, picker_columns
 from sase.pager.history.diff import diff_endpoints
 from sase.pager.history.timeline import filter_rows, picker_window, visible_rows
 
@@ -105,10 +105,10 @@ def _picker_rows() -> tuple[dict[str, object], ...]:
 def test_picker_columns_shed_sha_then_by_then_age() -> None:
     rows = _picker_rows()
 
-    wide = _picker_columns(rows, 160)
+    wide = picker_columns(rows, 160)
     assert (wide.show_sha, wide.show_by, wide.show_age) == (True, True, True)
 
-    shedding = [_picker_columns(rows, width) for width in (160, 110, 80, 60, 50)]
+    shedding = [picker_columns(rows, width) for width in (160, 110, 80, 60, 50)]
     # Shedding never re-adds a dropped column as width shrinks.
     for earlier, later in zip(shedding, shedding[1:], strict=False):
         assert int(later.show_sha) <= int(earlier.show_sha)
@@ -124,10 +124,10 @@ def test_picker_rows_never_exceed_the_list_width() -> None:
     rows = _picker_rows()
 
     for width in (50, 60, 80, 110, 160):
-        columns = _picker_columns(rows, width)
+        columns = picker_columns(rows, width)
         for row in rows:
             for is_cursor in (False, True):
-                line = _format_picker_row(
+                line = format_picker_row(
                     row,
                     columns,
                     is_open=True,
@@ -139,28 +139,28 @@ def test_picker_rows_never_exceed_the_list_width() -> None:
 
 def test_picker_row_marks_open_cursor_and_now_alias() -> None:
     rows = _picker_rows()
-    columns = _picker_columns(rows, 160)
+    columns = picker_columns(rows, 160)
     committed = rows[1]
     assert committed["is_now_alias"] is True
 
-    open_line = _format_picker_row(
+    open_line = format_picker_row(
         committed, columns, is_open=True, is_cursor=False, open_style="magenta"
     )
     assert open_line.plain.startswith("● ")
     assert "≡ now" in open_line.plain
 
-    both = _format_picker_row(
+    both = format_picker_row(
         committed, columns, is_open=True, is_cursor=True, open_style="magenta"
     )
     assert both.plain.startswith("●▸")
 
-    plain = _format_picker_row(
+    plain = format_picker_row(
         rows[2], columns, is_open=False, is_cursor=False, open_style="magenta"
     )
     assert plain.plain.startswith("  ")
     assert "≡ now" not in plain.plain
 
-    now_line = _format_picker_row(
+    now_line = format_picker_row(
         rows[0], columns, is_open=True, is_cursor=False, open_style="magenta"
     )
     assert "uncommitted · not durable until committed" in now_line.plain
@@ -168,10 +168,10 @@ def test_picker_row_marks_open_cursor_and_now_alias() -> None:
 
 def test_picker_row_labels_align_right() -> None:
     rows = _picker_rows()
-    columns = _picker_columns(rows, 160)
+    columns = picker_columns(rows, 160)
 
     labels = [
-        _format_picker_row(row, columns, is_open=False, is_cursor=False).plain[
+        format_picker_row(row, columns, is_open=False, is_cursor=False).plain[
             2 : 2 + columns.label_w
         ]
         for row in rows

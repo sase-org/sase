@@ -61,6 +61,10 @@ class MemoryPanelNavigationMixin(_MixinBase):
 
         def _filter_input(self) -> Input: ...
 
+        def _history_invalidate_scope_key(
+            self, scope_key: str, *, clear_failures: bool = False
+        ) -> None: ...
+
         def _note_list(self) -> OptionList: ...
 
         def _refresh_expanded_rows(
@@ -214,7 +218,11 @@ class MemoryPanelNavigationMixin(_MixinBase):
     def action_refresh(self) -> None:
         if self._loading or not self._ring:
             return
-        invalidate_memory_scope(self._ring[self._scope_index].key)
+        scope_key = self._ring[self._scope_index].key
+        invalidate_memory_scope(scope_key)
+        # `r` also retries settled-unavailable History rows: clear the
+        # failure, forget memoized scopes, invalidate, and refetch.
+        self._history_invalidate_scope_key(scope_key, clear_failures=True)
         self._start_scope_load()
 
 

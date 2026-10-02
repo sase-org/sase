@@ -10,7 +10,7 @@ from sase.ace.tui.keymaps.bindings import build_memory_bindings, memory_help_bin
 from sase.ace.tui.modals.memory_panel_history import (
     fetch_history_summary,
     history_cache_key,
-    history_scope_for_panel_ref,
+    _history_scope_for_panel_ref,
     history_value_text,
     selector_for_node,
 )
@@ -195,7 +195,7 @@ def test_history_scope_uses_content_root_never_cwd(monkeypatch) -> None:
 
     ref = scope_ref("sase", "sase", content_root="/tmp/from-ring")
     monkeypatch.chdir("/tmp")
-    result = history_scope_for_panel_ref(ref, _Service())
+    result = _history_scope_for_panel_ref(ref, _Service())
     assert result is not None
     assert seen["root"] == "/tmp/from-ring"
 
@@ -234,9 +234,9 @@ def test_history_row_loads_without_blocking() -> None:
     pane._loading = False
     pane._accent = "#87D7FF"
     pane._history_latest = {}
+    pane._history_failed = set()
     pane._history_request = None
     pane._history_worker = None
-    pane._history_service = None
     calls: list[tuple[str, str]] = []
 
     def _fake_ensure(scope_key: str, selector: str) -> None:
@@ -265,7 +265,7 @@ def test_history_row_loads_without_blocking() -> None:
 
 
 def test_unavailable_history_load_does_not_respawn_workers() -> None:
-    """A settled-unavailable summary keeps the placeholder, no new worker."""
+    """A settled-unavailable summary keeps the retry row, no new worker."""
     from types import SimpleNamespace
 
     from textual.worker import WorkerState
@@ -282,7 +282,6 @@ def test_unavailable_history_load_does_not_respawn_workers() -> None:
     pane._history_failed = set()
     pane._history_request = None
     pane._history_worker = None
-    pane._history_service = None
     pane._closed = True  # skip the post-completion re-render probe
     scheduled: list[tuple] = []
     pane.run_worker = lambda *a, **k: scheduled.append((a, k)) or None  # type: ignore[method-assign]
@@ -301,10 +300,11 @@ def test_unavailable_history_load_does_not_respawn_workers() -> None:
     pane._on_history_state_changed(event)  # type: ignore[arg-type]
     assert key in pane._history_failed
 
-    # Later renders keep the placeholder without scheduling again.
+    # Later renders keep the retry row without scheduling again.
     scheduled.clear()
     rendered = pane._history_renderable_for_node(node)
-    assert isinstance(rendered, Text) and rendered.plain == "…"
+    assert isinstance(rendered, Text)
+    assert rendered.plain == "history unavailable · r retry"
     assert scheduled == []
 
     # A scope reload clears the miss so a repaired checkout retries.
@@ -395,12 +395,13 @@ def _prepare_history_panel(monkeypatch) -> tuple:
 
     fake_scope = SimpleNamespace(scope_key="project:sase", repo_root="/tmp")
     service = SimpleNamespace()
-    monkeypatch.setattr(panel, "_history_service_or_none", lambda: service)
+    history = SimpleNamespace(service=service, scope_for_ref=lambda _ref: fake_scope)
+    monkeypatch.setattr(panel, "_ace_history", lambda: history)
 
     import sase.ace.tui.modals.memory_panel_history as history_module
 
     monkeypatch.setattr(
-        history_module, "history_scope_for_panel_ref", lambda _ref, _svc: fake_scope
+        history_module, "_history_scope_for_panel_ref", lambda _ref, _svc: fake_scope
     )
     monkeypatch.setattr(
         history_module,

@@ -191,14 +191,15 @@ class MemoryPane(
         self._pending_delete_strand: tuple[str, str] | None = None
         self._history_cache: dict[tuple[str, str, str], dict] = {}
         self._history_latest: dict[tuple[str, str], dict] = {}
-        # Keys whose summary load settled unavailable. Renders keep the
-        # "…" placeholder without respawning workers; scope reloads clear
-        # the set so a repaired checkout retries.
+        # Keys whose summary load settled unavailable. Renders show the
+        # retry row without respawning workers; scope reloads and `r`
+        # clear the set so a repaired checkout retries.
         self._history_failed: set[tuple[str, str]] = set()
         self._history_worker: Worker[tuple[str, str, dict | None]] | None = None
         self._history_request: tuple[str, str] | None = None
-        self._history_service: Any | None = None
         self._history_open_worker: Worker[None] | None = None
+        self._history_probe_worker: Worker[tuple[str, str, bool]] | None = None
+        self._history_poll_timer: Any | None = None
 
     def on_key(self, event: events.Key) -> None:
         from .config_hub_keys import handle_config_hub_subtab_select_key
@@ -237,12 +238,14 @@ class MemoryPane(
         if self._host_visible:
             self.focus_default()
         self._start_initial_load()
+        self._start_history_poll()
 
     def on_unmount(self) -> None:
         self._closed = True
         clear_numbered_link_prefix(self)
         if self._debouncer is not None:
             self._debouncer.cancel()
+        self._stop_history_poll()
         for worker in (
             self._load_worker,
             self._scope_worker,
@@ -251,6 +254,7 @@ class MemoryPane(
             self._strand_read_worker,
             self._history_worker,
             self._history_open_worker,
+            self._history_probe_worker,
         ):
             if worker is not None and not worker.is_finished:
                 worker.cancel()
@@ -344,6 +348,8 @@ class MemoryPane(
             self._on_strand_read_state_changed(event)
         elif event.worker is self._history_worker:
             self._on_history_state_changed(event)
+        elif event.worker is self._history_probe_worker:
+            self._on_history_probe_state_changed(event)
 
     # --- passive actions ------------------------------------------------
 
