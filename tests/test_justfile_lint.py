@@ -413,7 +413,11 @@ def test_rust_lsp_install_consults_sase_core_artifact_cache() -> None:
     assert '"$cache_tool" lookup --kind lsp --profile "$profile"' in output
     assert '"$cache_tool" store --kind lsp --profile "$profile"' in output
     assert '--cargo-target-dir "$lsp_target_dir"' in output
-    assert "[rust-lsp-install] Installing cached sase-xprompt-lsp from %s." in output
+    assert "[rust-lsp-install] Installing cached LSP binary from " in output
+    assert 'lsp_bin="$(basename "$src")"' in output
+    assert "crates/sase_macro_lsp/Cargo.toml" in output
+    assert '"$lsp_pkg"' in output
+    assert '"$lsp_target_dir/$profile/sase-macro-lsp"' in output
 
 
 def test_rust_install_is_fatal_on_a_behind_status() -> None:

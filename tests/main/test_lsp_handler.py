@@ -126,6 +126,25 @@ def test_build_lsp_argv_prefers_venv_binary_over_path(
     assert argv == [str(venv_lsp)]
 
 
+def test_build_lsp_argv_prefers_macro_binary_in_venv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    args = create_parser().parse_args(["lsp"])
+    python = _point_sys_executable_at_tmp_venv(monkeypatch, tmp_path)
+    _write_executable(python.parent / "sase-macro-lsp")
+    _write_executable(python.parent / _lsp_binary_name())
+
+    argv = _build_xprompt_lsp_argv(
+        args,
+        environ={},
+        which=lambda _name: None,
+        repo_root=Path("/missing"),
+    )
+
+    assert argv == [str(python.parent / "sase-macro-lsp")]
+
+
 def test_build_lsp_argv_uses_path_when_venv_binary_absent(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

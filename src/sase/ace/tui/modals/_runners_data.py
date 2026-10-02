@@ -232,9 +232,14 @@ def _read_prompt_preview(
 
         ts = convert_timestamp_to_artifacts_format(ts)
 
-    raw_path = (
-        resolve_agent_artifact_timestamp_path(project_name, "ace-run", ts)
-        / "raw_xprompt.md"
+    from sase.legacy_xprompt_names import (
+        RAW_PROMPT_FILENAME,
+        resolve_raw_prompt_path,
+    )
+
+    artifact_dir = resolve_agent_artifact_timestamp_path(project_name, "ace-run", ts)
+    raw_path = resolve_raw_prompt_path(artifact_dir) or (
+        artifact_dir / RAW_PROMPT_FILENAME
     )
     try:
         with open(raw_path, encoding="utf-8") as f:

@@ -80,7 +80,7 @@ def test_fast_forward_source_is_allowed_and_records_new_provenance(
         "deployed_at": "2026-07-28T13:00:00Z",
         "managed_files": [],
         "source_commit": _NEW_SHA,
-        "xprompt_set_sha256": _skill_xprompt_set_sha256(_xprompts()),
+        "macro_set_sha256": _skill_xprompt_set_sha256(_xprompts()),
     }
 
 
@@ -173,7 +173,8 @@ def test_identical_source_with_changed_xprompt_set_updates_manifest(
     assert write.content is not None
     payload = json.loads(write.content)
     assert payload["source_commit"] == _NEW_SHA
-    assert payload["xprompt_set_sha256"] == _skill_xprompt_set_sha256(_xprompts())
+    assert payload["macro_set_sha256"] == _skill_xprompt_set_sha256(_xprompts())
+    assert "xprompt_set_sha256" not in payload
 
 
 @pytest.mark.parametrize("existing", [None, "{not json"])

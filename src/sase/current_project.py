@@ -1,7 +1,7 @@
 """Current project derived from the VCS xprompt MRU store.
 
 The current project is the first VCS xprompt MRU entry that resolves to an
-enabled project. This module reads ``~/.sase/vcs_xprompt_mru.json`` and
+enabled project. This module reads ``~/.sase/vcs_macro_mru.json`` and
 exposes one write path, :func:`set_current_project`, which promotes a
 project through :func:`sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage`
 — the same store a launch writes, not a second pin file.
@@ -18,7 +18,6 @@ callback.
 
 from __future__ import annotations
 
-import json
 import threading
 import time
 from dataclasses import dataclass
@@ -214,21 +213,9 @@ def _ineligible(message: str) -> SetCurrentProjectOutcome:
 
 def _mru_prefixes() -> list[str]:
     """Load on-disk MRU prefixes without pruning or project-record reads."""
-    path = vcs_xprompt_mru_path()
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return []
-    except OSError:
-        return []
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(data, dict):
-        return []
-    entries = data.get("entries", [])
-    return [entry for entry in entries if isinstance(entry, str)]
+    from sase.history.vcs_xprompt_mru import load_vcs_xprompt_mru_entries
+
+    return load_vcs_xprompt_mru_entries()
 
 
 def _project_snapshots(

@@ -13,7 +13,6 @@ from sase.dev_update.models import DevCommandRunner
 from sase.dev_update.prebuild_cache import (
     DEFAULT_PROFILE,
     EXTENSION_FILENAME,
-    LSP_BINARY_NAME,
     MISS_COMMIT_MISMATCH,
     MISS_COPY_FAILURE,
     MISS_DIGEST_MISMATCH,
@@ -104,7 +103,7 @@ def _install_artifacts(
         / "sase_core_rs"
         / EXTENSION_FILENAME
     )
-    lsp_dest = Path(target_python).parent / LSP_BINARY_NAME
+    lsp_dest = Path(target_python).parent / lsp_src.name
     _copy_atomic(extension_src, extension_dest, replace_file=replace_file)
     _copy_atomic(lsp_src, lsp_dest, executable=True, replace_file=replace_file)
     purge = host_root / "tools" / "purge_sase_core_rs_extensions"

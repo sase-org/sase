@@ -236,16 +236,11 @@ def launch_agents_from_cwd_impl(
         segment_env = expanded.segment_extra_env[0] or {}
         extra_env = {**(extra_env or {}), **segment_env}
     if expanded.swarm_xprompts[0]:
-        from sase.xprompt.used_xprompts import (
-            SASE_LAUNCH_SWARM_XPROMPTS,
-            encode_launch_swarm_xprompts,
-        )
+        from sase.xprompt.used_xprompts import launch_swarm_env_entries
 
         extra_env = {
             **(extra_env or {}),
-            SASE_LAUNCH_SWARM_XPROMPTS: encode_launch_swarm_xprompts(
-                expanded.swarm_xprompts[0]
-            ),
+            **launch_swarm_env_entries(expanded.swarm_xprompts[0]),
         }
 
     # --- Repeat fan-out ---

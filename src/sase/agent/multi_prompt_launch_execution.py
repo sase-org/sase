@@ -369,14 +369,9 @@ def spawn_segments_into(
                 if multi_agent_prompt_file is not None:
                     slot_env[MULTI_AGENT_PROMPT_FILE_ENV] = multi_agent_prompt_file
                 if segment_swarm_names:
-                    from sase.xprompt.used_xprompts import (
-                        SASE_LAUNCH_SWARM_XPROMPTS,
-                        encode_launch_swarm_xprompts,
-                    )
+                    from sase.xprompt.used_xprompts import launch_swarm_env_entries
 
-                    slot_env[SASE_LAUNCH_SWARM_XPROMPTS] = encode_launch_swarm_xprompts(
-                        segment_swarm_names
-                    )
+                    slot_env.update(launch_swarm_env_entries(segment_swarm_names))
                 clan_payload = clan_prepass.membership_env_by_segment.get(i)
                 if clan_payload is not None:
                     slot_env[CLAN_MEMBERSHIP_ENV] = clan_payload

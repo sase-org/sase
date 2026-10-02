@@ -76,13 +76,21 @@ class ProcReserve:
             values["origin"] = "named-proc"
         elif data.get("origin") == "proc-shell" and "origin" not in values:
             values["origin"] = "named-proc"
+        from sase.legacy_xprompt_names import prompt_proc_payload
+
+        meta = prompt_proc_payload(data)
+        if isinstance(meta, Mapping):
+            values["xprompt_proc"] = dict(meta)
         values["service"] = ProcServiceBlock.from_dict(data.get("service"))
         values.pop("shell_name", None)
         values.pop("shell_kind", None)
         return cls(**values)
 
     def to_dict(self) -> dict[str, Any]:
+        from sase.legacy_xprompt_names import PROMPT_PROC_FIELD
+
         payload = {name: getattr(self, name) for name in self.__dataclass_fields__}
+        payload[PROMPT_PROC_FIELD] = payload.pop("xprompt_proc")
         payload["service"] = (
             self.service.to_dict() if self.service is not None else None
         )
@@ -238,11 +246,18 @@ class ProcUpdate:
             values["proc_name"] = data["shell_name"]
         if "proc_role" not in values and data.get("shell_kind") is not None:
             values["proc_role"] = data["shell_kind"]
+        from sase.legacy_xprompt_names import prompt_proc_payload
+
+        meta = prompt_proc_payload(data)
+        if isinstance(meta, Mapping):
+            values["xprompt_proc"] = dict(meta)
         values.pop("shell_name", None)
         values.pop("shell_kind", None)
         return cls(**values)
 
     def to_dict(self) -> dict[str, Any]:
+        from sase.legacy_xprompt_names import PROMPT_PROC_FIELD
+
         payload: dict[str, Any] = {"proc_id": self.proc_id}
         for name in self.__dataclass_fields__:
             if name == "proc_id":
@@ -250,6 +265,8 @@ class ProcUpdate:
             value = getattr(self, name)
             if value is not UNSET:
                 payload[name] = value
+        if "xprompt_proc" in payload:
+            payload[PROMPT_PROC_FIELD] = payload.pop("xprompt_proc")
         return payload
 
 

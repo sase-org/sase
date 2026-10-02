@@ -14,27 +14,39 @@ from pathlib import Path
 from typing import NoReturn
 
 from sase.core.paths import sase_subdir
+from sase.legacy_xprompt_names import MACRO_LSP_DIRNAME
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader_skills import get_sase_package_skills_dir
 
 SASE_XPROMPT_LSP_CMD_ENV = "SASE_XPROMPT_LSP_CMD"
 SASE_XPROMPT_PACKAGE_DIR_ENV = "SASE_XPROMPT_PACKAGE_DIR"
+SASE_MACRO_PACKAGE_DIR_ENV = "SASE_MACRO_PACKAGE_DIR"
 SASE_XPROMPT_BUILTIN_DIR_ENV = "SASE_XPROMPT_BUILTIN_DIR"
+SASE_MACRO_BUILTIN_DIR_ENV = "SASE_MACRO_BUILTIN_DIR"
 SASE_SKILL_BUILTIN_DIR_ENV = "SASE_SKILL_BUILTIN_DIR"
 SASE_XPROMPT_DEFAULT_DIR_ENV = "SASE_XPROMPT_DEFAULT_DIR"
+SASE_MACRO_DEFAULT_DIR_ENV = "SASE_MACRO_DEFAULT_DIR"
 SASE_DEFAULT_CONFIG_PATH_ENV = "SASE_DEFAULT_CONFIG_PATH"
 SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV = "SASE_XPROMPT_PLUGIN_DIRS_JSON"
+SASE_MACRO_PLUGIN_DIRS_JSON_ENV = "SASE_MACRO_PLUGIN_DIRS_JSON"
 SASE_SKILL_PLUGIN_DIRS_JSON_ENV = "SASE_SKILL_PLUGIN_DIRS_JSON"
 SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON"
+SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON"
 SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV = "SASE_XPROMPT_VCS_PROJECT_CATALOG"
+SASE_MACRO_VCS_PROJECT_CATALOG_ENV = "SASE_MACRO_VCS_PROJECT_CATALOG"
 SASE_XPROMPT_MODEL_CATALOG_ENV = "SASE_XPROMPT_MODEL_CATALOG"
+SASE_MACRO_MODEL_CATALOG_ENV = "SASE_MACRO_MODEL_CATALOG"
 SASE_XPROMPT_MACHINE_CATALOG_ENV = "SASE_XPROMPT_MACHINE_CATALOG"
+SASE_MACRO_MACHINE_CATALOG_ENV = "SASE_MACRO_MACHINE_CATALOG"
 SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV = "SASE_XPROMPT_ARTIFACT_REF_CATALOG"
+SASE_MACRO_ARTIFACT_REF_CATALOG_ENV = "SASE_MACRO_ARTIFACT_REF_CATALOG"
 SASE_XPROMPT_GLOSSARY_CATALOG_ENV = "SASE_XPROMPT_GLOSSARY_CATALOG"
+SASE_MACRO_GLOSSARY_CATALOG_ENV = "SASE_MACRO_GLOSSARY_CATALOG"
 SASE_TYPED_LAUNCH_UNITS_ENV = "SASE_TYPED_LAUNCH_UNITS"
 SASE_QUEUE_CAPACITY_BUDGET_ENV = "SASE_QUEUE_CAPACITY_BUDGET"
 SASE_AGENT_HOLDS_ENV = "SASE_AGENT_HOLDS"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
+MACRO_LSP_BINARY = "sase-macro-lsp"
 
 
 class XPromptLspLaunchError(RuntimeError):
@@ -117,7 +129,7 @@ def _resolve_xprompt_lsp_command(
     if venv_binary is not None:
         return (str(venv_binary),)
 
-    path = which(XPROMPT_LSP_BINARY)
+    path = which(MACRO_LSP_BINARY) or which(XPROMPT_LSP_BINARY)
     if path:
         return (path,)
 
@@ -141,14 +153,21 @@ def _resolve_xprompt_lsp_command(
             "--manifest-path",
             str(manifest),
             "-p",
-            "sase_xprompt_lsp",
+            _lsp_cargo_package(sibling_core),
             "--",
         )
 
     raise XPromptLspLaunchError(
-        "xprompt LSP binary not found; install `sase-xprompt-lsp` into the "
-        f"current venv, install it on PATH, or set {SASE_XPROMPT_LSP_CMD_ENV}"
+        "xprompt LSP binary not found; install `sase-macro-lsp` (or legacy "
+        f"`sase-xprompt-lsp`) into the current venv, install it on PATH, or set {SASE_XPROMPT_LSP_CMD_ENV}"
     )
+
+
+def _lsp_cargo_package(sibling_core: Path) -> str:
+    """Return the LSP crate name the linked core checkout provides."""
+    if (sibling_core / "crates" / "sase_macro_lsp" / "Cargo.toml").is_file():
+        return "sase_macro_lsp"
+    return "sase_xprompt_lsp"
 
 
 def _first_existing_xprompt_lsp_binary(directory: Path) -> Path | None:
@@ -178,8 +197,13 @@ def _xprompt_lsp_binary_candidates(directory: Path) -> tuple[Path, ...]:
 
 def _xprompt_lsp_binary_names() -> tuple[str, ...]:
     if os.name == "nt":
-        return (f"{XPROMPT_LSP_BINARY}.exe", XPROMPT_LSP_BINARY)
-    return (XPROMPT_LSP_BINARY,)
+        return (
+            f"{MACRO_LSP_BINARY}.exe",
+            MACRO_LSP_BINARY,
+            f"{XPROMPT_LSP_BINARY}.exe",
+            XPROMPT_LSP_BINARY,
+        )
+    return (MACRO_LSP_BINARY, XPROMPT_LSP_BINARY)
 
 
 def _mtime_ns(path: Path) -> int:
@@ -224,32 +248,86 @@ def _strip_remainder_sentinel(raw_args: Sequence[str]) -> Sequence[str]:
     return raw_args
 
 
+def _set_catalog_env(
+    environ: MutableMapping[str, str],
+    macro_key: str,
+    legacy_key: str,
+    default: str,
+) -> None:
+    """Export one catalog location under both the macro and legacy names.
+
+    The canonical ``SASE_MACRO_*`` spelling wins; a preset legacy value is
+    adopted (never overwritten) so pre-rename overrides keep working, and the
+    legacy key mirrors the macro value for servers that only read it.
+    """
+    if macro_key not in environ and legacy_key in environ:
+        environ[macro_key] = environ[legacy_key]
+    environ.setdefault(macro_key, default)
+    environ.setdefault(legacy_key, environ[macro_key])
+
+
 def _prepare_xprompt_lsp_environment(
     environ: MutableMapping[str, str], package_dir: Path | None = None
 ) -> None:
     """Expose package xprompt locations to the Rust LSP catalog loader."""
     root = package_dir or Path(__file__).resolve().parents[1]
     defaults = {
-        SASE_XPROMPT_PACKAGE_DIR_ENV: str(root),
-        SASE_XPROMPT_BUILTIN_DIR_ENV: str(root / "xprompts"),
         SASE_SKILL_BUILTIN_DIR_ENV: str(get_sase_package_skills_dir(root)),
-        SASE_XPROMPT_DEFAULT_DIR_ENV: str(root / "default_xprompts"),
         SASE_DEFAULT_CONFIG_PATH_ENV: str(root / "default_config.yml"),
     }
     for key, value in defaults.items():
         environ.setdefault(key, value)
-    if SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV not in environ:
-        environ[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV] = json.dumps(
+    _set_catalog_env(
+        environ,
+        SASE_MACRO_PACKAGE_DIR_ENV,
+        SASE_XPROMPT_PACKAGE_DIR_ENV,
+        str(root),
+    )
+    _set_catalog_env(
+        environ,
+        SASE_MACRO_BUILTIN_DIR_ENV,
+        SASE_XPROMPT_BUILTIN_DIR_ENV,
+        str(root / "xprompts"),
+    )
+    _set_catalog_env(
+        environ,
+        SASE_MACRO_DEFAULT_DIR_ENV,
+        SASE_XPROMPT_DEFAULT_DIR_ENV,
+        str(root / "default_xprompts"),
+    )
+    if (
+        SASE_MACRO_PLUGIN_DIRS_JSON_ENV not in environ
+        and SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV in environ
+    ):
+        environ[SASE_MACRO_PLUGIN_DIRS_JSON_ENV] = environ[
+            SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV
+        ]
+    if SASE_MACRO_PLUGIN_DIRS_JSON_ENV not in environ:
+        environ[SASE_MACRO_PLUGIN_DIRS_JSON_ENV] = json.dumps(
             _discover_plugin_xprompt_dirs()
         )
+    environ.setdefault(
+        SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV, environ[SASE_MACRO_PLUGIN_DIRS_JSON_ENV]
+    )
     if SASE_SKILL_PLUGIN_DIRS_JSON_ENV not in environ:
         environ[SASE_SKILL_PLUGIN_DIRS_JSON_ENV] = json.dumps(
             _discover_plugin_resource_dirs("skills")
         )
-    if SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV not in environ:
-        environ[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV] = json.dumps(
+    if (
+        SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV not in environ
+        and SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV in environ
+    ):
+        environ[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV] = environ[
+            SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV
+        ]
+    if SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV not in environ:
+        environ[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV] = json.dumps(
             _discover_plugin_config_paths()
         )
+    environ.setdefault(
+        SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV,
+        environ[SASE_MACRO_PLUGIN_CONFIG_PATHS_JSON_ENV],
+    )
     _materialize_vcs_project_catalog(environ)
     _materialize_model_catalog(environ)
     _materialize_machine_catalog(environ)
@@ -262,7 +340,7 @@ def _prepare_xprompt_lsp_environment(
 
 def _default_vcs_project_catalog_path() -> Path:
     """Return the default on-disk location for the LSP project catalog."""
-    return sase_subdir("xprompt_lsp") / "vcs_project_catalog.json"
+    return sase_subdir(MACRO_LSP_DIRNAME) / "vcs_project_catalog.json"
 
 
 def _materialize_vcs_project_catalog(environ: MutableMapping[str, str]) -> None:
@@ -274,9 +352,13 @@ def _materialize_vcs_project_catalog(environ: MutableMapping[str, str]) -> None:
     menu shows nothing, and must never prevent the LSP from starting. The path
     is exported regardless so a later rewrite is still picked up.
     """
-    existing = environ.get(SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV)
+    existing = environ.get(
+        SASE_MACRO_VCS_PROJECT_CATALOG_ENV,
+        environ.get(SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV),
+    )
     path = Path(existing) if existing else _default_vcs_project_catalog_path()
-    environ[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV] = str(path)
+    environ[SASE_MACRO_VCS_PROJECT_CATALOG_ENV] = str(path)
+    environ.setdefault(SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV, str(path))
     try:
         from sase.xprompt.vcs_project_completion import (
             vcs_project_catalog_payload,
@@ -294,12 +376,12 @@ def _materialize_vcs_project_catalog(environ: MutableMapping[str, str]) -> None:
 
 def _default_model_catalog_path() -> Path:
     """Return the default on-disk location for the LSP model catalog."""
-    return sase_subdir("xprompt_lsp") / "model_catalog.json"
+    return sase_subdir(MACRO_LSP_DIRNAME) / "model_catalog.json"
 
 
 def _default_machine_catalog_path() -> Path:
     """Return the default on-disk location for the LSP machine catalog."""
-    return sase_subdir("xprompt_lsp") / "machine_catalog.json"
+    return sase_subdir(MACRO_LSP_DIRNAME) / "machine_catalog.json"
 
 
 def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
@@ -309,9 +391,12 @@ def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
     completion request. Writing is best-effort so LSP startup is never blocked
     by provider/config metadata issues.
     """
-    existing = environ.get(SASE_XPROMPT_MODEL_CATALOG_ENV)
+    existing = environ.get(
+        SASE_MACRO_MODEL_CATALOG_ENV, environ.get(SASE_XPROMPT_MODEL_CATALOG_ENV)
+    )
     path = Path(existing) if existing else _default_model_catalog_path()
-    environ[SASE_XPROMPT_MODEL_CATALOG_ENV] = str(path)
+    environ[SASE_MACRO_MODEL_CATALOG_ENV] = str(path)
+    environ.setdefault(SASE_XPROMPT_MODEL_CATALOG_ENV, str(path))
     try:
         from sase.xprompt.model_completion import model_completion_catalog_payload
 
@@ -327,9 +412,12 @@ def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
 
 def _materialize_machine_catalog(environ: MutableMapping[str, str]) -> None:
     """Write the `%dispatch` machine catalog and expose its path."""
-    existing = environ.get(SASE_XPROMPT_MACHINE_CATALOG_ENV)
+    existing = environ.get(
+        SASE_MACRO_MACHINE_CATALOG_ENV, environ.get(SASE_XPROMPT_MACHINE_CATALOG_ENV)
+    )
     path = Path(existing) if existing else _default_machine_catalog_path()
-    environ[SASE_XPROMPT_MACHINE_CATALOG_ENV] = str(path)
+    environ[SASE_MACRO_MACHINE_CATALOG_ENV] = str(path)
+    environ.setdefault(SASE_XPROMPT_MACHINE_CATALOG_ENV, str(path))
     try:
         from sase.dispatch.machine_catalog import machine_completion_catalog_payload
 
@@ -345,7 +433,7 @@ def _materialize_machine_catalog(environ: MutableMapping[str, str]) -> None:
 
 def _default_artifact_ref_catalog_path() -> Path:
     """Return the default on-disk location for the artifact-reference catalog."""
-    return sase_subdir("xprompt_lsp") / "artifact_ref_catalog.json"
+    return sase_subdir(MACRO_LSP_DIRNAME) / "artifact_ref_catalog.json"
 
 
 def _materialize_artifact_ref_catalog(
@@ -358,9 +446,13 @@ def _materialize_artifact_ref_catalog(
     refresh or external rewrite can recover without restarting the editor.
     """
 
-    existing = environ.get(SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV)
+    existing = environ.get(
+        SASE_MACRO_ARTIFACT_REF_CATALOG_ENV,
+        environ.get(SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV),
+    )
     path = Path(existing) if existing else _default_artifact_ref_catalog_path()
-    environ[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV] = str(path)
+    environ[SASE_MACRO_ARTIFACT_REF_CATALOG_ENV] = str(path)
+    environ.setdefault(SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV, str(path))
     try:
         from sase.artifact_refs import artifact_ref_lsp_catalog_payload
 
@@ -376,7 +468,7 @@ def _materialize_artifact_ref_catalog(
 
 def _default_glossary_catalog_path() -> Path:
     """Return the default on-disk location for the glossary catalog."""
-    return sase_subdir("xprompt_lsp") / "glossary_catalog.json"
+    return sase_subdir(MACRO_LSP_DIRNAME) / "glossary_catalog.json"
 
 
 def _materialize_glossary_catalog(
@@ -384,9 +476,12 @@ def _materialize_glossary_catalog(
 ) -> None:
     """Write the project glossary catalog and expose its path to the LSP."""
 
-    existing = environ.get(SASE_XPROMPT_GLOSSARY_CATALOG_ENV)
+    existing = environ.get(
+        SASE_MACRO_GLOSSARY_CATALOG_ENV, environ.get(SASE_XPROMPT_GLOSSARY_CATALOG_ENV)
+    )
     path = Path(existing) if existing else _default_glossary_catalog_path()
-    environ[SASE_XPROMPT_GLOSSARY_CATALOG_ENV] = str(path)
+    environ[SASE_MACRO_GLOSSARY_CATALOG_ENV] = str(path)
+    environ.setdefault(SASE_XPROMPT_GLOSSARY_CATALOG_ENV, str(path))
     try:
         from sase.xprompt.glossary_catalog import editor_glossary_lsp_catalog_payload
 

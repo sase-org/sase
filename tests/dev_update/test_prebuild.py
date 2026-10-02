@@ -16,6 +16,7 @@ import pytest
 
 from sase.dev_update import prebuild
 from sase.dev_update.models import DevCommandResult
+from sase.dev_update.prebuild_cache import lsp_binary_name, lsp_package_name
 from sase.version._git import GitUpstreamStatus
 
 
@@ -459,6 +460,24 @@ def test_successful_producer_writes_stamp_last_and_prunes_to_two(
     assert (
         produced / "artifacts" / prebuild.EXTENSION_FILENAME
     ).read_bytes() == b"extension"
+
+
+def test_lsp_package_and_binary_follows_core_checkout(
+    tmp_path: Path,
+) -> None:
+    assert lsp_package_name(tmp_path) == "sase_xprompt_lsp"
+    assert lsp_binary_name(tmp_path, "dev-update") == "sase-xprompt-lsp"
+    manifest = tmp_path / "crates" / "sase_macro_lsp" / "Cargo.toml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("[package]\n", encoding="utf-8")
+
+    assert lsp_package_name(tmp_path) == "sase_macro_lsp"
+    target = tmp_path / "target"
+    binary = target / "dev-update" / "sase-macro-lsp"
+    binary.parent.mkdir(parents=True)
+    binary.write_bytes(b"lsp")
+
+    assert lsp_binary_name(target, "dev-update") == "sase-macro-lsp"
 
 
 def test_run_command_bounds_builds_and_maps_timeouts(

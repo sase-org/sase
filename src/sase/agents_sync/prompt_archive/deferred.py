@@ -56,8 +56,10 @@ def prepare_deferred_prompt_archive(
     matching = prompt_runs.get((request.local_agent, request.primary_revision))
     if matching is None or matching.source_label is None:
         return False
+    from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
     artifacts_dir = Path(matching.source_label)
-    if not (artifacts_dir / "raw_xprompt.md").is_file():
+    if resolve_raw_prompt_path(artifacts_dir) is None:
         return False
     from sase.agents_sync.prompt_archive.publish import prepare_prompt_archive
 

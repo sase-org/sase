@@ -135,7 +135,7 @@ def test_build_default_output_uses_managed_sase_tmp(
     # The managed root itself is the pytest sandbox here, not ~/.sase/tmp; what
     # this asserts is that the catalog routes through the managed helper rather
     # than picking its own temp location.
-    expected_parent = Path(get_sase_managed_tmpdir("xprompts_catalog"))
+    expected_parent = Path(get_sase_managed_tmpdir("macros_catalog"))
     assert artifact.pdf_path.parent == expected_parent
     assert artifact.pdf_path.read_bytes() == b"%PDF fake"
     assert rendered_paths

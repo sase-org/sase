@@ -18,7 +18,6 @@ from sase.dev_update.prebuild_cache import (
     COMPLETED_SET_RETENTION,
     DEFAULT_PROFILE,
     EXTENSION_FILENAME,
-    LSP_BINARY_NAME,
     MISS_COMMIT_MISMATCH,
     MISS_STAMP_MISSING,
     PROFILE_ENV,
@@ -28,6 +27,8 @@ from sase.dev_update.prebuild_cache import (
     atomic_write_json,
     completed_stamps,
     current_provenance,
+    lsp_binary_name,
+    lsp_package_name,
     prebuild_miss,
     prebuild_set_key,
     resolve_commit,
@@ -276,6 +277,7 @@ def _build_set(
             "CARGO_BUILD_BUILD_DIR": str(lsp_target / "build"),
         }
     )
+    lsp_package = lsp_package_name(mirror)
     cargo = run(
         _low_priority_argv(
             (
@@ -284,7 +286,7 @@ def _build_set(
                 "--profile",
                 provenance.profile,
                 "-p",
-                "sase_xprompt_lsp",
+                lsp_package,
             ),
             which=which,
         ),
@@ -293,8 +295,9 @@ def _build_set(
     )
     if cargo.returncode != 0:
         raise RuntimeError(cargo.stderr or "cargo build failed")
-    lsp_src = lsp_target / provenance.profile / LSP_BINARY_NAME
-    lsp_path = artifacts_dir / LSP_BINARY_NAME
+    lsp_binary = lsp_binary_name(lsp_target, provenance.profile)
+    lsp_src = lsp_target / provenance.profile / lsp_binary
+    lsp_path = artifacts_dir / lsp_binary
     shutil.copy2(lsp_src, lsp_path)
     lsp_path.chmod(lsp_path.stat().st_mode | 0o111)
 

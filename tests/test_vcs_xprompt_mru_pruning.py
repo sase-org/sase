@@ -129,6 +129,7 @@ def test_load_launchable_prunes_default_git_home(
     workspace = tmp_path / "ws"
     workspace.mkdir()
     mru_file = sase_home / "vcs_xprompt_mru.json"
+    migrated_file = sase_home / "vcs_macro_mru.json"
     mru_file.write_text(json.dumps({"entries": ["#git:foo", "#git:home", "#git:bar"]}))
 
     monkeypatch.setattr(
@@ -143,7 +144,10 @@ def test_load_launchable_prunes_default_git_home(
     result = load_launchable_vcs_xprompt_mru()
 
     assert result == ["#git:foo", "#git:bar"]
-    assert json.loads(mru_file.read_text()) == {"entries": ["#git:foo", "#git:bar"]}
+    assert json.loads(migrated_file.read_text()) == {
+        "entries": ["#git:foo", "#git:bar"]
+    }
+    assert not mru_file.exists()
 
 
 def test_record_does_not_persist_default_git_home(tmp_path: Path) -> None:
@@ -168,6 +172,7 @@ def test_load_launchable_drops_refs_that_no_longer_resolve(
     workspace = tmp_path / "sase-ws"
     workspace.mkdir()
     mru_file = sase_home / "vcs_xprompt_mru.json"
+    migrated_file = sase_home / "vcs_macro_mru.json"
     mru_file.write_text(
         json.dumps({"entries": ["#git:sase", "#git:somecs", "#git:gone"]})
     )
@@ -184,7 +189,10 @@ def test_load_launchable_drops_refs_that_no_longer_resolve(
     result = load_launchable_vcs_xprompt_mru()
 
     assert result == ["#git:sase", "#git:somecs"]
-    assert json.loads(mru_file.read_text()) == {"entries": ["#git:sase", "#git:somecs"]}
+    assert json.loads(migrated_file.read_text()) == {
+        "entries": ["#git:sase", "#git:somecs"]
+    }
+    assert not mru_file.exists()
 
 
 def test_load_launchable_keeps_entries_when_resolution_index_unavailable(
@@ -228,6 +236,7 @@ def test_load_launchable_prunes_provider_mismatched_prefix(
     write_named_project(projects_dir, "gh_sase-org__sase", "sase", sase_ws)
     write_named_project(projects_dir, "otherproj", "otherproj", other_ws)
     mru_file = sase_home / "vcs_xprompt_mru.json"
+    migrated_file = sase_home / "vcs_macro_mru.json"
     mru_file.write_text(
         json.dumps(
             {
@@ -257,9 +266,10 @@ def test_load_launchable_prunes_provider_mismatched_prefix(
     result = load_launchable_vcs_xprompt_mru()
 
     assert result == ["#gh:sase", "#git:otherproj"]
-    assert json.loads(mru_file.read_text()) == {
+    assert json.loads(migrated_file.read_text()) == {
         "entries": ["#gh:gh_sase-org__sase", "#git:otherproj"]
     }
+    assert not mru_file.exists()
 
 
 def test_record_prunes_provider_mismatched_prefix(

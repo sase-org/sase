@@ -118,10 +118,12 @@ def _publish_prompt_archive(
         return PromptArchivePublicationOutcome(skip_reason=detail)
     target = selection.targets[0]
 
+    from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
     artifacts_dir = _agent_artifacts_dir(agent_artifacts_dir)
-    if artifacts_dir is None or not (artifacts_dir / "raw_xprompt.md").is_file():
+    if artifacts_dir is None or resolve_raw_prompt_path(artifacts_dir) is None:
         return PromptArchivePublicationOutcome(
-            skip_reason="agent raw_xprompt.md is unavailable"
+            skip_reason="agent raw_prompt.md is unavailable"
         )
 
     owner = require_agent_owner_identity()

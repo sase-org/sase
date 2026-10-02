@@ -171,8 +171,11 @@ def test_master_gate_core_wheel_job_resolves_and_caches_by_sha() -> None:
             assert step["if"] == guarded_condition
 
     assert "uvx maturin build --release" in run_text
-    assert "cargo build --release -p sase_xprompt_lsp" in run_text
-    assert "install -m 0755 target/release/sase-xprompt-lsp" in run_text
+    assert "crates/sase_macro_lsp/Cargo.toml" in run_text
+    assert 'cargo build --release -p "$lsp_pkg"' in run_text
+    assert "sase_macro_lsp" in run_text
+    assert "target/release/sase-macro-lsp" in run_text
+    assert '"target/release/$lsp_bin"' in run_text
 
     upload_step = next(
         step

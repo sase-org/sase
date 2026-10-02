@@ -158,7 +158,7 @@ def _get_xprompt_argument_spans_binding() -> Callable[..., object] | None:
             from sase.core.rust import require_rust_binding
 
             _xprompt_argument_spans_binding = require_rust_binding(
-                "xprompt_argument_spans"
+                "macro_argument_spans"
             )
         except Exception:
             _xprompt_argument_spans_binding = _MISSING_BINDING

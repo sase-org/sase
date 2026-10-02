@@ -4,7 +4,6 @@ Alias resolution, raw-prompt capture, xprompt expansion (including the
 launch-deferred fork set), and the launch-time prompt helpers.
 """
 
-import json
 import os
 import sys
 from typing import Any
@@ -43,34 +42,26 @@ def preprocess_prompt_xprompts(
     raw_resolved_prompt = prompt
     vcs_tag = extract_vcs_workflow_tag(prompt)
 
-    raw_xprompt_path = os.path.join(artifacts_dir, "raw_xprompt.md")
+    from sase.legacy_xprompt_names import RAW_PROMPT_FILENAME
+
+    raw_xprompt_path = os.path.join(artifacts_dir, RAW_PROMPT_FILENAME)
     with open(raw_xprompt_path, "w", encoding="utf-8") as f:
         f.write(prompt)
 
     # Capture launch-boundary xprompt usage (e.g. #plan) into the shared
     # xprompts.json before expansion erases the references. Use the same
-    # alias-resolved text persisted to raw_xprompt.md so the collector's
+    # alias-resolved text persisted to raw_prompt.md so the collector's
     # alias/VCS-underscore handling matches the expansion path. The root
     # agent row reads this file; workflow steps only write step-specific
     # files (see write_used_xprompts step_only). Best-effort: metadata
     # capture must never take down a detached agent launch.
     try:
         from sase.xprompt.used_xprompts import (
-            SASE_LAUNCH_SWARM_XPROMPTS,
+            decode_launch_swarm_xprompts,
             write_used_xprompts,
         )
 
-        encoded_swarm_xprompts = os.environ.get(SASE_LAUNCH_SWARM_XPROMPTS)
-        swarm_xprompts = (
-            json.loads(encoded_swarm_xprompts) if encoded_swarm_xprompts else None
-        )
-        if swarm_xprompts is not None and (
-            not isinstance(swarm_xprompts, list)
-            or not all(isinstance(name, str) for name in swarm_xprompts)
-        ):
-            raise ValueError(
-                f"{SASE_LAUNCH_SWARM_XPROMPTS} must be a JSON array of strings"
-            )
+        swarm_xprompts = decode_launch_swarm_xprompts(os.environ)
         write_used_xprompts(
             artifacts_dir,
             prompt,
@@ -156,7 +147,9 @@ def expand_deferred_launch_xprompts(
 
 def write_submitted_xprompt_artifact(artifacts_dir: str, submitted_xprompt: str) -> str:
     """Persist the launch-boundary prompt without alias or xprompt expansion."""
-    path = os.path.join(artifacts_dir, "submitted_xprompt.md")
+    from sase.legacy_xprompt_names import SUBMITTED_PROMPT_FILENAME
+
+    path = os.path.join(artifacts_dir, SUBMITTED_PROMPT_FILENAME)
     with open(path, "w", encoding="utf-8") as f:
         f.write(submitted_xprompt)
     return path

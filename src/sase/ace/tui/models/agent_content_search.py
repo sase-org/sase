@@ -23,6 +23,19 @@ if TYPE_CHECKING:
 _MAX_BYTES_PER_FILE = 512 * 1024
 
 
+def _raw_prompt_candidates(artifacts_dir: str) -> tuple[str, ...]:
+    """Return raw prompt paths under either spelling for content indexing."""
+    from sase.legacy_xprompt_names import (
+        LEGACY_RAW_XPROMPT_FILENAME,
+        RAW_PROMPT_FILENAME,
+    )
+
+    return (
+        os.path.join(artifacts_dir, RAW_PROMPT_FILENAME),
+        os.path.join(artifacts_dir, LEGACY_RAW_XPROMPT_FILENAME),
+    )
+
+
 @dataclass(frozen=True)
 class AgentContentSearchIndex:
     """In-memory content haystacks keyed by stable agent identity."""
@@ -87,7 +100,9 @@ class AgentContentSearchCache:
         for agent in active_agents:
             artifacts_dir = agent.get_artifacts_dir()
             if artifacts_dir:
-                active_content.add(os.path.join(artifacts_dir, "raw_xprompt.md"))
+                active_content.update(
+                    _raw_prompt_candidates(artifacts_dir),
+                )
                 active_content.add(os.path.join(artifacts_dir, "live_reply.md"))
                 meta_path = os.path.join(artifacts_dir, "agent_meta.json")
                 active_meta.add(meta_path)
@@ -113,7 +128,7 @@ class AgentContentSearchCache:
         paths: list[str] = []
         artifacts_dir = agent.get_artifacts_dir()
         if artifacts_dir:
-            paths.append(os.path.join(artifacts_dir, "raw_xprompt.md"))
+            paths.extend(_raw_prompt_candidates(artifacts_dir))
             paths.append(os.path.join(artifacts_dir, "live_reply.md"))
             meta_path = os.path.join(artifacts_dir, "agent_meta.json")
             chat_path = self._resolve_chat_path(meta_path)

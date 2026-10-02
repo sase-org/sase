@@ -167,7 +167,7 @@ def envelope_from_plan(
         "project": plan.project,
         "project_display": plan.preview.project_display,
         "prompt": {
-            "source": "raw_xprompt.md",
+            "source": "raw_prompt.md",
             "vcs_tag": _json_vcs_tag(plan),
             "name_reuse": {
                 "mode": "forced",

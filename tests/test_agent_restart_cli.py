@@ -119,7 +119,7 @@ def test_json_dry_run_envelope_shape(
     assert payload["name"] == "02p"
     assert payload["project"] == "gh_sase-org__sase"
     assert payload["project_display"] == "sase"
-    assert payload["prompt"]["source"] == "raw_xprompt.md"
+    assert payload["prompt"]["source"] == "raw_prompt.md"
     assert payload["prompt"]["name_reuse"]["mode"] == "forced"
     assert payload["prompt"]["name_reuse"]["source"] == "prompt"
     assert "artifact_dirs" in payload["deletes"]

@@ -96,8 +96,10 @@ def _feedback_prompt_candidates(artifacts_dir: Path) -> list[Path]:
         prompt_files = []
 
     prompt_files.sort(key=lambda path: _mtime_ns(path), reverse=True)
-    raw_prompt = artifacts_dir / "raw_xprompt.md"
-    if raw_prompt.is_file():
+    from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
+    raw_prompt = resolve_raw_prompt_path(artifacts_dir)
+    if raw_prompt is not None:
         prompt_files.append(raw_prompt)
     return prompt_files
 

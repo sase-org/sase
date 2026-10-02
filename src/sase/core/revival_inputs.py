@@ -1,6 +1,6 @@
 """Launch-time archive of revival inputs that outlives live artifacts.
 
-Publication reads ``raw_xprompt.md`` from the live artifact directory. Cleanup
+Publication reads ``raw_prompt.md`` from the live artifact directory. Cleanup
 or chop can delete that directory before the next sidecar sync, which is why
 about a third of published v2 run pages have no ``prompt.md``. This store
 copies the launch-boundary prompt files into a durable per-run directory under
@@ -23,12 +23,28 @@ from typing import Any
 
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.paths import is_valid_sase_project_name, sase_home
+from sase.legacy_xprompt_names import (
+    LEGACY_MACROS_FILENAME,
+    LEGACY_RAW_XPROMPT_FILENAME,
+    LEGACY_SUBMITTED_XPROMPT_FILENAME,
+    MACROS_FILENAME,
+    RAW_PROMPT_FILENAME,
+    SUBMITTED_PROMPT_FILENAME,
+)
 
 _REVIVAL_INPUT_FILENAMES: tuple[str, ...] = (
-    "raw_xprompt.md",
-    "submitted_xprompt.md",
-    "xprompts.json",
+    RAW_PROMPT_FILENAME,
+    SUBMITTED_PROMPT_FILENAME,
+    MACROS_FILENAME,
+    LEGACY_RAW_XPROMPT_FILENAME,
+    LEGACY_SUBMITTED_XPROMPT_FILENAME,
+    LEGACY_MACROS_FILENAME,
 )
+_LEGACY_REVIVAL_FILENAME_TO_CANONICAL = {
+    LEGACY_RAW_XPROMPT_FILENAME: RAW_PROMPT_FILENAME,
+    LEGACY_SUBMITTED_XPROMPT_FILENAME: SUBMITTED_PROMPT_FILENAME,
+    LEGACY_MACROS_FILENAME: MACROS_FILENAME,
+}
 _REVIVAL_INPUTS_ROOT_NAME = "revival_inputs"
 _UNPARSED_ROOT = ".unparsed"
 _TIMESTAMP_RE = re.compile(r"^\d{14}$")
@@ -69,10 +85,11 @@ def _revival_inputs_dir_for_artifacts(artifacts_dir: str | os.PathLike[str]) -> 
 def capture_revival_inputs(artifacts_dir: str | os.PathLike[str]) -> Path | None:
     """Copy launch-boundary prompt files into the durable per-run archive.
 
-    Copies ``raw_xprompt.md`` and, when present, ``submitted_xprompt.md`` and
-    ``xprompts.json``. Returns the archive directory when at least one file was
-    copied, otherwise ``None``. Missing sources are skipped; the caller should
-    treat failures as best-effort.
+    Copies ``raw_prompt.md`` and, when present, ``submitted_prompt.md`` and
+    ``macros.json``, plus any pre-rename spellings still on disk. Returns the
+    archive directory when at least one file was copied, otherwise ``None``.
+    Missing sources are skipped; the caller should treat failures as
+    best-effort.
     """
 
     source_root = Path(artifacts_dir)
@@ -100,9 +117,10 @@ def revival_input_file(
     """Return an archived revival-input file, or ``None`` when absent."""
 
     _require_filename(filename)
-    by_artifacts = _revival_inputs_dir_for_artifacts(artifacts_dir) / filename
-    if by_artifacts.is_file():
-        return by_artifacts
+    for candidate_name in _revival_lookup_names(filename):
+        by_artifacts = _revival_inputs_dir_for_artifacts(artifacts_dir) / candidate_name
+        if by_artifacts.is_file():
+            return by_artifacts
     if (
         project_name
         and workflow_dir_name
@@ -114,9 +132,10 @@ def revival_input_file(
             structured = _revival_inputs_dir(project_name, workflow_dir_name, timestamp)
         except ValueError:
             return None
-        candidate = structured / filename
-        if candidate.is_file():
-            return candidate
+        for candidate_name in _revival_lookup_names(filename):
+            candidate = structured / candidate_name
+            if candidate.is_file():
+                return candidate
     return None
 
 
@@ -138,10 +157,14 @@ def revival_input_file_for_dismissed(
         return None
     project_name = _dismissed_project(raw, project_key)
     try:
-        candidate = _revival_inputs_dir(project_name, "ace-run", timestamp) / filename
+        archive_dir = _revival_inputs_dir(project_name, "ace-run", timestamp)
     except ValueError:
         return None
-    return candidate if candidate.is_file() else None
+    for candidate_name in _revival_lookup_names(filename):
+        candidate = archive_dir / candidate_name
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _parsed_identity(
@@ -205,6 +228,14 @@ def _dismissed_project(raw: Mapping[str, Any], project_key: str) -> str:
         if is_valid_sase_project_name(name):
             return name
     return project_key
+
+
+def _revival_lookup_names(filename: str) -> tuple[str, ...]:
+    """Return archive lookup names, preferring the canonical spelling."""
+    canonical = _LEGACY_REVIVAL_FILENAME_TO_CANONICAL.get(filename)
+    if canonical is not None:
+        return (canonical, filename)
+    return (filename,)
 
 
 def _require_filename(filename: str) -> None:

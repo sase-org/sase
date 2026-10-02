@@ -20,6 +20,23 @@ DEFAULT_PROFILE = "dev-update"
 PROFILE_ENV = "SASE_RUST_DEV_PROFILE"
 EXTENSION_FILENAME = "sase_core_rs.abi3.so"
 LSP_BINARY_NAME = "sase-xprompt-lsp.exe" if os.name == "nt" else "sase-xprompt-lsp"
+MACRO_LSP_BINARY_NAME = "sase-macro-lsp.exe" if os.name == "nt" else "sase-macro-lsp"
+
+
+def lsp_package_name(core_dir: Path) -> str:
+    """Return the LSP crate name a core checkout provides."""
+    if (core_dir / "crates" / "sase_macro_lsp" / "Cargo.toml").is_file():
+        return "sase_macro_lsp"
+    return "sase_xprompt_lsp"
+
+
+def lsp_binary_name(target_dir: Path, profile: str) -> str:
+    """Return the preferred LSP binary a build produced, macro first."""
+    if (target_dir / profile / MACRO_LSP_BINARY_NAME).is_file():
+        return MACRO_LSP_BINARY_NAME
+    return LSP_BINARY_NAME
+
+
 PREBUILD_MARKER_KEY = "rust_prebuild"
 COMPLETED_SET_RETENTION = 2
 

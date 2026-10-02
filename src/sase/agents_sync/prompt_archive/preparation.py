@@ -112,11 +112,13 @@ def prepare_prompt_archive(
         git_runner=git_runner,
         repository_roots=repository_roots,
     )
-    prompt = (
-        prompt_content
-        if prompt_content is not None
-        else (agent_artifacts_dir / "raw_xprompt.md").read_text(encoding="utf-8")
-    )
+    if prompt_content is None:
+        from sase.legacy_xprompt_names import read_raw_prompt_text
+
+        prompt_content = read_raw_prompt_text(agent_artifacts_dir)
+    if prompt_content is None:
+        raise FileNotFoundError(f"no raw prompt artifact in {agent_artifacts_dir}")
+    prompt = prompt_content
     agent_target = hosted.agent_url(global_agent) if hosted is not None else None
     rendered = render_prompt_document(
         prompt,

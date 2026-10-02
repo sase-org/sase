@@ -23,7 +23,7 @@ from tests.conftest import redirect_sase_home
 def test_vcs_xprompt_mru_path_follows_sase_home() -> None:
     from sase.core.paths import sase_home
 
-    assert vcs_xprompt_mru_path() == sase_home() / "vcs_xprompt_mru.json"
+    assert vcs_xprompt_mru_path() == sase_home() / "vcs_macro_mru.json"
 
 
 def test_vcs_xprompt_mru_path_honors_mru_file_hook(tmp_path: Path) -> None:
@@ -136,8 +136,8 @@ def test_record_uses_redirected_sase_home_without_mru_file_patch(
 ) -> None:
     """Default MRU writes follow the suite's ``~/.sase`` redirection."""
     sase_home = redirect_sase_home(monkeypatch, tmp_path / "sase_home")
-    isolated_mru = sase_home / "vcs_xprompt_mru.json"
-    real_home_mru = Path.home() / ".sase" / "vcs_xprompt_mru.json"
+    isolated_mru = sase_home / "vcs_macro_mru.json"
+    real_home_mru = Path.home() / ".sase" / "vcs_macro_mru.json"
 
     record_vcs_xprompt_usage("#gh:first")
 

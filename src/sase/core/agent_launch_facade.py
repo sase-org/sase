@@ -364,7 +364,7 @@ def evaluate_launch_condition(request: dict[str, Any]) -> dict[str, Any]:
 def xprompt_proc_origin() -> str:
     """Return the native stand-alone `%proc` origin string."""
 
-    return str(require_rust_binding("xprompt_proc_origin")())
+    return str(require_rust_binding("prompt_proc_origin")())
 
 
 def proc_dispatch_wire_schema_version() -> int:

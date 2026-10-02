@@ -120,7 +120,7 @@ def test_plan_refuses_missing_raw_xprompt(tmp_path: Path) -> None:
     ):
         plan_agent_restart("02p")
     assert caught.value.reason == "no_prompt"
-    assert "raw_xprompt.md" in caught.value.message
+    assert "raw_prompt.md" in caught.value.message
     assert ",x" in caught.value.hint
     for spy in spies.values():
         spy.assert_not_called()

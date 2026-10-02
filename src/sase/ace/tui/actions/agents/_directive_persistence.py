@@ -258,7 +258,19 @@ def _persist_prompt_artifacts(
     artifacts_path: Path,
     prompt_mutator: Callable[[str], str],
 ) -> _AgentDirectivePersistenceResult:
-    raw_path = artifacts_path / "raw_xprompt.md"
+    from sase.legacy_xprompt_names import (
+        LEGACY_RAW_XPROMPT_FILENAME,
+        LEGACY_SUBMITTED_XPROMPT_FILENAME,
+        RAW_PROMPT_FILENAME,
+        SUBMITTED_PROMPT_FILENAME,
+        resolve_artifact_path,
+    )
+
+    raw_path = resolve_artifact_path(
+        artifacts_path, RAW_PROMPT_FILENAME, LEGACY_RAW_XPROMPT_FILENAME
+    )
+    if raw_path is None:
+        return _AgentDirectivePersistenceResult()
     try:
         old_prompt = raw_path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -271,12 +283,18 @@ def _persist_prompt_artifacts(
     _write_text_atomic(raw_path, new_prompt)
 
     submitted_updated = False
-    submitted_path = artifacts_path / "submitted_xprompt.md"
+    submitted_path = resolve_artifact_path(
+        artifacts_path, SUBMITTED_PROMPT_FILENAME, LEGACY_SUBMITTED_XPROMPT_FILENAME
+    )
     try:
-        submitted_prompt = submitted_path.read_text(encoding="utf-8")
+        submitted_prompt = (
+            submitted_path.read_text(encoding="utf-8")
+            if submitted_path is not None
+            else None
+        )
     except FileNotFoundError:
         submitted_prompt = None
-    if submitted_prompt == old_prompt:
+    if submitted_path is not None and submitted_prompt == old_prompt:
         _write_text_atomic(submitted_path, new_prompt)
         submitted_updated = True
 

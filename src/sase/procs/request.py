@@ -141,7 +141,7 @@ def request_sidecar_payload(
             if request.workspace_claim is not None
             else None
         ),
-        "xprompt_proc": (
+        "prompt_proc": (
             dict(request.xprompt_proc) if request.xprompt_proc is not None else None
         ),
         "service": (request.service.to_dict() if request.service is not None else None),

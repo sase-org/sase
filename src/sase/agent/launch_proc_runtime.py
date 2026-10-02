@@ -72,7 +72,9 @@ def dispatch_proc_unit(
     # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
     if current.lifecycle not in ("named-proc", "proc-shell"):
         return False, current.proc_id, "proc_lifecycle_is_not_named_proc", []
-    if current.origin != XPROMPT_PROC_ORIGIN:
+    from sase.legacy_xprompt_names import prompt_proc_origin_matches
+
+    if not prompt_proc_origin_matches(current.origin):
         return False, current.proc_id, "proc_origin_is_not_xprompt_proc", []
     from sase.procs.models import TERMINAL_PROC_STATUSES
 
@@ -98,11 +100,16 @@ def prepare_xprompt_proc_supervisor(
     crash after acknowledgement can still release the lease.
     """
 
-    if proc.origin != XPROMPT_PROC_ORIGIN:
+    from sase.legacy_xprompt_names import (
+        prompt_proc_origin_matches,
+        prompt_proc_payload,
+    )
+
+    if not prompt_proc_origin_matches(proc.origin):
         return None
     sidecar_path = proc_request_sidecar_path(proc.proc_id)
     sidecar = read_json_object(sidecar_path)
-    meta = sidecar.get("xprompt_proc")
+    meta = prompt_proc_payload(sidecar)
     if not isinstance(meta, dict):
         return "xprompt-proc request sidecar is missing"
     if _cancelled(cancelled) or proc.stop_requested_at:

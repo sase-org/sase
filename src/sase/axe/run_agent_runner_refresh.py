@@ -108,7 +108,7 @@ def refresh_runner_code_after_wait(
     The one-shot guard is removed on the refreshed pass before agent execution,
     preventing nested agents from inheriting runner-internal refresh state.
     """
-    from sase.agent.multi_prompt_xprompts import LOCAL_XPROMPTS_ENV
+    from sase.agent.multi_prompt_xprompts import read_local_macros_path
 
     already_refreshed = os.environ.pop(RUNNER_CODE_REFRESHED_ENV, None) is not None
     if already_refreshed or not blocking_wait_occurred or killed:
@@ -136,24 +136,26 @@ def refresh_runner_code_after_wait(
         )
         return
 
-    previous_local_xprompts = os.environ.get(LOCAL_XPROMPTS_ENV)
+    previous_local_xprompts = read_local_macros_path(os.environ)
     new_local_xprompts_path: str | None = None
     if local_xprompts:
         try:
-            from sase.agent.multi_prompt_xprompts import serialize_local_xprompts
+            from sase.agent.multi_prompt_xprompts import (
+                serialize_local_xprompts,
+                set_local_macros_path,
+            )
 
             new_local_xprompts_path = serialize_local_xprompts(dict(local_xprompts))
-            os.environ[LOCAL_XPROMPTS_ENV] = new_local_xprompts_path
+            set_local_macros_path(os.environ, new_local_xprompts_path)
         except Exception as exc:
+            from sase.agent.multi_prompt_xprompts import restore_local_macros_path
+
             if new_local_xprompts_path is not None:
                 try:
                     os.unlink(new_local_xprompts_path)
                 except OSError:
                     pass
-                if previous_local_xprompts is None:
-                    os.environ.pop(LOCAL_XPROMPTS_ENV, None)
-                else:
-                    os.environ[LOCAL_XPROMPTS_ENV] = previous_local_xprompts
+                restore_local_macros_path(os.environ, previous_local_xprompts)
             print(
                 "Warning: Skipping sase runner code refresh because local "
                 f"xprompts could not be re-materialized: {exc}",
@@ -186,10 +188,9 @@ def refresh_runner_code_after_wait(
             else:
                 os.environ[_PLANNED_AGENT_NAME_ENV] = previous_planned_name
         if new_local_xprompts_path is not None:
-            if previous_local_xprompts is None:
-                os.environ.pop(LOCAL_XPROMPTS_ENV, None)
-            else:
-                os.environ[LOCAL_XPROMPTS_ENV] = previous_local_xprompts
+            from sase.agent.multi_prompt_xprompts import restore_local_macros_path
+
+            restore_local_macros_path(os.environ, previous_local_xprompts)
             try:
                 os.unlink(new_local_xprompts_path)
             except OSError:

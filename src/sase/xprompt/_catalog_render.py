@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 from sase.core.time import local_now
+from sase.legacy_xprompt_names import MACROS_CATALOG_DIRNAME
 
 from ._catalog_format import (
     bar_width,
@@ -36,7 +37,7 @@ log = logging.getLogger(__name__)
 def build_xprompts_catalog(output_dir: Path | None = None) -> CatalogArtifact:
     """Gather every xprompt, compute stats, render a PDF.
 
-    The PDF path is ``<output_dir>/xprompts_catalog_<YYYY-MM-DD>.pdf``. Falls
+    The PDF path is ``<output_dir>/macros_catalog_<YYYY-MM-DD>.pdf``. Falls
     back to a tempdir when *output_dir* is ``None``.
 
     Raises:
@@ -55,10 +56,10 @@ def build_xprompts_catalog(output_dir: Path | None = None) -> CatalogArtifact:
     if output_dir is None:
         from sase.core.paths import get_sase_managed_tmpdir
 
-        output_dir = Path(get_sase_managed_tmpdir("xprompts_catalog"))
+        output_dir = Path(get_sase_managed_tmpdir(MACROS_CATALOG_DIRNAME))
     output_dir.mkdir(parents=True, exist_ok=True)
     date_suffix = stats.generated_at.strftime("%Y-%m-%d")
-    pdf_path = output_dir / f"xprompts_catalog_{date_suffix}.pdf"
+    pdf_path = output_dir / f"macros_catalog_{date_suffix}.pdf"
 
     fd, temporary_pdf_name = tempfile.mkstemp(
         prefix=f".{pdf_path.name}.",

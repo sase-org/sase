@@ -339,7 +339,7 @@ def dismissed_relationships(
 def _prompt_bytes_from_artifact(
     artifact: Path, record: AgentArtifactRecordWire
 ) -> bytes | None:
-    """Prefer the launch-time archive, then the live ``raw_xprompt.md``."""
+    """Prefer the launch-time archive, then the live raw prompt file."""
 
     archived = revival_input_file(
         artifact,
@@ -350,7 +350,10 @@ def _prompt_bytes_from_artifact(
     )
     if archived is not None:
         return _read_text_bytes(archived)
-    return _read_text_bytes(artifact / "raw_xprompt.md")
+    from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
+    resolved = resolve_raw_prompt_path(artifact)
+    return _read_text_bytes(resolved) if resolved is not None else None
 
 
 def _prompt_bytes_from_dismissed(raw: dict[str, Any], project_key: str) -> bytes | None:

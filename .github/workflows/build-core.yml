@@ -61,8 +61,11 @@ jobs:
       - name: Build xprompt LSP
         working-directory: sase-core
         run: |
-          cargo build --release -p sase_xprompt_lsp
-          install -m 0755 target/release/sase-xprompt-lsp "$GITHUB_WORKSPACE/dist/sase-xprompt-lsp"
+          lsp_pkg="sase_xprompt_lsp"
+          if [ -f "crates/sase_macro_lsp/Cargo.toml" ]; then lsp_pkg="sase_macro_lsp"; fi
+          cargo build --release -p "$lsp_pkg"
+          if [ -f "target/release/sase-macro-lsp" ]; then lsp_bin="sase-macro-lsp"; else lsp_bin="sase-xprompt-lsp"; fi
+          install -m 0755 "target/release/$lsp_bin" "$GITHUB_WORKSPACE/dist/$lsp_bin"
       - name: Record wheel provenance
         run: echo "${{ steps.core-sha.outputs.sha }}" > dist/sase-core-sha.txt
       - name: Upload Rust core artifacts

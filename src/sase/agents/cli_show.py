@@ -77,8 +77,10 @@ def handle_agents_show(args: argparse.Namespace) -> None:
             body.append("Outcome: ", style="bold")
             body.append(f"{done['outcome']}\n")
 
-    raw_prompt_path = artifacts_dir / "raw_xprompt.md"
-    if raw_prompt_path.exists():
+    from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
+    raw_prompt_path = resolve_raw_prompt_path(artifacts_dir)
+    if raw_prompt_path is not None and raw_prompt_path.exists():
         try:
             prompt_text = raw_prompt_path.read_text(encoding="utf-8").strip()
         except OSError:

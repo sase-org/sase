@@ -327,9 +327,20 @@ def _rewrite_dismissed_bundle_files(mapping: dict[str, str]) -> set[Path]:
 
 
 def _rewrite_prompt_artifact_files(mapping: dict[str, str]) -> set[Path]:
+    from sase.legacy_xprompt_names import (
+        LEGACY_RAW_XPROMPT_FILENAME,
+        RAW_PROMPT_FILENAME,
+        resolve_artifact_path,
+    )
+
     changed: set[Path] = set()
     for artifact_dir in _artifact_dirs():
-        path = artifact_dir / "raw_xprompt.md"
+        resolved = resolve_artifact_path(
+            artifact_dir, RAW_PROMPT_FILENAME, LEGACY_RAW_XPROMPT_FILENAME
+        )
+        if resolved is None:
+            continue
+        path = resolved
         if not path.is_file():
             continue
         try:

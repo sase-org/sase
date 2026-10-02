@@ -96,7 +96,9 @@ def settle_named_proc(
     _settle_workspace_claim(state)
     maybe_crash("claim_settled")
     _mark(state, "claim_settled")
-    if current.origin == "xprompt-proc":
+    from sase.legacy_xprompt_names import prompt_proc_origin_matches
+
+    if prompt_proc_origin_matches(current.origin):
         from sase.agent.launch_proc_runtime import cleanup_xprompt_proc_inputs
 
         cleanup_xprompt_proc_inputs(proc_id)

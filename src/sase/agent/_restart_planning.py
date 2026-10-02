@@ -127,12 +127,21 @@ def plan_agent_restart(
 
 
 def _require_raw_prompt(name: str, artifacts_dir: Path) -> str:
-    raw_prompt = read_raw_prompt(artifacts_dir / "raw_xprompt.md")
+    from sase.legacy_xprompt_names import (
+        LEGACY_RAW_XPROMPT_FILENAME,
+        RAW_PROMPT_FILENAME,
+        resolve_artifact_path,
+    )
+
+    raw_path = resolve_artifact_path(
+        artifacts_dir, RAW_PROMPT_FILENAME, LEGACY_RAW_XPROMPT_FILENAME
+    )
+    raw_prompt = read_raw_prompt(raw_path) if raw_path is not None else None
     if raw_prompt is None:
         raise AgentRestartError(
             reason="no_prompt",
             message=(
-                f"Agent '{name}' has no raw_xprompt.md, so the CLI cannot "
+                f"Agent '{name}' has no raw_prompt.md, so the CLI cannot "
                 "rebuild its launch prompt."
             ),
             hint=(

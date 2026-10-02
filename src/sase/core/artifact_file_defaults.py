@@ -512,9 +512,11 @@ def _run_started_at(artifacts_dir: Path) -> float:
 
 
 def _prompt_source_files(artifacts_dir: Path) -> list[Path]:
+    from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
     prompt_files: list[Path] = []
-    raw_prompt = artifacts_dir / "raw_xprompt.md"
-    if raw_prompt.is_file():
+    raw_prompt = resolve_raw_prompt_path(artifacts_dir)
+    if raw_prompt is not None:
         prompt_files.append(raw_prompt)
     try:
         step_prompts = sorted(

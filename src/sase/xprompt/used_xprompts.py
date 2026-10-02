@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
+from sase.legacy_xprompt_names import MACROS_FILENAME, macros_step_filename
 from sase.xprompt._literal_zones import literal_zone_ranges
 from sase.xprompt._parsing import (
     XPromptReference,
@@ -24,6 +25,7 @@ from sase.xprompt.workflow_executor_steps_embedded_types import (
 from sase.xprompt.workflow_models import Workflow
 
 SASE_LAUNCH_SWARM_XPROMPTS = "SASE_LAUNCH_SWARM_XPROMPTS"
+SASE_LAUNCH_SWARM_MACROS = "SASE_LAUNCH_SWARM_MACROS"
 
 
 class _UsedXPromptRecord(TypedDict):
@@ -45,9 +47,45 @@ class _ScannedXPromptReference:
     reference: XPromptReference | None
 
 
-def encode_launch_swarm_xprompts(names: Sequence[str]) -> str:
+def _encode_launch_swarm_xprompts(names: Sequence[str]) -> str:
     """Encode launch-boundary swarm provenance for a child process."""
     return json.dumps(list(names), separators=(",", ":"))
+
+
+def launch_swarm_env_entries(names: Sequence[str]) -> dict[str, str]:
+    """Return launch env entries carrying swarm provenance, new name first.
+
+    Both spellings carry the same value while callers migrate; readers prefer
+    the macro spelling.
+    """
+    encoded = _encode_launch_swarm_xprompts(names)
+    return {
+        SASE_LAUNCH_SWARM_MACROS: encoded,
+        SASE_LAUNCH_SWARM_XPROMPTS: encoded,
+    }
+
+
+def decode_launch_swarm_xprompts(
+    environ: Mapping[str, str],
+) -> list[str] | None:
+    """Decode launch-boundary swarm provenance, preferring the macro spelling."""
+    raw = environ.get(SASE_LAUNCH_SWARM_MACROS)
+    if raw is None:
+        raw = environ.get(SASE_LAUNCH_SWARM_XPROMPTS)
+    if not raw:
+        return None
+    decoded = json.loads(raw)
+    if not isinstance(decoded, list) or not all(
+        isinstance(name, str) for name in decoded
+    ):
+        raise ValueError(f"{SASE_LAUNCH_SWARM_MACROS} must be a JSON array of strings")
+    return list(decoded)
+
+
+def pop_launch_swarm_env(environ: MutableMapping[str, str]) -> None:
+    """Remove launch-boundary swarm provenance under either spelling."""
+    environ.pop(SASE_LAUNCH_SWARM_MACROS, None)
+    environ.pop(SASE_LAUNCH_SWARM_XPROMPTS, None)
 
 
 def scan_xprompt_references(
@@ -190,15 +228,17 @@ def write_used_xprompts(
 ) -> list[_UsedXPromptRecord]:
     """Collect and write xprompt metadata artifacts for *raw_prompt*.
 
-    The shared ``xprompts.json`` holds launch/root metadata read by non-step
-    agent rows; ``xprompts_<step>.json`` holds per-step metadata read by
-    workflow-child rows.
+    The shared ``macros.json`` holds launch/root metadata read by non-step
+    agent rows; ``macros_<step>.json`` holds per-step metadata read by
+    workflow-child rows. Only the canonical names are written; readers accept
+    the pre-rename ``xprompts.json`` spellings through
+    ``sase.legacy_xprompt_names``.
 
     By default both files are written (the shared file, plus a step file when
     *step_name* is given), overwriting any existing copies. Pass
     ``step_only=True`` from prompt-step execution so the step writes its own
-    ``xprompts_<step>.json`` but leaves an already-written shared
-    ``xprompts.json`` (the launch-boundary metadata) untouched. When no shared
+    ``macros_<step>.json`` but leaves an already-written shared
+    ``macros.json`` (the launch-boundary metadata) untouched. When no shared
     file exists yet, a ``step_only`` write still seeds it so launch paths that
     do not capture usage at their own boundary keep populating root rows.
     """
@@ -221,9 +261,9 @@ def write_used_xprompts(
             else records
         )
         if step_records:
-            _write_json(artifacts_path / f"xprompts_{step_name}.json", step_records)
+            _write_json(artifacts_path / macros_step_filename(step_name), step_records)
 
-    shared_path = artifacts_path / "xprompts.json"
+    shared_path = artifacts_path / MACROS_FILENAME
     if not (step_only and shared_path.exists()):
         _write_json(shared_path, records)
 

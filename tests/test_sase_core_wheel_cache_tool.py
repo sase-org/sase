@@ -403,6 +403,52 @@ def test_lsp_store_lookup_and_eviction(
     assert len(entries) == 1
 
 
+def test_lsp_store_builds_macro_crate_when_present(
+    core_checkout: Path,
+    tmp_path: Path,
+    fake_rustc: Path,
+) -> None:
+    macro_manifest = core_checkout / "crates" / "sase_macro_lsp" / "Cargo.toml"
+    macro_manifest.parent.mkdir(parents=True)
+    macro_manifest.write_text("[package]\nname = 'sase_macro_lsp'\n", encoding="utf-8")
+    macro_cargo = tmp_path / "macro-cargo"
+    macro_cargo.write_text(
+        "#!/bin/sh\n"
+        "profile=\n"
+        'while [ "$#" -gt 0 ]; do\n'
+        '  if [ "$1" = "--profile" ]; then shift; profile="$1"; fi\n'
+        '  if [ "$1" = "-p" ]; then shift; pkg="$1"; fi\n'
+        "  shift\n"
+        "done\n"
+        'mkdir -p "$CARGO_TARGET_DIR/$profile"\n'
+        'if [ "$pkg" = "sase_macro_lsp" ]; then printf lsp > "$CARGO_TARGET_DIR/$profile/sase-macro-lsp"; fi\n',
+        encoding="utf-8",
+    )
+    macro_cargo.chmod(0o755)
+    _run(["git", "add", "."], cwd=core_checkout)
+    _run(["git", "commit", "-m", "macro crate"], cwd=core_checkout)
+
+    stored = _run(
+        [
+            *_tool_args(
+                "store",
+                core_checkout=core_checkout,
+                cache_dir=tmp_path / "cache",
+                fake_rustc=fake_rustc,
+                kind="lsp",
+                profile="dev-update",
+            ),
+            "--cargo",
+            str(macro_cargo),
+            "--cargo-target-dir",
+            str(core_checkout / "target/lsp"),
+        ],
+        cwd=ROOT,
+    )
+
+    assert Path(stored.stdout.strip()).name == "sase-macro-lsp"
+
+
 def test_lsp_key_separates_profile_and_toolchain(
     core_checkout: Path,
     fake_rustc: Path,

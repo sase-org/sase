@@ -93,6 +93,55 @@ def test_setup_sase_install_script_records_the_wheel_in_github_env(
     installed_lsp = tmp_path / ".venv" / "bin" / "sase-xprompt-lsp"
     assert installed_lsp.is_file()
     assert installed_lsp.stat().st_mode & stat.S_IXUSR
+
+
+def test_setup_sase_install_script_installs_macro_lsp_under_its_own_name(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "sase-core-wheel"
+    artifact_dir.mkdir()
+    wheel = artifact_dir / "sase_core_rs-0.18.1-cp312-abi3-manylinux_2_39_x86_64.whl"
+    wheel.touch()
+    (artifact_dir / "sase-core-sha.txt").write_text("deadbeef\n", encoding="utf-8")
+    _write_executable(
+        artifact_dir / "sase-macro-lsp",
+        '#!/bin/sh\nprintf "lsp %s\\n" "$1"\n',
+    )
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_executable(
+        bin_dir / "just",
+        (
+            "#!/bin/sh\n"
+            "mkdir -p .venv/bin\n"
+            'printf "just %s SASE_CORE_WHEEL=%s\\n" "$1" "$SASE_CORE_WHEEL"\n'
+        ),
+    )
+
+    github_env = tmp_path / "github_env"
+    github_env.touch()
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "CORE_ARTIFACT_DIR": str(artifact_dir),
+        "INSTALL_RECIPE": "install",
+        "GITHUB_ENV": str(github_env),
+    }
+
+    result = subprocess.run(
+        ["bash", "-e", "-c", _setup_sase_install_script()],
+        env=env,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert result.returncode == 0
+    installed_lsp = tmp_path / ".venv" / "bin" / "sase-macro-lsp"
+    assert installed_lsp.is_file()
+    assert installed_lsp.stat().st_mode & stat.S_IXUSR
     assert (
         f"SASE_CORE_WHEEL={wheel}"
         in github_env.read_text(encoding="utf-8").splitlines()
@@ -102,8 +151,16 @@ def test_setup_sase_install_script_records_the_wheel_in_github_env(
 @pytest.mark.parametrize(
     ("lsp_count", "diagnostic"),
     [
-        (0, "error: expected exactly one sase-xprompt-lsp binary, found 0"),
-        (2, "error: expected exactly one sase-xprompt-lsp binary, found 2"),
+        (
+            0,
+            "error: expected exactly one LSP binary "
+            "(sase-macro-lsp or sase-xprompt-lsp), found 0",
+        ),
+        (
+            2,
+            "error: expected exactly one LSP binary "
+            "(sase-macro-lsp or sase-xprompt-lsp), found 2",
+        ),
     ],
 )
 def test_setup_sase_install_script_rejects_missing_or_duplicate_lsp_artifacts(

@@ -168,11 +168,13 @@ def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
 
 def _load_submitted_prompt(state: RunnerRunState) -> None:
     """Read the one-shot prompt file and persist the launch-boundary artifact."""
+    from sase.legacy_xprompt_names import SUBMITTED_PROMPT_FILENAME
+
     refreshed_prompt_fallback: str | None = None
     if RUNNER_CODE_REFRESHED_ENV in os.environ:
         refreshed_prompt_fallback = os.path.join(
             state.artifacts_dir,
-            "submitted_xprompt.md",
+            SUBMITTED_PROMPT_FILENAME,
         )
     state.prompt = read_prompt_file(
         state.prompt_file,
@@ -182,7 +184,7 @@ def _load_submitted_prompt(state: RunnerRunState) -> None:
     try:
         write_submitted_xprompt_artifact(state.artifacts_dir, state.submitted_xprompt)
     except OSError as e:
-        print(f"Warning: Failed to write submitted_xprompt.md: {e}", file=sys.stderr)
+        print(f"Warning: Failed to write submitted_prompt.md: {e}", file=sys.stderr)
 
 
 def _wait_flags(info: AgentInfo) -> tuple[bool, bool]:

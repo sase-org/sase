@@ -136,9 +136,11 @@ def test_rust_core_is_built_once_and_shared_with_source_based_jobs() -> None:
     assert (
         'uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"' in build_run_text
     )
-    assert "cargo build --release -p sase_xprompt_lsp" in build_run_text
+    assert "crates/sase_macro_lsp/Cargo.toml" in build_run_text
+    assert 'cargo build --release -p "$lsp_pkg"' in build_run_text
+    assert "target/release/sase-macro-lsp" in build_run_text
     assert (
-        'install -m 0755 target/release/sase-xprompt-lsp "$GITHUB_WORKSPACE/dist/sase-xprompt-lsp"'
+        'install -m 0755 "target/release/$lsp_bin" "$GITHUB_WORKSPACE/dist/$lsp_bin"'
         in build_run_text
     )
     assert not any(
@@ -155,7 +157,7 @@ def test_rust_core_is_built_once_and_shared_with_source_based_jobs() -> None:
     assert upload_step["with"]["path"] == "dist/"
     assert (
         "maturin build --release" in build_run_text
-        and "cargo build --release -p sase_xprompt_lsp" in build_run_text
+        and 'cargo build --release -p "$lsp_pkg"' in build_run_text
     )
 
     for job_name in CORE_ARTIFACT_CONSUMER_JOBS:

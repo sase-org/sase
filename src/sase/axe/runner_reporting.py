@@ -3,6 +3,7 @@
 import json
 import os
 from collections.abc import Callable, Mapping
+from pathlib import Path
 
 from sase.ace.patch import Patch, parse_project_file
 
@@ -151,14 +152,28 @@ def _read_submitted_xprompt_fallback(
     artifacts_dir: str,
     submitted_xprompt_path: str | None,
 ) -> str | None:
+    from sase.legacy_xprompt_names import (
+        LEGACY_RAW_XPROMPT_FILENAME,
+        LEGACY_SUBMITTED_XPROMPT_FILENAME,
+        RAW_PROMPT_FILENAME,
+        SUBMITTED_PROMPT_FILENAME,
+        artifact_candidates,
+    )
+
+    directory = Path(artifacts_dir)
     paths = []
     if submitted_xprompt_path:
         paths.append(submitted_xprompt_path)
     paths.extend(
-        [
-            os.path.join(artifacts_dir, "submitted_xprompt.md"),
-            os.path.join(artifacts_dir, "raw_xprompt.md"),
-        ]
+        str(path)
+        for path in (
+            *artifact_candidates(
+                directory, SUBMITTED_PROMPT_FILENAME, LEGACY_SUBMITTED_XPROMPT_FILENAME
+            ),
+            *artifact_candidates(
+                directory, RAW_PROMPT_FILENAME, LEGACY_RAW_XPROMPT_FILENAME
+            ),
+        )
     )
     for path in paths:
         try:

@@ -77,7 +77,7 @@ def resolve_xprompt_skill_definition(
 ) -> XpromptSkillDefinitionResolution:
     """Return the local source definition for a skill reference."""
     _require_xprompt_skill_definition_schema()
-    binding = require_rust_binding("resolve_xprompt_skill_definition")
+    binding = require_rust_binding("resolve_macro_skill_definition")
     raw = cast(
         Mapping[str, Any],
         binding(
@@ -93,7 +93,7 @@ def resolve_xprompt_skill_definition(
 
 
 def _require_xprompt_skill_definition_schema() -> None:
-    binding = require_rust_binding("xprompt_skill_definition_wire_schema_version")
+    binding = require_rust_binding("macro_skill_definition_wire_schema_version")
     version = int(binding())
     if version != XPROMPT_SKILL_DEFINITION_WIRE_SCHEMA_VERSION:
         raise RuntimeError(
@@ -106,11 +106,11 @@ def _catalog_options(root_dir: Path | None) -> dict[str, object]:
     package_root = Path(str(importlib.resources.files("sase")))
     return {
         "root_dir": None if root_dir is None else str(root_dir),
-        "package_xprompts_dir": str(package_root / "xprompts"),
+        "package_macros_dir": str(package_root / "xprompts"),
         "package_skills_dir": str(get_sase_package_skills_dir(package_root)),
-        "default_xprompts_dir": str(package_root / "default_xprompts"),
+        "default_macros_dir": str(package_root / "default_xprompts"),
         "default_config_path": str(package_root / "default_config.yml"),
-        "plugin_xprompt_dirs": _plugin_resource_dirs("xprompts"),
+        "plugin_macro_dirs": _plugin_resource_dirs("xprompts"),
         "plugin_skill_dirs": _plugin_resource_dirs("skills"),
         "plugin_config_paths": _plugin_config_paths(),
     }

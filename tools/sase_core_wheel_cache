@@ -551,6 +551,20 @@ def _copy_into_cache(
     return final_artifact
 
 
+def _lsp_package(core_dir: Path) -> str:
+    """Return the LSP crate name the core checkout provides."""
+    if (core_dir / "crates" / "sase_macro_lsp" / "Cargo.toml").is_file():
+        return "sase_macro_lsp"
+    return "sase_xprompt_lsp"
+
+
+def _lsp_binary(target_dir: Path, profile: str) -> str:
+    """Return the preferred LSP binary the build produced, macro first."""
+    if (target_dir / profile / "sase-macro-lsp").is_file():
+        return "sase-macro-lsp"
+    return "sase-xprompt-lsp"
+
+
 def _run_lsp_build(*, core_dir: Path, target_dir: Path, profile: str, cargo: str) -> Path:
     env = os.environ.copy()
     env["CARGO_TARGET_DIR"] = str(target_dir)
@@ -558,8 +572,9 @@ def _run_lsp_build(*, core_dir: Path, target_dir: Path, profile: str, cargo: str
     env["CARGO_INCREMENTAL"] = "0"
     env.setdefault("CARGO_NET_RETRY", "10")
     env.setdefault("CARGO_HTTP_MULTIPLEXING", "false")
+    package = _lsp_package(core_dir)
     completed = subprocess.run(
-        [cargo, "build", "--profile", profile, "-p", "sase_xprompt_lsp"],
+        [cargo, "build", "--profile", profile, "-p", package],
         cwd=core_dir,
         env=env,
         check=False,
@@ -567,7 +582,7 @@ def _run_lsp_build(*, core_dir: Path, target_dir: Path, profile: str, cargo: str
     )
     if completed.returncode != 0:
         raise CacheUnavailable(f"cargo build failed with exit {completed.returncode}")
-    artifact = target_dir / profile / "sase-xprompt-lsp"
+    artifact = target_dir / profile / _lsp_binary(target_dir, profile)
     if not artifact.is_file():
         raise CacheUnavailable(f"cargo build did not produce {artifact}")
     shutil.rmtree(target_dir / "build" / profile / "incremental", ignore_errors=True)

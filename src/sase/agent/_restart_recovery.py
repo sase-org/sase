@@ -54,11 +54,19 @@ def _new_recovery_dir(plan: AgentRestartPlan, root: Path) -> Path:
 
 
 def _write_recovery_files(plan: AgentRestartPlan, dest: Path) -> None:
-    raw_src = plan.artifacts_dir / "raw_xprompt.md"
-    if raw_src.is_file():
-        shutil.copy2(raw_src, dest / "raw_xprompt.md")
+    from sase.legacy_xprompt_names import (
+        LEGACY_RAW_XPROMPT_FILENAME,
+        RAW_PROMPT_FILENAME,
+        resolve_artifact_path,
+    )
+
+    raw_src = resolve_artifact_path(
+        plan.artifacts_dir, RAW_PROMPT_FILENAME, LEGACY_RAW_XPROMPT_FILENAME
+    )
+    if raw_src is not None and raw_src.is_file():
+        shutil.copy2(raw_src, dest / RAW_PROMPT_FILENAME)
     else:
-        (dest / "raw_xprompt.md").write_text(plan.original_prompt, encoding="utf-8")
+        (dest / RAW_PROMPT_FILENAME).write_text(plan.original_prompt, encoding="utf-8")
     (dest / "rewritten.md").write_text(plan.rewritten_prompt, encoding="utf-8")
     (dest / "execution.md").write_text(
         plan.force_reuse_plan.rewritten_prompt, encoding="utf-8"

@@ -14,6 +14,9 @@ from sase.feature_flags import override_flags
 from sase.integrations.xprompt_lsp import (
     SASE_DEFAULT_CONFIG_PATH_ENV,
     SASE_AGENT_HOLDS_ENV,
+    SASE_MACRO_BUILTIN_DIR_ENV,
+    SASE_MACRO_DEFAULT_DIR_ENV,
+    SASE_MACRO_PACKAGE_DIR_ENV,
     SASE_TYPED_LAUNCH_UNITS_ENV,
     SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV,
     SASE_XPROMPT_BUILTIN_DIR_ENV,
@@ -36,19 +39,19 @@ def stub_lsp_catalog_defaults(
     """Keep LSP catalog materialization inside pytest temp directories."""
     monkeypatch.setattr(
         "sase.integrations.xprompt_lsp._default_vcs_project_catalog_path",
-        lambda: tmp_path / "xprompt_lsp" / "vcs_project_catalog.json",
+        lambda: tmp_path / "macro_lsp" / "vcs_project_catalog.json",
     )
     monkeypatch.setattr(
         "sase.integrations.xprompt_lsp._default_model_catalog_path",
-        lambda: tmp_path / "xprompt_lsp" / "model_catalog.json",
+        lambda: tmp_path / "macro_lsp" / "model_catalog.json",
     )
     monkeypatch.setattr(
         "sase.integrations.xprompt_lsp._default_artifact_ref_catalog_path",
-        lambda: tmp_path / "xprompt_lsp" / "artifact_ref_catalog.json",
+        lambda: tmp_path / "macro_lsp" / "artifact_ref_catalog.json",
     )
     monkeypatch.setattr(
         "sase.integrations.xprompt_lsp._default_glossary_catalog_path",
-        lambda: tmp_path / "xprompt_lsp" / "glossary_catalog.json",
+        lambda: tmp_path / "macro_lsp" / "glossary_catalog.json",
     )
     monkeypatch.setattr(
         "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
@@ -80,6 +83,21 @@ def test_prepare_lsp_environment_sets_package_catalog_paths(tmp_path: Path) -> N
     assert env[SASE_XPROMPT_BUILTIN_DIR_ENV] == "/custom/xprompts"
     assert env[SASE_XPROMPT_DEFAULT_DIR_ENV] == str(package_dir / "default_xprompts")
     assert env[SASE_DEFAULT_CONFIG_PATH_ENV] == str(package_dir / "default_config.yml")
+    assert env[SASE_MACRO_PACKAGE_DIR_ENV] == str(package_dir)
+    assert env[SASE_MACRO_BUILTIN_DIR_ENV] == "/custom/xprompts"
+    assert env[SASE_MACRO_DEFAULT_DIR_ENV] == str(package_dir / "default_xprompts")
+
+
+def test_prepare_lsp_environment_adopts_legacy_catalog_override(
+    tmp_path: Path,
+) -> None:
+    env: dict[str, str] = {
+        SASE_XPROMPT_BUILTIN_DIR_ENV: "/custom/xprompts",
+    }
+
+    _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    assert env[SASE_MACRO_BUILTIN_DIR_ENV] == "/custom/xprompts"
 
 
 def test_prepare_lsp_environment_materializes_vcs_project_catalog(
@@ -236,7 +254,7 @@ def test_prepare_lsp_environment_defaults_vcs_catalog_path(tmp_path: Path) -> No
 
     catalog_path = Path(env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV])
     assert catalog_path.name == "vcs_project_catalog.json"
-    assert catalog_path.parent.name == "xprompt_lsp"
+    assert catalog_path.parent.name == "macro_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 
@@ -252,7 +270,7 @@ def test_prepare_lsp_environment_defaults_model_catalog_path(tmp_path: Path) -> 
 
     catalog_path = Path(env[SASE_XPROMPT_MODEL_CATALOG_ENV])
     assert catalog_path.name == "model_catalog.json"
-    assert catalog_path.parent.name == "xprompt_lsp"
+    assert catalog_path.parent.name == "macro_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 
@@ -270,7 +288,7 @@ def test_prepare_lsp_environment_defaults_artifact_ref_catalog_path(
 
     catalog_path = Path(env[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV])
     assert catalog_path.name == "artifact_ref_catalog.json"
-    assert catalog_path.parent.name == "xprompt_lsp"
+    assert catalog_path.parent.name == "macro_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 
@@ -286,7 +304,7 @@ def test_prepare_lsp_environment_defaults_glossary_catalog_path(tmp_path: Path) 
 
     catalog_path = Path(env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV])
     assert catalog_path.name == "glossary_catalog.json"
-    assert catalog_path.parent.name == "xprompt_lsp"
+    assert catalog_path.parent.name == "macro_lsp"
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
 
 

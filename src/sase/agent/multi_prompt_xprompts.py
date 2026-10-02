@@ -4,6 +4,7 @@ import json
 import os
 import re
 import tempfile
+from collections.abc import Mapping, MutableMapping
 from typing import Any
 
 from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
@@ -11,6 +12,39 @@ from sase.xprompt.models import UNSET as _UNSET
 from sase.xprompt.models import XPrompt
 
 LOCAL_XPROMPTS_ENV = "SASE_AGENT_LOCAL_XPROMPTS"
+LOCAL_MACROS_ENV = "SASE_AGENT_LOCAL_MACROS"
+
+
+def read_local_macros_path(environ: Mapping[str, str]) -> str | None:
+    """Return the local-macros file path, preferring the macro spelling."""
+    path = environ.get(LOCAL_MACROS_ENV)
+    if path is None:
+        path = environ.get(LOCAL_XPROMPTS_ENV)
+    return path
+
+
+def take_local_macros_path(environ: MutableMapping[str, str]) -> str | None:
+    """Pop the local-macros file path under either spelling."""
+    path = environ.pop(LOCAL_MACROS_ENV, None)
+    legacy = environ.pop(LOCAL_XPROMPTS_ENV, None)
+    return path if path is not None else legacy
+
+
+def set_local_macros_path(environ: MutableMapping[str, str], path: str) -> None:
+    """Publish the local-macros file path under both spellings."""
+    environ[LOCAL_MACROS_ENV] = path
+    environ[LOCAL_XPROMPTS_ENV] = path
+
+
+def restore_local_macros_path(
+    environ: MutableMapping[str, str], path: str | None
+) -> None:
+    """Restore a previously saved local-macros file path, or clear both keys."""
+    if path is None:
+        environ.pop(LOCAL_MACROS_ENV, None)
+        environ.pop(LOCAL_XPROMPTS_ENV, None)
+    else:
+        set_local_macros_path(environ, path)
 
 
 def extract_called_xprompt_names(text: str, available_xprompts: set[str]) -> set[str]:

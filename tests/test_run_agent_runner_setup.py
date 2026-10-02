@@ -42,7 +42,7 @@ def test_write_submitted_xprompt_artifact_preserves_exact_prompt(
 
     path = write_submitted_xprompt_artifact(str(tmp_path), prompt)
 
-    assert Path(path).name == "submitted_xprompt.md"
+    assert Path(path).name == "submitted_prompt.md"
     assert Path(path).read_text(encoding="utf-8") == prompt
 
 
@@ -62,8 +62,8 @@ def test_submitted_xprompt_artifact_does_not_change_raw_xprompt_behavior(
     ):
         preprocess_prompt_xprompts(submitted, str(tmp_path))
 
-    assert (tmp_path / "submitted_xprompt.md").read_text(encoding="utf-8") == submitted
-    assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == resolved
+    assert (tmp_path / "submitted_prompt.md").read_text(encoding="utf-8") == submitted
+    assert (tmp_path / "raw_prompt.md").read_text(encoding="utf-8") == resolved
 
 
 def test_preprocess_prompt_xprompts_archives_revival_inputs(
@@ -88,7 +88,7 @@ def test_preprocess_prompt_xprompts_archives_revival_inputs(
     assert archived_submitted is not None
     assert archived_raw.read_text(encoding="utf-8") == resolved
     assert archived_submitted.read_text(encoding="utf-8") == submitted
-    live_xprompts = tmp_path / "xprompts.json"
+    live_xprompts = tmp_path / "macros.json"
     if live_xprompts.is_file():
         archived_xprompts = revival_input_file(tmp_path, "xprompts.json")
         assert archived_xprompts is not None
@@ -99,7 +99,7 @@ def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The runner writes xprompts.json (e.g. #plan) before expansion erases it."""
+    """The runner writes macros.json (e.g. #plan) before expansion erases it."""
     import sase.xprompt.used_xprompts as used_xprompts
     from sase.xprompt.models import XPrompt
 
@@ -134,11 +134,11 @@ def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
     assert expanded == "expanded"
     # The pre-expansion #plan reference is captured into the shared file that
     # the root (non-step) agent row reads.
-    data = json.loads((tmp_path / "xprompts.json").read_text(encoding="utf-8"))
+    data = json.loads((tmp_path / "macros.json").read_text(encoding="utf-8"))
     assert [(r["name"], r["kind"]) for r in data] == [("plan", "part")]
     assert set(data[0]) == {"name", "kind", "positional", "named", "tags"}
-    # raw_xprompt.md and the captured metadata derive from the same text.
-    assert (tmp_path / "raw_xprompt.md").read_text(
+    # raw_prompt.md and the captured metadata derive from the same text.
+    assert (tmp_path / "raw_prompt.md").read_text(
         encoding="utf-8"
     ) == "Make a #plan now"
     assert process.call_args.kwargs["defer_xprompt_names"] == frozenset({"fork"})
@@ -190,7 +190,7 @@ def test_preprocess_prompt_xprompts_captures_launch_swarm(
     ):
         preprocess_prompt_xprompts("Run #research", str(tmp_path))
 
-    data = json.loads((tmp_path / "xprompts.json").read_text(encoding="utf-8"))
+    data = json.loads((tmp_path / "macros.json").read_text(encoding="utf-8"))
     assert data == [
         {
             "name": "research_swarm",
@@ -230,8 +230,8 @@ def test_runner_setup_artifacts_keep_project_alias_canonical(
     ):
         preprocess_prompt_xprompts(prompt, str(tmp_path))
 
-    submitted = (tmp_path / "submitted_xprompt.md").read_text(encoding="utf-8")
-    raw = (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8")
+    submitted = (tmp_path / "submitted_prompt.md").read_text(encoding="utf-8")
+    raw = (tmp_path / "raw_prompt.md").read_text(encoding="utf-8")
     assert submitted == "#gh:bob-cli do it"
     assert raw == "#gh:bob-cli do it"
     assert "#gh:bob " not in submitted
@@ -373,7 +373,7 @@ def test_deferred_launch_xprompts_preserve_original_usage_metadata(
     assert "#gh:sase" in expanded
     assert "#fork" not in expanded
     assert "fork history" in expanded
-    records = json.loads((tmp_path / "xprompts.json").read_text(encoding="utf-8"))
+    records = json.loads((tmp_path / "macros.json").read_text(encoding="utf-8"))
     assert [record["name"] for record in records] == [
         "gh",
         "fork",

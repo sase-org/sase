@@ -113,6 +113,8 @@ _COMMAND_SCRATCH_BUCKETS = (
     "viewers",
     "workflow-loader",
     "wrappers",
+    "macros_catalog",
+    # Pre-rename residue: the catalog builder now writes macros_catalog.
     "xprompts_catalog",
     # Per-agent scratch exported through the child process environment.
     "agent-tmp",

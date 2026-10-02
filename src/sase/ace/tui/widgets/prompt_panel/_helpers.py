@@ -328,12 +328,25 @@ def project_display_label(agent: Agent, fallback: object) -> str:
     return agent.project_display_name or str(fallback)
 
 
-def load_xprompts_used(agent: Agent) -> list[dict[str, Any]] | None:
-    """Load xprompt metadata from xprompts.json.
+def _read_metadata_list(path: Path) -> list[dict[str, Any]] | None:
+    """Return a non-empty metadata list from *path*, or ``None``."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return None
+    if not isinstance(data, list) or not data:
+        return None
+    return data
 
-    Uses the step-specific file ``xprompts_{step_name}.json``
+
+def load_xprompts_used(agent: Agent) -> list[dict[str, Any]] | None:
+    """Load xprompt metadata from macros.json.
+
+    Uses the step-specific file ``macros_{step_name}.json``
     when the agent has a ``step_name``; falls back to the shared file
-    only when ``step_name`` is None.
+    only when ``step_name`` is None. Pre-rename ``xprompts.json``
+    spellings read as equal.
 
     Args:
         agent: The agent to load metadata for.
@@ -341,6 +354,13 @@ def load_xprompts_used(agent: Agent) -> list[dict[str, Any]] | None:
     Returns:
         List of workflow metadata dicts, or None if not found.
     """
+    from sase.legacy_xprompt_names import (
+        LEGACY_MACROS_FILENAME,
+        MACROS_FILENAME,
+        legacy_macros_step_filename,
+        macros_step_filename,
+    )
+
     artifacts_dir = agent.get_artifacts_dir()
     if artifacts_dir is None:
         return None
@@ -349,30 +369,19 @@ def load_xprompts_used(agent: Agent) -> list[dict[str, Any]] | None:
 
     # Try step-specific file first (multi-step workflows)
     if agent.step_name:
-        step_file = artifacts_path / f"xprompts_{agent.step_name}.json"
-        if step_file.exists():
-            try:
-                with open(step_file, encoding="utf-8") as f:
-                    data = json.load(f)
-                if isinstance(data, list) and data:
-                    return data
-            except Exception:
-                pass
+        for step_name in (
+            macros_step_filename(agent.step_name),
+            legacy_macros_step_filename(agent.step_name),
+        ):
+            data = _read_metadata_list(artifacts_path / step_name)
+            if data is not None:
+                return data
         # Step has no xprompts — don't fall back to shared file
         return None
 
     # Fall back to shared file (only for agents without step_name)
-    metadata_file = artifacts_path / "xprompts.json"
-    if not metadata_file.exists():
-        return None
-
-    try:
-        with open(metadata_file, encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
-        return None
-
-    if not isinstance(data, list) or not data:
-        return None
-
-    return data
+    for shared_name in (MACROS_FILENAME, LEGACY_MACROS_FILENAME):
+        data = _read_metadata_list(artifacts_path / shared_name)
+        if data is not None:
+            return data
+    return None

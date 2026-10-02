@@ -189,7 +189,10 @@ def retry_prompt_from_context(context: dict[str, Any], request: dict[str, Any]) 
     artifact_dir = optional_str(context.get("artifact_dir"))
     prompt = read_prompt_file(raw_prompt_path)
     if prompt is None and artifact_dir:
-        prompt = read_prompt_file(str(Path(artifact_dir) / "raw_xprompt.md"))
+        from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
+        resolved = resolve_raw_prompt_path(Path(artifact_dir))
+        prompt = read_prompt_file(str(resolved) if resolved is not None else None)
     if prompt is None:
         prompt = optional_str(context.get("prompt_snapshot")) or optional_str(
             context.get("raw_prompt")

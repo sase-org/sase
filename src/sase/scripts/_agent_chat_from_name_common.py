@@ -215,9 +215,10 @@ def format_finished_at(value: object) -> str | None:
 
 
 def read_sanitized_launch_prompt(artifact_dir: Path) -> str | None:
-    try:
-        prompt = (artifact_dir / "raw_xprompt.md").read_text(encoding="utf-8")
-    except OSError:
+    from sase.legacy_xprompt_names import read_raw_prompt_text
+
+    prompt = read_raw_prompt_text(artifact_dir)
+    if prompt is None:
         return None
     sanitized = sanitize_resume_prompt(prompt)
     if not sanitized:

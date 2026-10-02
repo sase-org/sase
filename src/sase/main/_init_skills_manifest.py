@@ -113,6 +113,8 @@ class _SkillDeployManifest:
 
     def to_json(self) -> str:
         """Return the stable, version-controlled JSON representation."""
+        from sase.legacy_xprompt_names import MACRO_SET_SHA256_KEY
+
         return (
             json.dumps(
                 {
@@ -121,7 +123,7 @@ class _SkillDeployManifest:
                         entry.to_json_dict() for entry in self.managed_files
                     ],
                     "source_commit": self.source_commit,
-                    "xprompt_set_sha256": self.xprompt_set_sha256,
+                    MACRO_SET_SHA256_KEY: self.xprompt_set_sha256,
                 },
                 indent=2,
                 sort_keys=True,
@@ -368,8 +370,10 @@ def _read_manifest(
         return None, None
     if not isinstance(raw, dict):
         return None, None
+    from sase.legacy_xprompt_names import macro_set_sha256
+
     source_commit = raw.get("source_commit")
-    xprompt_set_sha256 = raw.get("xprompt_set_sha256")
+    xprompt_set_sha256 = macro_set_sha256(raw)
     deployed_at = raw.get("deployed_at")
     if not isinstance(source_commit, str) or not source_commit:
         return None, None

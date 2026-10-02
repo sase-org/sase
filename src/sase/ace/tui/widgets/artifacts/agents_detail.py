@@ -12,6 +12,7 @@ pane's own lazy, per-row enrichment.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 import os
 
 from rich.text import Text
@@ -64,8 +65,13 @@ def load_agent_detail(row: AgentCatalogRow) -> AgentDetailData:
     prompt_truncated = False
     chat_path: str | None = None
     if resolved_dir is not None:
+        from sase.legacy_xprompt_names import resolve_raw_prompt_path
+
         cache = get_global_cache()
-        raw_prompt = cache.read_text(os.path.join(resolved_dir, "raw_xprompt.md"))
+        raw_resolved = resolve_raw_prompt_path(Path(resolved_dir))
+        raw_prompt = (
+            cache.read_text(str(raw_resolved)) if raw_resolved is not None else None
+        )
         if raw_prompt is not None:
             prompt_truncated = len(raw_prompt) > _PROMPT_PREVIEW_CHARS
             prompt_preview = raw_prompt[:_PROMPT_PREVIEW_CHARS]

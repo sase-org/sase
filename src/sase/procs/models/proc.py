@@ -144,7 +144,12 @@ class Proc:
         ):
             values[name] = None if data.get(name) is None else int(data[name])
         values["result"] = data.get("result")
-        meta = data.get("xprompt_proc")
+        from sase.legacy_xprompt_names import (
+            prompt_proc_origin_matches,
+            prompt_proc_payload,
+        )
+
+        meta = prompt_proc_payload(data)
         if isinstance(meta, Mapping):
             xprompt_proc = dict(meta)
             # Readers prefer the new spelling and fall back to the old one;
@@ -152,7 +157,7 @@ class Proc:
             inner_proc_name = xprompt_proc.get("proc_name")
             if inner_proc_name is None:
                 inner_proc_name = xprompt_proc.get("shell_name")
-            if data.get("origin") == "xprompt-proc":
+            if prompt_proc_origin_matches(data.get("origin")):
                 if "label" not in xprompt_proc and data.get("label") is not None:
                     xprompt_proc["label"] = str(data["label"])
                 if inner_proc_name is None:
@@ -253,10 +258,12 @@ class Proc:
                 "settled_at",
                 "finished_by",
                 "result",
-                "xprompt_proc",
                 "service",
             )
         }
+        from sase.legacy_xprompt_names import PROMPT_PROC_FIELD
+
+        payload[PROMPT_PROC_FIELD] = self.xprompt_proc
         payload["service"] = (
             self.service.to_dict() if self.service is not None else None
         )

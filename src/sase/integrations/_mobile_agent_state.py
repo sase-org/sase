@@ -106,7 +106,7 @@ def persist_mobile_launch_contexts(
             if project_context is not None
             else None,
             "project_context": project_context_to_record(project_context),
-            "raw_prompt_path": str(Path(artifact_dir) / "raw_xprompt.md")
+            "raw_prompt_path": _raw_prompt_path_str(artifact_dir)
             if artifact_dir
             else None,
             "prompt_snapshot": prompt,
@@ -178,7 +178,7 @@ def context_from_agent(agent: RunningAgentInfo) -> dict[str, Any]:
         "artifact_dir": agent.artifacts_dir,
         "artifacts_timestamp": artifact_timestamp(agent.artifacts_dir),
         "project": agent.project,
-        "raw_prompt_path": str(Path(agent.artifacts_dir) / "raw_xprompt.md")
+        "raw_prompt_path": _raw_prompt_path_str(agent.artifacts_dir)
         if agent.artifacts_dir
         else None,
         "prompt_snapshot": agent.prompt,
@@ -190,6 +190,19 @@ def artifact_timestamp(artifacts_dir: str | None) -> str | None:
     if not artifacts_dir:
         return None
     return Path(artifacts_dir).name
+
+
+def _raw_prompt_path_str(artifact_dir: str) -> str:
+    """Return the raw prompt path, preferring the canonical filename."""
+    from sase.legacy_xprompt_names import (
+        RAW_PROMPT_FILENAME,
+        resolve_raw_prompt_path,
+    )
+
+    resolved = resolve_raw_prompt_path(Path(artifact_dir))
+    if resolved is not None:
+        return str(resolved)
+    return str(Path(artifact_dir) / RAW_PROMPT_FILENAME)
 
 
 def read_prompt_file(path: str | None) -> str | None:

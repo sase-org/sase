@@ -130,14 +130,19 @@ def _is_xprompt_lsp_cargo_run(command: tuple[str, ...]) -> bool:
         len(command) >= 2
         and Path(command[0]).name == "cargo"
         and command[1] == "run"
-        and "sase_xprompt_lsp" in command
+        and ("sase_xprompt_lsp" in command or "sase_macro_lsp" in command)
     )
 
 
 def _xprompt_lsp_binary_names() -> tuple[str, ...]:
     if os.name == "nt":
-        return (f"{xprompt_lsp.XPROMPT_LSP_BINARY}.exe", xprompt_lsp.XPROMPT_LSP_BINARY)
-    return (xprompt_lsp.XPROMPT_LSP_BINARY,)
+        return (
+            f"{xprompt_lsp.MACRO_LSP_BINARY}.exe",
+            xprompt_lsp.MACRO_LSP_BINARY,
+            f"{xprompt_lsp.XPROMPT_LSP_BINARY}.exe",
+            xprompt_lsp.XPROMPT_LSP_BINARY,
+        )
+    return (xprompt_lsp.MACRO_LSP_BINARY, xprompt_lsp.XPROMPT_LSP_BINARY)
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:

@@ -177,8 +177,15 @@ def get_raw_xprompt_content(agent: Agent) -> str | None:
         return None
     if artifacts_dir is None:
         return None
-    raw_path = os.path.join(artifacts_dir, "raw_xprompt.md")
-    return get_global_cache().read_text(raw_path)
+    from sase.legacy_xprompt_names import (
+        RAW_PROMPT_FILENAME,
+        resolve_raw_prompt_path,
+    )
+
+    raw_path = resolve_raw_prompt_path(Path(artifacts_dir))
+    if raw_path is None:
+        raw_path = Path(artifacts_dir) / RAW_PROMPT_FILENAME
+    return get_global_cache().read_text(str(raw_path))
 
 
 def get_restartable_prompt_content(

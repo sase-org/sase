@@ -1,25 +1,29 @@
 """Disabled region protection for xprompt processing.
 
 Provides utilities to extract regions enclosed by
-``%xprompts_enabled:false`` / ``%xprompts_enabled:true`` marker pairs
-from text before xprompt expansion and restore them afterward,
+``%macros_enabled:false`` / ``%macros_enabled:true`` marker pairs (or the
+pre-rename ``%xprompts_enabled:…`` spellings, which stay accepted
+permanently) from text before xprompt expansion and restore them afterward,
 preventing content inside disabled regions from being processed.
 """
 
 import re
 
+# Both directive spellings are accepted by readers; writers keep emitting the
+# legacy spelling until the ``sase-syntax`` phase switches them.
+_ENABLED_DIRECTIVE = r"(?:xprompts|macros)_enabled"
 _DISABLED_REGION_RE = re.compile(
-    r"^[ \t]*%xprompts_enabled:false[ \t]*\n([\s\S]*?)(?:^[ \t]*|[ \t]+)%xprompts_enabled:true[ \t]*\n?",
+    rf"^[ \t]*%{_ENABLED_DIRECTIVE}:false[ \t]*\n([\s\S]*?)(?:^[ \t]*|[ \t]+)%{_ENABLED_DIRECTIVE}:true[ \t]*\n?",
     re.MULTILINE,
 )
-_DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
-_MARKER_TEXT_RE = re.compile(r"%(xprompts_enabled:(?:false|true))")
+_DISABLED_REGION_START_RE = re.compile(rf"[ \t]*%{_ENABLED_DIRECTIVE}:false")
+_MARKER_TEXT_RE = re.compile(rf"%({_ENABLED_DIRECTIVE}:(?:false|true))")
 _PLACEHOLDER_PREFIX = "\x00XPD_"
 _PLACEHOLDER_SUFFIX = "\x00"
 
 
 def starts_with_disabled_region_marker(text: str) -> bool:
-    """Return whether *text* opens with a ``%xprompts_enabled:false`` marker."""
+    """Return whether *text* opens with a disabled-region ``:false`` marker."""
     return bool(_DISABLED_REGION_START_RE.match(text))
 
 
@@ -100,7 +104,7 @@ def unprotect_disabled_regions(text: str, regions: list[str]) -> str:
 
 
 def strip_disabled_region_markers(text: str) -> str:
-    """Remove all ``%xprompts_enabled:false/true`` marker lines.
+    """Remove all disabled-region marker lines, either spelling.
 
     This should be called as a final cleanup step after all pipeline
     stages have finished processing.
@@ -112,7 +116,7 @@ def strip_disabled_region_markers(text: str) -> str:
         The text with all marker lines removed.
     """
     return re.sub(
-        r"^[ \t]*%xprompts_enabled:(?:false|true)[ \t]*\n?|[ \t]+%xprompts_enabled:(?:false|true)[ \t]*",
+        rf"^[ \t]*%{_ENABLED_DIRECTIVE}:(?:false|true)[ \t]*\n?|[ \t]+%{_ENABLED_DIRECTIVE}:(?:false|true)[ \t]*",
         "",
         text,
         flags=re.MULTILINE,

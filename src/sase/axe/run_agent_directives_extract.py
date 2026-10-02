@@ -78,9 +78,9 @@ def extract_directives_and_write_meta(
 
     # Merge env-var-delivered local xprompts (from multi-prompt launcher)
     # with frontmatter-defined ones. Frontmatter takes precedence.
-    from sase.agent.multi_prompt_xprompts import LOCAL_XPROMPTS_ENV
+    from sase.agent.multi_prompt_xprompts import take_local_macros_path
 
-    env_xprompts_path = os.environ.pop(LOCAL_XPROMPTS_ENV, None)
+    env_xprompts_path = take_local_macros_path(os.environ)
     if env_xprompts_path:
         try:
             from sase.agent.multi_prompt_launcher import deserialize_local_xprompts

@@ -5,6 +5,11 @@ import logging
 from pathlib import Path
 
 from sase.core.paths import sase_home, sase_projects_dir
+from sase.legacy_xprompt_names import (
+    LEGACY_VCS_XPROMPT_MRU_FILENAME,
+    VCS_MACRO_MRU_FILENAME,
+    read_json_new_first,
+)
 
 log = logging.getLogger(__name__)
 
@@ -13,34 +18,43 @@ _MAX_ENTRIES = 100
 
 
 def vcs_xprompt_mru_path() -> Path:
-    """Return the on-disk VCS xprompt MRU path.
+    """Return the on-disk VCS macro MRU path.
 
     Honors the module-level ``_MRU_FILE`` test hook so isolated tests and
     the current-project peek share one override.
     """
-    return _MRU_FILE or sase_home() / "vcs_xprompt_mru.json"
+    return _MRU_FILE or sase_home() / VCS_MACRO_MRU_FILENAME
 
 
 def _mru_file() -> Path:
     return vcs_xprompt_mru_path()
 
 
+def _legacy_mru_file() -> Path:
+    """Return the pre-rename MRU path read only as a fallback."""
+    if _MRU_FILE is not None:
+        return _MRU_FILE.parent / LEGACY_VCS_XPROMPT_MRU_FILENAME
+    return sase_home() / LEGACY_VCS_XPROMPT_MRU_FILENAME
+
+
 def _load_vcs_xprompt_mru() -> list[str]:
     """Load the MRU list from disk.
+
+    Reads the canonical file first, falling back to the pre-rename file.
 
     Returns:
         Ordered list of VCS prefix strings, most recently used first.
     """
-    mru_file = _mru_file()
-    if not mru_file.exists():
+    data, _ = read_json_new_first(_mru_file(), _legacy_mru_file())
+    if not isinstance(data, dict):
         return []
-    try:
-        with open(mru_file, encoding="utf-8") as f:
-            data = json.load(f)
-        entries = data.get("entries", [])
-        return [e for e in entries if isinstance(e, str)][:_MAX_ENTRIES]
-    except (OSError, json.JSONDecodeError):
-        return []
+    entries = data.get("entries", [])
+    return [e for e in entries if isinstance(e, str)][:_MAX_ENTRIES]
+
+
+def load_vcs_xprompt_mru_entries() -> list[str]:
+    """Return the raw on-disk MRU entries without pruning or project reads."""
+    return _load_vcs_xprompt_mru()
 
 
 def load_launchable_vcs_xprompt_mru(
@@ -178,7 +192,13 @@ def _save_vcs_xprompt_mru(entries: list[str]) -> None:
         with open(mru_file, "w", encoding="utf-8") as f:
             json.dump({"entries": entries}, f, indent=2)
     except OSError:
-        pass
+        return
+    legacy_mru_file = _legacy_mru_file()
+    if legacy_mru_file != mru_file:
+        try:
+            legacy_mru_file.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _project_alias_map_or_empty(projects_dir: Path | None) -> dict[str, str]:

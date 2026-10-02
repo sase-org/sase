@@ -216,7 +216,9 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
 
 
 def _prepare_xprompt_proc(proc: Proc, termination: _Termination) -> str | None:
-    if proc.origin != "xprompt-proc":
+    from sase.legacy_xprompt_names import prompt_proc_origin_matches
+
+    if not prompt_proc_origin_matches(proc.origin):
         return None
     from sase.agent.launch_proc_runtime import prepare_xprompt_proc_supervisor
 

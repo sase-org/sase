@@ -90,7 +90,9 @@ def submit_proc_request(
     cwd = str(_validated_cwd(request.cwd))
     if request.kind != COMMAND_PROC_KIND:
         request = replace(request, kind=COMMAND_PROC_KIND)
-    if request.origin == "xprompt-proc":
+    from sase.legacy_xprompt_names import prompt_proc_origin_matches
+
+    if prompt_proc_origin_matches(request.origin):
         proc_name = _standalone_proc_name(request.proc_name)
     else:
         proc_name = _qualified_proc_name(request.proc_name)

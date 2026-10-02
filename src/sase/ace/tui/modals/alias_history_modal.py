@@ -32,6 +32,13 @@ from sase.llm_provider.alias_history_usage import (
     AliasHistoryUsageSummary,
     summarize_alias_history_usage,
 )
+from sase.legacy_xprompt_names import (
+    RAW_PROMPT_FILENAME as _RAW_PROMPT_FILENAME,
+)
+from sase.legacy_xprompt_names import (
+    read_raw_prompt_text,
+    resolve_raw_prompt_path,
+)
 from sase.llm_provider.config import get_model_alias_history_limit
 
 from ..actions.clipboard import schedule_copy_delivery
@@ -57,7 +64,6 @@ from .models_panel_rendering import apply_jump_gutter, jump_hint_gutter_width
 from .pane_entry_jump import KeyedPaneEntryJumpMixin
 from .preview_panel_modal import PreviewPanelModal
 
-_RAW_XPROMPT_FILENAME = "raw_xprompt.md"
 _PROMPT_ICON = "📝"
 
 
@@ -461,13 +467,10 @@ class AliasHistoryModal(
         artifact_dir = run.artifact_dir
 
         def task() -> tuple[str | None, str | None]:
-            try:
-                content = (Path(artifact_dir) / _RAW_XPROMPT_FILENAME).read_text(
-                    encoding="utf-8", errors="replace"
-                )
-                return content, None
-            except OSError as exc:
-                return None, str(exc)
+            content = read_raw_prompt_text(Path(artifact_dir))
+            if content is None:
+                return None, f"no raw prompt artifact in {artifact_dir}"
+            return content, None
 
         self._prompt_context = (self._highlighted_option_id(), artifact_dir)
         self._prompt_worker = self.run_worker(
@@ -505,7 +508,10 @@ class AliasHistoryModal(
                     title=self._entry.title_label,
                     kind_label="alias history prompt",
                     icon=_PROMPT_ICON,
-                    source_path=str(Path(artifact_dir) / _RAW_XPROMPT_FILENAME),
+                    source_path=str(
+                        resolve_raw_prompt_path(Path(artifact_dir))
+                        or Path(artifact_dir) / _RAW_PROMPT_FILENAME
+                    ),
                     default_view="rendered",
                 )
             )
