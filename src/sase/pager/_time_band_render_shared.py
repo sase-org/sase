@@ -26,25 +26,35 @@ def style_role(styles: Any | None, attr: str, fallback: str) -> str:
     return fallback
 
 
-def honest_prefix(kind: str, detail: str | None) -> Text | None:
+def metadata_style(styles: Any | None) -> str:
+    """Return the explicit secondary metadata foreground when available."""
+
+    return style_role(styles, "secondary", DIM_STYLE)
+
+
+def honest_prefix(
+    kind: str, detail: str | None, styles: Any | None = None
+) -> Text | None:
     """Return the leading honest segment for history-backed rows, if any."""
+    meta = metadata_style(styles)
     if kind == "shallow":
         text = Text(no_wrap=True, overflow="crop")
-        text.append("SHALLOW", style=DIM_STYLE)
+        text.append("SHALLOW", style=meta)
         if detail:
-            text.append(f" · history truncated at {detail}", style=DIM_STYLE)
+            text.append(f" · history truncated at {detail}", style=meta)
         else:
-            text.append(" · history truncated", style=DIM_STYLE)
+            text.append(" · history truncated", style=meta)
         return text
     if kind == "template":
         text = Text(no_wrap=True, overflow="crop")
-        text.append("TEMPLATE", style=DIM_STYLE)
-        text.append(" · per-host rendering", style=DIM_STYLE)
+        text.append("TEMPLATE", style=meta)
+        text.append(" · per-host rendering", style=meta)
         return text
     return None
 
 
 __all__ = [
     "honest_prefix",
+    "metadata_style",
     "style_role",
 ]

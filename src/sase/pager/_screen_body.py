@@ -296,6 +296,21 @@ class PagerBodyMixin:
         styles_fn = getattr(self, "_history_styles", None)
         styles = styles_fn() if callable(styles_fn) else None
         rail_styles = self._history_rail_styles(styles)
+        surface = None
+        try:
+            candidate = getattr(styles, "background", None)
+            if isinstance(candidate, str) and candidate:
+                surface = candidate
+        except Exception:
+            surface = None
+        if surface is None:
+            try:
+                palette = getattr(self, "_syntax_palette", None)
+                candidate = getattr(palette, "background", None)
+                if isinstance(candidate, str) and candidate:
+                    surface = candidate
+            except Exception:
+                surface = None
         return compose_body(
             self.document,
             width,
@@ -308,6 +323,7 @@ class PagerBodyMixin:
             removal_anchors=removal_anchors,
             rail_styles=rail_styles,
             history_styles=styles,
+            surface=surface,
         )
 
     def _history_rail_styles(self: Any, styles: Any) -> dict[int, str] | None:

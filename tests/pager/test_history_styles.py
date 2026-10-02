@@ -112,3 +112,41 @@ def test_styles_build_from_a_bare_palette() -> None:
     assert (
         default_history_styles().signature == history_styles_for_theme(None).signature
     )
+
+
+def test_secondary_metadata_stays_readable_without_bare_dim() -> None:
+    for name, theme in BUILTIN_THEMES.items():
+        styles = history_styles_for_theme(theme)
+        assert styles.secondary.startswith("#"), name
+        assert contrast_ratio(styles.secondary, styles.background) >= 4.5, name
+
+
+def test_link_accents_correct_against_light_surfaces() -> None:
+    from sase.pager._labels import style_target_accents
+    from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+
+    light = history_styles_for_theme(BUILTIN_THEMES["textual-light"]).background
+    section = PagerSection(
+        identity="file:/tmp/links.txt",
+        title="links.txt",
+        kind="file",
+        body="open src/sase/pager/app.py and https://example.test/page\n",
+    )
+    for surface in (
+        history_styles_for_theme(BUILTIN_THEMES["textual-dark"]).background,
+        light,
+    ):
+        styled = style_target_accents(
+            section.body_text,
+            section,
+            0,
+            PagerOrigin.FILE,
+            surface=surface,
+        )
+        assert styled.plain == section.body_text.plain
+        assert styled.spans, surface
+        for span in styled.spans:
+            style = str(span.style or "")
+            color = style.split()[-1] if style else ""
+            if color.startswith("#"):
+                assert contrast_ratio(color, surface) >= 4.5, (style, surface)

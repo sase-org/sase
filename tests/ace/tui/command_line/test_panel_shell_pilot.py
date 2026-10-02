@@ -194,7 +194,10 @@ async def test_grammar_ready_refreshes_open_empty_panel_without_a_keystroke(
                     lambda _state: page.app._command_line_grammar_loading is True
                 )
 
-                await asyncio.wait_for(page.press("escape"), timeout=1.0)
+                # The escape press races a blocked grammar worker; 1s is too
+                # tight under parallel-check load (observed TimeoutError on a
+                # loaded gate while isolated reruns pass in ~2s).
+                await asyncio.wait_for(page.press("escape"), timeout=5.0)
                 await page.expect_no_modal()
                 assert first.is_attached is False
 

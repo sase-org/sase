@@ -333,17 +333,11 @@ class PagerTimeBandMixin:
             history_styles = self._history_styles()
         except Exception:
             history_styles = None
+        # The history strip stays on the host neutral surface: the violet
+        # PAST pill and narrow gutter rail carry version identity, not a
+        # full-width tint fill. ``band_past_tint`` remains computed for
+        # contrast tests but is never painted as a strip background.
         tint = ""
-        if (
-            data is not None
-            and data.mode == "past"
-            and not data.tombstone
-            and history_styles is not None
-        ):
-            try:
-                tint = str(history_styles.band_past_tint or "")
-            except Exception:
-                tint = ""
         if data is None:
             signature: object = ("hidden", width, rows)
         else:
@@ -401,10 +395,7 @@ class PagerTimeBandMixin:
                 pass
             return
         try:
-            if tint:
-                widget.styles.background = tint
-            else:
-                widget.styles.clear_rule("background")
+            widget.styles.clear_rule("background")
         except Exception:
             pass
         widget.update(rendered)

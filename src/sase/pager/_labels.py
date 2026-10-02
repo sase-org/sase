@@ -246,12 +246,38 @@ def _resolve_dangling(
     return target_resolution_cache_identity(target, origin) in dangling_refs
 
 
+def _link_accent_style(accent: str, surface: str | None = None) -> str:
+    """Return the pager-local ``bold`` link style for *accent*.
+
+    Corrects the artifact-kind accent against *surface* to >= 4.5:1 when
+    the surface is a known RGB hex; unknown terminal surfaces keep the
+    authored accent. Shared by the labeled body and the search base so
+    entering search never changes a link's appearance.
+    """
+
+    if surface is None:
+        return f"bold {accent}"
+    try:
+        from sase.pager.syntax_theme import (
+            ensure_contrast_min,
+            parse_color,
+        )
+
+        if parse_color(surface) is None or parse_color(accent) is None:
+            return f"bold {accent}"
+        corrected = ensure_contrast_min(accent, surface, accent, 4.5)
+        return f"bold {corrected}"
+    except Exception:
+        return f"bold {accent}"
+
+
 def render_section_with_labels(
     section: PagerSection,
     labels: Sequence[PagerLabel],
     *,
     pending_prefix: str = "",
     source: Text | None = None,
+    surface: str | None = None,
 ) -> Text:
     """Return styled body text with key capsules inserted before labels.
 
@@ -279,7 +305,11 @@ def render_section_with_labels(
         output.append_text(_label_prefix(label, pending_prefix=pending_prefix))
         target = body[start:end]
         marker = _target_marker(label.target, dangling=label.dangling)
-        style = _LABEL_DANGLING_STYLE if label.dangling else f"bold {marker.accent}"
+        style = (
+            _LABEL_DANGLING_STYLE
+            if label.dangling
+            else _link_accent_style(marker.accent, surface)
+        )
         target.stylize(style, 0, len(target.plain))
         output.append_text(target)
         if label.dangling:
@@ -297,6 +327,7 @@ def style_target_accents(
     *,
     dangling_refs: AbstractSet[object] = frozenset(),
     is_dangling: DanglingPredicate | None = None,
+    surface: str | None = None,
 ) -> Text:
     """Copy *text* and stylize link target spans with their marker accent.
 
@@ -314,7 +345,11 @@ def style_target_accents(
             is_dangling=is_dangling,
         )
         marker = _target_marker(target, dangling=dangling)
-        style = _LABEL_DANGLING_STYLE if dangling else f"bold {marker.accent}"
+        style = (
+            _LABEL_DANGLING_STYLE
+            if dangling
+            else _link_accent_style(marker.accent, surface)
+        )
         styled.stylize(style, target.start, target.end)
     return styled
 

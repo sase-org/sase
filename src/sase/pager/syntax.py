@@ -54,6 +54,8 @@ class SyntaxRole(StrEnum):
     MARKDOWN_STRONG = "markdown_strong"
     MARKDOWN_EMPHASIS = "markdown_emphasis"
     MARKDOWN_CODE = "markdown_code"
+    MARKDOWN_META = "markdown_meta"
+    MARKDOWN_STRUCTURE = "markdown_structure"
     PROJECT_TAG = "project_tag"
     DIFF_ADDED = "diff_added"
     DIFF_DELETED = "diff_deleted"
@@ -443,13 +445,47 @@ def markdown_token_role(token: Any) -> SyntaxRole | None:
         return SyntaxRole.ERROR
     if token in Generic.Heading:
         return SyntaxRole.MARKDOWN_HEADING
+    if token in Generic.Subheading:
+        return SyntaxRole.MARKDOWN_HEADING
     if token in Generic.Strong:
         return SyntaxRole.MARKDOWN_STRONG
     if token in Generic.Emph:
         return SyntaxRole.MARKDOWN_EMPHASIS
     if token in TokenLiteral.String.Backtick:
         return SyntaxRole.MARKDOWN_CODE
-    return source_token_role(token)
+    # Pygments marks Markdown list bullets/numbers as Keyword; paint them
+    # as quiet structure instead of bold code accents. All other prose
+    # tokens stay unstyled so ordinary text never inherits code colors
+    # merely because Pygments reused a Keyword/Literal token.
+    if token in Keyword:
+        return SyntaxRole.MARKDOWN_STRUCTURE
+    return None
+
+
+def frontmatter_token_role(token: Any) -> SyntaxRole | None:
+    """Map one YAML token in Markdown frontmatter to a quiet display role.
+
+    Keys and delimiters stay identifiable without shouting; plain, folded,
+    and quoted scalar values read as ordinary text (no span), so long
+    descriptions never become amber CONSTANT blocks. No semantic YAML
+    parsing is performed.
+    """
+
+    if token in Error:
+        return SyntaxRole.ERROR
+    if token in Comment:
+        return SyntaxRole.COMMENT
+    if token in Name.Tag:
+        return SyntaxRole.MARKDOWN_META
+    if token in Name.Namespace:
+        return SyntaxRole.MARKDOWN_STRUCTURE
+    try:
+        from pygments.token import Punctuation as _Punctuation
+    except Exception:  # pragma: no cover - pygments is required
+        return None
+    if token in _Punctuation:
+        return SyntaxRole.MARKDOWN_STRUCTURE
+    return None
 
 
 def _diff_token_role(token: Any) -> SyntaxRole | None:
@@ -521,9 +557,12 @@ __all__ = [
     "SyntaxResult",
     "SyntaxRole",
     "SyntaxSpan",
+    "frontmatter_token_role",
     "highlight_source",
+    "markdown_token_role",
     "normalize_language",
     "resolve_pygments_alias",
+    "source_token_role",
     "style_source_text",
     "syntax_hint_alias",
     "text_has_producer_style",

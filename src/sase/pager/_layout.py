@@ -167,6 +167,7 @@ def compose_body(
     removal_anchors: Mapping[int, set[int]] | None = None,
     rail_styles: Mapping[int, str] | None = None,
     history_styles: Any | None = None,
+    surface: str | None = None,
 ) -> ComposedBody:
     """Render *document* at ``width``: gutterized bodies plus transition rules.
 
@@ -201,6 +202,14 @@ def compose_body(
             parts.append(
                 section_rule(section, index=index + 1, total=total, width=paint_width)
             )
+        resolved_surface = surface
+        if resolved_surface is None and history_styles is not None:
+            try:
+                candidate = getattr(history_styles, "background", None)
+                if isinstance(candidate, str) and candidate:
+                    resolved_surface = candidate
+            except Exception:
+                resolved_surface = None
         renderable = _section_renderable(
             section,
             section_index=index,
@@ -209,6 +218,7 @@ def compose_body(
             prepared_text=None
             if prepared_sections is None
             else prepared_sections.get(index),
+            surface=resolved_surface,
         )
         emphasis_range = (
             line_mark.emphasis_range
@@ -349,6 +359,7 @@ def _section_renderable(
     label_layer: PagerLabelLayer | None,
     pending_prefix: str,
     prepared_text: Text | None = None,
+    surface: str | None = None,
 ) -> RenderableType:
     if label_layer is None:
         if prepared_text is not None:
@@ -364,6 +375,7 @@ def _section_renderable(
         labels,
         pending_prefix=pending_prefix,
         source=prepared_text,
+        surface=surface,
     )
 
 
@@ -373,6 +385,7 @@ def styled_search_base(
     prepared_sections: Mapping[int, Text] | None = None,
     dangling_refs: AbstractSet[object] = frozenset(),
     is_dangling: DanglingPredicate | None = None,
+    surface: str | None = None,
 ) -> Text:
     """Build one styled ``Text`` matching ``search_corpus``'s exact text.
 
@@ -399,6 +412,7 @@ def styled_search_base(
             document.origin,
             dangling_refs=dangling_refs,
             is_dangling=is_dangling,
+            surface=surface,
         )
         if not text.plain.endswith("\n"):
             text.append("\n")

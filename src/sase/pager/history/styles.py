@@ -21,6 +21,9 @@ class HistoryStyles:
     # Surface colours the roles were derived against.
     foreground: str
     background: str
+    # Explicit readable secondary for metadata: muted neutral at >= 4.5:1
+    # against the background, never bare terminal ``dim``.
+    secondary: str
     # Identity roles.
     past: str
     insert: str
@@ -101,7 +104,11 @@ def _history_styles_for_values(
 
 def _history_styles_from_palette(palette: dict[str, str]) -> HistoryStyles:
     """Build :class:`HistoryStyles` from an extended history palette."""
-    from sase.pager.syntax_theme import contrast_text, readable_color
+    from sase.pager.syntax_theme import (
+        contrast_text,
+        ensure_contrast_min,
+        readable_color,
+    )
 
     background = readable_color(palette.get("background"), fallback="#000000")
     foreground = readable_color(
@@ -111,6 +118,15 @@ def _history_styles_from_palette(palette: dict[str, str]) -> HistoryStyles:
     def get(key: str, fallback: str) -> str:
         return str(palette.get(key, fallback))
 
+    secondary = get("secondary", "")
+    if not secondary:
+        from textual.color import Color as _Color
+
+        try:
+            muted = _Color.parse(foreground).blend(_Color.parse(background), 0.35).hex
+        except Exception:
+            muted = foreground
+        secondary = ensure_contrast_min(muted, background, foreground, 4.5)
     past = get("past", "#9d7cd8")
     insert = get("insert", "#3FB950")
     delete = get("delete", "#F85149")
@@ -129,6 +145,7 @@ def _history_styles_from_palette(palette: dict[str, str]) -> HistoryStyles:
         (
             foreground,
             background,
+            secondary,
             past,
             insert,
             delete,
@@ -154,6 +171,7 @@ def _history_styles_from_palette(palette: dict[str, str]) -> HistoryStyles:
     return HistoryStyles(
         foreground=foreground,
         background=background,
+        secondary=secondary,
         past=past,
         insert=insert,
         delete=delete,
@@ -191,22 +209,35 @@ def extra_history_palette_roles(
         contrast_ratio,
         contrast_text,
         ensure_contrast,
+        is_terminal_color,
         parse_color,
         readable_color,
     )
 
-    background = readable_color(getattr(theme, "background", None), fallback="#000000")
-    foreground = readable_color(
-        getattr(theme, "foreground", None), fallback=contrast_text(background)
-    )
+    raw_bg = getattr(theme, "background", None)
+    raw_fg = getattr(theme, "foreground", None)
+    dark = bool(getattr(theme, "dark", True))
+    if is_terminal_color(raw_bg) or is_terminal_color(raw_fg):
+        background = "#000000" if dark else "#ffffff"
+        foreground = contrast_text(background)
+    else:
+        background = readable_color(raw_bg, fallback="#000000")
+        foreground = readable_color(raw_fg, fallback=contrast_text(background))
     if foreground == background:
         # Degenerate themes (e.g. textual-ansi's terminal-default pair)
         # resolve both roles to the same colour, which makes contrast
         # math meaningless. Fall back to the theme's declared luminance.
-        dark = bool(getattr(theme, "dark", True))
         background = "#000000" if dark else "#ffffff"
         foreground = contrast_text(background)
-    warning = getattr(theme, "warning", None) or "#FFB000"
+    raw_warning = getattr(theme, "warning", None)
+    if (
+        raw_warning is None
+        or is_terminal_color(raw_warning)
+        or parse_color(raw_warning) is None
+    ):
+        warning = "#FFB000"
+    else:
+        warning = raw_warning
     past = str(legacy.get("past", "#9d7cd8"))
     delete = str(legacy.get("delete", "#F85149"))
     uncommitted = str(legacy.get("uncommitted", warning))
@@ -239,10 +270,20 @@ def extra_history_palette_roles(
     past_bg, _ = _pill_pair(past, background, foreground)
     unc_bg, _ = _pill_pair(uncommitted, background, foreground)
     del_bg, _ = _pill_pair(tombstone, background, foreground)
+    try:
+        from textual.color import Color as _Color
+
+        muted_candidate = (
+            _Color.parse(foreground).blend(_Color.parse(background), 0.35).hex
+        )
+    except Exception:
+        muted_candidate = foreground
+    secondary = ensure_contrast(muted_candidate, background, foreground)
 
     return {
         "foreground": foreground,
         "background": background,
+        "secondary": secondary,
         "modified": modified,
         "rail_past": rail_past,
         "rail_deleted": rail_deleted,

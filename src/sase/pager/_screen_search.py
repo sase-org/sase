@@ -21,11 +21,29 @@ class PagerSearchMixin:
         return search_corpus(self.document)
 
     def vim_search_styled_base(self: Any) -> Text | None:
+        surface = None
+        try:
+            styles_fn = getattr(self, "_history_styles", None)
+            styles = styles_fn() if callable(styles_fn) else None
+            candidate = getattr(styles, "background", None)
+            if isinstance(candidate, str) and candidate:
+                surface = candidate
+        except Exception:
+            surface = None
+        if surface is None:
+            try:
+                palette = getattr(self, "_syntax_palette", None)
+                candidate = getattr(palette, "background", None)
+                if isinstance(candidate, str) and candidate:
+                    surface = candidate
+            except Exception:
+                surface = None
         return styled_search_base(
             self.document,
             prepared_sections=self._prepared_section_texts(),
             dangling_refs=self._dangling_refs.keys(),
             is_dangling=self._is_target_dangling,
+            surface=surface,
         )
 
     def vim_search_origin_scroll(self: Any) -> tuple[int, int]:

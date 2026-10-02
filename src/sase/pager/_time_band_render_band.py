@@ -21,6 +21,7 @@ from sase.pager._time_band_model import time_band_targets
 from sase.pager._time_band_render_meaning import cause_row
 from sase.pager._time_band_render_meaning import meaning_row
 from sase.pager._time_band_render_shared import honest_prefix
+from sase.pager._time_band_render_shared import metadata_style
 from sase.pager._time_band_render_shared import style_role
 from sase.pager._time_band_vocab import DELETED_STYLE
 from sase.pager._time_band_vocab import DIM_STYLE
@@ -50,7 +51,8 @@ def render_time_band(
     if width == 0 or rows == 0 or data.mode == "notice":
         if data.mode == "notice" and width and rows:
             return _fit_text(
-                _honest_row_text(data.honest_kind, data.honest_detail), width
+                _honest_row_text(data.honest_kind, data.honest_detail, styles),
+                width,
             )
         return text
     hint_map = dict(hints or {})
@@ -110,24 +112,25 @@ def _format_short(epoch: int) -> str:
     return datetime.datetime.fromtimestamp(epoch).strftime("%b %d")
 
 
-def _honest_row_text(kind: str, detail: str | None) -> Text:
+def _honest_row_text(kind: str, detail: str | None, styles: Any | None = None) -> Text:
     """Render the one-row honest notice for states with no history."""
+    meta = metadata_style(styles)
     text = Text(no_wrap=True, overflow="crop")
     if kind == "indexing":
-        text.append("indexing…", style=DIM_STYLE)
+        text.append("indexing…", style=meta)
     elif kind == "untracked":
         text.append("UNTRACKED", style=f"bold {UNCOMMITTED_STYLE}")
-        text.append(" · commit this file to start its history", style=DIM_STYLE)
+        text.append(" · commit this file to start its history", style=meta)
     elif kind == "ignored":
         text.append("IGNORED", style=f"bold {UNCOMMITTED_STYLE}")
     elif kind == "no_vcs":
-        text.append("NO VCS", style=DIM_STYLE)
-        text.append(" · home memory is not in git", style=DIM_STYLE)
+        text.append("NO VCS", style=meta)
+        text.append(" · home memory is not in git", style=meta)
     elif kind == "unavailable":
         reason = detail or "unknown reason"
-        text.append(f"history unavailable: {reason}", style=DIM_STYLE)
+        text.append(f"history unavailable: {reason}", style=meta)
     else:
-        text.append("indexing…", style=DIM_STYLE)
+        text.append("indexing…", style=meta)
     return text
 
 
@@ -201,12 +204,13 @@ def _version_by_ordinal(data: TimeBandData, ordinal: int) -> TimeBandVersion | N
 def _life_strip_row(data: TimeBandData, width: int, styles: Any | None) -> Text:
     """Render the one-row life strip shown at now: scrubber plus history."""
     text = Text(no_wrap=True, overflow="crop")
-    prefix = honest_prefix(data.honest_kind, data.honest_detail)
+    meta = metadata_style(styles)
+    prefix = honest_prefix(data.honest_kind, data.honest_detail, styles)
     if prefix is not None:
         text.append_text(prefix)
-        text.append(" · ", style=DIM_STYLE)
+        text.append(" · ", style=meta)
     if not data.versions:
-        text.append("no history yet", style=DIM_STYLE)
+        text.append("no history yet", style=meta)
         return text
     who = _who_text(data, data.newest)
     when = ""
@@ -233,9 +237,9 @@ def _life_strip_row(data: TimeBandData, width: int, styles: Any | None) -> Text:
         row = Text(no_wrap=True, overflow="crop")
         row.append_text(scrubber)
         if show_when and when:
-            row.append(f"  {when}", style=DIM_STYLE)
+            row.append(f"  {when}", style=meta)
             if show_who and who:
-                row.append(f" · {who}", style=DIM_STYLE)
+                row.append(f" · {who}", style=meta)
         if show_dirty and data.dirty:
             row.append("  ◌ edits not durable until committed", style=UNCOMMITTED_STYLE)
         if cell_len(row.plain) <= max(width, 0):

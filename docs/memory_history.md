@@ -85,10 +85,12 @@ exactly the last content so line numbers still match the file.
   right, provenance: bead, agent, short SHA. Each is a jump-label target: the bead opens
   the bead, the agent opens its chat, and the commit opens the commit view (or copies
   when no resolver exists).
-- **Past tint.** While pinned in the past, the band gets a faint violet tint and the
-  body rail turns violet. Past is violet, never amber — amber already means uncommitted.
-  Every history colour comes from the theme-aware palette, so the past stays legible in
-  dark and light themes.
+- **Past cues.** The history strip stays on the host neutral surface; the recognizable
+  violet `PAST` pill and the narrow violet gutter rail carry version identity, never a
+  saturated full-width stripe. Past is violet, never amber — amber already means
+  uncommitted. Metadata uses an explicit readable secondary foreground (never bare
+  terminal `dim`), and every history colour comes from the theme-aware palette, so the
+  past stays legible in dark and light themes.
 - **Instruction subjects** get a cause row instead:
   `⟳ rendered · sources: gotchas.md · dispatch.md` (each source opens that note at the
   same commit in the diff view), `⚙ config change`, `⚙ regenerated`, or `◆ hand-edited`,

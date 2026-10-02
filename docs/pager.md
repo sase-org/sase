@@ -83,6 +83,18 @@ after the first paint. The underlying characters never change: comments, strings
 structure are styled in place, links stay the interactive objects, and `/` search keeps
 those colors under the match highlight.
 
+Memory notes and other Markdown documents use a calm reading hierarchy derived from the
+painted host surface (not raw theme attributes): neutral prose and frontmatter values,
+bold restrained-cool headings at every level (`#`–`######` share one accent), clearly
+readable inline code with visible backticks and no boxes, quiet metadata keys and
+structural punctuation (list markers, fence delimiters, frontmatter `---`/`:`), and
+prose-colored strong/emphasis. Source YAML and fenced languages keep their ordinary code
+palette; unknown fences stay readable literal text. Colors resolve after mount from the
+host theme plus computed backgrounds (standalone and ACE-embedded alike), target at
+least 7:1 for prose, headings, inline code, and frontmatter text on the built-in dark,
+light, and Flexoki surfaces (4.5:1 minimum fallback on midtone customs), and degrade
+terminal/ANSI themes to readable neutrals without emitting invalid Rich colors.
+
 Detection is conservative. Each section is classified from its own provenance, not from
 `--title` or from paths mentioned in the text:
 

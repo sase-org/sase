@@ -40,7 +40,7 @@ def meaning_row(
     if version is None:
         return text
     past = style_role(styles, "past", PAST_STYLE)
-    prefix = honest_prefix(data.honest_kind, data.honest_detail)
+    prefix = honest_prefix(data.honest_kind, data.honest_detail, styles)
     segments: list[Text] = []
     if prefix is not None:
         segments.append(prefix)

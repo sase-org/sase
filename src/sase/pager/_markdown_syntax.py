@@ -17,6 +17,7 @@ from sase.pager.syntax import (
     SyntaxLimits,
     SyntaxRole,
     SyntaxSpan,
+    frontmatter_token_role,
     lex_pygments_spans,
     markdown_token_role,
     normalize_language,
@@ -90,9 +91,8 @@ def markdown_syntax_spans(
         elif region.kind == "frontmatter":
             _extend_spans(
                 spans,
-                _lex_child(
+                _lex_frontmatter(
                     source[region.start : region.end],
-                    "yaml",
                     lexer_factory=lexer_factory,
                     budget=budget,
                     offset=offset + region.start,
@@ -246,7 +246,7 @@ def _fence_spans(
             SyntaxSpan(
                 offset + fence.start,
                 offset + fence.opening_end,
-                SyntaxRole.MARKDOWN_CODE,
+                SyntaxRole.MARKDOWN_STRUCTURE,
             ),
         )
         if language == "markdown":
@@ -278,7 +278,7 @@ def _fence_spans(
                 SyntaxSpan(
                     offset + fence.closing_start,
                     offset + fence.end,
-                    SyntaxRole.MARKDOWN_CODE,
+                    SyntaxRole.MARKDOWN_STRUCTURE,
                 ),
             )
     except ClassNotFound:
@@ -321,6 +321,24 @@ def _lex_child(
         lexer_factory(language),
         budget=budget,
         role_mapper=source_token_role,
+        offset=offset,
+    )
+
+
+def _lex_frontmatter(
+    source: str,
+    *,
+    lexer_factory: LexerFactory,
+    budget: SpanBudget,
+    offset: int,
+) -> tuple[SyntaxSpan, ...]:
+    """Lex frontmatter YAML with the quiet frontmatter display mapping."""
+
+    return lex_pygments_spans(
+        source,
+        lexer_factory("yaml"),
+        budget=budget,
+        role_mapper=frontmatter_token_role,
         offset=offset,
     )
 

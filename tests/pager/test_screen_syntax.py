@@ -364,6 +364,19 @@ def test_theme_change_is_a_noop_when_the_signature_is_unchanged() -> None:
     assert len(host.scheduled) == 1  # only the initial real theme change rescheduled
 
 
+def test_theme_change_bumps_generation_and_refreshes_active_search() -> None:
+    document = _document(_section("a", "if True:\n    pass\n"))
+    host = _FakeHost(document)
+    host.app = SimpleNamespace(current_theme=_theme("#010101"))
+    host._search = _FakeSearch(is_active=True)
+    generation = host._syntax_generation
+
+    host._on_app_theme_changed()
+
+    assert host._syntax_generation == generation + 1
+    assert host._search.refresh_calls >= 1
+
+
 # --- full worker: ordering, batching, staleness -------------------------------
 
 

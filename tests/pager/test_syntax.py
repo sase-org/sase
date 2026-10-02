@@ -50,7 +50,14 @@ def test_markdown_frontmatter_uses_absolute_offsets_and_handles_crlf() -> None:
     result = highlight_source(source, "markdown")
 
     assert result.disposition is SyntaxDisposition.HIGHLIGHTED
-    assert _spans_containing(source, result, "title")[0].role is SyntaxRole.CONSTANT
+    # Frontmatter no longer shouts as amber CONSTANT: values read as plain
+    # text, keys as quiet META, delimiters as STRUCTURE. The CRLF YAML
+    # lexer degrades keys to plain scalars, so assert the absence of
+    # CONSTANT plus exact heading offsets rather than a key role here.
+    assert not [span for span in result.spans if span.role is SyntaxRole.CONSTANT]
+    assert _spans_containing(source, result, ":")[0].role is (
+        SyntaxRole.MARKDOWN_STRUCTURE
+    )
     heading = _spans_containing(source, result, "# Heading")[0]
     assert heading.start == source.index("# Heading")
     assert heading == SyntaxSpan(
@@ -58,6 +65,53 @@ def test_markdown_frontmatter_uses_absolute_offsets_and_handles_crlf() -> None:
         source.index("# Heading") + len("# Heading\r"),
         SyntaxRole.MARKDOWN_HEADING,
     )
+
+
+def test_markdown_frontmatter_key_is_quiet_meta_and_values_stay_plain() -> None:
+    source = "---\ntitle: Demo\ndescription: |\n  long prose here\n---\n"
+
+    result = highlight_source(source, "markdown")
+
+    assert result.disposition is SyntaxDisposition.HIGHLIGHTED
+    assert _exact_span(source, result, "title", SyntaxRole.MARKDOWN_META)
+    assert _exact_span(source, result, "description", SyntaxRole.MARKDOWN_META)
+    # Plain and folded scalar values read as ordinary text, never CONSTANT.
+    assert not _spans_containing(source, result, "Demo")
+    assert not _spans_containing(source, result, "long prose here")
+    assert not [span for span in result.spans if span.role is SyntaxRole.CONSTANT]
+
+
+def test_markdown_headings_lists_and_inline_code_share_one_hierarchy() -> None:
+    source = "# H1\n## H2\n### H3\n- bullet\n1. numbered\n`code`\n"
+
+    result = highlight_source(source, "markdown")
+
+    assert _span_texts(source, result, SyntaxRole.MARKDOWN_HEADING) == [
+        "# H1",
+        "## H2",
+        "### H3",
+    ]
+    assert _span_texts(source, result, SyntaxRole.MARKDOWN_STRUCTURE) == [
+        "-",
+        "1.",
+    ]
+    assert _span_texts(source, result, SyntaxRole.MARKDOWN_CODE) == ["`code`"]
+    # Prose structure never inherits bold keyword accents.
+    assert not _span_texts(source, result, SyntaxRole.KEYWORD)
+
+
+def test_markdown_fenced_yaml_keeps_code_roles_apart_from_frontmatter() -> None:
+    source = "---\ntitle: Demo\n---\n```yaml\nkey: value\n```\n"
+
+    result = highlight_source(source, "markdown")
+
+    assert _exact_span(source, result, "title", SyntaxRole.MARKDOWN_META)
+    assert not _spans_containing(source, result, "Demo")
+    # Fenced YAML keeps ordinary code roles; frontmatter stays quiet.
+    assert _exact_span(source, result, "key", SyntaxRole.CONSTANT)
+    structures = _span_texts(source, result, SyntaxRole.MARKDOWN_STRUCTURE)
+    assert "```yaml\n" in structures
+    assert "```\n" in structures
 
 
 def test_markdown_frontmatter_closing_fence_can_be_at_eof() -> None:
@@ -99,7 +153,9 @@ def test_markdown_fenced_child_spans_are_absolute_for_multiple_fences() -> None:
     assert _exact_span(source, result, "if", SyntaxRole.KEYWORD)
     assert _exact_span(source, result, "'a'", SyntaxRole.STRING)
     assert _exact_span(source, result, "42", SyntaxRole.NUMBER)
-    assert _span_texts(source, result, SyntaxRole.MARKDOWN_CODE)[0] == "```python\n"
+    assert _span_texts(source, result, SyntaxRole.MARKDOWN_STRUCTURE)[0] == (
+        "```python\n"
+    )
 
 
 def test_unknown_and_unlabeled_markdown_fences_get_quiet_code_style() -> None:

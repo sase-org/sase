@@ -17,9 +17,12 @@ _MAX_ELAPSED_SECONDS = 5.0
 # catalog/stop actions took the closure to 3458. Pager memory-history mixins
 # (read view, word diff, time band, timeline picker) imported eagerly through
 # PagerScreen and toobig splits (finalizers, monitor, agents display) took CI
-# to ~3490. The deferred-module probe below is the heavy-edge guard; this
-# count only catches a wholesale closure regression.
-_MAX_MODULE_COUNT = 3530
+# to ~3490. Dependency/environment drift has since taken the clean-tree
+# closure to 3536 (verified identical with and without the pager working
+# tree, stable across repeated measures). The deferred-module probe below
+# is the heavy-edge guard; this count only catches a wholesale closure
+# regression.
+_MAX_MODULE_COUNT = 3560
 
 
 def _measure_tui_app_import() -> dict[str, Any]:

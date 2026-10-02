@@ -127,6 +127,16 @@ class PagerSyntaxMixin:
         self.call_after_refresh(self._schedule_syntax_preparation)
 
     def _on_app_theme_changed(self: Any) -> None:
+        # Bump the generation first so any in-flight preparation for the
+        # old theme cannot overwrite the new one when it completes.
+        try:
+            self._syntax_generation += 1
+        except Exception:
+            pass
+        try:
+            self._syntax_restart_requested = False
+        except Exception:
+            pass
         self._trail_render_signature = None
         update_trail = getattr(self, "_update_trail", None)
         if update_trail is not None:
@@ -145,6 +155,40 @@ class PagerSyntaxMixin:
                 cached.cache_clear()  # type: ignore[attr-defined]
         except Exception:
             pass
+        try:
+            from sase.pager.syntax_theme import (
+                PagerPresentation,
+                pager_presentation_from_theme,
+                resolve_pager_surfaces,
+                syntax_palette_from_theme,
+            )
+
+            try:
+                presentation: PagerPresentation = resolve_pager_surfaces(self)
+                theme = self._current_syntax_theme()
+                # Re-resolve through the pure presentation helper so the
+                # mounted computed surface participates alongside the raw
+                # theme values; both share signature inputs.
+                presentation = pager_presentation_from_theme(
+                    theme,
+                    body_background=presentation.background,
+                    chrome_background=presentation.chrome,
+                )
+                palette = syntax_palette_from_theme(theme)
+            except Exception:
+                palette = syntax_palette_from_theme(self._current_syntax_theme())
+        except Exception:
+            palette = syntax_palette_from_theme(self._current_syntax_theme())
+        palette_changed = True
+        try:
+            palette_changed = palette.signature != self._syntax_palette.signature
+        except Exception:
+            palette_changed = True
+        self._syntax_palette = palette
+        self._syntax_styled_cache.clear()
+        self._syntax_prepared = {}
+        self._syntax_attempted = set()
+        self._syntax_document_span_budget_used = 0
         try:
             update_subject = getattr(self, "_update_subject", None)
             if callable(update_subject):
@@ -170,14 +214,19 @@ class PagerSyntaxMixin:
                     pass
         except Exception:
             pass
-        palette = syntax_palette_from_theme(self._current_syntax_theme())
-        if palette.signature == self._syntax_palette.signature:
+        # Refresh the active search base so links keep the same target
+        # foreground in the labeled body and the search overlay; history
+        # and both split panes repaint through their own theme watchers.
+        try:
+            search = getattr(self, "_search", None)
+            if search is not None and getattr(search, "is_active", False):
+                refresh = getattr(search, "refresh_styled_base", None)
+                if callable(refresh):
+                    refresh()
+        except Exception:
+            pass
+        if not palette_changed:
             return
-        self._syntax_palette = palette
-        self._syntax_styled_cache.clear()
-        self._syntax_prepared = {}
-        self._syntax_attempted = set()
-        self._syntax_document_span_budget_used = 0
         self.call_after_refresh(self._schedule_syntax_preparation)
 
     def _current_syntax_theme(self: Any) -> Any | None:
