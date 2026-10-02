@@ -22,6 +22,11 @@ _HOST_ACTIONS = {
     "split_below",
     "split_beside",
     "focus_other",
+    "focus_other_reverse",
+    "swap_pane_next",
+    "swap_pane_prev",
+    "close_focused_pane",
+    "turn_split",
     "grow_pane",
     "shrink_pane",
 }

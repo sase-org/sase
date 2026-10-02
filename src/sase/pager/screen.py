@@ -78,7 +78,27 @@ class PagerScreen(  # type: ignore[misc]
         Binding("question_mark", "show_help", "Keys"),
         Binding("backslash", "split_below", "Split below", show=False),
         Binding("vertical_line", "split_beside", "Split beside", show=False),
-        Binding("ctrl+f", "focus_other", "Focus other pane", show=False),
+        Binding("ctrl+f", "focus_other", "Focus next pane", show=False),
+        Binding("ctrl+b", "focus_other_reverse", "Focus previous pane", show=False),
+        Binding(
+            "ctrl+shift+f,greater_than_sign",
+            "swap_pane_next",
+            "Swap with next pane",
+            show=False,
+        ),
+        Binding(
+            "ctrl+shift+b,less_than_sign",
+            "swap_pane_prev",
+            "Swap with previous pane",
+            show=False,
+        ),
+        Binding(
+            "ctrl+shift+d,ctrl+x",
+            "close_focused_pane",
+            "Close focused pane",
+            show=False,
+        ),
+        Binding("ctrl+t", "turn_split", "Turn split", show=False),
         Binding("plus", "grow_pane", "Grow pane", show=False),
         Binding("minus", "shrink_pane", "Shrink pane", show=False),
     ]

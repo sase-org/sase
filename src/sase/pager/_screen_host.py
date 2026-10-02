@@ -20,6 +20,7 @@ from textual.containers import Vertical
 from textual.events import Key
 from textual.widgets import Static
 
+from sase.ace.tui.util.pane_grid import PaneGrid
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
 from sase.pager._help import PagerHelpScreen
 from sase.pager._screen_actions import PagerActionMixin
@@ -173,6 +174,7 @@ class PagerScreenHostMixin:
         self._focused_index = 0
         self._split_state: PagerSplitState = initial_split_state()
         self._split_in_flight = False
+        self._grid: PaneGrid = PaneGrid()
         self._views: list[PagerView] = [
             PagerView(
                 document,
@@ -183,6 +185,7 @@ class PagerScreenHostMixin:
                 refresh_document_fn=refresh_document_fn,
             )
         ]
+        self._views_by_id: dict[int, PagerView] = {0: self._views[0]}
 
     @property
     def views(self: Any) -> tuple[PagerView, ...]:
@@ -217,7 +220,14 @@ class PagerScreenHostMixin:
     def __getattr__(self: Any, name: str) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
-        if name in {"_views", "_focused_index", "_split_state", "_split_in_flight"}:
+        if name in {
+            "_views",
+            "_views_by_id",
+            "_focused_index",
+            "_split_state",
+            "_split_in_flight",
+            "_grid",
+        }:
             raise AttributeError(name)
         view = self._focused_for_forward()
         if view is None:
@@ -297,9 +307,23 @@ class PagerScreenHostMixin:
             event.stop()
             return
         # Split keys win over an armed label prefix so `\` / `|` / ctrl+f /
-        # `+` / `-` always reach their bindings instead of being swallowed
-        # as "no link label matches".
-        if event.key in ("backslash", "vertical_line", "ctrl+f", "plus", "minus"):
+        # ctrl+b / swap / close / turn / `+` / `-` always reach their
+        # bindings instead of being swallowed as "no link label matches".
+        if event.key in (
+            "backslash",
+            "vertical_line",
+            "ctrl+f",
+            "ctrl+b",
+            "ctrl+t",
+            "ctrl+x",
+            "ctrl+shift+f",
+            "ctrl+shift+b",
+            "ctrl+shift+d",
+            "greater_than_sign",
+            "less_than_sign",
+            "plus",
+            "minus",
+        ):
             return
 
         if view._handle_label_key(event):

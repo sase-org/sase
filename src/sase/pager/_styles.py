@@ -18,18 +18,23 @@ PagerScreen #pager-root {
 
 PagerScreen #pager-panes {
     height: 1fr;
+    layout: grid;
+    grid-size: 1 1;
 }
 
 PagerScreen #pager-panes.-single {
-    layout: vertical;
+    layout: grid;
+    grid-size: 1 1;
 }
 
 PagerScreen #pager-panes.-below {
-    layout: vertical;
+    layout: grid;
+    grid-size: 1 2;
 }
 
 PagerScreen #pager-panes.-beside {
-    layout: horizontal;
+    layout: grid;
+    grid-size: 2 1;
 }
 
 PagerView {

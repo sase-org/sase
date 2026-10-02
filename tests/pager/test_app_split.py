@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.containers import Vertical
 from textual.widgets import Static
 
 from sase.pager.app import SasePager
@@ -10,6 +11,7 @@ from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.history.models import SectionTimeState
 from sase.pager.resolve import LinkTarget, LinkTargetKind
 from sase.pager.split import PagerSplitLayout
+from sase.pager.view import PagerView
 
 from ._app_helpers import link_document, long_document, pager_screen, pager_view
 
@@ -284,6 +286,161 @@ async def test_split_seed_copies_history_and_syntax_state() -> None:
         assert dict(seed.syntax_prepared) == dict(view._syntax_prepared)
         assert set(seed.syntax_attempted) == set(view._syntax_attempted)
         assert dict(seed.dangling_refs) == dict(view._dangling_refs)
+
+
+def _panes_container(app: SasePager) -> Vertical:
+    return pager_screen(app).query_one("#pager-panes", Vertical)
+
+
+def _mounted_views(app: SasePager) -> list[PagerView]:
+    return list(pager_screen(app).query(PagerView))
+
+
+async def test_q_close_keeps_survivor_mounted() -> None:
+    app = SasePager(long_document())
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = pager_screen(app)
+        await pilot.pause()
+        await pilot.press("\\")
+        await pilot.pause()
+        await pilot.pause()
+        focused = screen.focused_view
+        other = screen.views[0]
+        assert focused is screen.views[1]
+        await pilot.press("q")
+        await pilot.pause()
+        await pilot.pause()
+        assert len(screen.views) == 1
+        assert screen.views[0] is other
+        assert screen.focused_view is other
+        assert screen._split_state.layout is PagerSplitLayout.SINGLE
+        panes = _panes_container(app)
+        assert other.parent is panes
+        assert _mounted_views(app) == [other]
+        assert len(other.query("#pager-body")) == 1
+        # The survivor still scrolls and owns the single-pane footer.
+        await pilot.press("j")
+        await pilot.pause()
+        assert "q close" in _footer_text(app)
+        assert "^F pane" not in _footer_text(app)
+        assert focused.parent is not panes
+
+
+async def test_same_key_unsplit_keeps_survivor_mounted() -> None:
+    app = SasePager(long_document())
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = pager_screen(app)
+        await pilot.pause()
+        await pilot.press("\\")
+        await pilot.pause()
+        await pilot.pause()
+        focused = screen.focused_view
+        await pilot.press("\\")
+        await pilot.pause()
+        await pilot.pause()
+        assert len(screen.views) == 1
+        assert screen.views[0] is focused
+        assert screen._split_state.layout is PagerSplitLayout.SINGLE
+        panes = _panes_container(app)
+        assert focused.parent is panes
+        assert _mounted_views(app) == [focused]
+        assert len(focused.query("#pager-body")) == 1
+
+
+async def test_ctrl_b_matches_ctrl_f_on_two_panes() -> None:
+    app = SasePager(long_document())
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = pager_screen(app)
+        await pilot.pause()
+        await pilot.press("\\")
+        await pilot.pause()
+        await pilot.pause()
+        assert screen._focused_index == 1
+        await pilot.press("ctrl+b")
+        await pilot.pause()
+        assert screen._focused_index == 0
+        await pilot.press("ctrl+b")
+        await pilot.pause()
+        assert screen._focused_index == 1
+        await pilot.press("ctrl+f")
+        await pilot.pause()
+        assert screen._focused_index == 0
+
+
+async def test_swap_keys_exchange_panes_without_remount() -> None:
+    app = SasePager(long_document())
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = pager_screen(app)
+        await pilot.pause()
+        await pilot.press("\\")
+        await pilot.pause()
+        await pilot.pause()
+        first, second = screen.views
+        panes = _panes_container(app)
+        assert [c for c in panes.children if isinstance(c, PagerView)] == [
+            first,
+            second,
+        ]
+        await pilot.press("greater_than_sign")
+        await pilot.pause()
+        assert screen.views[0] is second
+        assert screen.views[1] is first
+        # Focus follows the content, and no widget was remounted.
+        assert screen.focused_view is second
+        assert screen._split_state.layout is PagerSplitLayout.BELOW
+        assert [c for c in panes.children if isinstance(c, PagerView)] == [
+            second,
+            first,
+        ]
+        assert _mounted_views(app) == [second, first]
+        screen.action_swap_pane_prev()
+        await pilot.pause()
+        assert list(screen.views) == [first, second]
+        assert screen.focused_view is second
+
+
+async def test_ctrl_x_closes_focused_pane() -> None:
+    app = SasePager(long_document())
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = pager_screen(app)
+        await pilot.pause()
+        await pilot.press("\\")
+        await pilot.pause()
+        await pilot.pause()
+        other = screen.views[0]
+        await pilot.press("ctrl+x")
+        await pilot.pause()
+        await pilot.pause()
+        assert len(screen.views) == 1
+        assert screen.views[0] is other
+        assert other.parent is _panes_container(app)
+        assert _mounted_views(app) == [other]
+
+
+async def test_ctrl_t_turns_split_keeping_widgets() -> None:
+    app = SasePager(long_document())
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = pager_screen(app)
+        await pilot.pause()
+        await pilot.press("\\")
+        await pilot.pause()
+        await pilot.pause()
+        first, second = screen.views
+        await pilot.press("+")
+        await pilot.pause()
+        ratio = screen._split_state.ratio
+        await pilot.press("ctrl+t")
+        await pilot.pause()
+        assert screen._split_state.layout is PagerSplitLayout.BESIDE
+        assert list(screen.views) == [first, second]
+        assert _mounted_views(app) == [first, second]
+        assert screen._split_state.ratio == ratio
+        assert screen._focused_index == 1
+        await pilot.press("ctrl+t")
+        await pilot.pause()
+        assert screen._split_state.layout is PagerSplitLayout.BELOW
+        assert list(screen.views) == [first, second]
+        assert _mounted_views(app) == [first, second]
 
 
 async def test_closing_pane_with_in_flight_resolve_does_not_raise(

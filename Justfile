@@ -396,26 +396,15 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-1eu(Axis)' \
         --epic-symbol 'sase-1eu(Geometry)' \
         --epic-symbol 'sase-1eu(GridSpec)' \
         --epic-symbol 'sase-1eu(Pair)' \
-        --epic-symbol 'sase-1eu(PaneGrid)' \
-        --epic-symbol 'sase-1eu(close_focused)' \
-        --epic-symbol 'sase-1eu(cycle_focus)' \
         --epic-symbol 'sase-1eu(fits)' \
-        --epic-symbol 'sase-1eu(focus_pane)' \
-        --epic-symbol 'sase-1eu(free_pane_id)' \
         --epic-symbol 'sase-1eu(geometry)' \
-        --epic-symbol 'sase-1eu(grid_spec)' \
         --epic-symbol 'sase-1eu(main_pane)' \
         --epic-symbol 'sase-1eu(other_target)' \
-        --epic-symbol 'sase-1eu(pane_rects)' \
         --epic-symbol 'sase-1eu(position_glyph)' \
         --epic-symbol 'sase-1eu(position_name)' \
-        --epic-symbol 'sase-1eu(press_split)' \
-        --epic-symbol 'sase-1eu(swap_focused)' \
-        --epic-symbol 'sase-1eu(turn)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
