@@ -242,3 +242,27 @@ lives in `tests/perf/agent_load_tiering_harness.py` and is also covered by fast 
 tests with a small within-window corpus; the production-path diagnostics that reproduce
 known sase-zu audit defects live in
 `tests/test_agent_load_tiering_production_oracle.py`.
+
+## Pager
+
+Measure the `sase-1es` pager against a deterministic synthetic corpus over the 500 / 2k
+/ 20k / 100k line ladder:
+
+```bash
+just bench-pager
+just bench-pager --cases code-sparse,log-dense --max-lines 2000 --no-cold
+just bench-pager --cases markdown --ladder 500,2000 --output /tmp/pager-bench.json
+```
+
+Each case runs in a fresh subprocess with a per-case timeout (`TIMEOUT` is reported,
+never hung) and records document build, headless mount to first paint at 120x40,
+syntax-overlay publish, per-key CPU, peak RSS, and a dismissed-view leak probe, plus a
+trivial-app floor so CPU numbers read both raw and above the floor. Cold-path probes
+(`-X importtime` for the pager entry points, `pager --plain` wall time, a pty first
+paint) run in the parent process. The corpus generator is
+`tests/perf/_pager_bench_corpus.py`; the harness is `tests/perf/bench_pager.py` (slow).
+`test_pager_bench_smoke.py` is the fast non-slow smoke test that runs the smallest case
+end to end.
+
+Baseline numbers are not committed: shared-host timing is noisy. Later `sase-1es` phases
+rerun the relevant cases and record before/after numbers in their bead notes.

@@ -1360,6 +1360,11 @@ bench-plugin-catalog-scale *args: _setup
 bench-git-query-ops *args: _setup
     {{ venv_bin }}/python tests/perf/bench_git_query_ops.py {{ args }}
 
+# Run the pager benchmark (sase-1es.1). Each case runs in a fresh
+# subprocess with a per-case timeout; see tests/perf/README.md ("Pager").
+bench-pager *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_pager.py {{ args }}
+
 # Phase 7E regression floor (sase-1e.5). Runs the stable subset of
 # Phase 7B core-operation benchmarks against the recorded ceiling and
 # fails on regression. The JSON report lands at
