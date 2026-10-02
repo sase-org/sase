@@ -256,6 +256,11 @@ def init_runtime_state(
     self._last_full_sanity_refresh = 0.0
     self._last_completed_surface_tokens = {}
     self._prompt_editor_suspended = False
+    # Phase ``tick-compare-skip``: explicit prompt-active state backing
+    # ``_prompt_input_active``. Published by ``PromptInputBar.on_mount`` for
+    # every prompt mode and withdrawn by ``_detach_prompt_bar`` /
+    # ``on_unmount``. ``None`` while no prompt surface is mounted.
+    self._active_prompt_bar = None
     self._last_agents_load_mono = 0.0
     # Per-in-flight-agent marker (mtime_ns, size) cache used by the
     # countdown-tick status-transition poll. Each tuple slot is ``None``

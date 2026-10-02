@@ -9,7 +9,10 @@ import pytest
 from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui.actions.event_handlers import PROMPT_INPUT_DEFER_SECONDS
 
-from ._event_handlers_dirty_flags_helpers import _FakeApp
+from ._event_handlers_dirty_flags_helpers import (
+    _FakeApp,
+    set_fake_prompt_bar_mounted,
+)
 
 
 def test_stale_prompt_context_alone_does_not_block_auto_refresh() -> None:
@@ -58,7 +61,7 @@ def test_auto_refresh_treats_editor_suspend_as_prompt_input() -> None:
 
 def test_artifact_change_defers_refresh_work_during_prompt_input() -> None:
     app = _FakeApp(watcher_active=True)
-    app._mounted_prompt_bar = True
+    set_fake_prompt_bar_mounted(app, True)
     app._on_artifact_change()
     assert app._dirty_patches is True
     assert app._dirty_agents is True
@@ -72,7 +75,7 @@ def test_artifact_change_defers_refresh_work_during_prompt_input() -> None:
 
 def test_artifact_change_preserves_deferred_paths_during_prompt_input() -> None:
     app = _FakeApp(watcher_active=True)
-    app._mounted_prompt_bar = True
+    set_fake_prompt_bar_mounted(app, True)
     changed = (
         Path.home() / ".sase" / "projects" / "sase" / "artifacts" / "a" / "done.json",
     )
@@ -81,7 +84,7 @@ def test_artifact_change_preserves_deferred_paths_during_prompt_input() -> None:
 
     assert app._artifact_change_deferred_paths == changed
 
-    app._mounted_prompt_bar = False
+    set_fake_prompt_bar_mounted(app, False)
     app._on_artifact_change_deferred()
 
     assert app.refresh_calls == []
@@ -89,7 +92,7 @@ def test_artifact_change_preserves_deferred_paths_during_prompt_input() -> None:
 
 def test_artifact_change_dedupes_defer_timers_during_prompt_input() -> None:
     app = _FakeApp(watcher_active=True)
-    app._mounted_prompt_bar = True
+    set_fake_prompt_bar_mounted(app, True)
     app._on_artifact_change()
     app._on_artifact_change()
     app._on_artifact_change()
@@ -100,7 +103,7 @@ def test_artifact_change_dedupes_defer_timers_during_prompt_input() -> None:
 
 def test_artifact_change_deferred_reschedules_while_prompt_still_active() -> None:
     app = _FakeApp(watcher_active=True)
-    app._mounted_prompt_bar = True
+    set_fake_prompt_bar_mounted(app, True)
     app._artifact_change_defer_pending = True
     app._on_artifact_change_deferred()
     assert len(app.deferred_calls) == 1

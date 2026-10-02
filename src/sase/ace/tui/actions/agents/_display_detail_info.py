@@ -48,33 +48,46 @@ class AgentInfoDisplayMixin:
         off-tab query rows, so the ``,u`` toast count always equals the
         header count. The remaining slots stay scoped to the active tab.
         """
+        from ._roster_generation import get_roster_generation
+        from ._tab_scope import current_agent_tab_scope_token
         from ._unread_bulk_scope import (
             bulk_ack_roster_universe,
             is_bulk_ack_unread_target,
         )
+        from ._unread_set_generation import get_unread_set_generation
 
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
-        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
-            self, "_unread_completed_agent_ids", set()
-        )
-        status_key = tuple(
-            (self._agents[i].identity, self._agents[i].status)
-            for i in (
-                *panel_index.non_child_indices,
-                *panel_index.hidden_starting_indices,
-            )
-        )
-        bulk_universe = bulk_ack_roster_universe(self)
-        bulk_key = tuple((agent.identity, agent.status) for agent in bulk_universe)
+        # Phase ``tick-compare-skip``: the key is O(1). The roster
+        # generation covers every ``_agents`` / ``_agents_with_children``
+        # assignment (via ``set_agents_roster``) and every in-place agent
+        # status mutation (via ``notify_roster_status_mutation``); the
+        # unread generation covers every ``_unread_completed_agent_ids``
+        # mutation. The list identity/length slots catch a replacement or
+        # in-place reshape even if a bump were missed, and the tab-scope
+        # plus grouping slots catch structural view changes that leave the
+        # roster untouched. The per-second ``bulk_ack_roster_universe``
+        # walk and unread-set freeze only run on a real miss.
+        agents = self._agents
+        query_result = getattr(self, "_agents_query_result", None) or ()
+        with_children = getattr(self, "_agents_with_children", None) or ()
         cache_key = (
-            id(self._agents),
-            frozenset(unread_ids),
-            status_key,
-            bulk_key,
+            get_roster_generation(self),
+            get_unread_set_generation(self),
+            id(agents),
+            len(agents),
+            len(query_result),
+            len(with_children),
+            current_agent_tab_scope_token(self),
+            bool(getattr(self, "_agent_panels_grouped", False)),
         )
         cached = getattr(self, "_agent_info_metrics_cache", None)
         if cached is not None and cached[0] == cache_key:
             return cached[1]  # type: ignore[return-value]
+
+        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        bulk_universe = bulk_ack_roster_universe(self)
 
         visible_top_level_agents = [
             self._agents[i] for i in panel_index.non_child_indices

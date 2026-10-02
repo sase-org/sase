@@ -12,7 +12,8 @@ before ``_submit_launch_proc`` records the resolved prompt.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -58,6 +59,14 @@ class _PromptActivityApp(EventHandlersBase, _FakeApp):
     def __init__(self, *, bar_mounted: bool) -> None:
         _FakeApp.__init__(self)
         self._bar_mounted = bar_mounted
+        # Phase ``tick-compare-skip``: ``_prompt_input_active`` reads the
+        # explicit ``_active_prompt_bar`` reference, not the DOM query, so
+        # the harness publishes it alongside the stubbed query the
+        # context-preservation fallback still consults.
+        self._active_prompt_bar = cast(
+            "PromptInputBar | None",
+            SimpleNamespace(is_mounted=True) if bar_mounted else None,
+        )
         self._screen_stack = [object()]
         self.current_tab = "agents"
         self.screen = object()

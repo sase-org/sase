@@ -16,7 +16,8 @@ These pin the contracts the launch path depends on:
 
 from __future__ import annotations
 
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui.actions._event_base import EventHandlersBase
@@ -99,6 +100,13 @@ class _KeepBarGateApp(EventHandlersBase, _FakeApp):
         self.current_tab = "agents"
         self.screen = object()
         self._prompt_editor_suspended = False
+        # Phase ``tick-compare-skip``: this harness models a bar that stays
+        # mounted, so it publishes the explicit ``_active_prompt_bar``
+        # reference ``_prompt_input_active`` reads (the stubbed DOM query
+        # below still serves the context-preservation fallback).
+        self._active_prompt_bar = cast(
+            "PromptInputBar | None", SimpleNamespace(is_mounted=True)
+        )
 
     def query(self, selector: Any) -> list[object]:
         if selector is PromptInputBar:

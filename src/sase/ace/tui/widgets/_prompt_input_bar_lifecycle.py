@@ -74,6 +74,13 @@ class PromptInputBarLifecycleMixin(_MixinBase):
 
     def on_mount(self) -> None:
         """Focus the active pane on mount and position its cursor at end."""
+        # Phase ``tick-compare-skip``: publish the mounted bar so
+        # ``_prompt_input_active`` stays O(1). Every prompt mode (prompt,
+        # home, feedback, approve) mounts through this widget.
+        try:
+            self.app._active_prompt_bar = self  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 - explicit state is best-effort.
+            pass
         text_area = self.active_text_area()
         self.watch(self.app, "theme", self._app_theme_changed, init=False)
         self._sync_todo_counts_from_mounted_panes()
@@ -115,6 +122,18 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         self.auto_show_frontmatter_panel()
         self._schedule_height_update()
         self.refresh_cursor_readouts()
+
+    def on_unmount(self) -> None:
+        """Withdraw the explicit prompt-active reference for this bar."""
+        try:
+            app = self.app
+        except Exception:  # noqa: BLE001 - teardown has no active app.
+            return
+        try:
+            if getattr(app, "_active_prompt_bar", None) is self:
+                app._active_prompt_bar = None  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 - explicit state is best-effort.
+            pass
 
     def _app_theme_changed(self) -> None:
         """Recompose theme-derived title chrome after an app theme switch."""

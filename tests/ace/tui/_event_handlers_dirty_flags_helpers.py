@@ -7,7 +7,8 @@ import threading
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
 from sase.ace.tui.actions.event_refresh._constants import FULL_SANITY_REFRESH_SECONDS
@@ -18,6 +19,21 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import (
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+
+
+def set_fake_prompt_bar_mounted(app: Any, mounted: bool) -> None:
+    """Simulate a mounted prompt bar on a fake app.
+
+    Phase ``tick-compare-skip``: ``_prompt_input_active`` reads the
+    explicit ``_active_prompt_bar`` reference, not the DOM query, so the
+    fake publishes both the reference and the ``_mounted_prompt_bar``
+    flag the ``query`` stub consults.
+    """
+    app._mounted_prompt_bar = mounted
+    app._active_prompt_bar = cast(
+        "PromptInputBar | None",
+        SimpleNamespace(is_mounted=True) if mounted else None,
+    )
 
 
 def _surface_token(surface: str, stamp: int = 1) -> SurfaceToken:

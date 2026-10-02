@@ -18,6 +18,7 @@ from ._types import (
 
 if TYPE_CHECKING:
     from sase.xprompt.models import InputArg
+    from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
     from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
 
 _EDITOR_REVIEW_MARKER = " @"
@@ -66,6 +67,10 @@ class PromptBarMountMixin:
     """Mount/unmount + focus management for the prompt input bar."""
 
     _prompt_context: PromptContext | None
+    # Phase ``tick-compare-skip``: matches the ``EventHandlersBase``
+    # declaration; maintained by ``PromptInputBar`` mount/unmount hooks
+    # and ``_detach_prompt_bar`` below.
+    _active_prompt_bar: PromptInputBar | None
 
     def _show_prompt_input_bar(
         self,
@@ -244,6 +249,15 @@ class PromptBarMountMixin:
         self._detach_prompt_bar(bar)
 
     def _detach_prompt_bar(self, bar: object) -> None:
+        # Phase ``tick-compare-skip``: withdraw the explicit prompt-active
+        # reference synchronously. The widget's own ``on_unmount`` repeats
+        # this once the async removal lands; clearing here keeps the next
+        # per-second tick truthful without waiting for it.
+        try:
+            if getattr(self, "_active_prompt_bar", None) is bar:
+                self._active_prompt_bar = None
+        except Exception:  # noqa: BLE001 - explicit state is best-effort.
+            pass
         # Transfer focus to a live widget *before* the forcible detach below.
         # Without this, Screen.focused can be left pointing at the PromptTextArea
         # that is about to be ripped out of the DOM, swallowing the next keys

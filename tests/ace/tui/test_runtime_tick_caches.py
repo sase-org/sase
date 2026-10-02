@@ -172,3 +172,138 @@ async def test_suffix_only_patch_reuses_left_without_cache_invalidate() -> None:
         assert patched == 1
         assert after.rstrip().endswith("🏃‍♂️ 1m")
         assert calls == []
+
+
+def _counting_rust(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Wrap the Rust aggregation with a call counter; return the counter."""
+    import sase.core.agent_runtime_facade as facade_mod
+
+    calls: list[int] = []
+    real_aggregate = facade_mod.aggregate_clan_runtime
+
+    def _counting(members, *, now=None):  # type: ignore[no-untyped-def]
+        calls.append(1)
+        return real_aggregate(members, now=now)
+
+    monkeypatch.setattr(aggregate_mod, "aggregate_clan_runtime", _counting)
+    return calls
+
+
+def _running_container() -> tuple[object, object]:
+    """Return a (parent, child) pair with an active aggregate runtime."""
+    from .widgets.agent_list_runtime_helpers import agent
+
+    parent = agent(status="RUNNING", start=datetime(2026, 4, 25, 14, 0, 0))
+    child = agent(
+        status="RUNNING",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        raw_suffix="20260425140100",
+        cl_name="demo.child",
+    )
+    parent.runtime_children = [child]
+    return parent, child
+
+
+def test_aggregate_result_skips_rust_within_same_second(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two ticks in one wall-clock second share one Rust aggregation."""
+    aggregate_mod._aggregate_wires_cache.clear()
+    aggregate_mod._aggregate_result_cache.clear()
+    calls = _counting_rust(monkeypatch)
+    parent, _child = _running_container()
+    first = aggregate_mod._aggregate_runtime(
+        parent, datetime(2026, 4, 25, 14, 1, 0, 100000), {id(parent)}
+    )
+    second = aggregate_mod._aggregate_runtime(
+        parent, datetime(2026, 4, 25, 14, 1, 0, 900000), {id(parent)}
+    )
+    assert first is not None and second is not None
+    assert second is first
+    assert len(calls) == 1
+
+
+def test_aggregate_result_settled_reused_across_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A settled aggregate never re-runs the Rust aggregation."""
+    from .widgets.agent_list_runtime_helpers import agent
+
+    aggregate_mod._aggregate_wires_cache.clear()
+    aggregate_mod._aggregate_result_cache.clear()
+    calls = _counting_rust(monkeypatch)
+    parent = agent(status="DONE", start=datetime(2026, 4, 25, 14, 0, 0))
+    child = agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        stop=datetime(2026, 4, 25, 14, 5, 0),
+        raw_suffix="20260425140100",
+        cl_name="demo.child",
+    )
+    parent.runtime_children = [child]
+    first = aggregate_mod._aggregate_runtime(
+        parent, datetime(2026, 4, 25, 15, 0, 0), {id(parent)}
+    )
+    second = aggregate_mod._aggregate_runtime(
+        parent, datetime(2026, 4, 25, 16, 30, 0), {id(parent)}
+    )
+    assert first is not None and second is not None
+    assert not first.active
+    assert second is first
+    assert second.elapsed_seconds == 300.0
+    assert len(calls) == 1
+
+
+def test_aggregate_result_hour_rows_skip_within_minute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hour-plus rows re-aggregate at most once per displayed minute."""
+    aggregate_mod._aggregate_wires_cache.clear()
+    aggregate_mod._aggregate_result_cache.clear()
+    calls = _counting_rust(monkeypatch)
+    parent, _child = _running_container()
+    parent.start_time = datetime(2026, 4, 25, 12, 0, 0)
+    parent.run_start_time = datetime(2026, 4, 25, 12, 0, 0)
+    for child in parent.runtime_children:
+        child.start_time = datetime(2026, 4, 25, 12, 0, 0)
+        child.run_start_time = datetime(2026, 4, 25, 12, 0, 0)
+    first = aggregate_mod._aggregate_runtime(
+        parent, datetime(2026, 4, 25, 14, 5, 0), {id(parent)}
+    )
+    assert first is not None
+    assert first.elapsed_seconds >= 3600
+    second = aggregate_mod._aggregate_runtime(
+        parent, datetime(2026, 4, 25, 14, 5, 30), {id(parent)}
+    )
+    assert second is first
+    third = aggregate_mod._aggregate_runtime(
+        parent, datetime(2026, 4, 25, 14, 6, 1), {id(parent)}
+    )
+    assert third is not first
+    assert third is not None
+    assert third.elapsed_seconds == first.elapsed_seconds + 61
+    assert len(calls) == 2
+
+
+def test_aggregate_result_recomputes_on_membership_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A new member row misses the result cache (union semantics kept)."""
+    from .widgets.agent_list_runtime_helpers import agent
+
+    aggregate_mod._aggregate_wires_cache.clear()
+    aggregate_mod._aggregate_result_cache.clear()
+    calls = _counting_rust(monkeypatch)
+    parent, _child = _running_container()
+    now = datetime(2026, 4, 25, 14, 1, 0)
+    aggregate_mod._aggregate_runtime(parent, now, {id(parent)})
+    assert len(calls) == 1
+    newcomer = agent(
+        status="RUNNING",
+        start=datetime(2026, 4, 25, 14, 0, 30),
+        raw_suffix="20260425140200",
+        cl_name="demo.newcomer",
+    )
+    parent.runtime_children = [*parent.runtime_children, newcomer]
+    aggregate_mod._aggregate_runtime(parent, now, {id(parent)})
+    assert len(calls) == 2

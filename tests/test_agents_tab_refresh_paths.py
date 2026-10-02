@@ -11,6 +11,7 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.actions.agents._display_detail_info import AgentInfoDisplayMixin
+from sase.ace.tui.actions.agents._roster_generation import notify_roster_status_mutation
 from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
 from sase.ace.tui.models.agent_runner_slots import RunnerCapacitySnapshot
 from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
@@ -379,6 +380,10 @@ def test_agent_info_metrics_cache_tracks_in_place_status_mutations() -> None:
 
     first = app._agent_info_metrics()
     agent.status = "DONE"
+    # Phase ``tick-compare-skip``: the metrics key is generation-based, so
+    # an in-place status edit must notify like every production mutating
+    # path (``notify_roster_status_mutation``) to invalidate the cache.
+    notify_roster_status_mutation(app)
     second = app._agent_info_metrics()
 
     assert first[2] == 1

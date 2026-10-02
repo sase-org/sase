@@ -10,6 +10,7 @@ from ..util.nav_gate import NavigationGate
 if TYPE_CHECKING:
     from ...patch import Patch
     from ..models import Agent
+    from ..widgets.prompt_input_bar import PromptInputBar
 
 # Type alias for tab names
 TabName = Literal["artifacts", "agents", "services"]
@@ -62,6 +63,7 @@ class EventHandlersBase:
     _last_full_sanity_refresh: float
     _last_completed_surface_tokens: dict[str, object]
     _prompt_editor_suspended: bool
+    _active_prompt_bar: PromptInputBar | None
 
     def _refresh_current_tab(self) -> None:
         """Refresh the display for whichever tab is currently active.
@@ -90,21 +92,18 @@ class EventHandlersBase:
         raise NotImplementedError
 
     def _prompt_input_active(self) -> bool:
-        """Return True while a prompt surface is mounted or editor-suspended."""
+        """Return True while a prompt surface is mounted or editor-suspended.
+
+        Phase ``tick-compare-skip``: backed by the explicit
+        ``app._active_prompt_bar`` reference that prompt mount and detach
+        maintain, so the per-second tick pays no DOM query. The
+        editor-suspend short-circuit is kept.
+        """
         if getattr(self, "_prompt_editor_suspended", False):
             return True
-
-        query = getattr(self, "query", None)
-        if query is None:
+        bar = getattr(self, "_active_prompt_bar", None)
+        if bar is None:
             return False
-        if not getattr(self, "_screen_stack", ()):
-            return False
-
-        from textual.app import ScreenStackError
-
-        from ..widgets.prompt_input_bar import PromptInputBar
-
-        try:
-            return bool(query(PromptInputBar))
-        except ScreenStackError:
-            return False
+        # A bar removed without the detach hook leaves a stale reference;
+        # fall back to inactive rather than suppressing ticks forever.
+        return bool(getattr(bar, "is_mounted", True))

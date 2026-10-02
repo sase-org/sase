@@ -18,6 +18,16 @@ from ._agent_time_intervals import (
 _AGGREGATE_WIRES_CACHE_MAX = 256
 _aggregate_wires_cache: OrderedDict[tuple[Any, ...], tuple[Any, ...]] = OrderedDict()
 
+#: Bound on per-row display-bucket results. Keyed by the same membership
+#: signature as the wires cache; each entry holds
+#: ``(quantum, bucket, interval)`` where ``(quantum, bucket)`` is the
+#: displayed-time bucket the interval was computed for (phase
+#: ``tick-compare-skip``).
+_AGGREGATE_RESULT_CACHE_MAX = 512
+_aggregate_result_cache: OrderedDict[
+    tuple[Any, ...], tuple[int, int, RuntimeInterval]
+] = OrderedDict()
+
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
@@ -234,14 +244,32 @@ def _build_member_wires(
     return tuple(runtime_members), tuple(terminal_times), saw_non_monitor_member
 
 
+def _display_bucket(now_epoch: float, elapsed_hint: float | None) -> tuple[int, int]:
+    """Return the ``(quantum, bucket)`` the displayed duration ticks on.
+
+    Sub-hour durations render second granularity (``"59s"``, ``"4m32s"``);
+    hour-plus durations render minute granularity (``"2h05m"``), so the
+    bucket only advances once a minute there. The hint is the row's last
+    computed elapsed; a quantum change forces exactly one recompute at the
+    hour boundary.
+    """
+    quantum = 60 if elapsed_hint is not None and elapsed_hint >= 3600 else 1
+    return (quantum, int(now_epoch // quantum))
+
+
 def _aggregate_runtime(
     agent: "Agent", now: datetime, seen: set[int]
 ) -> RuntimeInterval | None:
     """Return the aggregate interval from direct runtime children.
 
     Caches the now-independent member wires per container identity plus
-    member runtime inputs (phase ``runtime-tick-caches``); only the
-    ``now``-dependent Rust aggregation runs per tick.
+    member runtime inputs (phase ``runtime-tick-caches``). Phase
+    ``tick-compare-skip`` additionally keys the computed interval on
+    ``(membership signature, displayed bucket)``: a repeated tick in the
+    same bucket reuses the interval without the ``asdict()`` + Rust
+    aggregation, and a settled (inactive) interval is reused for any
+    bucket since it is ``now``-independent. Interval-union semantics are
+    unchanged: any wire-input change misses and recomputes.
     """
     children = getattr(agent, "runtime_children", ())
     if not children:
@@ -252,6 +280,21 @@ def _aggregate_runtime(
     if not members:
         return None
     key = _aggregate_cache_key(agent, members)
+    try:
+        now_epoch = now.timestamp()
+    except Exception:  # noqa: BLE001 - defensive clock read only.
+        now_epoch = -1.0
+    result_hit = _aggregate_result_cache.get(key)
+    if result_hit is not None:
+        try:
+            _aggregate_result_cache.move_to_end(key)
+        except Exception:  # noqa: BLE001 - LRU touch is best-effort.
+            pass
+        quantum, bucket, interval = result_hit
+        if not interval.active:
+            return interval
+        if _display_bucket(now_epoch, interval.elapsed_seconds) == (quantum, bucket):
+            return interval
     hit = _aggregate_wires_cache.get(key)
     if hit is not None:
         try:
@@ -268,11 +311,21 @@ def _aggregate_runtime(
             except KeyError:
                 break
     runtime = aggregate_clan_runtime(list(runtime_members), now=now)
-    return RuntimeInterval(
+    interval = RuntimeInterval(
         elapsed_seconds=runtime.wall_clock_seconds,
         terminal_time=None if runtime.active else max(terminal_times, default=None),
         active=runtime.active,
     )
+    _aggregate_result_cache[key] = (
+        *_display_bucket(now_epoch, interval.elapsed_seconds),
+        interval,
+    )
+    while len(_aggregate_result_cache) > _AGGREGATE_RESULT_CACHE_MAX:
+        try:
+            _aggregate_result_cache.popitem(last=False)
+        except KeyError:
+            break
+    return interval
 
 
 def runtime_interval(

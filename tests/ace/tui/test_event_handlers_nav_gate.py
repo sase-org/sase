@@ -16,6 +16,8 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import (
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
+from ._event_handlers_dirty_flags_helpers import set_fake_prompt_bar_mounted
+
 
 class _FakeApp(EventHandlersMixin):
     """Minimal stand-in that exercises only the gate-aware methods.
@@ -116,7 +118,7 @@ def test_countdown_tick_defers_agent_work_while_navigating() -> None:
 
 def test_countdown_tick_defers_agent_work_while_prompt_bar_mounted() -> None:
     app = _FakeApp()
-    app._mounted_prompt_bar = True
+    set_fake_prompt_bar_mounted(app, True)
 
     app._on_countdown_tick()
 
@@ -126,10 +128,10 @@ def test_countdown_tick_defers_agent_work_while_prompt_bar_mounted() -> None:
 
 def test_countdown_tick_catches_up_after_prompt_typing_quiets() -> None:
     app = _FakeApp()
-    app._mounted_prompt_bar = True
+    set_fake_prompt_bar_mounted(app, True)
 
     app._on_countdown_tick()
-    app._mounted_prompt_bar = False
+    set_fake_prompt_bar_mounted(app, False)
     app._on_countdown_tick()
 
     assert app._countdown_remaining == 8

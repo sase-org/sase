@@ -27,6 +27,15 @@ def _get_unread_set_generation(app: Any) -> int:
         return 0
 
 
+def get_unread_set_generation(app: Any) -> int:
+    """Return the app-wide unread-set generation (0 when never bumped).
+
+    Public alias for phase ``tick-compare-skip`` info-panel metrics
+    keying; every ``_unread_completed_agent_ids`` mutation bumps it.
+    """
+    return _get_unread_set_generation(app)
+
+
 def _fold_snapshot_key(app: Any) -> tuple[Any, ...]:
     """Return a cheap fold signature (empty tuple when unavailable)."""
     fold_manager = getattr(app, "_fold_manager", None)
@@ -251,5 +260,6 @@ def cached_has_unread_probe(app: Any) -> bool:
 __all__ = [
     "bump_unread_set_generation",
     "cached_has_unread_probe",
+    "get_unread_set_generation",
     "unread_jump_cache_key",
 ]
