@@ -84,6 +84,17 @@ _TEXT_KINDS = frozenset({"chat", "markdown", "plan", "document"})
 def handle_read(args: argparse.Namespace) -> int:
     """Print an artifact after recording an audited read."""
 
+    # One command builds the inventory (and the agent-name registry snapshot)
+    # once no matter how many refs resolve through it. The sessions end before
+    # output paging: the long-lived TUI never holds one open across actions.
+    from sase.agent.names._registry import name_registry_load_session
+    from sase.repo_inventory import repo_inventory_session
+
+    with repo_inventory_session(), name_registry_load_session():
+        return _handle_read_inner(args)
+
+
+def _handle_read_inner(args: argparse.Namespace) -> int:
     try:
         result = resolve_cli_reference(args.reference)
     except (RuntimeError, ValueError) as exc:

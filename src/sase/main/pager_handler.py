@@ -40,14 +40,22 @@ def handle_pager_command(args: argparse.Namespace) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
 
-    try:
-        document = _build_pager_document(
-            getattr(args, "inputs", ()),
-            title=getattr(args, "title", None),
-        )
-    except _PagerInputError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 2
+    # One command builds the inventory (and the agent-name registry snapshot)
+    # once no matter how many inputs resolve bead or artifact refs. The
+    # sessions end before the interactive app runs: the long-lived TUI never
+    # holds one open across user actions.
+    from sase.agent.names._registry import name_registry_load_session
+    from sase.repo_inventory import repo_inventory_session
+
+    with repo_inventory_session(), name_registry_load_session():
+        try:
+            document = _build_pager_document(
+                getattr(args, "inputs", ()),
+                title=getattr(args, "title", None),
+            )
+        except _PagerInputError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2
     if resolution.apply_override:
         document = apply_explicit_syntax(document, resolution.explicit_language)
 

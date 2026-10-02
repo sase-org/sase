@@ -64,6 +64,7 @@ from sase.bead_summary_presentation import (
 from sase.main.parser_bead_common import resolve_wrap_width
 from sase.cli_pager import PagerMode, page_or_print, resolve_pager_mode
 from sase.markdown_width import markdown_print_width
+from sase.repo_inventory import repo_inventory_session
 from sase.task_types import issue_matches_task_types
 
 
@@ -374,7 +375,11 @@ def _run_bead_view_inner(
         resolve_bead_page_url_fn=resolve_bead_page_url,
     )
 
-    with name_registry_load_session(), _show_read_view() as view:
+    with (
+        repo_inventory_session(),
+        name_registry_load_session(),
+        _show_read_view() as view,
+    ):
         try:
             with ShowStoreRouter(
                 view,

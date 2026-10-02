@@ -274,8 +274,12 @@ def _reset_derived_config_caches() -> None:
     from sase.artifact_providers import reset_artifact_provider_registry_cache
     from sase.config import mentor as mentor_config
     from sase._linked_repo_identity import reset_repo_identity_caches
+    from sase.repo_inventory import reset_repo_inventory_memo
 
     reset_repo_identity_caches()
+    # Explicit per-test drop of any command-scoped inventory memo (also
+    # cleared via reset_repo_identity_caches above).
+    reset_repo_inventory_memo()
     reset_artifact_provider_registry_cache()
     reset_process_feature_flags()
     _stop_orphaned_proc_observers_if_loaded()

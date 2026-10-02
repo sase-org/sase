@@ -8,7 +8,9 @@ migration seam; CLI and TUI consumers should keep using this inventory API.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import replace
 from pathlib import Path
 import re
@@ -69,6 +71,64 @@ _KIND_ORDER: dict[RepoKind, int] = {
 }
 _ENV_INVALID_CHARS = re.compile(r"[^A-Za-z0-9]+")
 
+#: Per-command inventory snapshots, active only inside
+#: :func:`repo_inventory_session`. The session is entered around a single
+#: command by the bead and artifact pager entry points so one command builds
+#: the inventory once; the long-lived TUI never holds a session open across
+#: user actions. The dict is dropped when the session exits.
+_INVENTORY_SESSION: ContextVar[dict[tuple[Any, ...], RepoInventory] | None] = (
+    ContextVar("repo_inventory_session", default=None)
+)
+
+
+@contextmanager
+def repo_inventory_session() -> Iterator[None]:
+    """Memoize :func:`collect_repo_inventory` until the command ends.
+
+    Outside a session every call rebuilds, exactly as before. Inside, calls
+    with the same arguments, config token, and projects-root stat signature
+    share one snapshot.
+    """
+
+    token = _INVENTORY_SESSION.set({})
+    try:
+        yield
+    finally:
+        _INVENTORY_SESSION.reset(token)
+
+
+def reset_repo_inventory_memo() -> None:
+    """Drop inventory snapshots memoized for the current session, if any."""
+
+    session = _INVENTORY_SESSION.get()
+    if session is not None:
+        session.clear()
+
+
+def _inventory_session_key(
+    root: Path,
+    project: str | None,
+    include_disabled: bool,
+) -> tuple[Any, ...]:
+    from sase.config.core import current_config_token
+
+    try:
+        config_token: Any = current_config_token()
+    except Exception:
+        config_token = None
+    try:
+        stat = root.stat()
+        root_signature: Any = (stat.st_dev, stat.st_ino, stat.st_mtime_ns)
+    except OSError:
+        root_signature = None
+    return (
+        str(root),
+        project,
+        include_disabled,
+        config_token,
+        root_signature,
+    )
+
 
 def repo_display_name(record: RepoRecord) -> str:
     """Return the repository name readers recognize."""
@@ -88,8 +148,38 @@ def collect_repo_inventory(
     ``home`` is admitted only as a host for linked repositories; it does not
     gain a primary-repository row because it is system-managed, not a true
     project.
+
+    Inside a :func:`repo_inventory_session` the result is memoized per
+    (root, arguments, config token, projects-root stat signature); outside
+    one every call rebuilds.
     """
 
+    session = _INVENTORY_SESSION.get()
+    if session is None:
+        return _collect_repo_inventory(
+            projects_root,
+            project=project,
+            include_disabled=include_disabled,
+        )
+    root = Path(projects_root) if projects_root is not None else sase_projects_dir()
+    key = _inventory_session_key(root, project, include_disabled)
+    cached = session.get(key)
+    if cached is None:
+        cached = _collect_repo_inventory(
+            projects_root,
+            project=project,
+            include_disabled=include_disabled,
+        )
+        session[key] = cached
+    return cached
+
+
+def _collect_repo_inventory(
+    projects_root: Path | str | None = None,
+    *,
+    project: str | None = None,
+    include_disabled: bool = False,
+) -> RepoInventory:
     root = Path(projects_root) if projects_root is not None else sase_projects_dir()
     include_states: Sequence[str] | str = (
         "all" if project is not None or include_disabled else "enabled"
@@ -558,4 +648,6 @@ __all__ = [
     "RepoRecord",
     "collect_repo_inventory",
     "repo_display_name",
+    "repo_inventory_session",
+    "reset_repo_inventory_memo",
 ]

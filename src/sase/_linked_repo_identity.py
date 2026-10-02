@@ -188,9 +188,11 @@ def reset_repo_identity_caches() -> None:
     # Import lazily to keep the identity -> config -> identity dependency acyclic.
     from sase._linked_repo_config import reset_linked_repo_config_caches
     from sase._linked_repo_paths import reset_linked_repo_path_caches
+    from sase.repo_inventory import reset_repo_inventory_memo
 
     reset_linked_repo_config_caches()
     reset_linked_repo_path_caches()
+    reset_repo_inventory_memo()
 
 
 def configured_github_hosts(config: Mapping[str, Any] | None) -> frozenset[str]:

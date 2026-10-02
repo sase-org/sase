@@ -8,6 +8,7 @@ from functools import lru_cache
 import json
 import os
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -236,10 +237,37 @@ def _merged_sidecar_entries_cached(
     return tuple(normalized)
 
 
-def repo_config_cache_key(config: Mapping[str, Any]) -> RepoConfigCacheKey:
-    """Return a hashable value token retaining the source config mapping."""
+#: Bound for the config-identity memo in :func:`repo_config_cache_key`. The
+#: map holds the returned keys, which retain their config mapping, so an id
+#: cannot be recycled while its entry is cached.
+_CONFIG_KEY_MEMO_MAXSIZE = 64
+_CONFIG_KEY_MEMO_LOCK = threading.Lock()
+_CONFIG_KEY_MEMO: dict[int, RepoConfigCacheKey] = {}
 
-    return RepoConfigCacheKey(_freeze_config_value(config), config)
+
+def repo_config_cache_key(config: Mapping[str, Any]) -> RepoConfigCacheKey:
+    """Return a hashable value token retaining the source config mapping.
+
+    Memoized by config object identity: repeated calls with the same mapping
+    object (for example one inventory build freezing per sidecar) pay the
+    freeze once. Distinct objects with equal contents still freeze
+    independently, so value semantics are unchanged.
+    """
+
+    config_id = id(config)
+    with _CONFIG_KEY_MEMO_LOCK:
+        cached = _CONFIG_KEY_MEMO.get(config_id)
+        if cached is not None and cached.config is config:
+            return cached
+    fresh = RepoConfigCacheKey(_freeze_config_value(config), config)
+    with _CONFIG_KEY_MEMO_LOCK:
+        existing = _CONFIG_KEY_MEMO.get(config_id)
+        if existing is not None and existing.config is config:
+            return existing
+        if len(_CONFIG_KEY_MEMO) >= _CONFIG_KEY_MEMO_MAXSIZE:
+            _CONFIG_KEY_MEMO.pop(next(iter(_CONFIG_KEY_MEMO)))
+        _CONFIG_KEY_MEMO[config_id] = fresh
+        return fresh
 
 
 def _freeze_config_value(value: Any) -> tuple[Any, ...]:
@@ -277,6 +305,8 @@ def reset_linked_repo_config_caches() -> None:
 
     _resolution_config_cached.cache_clear()
     _merged_sidecar_entries_cached.cache_clear()
+    with _CONFIG_KEY_MEMO_LOCK:
+        _CONFIG_KEY_MEMO.clear()
 
 
 def configured_sidecar_roles(
