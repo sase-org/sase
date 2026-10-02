@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.util.pane_grid import focus_pane, free_pane_id, other_target
+from sase.ace.tui.util.pane_grid import position_glyph as _position_glyph
 from sase.ace.tui.util.pane_grid import position_name as _position_name
 
 from .layout import is_zoomed
@@ -41,6 +42,7 @@ class _OtherPanelTarget:
     label: str
     opens_split: bool
     ends_zoom: bool
+    glyph: str = ""
 
 
 def other_panel_target(state: DeckAreaState, source_index: int) -> _OtherPanelTarget:
@@ -64,21 +66,31 @@ def other_panel_target(state: DeckAreaState, source_index: int) -> _OtherPanelTa
     target = other_target(focus_pane(base.grid, source))
     if target is None:
         target = source
+    try:
+        glyph = _position_glyph(base.grid, target)
+    except Exception:
+        glyph = ""
     return _OtherPanelTarget(
         panel_index=target,
         label=panel_position_label(base, target),
         opens_split=False,
         ends_zoom=ends_zoom,
+        glyph=glyph,
     )
 
 
 def deck_picker_other_hint(target: _OtherPanelTarget) -> str:
-    """Return the phrase telling where a capital deck letter goes."""
-    phrase = (
-        "open in a new bottom panel"
-        if target.opens_split
-        else f"show in the {target.label} panel"
-    )
+    """Return the phrase telling where a capital deck letter goes.
+
+    With three panels the hint names the MRU target with its position
+    glyph, for example "show in the ◲ bottom-right panel".
+    """
+    if target.opens_split:
+        phrase = "open in a new bottom panel"
+    elif target.glyph:
+        phrase = f"show in the {target.glyph} {target.label} panel"
+    else:
+        phrase = f"show in the {target.label} panel"
     return f"{phrase} · ends zoom" if target.ends_zoom else phrase
 
 

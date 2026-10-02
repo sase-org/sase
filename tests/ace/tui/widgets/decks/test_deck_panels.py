@@ -48,8 +48,9 @@ async def test_flag_on_compose_tree() -> None:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         area = detail.query_one("#agent-deck-area")
         panels = area.query("DeckPanel")
-        assert len(panels) == 2
+        assert len(panels) == 3
         assert panels[1].has_class("hidden")
+        assert panels[2].has_class("hidden")
         assert len(app.query("#agent-file-scroll")) == 0
         assert len(app.query("#agent-llm-calls-scroll")) == 0
         assert len(app.query("#agent-prompt-panel")) == 1

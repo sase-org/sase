@@ -12,6 +12,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.decks.availability import DeckAvailability
 from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
+from sase.feature_flags import override_flags
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
     zoom_multi_file_agent,
 )
@@ -403,3 +404,147 @@ async def test_agents_decks_left_right_search_committed_png_snapshot(
             "agents_decks_left_right_search_committed_120x40",
             title="ACE agents decks left-right committed search overlay",
         )
+
+
+async def _goto_three_pane_main_top(page: AcePage, detail: AgentDetail) -> None:
+    """Nest a main-top T shape with the pair panel focused (flag on)."""
+    await page.press("backslash")
+    await wait_for_visual_idle(page)
+    await page.press("vertical_line")
+    await wait_for_visual_idle(page)
+    assert len(detail.deck_area.state.grid.panes) == 3
+
+
+async def test_agents_decks_three_pane_main_top_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    with override_flags(three_pane_splits=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _goto_agents(page, 1)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            await page.press("ctrl+s")
+            await wait_for_visual_idle(page)
+            await _goto_three_pane_main_top(page, detail)
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_decks_three_pane_main_top_120x40",
+                title="ACE agents decks three-pane main-top pair focused",
+            )
+
+
+async def test_agents_decks_three_pane_main_bottom_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    with override_flags(three_pane_splits=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _goto_agents(page, 1)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            await page.press("ctrl+s")
+            await wait_for_visual_idle(page)
+            await page.press("backslash")
+            await wait_for_visual_idle(page)
+            await page.press("ctrl+b")
+            await wait_for_visual_idle(page)
+            await page.press("vertical_line")
+            await wait_for_visual_idle(page)
+            assert len(detail.deck_area.state.grid.panes) == 3
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_decks_three_pane_main_bottom_120x40",
+                title="ACE agents decks three-pane main-bottom pair focused",
+            )
+
+
+async def test_agents_decks_three_pane_main_left_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    with override_flags(three_pane_splits=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _goto_agents(page, 1)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            await page.press("ctrl+s")
+            await wait_for_visual_idle(page)
+            await page.press("vertical_line")
+            await wait_for_visual_idle(page)
+            await page.press("backslash")
+            await wait_for_visual_idle(page)
+            assert len(detail.deck_area.state.grid.panes) == 3
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_decks_three_pane_main_left_120x40",
+                title="ACE agents decks three-pane main-left pair focused",
+            )
+
+
+async def test_agents_decks_three_pane_main_right_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    with override_flags(three_pane_splits=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _goto_agents(page, 1)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            await page.press("ctrl+s")
+            await wait_for_visual_idle(page)
+            await page.press("vertical_line")
+            await wait_for_visual_idle(page)
+            await page.press("ctrl+b")
+            await wait_for_visual_idle(page)
+            await page.press("backslash")
+            await wait_for_visual_idle(page)
+            assert len(detail.deck_area.state.grid.panes) == 3
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_decks_three_pane_main_right_120x40",
+                title="ACE agents decks three-pane main-right pair focused",
+            )
+
+
+async def test_agents_decks_three_pane_zoom_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    with override_flags(three_pane_splits=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _goto_agents(page, 1)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            await page.press("ctrl+s")
+            await wait_for_visual_idle(page)
+            await _goto_three_pane_main_top(page, detail)
+            await page.press("Z")
+            await wait_for_visual_idle(page)
+            assert detail.is_deck_zoomed is True
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_decks_three_pane_zoom_120x40",
+                title="ACE agents decks three-pane zoom chip",
+            )
+
+
+async def test_agents_decks_three_pane_picker_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    with override_flags(three_pane_splits=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _goto_agents(page, 1)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            await page.press("ctrl+s")
+            await wait_for_visual_idle(page)
+            await _goto_three_pane_main_top(page, detail)
+            await page.press("p")
+            await wait_for_visual_idle(page)
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_decks_three_pane_picker_120x40",
+                title="ACE agents decks three-pane picker hint",
+            )

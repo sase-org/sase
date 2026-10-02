@@ -398,8 +398,6 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-1eu(Geometry)' \
         --epic-symbol 'sase-1eu(GridSpec)' \
-        --epic-symbol 'sase-1eu(Pair)' \
-        --epic-symbol 'sase-1eu(fits)' \
         --epic-symbol 'sase-1eu(geometry)' \
         --epic-symbol 'sase-1eu(main_pane)' \
         {{ args }}

@@ -11,9 +11,12 @@ from .decks.layout import (
     exit_zoom_keeping_panels,
     is_zoomed,
     new_panel_for_deck,
+    refuse_three_pane_key,
+    refuse_turn,
     sidebar_mode,
     step_ratio,
     swap_deck_panel,
+    three_pane_splits_enabled,
     toggle_focus,
     toggle_focus_reverse,
     toggle_nodes_collapsed,
@@ -69,6 +72,118 @@ class AgentDetailDeckLayoutMixin:
         except Exception:
             return DeckLayout.SINGLE
 
+    def _deck_area_extent(self) -> tuple[int, int]:
+        """Return the deck area (width, height), or (0, 0) when unknown."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            size = getattr(area, "size", None)
+            if size is None:
+                return (0, 0)
+            return (int(size.width or 0), int(size.height or 0))
+        except Exception:
+            return (0, 0)
+
+    def _node_collapse_gain(self) -> int:
+        """Return the width collapsing the node list would reclaim."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            if area.state.nodes_collapsed:
+                return 0
+        except Exception:
+            return 0
+        try:
+            from ._agent_list_render_rail import NODE_RAIL_WIDTH
+
+            container = self.app.query_one("#agent-list-container")  # type: ignore[attr-defined]
+            gain = int(container.size.width or 0) - int(NODE_RAIL_WIDTH)
+            return max(0, gain)
+        except Exception:
+            return 0
+
+    def _refuse_deck_key(self, message: str | None) -> bool:
+        """Toast ``message`` and return True when a key is refused."""
+        if message is None:
+            return False
+        try:
+            self.notify(message, severity="warning")  # type: ignore[attr-defined]
+        except Exception:
+            try:
+                self.app.notify(message, severity="warning")  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        return True
+
+    def _choose_nest_panel(self) -> Any | None:
+        """Choose the deck for a nested third panel, or None on failure.
+
+        Mirrors the split-key choice in :meth:`_open_deck_split`: with Main
+        and Files shown the third panel opens on Tools, or on FINAL when
+        FINAL has positive content.
+        """
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            current_panel = area.focused_panel()
+            current_deck = current_panel.deck
+        except Exception:
+            return None
+        try:
+            if current_deck is DeckId.MAIN:
+                try:
+                    active = current_panel.main_view.active_card_id
+                except Exception:
+                    active = getattr(current_panel, "_main_active_card", None)
+                try:
+                    card_ids = tuple(self._main_deck_document.card_ids)  # type: ignore[attr-defined]
+                except Exception:
+                    card_ids = ()
+            else:
+                active = None
+                card_ids = ()
+        except Exception:
+            active = None
+            card_ids = ()
+        try:
+            try:
+                shown = {p.deck for p in area.visible_panels()}
+            except Exception:
+                shown = {current_deck}
+            try:
+                from .decks.spec import active_deck_cycle
+
+                raw_avail = dict(getattr(current_panel, "_availability", {}))
+                has_content = {
+                    d: (raw_avail[d].has_content if d in raw_avail else None)
+                    for d in active_deck_cycle()
+                }
+            except Exception:
+                has_content = {}
+            return choose_new_panel(current_deck, active, shown, has_content, card_ids)
+        except Exception:
+            return None
+
+    def _finish_nested_panels(self, before: set[int]) -> None:
+        """Show freshly nested panels and refresh availability."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            opened = [pid for pid in area.state.grid.panes if pid not in before]
+        except Exception:
+            return
+        if not opened:
+            return
+        try:
+            panels = area.state.panels
+        except Exception:
+            return
+        for new_id in opened:
+            try:
+                self.show_deck(new_id, panels[new_id].deck)  # type: ignore[attr-defined]
+            except Exception:
+                continue
+        try:
+            self._deck_refresh_availability()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
     def toggle_deck_split(self, target: DeckLayout) -> None:
         """Toggle a deck split layout for ``target``."""
         try:
@@ -80,11 +195,47 @@ class AgentDetailDeckLayoutMixin:
             self._open_deck_split(target)
             return
         try:
+            nest = bool(three_pane_splits_enabled())
+        except Exception:
+            nest = False
+        try:
+            width, height = self._deck_area_extent()
+            refusal = refuse_three_pane_key(
+                state,
+                target,
+                width,
+                height,
+                nest=nest,
+                collapsed_gain=self._node_collapse_gain(),
+            )
+        except Exception:
+            refusal = None
+        if self._refuse_deck_key(refusal):
+            return
+        before = set()
+        try:
+            before = set(state.grid.panes)
+        except Exception:
+            before = set()
+        new_panel = None
+        if nest and len(state.grid.panes) == 2:
+            new_panel = self._choose_nest_panel()
+        if new_panel is None:
+            try:
+                new_panel = state.panels[state.focused]
+            except Exception:
+                return
+        try:
             self._apply_deck_area_state(
-                toggle_split(state, target, state.panels[state.focused])
+                toggle_split(state, target, new_panel, nest=nest)
             )
         except Exception:
             return
+        try:
+            if len(area.state.grid.panes) == 3:
+                self._finish_nested_panels(before)
+        except Exception:
+            pass
         self._notify_deck_state_changed()
 
     def _open_deck_split(
@@ -300,10 +451,24 @@ class AgentDetailDeckLayoutMixin:
         self._notify_deck_state_changed()
 
     def turn_deck_layout(self) -> None:
-        """Transpose the split layout (stacked/side-by-side)."""
+        """Transpose the split layout (stacked/side-by-side).
+
+        A three-pane turn is refused with a toast when the transposed
+        grid would starve a panel; the layout is left unchanged.
+        """
         try:
             area = self.deck_area  # type: ignore[attr-defined]
-            self._apply_deck_area_state(turn_deck_layout(area.state))
+            state = area.state
+        except Exception:
+            return
+        try:
+            width, height = self._deck_area_extent()
+            if self._refuse_deck_key(refuse_turn(state, width, height)):
+                return
+        except Exception:
+            pass
+        try:
+            self._apply_deck_area_state(turn_deck_layout(state))
         except Exception:
             return
         self._notify_deck_state_changed()

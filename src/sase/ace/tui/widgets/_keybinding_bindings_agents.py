@@ -65,6 +65,7 @@ class AgentBindingsMixin:
         tools_detail_is_runs: bool = False,
         tools_detail_level: int = 0,
         deck_split: bool = False,
+        deck_three_panels: bool = False,
         deck_card_count: int = 0,
         card_blocks_navigable: bool = False,
         deck_view_cycle_available: bool = False,
@@ -496,7 +497,15 @@ class AgentBindingsMixin:
                 )
             )
         if deck_split:
-            bindings.append((self._kd("toggle_deck_focus"), "other panel"))
+            if deck_three_panels:
+                bindings.append(
+                    (
+                        f"{self._kd('toggle_deck_focus')}/{self._kd('toggle_deck_focus_reverse')}",
+                        "panel",
+                    )
+                )
+            else:
+                bindings.append((self._kd("toggle_deck_focus"), "other panel"))
             bindings.append(
                 (
                     f"{self._kd('shrink_deck_panel')}/{self._kd('grow_deck_panel')}",

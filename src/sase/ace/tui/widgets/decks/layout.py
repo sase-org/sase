@@ -12,6 +12,7 @@ from sase.ace.tui.util.pane_grid import (
     PaneGrid,
     close_focused,
     cycle_focus,
+    fits,
     focus_pane,
     free_pane_id,
     press_split,
@@ -29,6 +30,28 @@ from .model import (
 )
 
 RATIO_STEPS: tuple[int, ...] = (30, 50, 70)
+
+#: Minimum deck-panel extent a new three-pane geometry must grant every
+#: panel. The two-panel path stays unguarded, and shrinking the terminal
+#: never closes a pane.
+MIN_DECK_PANEL_HEIGHT = 8
+MIN_DECK_PANEL_WIDTH = 40
+
+
+def three_pane_splits_enabled() -> bool:
+    """Return whether the ``three_pane_splits`` beta flag is enabled.
+
+    Resolved at the use site on every call, never at module import time,
+    so cold-path import-weight tests stay green.
+    """
+    try:
+        from sase.feature_flags import FeatureFlag, current_flags
+    except Exception:
+        return False
+    try:
+        return bool(current_flags().enabled(FeatureFlag.three_pane_splits))
+    except Exception:
+        return False
 
 
 def _axis_for_layout(target: DeckLayout) -> Axis:
@@ -122,15 +145,19 @@ def toggle_split(
     new_panel: DeckPanelState,
     *,
     focus_new: bool = True,
+    nest: bool = False,
 ) -> DeckAreaState:
     """Toggle a split layout for ``target``.
 
     From SINGLE open ``new_panel`` on a free pane ID with a 50/50 ratio.
     The new pane takes focus unless ``focus_new`` is false (unsplit and
     rotate ignore the flag). Pressing the same layout key again unsplits,
-    keeping the focused panel. Pressing the other layout key rotates,
-    keeping decks, cards, focus and ratio. A layout key while zoomed only
-    restores the snapshot, keeping panels edited while zoomed.
+    keeping the focused panel. Pressing the other layout key rotates when
+    ``nest`` is false, or nests ``new_panel`` into a three-pane T layout
+    when ``nest`` is true (the ``three_pane_splits`` beta flag). With
+    three panes, the outer-axis key erases the full-span divider and the
+    other key turns the layout. A layout key while zoomed only restores
+    the snapshot, keeping panels edited while zoomed.
     """
     if state.zoom_snapshot is not None:
         return exit_zoom_keeping_panels(state)
@@ -139,7 +166,7 @@ def toggle_split(
         new_id = free_pane_id(state.grid)
         if new_id is None:
             return state
-        pressed = press_split(state.grid, axis, new_id, nest=False)
+        pressed = press_split(state.grid, axis, new_id, nest=nest)
         if len(pressed.panes) < 2:
             return state
         if not focus_new:
@@ -147,13 +174,127 @@ def toggle_split(
         panels = dict(state.panels)
         panels[new_id] = new_panel
         return dataclasses.replace(state, grid=pressed, panels=panels)
-    pressed = press_split(state.grid, axis, state.grid.focused, nest=False)
+    if (
+        nest
+        and len(state.grid.panes) == 2
+        and state.grid.axis is not None
+        and axis is not state.grid.axis
+    ):
+        new_id = free_pane_id(state.grid)
+        if new_id is None:
+            return state
+        pressed = press_split(state.grid, axis, new_id, nest=True)
+        if len(pressed.panes) != 3:
+            return state
+        if not focus_new:
+            pressed = focus_pane(pressed, state.grid.focused)
+        panels = dict(state.panels)
+        panels[new_id] = new_panel
+        return dataclasses.replace(state, grid=pressed, panels=panels)
+    pressed = press_split(state.grid, axis, state.grid.focused, nest=nest)
     if len(pressed.panes) < 2:
         focused = pressed.focused
         return dataclasses.replace(
             state, grid=pressed, panels={focused: panel_state(state, focused)}
         )
     return dataclasses.replace(state, grid=pressed)
+
+
+def _nest_or_turn_result(
+    state: DeckAreaState, target: DeckLayout, *, nest: bool
+) -> PaneGrid | None:
+    """Return the grid a split key for ``target`` would commit, if guarded.
+
+    Returns None when the key needs no fit guard: zoomed restores, single
+    opens an unguarded two-pane split, same-key unsplits, and flag-off
+    rotates only ever shrink to fewer panes.
+    """
+    if state.zoom_snapshot is not None:
+        return None
+    axis = _axis_for_layout(target)
+    grid = state.grid
+    if len(grid.panes) < 2:
+        return None
+    if len(grid.panes) == 2:
+        if axis == grid.axis or not nest:
+            return None
+        new_id = free_pane_id(grid)
+        if new_id is None:
+            return None
+        nested = press_split(grid, axis, new_id, nest=True)
+        return nested if len(nested.panes) == 3 else None
+    turned = press_split(grid, axis, grid.focused, nest=nest)
+    return turned if len(turned.panes) == 3 else None
+
+
+def refuse_three_pane_key(
+    state: DeckAreaState,
+    target: DeckLayout,
+    width: int,
+    height: int,
+    *,
+    nest: bool,
+    collapsed_gain: int = 0,
+) -> str | None:
+    """Return a refusal toast when a split key must not commit, else None.
+
+    Only a nest into three panes or a three-pane turn is ever refused, and
+    only when the resulting grid would starve a panel below
+    ``MIN_DECK_PANEL_HEIGHT`` × ``MIN_DECK_PANEL_WIDTH``. Unknown sizes
+    fail open. When collapsing the node list would reclaim enough width,
+    the message says so.
+    """
+    if width <= 0 or height <= 0:
+        return None
+    result = _nest_or_turn_result(state, target, nest=nest)
+    if result is None:
+        return None
+    if fits(
+        result,
+        width,
+        height,
+        min_width=MIN_DECK_PANEL_WIDTH,
+        min_height=MIN_DECK_PANEL_HEIGHT,
+    ):
+        return None
+    if len(state.grid.panes) == 2:
+        message = "Not enough room for a third panel"
+    else:
+        message = "Not enough room to turn the panels"
+    if (
+        collapsed_gain > 0
+        and not state.nodes_collapsed
+        and fits(
+            result,
+            width + collapsed_gain,
+            height,
+            min_width=MIN_DECK_PANEL_WIDTH,
+            min_height=MIN_DECK_PANEL_HEIGHT,
+        )
+    ):
+        message += " \u2014 ctrl+s collapses the node list"
+    return message
+
+
+def refuse_turn(state: DeckAreaState, width: int, height: int) -> str | None:
+    """Return a refusal toast when ``ctrl+t`` must not commit, else None.
+
+    Only a three-pane turn is ever refused. Unknown sizes fail open.
+    """
+    if width <= 0 or height <= 0:
+        return None
+    if len(state.grid.panes) != 3 or state.zoom_snapshot is not None:
+        return None
+    turned = turn(state.grid)
+    if fits(
+        turned,
+        width,
+        height,
+        min_width=MIN_DECK_PANEL_WIDTH,
+        min_height=MIN_DECK_PANEL_HEIGHT,
+    ):
+        return None
+    return "Not enough room to turn the panels"
 
 
 def toggle_nodes_collapsed(state: DeckAreaState) -> DeckAreaState:

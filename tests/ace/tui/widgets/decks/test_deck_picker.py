@@ -226,16 +226,16 @@ def test_other_panel_target_single_opens_bottom_split() -> None:
 
 def test_other_panel_target_top_bottom_targets_opposite_panel() -> None:
     top_focus = other_panel_target(_split(DeckLayout.TOP_BOTTOM, 0), 0)
-    assert top_focus == _OtherPanelTarget(1, "bottom", False, False)
+    assert top_focus == _OtherPanelTarget(1, "bottom", False, False, glyph="⬓")
     bottom_focus = other_panel_target(_split(DeckLayout.TOP_BOTTOM, 1), 1)
-    assert bottom_focus == _OtherPanelTarget(0, "top", False, False)
+    assert bottom_focus == _OtherPanelTarget(0, "top", False, False, glyph="⬒")
 
 
 def test_other_panel_target_left_right_keeps_layout() -> None:
     left_focus = other_panel_target(_split(DeckLayout.LEFT_RIGHT, 0), 0)
-    assert left_focus == _OtherPanelTarget(1, "right", False, False)
+    assert left_focus == _OtherPanelTarget(1, "right", False, False, glyph="◨")
     right_focus = other_panel_target(_split(DeckLayout.LEFT_RIGHT, 1), 1)
-    assert right_focus == _OtherPanelTarget(0, "left", False, False)
+    assert right_focus == _OtherPanelTarget(0, "left", False, False, glyph="◧")
 
 
 def test_other_panel_target_zoomed_from_single_opens_split_and_ends_zoom() -> None:
@@ -257,7 +257,7 @@ def test_other_panel_target_zoomed_from_split_uses_snapshot_orientation() -> Non
     snapshot = _split(DeckLayout.LEFT_RIGHT, 1)
     zoomed = dataclasses.replace(toggle_zoom(snapshot), nodes_collapsed=True)
     assert other_panel_target(zoomed, 1) == _OtherPanelTarget(
-        panel_index=0, label="left", opens_split=False, ends_zoom=True
+        panel_index=0, label="left", opens_split=False, ends_zoom=True, glyph="◧"
     )
 
 
@@ -275,6 +275,10 @@ def test_deck_picker_other_hint_phrases() -> None:
     assert (
         deck_picker_other_hint(_OtherPanelTarget(0, "left", False, False))
         == "show in the left panel"
+    )
+    assert (
+        deck_picker_other_hint(_OtherPanelTarget(0, "left", False, False, glyph="◧"))
+        == "show in the ◧ left panel"
     )
     assert (
         deck_picker_other_hint(_OtherPanelTarget(1, "bottom", True, True))

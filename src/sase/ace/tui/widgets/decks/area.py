@@ -41,9 +41,15 @@ class DeckArea(Vertical):
         return self._state
 
     def compose(self) -> ComposeResult:
-        """Compose both panels; panel 1 starts hidden."""
+        """Compose all three panels; panels 1 and 2 start hidden.
+
+        The third panel is composed eagerly (hidden) so a nest behind the
+        ``three_pane_splits`` flag never mounts during a key handler: every
+        structural key keeps widget identity with no mount or unmount.
+        """
         yield DeckPanel(0, id="agent-deck-panel-0", classes="deck-panel")
         yield DeckPanel(1, id="agent-deck-panel-1", classes="deck-panel hidden")
+        yield DeckPanel(2, id="agent-deck-panel-2", classes="deck-panel hidden")
 
     def panel(self, pane_id: int) -> DeckPanel:
         """Return the panel for ``pane_id`` through the explicit ID map."""
@@ -56,7 +62,7 @@ class DeckArea(Vertical):
     def _panels_by_id(self) -> dict[int, DeckPanel]:
         """Return the mounted panels keyed by pane ID (never raises)."""
         found: dict[int, DeckPanel] = {}
-        for pane_id in (0, 1):
+        for pane_id in (0, 1, 2):
             try:
                 found[pane_id] = self.query_one(
                     f"#agent-deck-panel-{pane_id}", DeckPanel
@@ -196,9 +202,16 @@ class DeckArea(Vertical):
                     pass
             return
         # A split shows every grid pane. A widget hidden by a zoom on the
-        # other pane is reshown here.
+        # other pane is reshown here, and a widget whose pane just closed
+        # (for example 3 panels to 2) hides without unmounting.
         for pane_id, widget in by_id.items():
             if pane_id not in visible:
+                try:
+                    widget.set_zoom_chrome(None)
+                    widget.add_class("hidden")
+                    widget.set_focused(False)
+                except Exception:
+                    pass
                 continue
             try:
                 widget.set_zoom_chrome(None)

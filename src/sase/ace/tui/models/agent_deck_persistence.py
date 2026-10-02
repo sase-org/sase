@@ -8,14 +8,18 @@ Schema version 1 stores ``{layout, ratio, focused, nodes_collapsed, panels}``
 where each panel entry is ``{deck, preferred_card, preferred_cards, views}``
 with the additive optional ``preferred_cards`` object mapping deck names to
 card ids and the additive optional ``views`` object ``{main, files}`` holding
-per-deck view policies. The legacy ``preferred_card`` key is still written
-and read as Main's preference so older files keep their sticky Main card. A
-zoomed session persists its restored geometry plus the edits made while
-zoomed. Loading fails
+per-deck view policies. A three-panel state also writes the additive
+optional ``pair`` object ``{region, ratio}`` naming the inner split. The
+legacy ``preferred_card`` key is still written and read as Main's preference
+so older files keep their sticky Main card. A zoomed session persists its
+restored geometry plus the edits made while zoomed. Loading fails
 open: unknown decks or layouts fall back to their defaults while the rest of
 the file still applies. Unknown deck keys and invalid ``preferred_cards``
 entries are skipped; a missing, non-object, or unknown-valued ``views``
-decodes to ``AUTO``; Files ``page_blocks`` decodes to ``AUTO``.
+decodes to ``AUTO``; Files ``page_blocks`` decodes to ``AUTO``. An older
+reader ignores ``pair`` and truncates to two panels, which is still a valid
+two-pane split; a malformed ``pair`` recovers to a smaller valid layout with
+a warning and never crashes.
 """
 
 from __future__ import annotations
@@ -45,7 +49,7 @@ log = logging.getLogger(__name__)
 SCHEMA_VERSION = 1
 FILENAME = "ace_agents_deck_state.json"
 MAX_FILE_BYTES = 64 * 1024
-MAX_PANELS = 2
+MAX_PANELS = 3
 MAX_CARD_ID_LENGTH = 256
 
 
@@ -65,13 +69,19 @@ class _DeckPanelSnapshot:
 
 @dataclass(frozen=True)
 class AgentsDeckStateSnapshot:
-    """Complete persisted Agents-tab deck layout."""
+    """Complete persisted Agents-tab deck layout.
+
+    ``pair_region``/``pair_ratio`` name the inner split of a three-panel
+    state; both are None/ignored unless exactly three panels persist.
+    """
 
     layout: DeckLayout = DeckLayout.SINGLE
     ratio: int = 50
     focused: int = 0
     nodes_collapsed: bool = False
     panels: tuple[_DeckPanelSnapshot, ...] = (_DeckPanelSnapshot(),)
+    pair_region: int | None = None
+    pair_ratio: int = 50
 
 
 EMPTY_AGENTS_DECK_STATE = AgentsDeckStateSnapshot()
@@ -164,6 +174,25 @@ def _decode_panel(raw: Any) -> _DeckPanelSnapshot:
     return _DeckPanelSnapshot(deck=deck, preferred_cards=cards, views=views)
 
 
+def _decode_pair(raw: Any) -> tuple[int, int] | None:
+    """Decode the additive optional ``pair`` object, or None when absent.
+
+    Returns the ``(region, ratio)`` pair, or None when ``raw`` is missing
+    (a two-panel file, or an old writer). Raises
+    :class:`_AgentsDeckStateDecodeError` on a malformed present value so
+    the caller can recover to a smaller valid layout with a warning.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise _AgentsDeckStateDecodeError("pair must be an object")
+    region = raw.get("region", None)
+    pair_ratio = raw.get("ratio", 50)
+    if region not in (0, 1) or pair_ratio not in RATIO_STEPS:
+        raise _AgentsDeckStateDecodeError(f"invalid pair: {raw!r}")
+    return (region, pair_ratio)
+
+
 def _decode_agents_deck_state(decoded: Any) -> AgentsDeckStateSnapshot:
     if not isinstance(decoded, dict):
         raise _AgentsDeckStateDecodeError("deck state must be an object")
@@ -195,6 +224,18 @@ def _decode_agents_deck_state(decoded: Any) -> AgentsDeckStateSnapshot:
             panels.append(_DeckPanelSnapshot())
     if layout is DeckLayout.SINGLE:
         panels = panels[:1]
+    try:
+        pair = _decode_pair(decoded.get("pair", None))
+    except _AgentsDeckStateDecodeError:
+        log.warning("Ignoring malformed pair in persisted deck state")
+        pair = None
+        if len(panels) > 2:
+            panels = panels[:2]
+    if len(panels) > 2 and pair is None:
+        log.warning("Ignoring unpaired third panel in persisted deck state")
+        panels = panels[:2]
+    if len(panels) <= 2:
+        pair = None
     focused = decoded.get("focused", 0)
     if not isinstance(focused, int) or focused < 0 or focused >= len(panels):
         focused = 0
@@ -204,6 +245,8 @@ def _decode_agents_deck_state(decoded: Any) -> AgentsDeckStateSnapshot:
         focused=focused,
         nodes_collapsed=nodes_collapsed,
         panels=tuple(panels),
+        pair_region=pair[0] if pair is not None else None,
+        pair_ratio=pair[1] if pair is not None else 50,
     )
 
 
@@ -212,8 +255,11 @@ def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
 
     Panels are written in grid reading order with ``focused`` as the
     reading-order index; the zoomed pane's edits persist through the
-    restored geometry.
+    restored geometry. A three-panel state also records the inner split
+    as ``pair``.
     """
+    from sase.ace.tui.util.pane_grid import Pair
+
     from ..widgets.decks.layout import exit_zoom_keeping_panels
 
     if state.zoom_snapshot is not None:
@@ -240,12 +286,21 @@ def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
     if focused < 0 or focused >= len(panels):
         focused = 0
     ratio = effective.ratio if effective.ratio in RATIO_STEPS else 50
+    pair: Pair | None = effective.grid.pair
+    if len(panels) != 3 or pair is None or pair.region not in (0, 1):
+        pair_region: int | None = None
+        pair_ratio = 50
+    else:
+        pair_region = pair.region
+        pair_ratio = pair.ratio if pair.ratio in RATIO_STEPS else 50
     return AgentsDeckStateSnapshot(
         layout=layout,
         ratio=ratio,
         focused=focused,
         nodes_collapsed=bool(effective.nodes_collapsed),
         panels=panels,
+        pair_region=pair_region,
+        pair_ratio=pair_ratio,
     )
 
 
@@ -254,7 +309,7 @@ def area_state_from_snapshot(snapshot: AgentsDeckStateSnapshot) -> DeckAreaState
 
     Pane IDs ``0..n-1`` are assigned in reading order.
     """
-    from sase.ace.tui.util.pane_grid import Axis, PaneGrid
+    from sase.ace.tui.util.pane_grid import Axis, Pair, PaneGrid
 
     items = list(snapshot.panels) or [_DeckPanelSnapshot()]
     if snapshot.layout is DeckLayout.SINGLE:
@@ -281,14 +336,28 @@ def area_state_from_snapshot(snapshot: AgentsDeckStateSnapshot) -> DeckAreaState
     else:
         axis = Axis.COLS if snapshot.layout is DeckLayout.LEFT_RIGHT else Axis.ROWS
         ratio = snapshot.ratio if snapshot.ratio in RATIO_STEPS else 50
-        other = order[1] if focused_id == order[0] else order[0]
-        grid = PaneGrid(
-            panes=tuple(order),
-            focused=focused_id,
-            axis=axis,
-            ratio=ratio,
-            recent=(focused_id, other),
-        )
+        recent = (focused_id, *(pid for pid in order if pid != focused_id))
+        if len(order) == 2:
+            grid = PaneGrid(
+                panes=tuple(order),
+                focused=focused_id,
+                axis=axis,
+                ratio=ratio,
+                recent=recent,
+            )
+        else:
+            region = snapshot.pair_region if snapshot.pair_region in (0, 1) else 1
+            pair_ratio = (
+                snapshot.pair_ratio if snapshot.pair_ratio in RATIO_STEPS else 50
+            )
+            grid = PaneGrid(
+                panes=tuple(order),
+                focused=focused_id,
+                axis=axis,
+                ratio=ratio,
+                pair=Pair(region=region, ratio=pair_ratio),
+                recent=recent,
+            )
     return DeckAreaState(
         grid=grid,
         panels=panels,
@@ -296,8 +365,30 @@ def area_state_from_snapshot(snapshot: AgentsDeckStateSnapshot) -> DeckAreaState
     )
 
 
+def truncate_snapshot_to_two(
+    snapshot: AgentsDeckStateSnapshot,
+) -> AgentsDeckStateSnapshot:
+    """Return ``snapshot`` truncated to two panels, dropping ``pair``.
+
+    This is the old-reader view of a three-panel file (still a valid
+    two-pane split), and the flag-off load path while
+    ``three_pane_splits`` is disabled.
+    """
+    import dataclasses
+
+    if len(snapshot.panels) <= 2 and snapshot.pair_region is None:
+        return snapshot
+    panels = snapshot.panels[:2] or (_DeckPanelSnapshot(),)
+    focused = snapshot.focused
+    if focused < 0 or focused >= len(panels):
+        focused = 0
+    return dataclasses.replace(
+        snapshot, panels=panels, focused=focused, pair_region=None, pair_ratio=50
+    )
+
+
 def _serialize_agents_deck_state(snapshot: AgentsDeckStateSnapshot) -> str:
-    decoded = {
+    decoded: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "layout": snapshot.layout.value,
         "ratio": snapshot.ratio,
@@ -319,6 +410,11 @@ def _serialize_agents_deck_state(snapshot: AgentsDeckStateSnapshot) -> str:
             for item in snapshot.panels
         ],
     }
+    if len(snapshot.panels) == 3 and snapshot.pair_region in (0, 1):
+        decoded["pair"] = {
+            "region": snapshot.pair_region,
+            "ratio": snapshot.pair_ratio if snapshot.pair_ratio in RATIO_STEPS else 50,
+        }
     serialized = (
         json.dumps(
             decoded,
@@ -392,9 +488,11 @@ __all__ = [
     "EMPTY_AGENTS_DECK_STATE",
     "FILENAME",
     "MAX_FILE_BYTES",
+    "MAX_PANELS",
     "SCHEMA_VERSION",
     "area_state_from_snapshot",
     "load_agents_deck_state",
     "save_agents_deck_state",
     "snapshot_from_area_state",
+    "truncate_snapshot_to_two",
 ]

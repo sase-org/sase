@@ -309,6 +309,7 @@ class AgentFooterDisplayMixin:
                 else self._selected_agent_neighbor_count(current_agent)
             )
             deck_split = False
+            deck_three_panels = False
             deck_card_count = 0
             card_blocks_navigable = False
             deck_view_cycle_available = False
@@ -318,6 +319,11 @@ class AgentFooterDisplayMixin:
 
                 layout = agent_detail.deck_area.state.layout  # type: ignore[attr-defined]
                 deck_split = layout is not _DeckLayout.SINGLE
+                try:
+                    panes = agent_detail.deck_area.state.grid.panes  # type: ignore[attr-defined]
+                    deck_three_panels = deck_split and len(panes) == 3
+                except Exception:
+                    deck_three_panels = False
                 try:
                     focused = agent_detail.deck_area.focused_panel()  # type: ignore[attr-defined]
                     try:
@@ -372,6 +378,7 @@ class AgentFooterDisplayMixin:
                     deck_card_count = 0
             except Exception:
                 deck_split = False
+                deck_three_panels = False
                 deck_card_count = 0
                 card_blocks_navigable = False
                 deck_view_cycle_available = False
@@ -443,6 +450,7 @@ class AgentFooterDisplayMixin:
                     )
                 ),
                 deck_split=deck_split,
+                deck_three_panels=deck_three_panels,
                 deck_card_count=deck_card_count,
                 card_blocks_navigable=card_blocks_navigable,
                 deck_view_cycle_available=deck_view_cycle_available,

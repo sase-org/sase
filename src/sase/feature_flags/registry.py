@@ -26,6 +26,7 @@ class FeatureFlag(StrEnum):
     axe_routine_job_contract = "axe_routine_job_contract"
     agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
+    three_pane_splits = "three_pane_splits"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
     legacy_agent_family_syntax = "legacy_agent_family_syntax"
     legacy_sase_shell_syntax = "legacy_sase_shell_syntax"
@@ -202,6 +203,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="beta",
         description="Beta gate for typed launch units, %if, and %proc.",
         bead="sase-s7",
+    ),
+    FeatureFlag.three_pane_splits: FeatureFlagDefinition(
+        key=FeatureFlag.three_pane_splits,
+        kind="beta",
+        description=(
+            "From a two-pane split, the other split key splits the focused pane "
+            "into a three-pane T layout on the Agents deck and in the pager; "
+            "with three panes the split keys erase or turn the layout."
+        ),
+        bead="sase-1ey",
     ),
 }
 
