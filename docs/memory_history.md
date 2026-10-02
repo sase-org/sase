@@ -29,37 +29,73 @@ only store; a disposable, incremental metadata index provides the speed.
   `UNTRACKED`, `IGNORED`, `NO VCS`, `SHALLOW`, `TEMPLATE`, `indexing…`, and
   `history unavailable: <reason>` (fail open to the live document).
 
+## Which version am I reading?
+
+The subject line carries one state pill, in the same place with the same shape in every
+state. It is never cropped: as width shrinks it steps through shorter fixed forms
+(`⟲ PAST · v24 of 25` → `⟲ PAST · v24/25` → `⟲ v24/25` → `⟲ v24`).
+
+| Pill                  | Meaning                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `● NOW · v25`         | The live file, clean — identical to the newest version (`≡ v25`)                    |
+| `◌ NOW · uncommitted` | The live file with uncommitted or staged edits, on top of `v25`                     |
+| `⟲ PAST · v24 of 25`  | A pinned committed version: absolute ordinal of the newest, hidden versions counted |
+| `✖ DELETED · v12`     | The subject's newest version is a deletion (tombstone)                              |
+
+Ordinals are absolute and stable: `vK` names the same version in the pill, the picker,
+the footer, and `sase memory history -A vK`. Hidden versions (`≈`, `↦`) are skipped
+while stepping but never renumbered, so `v24 of 25` stays true.
+
+A clean now **is** the newest version: when the worktree, HEAD, and the newest row
+agree, `(` from now steps straight to the version before it instead of landing on a
+byte-identical copy labelled past. Untracked, ignored, no-VCS, shallow, template, and
+unavailable subjects keep their existing honest chips and never show a pill.
+
+The pill is followed by dim context: `latest · 1mo ago` at now, `on top of v25` (amber)
+when dirty, `1mo ago` (violet) in the past, and `Δ v23 → v24` in the diff view — the
+base in the delete tone, the target in the insert tone, always reading older to newer.
+Past versions also gain a violet gutter rail (`│`) down the full height of the body, so
+the past stays visible after the band scrolls away; a deleted subject's rail uses the
+muted deleted tone. The footer names where each key goes
+(`( v21 · ) now · } now · = diff · @ timeline · E edit now`), and trail crumbs carry
+their version (`@v24`, `@v23→v24`, `@✖` for a tombstone, nothing for now).
+
 ## Time band anatomy
 
-The `#pager-time` band sits between the trail band and the chrome rule:
+The `#pager-time` band sits between the trail band and the chrome rule. At now it is a
+one-row life strip (scrubber plus history); in the past it is two rows: a timeline row
+and a meaning row. A deleted subject shows a tombstone row in chrome, and the body shows
+exactly the last content so line numbers still match the file.
 
 ```text
- ◆ sase/memory/gotchas.md                                  ⟲ PAST v8/9 · 8 days ago · 34% · md
+ ▤ sase/memory/gotchas.md  [⟲ PAST · v24 of 25]  1mo ago                                   100% · ⌘ 1.7Kc · md
  ⇧ promoted reference → core · § Default Keymap Config · +31w −4w      sase-1au.5 · athena.… · 1a2b3c4
- ▁▁▃▁▂▁▇▁▁▂▅▁▁▃▁▂▁▁▅▁▂▁▃▁▆▂▁▃▁▂▁▅▁█▁▂ → now ◌              Sep 22 2026 14:03 · ⇡2 on origin/master
+ ▁▁▃▁▂▁▇▁▁▂▅▁▁▃▁▂▁▁▅▁▂▁▃▁▆▂▁▃▁▂▁▅▁█▁▂▏▁▂ → now   Sep 22 2026 14:03 · v24 · 1 newer · ⇡2 on origin/master
 ```
 
-- **Subject chip.** In the past: `⟲ PAST v8/9 · 8 days ago` in the violet past accent.
-  At now: `⟲ 9 versions` (dim), or amber `◌ uncommitted` when dirty. Past is violet,
-  never amber — amber already means uncommitted.
+- **Playhead scrubber.** One cell per version (bucketed past the width): bar height is
+  the log-scaled words changed (`▁▂▃▄▅▆▇█`). The open version is the bright playhead
+  cell; hidden versions are dim `·`. Labelled ends name the oldest and newest stops, so
+  you can see where you sit in the file's life.
+- **Timeline row.** Scrubber plus absolute date and time, the version (`v24`), how many
+  versions are newer, and `⇡N on origin/<default>` when behind the remote. Shedding
+  order: the commit subject, the `⇡N` marker, the newer count, the weekday and time (the
+  date stays), then the scrubber down to 8 cells.
 - **Meaning row.** Class glyph, section path, word delta, frontmatter semantics; on the
   right, provenance: bead, agent, short SHA. Each is a jump-label target: the bead opens
   the bead, the agent opens its chat, and the commit opens the commit view (or copies
   when no resolver exists).
-- **Time row.** Sparkline plus absolute date and time, ending with `→ now`, `◌` when
-  dirty, and `⇡N on origin/<default>` when behind the remote.
-- **Sparkline.** One cell per version (bucketed past the width): bar height is the
-  log-scaled words changed (`▁▂▃▄▅▆▇█`). Promotions use the past accent, deletions the
-  error colour, regenerations dim, hidden versions dim `·`, and the current cell reverse
-  video.
+- **Past tint.** While pinned in the past, the band gets a faint violet tint and the
+  body rail turns violet. Past is violet, never amber — amber already means uncommitted.
+  Every history colour comes from the theme-aware palette, so the past stays legible in
+  dark and light themes.
 - **Instruction subjects** get a cause row instead:
   `⟳ rendered · sources: gotchas.md · dispatch.md` (each source opens that note at the
   same commit in the diff view), `⚙ config change`, `⚙ regenerated`, or `◆ hand-edited`,
   with a `CLAUDE.md ≡ AGENTS.md` / `⚠ diverged` chip.
-- **Degradation.** The band sheds rows and fields as space shrinks: the time row drops
-  on short screens, the meaning row sheds SHA, agent, bead, then section path as width
-  shrinks, and at 12 rows or fewer the band folds into the subject chip. Chrome never
-  pushes or wraps the body.
+- **Degradation.** The band sheds rows and fields as space shrinks, and at 12 rows or
+  fewer it folds away — the pill context then gains the short date (`Aug 24 · 1mo ago`)
+  because the band's absolute date is off screen. Chrome never pushes or wraps the body.
 
 ## Keys
 
@@ -76,16 +112,23 @@ pin, so Backspace returns to the exact moment.
 | `@`       | Open the timeline picker                                                                                  |
 | `[` / `]` | Previous / next change, in either view                                                                    |
 
-The footer shows only `( ) version · = diff · @ timeline · } now` when they apply; the
-rest are under `?` in the "Time" group. Search (`/`) persists across versions. `yy`
-copies `sha:path` in the past, or a unified diff in the diff view. `E` always edits
-**now**. `r` refreshes, re-syncs the index, and follows HEAD.
+The footer names each time key's destination
+(`( v21 · ) now · } now · = diff · @ timeline · E edit now`) and shows a verb only when
+its key would do something; the rest are under `?` in the "Time" group, which also
+carries a four-pill legend. Search (`/`) persists across versions. `yy` copies
+`sha:path` in the past, or a unified diff in the diff view. `E` always edits **now** —
+pinned it reads `E edit now`, otherwise `E edit`, never both. `r` refreshes, re-syncs
+the index, and follows HEAD.
 
-**Timeline picker (`@`).** A modal over all versions including worktree and staged rows
-plus a hidden-versions summary row. `j`/`k`/`g`/`G` move, `⏎` opens and pushes a trail
-entry, `=` compares the highlighted row with the open version (two-point compare), `.`
-toggles hidden versions, `/` filters across section, agent, bead, and words. Rows render
-lazily, so long timelines open instantly.
+**Timeline picker (`@`).** An aligned table over all versions that never wraps: a
+two-cell marker column (`●` marks the open version, `▸` the cursor), ordinal, age and
+date, class glyph, change, and attribution columns. `now` is always listed (with an
+`≡ now` alias when the worktree matches the newest version), plus a hidden-versions
+summary row. `j`/`k`/`g`/`G` move, `⏎` opens and pushes a trail entry, `=` compares the
+highlighted row with the open version (always reading older to newer), `.` toggles
+hidden versions, `/` filters across section, agent, bead, and words. The footer previews
+what `⏎` and `=` will do from the cursor. Rows render lazily, so long timelines open
+instantly.
 
 **Diff view (`=`).** Inline word insertions and struck-through deletions with
 reflow-insensitive word diffing, a frontmatter semantic block (for example
@@ -120,7 +163,8 @@ One vocabulary everywhere — CLI, band, picker, feed, and Memory panel:
 | `⇡N`    | N newer versions on `origin`              | marker only                                   |
 
 Hidden versions (`≈`, `↦`) show with `-a/--all`. A deleted subject shows its last
-content under a muted-red tombstone rule.
+content exactly as committed — the deletion notice lives in chrome (the `✖ DELETED` pill
+and a band tombstone row), never as a body line, so line numbers still match the file.
 
 ## CLI
 
