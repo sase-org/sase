@@ -395,6 +395,19 @@ class VcsMruCyclingMixin(_MixinBase):
         if bar is not None and bar._mode == "feedback":
             return False
 
+        try:
+            host_app = self.app
+        except Exception:  # noqa: BLE001 - no active app outside a run.
+            host_app = None
+        perf = getattr(host_app, "_jk_perf", None) if host_app is not None else None
+        perf_begin = (
+            getattr(host_app, "_jk_perf_begin", None) if host_app is not None else None
+        )
+        if callable(perf_begin):
+            perf_begin(
+                "prompt_cycle_ctrl_p" if key == "ctrl+p" else "prompt_cycle_ctrl_n"
+            )
+
         from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru
         from sase.project_tags import peek_project_tag_catalog
 
@@ -407,15 +420,22 @@ class VcsMruCyclingMixin(_MixinBase):
             catalog=peek_project_tag_catalog(),
         )
         if edit is None:
+            if perf is not None:
+                perf.discard()
             return False
 
         start = self._location_from_absolute(edit.start_offset)
         end = self._location_from_absolute(edit.end_offset)
         if self._replace_via_keyboard(edit.replacement, start, end) is None:
+            if perf is not None:
+                perf.discard()
             return False
 
         self._vcs_mru_index = edit.mru_index
         self.move_cursor(self._location_from_absolute(edit.cursor_offset))
+        if perf is not None and host_app is not None:
+            perf.mark_model_updated()
+            host_app.call_after_refresh(perf.mark_painted)
         self._clear_soft_completion(cancel_timer=True)
         self._clear_xprompt_arg_hint()
         self._refresh_xprompt_arg_hint_from_cursor()

@@ -1,7 +1,8 @@
 """Key-to-paint perf instrumentation for sase's TUI.
 
 Phase 1 of sdd/tales/202604/instant_jk_navigation.md (bead sase-u.1). Captures
-three timestamps for every j/k navigation:
+three timestamps for every j/k navigation, plus the prompt ``<space>`` and
+``<ctrl+n/p>`` keys (epic sase-1ex, phase key-perf-harness):
 
 - ``t_keypress``     -- action handler entry
 - ``t_model_updated`` -- after ``current_idx`` mutation
@@ -96,6 +97,14 @@ class JKPerfTimer:
         sample["paint_ms"] = (sample["t_painted"] - sample["t_keypress"]) * 1000.0
         self._samples.append(sample)
         self._write(sample)
+
+    @property
+    def inflight_action(self) -> str | None:
+        """Return the in-flight sample's action, or ``None`` when idle."""
+        if self._inflight is None:
+            return None
+        action = self._inflight.get("action")
+        return action if isinstance(action, str) else None
 
     def discard(self) -> None:
         """Drop the in-flight sample (no-op when nothing is pending)."""

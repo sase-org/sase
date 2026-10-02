@@ -1186,6 +1186,52 @@ detail panel; hints are not generated past that notice. The committed baseline r
 the synchronous pre-optimization reference and is not rewritten merely because
 conversation sections became fold-inert.
 
+### Prompt keys (`<space>` / `<ctrl+n/p>`, epic sase-1ex)
+
+`SASE_TUI_PERF=1` records key-to-paint samples for the prompt keys through the same
+`JKPerfTimer` (`app._jk_perf`) as the j/k harness, with one action per key and
+`tab=current_tab`:
+
+- `prompt_space` — begins at `action_start_agent_from_patch` entry; the model timestamp
+  lands when the bar mounts and focuses (from the bar's mount path), and paint lands on
+  the next refresh.
+- `prompt_cycle_ctrl_p` / `prompt_cycle_ctrl_n` — begin when the key reaches
+  `_handle_vcs_mru_cycle_key` (after xprompt arg-name completion declines it); the model
+  timestamp lands once the cycle edit applies, and paint lands on the next refresh.
+
+Samples append to `~/.sase/perf/tui_jk.jsonl` (`SASE_TUI_PERF_PATH` overrides); the
+disabled path is a true no-op and the JSONL path and env vars are unchanged from the j/k
+harness. Run the slow bench (prints one paint+handler table, asserts no budgets —
+shared-host timing is noisy):
+
+```bash
+pytest -s -m slow tests/ace/tui/bench_prompt_bar_keys.py
+```
+
+The bench seeds an isolated SASE home with about 30 MRU entries (five launchable
+projects in canonical plus display spellings, Patch refs, one stale entry per prune
+class) and covers first `<space>` after startup, steady `<space>`, single `ctrl+p`, a
+six-key `ctrl+p` burst at 50 ms cadence, and a first-visit `ctrl+p`; it also prints the
+stall-watchdog row count. The fast smoke test runs the smallest case end to end under
+`just check`:
+
+```bash
+pytest tests/ace/tui/test_prompt_key_perf_smoke.py
+```
+
+Later sase-1ex phases assert zeros through the I/O probe helper
+(`tests/ace/tui/_prompt_key_io_probes.py`), a context manager counting main-thread-only
+MRU reads/writes, `list_project_records` calls (facade plus by-name importers),
+`subprocess.Popen` constructions, `ArtifactWatcher` start/stop, and
+`threading.Thread.join`:
+
+```python
+with prompt_key_io_probe() as probe:
+    await pilot.press("ctrl+p")
+    await pilot.pause()
+probe.assert_quiet()
+```
+
 ## Targets per phase gate
 
 The targets below come from `sdd/research/202604/sase_perf_research.md` and are restated

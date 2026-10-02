@@ -59,6 +59,9 @@ class EntryCustomMixin:
 
     def action_start_agent_from_patch(self) -> None:
         """Repeat the most recently launched VCS xprompt, or open a blank home prompt."""
+        perf_begin = getattr(self, "_jk_perf_begin", None)
+        if callable(perf_begin):
+            perf_begin("prompt_space")
         changespec_override = self.__dict__.get(
             "action_start_agent_from_changespec"  # legacy compatibility alias
         )

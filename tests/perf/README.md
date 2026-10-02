@@ -266,3 +266,20 @@ end to end.
 
 Baseline numbers are not committed: shared-host timing is noisy. Later `sase-1es` phases
 rerun the relevant cases and record before/after numbers in their bead notes.
+
+## Prompt keys (`<space>` / `<ctrl+n/p>`, epic `sase-1ex`)
+
+Key-to-paint samples for the prompt keys (actions `prompt_space`, `prompt_cycle_ctrl_p`,
+`prompt_cycle_ctrl_n`) flow through the same `SASE_TUI_PERF=1` JSONL harness as the j/k
+benches. Run the slow bench for the full matrix and one paint+handler table:
+
+```bash
+pytest -s -m slow tests/ace/tui/bench_prompt_bar_keys.py
+```
+
+`tests/ace/tui/test_prompt_key_perf_smoke.py` is the fast non-slow smoke test that runs
+the smallest case end to end, and `tests/ace/tui/_prompt_key_io_probes.py` is the
+main-thread I/O probe helper later `sase-1ex` phases assert zeros through. See the
+"Prompt keys" recipe in `docs/perf_runbook.md`. Baseline numbers are not committed:
+later `sase-1ex` phases rerun the relevant cases and record before/after numbers in
+their bead notes.

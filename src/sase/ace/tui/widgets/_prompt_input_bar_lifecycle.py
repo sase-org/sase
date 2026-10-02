@@ -86,6 +86,14 @@ class PromptInputBarLifecycleMixin(_MixinBase):
         else:
             self._cursor_to_end(text_area)
 
+        # Complete a `<space>` key-to-paint sample: the bar is now mounted
+        # and focused (the model update); the paint lands on the next
+        # refresh. Other mounts leave foreign samples alone.
+        perf = getattr(self.app, "_jk_perf", None)
+        if perf is not None and perf.inflight_action == "prompt_space":
+            perf.mark_model_updated()
+            self.app.call_after_refresh(perf.mark_painted)
+
         # Border title and subtitle
         self._refresh_title()
         self.set_prompt_mode_subtitle(self.insert_mode_subtitle())
