@@ -8,16 +8,15 @@ from rich.console import Console
 from rich.text import Span, Text
 
 from sase.pager._chrome import (
-    _format_char_count,
-    _section_accent,
-    _section_icon,
     footer_legend,
     goto_command_line,
-    _history_badge,
     section_rule,
     subject_line,
     time_verbs_for_moment,
 )
+from sase.pager._chrome_history import history_badge
+from sase.pager._chrome_sections import section_accent, section_icon
+from sase.pager._chrome_subject import _format_char_count
 from sase.pager._trail_chrome_model import MUTED_STYLE
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.history.models import committed_pin_for_ordinal, live_pin_for_subject
@@ -57,17 +56,17 @@ def _agent_section(title: str = "IDENTITY") -> PagerSection:
 
 
 def test_section_icon_and_accent_use_the_artifacts_tables() -> None:
-    assert _section_icon("bead") == "◈"
-    assert _section_icon("file") == "▤"
-    assert _section_icon("agent") == "⬡"
-    assert _section_accent("bead") == "#D787FF"
-    assert _section_accent("file") == "#FFAF5F"
-    assert _section_accent("agent") == "#0062FF"
+    assert section_icon("bead") == "◈"
+    assert section_icon("file") == "▤"
+    assert section_icon("agent") == "⬡"
+    assert section_accent("bead") == "#D787FF"
+    assert section_accent("file") == "#FFAF5F"
+    assert section_accent("agent") == "#0062FF"
 
 
 def test_section_icon_and_accent_fall_back_for_unknown_kinds() -> None:
-    assert _section_icon("diff") == "◆"
-    assert _section_accent("diff") == "#AFAFAF"
+    assert section_icon("diff") == "◆"
+    assert section_accent("diff") == "#AFAFAF"
 
 
 def test_format_char_count_scales_with_magnitude() -> None:
@@ -405,7 +404,7 @@ def test_goto_command_line_multi_section_shows_glyph_and_title() -> None:
         width=80,
     )
 
-    assert _section_icon("file") in line.plain
+    assert section_icon("file") in line.plain
     assert "alpha.py" in line.plain
     assert "line 1-30" in line.plain
 
@@ -489,7 +488,7 @@ def test_pill_text_and_styles_for_every_kind() -> None:
 
     past = _past_moment()
     assert past.kind == "past"
-    pill = _history_badge(past, None, styles, 80)
+    pill = history_badge(past, None, styles, 80)
     assert pill is not None and pill.plain.strip() == "⟲ PAST · v24 of 25"
     color = pill.get_style_at_offset(_CONSOLE, 2).bgcolor
     assert color is not None
@@ -505,7 +504,7 @@ def test_pill_text_and_styles_for_every_kind() -> None:
         status="live",
     )
     assert now.kind == "now"
-    now_pill = _history_badge(now, None, styles, 80)
+    now_pill = history_badge(now, None, styles, 80)
     assert now_pill is not None and now_pill.plain.strip() == "● NOW · v25"
 
     dirty = build_moment(
@@ -516,7 +515,7 @@ def test_pill_text_and_styles_for_every_kind() -> None:
         status="dirty-now",
     )
     assert dirty.kind == "now_dirty"
-    dirty_pill = _history_badge(dirty, None, styles, 80)
+    dirty_pill = history_badge(dirty, None, styles, 80)
     assert dirty_pill is not None and dirty_pill.plain.strip() == "◌ NOW · uncommitted"
 
     tomb_rows = _badge_rows(12)
@@ -529,11 +528,11 @@ def test_pill_text_and_styles_for_every_kind() -> None:
         status="tombstone",
     )
     assert deleted.kind == "deleted"
-    deleted_pill = _history_badge(deleted, None, styles, 80)
+    deleted_pill = history_badge(deleted, None, styles, 80)
     assert deleted_pill is not None and deleted_pill.plain.strip() == "✖ DELETED · v12"
 
     loading = build_moment(rows=(), meta={}, visible_ordinals=())
-    assert _history_badge(loading, None, styles, 80) is None
+    assert history_badge(loading, None, styles, 80) is None
 
 
 def test_pill_sheds_through_fixed_forms_and_is_never_cropped() -> None:
@@ -546,10 +545,10 @@ def test_pill_sheds_through_fixed_forms_and_is_never_cropped() -> None:
         "⟲ v24",
     ]
     for index, form in enumerate(forms):
-        pill = _history_badge(past, None, styles, 60 - index * 3)
+        pill = history_badge(past, None, styles, 60 - index * 3)
         assert pill is not None
-    assert _history_badge(past, None, styles, 200).plain.strip() == forms[0]  # type: ignore[union-attr]
-    assert _history_badge(past, None, styles, 0).plain.strip() == forms[-1]  # type: ignore[union-attr]
+    assert history_badge(past, None, styles, 200).plain.strip() == forms[0]  # type: ignore[union-attr]
+    assert history_badge(past, None, styles, 0).plain.strip() == forms[-1]  # type: ignore[union-attr]
 
     pill_pattern = re.compile(r"⟲ (?:PAST · v24 of 25|PAST · v24/25|v24/25|v24)(?: |$)")
     for width in range(30, 201):
