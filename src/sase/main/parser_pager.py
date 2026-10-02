@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 
-from sase.main.parser_bead_common import wrap_width
 from sase.markdown_width import markdown_print_width
+from sase.markdown_wrap import wrap_width
 
 COLOR_CHOICES = ("auto", "always", "never")
 LINK_CHOICES = ("auto", "never")

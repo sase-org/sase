@@ -207,7 +207,7 @@ def test_wrap_auto_uses_terminal_width(
         description=" ".join(f"word{i}" for i in range(20)),
     )
     monkeypatch.setattr(
-        "sase.main.parser_bead_common.shutil.get_terminal_size",
+        "sase.markdown_wrap.shutil.get_terminal_size",
         lambda fallback=(80, 24): os.terminal_size((50, 24)),
     )
 

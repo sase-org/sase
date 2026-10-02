@@ -23,11 +23,6 @@ from sase.pager._resolve_file_paths import (
     resolve_file_path_target,
 )
 from sase.pager._resolve_location import apply_link_location
-from sase.pager._resolve_skills import (
-    is_skill_lookup_candidate,
-    is_slash_skill_candidate,
-    resolve_xprompt_skill_link,
-)
 from sase.pager.beads import bead_link_resolution
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.targets import LinkResolution, LinkTarget, LinkTargetKind
@@ -37,6 +32,7 @@ def resolve_ref(
     ref: str,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkTarget | None:
     """Resolve *ref* to a followable target, or ``None`` if it dead-ends.
 
@@ -45,35 +41,50 @@ def resolve_ref(
     spans - the press table copies those directly (D6) without resolving.
     ``context`` is computed lazily for file paths and live bead detail refs;
     other typed refs with ``None`` or empty anchors keep today's
-    ``resolve_cli_reference(ref)`` call.
+    ``resolve_cli_reference(ref)`` call. ``paint_links=False`` skips the
+    workspace-inventory reads behind ``known_kinds`` discovery; plain output
+    never reads ``known_kinds``.
     """
-    return resolve_link(ref, context=context).target
+    return resolve_link(ref, context=context, paint_links=paint_links).target
 
 
 def resolve_link(
     ref: str,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkResolution:
     """Resolve *ref* and return any file-path dead-end diagnostics.
 
     This is the pager's one background attempt. Callers that only need the
     target should use :func:`resolve_ref`.
     """
+    from sase.pager._resolve_skills import (
+        is_skill_lookup_candidate,
+        is_slash_skill_candidate,
+        resolve_xprompt_skill_link,
+    )
+
     stripped = ref.strip()
     if not stripped:
         return LinkResolution()
     if is_skill_lookup_candidate(stripped) and not is_slash_skill_candidate(stripped):
-        return resolve_xprompt_skill_link(stripped, context=context)
+        return resolve_xprompt_skill_link(
+            stripped, context=context, paint_links=paint_links
+        )
     split = split_link_location(stripped)
     base = split.base
     try:
         parsed = parse_artifact_ref(base)
     except (ImportError, RuntimeError, ValueError):
-        file_resolution = resolve_file_path_link(stripped, context=context)
+        file_resolution = resolve_file_path_link(
+            stripped, context=context, paint_links=paint_links
+        )
         if file_resolution.target is not None or not is_slash_skill_candidate(base):
             return file_resolution
-        skill_resolution = resolve_xprompt_skill_link(base, context=context)
+        skill_resolution = resolve_xprompt_skill_link(
+            base, context=context, paint_links=paint_links
+        )
         if skill_resolution.target is not None:
             return skill_resolution
         if skill_resolution.unresolved_message and file_resolution.unresolved_message:
@@ -90,9 +101,13 @@ def resolve_link(
             bead_link_resolution(parsed, context=context),
             split.location,
         )
-    resolution = resolve_artifact_ref_link(base, context=context)
+    resolution = resolve_artifact_ref_link(
+        base, context=context, paint_links=paint_links
+    )
     if split.location is not None and resolution.target is None:
-        retry = resolve_artifact_ref_link(stripped, context=context)
+        retry = resolve_artifact_ref_link(
+            stripped, context=context, paint_links=paint_links
+        )
         if retry.target is not None:
             return retry
     return _apply_location(resolution, split.location)

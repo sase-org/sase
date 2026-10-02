@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from sase.ace.tui.graphics import ArtifactFileViewSpec
+from sase.ace.tui.graphics._viewer_types import ArtifactFileViewSpec
 from sase.pager.document import PagerDocument
 
 

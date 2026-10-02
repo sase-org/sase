@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from sase.ace.tui.graphics import ArtifactFileViewSpec, artifact_file_view_mode
-from sase.artifact_cli.references import (
-    ResolvedArtifactReference,
-    resolve_cli_reference,
-    resolved_file_path,
-)
+from sase.ace.tui.graphics._viewer_render import artifact_file_view_mode
+from sase.ace.tui.graphics._viewer_types import ArtifactFileViewSpec
 from sase.artifact_ref_context import artifact_ref_context
 from sase.artifact_ref_models import (
     ArtifactRefContext,
@@ -31,6 +28,9 @@ from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.syntax_policy import artifact_syntax_category
 from sase.pager.targets import LinkResolution, LinkTarget, LinkTargetKind
 
+if TYPE_CHECKING:
+    from sase.artifact_cli.references import ResolvedArtifactReference
+
 log = logging.getLogger(__name__)
 
 _RESOLVED_STATUSES = frozenset({"exact", "drifted", "vcs_backed"})
@@ -41,6 +41,7 @@ def link_target_for_artifact_entry_target(
     target: ArtifactEntryTarget,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkTarget | None:
     """Resolve an already-indexed ACE artifact target into a pager landing.
 
@@ -53,31 +54,40 @@ def link_target_for_artifact_entry_target(
     """
 
     if target.pane_id == "files" and target.parts:
-        return resolve_file_path_target(str(target.parts[-1]), context=context)
+        return resolve_file_path_target(
+            str(target.parts[-1]), context=context, paint_links=paint_links
+        )
     if target.pane_id == "beads" and target.parts:
         return bead_entry_target_resolution(target, context=context).target
     canonical_ref = _ref_for_artifact_entry_target(target) or ref
-    return resolve_artifact_ref_target(canonical_ref, context=context)
+    return resolve_artifact_ref_target(
+        canonical_ref, context=context, paint_links=paint_links
+    )
 
 
 def resolve_artifact_ref_target(
     ref: str,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkTarget | None:
-    return resolve_artifact_ref_link(ref, context=context).target
+    return resolve_artifact_ref_link(
+        ref, context=context, paint_links=paint_links
+    ).target
 
 
 def resolve_artifact_ref_link(
     ref: str,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkResolution:
     if context is None or not context.anchors:
         return _resolve_artifact_result(
             ref,
             artifact_context=None,
             link_context=context,
+            paint_links=paint_links,
         )
     last = LinkResolution()
     for anchor in context.anchors:
@@ -88,6 +98,7 @@ def resolve_artifact_ref_link(
             ref,
             artifact_context=artifact_context,
             link_context=context,
+            paint_links=paint_links,
         )
         if resolution.target is not None:
             return resolution
@@ -107,7 +118,10 @@ def _resolve_artifact_result(
     *,
     artifact_context: ArtifactRefContext | None,
     link_context: LinkResolutionContext | None,
+    paint_links: bool = True,
 ) -> LinkResolution:
+    from sase.artifact_cli.references import resolve_cli_reference
+
     try:
         result = (
             resolve_cli_reference(ref)
@@ -135,9 +149,17 @@ def _resolve_artifact_result(
     if kind_type == "bead":
         return bead_link_resolution(result.parsed, context=link_context)
     if kind_type in {"stitch", "commit"}:
-        return LinkResolution(target=commit_link_target(result, context=link_context))
+        return LinkResolution(
+            target=commit_link_target(
+                result, context=link_context, paint_links=paint_links
+            )
+        )
     if result.parsed.kind == "attachment":
-        return _resolve_attachment_artifact_link(result, link_context=link_context)
+        return _resolve_attachment_artifact_link(
+            result, link_context=link_context, paint_links=paint_links
+        )
+
+    from sase.artifact_cli.references import resolved_file_path
 
     try:
         path = resolved_file_path(result)
@@ -145,10 +167,16 @@ def _resolve_artifact_result(
         path = result.resolution.resolved_path
     if path is None:
         return LinkResolution(
-            target=card_link_target(result, path=None, context=link_context)
+            target=card_link_target(
+                result, path=None, context=link_context, paint_links=paint_links
+            )
         )
     if path.is_dir():
-        return LinkResolution(target=directory_link_target(path, context=link_context))
+        return LinkResolution(
+            target=directory_link_target(
+                path, context=link_context, paint_links=paint_links
+            )
+        )
 
     line = _fragment_line(result.parsed.fragment)
     mode = artifact_file_view_mode(
@@ -175,10 +203,13 @@ def _resolve_artifact_result(
                 logical_filename=logical,
                 category=artifact_syntax_category(kind_type=kind_type, kind=file_kind),
                 subject_ref=result.canonical_reference,
+                paint_links=paint_links,
             )
         )
     return LinkResolution(
-        target=card_link_target(result, path=path, context=link_context)
+        target=card_link_target(
+            result, path=path, context=link_context, paint_links=paint_links
+        )
     )
 
 
@@ -186,6 +217,7 @@ def _resolve_attachment_artifact_link(
     result: ResolvedArtifactReference,
     *,
     link_context: LinkResolutionContext | None,
+    paint_links: bool = True,
 ) -> LinkResolution:
     """Materialize an attachment view and delegate classification to file logic."""
     from sase.bead.attachment_resolve import split_attachment_ref
@@ -196,6 +228,8 @@ def _resolve_attachment_artifact_link(
             unresolved_message=f"{result.canonical_reference} is not a valid attachment reference."
         )
     bead_id, name = split
+    from sase.artifact_cli.references import resolved_file_path
+
     try:
         path = resolved_file_path(result)
     except (ImportError, OSError, RuntimeError, ValueError):
@@ -208,7 +242,11 @@ def _resolve_attachment_artifact_link(
         )
         return LinkResolution(unresolved_message=diagnostic)
     if path.is_dir():
-        return LinkResolution(target=directory_link_target(path, context=link_context))
+        return LinkResolution(
+            target=directory_link_target(
+                path, context=link_context, paint_links=paint_links
+            )
+        )
     line = _fragment_line(result.parsed.fragment)
     mode = artifact_file_view_mode(path, kind="attachment")
     if mode in _MEDIA_MODES:
@@ -275,10 +313,13 @@ def _resolve_attachment_artifact_link(
                     kind_type=result.parsed.kind_type, kind="attachment"
                 ),
                 subject_ref=result.canonical_reference,
+                paint_links=paint_links,
             )
         )
     return LinkResolution(
-        target=card_link_target(result, path=path, context=link_context)
+        target=card_link_target(
+            result, path=path, context=link_context, paint_links=paint_links
+        )
     )
 
 

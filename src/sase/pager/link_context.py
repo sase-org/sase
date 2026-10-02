@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.artifact_ref_models import ArtifactRefDocumentOwner
-from sase.sdd.files import get_primary_workspace_dir
 from sase.workspace_provider.marker import find_marker_from_cwd
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -205,6 +204,8 @@ def _parse_primary_workspace(project_file: str | None) -> Path | None:
 
 def _primary_workspace_dir(cwd: Path, workspace_num: int | None) -> Path | None:
     try:
+        from sase.sdd.files import get_primary_workspace_dir
+
         primary = get_primary_workspace_dir(str(cwd), workspace_num or 1)
     except (OSError, RuntimeError, TypeError, ValueError):
         return None

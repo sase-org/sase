@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import re
+import shutil
 import unicodedata
 
 MIN_PROSE_WRAP_WIDTH = 20
+
+WRAP_AUTO = -1
 
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _TABLE_ROW_RE = re.compile(r"^\s*\|")
@@ -214,7 +218,42 @@ def _cell_width(text: str) -> int:
     return width
 
 
+def wrap_width(value: str) -> int | None:
+    """Parse ``--wrap``: integer width, ``auto``, ``none``, or ``0``."""
+    normalized = value.lower()
+    if normalized == "auto":
+        return WRAP_AUTO
+    if normalized in {"none", "0"}:
+        return None
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"must be an integer >= {MIN_PROSE_WRAP_WIDTH}, 'auto', 'none', or 0"
+        ) from None
+    if parsed < MIN_PROSE_WRAP_WIDTH:
+        raise argparse.ArgumentTypeError(
+            f"must be an integer >= {MIN_PROSE_WRAP_WIDTH}, 'auto', 'none', or 0"
+        )
+    return parsed
+
+
+def resolve_wrap_width(value: int | None) -> int | None:
+    """Resolve a parsed ``--wrap`` token into a concrete width or ``None``."""
+    if value is None:
+        return None
+    if value == WRAP_AUTO:
+        return max(
+            shutil.get_terminal_size(fallback=(80, 24)).columns,
+            MIN_PROSE_WRAP_WIDTH,
+        )
+    return value
+
+
 __all__ = [
     "MIN_PROSE_WRAP_WIDTH",
+    "WRAP_AUTO",
+    "resolve_wrap_width",
     "wrap_markdown",
+    "wrap_width",
 ]

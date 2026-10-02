@@ -13,7 +13,6 @@ import sys
 from typing import Any, Literal
 
 from sase.ace.tui.actions.clipboard._delivery import schedule_copy_delivery
-from sase.ace.tui.widgets._prompt_jump_target import build_jump_editor_argv
 from sase.pager.document import (
     PagerOrigin,
     PagerTargetSpan,
@@ -199,6 +198,8 @@ class PagerActionSectionMixin:
         if target.edit_path is None:
             self.notify("Nothing to edit here.", severity="warning")
             return
+        from sase.ace.tui.widgets._prompt_jump_target import build_jump_editor_argv
+
         editor = os.environ.get("EDITOR") or "nvim"
         argv = build_jump_editor_argv(
             editor, str(target.edit_path), target.edit_line, target.edit_column

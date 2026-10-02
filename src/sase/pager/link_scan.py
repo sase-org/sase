@@ -11,19 +11,17 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
 import re
 
 from rich.text import Text
 
-from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
-    iter_pager_file_path_matches,
-)
-from sase.ace.tui.widgets.prompt_panel._hint_caps import (
-    HintContentBudget,
-    bound_hint_content,
-)
-from sase.artifact_refs import scan_artifact_ref_document
-from sase.artifact_ref_models import ArtifactRefDocumentTarget
+from sase.artifact_ref_operations import scan_artifact_ref_document
+from sase.pager.hint_budgets import HintContentBudget, bound_hint_content
+from sase.pager.path_hints import iter_pager_file_path_matches
+
+if TYPE_CHECKING:
+    from sase.artifact_ref_models import ArtifactRefDocumentTarget
 
 # A bare bead id such as ``sase-uk.1`` or ``sase-ug.land``. Scoped to this
 # checkout's own project key: generalizing to other bead stores' keys is

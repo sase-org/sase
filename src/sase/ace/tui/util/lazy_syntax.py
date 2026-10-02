@@ -31,11 +31,14 @@ SYNTAX_HIGHLIGHT_MAX_BYTES = 64_000
 SYNTAX_HIGHLIGHT_MAX_LINES = 1_500
 MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES = 24_000
 MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES = 600
-# Keep the pathological plain-text path within the module's sub-100 ms budget.
-# The byte cap protects byte-heavy content with relatively few very long lines;
-# the line cap protects content made up of many short lines.
-PLAIN_RENDER_MAX_BYTES = 128_000
-PLAIN_RENDER_MAX_LINES = 5_000
+# Plain-text caps and truncation live in sase.pager.hint_budgets (re-exported
+# here) so the pager cold path can bound scan input without importing the TUI.
+from sase.pager.hint_budgets import (  # noqa: E402
+    PLAIN_RENDER_MAX_BYTES,
+    PLAIN_RENDER_MAX_LINES,
+    truncate_plain_content,
+)
+
 # Compatibility alias for file-panel line counts and tests.
 FILE_PANEL_MAX_RENDER_LINES = PLAIN_RENDER_MAX_LINES
 DEFAULT_TRUNCATION_HINT = "truncated for display"
@@ -409,67 +412,8 @@ def exceeds_plain_render_cap(
     return byte_size > PLAIN_RENDER_MAX_BYTES or line_count > PLAIN_RENDER_MAX_LINES
 
 
-def _line_count(content: str) -> int:
-    """Return the logical line count used by capped plain rendering."""
-    return content.count("\n") + (1 if not content.endswith("\n") else 0)
-
-
-def _utf8_prefix(content: str, max_bytes: int) -> str:
-    """Return the longest safe UTF-8 prefix within ``max_bytes``."""
-    encoded = content.encode("utf-8", errors="replace")
-    return encoded[:max_bytes].decode("utf-8", errors="ignore")
-
-
-def truncate_plain_content(
-    content: str,
-    *,
-    max_lines: int,
-    max_bytes: int = PLAIN_RENDER_MAX_BYTES,
-) -> tuple[str, int, int, bool, bool]:
-    """Return a bounded head prefix and details about what was elided."""
-    total_lines = _line_count(content)
-    total_bytes = len(content.encode("utf-8", errors="replace"))
-    line_truncated = total_lines > max_lines
-
-    rendered_lines: list[str] = []
-    rendered_bytes = 0
-    byte_truncated = False
-    line_start = 0
-    for _ in range(max_lines):
-        if line_start >= len(content):
-            break
-        newline = content.find("\n", line_start)
-        line_end = len(content) if newline == -1 else newline + 1
-        line = content[line_start:line_end]
-        line_bytes = len(line.encode("utf-8", errors="replace"))
-        if rendered_bytes + line_bytes <= max_bytes:
-            rendered_lines.append(line)
-            rendered_bytes += line_bytes
-            line_start = line_end
-            continue
-
-        byte_truncated = True
-        if not rendered_lines and max_bytes > 0:
-            rendered_lines.append(_utf8_prefix(line, max_bytes))
-        break
-
-    rendered_content = "".join(rendered_lines)
-    truncated = line_truncated or byte_truncated
-    if truncated:
-        rendered_content = rendered_content.removesuffix("\n").removesuffix("\r")
-
-    remaining_lines = max(0, total_lines - _line_count(rendered_content))
-    remaining_bytes = max(
-        0,
-        total_bytes - len(rendered_content.encode("utf-8", errors="replace")),
-    )
-    return (
-        rendered_content,
-        remaining_lines,
-        remaining_bytes,
-        line_truncated,
-        byte_truncated,
-    )
+# Plain-text truncation lives in sase.pager.hint_budgets (re-exported at the
+# top of this module).
 
 
 def _format_approx_bytes(byte_count: int) -> str:

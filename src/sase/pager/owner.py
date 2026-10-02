@@ -8,11 +8,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from sase.artifact_cli.references import ResolvedArtifactReference
 from sase.artifact_ref_models import ArtifactRefContext, ArtifactRefDocumentOwner
 from sase.pager.link_context import LinkResolutionContext, inherited_link_context
 from sase.workspace_provider.marker import CheckoutMarker, find_marker_from_cwd
+
+if TYPE_CHECKING:
+    from sase.artifact_cli.references import ResolvedArtifactReference
 
 
 def document_owner_from_path(

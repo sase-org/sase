@@ -20,7 +20,7 @@ from sase.ace.tui._artifact_tab_model import (
     ARTIFACTS_ICONS,
     EXTERNAL_ACCENT,
 )
-from sase.ace.tui.actions.navigation.jump_hints import (
+from sase.pager.jump_hints import (
     JUMP_HINT_CHARS,
     PAGER_RESERVED_JUMP_COMMAND_KEYS,
     build_jump_hint_maps,

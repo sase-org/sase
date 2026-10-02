@@ -6,13 +6,15 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 import functools
 from types import MappingProxyType
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from rich.style import Style
 from textual.color import Color
 
 from sase.pager.syntax import SyntaxRole
-from sase.xprompt.highlight_theme import HighlightStyle, derive_argument_color
+
+if TYPE_CHECKING:
+    from sase.xprompt.highlight_theme import HighlightStyle
 
 MIN_SYNTAX_CONTRAST = 4.5
 MIN_MARKDOWN_CONTRAST = 7.0
@@ -192,6 +194,8 @@ def _syntax_palette_from_values(
     error: str | None,
     dark: bool | None = None,
 ) -> SyntaxPalette:
+    from sase.xprompt.highlight_theme import HighlightStyle
+
     presentation = _presentation_from_values(
         foreground,
         background,
@@ -442,6 +446,8 @@ def _derive_argument_color(
 ) -> str | None:
     if parse_color(base) is None:
         return None
+    from sase.xprompt.highlight_theme import derive_argument_color
+
     return derive_argument_color(base, foreground=foreground, background=background)
 
 

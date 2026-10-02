@@ -40,6 +40,10 @@ def handle_pager_command(args: argparse.Namespace) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
 
+    # Decide plain mode before building the document: plain output never
+    # reads ``known_kinds``, so a plain run skips the workspace-inventory
+    # reads behind ``known_kinds`` discovery entirely.
+    paint_links = not _will_write_plain(args)
     # One command builds the inventory (and the agent-name registry snapshot)
     # once no matter how many inputs resolve bead or artifact refs. The
     # sessions end before the interactive app runs: the long-lived TUI never
@@ -52,6 +56,7 @@ def handle_pager_command(args: argparse.Namespace) -> int:
             document = _build_pager_document(
                 getattr(args, "inputs", ()),
                 title=getattr(args, "title", None),
+                paint_links=paint_links,
             )
         except _PagerInputError as exc:
             print(f"Error: {exc}", file=sys.stderr)
@@ -83,6 +88,7 @@ def _build_pager_document(
     inputs: Sequence[str],
     *,
     title: str | None = None,
+    paint_links: bool = True,
 ) -> PagerDocument:
     """Build one pager document from CLI refs/paths or stdin."""
     values = tuple(inputs)
@@ -90,7 +96,7 @@ def _build_pager_document(
         resolved_title = title or "stdin"
         context = default_link_context()
         body = sys.stdin.read()
-        known_kinds = known_kinds_from_link_context(context)
+        known_kinds = () if not paint_links else known_kinds_from_link_context(context)
         return PagerDocument(
             sections=(
                 PagerSection(
@@ -110,7 +116,10 @@ def _build_pager_document(
         raise _PagerInputError("'-' must be the only pager input when reading stdin")
 
     context = default_link_context()
-    documents = tuple(_document_for_input(value, context=context) for value in values)
+    documents = tuple(
+        _document_for_input(value, context=context, paint_links=paint_links)
+        for value in values
+    )
     sections = tuple(
         _section_with_document_identity(section, document)
         for document in documents
@@ -147,14 +156,17 @@ def _document_for_input(
     value: str,
     *,
     context: LinkResolutionContext,
+    paint_links: bool = True,
 ) -> PagerDocument:
     try:
-        target = resolve_ref(value, context=context)
+        target = resolve_ref(value, context=context, paint_links=paint_links)
     except (OSError, RuntimeError, ValueError) as exc:
         raise _PagerInputError(f"could not resolve {value!r}: {exc}") from exc
     if target is None:
         raise _PagerInputError(f"could not resolve {value!r}")
-    document = _document_for_target(value, target, context=context)
+    document = _document_for_target(
+        value, target, context=context, paint_links=paint_links
+    )
     if document is None:
         raise _PagerInputError(f"could not render {value!r} as text")
     return document
@@ -165,11 +177,12 @@ def _document_for_target(
     target: LinkTarget,
     *,
     context: LinkResolutionContext,
+    paint_links: bool = True,
 ) -> PagerDocument | None:
     if target.document is not None:
         return target.document
     if target.kind is LinkTargetKind.MEDIA:
-        return _media_document(value, target, context=context)
+        return _media_document(value, target, context=context, paint_links=paint_links)
     return None
 
 
@@ -178,6 +191,7 @@ def _media_document(
     target: LinkTarget,
     *,
     context: LinkResolutionContext,
+    paint_links: bool = True,
 ) -> PagerDocument:
     lines = [f"reference: {value}", "kind: media"]
     for spec in target.media_specs:
@@ -192,7 +206,9 @@ def _media_document(
                 kind="file",
                 body=body,
                 subject_ref=value,
-                known_kinds=known_kinds_from_link_context(context),
+                known_kinds=(
+                    () if not paint_links else known_kinds_from_link_context(context)
+                ),
             ),
         ),
         title=value,
@@ -212,6 +228,29 @@ def _combined_origin(documents: Sequence[PagerDocument]) -> PagerOrigin:
     if len(origins) == 1:
         return next(iter(origins))
     return PagerOrigin.FILE
+
+
+def _will_write_plain(args: argparse.Namespace) -> bool:
+    """Predict whether this command will write plain output.
+
+    Mirrors the plain-output branches below (``--plain``, non-TTY stdout, a
+    ``TERM`` that cannot host the app, and the no-``/dev/tty`` stdin fallback)
+    so the document build can skip interactive-only work up front.
+    """
+    if _should_write_plain(args):
+        return True
+    if sys.stdin.isatty():
+        return False
+    return not _dev_tty_available()
+
+
+def _dev_tty_available() -> bool:
+    """Return whether a controlling terminal can be opened for stdin."""
+    try:
+        with open("/dev/tty", encoding="utf-8", errors="replace"):
+            return True
+    except OSError:
+        return False
 
 
 def _should_write_plain(args: argparse.Namespace) -> bool:

@@ -45,7 +45,7 @@ def test_default_link_context_anchors_cwd(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "sase.pager.link_context.get_primary_workspace_dir",
+        "sase.sdd.files.get_primary_workspace_dir",
         lambda *_args, **_kwargs: str(tmp_path),
     )
 
@@ -77,7 +77,7 @@ def test_default_link_context_skips_missing_primary(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "sase.pager.link_context.get_primary_workspace_dir",
+        "sase.sdd.files.get_primary_workspace_dir",
         lambda *_args, **_kwargs: str(tmp_path / "missing"),
     )
 
@@ -89,7 +89,7 @@ def test_default_link_context_degrades_when_primary_lookup_fails(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "sase.pager.link_context.get_primary_workspace_dir",
+        "sase.sdd.files.get_primary_workspace_dir",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
     )
 
@@ -115,7 +115,7 @@ def test_agent_link_context_orders_agent_then_primary_then_defaults(
         lambda _project_file: str(primary),
     )
     monkeypatch.setattr(
-        "sase.pager.link_context.get_primary_workspace_dir",
+        "sase.sdd.files.get_primary_workspace_dir",
         lambda *_args, **_kwargs: str(cwd),
     )
 
@@ -141,7 +141,7 @@ def test_agent_link_context_degrades_when_agent_workspace_is_missing(
         lambda _project_file: None,
     )
     monkeypatch.setattr(
-        "sase.pager.link_context.get_primary_workspace_dir",
+        "sase.sdd.files.get_primary_workspace_dir",
         lambda *_args, **_kwargs: str(cwd),
     )
 
@@ -161,7 +161,7 @@ def test_workspace_link_context_orders_workspace_primary_then_defaults(
     cwd.mkdir()
     monkeypatch.chdir(cwd)
     monkeypatch.setattr(
-        "sase.pager.link_context.get_primary_workspace_dir",
+        "sase.sdd.files.get_primary_workspace_dir",
         lambda current, *_args, **_kwargs: (
             str(primary) if Path(current).name == "sase_8" else str(cwd)
         ),
@@ -178,7 +178,7 @@ def test_workspace_link_context_empty_string_uses_only_defaults(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "sase.pager.link_context.get_primary_workspace_dir",
+        "sase.sdd.files.get_primary_workspace_dir",
         lambda *_args, **_kwargs: str(tmp_path),
     )
 

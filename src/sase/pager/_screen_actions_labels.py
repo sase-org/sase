@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from textual.events import Key
 
-from sase.ace.tui.actions.navigation.jump_hints import (
+from sase.pager.jump_hints import (
     JumpHintMatchOutcome,
     match_jump_hint,
     normalize_jump_key,

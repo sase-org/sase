@@ -184,7 +184,9 @@ def test_plain_positional_input_uses_pager_resolver(
     stdout = _Stream(tty=False)
     contexts: list[object] = []
 
-    def fake_resolve(value: str, *, context: object = None) -> LinkTarget:
+    def fake_resolve(
+        value: str, *, context: object = None, paint_links: bool = True
+    ) -> LinkTarget:
         contexts.append(context)
         return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document)
 
@@ -265,8 +267,11 @@ def test_combined_inputs_preserve_each_section_origin(
         origin=PagerOrigin.FILE,
     )
 
-    def fake_resolve(value: str, *, context: object = None) -> LinkTarget:
+    def fake_resolve(
+        value: str, *, context: object = None, paint_links: bool = True
+    ) -> LinkTarget:
         del context
+        del paint_links
         if value.startswith("bead:"):
             return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=bead_document)
         return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=file_document)

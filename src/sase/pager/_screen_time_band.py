@@ -159,7 +159,7 @@ class PagerTimeBandMixin:
     def _handle_label_key(self: Any, event: Any) -> bool:
         hints = getattr(self, "_time_band_hints", None) or {}
         if hints:
-            from sase.ace.tui.actions.navigation.jump_hints import (
+            from sase.pager.jump_hints import (
                 JumpHintMatchOutcome,
                 match_jump_hint,
                 normalize_jump_key,

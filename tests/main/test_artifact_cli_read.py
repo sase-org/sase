@@ -209,7 +209,7 @@ def test_pager_link_context_uses_artifact_workspace_first(
     cwd.mkdir()
     monkeypatch.chdir(cwd)
     monkeypatch.setattr(
-        "sase.pager.link_context.get_primary_workspace_dir",
+        "sase.sdd.files.get_primary_workspace_dir",
         lambda current, *_args, **_kwargs: (
             str(primary) if Path(current).name == "agent-workspace" else str(cwd)
         ),

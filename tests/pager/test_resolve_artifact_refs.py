@@ -53,7 +53,7 @@ def test_resolve_ref_walks_typed_ref_anchors(
         fake_artifact_ref_context,
     )
     monkeypatch.setattr(
-        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        "sase.artifact_cli.references.resolve_cli_reference",
         fake_resolve_cli_reference,
     )
 
@@ -83,7 +83,7 @@ def test_resolve_ref_typed_ref_none_context_keeps_legacy_call(
         raise ValueError("stop")
 
     monkeypatch.setattr(
-        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        "sase.artifact_cli.references.resolve_cli_reference",
         fake_resolve_cli_reference,
     )
 
@@ -101,7 +101,7 @@ def test_resolve_ref_typed_ref_empty_context_keeps_legacy_call(
         raise ValueError("stop")
 
     monkeypatch.setattr(
-        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        "sase.artifact_cli.references.resolve_cli_reference",
         fake_resolve_cli_reference,
     )
 
@@ -133,7 +133,7 @@ def test_resolve_ref_splits_typed_ref_location_before_resolution(
         fake_artifact_ref_context,
     )
     monkeypatch.setattr(
-        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        "sase.artifact_cli.references.resolve_cli_reference",
         fake_resolve_cli_reference,
     )
 
@@ -178,7 +178,7 @@ def test_resolve_ref_retries_whole_typed_ref_when_split_base_misses(
         )
 
     monkeypatch.setattr(
-        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        "sase.artifact_cli.references.resolve_cli_reference",
         fake_resolve_cli_reference,
     )
 

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from sase.artifact_cli.references import ResolvedArtifactReference
 from sase.artifact_ref_models import ArtifactRefTargetResolution
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+
+if TYPE_CHECKING:
+    from sase.artifact_cli.references import ResolvedArtifactReference
 from sase.pager.known_kinds import known_kinds_from_link_context
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.owner import document_owner_from_path, inherit_owner_context
@@ -21,6 +24,7 @@ def commit_link_target(
     result: ResolvedArtifactReference,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkTarget:
     """Build a commit/stitch landing with identifiable metadata, not a self-card."""
     properties: dict[str, str] = {}
@@ -58,7 +62,11 @@ def commit_link_target(
                 subject_ref=result.canonical_reference,
                 origin=PagerOrigin.DIFF,
                 owner=owner,
-                known_kinds=known_kinds_from_link_context(link_context),
+                known_kinds=(
+                    ()
+                    if not paint_links
+                    else known_kinds_from_link_context(link_context)
+                ),
             ),
         ),
         title=result.canonical_reference,
@@ -72,6 +80,8 @@ def ambiguous_source_resolution(
     path_text: str,
     resolution: ArtifactRefTargetResolution,
     context: LinkResolutionContext,
+    *,
+    paint_links: bool = True,
 ) -> LinkResolution:
     """Return followable candidate paths, or copy explaining the ambiguity."""
     paths = owned_source_candidate_paths(resolution)
@@ -88,7 +98,9 @@ def ambiguous_source_resolution(
                 body=body,
                 subject_ref=path_text,
                 owner=context.owner,
-                known_kinds=known_kinds_from_link_context(context),
+                known_kinds=(
+                    () if not paint_links else known_kinds_from_link_context(context)
+                ),
             ),
         ),
         title=f"ambiguous · {path_text}",
@@ -105,6 +117,7 @@ def card_link_target(
     *,
     path: Path | None,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkTarget:
     kind = result.file.kind if result.file is not None else result.parsed.kind
     mime = result.file.mime_type if result.file is not None else None
@@ -115,6 +128,7 @@ def card_link_target(
         kind=kind,
         status=result.resolution.status,
         context=context,
+        paint_links=paint_links,
     )
     return LinkTarget(kind=LinkTargetKind.DOCUMENT, document=document, edit_path=path)
 
@@ -128,6 +142,7 @@ def binary_card_document(
     status: str | None = None,
     context: LinkResolutionContext | None = None,
     display_title: str | None = None,
+    paint_links: bool = True,
 ) -> PagerDocument:
     lines = []
     if kind is not None:
@@ -147,7 +162,11 @@ def binary_card_document(
                 title=shown_title,
                 kind="file",
                 body=body,
-                known_kinds=known_kinds_from_link_context(link_context),
+                known_kinds=(
+                    ()
+                    if not paint_links
+                    else known_kinds_from_link_context(link_context)
+                ),
             ),
         ),
         title=shown_title,

@@ -19,6 +19,7 @@ def resolve_xprompt_skill_link(
     reference: str,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkResolution:
     """Resolve one explicit or slash skill reference through Rust catalog rules."""
     resolved_context = context or default_link_context()
@@ -43,6 +44,7 @@ def resolve_xprompt_skill_link(
         Path(result.definition_path),
         requested_line=None,
         context=resolved_context,
+        paint_links=paint_links,
     )
     if target is None:
         return LinkResolution(

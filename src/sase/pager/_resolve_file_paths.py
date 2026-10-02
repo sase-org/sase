@@ -26,18 +26,22 @@ def resolve_file_path_target(
     text: str,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkTarget | None:
-    return resolve_file_path_link(text, context=context).target
+    return resolve_file_path_link(text, context=context, paint_links=paint_links).target
 
 
 def resolve_file_path_link(
     text: str,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkResolution:
     resolved_context = _file_path_context(context)
     split = split_link_location(text)
-    owned = _owned_file_path_resolution(split.base, context=resolved_context)
+    owned = _owned_file_path_resolution(
+        split.base, context=resolved_context, paint_links=paint_links
+    )
     if owned is not None:
         return LinkResolution(
             target=apply_link_location(owned.target, split.location),
@@ -57,6 +61,7 @@ def resolve_file_path_link(
         found,
         fragment=fragment,
         context=resolved_context,
+        paint_links=paint_links,
     )
     return LinkResolution(
         target=apply_link_location(resolution.target, split.location),
@@ -113,6 +118,7 @@ def _owned_file_path_resolution(
     text: str,
     *,
     context: LinkResolutionContext,
+    paint_links: bool = True,
 ) -> LinkResolution | None:
     if context.owner is None:
         return None
@@ -129,9 +135,12 @@ def _owned_file_path_resolution(
                 owned.resolved_path,
                 fragment=fragment,
                 context=context,
+                paint_links=paint_links,
             )
         if owned.status == "ambiguous" or owned.failure_category == "ambiguous":
-            return ambiguous_source_resolution(path_text, owned, context)
+            return ambiguous_source_resolution(
+                path_text, owned, context, paint_links=paint_links
+            )
     if last is None:
         return None
     return LinkResolution(
@@ -145,6 +154,7 @@ def _link_resolution_for_existing_path(
     *,
     fragment: str | None,
     context: LinkResolutionContext,
+    paint_links: bool = True,
 ) -> LinkResolution:
     fragment_line, fragment_message = fragment_target_line(path, fragment)
     if fragment_message is not None:
@@ -154,6 +164,7 @@ def _link_resolution_for_existing_path(
             path,
             requested_line=fragment_line,
             context=context,
+            paint_links=paint_links,
         )
     )
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
-from sase.ace.tui.graphics import ArtifactFileViewSpec, artifact_file_view_mode
+from sase.ace.tui.graphics._viewer_render import artifact_file_view_mode
+from sase.ace.tui.graphics._viewer_types import ArtifactFileViewSpec
 from sase.pager.adapters import path_section
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.known_kinds import known_kinds_from_link_context
@@ -26,9 +27,10 @@ def link_target_for_existing_path(
     requested_end_line: int | None = None,
     requested_column: int | None = None,
     context: LinkResolutionContext,
+    paint_links: bool = True,
 ) -> LinkTarget | None:
     if path.is_dir():
-        return directory_link_target(path, context=context)
+        return directory_link_target(path, context=context, paint_links=paint_links)
 
     mode = artifact_file_view_mode(path)
     if mode in _MEDIA_MODES:
@@ -46,6 +48,7 @@ def link_target_for_existing_path(
             requested_end_line=requested_end_line,
             requested_column=requested_column,
             context=context,
+            paint_links=paint_links,
         )
     return LinkTarget(
         kind=LinkTargetKind.DOCUMENT,
@@ -55,6 +58,7 @@ def link_target_for_existing_path(
             mime=_guess_mime(path),
             context=context,
             display_title=workspace_display_path(path),
+            paint_links=paint_links,
         ),
         edit_path=path,
         edit_line=requested_line,
@@ -66,6 +70,7 @@ def directory_link_target(
     path: Path,
     *,
     context: LinkResolutionContext | None = None,
+    paint_links: bool = True,
 ) -> LinkTarget | None:
     try:
         entries = sorted(path.iterdir(), key=lambda entry: entry.name)
@@ -83,7 +88,11 @@ def directory_link_target(
                 body=body,
                 subject_ref=f"file:{path}",
                 owner=document_owner_from_path(path, source_reference=f"file:{path}"),
-                known_kinds=known_kinds_from_link_context(link_context),
+                known_kinds=(
+                    ()
+                    if not paint_links
+                    else known_kinds_from_link_context(link_context)
+                ),
             ),
         ),
         title=f"{len(entries)} entries · {path.name or str(path)}",
@@ -103,13 +112,14 @@ def file_link_target(
     logical_filename: str | None = None,
     category: str = "raw_file",
     subject_ref: str | None = None,
+    paint_links: bool = True,
 ) -> LinkTarget:
     section = path_section(
         path,
         logical_filename=logical_filename,
         category=category,
         subject_ref=subject_ref,
-        known_kinds=known_kinds_from_link_context(context),
+        known_kinds=() if not paint_links else known_kinds_from_link_context(context),
     )
     document = PagerDocument(
         sections=(section,),
