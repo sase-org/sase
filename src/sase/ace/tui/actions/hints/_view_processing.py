@@ -14,6 +14,7 @@ from sase.memory.legacy_glossary_read_report import (
 )
 from sase.memory.memory_read_report import (
     MemoryReadReportSpec,
+    memory_read_file_paths,
     write_memory_read_report,
 )
 from sase.ace.tui.bead_hint_targets import bead_id_from_hint_target
@@ -150,6 +151,17 @@ def _materialize_selected_view_files(
             resolved_path = file_path
         else:
             if isinstance(spec, MemoryReadReportSpec):
+                requested_paths = memory_read_file_paths(spec.event)
+                existing_paths = [
+                    path for path in requested_paths if os.path.exists(path)
+                ]
+                if existing_paths:
+                    for path in requested_paths:
+                        if os.path.exists(path):
+                            materialized.append(path)
+                        else:
+                            missing.append(path)
+                    continue
                 report_path = write_memory_read_report(spec)
             elif isinstance(spec, GlossaryReadReportSpec):
                 report_path = write_glossary_read_report(spec)
@@ -170,7 +182,7 @@ def _materialize_selected_view_files(
                 continue
         missing.append(resolved_path)
     return _MaterializedReports(
-        tuple(materialized),
+        tuple(dict.fromkeys(materialized)),
         tuple(failed),
         tuple(missing),
         link_context,

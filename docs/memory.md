@@ -206,6 +206,12 @@ only by link or mention closure count as context, not as requested reads. The sa
 per-file counting drives the `SASE CONTEXT` / `MEMORY` lane of the
 [agent Main deck](ace.md#agents-tab-main-deck), including clan aggregates.
 
+A numbered `v` hint on a single-note read opens that note. On a batch read, the hint
+opens each requested note or strand file as its own pager section, in the order the read
+printed them. `@` opens them in `$EDITOR` and `%` copies their paths. Link or mention
+context is not opened. When the read can no longer be resolved, the hint pages a
+generated report with the recorded metadata instead.
+
 ## Memory Webs
 
 A memory web is a third kind of memory alongside flat notes: a project- or home-owned

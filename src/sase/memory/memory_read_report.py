@@ -1,7 +1,8 @@
 """Markdown reports for modern audited memory-read selector batches.
 
 Frontend-agnostic on purpose: ACE hint selection materializes these reports,
-and any other surface can reuse the same builder.
+and any other surface can reuse the same builder. It also exposes the
+requested-file expansion for batch reads.
 """
 
 from __future__ import annotations
@@ -20,7 +21,10 @@ from sase.memory.selector import (
     ResolvedMemorySelectorBatch,
     resolve_memory_selector_batch,
 )
-from sase.memory.selector_render import memory_selector_batch_markdown
+from sase.memory.selector_render import (
+    memory_selector_batch_file_paths,
+    memory_selector_batch_markdown,
+)
 
 _REPORT_SUBDIR = "memory_read_reports"
 _REPORT_KEEP_COUNT = 50
@@ -95,6 +99,18 @@ def _build_memory_read_report(spec: MemoryReadReportSpec) -> str:
         ]
     )
     return _join_markdown(lines)
+
+
+def memory_read_file_paths(event: MemoryReadEvent) -> tuple[str, ...]:
+    """Return absolute paths of the memory files *event* requested, in read order."""
+    selectors = _event_selectors(event)
+    if not selectors:
+        return ()
+    try:
+        view = _resolve_report_view(event, selectors)
+    except (MemoryReadError, OSError, UnicodeError, RuntimeError, ValueError):
+        return ()
+    return tuple(str(path) for path in memory_selector_batch_file_paths(view))
 
 
 def write_memory_read_report(spec: MemoryReadReportSpec) -> str | None:
@@ -235,6 +251,7 @@ def _safe_filename(value: str) -> str:
 
 __all__ = [
     "MemoryReadReportSpec",
+    "memory_read_file_paths",
     "memory_read_report_path",
     "write_memory_read_report",
 ]

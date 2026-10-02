@@ -291,6 +291,11 @@ async def test_memory_report_hint_is_materialized_for_pager(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Fallback coverage: unresolvable batch hints page the generated report."""
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (),
+    )
     report_path = str(tmp_path / ".sase" / "memory_read_reports" / "memory.md")
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
@@ -316,6 +321,11 @@ async def test_memory_report_materialization_runs_off_event_loop_thread(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Fallback coverage: report fallback materialization runs off-thread."""
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (),
+    )
     report_path = str(tmp_path / "memory-report.md")
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
@@ -344,6 +354,11 @@ async def test_memory_report_hint_is_materialized_for_editor(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Fallback coverage: unresolvable batch hint opens the report in $EDITOR."""
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (),
+    )
     report_path = str(tmp_path / "memory-report.md")
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
@@ -369,6 +384,11 @@ async def test_memory_report_hint_is_materialized_for_clipboard(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Fallback coverage: unresolvable batch hint copies the report path."""
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (),
+    )
     report_path = str(tmp_path / "memory-report.md")
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
@@ -392,6 +412,11 @@ async def test_mixed_memory_glossary_tool_call_and_file_selection_preserves_orde
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Fallback coverage: report fallback preserves selection order."""
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (),
+    )
     notes = tmp_path / "notes.md"
     notes.write_text("notes", encoding="utf-8")
     memory_path = str(tmp_path / "memory.md")
@@ -439,6 +464,11 @@ async def test_memory_report_materialization_failure_drops_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Fallback coverage: report write failure still drops the hint path."""
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (),
+    )
     report_path = str(tmp_path / "memory-report.md")
     app = _make_app(report_path)
     app._hint_memory_reports = {report_path: _memory_spec(report_path)}
@@ -455,3 +485,194 @@ async def test_memory_report_materialization_failure_drops_path(
         f"Failed to build hint report: {report_path}",
         severity="error",
     )
+
+
+async def test_memory_batch_hint_expands_to_requested_files_for_pager(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("first", encoding="utf-8")
+    second.write_text("second", encoding="utf-8")
+    report_key = str(tmp_path / "memory-report-key.md")
+    app = _make_app(report_key)
+    app._hint_memory_reports = {report_key: _memory_spec(report_key)}
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (str(first), str(second)),
+    )
+
+    def fail_report(_spec: MemoryReadReportSpec) -> str:
+        raise AssertionError("report fallback must not run when files resolve")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.write_memory_read_report",
+        fail_report,
+    )
+
+    await app._process_view_input("1")
+
+    _assert_pager_document_paths(app, [str(first), str(second)])
+
+
+async def test_memory_batch_hint_expands_for_editor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("first", encoding="utf-8")
+    second.write_text("second", encoding="utf-8")
+    report_key = str(tmp_path / "memory-report-key.md")
+    app = _make_app(report_key)
+    app._hint_memory_reports = {report_key: _memory_spec(report_key)}
+    app._open_files_in_editor = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (str(first), str(second)),
+    )
+
+    await app._process_view_input("1@")
+
+    result = app._open_files_in_editor.call_args.args[0]
+    assert result.files == [str(first), str(second)]
+    assert result.open_in_editor is True
+
+
+async def test_memory_batch_hint_expands_for_clipboard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("first", encoding="utf-8")
+    second.write_text("second", encoding="utf-8")
+    report_key = str(tmp_path / "memory-report-key.md")
+    app = _make_app(report_key)
+    app._hint_memory_reports = {report_key: _memory_spec(report_key)}
+    app._copy_files_to_clipboard = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (str(first), str(second)),
+    )
+
+    await app._process_view_input("1%")
+
+    app._copy_files_to_clipboard.assert_called_once_with([str(first), str(second)])
+
+
+async def test_memory_batch_expansion_preserves_selection_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    notes = tmp_path / "notes.md"
+    notes.write_text("notes", encoding="utf-8")
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("first", encoding="utf-8")
+    second.write_text("second", encoding="utf-8")
+    memory_key = str(tmp_path / "memory-key.md")
+    tool_path = str(tmp_path / ".sase" / "tool_call_reports" / "tool.md")
+    app = _make_app(str(notes), memory_key, tool_path)
+    app._hint_memory_reports = {memory_key: _memory_spec(memory_key)}
+    app._hint_tool_call_reports = {tool_path: _report_spec(tool_path)}
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (str(first), str(second)),
+    )
+
+    def write_tool(_spec: SlowToolCallReportSpec) -> str:
+        Path(tool_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(tool_path).write_text("tool", encoding="utf-8")
+        return tool_path
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.write_tool_call_report",
+        write_tool,
+    )
+
+    await app._process_view_input("1 2 3")
+
+    _assert_pager_document_paths(app, [str(notes), str(first), str(second), tool_path])
+
+
+async def test_memory_batch_expansion_dedupes_overlapping_hints(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = tmp_path / "a.md"
+    second = tmp_path / "b.md"
+    first.write_text("a", encoding="utf-8")
+    second.write_text("b", encoding="utf-8")
+    memory_key = str(tmp_path / "memory-key.md")
+    app = _make_app(str(first), memory_key)
+    app._hint_memory_reports = {memory_key: _memory_spec(memory_key)}
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (str(first), str(second)),
+    )
+
+    await app._process_view_input("1 2")
+
+    _assert_pager_document_paths(app, [str(first), str(second)])
+
+
+async def test_memory_batch_partial_missing_warns_and_opens_existing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = tmp_path / "first.md"
+    first.write_text("first", encoding="utf-8")
+    missing = str(tmp_path / "gone.md")
+    report_key = str(tmp_path / "memory-report-key.md")
+    app = _make_app(report_key)
+    app._hint_memory_reports = {report_key: _memory_spec(report_key)}
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        lambda _event: (str(first), missing),
+    )
+
+    await app._process_view_input("1")
+
+    _assert_pager_document_paths(app, [str(first)])
+    app.notify.assert_any_call(
+        f"File no longer exists: {missing}",
+        severity="warning",
+    )
+
+
+async def test_memory_batch_resolver_runs_off_event_loop_thread(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("first", encoding="utf-8")
+    second.write_text("second", encoding="utf-8")
+    report_key = str(tmp_path / "memory-report-key.md")
+    app = _make_app(report_key)
+    app._hint_memory_reports = {report_key: _memory_spec(report_key)}
+    app._view_files_with_pager_screen = MagicMock()  # type: ignore[method-assign]
+    event_loop_thread = threading.get_ident()
+    resolver_threads: list[int] = []
+
+    def resolve(_event: object) -> tuple[str, str]:
+        resolver_threads.append(threading.get_ident())
+        return (str(first), str(second))
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._view_processing.memory_read_file_paths",
+        resolve,
+    )
+
+    await app._process_view_input("1")
+
+    assert resolver_threads
+    assert all(thread_id != event_loop_thread for thread_id in resolver_threads)
+    _assert_pager_document_paths(app, [str(first), str(second)])

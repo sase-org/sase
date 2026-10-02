@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from typing import Literal
 
 from rich.console import Console, Group, RenderableType
@@ -376,4 +377,24 @@ def _supersession_markdown(supersession: StrandSupersession) -> str:
     return f"> **{label}** by {addresses}."
 
 
-__all__ = ["memory_selector_batch_markdown", "render_memory_selector_batch"]
+def memory_selector_batch_file_paths(
+    batch: ResolvedMemorySelectorBatch,
+) -> tuple[Path, ...]:
+    """Return the requested note and strand files of *batch* in printed order."""
+    paths: list[Path] = []
+    for item in _render_items(batch):
+        if isinstance(item, ResolvedMemoryNote):
+            if item.render_origin == "requested":
+                paths.append(item.content.path.resolved_path)
+        else:
+            for node in item.nodes:
+                if node.origin == "requested":
+                    paths.append(node.strand.path)
+    return tuple(dict.fromkeys(paths))
+
+
+__all__ = [
+    "memory_selector_batch_file_paths",
+    "memory_selector_batch_markdown",
+    "render_memory_selector_batch",
+]

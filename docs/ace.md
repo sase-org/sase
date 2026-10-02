@@ -5999,10 +5999,11 @@ the preferred card.
   `sase glossary read` command's legacy log. Current
   `sase memory read glossary:<keyword>` reads are not legacy events, so they surface in
   the `MEMORY` lane like any other memory read; this lane is purely historical (see
-  [Memory Webs](memory.md#memory-webs)). The lane header counts reads and distinct
-  requested terms, adding the agent count for a multi-agent session. Each row shows the
-  read's requested terms (truncated the same way `MEMORY` truncates paths), with a
-  `+N related` suffix when the closure expanded past the requested terms, and the
+  [Memory Webs](memory.md#memory-webs)). That lane's hints open the requested memory
+  files (see [Audited Reads](memory.md#audited-reads)). The lane header counts reads and
+  distinct requested terms, adding the agent count for a multi-agent session. Each row
+  shows the read's requested terms (truncated the same way `MEMORY` truncates paths),
+  with a `+N related` suffix when the closure expanded past the requested terms, and the
   recorded reason on its own indented line. A numbered hint pages a generated report of
   that read's output — the reproduced command line, recorded metadata, and the resolved
   term closure. `@` opens the report and `%` copies its path; the report names the

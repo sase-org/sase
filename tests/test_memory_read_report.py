@@ -11,6 +11,7 @@ from sase.memory.cli_read import build_memory_read_event_for_view
 from sase.memory.memory_read_report import (
     MemoryReadReportSpec,
     _build_memory_read_report,
+    memory_read_file_paths,
     memory_read_report_path,
     write_memory_read_report,
 )
@@ -301,3 +302,124 @@ def test_mixed_note_and_strand_report_uses_original_selector_batch(
     assert f"\n{web_header}\n" in output
     assert output.index(note_header) < output.index("# Perf")
     assert output.index(web_header) < output.index(note_header)
+
+
+def test_memory_read_file_paths_mixed_batch_in_printed_order(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "sase" / "memory" / "tui_perf.md", _note("# Perf\n"))
+    _seed_decisions_web(tmp_path, link_reference="none")
+    event = _event(
+        cwd=tmp_path,
+        selectors=("decisions:corpus-before-mechanism", "tui_perf.md"),
+        resolved_targets=("decisions:corpus-before-mechanism", "tui_perf.md"),
+        kind="strand",
+    )
+
+    paths = memory_read_file_paths(event)
+
+    assert len(paths) == 2
+    assert paths[0] == str(
+        tmp_path / "sase" / "memory" / "decisions" / "corpus-before-mechanism.md"
+    )
+    assert paths[1] == str(tmp_path / "sase" / "memory" / "tui_perf.md")
+    assert all(Path(path).is_file() for path in paths)
+
+
+def test_memory_read_file_paths_bare_web_returns_every_strand(
+    tmp_path: Path,
+) -> None:
+    _seed_decisions_web(tmp_path, link_reference="none")
+    event = _event(
+        cwd=tmp_path,
+        selectors=("decisions",),
+        canonical_path="decisions:corpus-before-mechanism",
+        resolved_targets=(
+            "decisions:corpus-before-mechanism",
+            "decisions:memory-webs",
+        ),
+        kind="web",
+    )
+
+    paths = memory_read_file_paths(event)
+
+    assert paths == (
+        str(tmp_path / "sase" / "memory" / "decisions" / "corpus-before-mechanism.md"),
+        str(tmp_path / "sase" / "memory" / "decisions" / "memory-webs.md"),
+    )
+    assert str(tmp_path / "sase" / "memory" / "decisions.md") not in paths
+
+
+def test_memory_read_file_paths_returns_only_requested_files(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "decisions.md",
+        _descriptor(),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "gates-never-block.md",
+        _strand(
+            keyword="A Gate Never Blocks",
+            summary="Gate summary.",
+            body="See ![[decisions/single-turn-agents]] for more.\n",
+        ),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "single-turn-agents.md",
+        _strand(
+            keyword="Agents Are Single-Turn",
+            summary="Turn summary.",
+            body="A run is one turn.\n",
+        ),
+    )
+    event = _event(
+        cwd=tmp_path,
+        selectors=("decisions:gates-never-block",),
+        canonical_path="decisions:gates-never-block",
+        resolved_targets=("decisions:gates-never-block",),
+    )
+
+    paths = memory_read_file_paths(event)
+
+    assert paths == (
+        str(tmp_path / "sase" / "memory" / "decisions" / "gates-never-block.md"),
+    )
+
+
+def test_memory_read_file_paths_unresolvable_returns_empty(
+    tmp_path: Path,
+) -> None:
+    _seed_decisions_web(tmp_path)
+    event = _event(
+        cwd=tmp_path,
+        selectors=("decisions:missing",),
+        canonical_path="decisions:missing",
+        resolved_targets=("decisions:missing",),
+    )
+
+    assert memory_read_file_paths(event) == ()
+
+
+def test_memory_read_file_paths_records_no_memory_read_event(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    _seed_decisions_web(tmp_path)
+    view = resolve_memory_selector_batch(
+        ["decisions:corpus-before-mechanism"],
+        project_root=tmp_path,
+        home_root=tmp_path / "home",
+    )
+    event = build_memory_read_event_for_view(
+        view,
+        reason="needed it",
+        agent=AgentIdentity("agent-a", "test", None),
+        cwd=tmp_path,
+    )
+    log_path = memory_read_log_path("demo-memory-report")
+    append_memory_read_event(event, log_path=log_path)
+
+    assert memory_read_file_paths(event)
+
+    assert read_memory_read_events(log_path=log_path) == (event,)
