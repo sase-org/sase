@@ -76,11 +76,11 @@ class FileCompletionDirectiveInventoryWorkerMixin(
             return
         self._refresh_file_completion_from_cursor()
 
-    def on_mount(self) -> None:
+    def _prompt_mount_hook(self) -> None:
         """Warm the finalizer catalog as soon as a prompt pane is live."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        super_hook = getattr(super(), "_prompt_mount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._schedule_finalizer_inventory_load()
 
     def _prompt_app_or_none(self) -> object | None:

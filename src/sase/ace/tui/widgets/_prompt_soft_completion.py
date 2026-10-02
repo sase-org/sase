@@ -268,12 +268,12 @@ class PromptSoftCompletionMixin(_MixinBase):
         if not task.done():
             task.cancel()
 
-    def on_unmount(self) -> None:
+    def _prompt_unmount_hook(self) -> None:
         self._clear_soft_completion(cancel_timer=True)
         cancel_pump_free_tasks(self)
-        super_on_unmount = getattr(super(), "on_unmount", None)
-        if callable(super_on_unmount):
-            super_on_unmount()
+        super_hook = getattr(super(), "_prompt_unmount_hook", None)
+        if callable(super_hook):
+            super_hook()
 
     def _build_current_soft_completion(
         self,

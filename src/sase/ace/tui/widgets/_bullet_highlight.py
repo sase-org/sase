@@ -126,11 +126,11 @@ class BulletHighlightMixin(_MixinBase):
             style_name: str,
         ) -> None: ...
 
-    def on_mount(self) -> None:
+    def _prompt_mount_hook(self) -> None:
         """Register the bullet style after the base overlay themes exist."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        super_hook = getattr(super(), "_prompt_mount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._register_bullet_text_area_theme()
 
     def _app_theme_changed(self) -> None:

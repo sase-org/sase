@@ -80,11 +80,11 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             self,
         ) -> list[XPromptAssistEntry] | None: ...
 
-    def on_mount(self) -> None:
+    def _prompt_mount_hook(self) -> None:
         """Register xprompt styles after the base Jinja theme exists."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        super_hook = getattr(super(), "_prompt_mount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._register_xprompt_text_area_theme()
 
     def _app_theme_changed(self) -> None:

@@ -171,8 +171,18 @@ class AgentDisplayWorkerMixin(
         return compute_linked_delta_groups(agent)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        """Dispatch the cooperative worker hook exactly once.
+
+        Textual already invokes every ``on_worker_state_changed`` along the
+        MRO, so this most-derived handler is the single dispatcher: it fans
+        out to :meth:`_panel_worker_hook`, which chains cooperatively to the
+        workflow display hook below.
+        """
+        self._panel_worker_hook(event)
+
+    def _panel_worker_hook(self, event: Worker.StateChanged) -> None:
         """Apply async worker results while preserving later MRO handlers."""
-        handler = getattr(super(), "on_worker_state_changed", None)
+        handler = getattr(super(), "_panel_worker_hook", None)
         if callable(handler):
             handler(event)
         self._apply_agent_bead_display_worker_result(event.worker, event.state)

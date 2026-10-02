@@ -146,7 +146,7 @@ class WorkflowDisplayMixin:
             render_task, thread=True
         )
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+    def _panel_worker_hook(self, event: Worker.StateChanged) -> None:
         """Apply async workflow detail worker results when still current."""
         self._apply_workflow_detail_worker_result(event.worker, event.state)
 

@@ -262,7 +262,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
         except Exception:  # noqa: BLE001 - stale widgets degrade silently.
             pass
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+    def _prompt_worker_hook(self, event: Worker.StateChanged) -> None:
         """Handle completion inventory worker results."""
         if event.worker.group == "prompt-commit-inventory":
             # Pending and running transitions must leave the inflight marker in
@@ -284,7 +284,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
                     self._apply_prompt_commit_inventory_result(result)
                     return
 
-            handler = getattr(super(), "on_worker_state_changed", None)
+            handler = getattr(super(), "_prompt_worker_hook", None)
             if callable(handler):
                 handler(event)
             return
@@ -301,7 +301,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
                 directory_key = event.worker.name.removeprefix("prompt-path-inventory:")
                 self._prompt_path_inflight.discard(directory_key)
 
-            handler = getattr(super(), "on_worker_state_changed", None)
+            handler = getattr(super(), "_prompt_worker_hook", None)
             if callable(handler):
                 handler(event)
             return
@@ -319,7 +319,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
                 if isinstance(result, WaitBeadInventoryWorkerResult):
                     self._apply_wait_bead_inventory_result(result)
                     return
-            handler = getattr(super(), "on_worker_state_changed", None)
+            handler = getattr(super(), "_prompt_worker_hook", None)
             if callable(handler):
                 handler(event)
             return
@@ -342,7 +342,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
                         FinalizerInventoryWorkerResult(rows=(), available=False)
                     )
                 return
-            handler = getattr(super(), "on_worker_state_changed", None)
+            handler = getattr(super(), "_prompt_worker_hook", None)
             if callable(handler):
                 handler(event)
             return
@@ -365,7 +365,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
                         MachineInventoryWorkerResult(rows=(), available=False)
                     )
                 return
-            handler = getattr(super(), "on_worker_state_changed", None)
+            handler = getattr(super(), "_prompt_worker_hook", None)
             if callable(handler):
                 handler(event)
             return
@@ -388,7 +388,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
                         ModelCompletionCatalogWorkerResult(rows=(), available=False)
                     )
                 return
-            handler = getattr(super(), "on_worker_state_changed", None)
+            handler = getattr(super(), "_prompt_worker_hook", None)
             if callable(handler):
                 handler(event)
             return
@@ -397,13 +397,13 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
             if event.state == WorkerState.SUCCESS:
                 self._on_project_tag_catalog_worker_finished()
                 return
-            handler = getattr(super(), "on_worker_state_changed", None)
+            handler = getattr(super(), "_prompt_worker_hook", None)
             if callable(handler):
                 handler(event)
             return
 
         if event.worker.group != "prompt-vcs-repo":
-            handler = getattr(super(), "on_worker_state_changed", None)
+            handler = getattr(super(), "_prompt_worker_hook", None)
             if callable(handler):
                 handler(event)
             return
@@ -421,6 +421,6 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
             if sep:
                 self._vcs_repo_completion_inflight.discard((workflow, namespace))
 
-        handler = getattr(super(), "on_worker_state_changed", None)
+        handler = getattr(super(), "_prompt_worker_hook", None)
         if callable(handler):
             handler(event)

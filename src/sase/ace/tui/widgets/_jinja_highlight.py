@@ -37,11 +37,11 @@ class JinjaHighlightMixin(_MixinBase):
         super().__init__(*args, **kwargs)
         self._jinja_base_theme_name = str(getattr(self, "theme", "css"))
 
-    def on_mount(self) -> None:
+    def _prompt_mount_hook(self) -> None:
         """Register the theme-aware Jinja overlay after the app is available."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        super_hook = getattr(super(), "_prompt_mount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._register_jinja_text_area_theme()
         self.theme = _JINJA_THEME_NAME
 

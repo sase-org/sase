@@ -42,7 +42,7 @@ def test_catalog_worker_success_rehighlights_editor_and_announces() -> None:
     """The prompt editor rebuilds highlights when the catalog worker lands."""
     widget = _WorkerWidget()
 
-    FileCompletionWorkerMixin.on_worker_state_changed(
+    FileCompletionWorkerMixin._prompt_worker_hook(
         widget, _catalog_worker_event(WorkerState.SUCCESS)
     )
 
@@ -55,7 +55,7 @@ def test_catalog_worker_error_leaves_editor_alone() -> None:
     """A failed catalog worker does not repaint or announce warmth."""
     widget = _WorkerWidget()
 
-    FileCompletionWorkerMixin.on_worker_state_changed(
+    FileCompletionWorkerMixin._prompt_worker_hook(
         widget, _catalog_worker_event(WorkerState.ERROR)
     )
 

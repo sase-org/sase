@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, ClassVar
 from rich.segment import Segment
 from rich.style import Style
 from textual.strip import Strip
+from textual.worker import Worker
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -36,11 +37,35 @@ class LineRenderingMixin(_MixinBase):
         _vim_mode: str
 
     def on_mount(self) -> None:
-        """Seed the initial INSERT-mode cursor class after mount."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        """Dispatch the cooperative mount hook exactly once.
+
+        Textual already invokes every ``on_mount`` along the MRO, so the
+        prompt mixins keep their mount bodies in :meth:`_prompt_mount_hook`
+        (a non-dispatched name) and chain cooperatively there. This single
+        handler fans out to the most-derived hook, which runs each body once,
+        base-first. It never chains into ``ScrollView.on_mount``; Textual
+        dispatches that itself.
+        """
+        self._prompt_mount_hook()
+
+    def _prompt_mount_hook(self) -> None:
+        """Terminate the mount-hook chain with the cursor-class seed."""
         self._sync_vim_cursor_class()
+
+    def on_unmount(self) -> None:
+        """Dispatch the cooperative unmount hook exactly once."""
+        self._prompt_unmount_hook()
+
+    def _prompt_unmount_hook(self) -> None:
+        """Terminate the unmount-hook chain; there is no base body."""
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        """Dispatch the cooperative worker hook exactly once."""
+        self._prompt_worker_hook(event)
+
+    def _prompt_worker_hook(self, event: Worker.StateChanged) -> None:
+        """Terminate the worker-hook chain; unknown groups are ignored."""
+        del event
 
     def _sync_vim_cursor_class(self) -> None:
         """Sync the CSS class that colors Textual's native cursor cell."""

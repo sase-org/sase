@@ -233,11 +233,11 @@ class TodoHighlightMixin(_MixinBase):
         """Return the cached annotation count for the current document."""
         return len(self._todo_base_annotations_for_document())
 
-    def on_mount(self) -> None:
+    def _prompt_mount_hook(self) -> None:
         """Register TODO styles after the base prompt overlay theme exists."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        super_hook = getattr(super(), "_prompt_mount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._register_todo_text_area_theme()
 
     def _app_theme_changed(self) -> None:

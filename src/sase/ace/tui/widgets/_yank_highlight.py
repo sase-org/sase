@@ -43,11 +43,11 @@ class YankHighlightMixin(_MixinBase):
         self._yank_flash_timer: Timer | None = None
         super().__init__(*args, **kwargs)
 
-    def on_mount(self) -> None:
+    def _prompt_mount_hook(self) -> None:
         """Register the yank style after the other overlay themes exist."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        super_hook = getattr(super(), "_prompt_mount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._register_yank_text_area_theme()
 
     def _app_theme_changed(self) -> None:

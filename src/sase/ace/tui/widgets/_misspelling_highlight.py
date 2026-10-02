@@ -46,11 +46,11 @@ class MisspellingHighlightMixin(_MixinBase):
         self._misspelling_cached_spans: tuple[tuple[int, int], ...] | None = None
         super().__init__(*args, **kwargs)
 
-    def on_mount(self) -> None:
+    def _prompt_mount_hook(self) -> None:
         """Register the misspelling style and schedule the first warm cache."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        super_hook = getattr(super(), "_prompt_mount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._register_misspelling_text_area_theme()
         warm = getattr(self.app, "warm_misspellings", None)
         if callable(warm):

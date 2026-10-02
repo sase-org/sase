@@ -143,11 +143,11 @@ class ArtifactRefHighlightMixin(_MixinBase):
         self._artifact_ref_catalog_generation = 0
         super().__init__(*args, **kwargs)
 
-    def on_mount(self) -> None:
+    def _prompt_mount_hook(self) -> None:
         """Register artifact-reference styles after the base theme exists."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        super_hook = getattr(super(), "_prompt_mount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._register_artifact_ref_text_area_theme()
 
     def _app_theme_changed(self) -> None:
@@ -265,10 +265,10 @@ class ArtifactRefHighlightMixin(_MixinBase):
         """Warm the catalog through the highlighter's shared lifecycle."""
         self._warm_current_artifact_ref_known_kinds()
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+    def _prompt_worker_hook(self, event: Worker.StateChanged) -> None:
         """Apply warmed role sets and preserve other prompt worker handlers."""
         if event.worker.group != _ARTIFACT_REF_WORKER_GROUP:
-            handler = getattr(super(), "on_worker_state_changed", None)
+            handler = getattr(super(), "_prompt_worker_hook", None)
             if callable(handler):
                 handler(event)
             return
@@ -325,7 +325,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
             )
             self._artifact_ref_kinds_warming.discard(project)
 
-        handler = getattr(super(), "on_worker_state_changed", None)
+        handler = getattr(super(), "_prompt_worker_hook", None)
         if callable(handler):
             handler(event)
 

@@ -91,11 +91,11 @@ class ArtifactRefSyncMixin(_MixinBase):
         self._artifact_ref_sync_spinner_timer: Timer | None = None
         super().__init__(*args, **kwargs)
 
-    def on_unmount(self) -> None:
+    def _prompt_unmount_hook(self) -> None:
         """Stop the spinner timer; the background sync still runs to completion."""
-        super_on_unmount = getattr(super(), "on_unmount", None)
-        if callable(super_on_unmount):
-            super_on_unmount()
+        super_hook = getattr(super(), "_prompt_unmount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._stop_artifact_ref_sync_spinner()
 
     # -- Trigger ----------------------------------------------------------

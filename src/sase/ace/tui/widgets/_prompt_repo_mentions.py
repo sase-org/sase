@@ -76,11 +76,11 @@ class PromptRepoMentionMixin(_MixinBase):
         )
         super().__init__(*args, **kwargs)
 
-    def on_mount(self) -> None:
+    def _prompt_mount_hook(self) -> None:
         """Register repo-mention styles and schedule the first prompt context."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
+        super_hook = getattr(super(), "_prompt_mount_hook", None)
+        if callable(super_hook):
+            super_hook()
         self._register_repo_mention_text_area_theme()
         self._refresh_prompt_repo_mention_context(schedule=True)
 
