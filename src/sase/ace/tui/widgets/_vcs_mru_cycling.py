@@ -354,6 +354,8 @@ class VcsMruCyclingMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _vcs_mru_index: int | None
+        _vcs_mru_ring: tuple[str, ...] | None
+        _vcs_mru_ring_generation: int | None
 
         text: str
         cursor_location: tuple[int, int]
@@ -382,6 +384,60 @@ class VcsMruCyclingMixin(_MixinBase):
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
         def _on_prompt_completion_context_changed(self) -> None: ...
 
+    def _reset_vcs_mru_cycle_state(self) -> None:
+        """Clear the pinned snapshot ring and cycle index for a new session.
+
+        A burst pins the snapshot's display ring on its first press so a
+        snapshot published mid-burst cannot reorder it; every reset point
+        that clears ``_vcs_mru_index`` must clear the ring with it.
+        """
+        self._vcs_mru_index = None
+        self._vcs_mru_ring = None
+        self._vcs_mru_ring_generation = None
+
+    def _peek_vcs_mru_ring(self, host_app: Any | None) -> Sequence[str] | None:
+        """Return the MRU ring for this cycle press, or ``None`` when cold.
+
+        The first press of a prompt session (``_vcs_mru_index`` unset) pins
+        the snapshot's display ring; later presses reuse the pinned ring
+        without touching app state. A cold or error snapshot requests one
+        build, shows a brief hint, and returns ``None`` so the text stays
+        untouched and the edit is never queued for replay.
+        """
+        if self._vcs_mru_index is not None:
+            pinned = getattr(self, "_vcs_mru_ring", None)
+            if pinned is not None:
+                return pinned
+        peek = getattr(host_app, "peek_launchable_mru_snapshot", None)
+        if callable(peek):
+            try:
+                snapshot = peek()
+            except Exception:  # noqa: BLE001 - fall back to cold handling.
+                snapshot = None
+            if snapshot is not None and snapshot.state == "ready":
+                ring = snapshot.display_ring
+                if self._vcs_mru_index is None:
+                    self._vcs_mru_ring = ring
+                    try:
+                        self._vcs_mru_ring_generation = snapshot.generation
+                    except Exception:  # noqa: BLE001 - generation is advisory.
+                        pass
+                return ring
+            request = getattr(host_app, "request_launchable_mru_refresh", None)
+            if callable(request):
+                try:
+                    request(reason="cycle-cold")
+                except Exception:  # noqa: BLE001 - the next tick retries.
+                    pass
+            try:
+                self.notify("Loading recent projects…", timeout=1.0)
+            except Exception:  # noqa: BLE001 - hint is best-effort.
+                pass
+            return None
+        from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru
+
+        return load_launchable_vcs_xprompt_mru(prune=False)
+
     def _handle_vcs_mru_cycle_key(self, key: VcsMruCycleKey) -> bool:
         """Apply a directional VCS MRU cycle keypress if one is available.
 
@@ -390,6 +446,13 @@ class VcsMruCyclingMixin(_MixinBase):
         target. The current target may be a tag or a ref, and replacements
         use the tag display form for projects. A cold tag catalog degrades
         to the stored MRU spellings.
+
+        On an app host with a launchable-MRU snapshot, the first press of a
+        prompt session pins the snapshot's display ring and the burst reads
+        only that pinned ring (memory-only). A cold or error snapshot leaves
+        the text untouched, shows a brief hint, and schedules one build.
+        Hosts without the snapshot keep the synchronous loader with
+        ``prune=False`` so key paths never write the MRU file.
         """
         bar = self._find_prompt_bar()
         if bar is not None and bar._mode == "feedback":
@@ -408,16 +471,22 @@ class VcsMruCyclingMixin(_MixinBase):
                 "prompt_cycle_ctrl_p" if key == "ctrl+p" else "prompt_cycle_ctrl_n"
             )
 
-        from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru
         from sase.project_tags import peek_project_tag_catalog
+
+        catalog = peek_project_tag_catalog()
+        mru = self._peek_vcs_mru_ring(host_app)
+        if mru is None:
+            if perf is not None:
+                perf.discard()
+            return False
 
         edit = _cycle_vcs_mru_text(
             text=self.text,
             cursor_offset=self._absolute_offset(self.cursor_location),
-            mru=load_launchable_vcs_xprompt_mru(),
+            mru=mru,
             current_index=self._vcs_mru_index,
             key=key,
-            catalog=peek_project_tag_catalog(),
+            catalog=catalog,
         )
         if edit is None:
             if perf is not None:

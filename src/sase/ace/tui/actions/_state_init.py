@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from ._launchable_mru import init_launchable_mru_state
 from ._state_init_agents import init_agent_state
 from ._state_init_late import init_late_startup_state
 from ._state_init_navigation import init_navigation_state
@@ -47,6 +48,7 @@ class StateInitMixin:
             initial_tab=initial_tab,
             sanity_refresh_interval=sanity_refresh_interval,
         )
+        init_launchable_mru_state(self)
         init_navigation_state(self)
         init_agent_state(self)
         init_late_startup_state(self, model_tier_override)

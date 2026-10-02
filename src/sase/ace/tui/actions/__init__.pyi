@@ -11,6 +11,7 @@ from .clipboard import ClipboardMixin as ClipboardMixin
 from .custom_modes import CustomModeMixin as CustomModeMixin
 from .event_handlers import EventHandlersMixin as EventHandlersMixin
 from .hints import HintActionsMixin as HintActionsMixin
+from ._launchable_mru import LaunchableMruMixin as LaunchableMruMixin
 from .lifecycle import LifecycleMixin as LifecycleMixin
 from .link_follow import LinkFollowMixin as LinkFollowMixin
 from .link_subject import LinkSubjectMixin as LinkSubjectMixin

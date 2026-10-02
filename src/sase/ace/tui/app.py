@@ -37,6 +37,7 @@ from .actions import (
     CustomModeMixin,
     EventHandlersMixin,
     HintActionsMixin,
+    LaunchableMruMixin,
     LifecycleMixin,
     LinkFollowMixin,
     LinkSubjectMixin,
@@ -151,6 +152,7 @@ class AceApp(
     WorkspaceActionsMixin,
     BaseActionsMixin,
     HintActionsMixin,
+    LaunchableMruMixin,
     App[None],
 ):
     """TUI application for navigating Patches."""

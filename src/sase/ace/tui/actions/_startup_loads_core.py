@@ -45,6 +45,10 @@ class StartupLoadsCoreMixin:
     def _start_immediate_startup_loads(self: Any) -> None:
         """Start small/edge-sensitive startup work before the visible load."""
         self._warm_project_tag_catalog_at_startup()
+        try:
+            self._start_launchable_mru_warm_and_ticks()
+        except Exception:
+            log.exception("Failed to warm launchable MRU snapshot")
         self._schedule_mount_notification_state_loads()
         try:
             self._start_artifact_watcher()

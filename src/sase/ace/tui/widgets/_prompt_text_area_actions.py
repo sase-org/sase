@@ -53,6 +53,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
 
     if TYPE_CHECKING:
         _vcs_mru_index: int | None
+        _vcs_mru_ring: tuple[str, ...] | None
+        _vcs_mru_ring_generation: int | None
+
+        def _reset_vcs_mru_cycle_state(self) -> None: ...
 
         def _clear_snippet_session(self) -> None: ...
         def _clear_file_completion(
@@ -85,7 +89,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             self._clear_next_word_chain()  # type: ignore[attr-defined]
         except Exception:
             pass
-        self._vcs_mru_index = None
+        self._reset_vcs_mru_cycle_state()
         bar = self._find_prompt_bar()
         if bar:
             bar._handle_text_submission(self.text, self)
@@ -101,7 +105,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             self._clear_next_word_chain()  # type: ignore[attr-defined]
         except Exception:
             pass
-        self._vcs_mru_index = None
+        self._reset_vcs_mru_cycle_state()
         bar = self._find_prompt_bar()
         if bar:
             bar._handle_whole_stack_submission(self)
@@ -125,7 +129,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             self._clear_next_word_chain()  # type: ignore[attr-defined]
         except Exception:
             pass
-        self._vcs_mru_index = None
+        self._reset_vcs_mru_cycle_state()
 
         PromptInputBar = prompt_bar_class()
         bar.post_message(
@@ -371,7 +375,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_prompt_search(clear_highlights=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
-        self._vcs_mru_index = None
+        self._reset_vcs_mru_cycle_state()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_snippet_session()
         try:

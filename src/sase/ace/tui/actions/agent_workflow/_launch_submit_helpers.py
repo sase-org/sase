@@ -101,12 +101,31 @@ def schedule_submit_time_vcs_replay(app: object, prompts: Sequence[str]) -> None
     that must return before the prompt bar's removal is painted.
     """
 
+    # Synchronously flag the launchable-MRU snapshot stale: pure memory, so
+    # a `<space>` pressed before the rebuild lands opens blank (phase
+    # space-prefill) instead of serving the pre-launch MRU head.
+    mark_pending = getattr(app, "mark_launchable_mru_refresh_pending", None)
+    if callable(mark_pending):
+        try:
+            mark_pending()
+        except Exception:
+            log.debug("Launchable MRU pending-mark skipped", exc_info=True)
+
     def record_all() -> None:
         for prompt in prompts:
             record_submit_time_vcs_replay(prompt)
 
+    def request_refresh() -> None:
+        request = getattr(app, "request_launchable_mru_refresh", None)
+        if callable(request):
+            try:
+                request(reason="launch")
+            except Exception:
+                log.debug("Launchable MRU refresh skipped", exc_info=True)
+
     async def record_off_thread() -> None:
         await asyncio.to_thread(record_all)
+        request_refresh()
 
     task = spawn_pump_free_task(
         app,
@@ -117,6 +136,7 @@ def schedule_submit_time_vcs_replay(app: object, prompts: Sequence[str]) -> None
     if task is None:
         # No running event loop means no UI to keep responsive.
         record_all()
+        request_refresh()
 
 
 def dispatch_payload_from_prompt_context(ctx: PromptContext) -> dict[str, object]:

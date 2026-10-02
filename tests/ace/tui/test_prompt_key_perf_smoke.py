@@ -89,6 +89,15 @@ async def test_prompt_key_perf_harness_records_space_and_cycle(
         await _settle_startup(app, pilot)
         app.action_start_agent_from_patch()
         await _await_bar_mounted(app, pilot)
+        # Phase mru-snapshot serves cycle keys from the app snapshot, not
+        # the loader: seed it ready so this press exercises the cycle path
+        # deterministically instead of racing the startup warm build.
+        from sase.ace.tui.launchable_mru import LaunchableMruSnapshot
+
+        app._launchable_mru_snapshot = LaunchableMruSnapshot(
+            state="ready",
+            pairs=(("#git:foo", "#git:foo"), ("#git:bar", "#git:bar")),
+        )
         await pilot.press("ctrl+p")
         await pilot.pause()
 

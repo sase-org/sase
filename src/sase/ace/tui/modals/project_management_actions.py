@@ -38,6 +38,32 @@ if TYPE_CHECKING:
 
 _CURRENT_PROJECT_SET_GROUP = "current-project-set"
 
+
+def _refresh_launchable_mru_snapshot(widget: Any) -> None:
+    """Flag the launchable-MRU snapshot stale and request a rebuild.
+
+    TUI project mutations (set-current, enable/disable, aliases, delete)
+    change what the snapshot should contain. Both steps are guarded so
+    modals hosted by non-``AceApp`` test apps keep working.
+    """
+    try:
+        app = widget.app
+    except Exception:  # noqa: BLE001 - no active app outside a run.
+        return
+    mark = getattr(app, "mark_launchable_mru_refresh_pending", None)
+    if callable(mark):
+        try:
+            mark()
+        except Exception:  # noqa: BLE001 - best-effort freshness.
+            pass
+    request = getattr(app, "request_launchable_mru_refresh", None)
+    if callable(request):
+        try:
+            request(reason="project-mutation")
+        except Exception:  # noqa: BLE001 - the next tick retries.
+            pass
+
+
 _SET_CURRENT_NOTIFY_SEVERITY: dict[str, Literal["information", "warning", "error"]] = {
     "set": "information",
     "unchanged": "information",
@@ -152,6 +178,7 @@ class ProjectManagementActionsMixin:
             self._invalidate_current_project_indicator()
 
     def _invalidate_current_project_indicator(self) -> None:
+        _refresh_launchable_mru_snapshot(self)
         try:
             self.app.query_one(
                 "#launch-context-source", LaunchContextSource
@@ -453,6 +480,7 @@ class ProjectManagementActionsMixin:
         self._refresh_options(preferred_project=preferred_project)
 
         if successes:
+            _refresh_launchable_mru_snapshot(self)
             self._notify_lifecycle_changed()
             if bulk:
                 self.notify(f"Updated {len(successes)} marked project(s) to {state}")
@@ -484,6 +512,7 @@ class ProjectManagementActionsMixin:
             return
 
         aliases_text = ", ".join(updated.aliases) if updated.aliases else "none"
+        _refresh_launchable_mru_snapshot(self)
         self._status_message = (
             f"{effective_project_name(updated)} aliases: {aliases_text}"
         )
@@ -550,6 +579,7 @@ class ProjectManagementActionsMixin:
 
         self._pending_force = None
         self._marked_projects.discard(project)
+        _refresh_launchable_mru_snapshot(self)
         self._status_message = f"Deleted {project}"
         try:
             self._load_records()
@@ -589,6 +619,7 @@ class ProjectManagementActionsMixin:
         self._refresh_options()
 
         if deleted:
+            _refresh_launchable_mru_snapshot(self)
             self._notify_lifecycle_changed()
             self.notify(f"Deleted {len(deleted)} marked project(s)")
         if blocked:

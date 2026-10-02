@@ -85,6 +85,11 @@ class PromptFormatMixin(_MixinBase):
         _mutation_key_buffer: list[str]
         _pending_xprompt_completion_spacer: object | None
         _vcs_mru_index: int | None
+        _vcs_mru_ring: tuple[str, ...] | None
+        _vcs_mru_ring_generation: int | None
+
+        def _reset_vcs_mru_cycle_state(self) -> None: ...
+
         _vim_mode: str
         _visual_anchor: tuple[int, int] | None
         _visual_cursor: tuple[int, int] | None
@@ -134,7 +139,7 @@ class PromptFormatMixin(_MixinBase):
         self._clear_prompt_search(clear_highlights=True)
         self._clear_snippet_session()
         self._pending_xprompt_completion_spacer = None
-        self._vcs_mru_index = None
+        self._reset_vcs_mru_cycle_state()
         # ``gf`` is an explicit editor command, not a repeatable Vim mutation.
         self._mutation_key_buffer.clear()
 

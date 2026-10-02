@@ -186,6 +186,8 @@ class PromptTextArea(
         self._xprompt_arg_assist_warming_projects: set[str | None] = set()
         self._xprompt_arg_assist_worker_projects: dict[str, str | None] = {}
         self._vcs_mru_index: int | None = None
+        self._vcs_mru_ring: tuple[str, ...] | None = None
+        self._vcs_mru_ring_generation: int | None = None
         self._prompt_completion_generation: int = 0
         self._prompt_completion_task: Any | None = None
         self._prompt_completion_timer: Any | None = None
