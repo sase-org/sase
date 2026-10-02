@@ -33,7 +33,8 @@ from sase.pager._layout import (
     row_for_reading_anchor,
 )
 from sase.pager._line_mark import LineMark
-from sase.pager._screen_actions import PagerActionMixin, _DanglingRefKey
+from sase.pager._screen_actions import PagerActionMixin
+from sase.pager._screen_actions_resolve import DanglingRefKey
 from sase.pager._screen_body import PagerBodyMixin
 from sase.pager._screen_chrome import PagerChromeMixin
 from sase.pager._screen_diff import PagerDiffMixin
@@ -170,7 +171,7 @@ class PagerView(  # type: ignore[misc]
         self._label_window_scope: LabelWindowScope | None = None
         self._last_activated_label: PagerLabel | None = None
         self._pending_action: ViewPendingAction = "follow"
-        self._dangling_refs: dict[_DanglingRefKey, str] = {}
+        self._dangling_refs: dict[DanglingRefKey, str] = {}
         self._resolve_generation = 0
         self._search = VimSearchController(self)
         self._back_trail: list[PagerTrailEntry] = []
