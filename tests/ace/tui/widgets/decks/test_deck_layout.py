@@ -6,12 +6,16 @@ from sase.ace.tui.util.pane_grid import Axis, PaneGrid
 from sase.ace.tui.widgets.decks.layout import (
     RATIO_STEPS,
     choose_new_panel,
+    close_deck_panel,
     exit_zoom_keeping_panels,
     new_panel_for_deck,
     step_ratio,
+    swap_deck_panel,
     toggle_focus,
+    toggle_focus_reverse,
     toggle_split,
     toggle_zoom,
+    turn_deck_layout,
 )
 from sase.ace.tui.widgets.decks.model import (
     DeckAreaState,
@@ -348,3 +352,92 @@ def test_exit_zoom_keeping_panels_restores_layout_but_keeps_current_panels() -> 
 def test_exit_zoom_keeping_panels_unzoomed_state_is_unchanged() -> None:
     state = _single(DeckId.FILES)
     assert exit_zoom_keeping_panels(state) is state
+
+
+def test_toggle_focus_reverse_flips_in_split() -> None:
+    state = _split(DeckId.MAIN, DeckId.FILES, focused=0, layout=DeckLayout.LEFT_RIGHT)
+    assert toggle_focus_reverse(state).focused == 1
+    assert toggle_focus_reverse(toggle_focus_reverse(state)).focused == 0
+
+
+def test_toggle_focus_reverse_single_is_noop() -> None:
+    state = _single()
+    assert toggle_focus_reverse(state) is state
+
+
+def test_swap_deck_panel_permutes_panes_and_keeps_sessions() -> None:
+    state = _split(DeckId.MAIN, DeckId.FILES, focused=0)
+    swapped = swap_deck_panel(state, +1)
+    assert swapped.grid.panes == (1, 0)
+    assert swapped.grid.focused == 0
+    assert swapped.panels == {
+        0: DeckPanelState(DeckId.MAIN),
+        1: DeckPanelState(DeckId.FILES),
+    }
+    assert swapped.ratio == state.ratio
+    assert swapped.layout is state.layout
+
+
+def test_swap_deck_panel_single_is_noop() -> None:
+    state = _single()
+    assert swap_deck_panel(state, +1) is state
+    assert swap_deck_panel(state, -1) is state
+
+
+def test_close_deck_panel_removes_focused_pane() -> None:
+    focused_last = _split(DeckId.MAIN, DeckId.FILES, focused=1, ratio=30)
+    closed = close_deck_panel(focused_last)
+    assert closed.layout is DeckLayout.SINGLE
+    assert closed.panels == {0: DeckPanelState(DeckId.MAIN)}
+    assert closed.focused == 0
+
+
+def test_close_deck_panel_removes_first_pane_when_focused() -> None:
+    focused_first = _split(DeckId.MAIN, DeckId.FILES, focused=0)
+    closed = close_deck_panel(focused_first)
+    assert closed.layout is DeckLayout.SINGLE
+    assert closed.panels == {1: DeckPanelState(DeckId.FILES)}
+    assert closed.focused == 1
+
+
+def test_close_deck_panel_single_is_noop() -> None:
+    state = _single()
+    assert close_deck_panel(state) is state
+
+
+def test_close_deck_panel_is_inverse_of_split() -> None:
+    single = _single(DeckId.MAIN)
+    opened = toggle_split(single, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES))
+    assert opened.focused == 1
+    assert close_deck_panel(opened).grid.panes == (0,)
+    refocused = toggle_focus(opened)
+    assert refocused.focused == 0
+    assert close_deck_panel(refocused).grid.panes == (1,)
+
+
+def test_turn_deck_layout_transposes_two_pane_split() -> None:
+    state = _split(
+        DeckId.MAIN, DeckId.FILES, focused=1, layout=DeckLayout.TOP_BOTTOM, ratio=70
+    )
+    turned = turn_deck_layout(state)
+    assert turned.layout is DeckLayout.LEFT_RIGHT
+    assert turned.focused == 1
+    assert turned.ratio == 70
+    assert turned.panels == state.panels
+    assert turn_deck_layout(turned).layout is DeckLayout.TOP_BOTTOM
+
+
+def test_turn_deck_layout_single_is_noop() -> None:
+    state = _single()
+    assert turn_deck_layout(state) is state
+
+
+def test_pane_keys_disabled_while_zoomed() -> None:
+    split = _split(DeckId.MAIN, DeckId.FILES, focused=1, layout=DeckLayout.LEFT_RIGHT)
+    zoomed = toggle_zoom(split)
+    assert toggle_focus(zoomed) is zoomed
+    assert toggle_focus_reverse(zoomed) is zoomed
+    assert swap_deck_panel(zoomed, +1) is zoomed
+    assert close_deck_panel(zoomed) is zoomed
+    assert turn_deck_layout(zoomed) is zoomed
+    assert step_ratio(zoomed, True) is zoomed

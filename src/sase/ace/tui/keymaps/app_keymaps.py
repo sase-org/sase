@@ -36,6 +36,11 @@ class AppKeymaps:
     toggle_deck_split_below: str
     toggle_deck_split_right: str
     toggle_deck_focus: str
+    toggle_deck_focus_reverse: str
+    swap_deck_panel_next: str
+    swap_deck_panel_prev: str
+    close_deck_panel: str
+    turn_deck_layout: str
     grow_deck_panel: str
     shrink_deck_panel: str
     toggle_node_panel: str

@@ -41,8 +41,22 @@ def test_layout_actions_gated_to_agents_decks() -> None:
     assert _check("toggle_deck_split_below", "agents") is None
     assert _check("toggle_deck_split_below", "artifacts") is False
     assert _check("toggle_deck_focus", "agents") is False  # SINGLE, no split
+    assert _check("toggle_deck_focus_reverse", "agents") is False
+    assert _check("swap_deck_panel_next", "agents") is False
+    assert _check("swap_deck_panel_prev", "agents") is False
+    assert _check("close_deck_panel", "agents") is False
+    assert _check("turn_deck_layout", "agents") is False
+    assert _check("toggle_deck_focus_reverse", "services") is False
+    assert _check("swap_deck_panel_next", "artifacts") is False
+    assert _check("close_deck_panel", "services") is False
+    assert _check("turn_deck_layout", "artifacts") is False
     assert _check("grow_deck_panel", "services") is False
     assert _check("shrink_deck_panel", "artifacts") is False
+
+
+def test_tree_modes_stay_off_agents_for_swap_aliases() -> None:
+    assert _check("start_ancestor_mode", "agents") is False
+    assert _check("start_child_mode", "agents") is False
 
 
 def test_scroll_prompt_hidden_on_agents_while_decks_on() -> None:

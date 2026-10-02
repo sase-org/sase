@@ -85,6 +85,11 @@ _DECK_LAYOUT_ACTIONS = frozenset(
         "toggle_deck_split_below",
         "toggle_deck_split_right",
         "toggle_deck_focus",
+        "toggle_deck_focus_reverse",
+        "swap_deck_panel_next",
+        "swap_deck_panel_prev",
+        "close_deck_panel",
+        "turn_deck_layout",
         "grow_deck_panel",
         "shrink_deck_panel",
         "toggle_node_panel",
@@ -93,6 +98,11 @@ _DECK_LAYOUT_ACTIONS = frozenset(
 _DECK_SPLIT_ONLY_ACTIONS = frozenset(
     {
         "toggle_deck_focus",
+        "toggle_deck_focus_reverse",
+        "swap_deck_panel_next",
+        "swap_deck_panel_prev",
+        "close_deck_panel",
+        "turn_deck_layout",
         "grow_deck_panel",
         "shrink_deck_panel",
     }
@@ -580,6 +590,14 @@ def check_app_action(
         ):
             return False
     if action == "toggle_relation_panel" and app.current_tab != ARTIFACTS_TAB:
+        return False
+    if (
+        action in {"start_ancestor_mode", "start_child_mode"}
+        and app.current_tab == "agents"
+    ):
+        # The `<` / `>` tree modes share a Textual key identity with the deck
+        # swap aliases and are no-ops on the Agents tab (no relation
+        # contract), so they stay off and the swap actions win the key.
         return False
     if action == "follow_artifact_link":
         available = getattr(app, "link_follow_available_for_selection", None)

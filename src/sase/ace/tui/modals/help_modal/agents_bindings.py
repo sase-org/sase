@@ -118,8 +118,20 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Split deck panels (decks)",
                 ),
                 (
-                    f"{d(a.toggle_deck_focus)}",
-                    "Focus other deck panel (decks)",
+                    f"{d(a.toggle_deck_focus)} / {d(a.toggle_deck_focus_reverse)}",
+                    "Focus next / previous deck panel (decks)",
+                ),
+                (
+                    f"{d(a.swap_deck_panel_next)} / {d(a.swap_deck_panel_prev)}",
+                    "Swap focused panel with next / previous (decks)",
+                ),
+                (
+                    f"{d(a.close_deck_panel)}",
+                    "Close focused deck panel (decks)",
+                ),
+                (
+                    f"{d(a.turn_deck_layout)}",
+                    "Turn deck layout (decks)",
                 ),
                 (
                     f"{d(a.shrink_deck_panel)} / {d(a.grow_deck_panel)}",

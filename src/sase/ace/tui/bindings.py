@@ -70,7 +70,24 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+d", "scroll_detail_down", "Scroll Down", show=False),
     Binding("ctrl+u", "scroll_detail_up", "Scroll Up", show=False),
     Binding("ctrl+f", "scroll_prompt_down", "Scroll Prompt Down", show=False),
-    Binding("ctrl+f", "toggle_deck_focus", "Focus Other Deck Panel", show=False),
+    Binding("ctrl+f", "toggle_deck_focus", "Focus Next Deck Panel", show=False),
+    Binding(
+        "ctrl+b", "toggle_deck_focus_reverse", "Focus Previous Deck Panel", show=False
+    ),
+    Binding(
+        "ctrl+shift+f,greater_than_sign",
+        "swap_deck_panel_next",
+        "Swap Deck Panel Next",
+        show=False,
+    ),
+    Binding(
+        "ctrl+shift+b,less_than_sign",
+        "swap_deck_panel_prev",
+        "Swap Deck Panel Previous",
+        show=False,
+    ),
+    Binding("ctrl+shift+d,ctrl+x", "close_deck_panel", "Close Deck Panel", show=False),
+    Binding("ctrl+t", "turn_deck_layout", "Turn Deck Layout", show=False),
     Binding("ctrl+b", "scroll_prompt_up", "Scroll Prompt Up", show=False),
     Binding("ctrl+j", "artifacts_load_more", "Load More", show=False),
     Binding("ctrl+k", "artifacts_unload", "Unload", show=False),
@@ -303,5 +320,5 @@ DEFAULT_BINDINGS: list[BindingType] = [
 # defined on ``EventRefreshMixin``.
 if os.environ.get("SASE_ACE_DEBUG_LEAKS") == "1":
     DEFAULT_BINDINGS.append(
-        Binding("ctrl+shift+d", "debug_leak_snapshot", "Leak Snapshot", show=False)
+        Binding("f12", "debug_leak_snapshot", "Leak Snapshot", show=False)
     )

@@ -7,15 +7,19 @@ from typing import Any
 from .decks.layout import (
     SidebarMode,
     choose_new_panel,
+    close_deck_panel,
     exit_zoom_keeping_panels,
     is_zoomed,
     new_panel_for_deck,
     sidebar_mode,
     step_ratio,
+    swap_deck_panel,
     toggle_focus,
+    toggle_focus_reverse,
     toggle_nodes_collapsed,
     toggle_split,
     toggle_zoom,
+    turn_deck_layout,
 )
 from .decks.model import DeckAreaState, DeckId, DeckLayout
 from .decks.picker import other_panel_target
@@ -256,10 +260,50 @@ class AgentDetailDeckLayoutMixin:
         return True
 
     def toggle_deck_focus(self) -> None:
-        """Move logical focus to the other panel in a split."""
+        """Move logical focus to the next panel in a split."""
         try:
             area = self.deck_area  # type: ignore[attr-defined]
             self._apply_deck_area_state(toggle_focus(area.state))
+        except Exception:
+            return
+        self._notify_deck_state_changed()
+
+    def toggle_deck_focus_reverse(self) -> None:
+        """Move logical focus to the previous panel in a split."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            self._apply_deck_area_state(toggle_focus_reverse(area.state))
+        except Exception:
+            return
+        self._notify_deck_state_changed()
+
+    def swap_deck_panel(self, direction: int) -> None:
+        """Swap the focused panel's session with its neighbour (split only)."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            self._apply_deck_area_state(swap_deck_panel(area.state, direction))
+        except Exception:
+            return
+        self._notify_deck_state_changed()
+
+    def close_deck_panel(self) -> None:
+        """Close the focused panel, keeping the MRU survivor (split only)."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            self._apply_deck_area_state(close_deck_panel(area.state))
+        except Exception:
+            return
+        try:
+            area.focused_panel().refresh_chrome()
+        except Exception:
+            pass
+        self._notify_deck_state_changed()
+
+    def turn_deck_layout(self) -> None:
+        """Transpose the split layout (stacked/side-by-side)."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            self._apply_deck_area_state(turn_deck_layout(area.state))
         except Exception:
             return
         self._notify_deck_state_changed()

@@ -10,10 +10,13 @@ from sase.ace.tui.util import pane_grid
 from sase.ace.tui.util.pane_grid import (
     Axis,
     PaneGrid,
+    close_focused,
     cycle_focus,
     focus_pane,
     free_pane_id,
     press_split,
+    swap_focused,
+    turn,
 )
 
 from .model import (
@@ -221,16 +224,65 @@ def toggle_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaSta
 
 def toggle_focus(state: DeckAreaState) -> DeckAreaState:
     """Move logical focus to the next pane in reading order (wraps)."""
+    if state.zoom_snapshot is not None:
+        return state
     if len(state.grid.panes) < 2:
         return state
     return dataclasses.replace(state, grid=cycle_focus(state.grid, 1))
+
+
+def toggle_focus_reverse(state: DeckAreaState) -> DeckAreaState:
+    """Move logical focus to the previous pane in reading order (wraps)."""
+    if state.zoom_snapshot is not None:
+        return state
+    if len(state.grid.panes) < 2:
+        return state
+    return dataclasses.replace(state, grid=cycle_focus(state.grid, -1))
+
+
+def swap_deck_panel(state: DeckAreaState, direction: int) -> DeckAreaState:
+    """Exchange the focused pane's session with the neighbour ``direction`` away.
+
+    Geometry and both ratios belong to slots and do not change; the widgets
+    move cells and keep their content, so focus follows the content.
+    """
+    if state.zoom_snapshot is not None:
+        return state
+    if len(state.grid.panes) < 2:
+        return state
+    return dataclasses.replace(state, grid=swap_focused(state.grid, direction))
+
+
+def close_deck_panel(state: DeckAreaState) -> DeckAreaState:
+    """Close the focused pane, dropping its session; inert unless split."""
+    if state.zoom_snapshot is not None:
+        return state
+    if len(state.grid.panes) < 2:
+        return state
+    grid = close_focused(state.grid)
+    panels = {pid: state.panels[pid] for pid in grid.panes if pid in state.panels}
+    if not panels:
+        return state
+    return dataclasses.replace(state, grid=grid, panels=panels)
+
+
+def turn_deck_layout(state: DeckAreaState) -> DeckAreaState:
+    """Transpose the split (stacked/side-by-side); inert unless split."""
+    if state.zoom_snapshot is not None:
+        return state
+    if len(state.grid.panes) < 2:
+        return state
+    return dataclasses.replace(state, grid=turn(state.grid))
 
 
 def step_ratio(state: DeckAreaState, grow: bool) -> DeckAreaState:
     """Step the focused pane's share through ``RATIO_STEPS``.
 
     Grow means the focused pane gets bigger. Clamps at the ends.
+    Disabled while zoomed.
     """
+    if state.zoom_snapshot is not None:
+        return state
     if len(state.grid.panes) < 2:
         return state
     return dataclasses.replace(state, grid=pane_grid.step_ratio(state.grid, grow))

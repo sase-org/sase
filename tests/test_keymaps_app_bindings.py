@@ -256,6 +256,10 @@ def test_default_jump_and_deck_navigation_keys_are_unique() -> None:
         "scroll_prompt_down",
         "toggle_deck_focus",
     ]
+    assert [b.action for b in bindings if b.key == "ctrl+b"] == [
+        "scroll_prompt_up",
+        "toggle_deck_focus_reverse",
+    ]
     assert [b.action for b in bindings if b.key == "right_curly_bracket"] == [
         "cycle_artifacts_split",
         "grow_deck_panel",
@@ -275,6 +279,11 @@ def test_default_jump_and_deck_navigation_keys_are_unique() -> None:
     assert by_action["pick_deck"].key == "p"
     assert by_action["pick_artifacts_project"].key == "p"
     assert by_action["toggle_deck_focus"].key == "ctrl+f"
+    assert by_action["toggle_deck_focus_reverse"].key == "ctrl+b"
+    assert by_action["swap_deck_panel_next"].key == "ctrl+shift+f,greater_than_sign"
+    assert by_action["swap_deck_panel_prev"].key == "ctrl+shift+b,less_than_sign"
+    assert by_action["close_deck_panel"].key == "ctrl+shift+d,ctrl+x"
+    assert by_action["turn_deck_layout"].key == "ctrl+t"
     assert by_action["grow_deck_panel"].key == "right_curly_bracket"
     assert by_action["shrink_deck_panel"].key == "left_curly_bracket"
     assert by_action["toggle_deck_split_below"].key == "backslash"
@@ -292,6 +301,16 @@ def test_default_jump_and_deck_navigation_keys_are_unique() -> None:
     assert fallback_by_action["pick_deck"].key == "p"
     assert fallback_by_action["pick_artifacts_project"].key == "p"
     assert fallback_by_action["toggle_deck_focus"].key == "ctrl+f"
+    assert fallback_by_action["toggle_deck_focus_reverse"].key == "ctrl+b"
+    assert (
+        fallback_by_action["swap_deck_panel_next"].key
+        == "ctrl+shift+f,greater_than_sign"
+    )
+    assert (
+        fallback_by_action["swap_deck_panel_prev"].key == "ctrl+shift+b,less_than_sign"
+    )
+    assert fallback_by_action["close_deck_panel"].key == "ctrl+shift+d,ctrl+x"
+    assert fallback_by_action["turn_deck_layout"].key == "ctrl+t"
     assert fallback_by_action["grow_deck_panel"].key == "right_curly_bracket"
     assert fallback_by_action["shrink_deck_panel"].key == "left_curly_bracket"
 

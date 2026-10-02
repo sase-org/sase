@@ -70,7 +70,7 @@ class AgentDeckLayoutActionsMixin:
         self._refresh_deck_footer()
 
     def action_toggle_deck_focus(self) -> None:
-        """Move focus to the other deck panel."""
+        """Move focus to the next deck panel."""
         if not self._deck_split_active():
             return
         try:
@@ -78,6 +78,71 @@ class AgentDeckLayoutActionsMixin:
             if detail is None:
                 return
             detail.toggle_deck_focus()  # type: ignore[attr-defined]
+        except Exception:
+            return
+        self._refresh_deck_footer()
+
+    def action_toggle_deck_focus_reverse(self) -> None:
+        """Move focus to the previous deck panel."""
+        if not self._deck_split_active():
+            return
+        try:
+            detail = self._deck_layout_detail()
+            if detail is None:
+                return
+            detail.toggle_deck_focus_reverse()  # type: ignore[attr-defined]
+        except Exception:
+            return
+        self._refresh_deck_footer()
+
+    def action_swap_deck_panel_next(self) -> None:
+        """Swap the focused deck panel's session with the next panel."""
+        if not self._deck_split_active():
+            return
+        try:
+            detail = self._deck_layout_detail()
+            if detail is None:
+                return
+            detail.swap_deck_panel(+1)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        self._refresh_deck_footer()
+
+    def action_swap_deck_panel_prev(self) -> None:
+        """Swap the focused deck panel's session with the previous panel."""
+        if not self._deck_split_active():
+            return
+        try:
+            detail = self._deck_layout_detail()
+            if detail is None:
+                return
+            detail.swap_deck_panel(-1)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        self._refresh_deck_footer()
+
+    def action_close_deck_panel(self) -> None:
+        """Close the focused deck panel, keeping the MRU survivor."""
+        if not self._deck_split_active():
+            return
+        try:
+            detail = self._deck_layout_detail()
+            if detail is None:
+                return
+            detail.close_deck_panel()  # type: ignore[attr-defined]
+        except Exception:
+            return
+        self._refresh_deck_footer()
+
+    def action_turn_deck_layout(self) -> None:
+        """Transpose the deck split layout."""
+        if not self._deck_split_active():
+            return
+        try:
+            detail = self._deck_layout_detail()
+            if detail is None:
+                return
+            detail.turn_deck_layout()  # type: ignore[attr-defined]
         except Exception:
             return
         self._refresh_deck_footer()

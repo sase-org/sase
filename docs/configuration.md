@@ -1496,6 +1496,9 @@ rejects every other duplicate app binding:
 | `R`                   | `R`                   | `agents_retry` / `refresh`                              | Agents vs every other tab                              |
 | `o`                   | `o`                   | `choose_agent_grouping` / `cycle_grouping_mode`         | Agents vs Artifacts                                    |
 | `p`                   | `p`                   | `pick_deck` / `pick_artifacts_project`                  | Agents vs Artifacts                                    |
+| `Ctrl+B`              | `ctrl+b`              | `toggle_deck_focus_reverse` / `scroll_prompt_up`        | Agents vs Services/Artifacts                           |
+| `Ctrl+T`              | `ctrl+t`              | `turn_deck_layout` / `beads_toggle_note_audience`       | Agents vs Artifacts Beads pane                         |
+| `Ctrl+X`              | `ctrl+x`              | `close_deck_panel` / `prev_chop_run`                    | Agents vs Services                                     |
 | configurable then `o` | varies                | `choose_agent_grouping` local panel-layout toggle       | Agents picker-local `o`; `oo` with defaults            |
 | configurable          | varies                | `choose_agent_grouping` / `cycle_grouping_mode_reverse` | Agents vs Artifacts                                    |
 

@@ -744,6 +744,15 @@ ace:
       toggle_deck_split_below: "backslash"
       toggle_deck_split_right: "vertical_line"
       toggle_deck_focus: "ctrl+f"
+      # Agents-only reverse focus. Shares ctrl+b with scroll_prompt_up; disambiguated by tab availability.
+      toggle_deck_focus_reverse: "ctrl+b"
+      # Agents-only deck swap. The greater_than_sign/less_than_sign aliases share
+      # keys with tree child/ancestor modes; those modes are inert on the Agents tab.
+      swap_deck_panel_next: "ctrl+shift+f,greater_than_sign"
+      swap_deck_panel_prev: "ctrl+shift+b,less_than_sign"
+      close_deck_panel: "ctrl+shift+d,ctrl+x"
+      # Agents-only layout turn. Shares ctrl+t with beads_toggle_note_audience; disambiguated by tab availability.
+      turn_deck_layout: "ctrl+t"
       grow_deck_panel: "right_curly_bracket"
       shrink_deck_panel: "left_curly_bracket"
       toggle_node_panel: "ctrl+s"

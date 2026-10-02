@@ -1390,7 +1390,11 @@ field (exact match, or `main` for the default tab).
 | `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools, `n` FINAL; `M`/`F`/`T`/`N` show it in the other panel (opening one below if needed); `pp`/`Esc` close |
 | `\` / `                   | `                                                                                                                                                                    | Split deck panels top-bottom / left-right; press again to close the second panel, or press the other key to rotate |
 | `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                            |
-| `Ctrl+F`                  | Move focus to the other deck panel (split layouts only)                                                                                                              |
+| `Ctrl+F` / `Ctrl+B`       | Focus the next / previous deck panel in reading order, wrapping (split layouts only)                                                                                 |
+| `Ctrl+Shift+F` / `>`      | Swap the focused panel's session with the next panel in reading order, wrapping; geometry and ratios stay with the slots and focus follows the content (split only)  |
+| `Ctrl+Shift+B` / `<`      | Swap the focused panel's session with the previous panel in reading order, wrapping (split layouts only)                                                             |
+| `Ctrl+Shift+D` / `Ctrl+X` | Close the focused deck panel; focus goes to the most recently focused survivor (split layouts only)                                                                  |
+| `Ctrl+T`                  | Turn the deck layout: transpose a stacked split to side by side and back (split layouts only)                                                                        |
 | `Ctrl+S`                  | Toggle the node rail (persisted preference); while zoomed, restore the snapshot like `Z`                                                                             |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle

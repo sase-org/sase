@@ -197,6 +197,11 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return True
     if spec.id in {
         "app.toggle_deck_focus",
+        "app.toggle_deck_focus_reverse",
+        "app.swap_deck_panel_next",
+        "app.swap_deck_panel_prev",
+        "app.close_deck_panel",
+        "app.turn_deck_layout",
         "app.grow_deck_panel",
         "app.shrink_deck_panel",
     }:
