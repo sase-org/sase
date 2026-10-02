@@ -175,7 +175,10 @@ class PagerTimeBandMixin:
                 labels = getattr(self, "_time_band_labels", ())
                 if index is not None and 0 <= index < len(labels):
                     self._label_pending_prefix = ""
-                    self._activate_time_band_label(labels[index])
+                    other_pane = self._pending_action == "other"
+                    if other_pane:
+                        self._pending_action = "follow"
+                    self._activate_time_band_label(labels[index], other_pane=other_pane)
                     self._repaint_label_state()
                     return True
             elif match.outcome is JumpHintMatchOutcome.PENDING:
@@ -184,9 +187,11 @@ class PagerTimeBandMixin:
                 return True
         return super()._handle_label_key(event)  # type: ignore[misc]
 
-    def _activate_time_band_label(self: Any, target: TimeBandTarget) -> None:
+    def _activate_time_band_label(
+        self: Any, target: TimeBandTarget, *, other_pane: bool = False
+    ) -> None:
         if target.kind == "commit":
-            self._activate_time_band_commit(target)
+            self._activate_time_band_commit(target, other_pane=other_pane)
             return
         try:
             index = self._current_section_index()
@@ -200,9 +205,12 @@ class PagerTimeBandMixin:
             target.ref,
             intent="follow",
             context=context,
+            other_pane=other_pane,
         )
 
-    def _activate_time_band_commit(self: Any, target: TimeBandTarget) -> None:
+    def _activate_time_band_commit(
+        self: Any, target: TimeBandTarget, *, other_pane: bool = False
+    ) -> None:
         """Follow a band commit, copying its SHA when no resolver exists."""
         import asyncio
 
@@ -219,7 +227,7 @@ class PagerTimeBandMixin:
         self._set_footer_status("loading")
         self._resolve_generation += 1
         history_bump = getattr(self, "_bump_history_generation", None)
-        if callable(history_bump):
+        if callable(history_bump) and not other_pane:
             history_bump()
         generation = self._resolve_generation
         document = self.document
@@ -257,6 +265,7 @@ class PagerTimeBandMixin:
                 resolved,
                 intent="follow",
                 context=context,
+                other_pane=other_pane,
             )
 
         spawn_pump_free_task(
@@ -307,7 +316,11 @@ class PagerTimeBandMixin:
             hints = getattr(self, "_time_band_hints", None) or {}
         else:
             hints = getattr(self, "_time_band_hints", None) or {}
-            if data is not None and labels and not hints:
+            suppressed = getattr(self, "_labels_suppressed", None)
+            if callable(suppressed) and suppressed():
+                # An unfocused split pane paints no hint letters.
+                hints = {}
+            elif data is not None and labels and not hints:
                 try:
                     total = len(labels) + len(getattr(self._label_layer, "labels", ()))
                     sequence = prefix_free_hint_sequence(total)

@@ -7,6 +7,7 @@ from textual.widgets import Static
 
 from sase.pager.app import SasePager
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager.history.models import SectionTimeState
 from sase.pager.resolve import LinkTarget, LinkTargetKind
 from sase.pager.split import PagerSplitLayout
 
@@ -256,8 +257,30 @@ async def test_split_seed_copies_history_and_syntax_state() -> None:
         view._syntax_prepared[("file:/tmp/seed.py", None)] = object()  # type: ignore[assignment]
         view._syntax_attempted.add(("file:/tmp/seed.py", None))
         view._dangling_refs[(object(), (), object())] = "x"
+        state = SectionTimeState(
+            provider_key="fake",
+            subject_id="file:/tmp/seed.py",
+            scope_key="",
+            live_section=section,
+        )
+        state.body_cache[(1, "read")] = section
+        state.comparison_cache[(1, 0)] = object()
+        state.expanded_folds.add(3)
+        view._history_states["file:/tmp/seed.py"] = state
+        view._history_supported["file:/tmp/seed.py"] = True
         seed = view.split_seed()
         assert seed.document is view.document
+        ((identity, clone),) = seed.history_states
+        assert identity == "file:/tmp/seed.py"
+        assert isinstance(clone, SectionTimeState)
+        assert clone is not state
+        assert clone.body_cache == state.body_cache
+        assert clone.body_cache is not state.body_cache
+        assert clone.comparison_cache == state.comparison_cache
+        assert clone.comparison_cache is not state.comparison_cache
+        assert clone.expanded_folds == {3}
+        assert clone.expanded_folds is not state.expanded_folds
+        assert dict(seed.history_supported) == {"file:/tmp/seed.py": True}
         assert dict(seed.syntax_prepared) == dict(view._syntax_prepared)
         assert set(seed.syntax_attempted) == set(view._syntax_attempted)
         assert dict(seed.dangling_refs) == dict(view._dangling_refs)

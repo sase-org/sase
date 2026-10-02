@@ -20,7 +20,6 @@ from typing import Protocol
 from rich.rule import Rule
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.events import Key
 from textual.widgets import Static
 
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
@@ -55,7 +54,7 @@ from sase.pager.document import PagerDocument
 from sase.pager.trail import PagerTrailEntry
 
 
-class PagerViewHost(Protocol):
+class _PagerViewHost(Protocol):
     """What a ``PagerView`` needs from its hosting screen.
 
     Views never import ``PagerScreen``; the screen satisfies this
@@ -189,7 +188,7 @@ class PagerView(  # type: ignore[misc]
         self._init_time_band_state()
 
     @property
-    def pager_host(self) -> PagerViewHost:
+    def pager_host(self) -> _PagerViewHost:
         """Return the hosting screen cast to the view-host protocol."""
         return self.screen  # type: ignore[return-value]
 
@@ -241,6 +240,14 @@ class PagerView(  # type: ignore[misc]
                 target_count=0,
                 mode="document",
             )
+            # Force a body recompose so the dropped badges leave the paint;
+            # without it the old badge spans stay visible until the next
+            # recompose even though the layer is already empty.
+            self._body_width = None
+            try:
+                self._ensure_body()
+            except Exception:
+                pass
             self._chrome_signature = None
             try:
                 self._update_subject()
@@ -411,10 +418,12 @@ class PagerView(  # type: ignore[misc]
         self._label_layer = None
 
     def _build_label_layer(self, width: int, hint_offset: int = 0) -> PagerLabelLayer:
-        if getattr(self, "_pane_framed", False) and not getattr(
-            self, "_pane_focused", True
-        ):
+        if self._labels_suppressed():
             self._label_window_scope = None
+            # Band hints go too; keeping the band targets (minus their
+            # letters) stops the band from re-requesting a recompose.
+            self._time_band_hints = {}
+            self._time_band_labels = self._time_band_targets()
             return PagerLabelLayer(
                 labels=(),
                 hint_to_label_index={},
@@ -423,6 +432,12 @@ class PagerView(  # type: ignore[misc]
                 mode="document",
             )
         return super()._build_label_layer(width, hint_offset=hint_offset)  # type: ignore[misc]
+
+    def _labels_suppressed(self) -> bool:
+        """Return whether this pane is an unfocused split pane (no badges)."""
+        return bool(getattr(self, "_pane_framed", False)) and not getattr(
+            self, "_pane_focused", True
+        )
 
     def on_click(self, event: object) -> None:
         """Focus this pane when clicked in a split."""
@@ -499,25 +514,5 @@ class PagerView(  # type: ignore[misc]
             self._start_syntax_preparation_after_paint()
             self._start_history_discovery_after_paint()
 
-    def handle_view_key(self, event: Key) -> bool:
-        """Consume goto-prompt, search, and label keys for this view.
 
-        Mirrors the old screen precedence: the goto prompt first, then the
-        re-hosted vim search, then label keys. The host's ``?`` help sits
-        between search and labels, so the screen expands this sequence
-        instead of calling it directly.
-        """
-        if self.handle_goto_key(event):
-            return True
-        disposition = self._search.handle_key(
-            event.key,
-            event.character,
-            passthrough_exit_keys=None,
-            allow_question_mark_reverse=False,
-        )
-        if disposition == "consumed":
-            return True
-        return self._handle_label_key(event)
-
-
-__all__ = ["PagerView", "PagerViewHost", "PagerViewSeed"]
+__all__ = ["PagerView", "PagerViewSeed"]

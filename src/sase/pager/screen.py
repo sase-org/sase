@@ -707,6 +707,7 @@ class PagerScreen(ModalScreen[PagerExit]):
             for view in list(self._views):
                 if view is not source:
                     try:
+                        view._bump_history_generation()
                         view._push_trail_entry()
                         view._navigate_to_document(
                             document, line=line, end_line=end_line
@@ -724,6 +725,7 @@ class PagerScreen(ModalScreen[PagerExit]):
             layout = PagerSplitLayout.BESIDE
         else:
             try:
+                source._bump_history_generation()
                 source._push_trail_entry()
                 source._navigate_to_document(document, line=line, end_line=end_line)
             except Exception:

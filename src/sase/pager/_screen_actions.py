@@ -368,8 +368,11 @@ class PagerActionMixin:
             return
         self._set_footer_status("loading")
         self._resolve_generation += 1
+        # An other-pane follow leaves this pane where it is, so its in-flight
+        # history discovery/steps must survive; the host bumps whichever
+        # pane actually navigates.
         history_bump = getattr(self, "_bump_history_generation", None)
-        if callable(history_bump):
+        if callable(history_bump) and not other_pane:
             history_bump()
         generation = self._resolve_generation
         document = self.document

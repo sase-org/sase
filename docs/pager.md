@@ -134,14 +134,19 @@ catalog, so tags there stay uncolored.
 | `:` / `;`                              | Go to a line number in the current section                                                                                                                                                                                                         |
 | `Ctrl+N` / `Ctrl+P`                    | Go to the next / previous section                                                                                                                                                                                                                  |
 | `/`, `n`, `N`                          | Search; repeat forward / backward                                                                                                                                                                                                                  |
-| `Backspace` / `Ctrl+O`                 | Follow the pager trail backward; an empty back trail closes the pager                                                                                                                                                                              |
+| `Backspace` / `Ctrl+O`                 | Follow the pager trail backward; an empty back trail closes the pane, or the pager when single                                                                                                                                                     |
 | `Ctrl+I`                               | Follow the pager trail forward                                                                                                                                                                                                                     |
 | `r`                                    | Reload the current content, or re-snapshot it for a live source                                                                                                                                                                                    |
 | `y<label>`                             | Copy a painted artifact reference or resolved file path                                                                                                                                                                                            |
 | `yy`                                   | Copy the current section's reference or path, when one is available                                                                                                                                                                                |
 | `E<label>`                             | Open a painted file-backed target in `$EDITOR`                                                                                                                                                                                                     |
 | `EE`                                   | Open the current section in `$EDITOR` when it is file-backed                                                                                                                                                                                       |
-| `q` / `Esc`                            | Close                                                                                                                                                                                                                                              |
+| `q` / `Esc`                            | Close the focused pane, or the pager when single                                                                                                                                                                                                   |
+| `\`                                    | Split below; again keeps only the focused pane (rotates to stacked when side by side)                                                                                                                                                              |
+| `\|`                                   | Split beside; again keeps only the focused pane (rotates to side by side when stacked)                                                                                                                                                             |
+| `Ctrl+F`                               | Focus the other pane                                                                                                                                                                                                                               |
+| `+` / `-`                              | Grow / shrink the focused pane                                                                                                                                                                                                                     |
+| `Ctrl+W <label>`                       | Follow a painted link in the other pane (opens a split when single); `Ctrl+W Ctrl+W` focuses the other pane                                                                                                                                        |
 | `?`                                    | Show help                                                                                                                                                                                                                                          |
 | `(`, `)`, `{`, `}`, `=`, `@`, `[`, `]` | Memory history time axis: step between versions, jump to first/now, switch read/diff views, open the timeline picker, move by change — the footer names each key's destination (`( v21 · ) now · } now`) — see [Memory History](memory_history.md) |
 
@@ -181,6 +186,33 @@ changing document scroll, search state, pending link prefixes, or either history
 `y` and `E` are prefix keys: follow them with a painted label to copy or edit that
 target, or press the prefix twice for the current section. Link scanning can be disabled
 with `--links never`; ordinary reading, search, section, and trail keys still work.
+
+## Split panes
+
+Press `\` to open a second pane below the focused one, or `|` to open one beside it. The
+new pane is a clone of the focused pane — the same document, reading position, and trail
+— and takes focus at a 50/50 ratio. Every other key acts on the focused pane only, and
+only the focused pane paints link label badges (body and time-band letters alike), so a
+label keystroke is never ambiguous. A clone of a memory note also keeps its version and
+view, but each pane then steps its own [history](memory_history.md), so you can read a
+past version in one pane against now in the other.
+
+Each pane is framed in its section's accent color at full strength when focused and
+dimmed when not. The subject line moves into the frame: the title half becomes the
+border title, and the position half becomes the border subtitle. One shared footer sits
+at the bottom; in split mode it shows `^F pane` and `q close pane`.
+
+The same split key keeps only the focused pane, the other split key rotates the
+arrangement, and `q` / `Esc` (or an exhausted `Backspace`) closes the focused pane.
+`Ctrl+F` focuses the other pane, `+` / `-` grows or shrinks it in steps, and clicking a
+pane focuses it. `Ctrl+W` followed by a label opens that link in the other pane —
+opening a split when single — while focus stays put; doubled `Ctrl+W` focuses the other
+pane instead. Losing focus cancels a pane's transient input (label prefix, `y` / `E` /
+`Ctrl+W` arms, goto prompt, search typing) while committed highlights stay.
+
+A split opens only when both panes keep a usable size; otherwise the pager names the
+orientation that would fit. Splitting, rotating, resizing, closing a pane, and walking
+the trail all keep the logical line at the top of the viewport.
 
 ## Resolution
 
