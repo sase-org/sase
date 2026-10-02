@@ -38,6 +38,11 @@ repos:
       description: >-
         Installable artifact-reference plugin that provides the `@research` document
         provider, `research-highlights` file-hook template, and `#research*` xprompts.
+    - name: sase-listen
+      path: ../sase-listen
+      description: >-
+        Standalone text-to-speech CLI for turning Markdown into chaptered,
+        loudness-normalized MP3 audio editions and publishing private podcast feeds.
   sidecar:
     builtin:
       plans:

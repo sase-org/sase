@@ -29,6 +29,12 @@ def _run_launch_query_unauthorized(
     from sase.main.query_handler._launch import launch_query
 
     monkeypatch.delenv("SASE_AGENT", raising=False)
+    # Hermetic ingress: clear automation markers (see
+    # tests/_force_reuse_launch_seam_helpers.py) so the simulated terminal
+    # submit reads as "typed" even under `sase tool run` or a monitor.
+    monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
+    monkeypatch.delenv("SASE_GATE_COMMAND", raising=False)
+    monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
     load_request_patch = (
         patch("sase.ops.cli.load_request", return_value=request)
         if request is not None

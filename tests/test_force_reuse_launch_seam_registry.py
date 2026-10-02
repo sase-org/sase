@@ -80,6 +80,9 @@ def test_launch_query_wipes_real_agent_session_registry_before_spawn(
 
     prompt = clan_kill_and_edit_prompt()
     monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
+    monkeypatch.delenv("SASE_GATE_COMMAND", raising=False)
+    monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
     request = authorized_request(prompt)
 
     registry_snapshots_at_spawn: list[set[str]] = []
@@ -268,6 +271,9 @@ def test_launch_query_real_agent_session_cleanup_failure_prevents_spawn(
 
     prompt = clan_kill_and_edit_prompt()
     monkeypatch.delenv("SASE_AGENT", raising=False)
+    monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
+    monkeypatch.delenv("SASE_GATE_COMMAND", raising=False)
+    monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
     request = authorized_request(prompt)
 
     def _fail_with_permission_error(name: str, **_kwargs: Any) -> AgentNameWipeResult:

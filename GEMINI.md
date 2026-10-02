@@ -49,6 +49,8 @@ Configured linked and sidecar repositories associated with this project:
 - `sase-research-artifacts`: Installable artifact-reference plugin that provides the
   `@research` document provider, `research-highlights` file-hook template, and
   `#research*` xprompts.
+- `sase-listen`: Standalone text-to-speech CLI for turning Markdown into chaptered,
+  loudness-normalized MP3 audio editions and publishing private podcast feeds.
 - `sase--research`: Durable SASE research reports and generated media used by research
   workflows.
 

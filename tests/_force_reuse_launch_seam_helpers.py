@@ -114,6 +114,13 @@ def run_authorized_launch_query(
     from sase.main.query_handler._launch import launch_query
 
     monkeypatch.delenv("SASE_AGENT", raising=False)
+    # Hermetic ingress: the suite often runs under `sase tool run` (or a
+    # monitor/gate command), whose automation markers would otherwise flip
+    # the ingress origin to "generated". These tests simulate a human
+    # terminal/TUI submit, so they must read as "typed".
+    monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
+    monkeypatch.delenv("SASE_GATE_COMMAND", raising=False)
+    monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
     request = authorized_request(prompt)
     wipe_kwargs: dict[str, Any] = {}
     if wipe_side_effect is not None:
