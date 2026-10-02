@@ -60,7 +60,7 @@ def _pill_capsule(label: str, *, bg: str, fg: str) -> Text:
     return Text(f" {label} ", style=f"bold {fg} on {bg}")
 
 
-def _pill_forms(
+def pill_forms(
     moment: Any | None, state: dict[str, object] | None, styles: Any
 ) -> list[Text]:
     """Return the pill's fixed forms, longest first (never cropped)."""
@@ -135,7 +135,7 @@ def history_badge(
     is returned anyway. Without a moment, *state* supplies the same
     numbers in dict form.
     """
-    forms = _pill_forms(moment, state, styles)
+    forms = pill_forms(moment, state, styles)
     if not forms:
         return None
     budget = max(int(budget), 0)
@@ -279,8 +279,9 @@ def time_verbs_for_moment(moment: Any | None) -> list[tuple[str, str]]:
 
     ``( vK`` steps older, ``) vK``/``) now`` steps newer, ``} now``
     jumps back to the live file (a tombstone reads ``} deleted``), and
-    ``}`` appears only when its destination differs from ``)``. A verb
-    appears only when its key would do something.
+    ``}`` appears only when its destination differs from ``)`` and from
+    the current position. On the deletion itself there is no ``}`` verb.
+    A verb appears only when its key would do something.
     """
     verbs: list[tuple[str, str]] = []
     if moment is None:
@@ -292,16 +293,22 @@ def time_verbs_for_moment(moment: Any | None) -> list[tuple[str, str]]:
     newer = getattr(moment, "newer", None)
     to_now = getattr(moment, "to_now", None)
     view = str(getattr(moment, "view", "read") or "read")
+    try:
+        shown = int(getattr(moment, "ordinal", 0) or 0)
+    except (TypeError, ValueError):
+        shown = 0
+    current = 0 if kind in ("now", "now_dirty") else shown
     if isinstance(older, int):
         verbs.append((f"( v{older}", ""))
     if isinstance(newer, int):
         verbs.append((") now" if newer == 0 else f") v{newer}", ""))
-    if kind == "deleted":
-        verbs.append(("} deleted", ""))
-    elif isinstance(to_now, int) and to_now != newer:
-        verbs.append(("} now", ""))
-    verbs.append(("@", "timeline"))
+    if isinstance(to_now, int) and to_now != newer and to_now != current:
+        if to_now > 0:
+            verbs.append(("} deleted", ""))
+        else:
+            verbs.append(("} now", ""))
     verbs.append(("=", "read" if view == "diff" else "diff"))
+    verbs.append(("@", "timeline"))
     return verbs
 
 
@@ -335,6 +342,7 @@ __all__ = [
     "history_badge",
     "history_context",
     "honest_chip",
+    "pill_forms",
     "state_moment",
     "time_verbs_for_moment",
 ]

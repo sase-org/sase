@@ -74,7 +74,32 @@ class PagerChromeMixin:
                     age = ""
         else:
             ordinal = pin.ordinal if pin is not None else 0
-            total = len(state.visible_ordinals)
+            # Fail-open numbering stays absolute: the newest committed
+            # ordinal, hidden versions included, never a visible count.
+            total = 0
+            try:
+                rows = getattr(state, "timeline", ())
+                if isinstance(rows, (list, tuple)):
+                    for row in rows:
+                        if not isinstance(row, dict):
+                            continue
+                        try:
+                            value = int(row.get("ordinal", 0) or 0)
+                        except (TypeError, ValueError):
+                            continue
+                        if value > total:
+                            total = value
+                if not total:
+                    visible = getattr(state, "visible_ordinals", ())
+                    if isinstance(visible, (list, tuple)) and visible:
+                        total = max(int(v or 0) for v in visible)
+            except Exception:
+                total = 0
+            if not total:
+                try:
+                    total = len(state.visible_ordinals)
+                except Exception:
+                    total = 0
             kind = ""
             view = str(getattr(pin, "view", "read") or "read")
             age = ""
@@ -124,6 +149,23 @@ class PagerChromeMixin:
         return (True, pinned, history_state)
 
     def _history_diff_base_for(self: Any, state: Any, ordinal: int) -> int | None:
+        # Chrome fallback reads the moment first; the old function is only
+        # the fail-open path where no moment can be built.
+        try:
+            from sase.pager.history.moment import moment_for_state
+
+            moment = moment_for_state(state) if state is not None else None
+        except Exception:
+            moment = None
+        if moment is not None:
+            diff = getattr(moment, "diff", None)
+            if diff is not None:
+                try:
+                    return int(diff[0])
+                except (TypeError, ValueError, IndexError):
+                    pass
+            if getattr(moment, "view", "read") == "diff":
+                return None
         try:
             from sase.pager.history.diff import diff_endpoints
         except Exception:
@@ -149,11 +191,7 @@ class PagerChromeMixin:
         return None if endpoints is None else endpoints[0]
 
     def _update_footer(self: Any) -> None:
-        available, pinned, history_state = self._history_chrome_state()
-        diff_view = (
-            isinstance(history_state, dict)
-            and str(history_state.get("view", "read")) == "diff"
-        )
+        _available, pinned, history_state = self._history_chrome_state()
         time_verbs = None
         if isinstance(history_state, dict):
             raw_verbs = history_state.get("time_verbs")
@@ -168,9 +206,7 @@ class PagerChromeMixin:
             trail_back_count=len(self._back_trail),
             trail_forward_count=len(self._forward_trail),
             status=self._footer_status,
-            history_available=available,
             history_pinned=pinned,
-            history_diff_view=diff_view,
             time_verbs=time_verbs,
             split=split,
         )

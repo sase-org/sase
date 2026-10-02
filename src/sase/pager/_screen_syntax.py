@@ -130,7 +130,46 @@ class PagerSyntaxMixin:
         self._trail_render_signature = None
         update_trail = getattr(self, "_update_trail", None)
         if update_trail is not None:
-            update_trail()
+            try:
+                update_trail()
+            except Exception:
+                pass
+        # History colours are theme-aware (cached on the theme values):
+        # repaint the pill, rail, and change marks in the new theme. The
+        # band refreshes through the trail update below.
+        try:
+            from sase.pager.history import styles as _history_styles
+
+            cached = getattr(_history_styles, "_history_styles_for_values", None)
+            if cached is not None and hasattr(cached, "cache_clear"):
+                cached.cache_clear()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            update_subject = getattr(self, "_update_subject", None)
+            if callable(update_subject):
+                update_subject()
+        except Exception:
+            pass
+        try:
+            update_footer = getattr(self, "_update_footer", None)
+            if callable(update_footer):
+                update_footer()
+        except Exception:
+            pass
+        try:
+            width = getattr(self, "_body_width", None)
+            compose_fn = getattr(self, "_compose_body_at_width", None)
+            if width is not None and callable(compose_fn):
+                self._body = compose_fn(int(width))
+                try:
+                    from textual.widgets import Static
+
+                    self.query_one("#pager-body", Static).update(self._body.renderable)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         palette = syntax_palette_from_theme(self._current_syntax_theme())
         if palette.signature == self._syntax_palette.signature:
             return
@@ -337,26 +376,33 @@ class PagerSyntaxMixin:
             self._label_layer = self._build_label_layer(width)
         except Exception:
             return
-        mark = getattr(self, "_goto_mark", None)
-        accent_fn = getattr(self, "_goto_accent_for_mark", None)
-        marks_fn = getattr(self, "_history_marks_for_body", None)
-        change_marks = None
-        removal_anchors = None
-        if callable(marks_fn):
-            change_marks, removal_anchors = marks_fn()
-        self._body = compose_body(
-            self.document,
-            width,
-            label_layer=self._label_layer,
-            pending_prefix=self._label_pending_prefix,
-            prepared_sections=self._prepared_section_texts(),
-            line_mark=mark,
-            goto_accent=accent_fn()
-            if mark is not None and accent_fn is not None
-            else None,
-            change_marks=change_marks,
-            removal_anchors=removal_anchors,
-        )
+        compose_fn = getattr(self, "_compose_body_at_width", None)
+        if callable(compose_fn):
+            try:
+                self._body = compose_fn(width)
+            except Exception:
+                return
+        else:
+            mark = getattr(self, "_goto_mark", None)
+            accent_fn = getattr(self, "_goto_accent_for_mark", None)
+            marks_fn = getattr(self, "_history_marks_for_body", None)
+            change_marks = None
+            removal_anchors = None
+            if callable(marks_fn):
+                change_marks, removal_anchors = marks_fn()
+            self._body = compose_body(
+                self.document,
+                width,
+                label_layer=self._label_layer,
+                pending_prefix=self._label_pending_prefix,
+                prepared_sections=self._prepared_section_texts(),
+                line_mark=mark,
+                goto_accent=accent_fn()
+                if mark is not None and accent_fn is not None
+                else None,
+                change_marks=change_marks,
+                removal_anchors=removal_anchors,
+            )
         try:
             if self._search.is_active:
                 self._search.refresh_styled_base()

@@ -62,6 +62,7 @@ class VersionMoment:
     newer: int | None
     first: int | None
     to_now: int | None
+    worktree_dirty: bool = False
 
 
 def _as_int(value: object, default: int = 0) -> int:
@@ -180,14 +181,17 @@ def build_moment(
     newest_blob = _as_str(newest_row.get("blob_oid"))
     worktree_oid = _as_str(meta_map.get("worktree_oid"))
     head_oid = _as_str(meta_map.get("head_oid"))
+
+    dirty = str(status or "") == "dirty-now" or _rows_show_dirty(rows)
+    # A dirty now (including staged-only edits whose worktree equals HEAD)
+    # never coincides with the newest version: `(` must step onto HEAD.
     now_matches_newest = bool(
         newest_blob
         and worktree_oid
         and head_oid
         and worktree_oid == head_oid == newest_blob
+        and not dirty
     )
-
-    dirty = str(status or "") == "dirty-now" or _rows_show_dirty(rows)
     tombstone_ordinal: int | None = None
     if str(status or "") == "tombstone" or _row_is_tombstone(newest_row):
         tombstone_ordinal = newest
@@ -274,7 +278,7 @@ def build_moment(
     first = min(visible) if visible else None
     diff: tuple[int, int] | None = None
     if view == "diff":
-        diff = _diff_endpoints(
+        diff = diff_endpoints(
             target=0 if kind in ("now", "now_dirty") else shown_ordinal,
             steppable=navigable,
             newest=newest,
@@ -298,10 +302,11 @@ def build_moment(
         newer=newer,
         first=first,
         to_now=to_now,
+        worktree_dirty=dirty,
     )
 
 
-def _diff_endpoints(
+def diff_endpoints(
     *,
     target: int,
     steppable: list[int],
@@ -474,6 +479,7 @@ __all__ = [
     "boundary_notice",
     "build_moment",
     "canonical_ordinal",
+    "diff_endpoints",
     "moment_for_state",
     "step_target",
 ]

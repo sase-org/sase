@@ -90,6 +90,15 @@ class PagerHistoryDiscoveryMixin:
     async def _index_one_section(
         self: Any, section: PagerSection, document: PagerDocument, generation: int
     ) -> None:
+        # Avoid reloading sections already present in history states
+        # (e.g., back-restore to a previously indexed document).
+        try:
+            existing = self._history_states.get(section.identity)
+            if existing is not None and tuple(getattr(existing, "timeline", ()) or ()):
+                return
+        except Exception:
+            pass
+
         def _load() -> tuple[object | None, dict[str, Any]]:
             try:
                 provider = history_provider_for_section(section)
@@ -169,7 +178,10 @@ class PagerHistoryDiscoveryMixin:
         if isinstance(state.current_pin, VersionPin):
             # A pin to the newest ordinal on a now ≡ vN subject reads now:
             # canonicalize the arrival pin (CLI `-A`, feed links) to the
-            # live section without pushing a trail entry.
+            # live section without pushing a trail entry. The document
+            # section is swapped to the live pin in place (the content is
+            # byte-identical on a clean subject), so `yy`, links, and the
+            # trail all read live.
             from sase.pager.history.moment import (
                 canonical_ordinal,
                 moment_for_state,
@@ -189,6 +201,33 @@ class PagerHistoryDiscoveryMixin:
                         )
                     except Exception:
                         state.current_pin = live
+                    try:
+                        sections = list(self.document.sections)
+                        for index, current in enumerate(sections):
+                            if current.identity != section.identity:
+                                continue
+                            try:
+                                live_section = replace(
+                                    current,
+                                    version_pin=state.current_pin,
+                                )
+                            except Exception:
+                                break
+                            sections[index] = live_section
+                            try:
+                                self.document = replace(
+                                    self.document,
+                                    sections=tuple(sections),
+                                )
+                            except Exception:
+                                pass
+                            try:
+                                state.live_section = live_section
+                            except Exception:
+                                pass
+                            break
+                    except Exception:
+                        pass
         self._update_footer()
         self._update_subject()
         pin = state.current_pin

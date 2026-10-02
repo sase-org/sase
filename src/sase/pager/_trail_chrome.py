@@ -25,6 +25,15 @@ from sase.pager.document import PagerDocument, PagerSection
 from sase.pager.trail import PagerTrailEntry
 
 
+def _suffix_for_entry(entry: PagerTrailEntry) -> str:
+    """Return the trail suffix for a retained entry from its own pins."""
+    try:
+        pins = dict(entry.version_pins or ())
+    except (TypeError, ValueError):
+        return ""
+    return _suffix_for_pin(pins.get(entry.section_identity))
+
+
 def build_pager_trail_snapshot(
     *,
     back: Sequence[PagerTrailEntry],
@@ -38,15 +47,20 @@ def build_pager_trail_snapshot(
 ) -> PagerTrailSnapshot:
     """Build the display snapshot from retained stacks and live current metadata.
 
-    ``version_pins`` maps section identities to their version pins for
-    back/forward entries; ``current_suffix`` is the live moment's suffix
-    for the current entry. Both fail open to no suffix.
+    Back/forward suffixes come from each retained entry's own
+    ``version_pins``; ``current_suffix`` is the live moment's suffix for
+    the current entry. ``version_pins`` remains as a fail-open fallback
+    for callers that have not yet stored pins on the entry. Both fail
+    open to no suffix.
     """
 
-    pins = _pins_by_identity(version_pins)
+    fallback = _pins_by_identity(version_pins)
     entries: list[_PagerTrailDisplayEntry] = [
         _display_entry_from_history(
-            entry, "back", _suffix_for_pin(pins.get(entry.section_identity))
+            entry,
+            "back",
+            _suffix_for_entry(entry)
+            or _suffix_for_pin(fallback.get(entry.section_identity)),
         )
         for entry in back
     ]
@@ -61,7 +75,10 @@ def build_pager_trail_snapshot(
     )
     entries.extend(
         _display_entry_from_history(
-            entry, "forward", _suffix_for_pin(pins.get(entry.section_identity))
+            entry,
+            "forward",
+            _suffix_for_entry(entry)
+            or _suffix_for_pin(fallback.get(entry.section_identity)),
         )
         for entry in reversed(forward)
     )

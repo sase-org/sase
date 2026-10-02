@@ -84,6 +84,12 @@ class PagerTrailMixin:
         self._update_footer()
         self._update_subject()
         self._start_syntax_preparation_after_paint()
+        try:
+            start_history = getattr(self, "_start_history_discovery_after_paint", None)
+            if callable(start_history):
+                start_history()
+        except Exception:
+            pass
         target_y = state.scroll_y
         if state.reading_anchor is not None and self._body is not None:
             try:
@@ -114,9 +120,19 @@ class PagerTrailMixin:
     def _current_view_state(self: Any) -> PagerTrailEntry:
         section = self._current_section_or_none()
         scroll = self._body_scroll()
-        pins: tuple[tuple[str, object], ...] = tuple(
-            (item.identity, item.version_pin) for item in self.document.sections
-        )
+        states = getattr(self, "_history_states", None) or {}
+        trail_pins: list[tuple[str, object]] = []
+        for item in self.document.sections:
+            pin = None
+            try:
+                state = states.get(item.identity)
+                pin = getattr(state, "current_pin", None) if state is not None else None
+            except Exception:
+                pin = None
+            if pin is None:
+                pin = item.version_pin
+            trail_pins.append((item.identity, pin))
+        pins: tuple[tuple[str, object], ...] = tuple(trail_pins)
         scroll_y = int(scroll.scroll_y)
         anchor = None
         body = getattr(self, "_body", None)

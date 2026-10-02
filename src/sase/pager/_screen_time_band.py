@@ -334,7 +334,12 @@ class PagerTimeBandMixin:
         except Exception:
             history_styles = None
         tint = ""
-        if data is not None and data.mode == "past" and history_styles is not None:
+        if (
+            data is not None
+            and data.mode == "past"
+            and not data.tombstone
+            and history_styles is not None
+        ):
             try:
                 tint = str(history_styles.band_past_tint or "")
             except Exception:

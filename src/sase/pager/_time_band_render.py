@@ -78,8 +78,19 @@ def render_time_band(
             )
         return text
     hint_map = dict(hints or {})
-    if data.mode == "now":
+    if data.mode == "now" and not (data.view == "diff" and data.diff is not None):
         return _fit_text(_life_strip_row(data, width, styles), width)
+    if data.mode == "now":
+        # A diff view always shows the timeline row with its comparing
+        # text and range-coloured scrubber, whatever the kind.
+        if rows == 1:
+            return _fit_text(_timeline_row(data, width, styles), width)
+        text.append_text(_fit_text(_timeline_row(data, width, styles), width))
+        text.append("\n")
+        text.append_text(
+            _fit_text(_meaning_row(data, ordered, hint_map, width, styles), width)
+        )
+        return text
     ordered = time_band_targets(data)
     if rows == 1:
         # Degraded past band: the meaning row survives, because the pill
@@ -259,9 +270,12 @@ def _life_strip_row(data: TimeBandData, width: int, styles: Any | None) -> Text:
     when = ""
     if data.newest is not None and data.newest.committer_time:
         when = f"last changed {_format_day(data.newest.committer_time)}"
-    # Shedding: the owner first, then the scrubber down to 8 cells,
-    # then the endpoint labels.
+    # Shedding (§6.3): endpoint labels shed last. Drop the owner, then
+    # the edits-not-durable notice, then the last-changed detail, then
+    # the scrubber down to 8 cells, and only then the endpoint labels.
     show_who = True
+    show_dirty = True
+    show_when = True
     track_width = 60
     endpoint_mode = "full"
     while True:
@@ -276,17 +290,21 @@ def _life_strip_row(data: TimeBandData, width: int, styles: Any | None) -> Text:
         )
         row = Text(no_wrap=True, overflow="crop")
         row.append_text(scrubber)
-        if when:
+        if show_when and when:
             row.append(f"  {when}", style=DIM_STYLE)
             if show_who and who:
                 row.append(f" · {who}", style=DIM_STYLE)
-        if data.dirty:
+        if show_dirty and data.dirty:
             row.append("  ◌ edits not durable until committed", style=UNCOMMITTED_STYLE)
         if cell_len(row.plain) <= max(width, 0):
             text.append_text(row)
             return text
         if show_who:
             show_who = False
+        elif show_dirty and data.dirty:
+            show_dirty = False
+        elif show_when and when:
+            show_when = False
         elif track_width > 8:
             track_width = max(8, track_width - 12)
         elif endpoint_mode == "full":
@@ -548,7 +566,8 @@ def _timeline_row(data: TimeBandData, width: int, styles: Any | None) -> Text:
     """
     text = Text(no_wrap=True, overflow="crop")
     version = data.current
-    if version is None:
+    is_diff_early = data.view == "diff" and data.diff is not None
+    if version is None and not is_diff_early:
         return text
     delete = _style_role(styles, "delete", DELETED_STYLE)
     insert = _style_role(styles, "insert", "green")
@@ -666,9 +685,16 @@ def _tombstone_row(data: TimeBandData, width: int, styles: Any | None) -> Text:
     else:
         when = "unknown date"
     actor = version.agent or version.author or "unknown"
+    # The body shows the last content before the deletion, not the
+    # tombstone itself.
+    try:
+        below = [v.ordinal for v in data.versions if v.ordinal < version.ordinal]
+        last_content = max(below) if below else version.ordinal
+    except Exception:
+        last_content = version.ordinal
     text.append("✖ deleted ", style=f"bold {delete}")
     text.append(
-        f"{when} by {actor} · showing last content (v{version.ordinal})",
+        f"{when} by {actor} · showing last content (v{last_content})",
         style=DIM_STYLE,
     )
     return text

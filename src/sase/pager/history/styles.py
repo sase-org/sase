@@ -223,18 +223,19 @@ def extra_history_palette_roles(
     rail_past = _ensure_marks_contrast(past, background, foreground)
     rail_deleted = _ensure_marks_contrast(tombstone, background, foreground)
 
-    # About 14% past accent over the surface, faded back toward the
-    # surface until body text keeps >= 4.5:1 against it.
+    # A faint past tint: 14% past accent over the surface, faded further
+    # toward the surface only while body text falls below 4.5:1 against it.
     band_past_tint = background
     for step in range(8):
-        candidate = _blend_hex(past, background, 0.14 + step * 0.12)
+        factor = max(0.14 - step * 0.02, 0.0)
+        candidate = _blend_hex(background, past, factor)
         if parse_color(candidate) is None:
             break
         band_past_tint = candidate
         if contrast_ratio(foreground, candidate) >= 4.5:
             break
 
-    now_bg = _blend_hex(foreground, background, 0.18)
+    now_bg = _blend_hex(background, foreground, 0.18)
     past_bg, _ = _pill_pair(past, background, foreground)
     unc_bg, _ = _pill_pair(uncommitted, background, foreground)
     del_bg, _ = _pill_pair(tombstone, background, foreground)

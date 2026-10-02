@@ -81,29 +81,6 @@ def _words_suffix(summary: dict[str, Any], class_name: str) -> str:
     return " ".join(parts)
 
 
-def _display_for_row(
-    *,
-    label: str,
-    glyph: str,
-    date: str,
-    age: str,
-    summary: str,
-    words: str,
-    bead: str,
-    agent: str,
-    short: str,
-    pseudo_detail: str = "",
-) -> str:
-    """Join one picker row's cells with two-space separators."""
-    if pseudo_detail:
-        cells = [label, glyph, pseudo_detail, "not durable until committed"]
-        if words:
-            cells.append(words)
-        return "  ".join(part for part in cells if part)
-    cells = [label, glyph, date, age, summary, words, bead, agent, short]
-    return "  ".join(part for part in cells if part)
-
-
 def _newest_committed_ordinal(versions: object) -> int:
     """Return the newest committed ordinal in a timeline wire list."""
     newest = 0
@@ -131,7 +108,7 @@ def build_picker_rows(
     """Build picker rows for a core timeline wire dict.
 
     Each row carries ``ordinal``, ``class``, ``label``, ``glyph``,
-    ``display``, ``haystack`` (lowercase filter text over section,
+    ``haystack`` (lowercase filter text over section,
     agent, bead, subject, words, and path), ``hidden``, ``pseudo``,
     and the structured column cells the modal lays out
     (``date``, ``age``, ``change``, ``words``, ``by``, ``sha``,
@@ -169,18 +146,6 @@ def build_picker_rows(
         path = str(version.get("path", "") or version.get("source_path", "") or "")
         if pseudo:
             detail = "worktree" if class_name == "uncommitted" else "staged"
-            display = _display_for_row(
-                label=label,
-                glyph=glyph,
-                date="",
-                age="",
-                summary="",
-                words="",
-                bead="",
-                agent="",
-                short="",
-                pseudo_detail=detail,
-            )
             if class_name == "uncommitted":
                 column_detail = "uncommitted · not durable until committed"
             else:
@@ -192,7 +157,6 @@ def build_picker_rows(
                     "class": class_name,
                     "label": label,
                     "glyph": glyph,
-                    "display": display,
                     "haystack": haystack,
                     "hidden": False,
                     "pseudo": True,
@@ -216,17 +180,6 @@ def build_picker_rows(
         )
         summary = render_text.summary_text(summary_map, class_name)
         words = _words_suffix(summary_map, class_name)
-        display = _display_for_row(
-            label=label,
-            glyph=glyph,
-            date=date,
-            age=age,
-            summary=summary,
-            words=words,
-            bead=bead,
-            agent=agent,
-            short=short,
-        )
         sections = " ".join(str(part) for part in summary_map.get("section_paths", ()))
         haystack = " ".join(
             (
@@ -247,7 +200,6 @@ def build_picker_rows(
                 "class": class_name,
                 "label": label,
                 "glyph": glyph,
-                "display": display,
                 "haystack": haystack,
                 "hidden": _row_is_hidden(version, class_name),
                 "pseudo": False,
@@ -270,15 +222,13 @@ def build_picker_rows(
             detail = f"≡ v{resolved_newest} · the live file"
         else:
             detail = "the live file"
-        display = f"now  {detail}"
         rows.insert(
             0,
             {
                 "ordinal": 0,
                 "class": "",
                 "label": "now",
-                "glyph": "●",
-                "display": display,
+                "glyph": "",
                 "haystack": f"now live file {detail}".lower(),
                 "hidden": False,
                 "pseudo": True,
@@ -390,6 +340,7 @@ def _normalize_picker_compare(
     *,
     open_ordinal: int,
     cursor_ordinal: int,
+    cursor_is_now_alias: bool = False,
 ) -> tuple[int, int] | None:
     """Return the ``(base, target)`` pair for a picker ``=`` press.
 
@@ -397,10 +348,13 @@ def _normalize_picker_compare(
     means the cursor sits on the open version, so there is nothing to
     compare. When the cursor is newer than the open version, the
     cursor's version becomes the shown target and the previously open
-    version becomes the base.
+    version becomes the base. A cursor on the ``≡ now`` alias of an open
+    now is the open row itself, so there is nothing to compare.
     """
     open_ordinal = int(open_ordinal or 0)
     cursor_ordinal = int(cursor_ordinal or 0)
+    if cursor_is_now_alias and open_ordinal == 0:
+        return None
     if cursor_ordinal == 0:
         if open_ordinal == 0:
             return None
@@ -431,13 +385,22 @@ def picker_footer_preview(
         short = "⏎ open · esc close"
     else:
         cursor_ordinal, cursor_class = _cursor_key(cursor_row)
-        label = str(cursor_row.get("label", "") or _version_name(cursor_ordinal))
+        is_alias = bool(cursor_row.get("is_now_alias", False))
+        # A cursor on the ≡ now alias of an open now is the open now row.
+        if is_alias and int(open_ordinal or 0) == 0:
+            cursor_ordinal = 0
+            label = "now"
+        else:
+            label = str(cursor_row.get("label", "") or _version_name(cursor_ordinal))
         same = cursor_ordinal == int(open_ordinal or 0) and (
             cursor_ordinal != 0 or cursor_class == str(open_class or "")
         )
+        if is_alias and int(open_ordinal or 0) == 0:
+            same = True
         endpoints = _normalize_picker_compare(
             open_ordinal=open_ordinal,
             cursor_ordinal=cursor_ordinal,
+            cursor_is_now_alias=is_alias,
         )
         if same or endpoints is None:
             verb = "● open" if same else "⏎ open"

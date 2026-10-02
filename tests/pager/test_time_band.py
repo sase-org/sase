@@ -843,6 +843,7 @@ def _moment_data(
         newer=ordinal + 1 if ordinal < count else 0,
         first=1,
         to_now=0,
+        worktree_dirty=dirty,
     )
     data = time_band.build_time_band_data(
         subject_id="note:project:demo/note",
@@ -880,9 +881,11 @@ def test_timeline_row_marks_dirty_diff_against_now() -> None:
         kind="now_dirty", ordinal=0, view="diff", diff=(3, 0), dirty=True
     )
     assert data.mode == "now"
+    # A diff view always renders the timeline row with its comparing text,
+    # whatever the kind — never the one-row now strip.
     strip = time_band.render_time_band(data, width=200, rows=1).plain
-    assert "◌ now" in strip
-    assert "edits not durable until committed" in strip
+    assert "comparing" in strip
+    assert "v3" in strip and "uncommitted edits" in strip
 
 
 def test_tombstone_row_replaces_meaning_row() -> None:
@@ -894,10 +897,11 @@ def test_tombstone_row_replaces_meaning_row() -> None:
     assert "v1" in first and "✖ deleted" in first
     assert second.startswith("✖ deleted ")
     assert "by athena" in second
-    assert "showing last content (v3)" in second
+    # The body shows the last content before the deletion (v2), not v3.
+    assert "showing last content (v2)" in second
     assert "2026" in second
     folded = time_band.render_time_band(data, width=200, rows=1).plain
-    assert "showing last content (v3)" in folded
+    assert "showing last content (v2)" in folded
 
 
 def test_meaning_row_shows_renamed_path() -> None:

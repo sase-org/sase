@@ -326,6 +326,14 @@ class PagerActionResolveMixin:
         self._update_footer()
         self._update_subject()
         self._start_syntax_preparation_after_paint()
+        # History attaches to every section no matter how it was opened:
+        # start discovery after navigating (in place or via ctrl+w).
+        try:
+            start_history = getattr(self, "_start_history_discovery_after_paint", None)
+            if callable(start_history):
+                start_history()
+        except Exception:
+            pass
 
     def _link_context_for_section_index(
         self: Any,

@@ -16,6 +16,7 @@ from sase.pager._chrome_history import (
     history_badge,
     history_context,
     honest_chip,
+    pill_forms,
     state_moment,
 )
 from sase.pager._chrome_sections import section_accent, section_icon
@@ -104,11 +105,11 @@ def subject_parts(
     if honest is not None:
         context_stages = [None]
 
-    # One global shedding sequence: the hint goes, then the count, then
-    # the context shortens to its Δ segment and drops. At each step the
-    # pill takes the longest fixed form fitting its remaining budget, so
-    # the pill shortens through its forms before the title truncates.
-    # The pill itself is never dropped when it exists and never cropped.
+    # Shedding order (§5.2): the pill keeps its full form while the
+    # hint, the count, then the context shed (the Δ segment kept longest
+    # in the diff view). Only then does the pill step through its shorter
+    # forms, and finally the title middle-truncates. The pill is never
+    # cropped and never reappears as width shrinks.
     stages: list[tuple[str, Text | None]] = [
         (f"{base_right_str}{right_tail}", context_stages[0])
         for right_tail in right_tails
@@ -122,38 +123,63 @@ def subject_parts(
     doc_width = cell_len(document.title)
     sec_width = cell_len(current_section.title) if show_section_title else -3
     full_title_width = doc_width + (3 + sec_width if show_section_title else 0)
+    forms = pill_forms(moment, history_state, styles) if honest is None else []
+    full_pill = forms[0] if forms else None
     chosen: tuple[str, Text | None, Text | None, bool] | None = None
-    for right_str, context in stages:
-        right_width = cell_len(right_str)
-        context_width = cell_len(context.plain) if context is not None else 0
-        pill_budget = (
-            width
-            - 1
-            - glyph_prefix
-            - full_title_width
-            - right_width
-            - context_width
-            - (1 if context is not None else 0)
-        )
-        pill: Text | None
-        if honest is not None:
-            pill = honest
-        else:
-            pill = history_badge(moment, history_state, styles, pill_budget)
-        pill_width = cell_len(pill.plain) if pill is not None else 0
-        if (
-            width >= 1
-            and glyph_prefix
-            + full_title_width
-            + pill_width
-            + context_width
-            + (1 if pill is not None else 0)
-            + (1 if context is not None else 0)
-            + right_width
-            <= width - 1
-        ):
-            chosen = (right_str, context, pill, True)
-            break
+    if honest is not None:
+        for right_str, context in stages:
+            right_width = cell_len(right_str)
+            context_width = cell_len(context.plain) if context is not None else 0
+            pill_width = cell_len(honest.plain)
+            if (
+                width >= 1
+                and glyph_prefix
+                + full_title_width
+                + pill_width
+                + context_width
+                + 1
+                + (1 if context is not None else 0)
+                + right_width
+                <= width - 1
+            ):
+                chosen = (right_str, context, honest, True)
+                break
+    else:
+        # Phase A: full pill while shedding hint, count, then context.
+        for right_str, context in stages:
+            if full_pill is None:
+                pill: Text | None = None
+                pill_width = 0
+            else:
+                pill = full_pill
+                pill_width = cell_len(pill.plain)
+            right_width = cell_len(right_str)
+            context_width = cell_len(context.plain) if context is not None else 0
+            if (
+                width >= 1
+                and glyph_prefix
+                + full_title_width
+                + pill_width
+                + context_width
+                + (1 if pill is not None else 0)
+                + (1 if context is not None else 0)
+                + right_width
+                <= width - 1
+            ):
+                chosen = (right_str, context, pill, True)
+                break
+        # Phase B: context gone, base readout, pill shortens, title full.
+        if chosen is None and full_pill is not None:
+            for form in forms:
+                pill_width = cell_len(form.plain)
+                right_width = cell_len(base_right_str)
+                if (
+                    width >= 1
+                    and glyph_prefix + full_title_width + pill_width + 1 + right_width
+                    <= width - 1
+                ):
+                    chosen = (base_right_str, None, form, True)
+                    break
     if chosen is None:
         # The full title fits nowhere: keep the bare percent, the
         # shortest pill, no context, and whatever title cell is left.

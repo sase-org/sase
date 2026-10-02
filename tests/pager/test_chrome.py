@@ -656,8 +656,8 @@ def test_footer_names_step_destinations_in_every_state() -> None:
         "( v23",
         ") v25",
         "} now",
-        "@",
         "=",
+        "@",
     ]
 
     rows = _badge_rows()
@@ -669,7 +669,7 @@ def test_footer_names_step_destinations_in_every_state() -> None:
         pin=live_pin_for_subject(_SUBJECT),
         status="live",
     )
-    assert [key for key, _label in time_verbs_for_moment(now)] == ["( v24", "@", "="]
+    assert [key for key, _label in time_verbs_for_moment(now)] == ["( v24", "=", "@"]
     footer = footer_legend(
         section_total=1, label_count=4, time_verbs=time_verbs_for_moment(now)
     )
@@ -684,11 +684,11 @@ def test_footer_names_step_destinations_in_every_state() -> None:
         pin=live_pin_for_subject(_SUBJECT),
         status="tombstone",
     )
+    # On the deletion itself there is no `}` verb: its destination is here.
     assert [key for key, _label in time_verbs_for_moment(deleted)] == [
         "( v11",
-        "} deleted",
-        "@",
         "=",
+        "@",
     ]
 
 

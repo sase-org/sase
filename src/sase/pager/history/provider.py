@@ -102,11 +102,12 @@ def _discover_entry_point_factories() -> None:
     builtin_seen = False
     for point in points:
         try:
-            if _entry_point_is_builtin(point):
-                builtin_seen = True
+            is_builtin = _entry_point_is_builtin(point)
             factory = point.load()
         except Exception:
             continue
+        if is_builtin:
+            builtin_seen = True
         _PROVIDER_FACTORIES.append(factory)
     if not builtin_seen:
         # A dev checkout whose editable-install metadata predates the

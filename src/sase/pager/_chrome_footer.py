@@ -21,9 +21,7 @@ def footer_legend(
     trail_back_count: int = 0,
     trail_forward_count: int = 0,
     status: str | None = None,
-    history_available: bool = False,
     history_pinned: bool = False,
-    history_diff_view: bool = False,
     time_verbs: Sequence[tuple[str, str]] | None = None,
     split: bool = False,
 ) -> Text:
@@ -36,8 +34,7 @@ def footer_legend(
 
     ``time_verbs`` is the ordered destination list built from the version
     moment (``( vK``, ``) vK``/``) now``, ``} now``/``} deleted``,
-    ``@ timeline``, ``= diff``/``= read``); it replaces the
-    ``history_*`` booleans, which render the legacy ``( )`` form.
+    ``= diff``/``= read``, ``@ timeline``).
 
     ``split`` adds the ``^F`` pane verb and names ``q`` "close pane",
     since it closes only the focused pane while split.
@@ -55,13 +52,6 @@ def footer_legend(
             label_has_edit = True
     else:
         label_has_edit = False
-        if history_available:
-            verbs.append(("( )", "version"))
-            verbs.append(("=", "read" if history_diff_view else "diff"))
-            verbs.append(("@", "timeline"))
-            if history_pinned:
-                verbs.append(("E", "edits now"))
-                label_has_edit = True
     action_key = {"copy": "y", "edit": "E", "other": "^W"}.get(pending_action)
     if action_key is not None:
         action_label = "other pane" if pending_action == "other" else pending_action

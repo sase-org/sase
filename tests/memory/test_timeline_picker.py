@@ -119,12 +119,12 @@ def test_build_rows_covers_worktree_staged_and_hidden() -> None:
         "v1",
     ]
     assert rows[0]["glyph"] == "◌"
-    assert "worktree" in rows[0]["display"]
-    assert "not durable until committed" in rows[0]["display"]
-    assert "staged" in rows[1]["display"]
-    assert "§ Default Keymap Config" in rows[2]["display"]
-    assert "+31w" in rows[2]["display"] and "-4w" in rows[2]["display"]
-    assert "sase-1bc.12" in rows[2]["display"]
+    assert "worktree" in rows[0]["haystack"]
+    assert "not durable until committed" in rows[0]["detail"]
+    assert rows[1]["detail"] == "staged"
+    assert "§ Default Keymap Config" in rows[2]["change"]
+    assert "+31w" in rows[2]["words"] and "-4w" in rows[2]["words"]
+    assert rows[2]["by"] == "sase-1bc.12"
     assert rows[2]["hidden"] is False
     assert rows[4]["hidden"] is True
     assert rows[5]["hidden"] is True

@@ -305,6 +305,22 @@ class PagerTimelineMixin:
             return
         pin = state.current_pin
         current = int(getattr(pin, "ordinal", 0) or 0) if pin is not None else 0
+        # A compare against the ≡ now alias of an open now is byte-identical:
+        # canonicalize the cursor the way jumps do and do nothing.
+        try:
+            from sase.pager.history.moment import canonical_ordinal, moment_for_state
+
+            moment = moment_for_state(state)
+            if moment is not None:
+                canonical = canonical_ordinal(ordinal, moment)
+                if canonical != ordinal and canonical == current:
+                    self.notify(
+                        "Same version — pick another row to compare.",
+                        severity="information",
+                    )
+                    return
+        except Exception:
+            pass
         if klass in _PSEUDO_CLASSES:
             if current == 0:
                 self.notify("Already at the worktree.", severity="information")

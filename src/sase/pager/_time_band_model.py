@@ -296,7 +296,14 @@ def _moment_readings(moment: Any | None) -> dict[str, Any]:
         kind = ""
     readings["kind"] = kind
     readings["tombstone"] = kind == "deleted"
-    readings["dirty"] = kind == "now_dirty"
+    try:
+        worktree_dirty = getattr(moment, "worktree_dirty", None)
+    except Exception:
+        worktree_dirty = None
+    if isinstance(worktree_dirty, bool):
+        readings["dirty"] = worktree_dirty
+    else:
+        readings["dirty"] = kind == "now_dirty"
     return readings
 
 

@@ -65,9 +65,73 @@ class PagerDiffMixin:
     def _diff_endpoints_for(
         self: Any, section: PagerSection, state: Any
     ) -> tuple[int, int] | None:
+        # The moment is the only source for diff endpoints: it skips hidden
+        # versions and honours D3. The old function survives only for the
+        # fail-open path where no moment can be built.
+        try:
+            from sase.pager.history.moment import (
+                diff_endpoints as moment_endpoints,
+            )
+            from sase.pager.history.moment import moment_for_state
+
+            moment = moment_for_state(state) if state is not None else None
+        except Exception:
+            moment = None
+            moment_endpoints = None  # type: ignore[assignment]
         pin = state.current_pin if state is not None else None
         if pin is None:
             pin = section.version_pin
+        if moment is not None:
+            diff = getattr(moment, "diff", None)
+            if getattr(moment, "view", "read") == "diff" and diff is not None:
+                try:
+                    return (int(diff[0]), int(diff[1]))
+                except (TypeError, ValueError, IndexError):
+                    pass
+            # Sticky diffs and read-view callers share the moment's
+            # hidden-skipping semantics even before the pin flips to diff.
+            try:
+                ordinal = int(getattr(pin, "ordinal", 0) or 0)
+                raw_base = getattr(pin, "compare_base", None)
+                try:
+                    base_override = int(raw_base) if raw_base is not None else None
+                except (TypeError, ValueError):
+                    base_override = None
+                explicit = bool(getattr(pin, "explicit_base", False))
+                visible = tuple(state.visible_ordinals) if state is not None else ()
+                navigable = [
+                    int(v or 0)
+                    for v in visible
+                    if int(v or 0) > 0
+                    and not (
+                        bool(getattr(moment, "now_matches_newest", False))
+                        and int(v or 0) == int(getattr(moment, "newest", 0) or 0)
+                    )
+                ]
+                newest = int(getattr(moment, "newest", 0) or 0)
+                # A pin to newest on a now ≡ vN subject diffs now itself.
+                target = ordinal
+                try:
+                    from sase.pager.history.moment import canonical_ordinal
+
+                    if canonical_ordinal(ordinal, moment) == 0 and ordinal != 0:
+                        target = 0
+                except Exception:
+                    pass
+                if moment_endpoints is not None:
+                    endpoints = moment_endpoints(
+                        target=target,
+                        steppable=navigable,
+                        newest=newest,
+                        dirty=bool(getattr(moment, "worktree_dirty", False)),
+                        explicit_base=base_override if explicit else None,
+                    )
+                    if endpoints is not None:
+                        return endpoints
+            except Exception:
+                pass
+            if getattr(moment, "view", "read") == "diff":
+                return None
         ordinal = int(getattr(pin, "ordinal", 0) or 0)
         compare_base = getattr(pin, "compare_base", None)
         try:
@@ -432,15 +496,23 @@ class PagerDiffMixin:
         ordinal = self._current_ordinal(section, state)
         if ordinal <= 0:
             return ()
-        comparison = state.comparison_cache.get((ordinal - 1, ordinal))
-        if comparison is None:
+        # Read-view change marks skip hidden versions: the base is the
+        # newest steppable version below the target, not ordinal - 1.
+        try:
+            visible = tuple(getattr(state, "visible_ordinals", ()) or ())
+            below = [int(v or 0) for v in visible if int(v or 0) < ordinal]
+            base = max(below) if below else 0
+        except Exception:
+            base = ordinal - 1
+        comparison = state.comparison_cache.get((base, ordinal))
+        if comparison is None and base != 0:
             comparison = state.comparison_cache.get((0, ordinal))
         if not isinstance(comparison, dict):
             task = spawn_pump_free_task(
                 self,
                 self._load_one_comparison(
                     identity,
-                    ordinal - 1,
+                    base,
                     ordinal,
                     self.document,
                     self._history_generation,

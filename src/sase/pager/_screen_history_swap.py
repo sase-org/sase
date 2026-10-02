@@ -63,8 +63,16 @@ class PagerHistorySwapMixin:
             ordinal = pin.ordinal if pin is not None else 0
             if ordinal <= 0:
                 continue
-            comparison = state.comparison_cache.get((ordinal - 1, ordinal))
-            if comparison is None:
+            # Change marks skip hidden versions: the base is the newest
+            # steppable version below the target.
+            try:
+                visible = tuple(getattr(state, "visible_ordinals", ()) or ())
+                below = [int(v or 0) for v in visible if int(v or 0) < ordinal]
+                mark_base = max(below) if below else 0
+            except Exception:
+                mark_base = ordinal - 1
+            comparison = state.comparison_cache.get((mark_base, ordinal))
+            if comparison is None and mark_base != 0:
                 # v1 falls back to the empty-base comparison when present.
                 comparison = state.comparison_cache.get((0, ordinal))
             if comparison is None or not isinstance(comparison, dict):
@@ -84,7 +92,12 @@ class PagerHistorySwapMixin:
         state = self._history_states.get(identity)
         if state is None or ordinal <= 0:
             return
-        base = ordinal - 1
+        try:
+            visible = tuple(getattr(state, "visible_ordinals", ()) or ())
+            below = [int(v or 0) for v in visible if int(v or 0) < ordinal]
+            base = max(below) if below else 0
+        except Exception:
+            base = ordinal - 1
         if (base, ordinal) in state.comparison_cache:
             return
         task = spawn_pump_free_task(
