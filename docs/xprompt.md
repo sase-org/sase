@@ -1025,6 +1025,13 @@ with metadata such as `wait_name`, `agent_name`, `ref`, `kind`, `label`, `path`,
 `source_path`, and nullable VCS provenance fields. Read artifact contents explicitly
 with `sase artifact read <ref> "<reason>"` when the prompt needs bytes.
 
+An xprompt that needs runtime-only names such as `wait.artifacts` defers them with
+`{% raw %}...{% endraw %}`, and the deferred template renders in the launch-time
+top-level pass, where fenced and inline code are literal. A `{{ ... }}` inside backticks
+there is never substituted, while an enclosing `{% for %}` still repeats the literal
+once per item, so deferred expressions must stay outside code spans. Rendered values
+still go through literal-preserving prompt formatting, so `__` and `*` in paths survive.
+
 Availability: conditional names render only when their precondition holds — `n`/`N` need
 [%repeat](#repeat-directive), `agents`/`wait_chats` need `%wait`, and the `provider_*`
 names need truthy `skill` frontmatter in xprompt scope. A prompt that declares its own
