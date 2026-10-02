@@ -6,15 +6,33 @@ import dataclasses
 from collections.abc import Mapping, Sequence
 from enum import Enum
 
+from sase.ace.tui.util import pane_grid
+from sase.ace.tui.util.pane_grid import (
+    Axis,
+    PaneGrid,
+    cycle_focus,
+    focus_pane,
+    free_pane_id,
+    press_split,
+)
+
 from .model import (
     DeckAreaState,
     DeckId,
     DeckLayout,
     DeckPanelState,
     cycle_card_id,
+    panel_state,
 )
 
 RATIO_STEPS: tuple[int, ...] = (30, 50, 70)
+
+
+def _axis_for_layout(target: DeckLayout) -> Axis:
+    """Return the grid axis a split key for ``target`` draws."""
+    if target is DeckLayout.LEFT_RIGHT:
+        return Axis.COLS
+    return Axis.ROWS
 
 
 class SidebarMode(Enum):
@@ -95,13 +113,6 @@ def new_panel_for_deck(
     return DeckPanelState(deck=deck)
 
 
-def _zoom_ended(state: DeckAreaState) -> DeckAreaState:
-    """Return ``state`` with any zoom snapshot dropped (zoom ends, no restore)."""
-    if state.zoom_snapshot is None:
-        return state
-    return dataclasses.replace(state, zoom_snapshot=None)
-
-
 def toggle_split(
     state: DeckAreaState,
     target: DeckLayout,
@@ -111,36 +122,35 @@ def toggle_split(
 ) -> DeckAreaState:
     """Toggle a split layout for ``target``.
 
-    From SINGLE open ``new_panel`` as panel 1 with a 50/50 ratio. The new
-    panel takes focus unless ``focus_new`` is false (unsplit and rotate
-    ignore the flag).
-    Pressing the same layout key again unsplits back to panel 0. Pressing
-    the other layout key rotates, keeping decks, cards, focus and ratio.
-    A layout key while zoomed ends the zoom: the snapshot is dropped and
-    the toggle applies to the current (zoomed) state.
+    From SINGLE open ``new_panel`` on a free pane ID with a 50/50 ratio.
+    The new pane takes focus unless ``focus_new`` is false (unsplit and
+    rotate ignore the flag). Pressing the same layout key again unsplits,
+    keeping the focused panel. Pressing the other layout key rotates,
+    keeping decks, cards, focus and ratio. A layout key while zoomed only
+    restores the snapshot, keeping panels edited while zoomed.
     """
-    state = _zoom_ended(state)
+    if state.zoom_snapshot is not None:
+        return exit_zoom_keeping_panels(state)
+    axis = _axis_for_layout(target)
     if state.layout is DeckLayout.SINGLE:
-        try:
-            current = state.panels[state.focused]
-        except IndexError:
-            current = state.panels[0]
-        return DeckAreaState(
-            panels=(current, new_panel),
-            focused=1 if focus_new else 0,
-            layout=target,
-            ratio=50,
-            nodes_collapsed=state.nodes_collapsed,
+        new_id = free_pane_id(state.grid)
+        if new_id is None:
+            return state
+        pressed = press_split(state.grid, axis, new_id, nest=False)
+        if len(pressed.panes) < 2:
+            return state
+        if not focus_new:
+            pressed = focus_pane(pressed, state.grid.focused)
+        panels = dict(state.panels)
+        panels[new_id] = new_panel
+        return dataclasses.replace(state, grid=pressed, panels=panels)
+    pressed = press_split(state.grid, axis, state.grid.focused, nest=False)
+    if len(pressed.panes) < 2:
+        focused = pressed.focused
+        return dataclasses.replace(
+            state, grid=pressed, panels={focused: panel_state(state, focused)}
         )
-    if state.layout is target:
-        return DeckAreaState(
-            panels=(state.panels[0],),
-            focused=0,
-            layout=DeckLayout.SINGLE,
-            ratio=50,
-            nodes_collapsed=state.nodes_collapsed,
-        )
-    return dataclasses.replace(state, layout=target)
+    return dataclasses.replace(state, grid=pressed)
 
 
 def toggle_nodes_collapsed(state: DeckAreaState) -> DeckAreaState:
@@ -159,24 +169,24 @@ def is_zoomed(state: DeckAreaState) -> bool:
 
 
 def _enter_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:
-    """Zoom the focused panel in place, hiding the node panel or rail.
+    """Zoom the focused pane in place, hiding the node panel or rail.
 
-    Snapshots the deck-area state (layout, panels, focus, ratio, collapse)
-    and shows only the focused panel as SINGLE. The ``nodes_collapsed``
-    preference is left untouched so zoom never leaks into it. A second ``Z``
-    restores the snapshot exactly via :func:`_exit_zoom`.
+    Snapshots the deck-area state (grid, panels, collapse) and shows only
+    the zoomed pane. Hidden panes keep their widgets and sessions in the
+    panels map. The ``nodes_collapsed`` preference is left untouched so
+    zoom never leaks into it. A second ``Z`` restores the snapshot exactly
+    via :func:`_exit_zoom`.
     """
     if state.zoom_snapshot is not None:
         return state
     snapshot = dataclasses.replace(state, zoom_snapshot=None)
-    index = snapshot.focused if focused is None else focused
-    if index < 0 or index >= len(snapshot.panels):
-        index = snapshot.focused
+    pane_id = snapshot.focused if focused is None else focused
+    if pane_id not in snapshot.grid.panes:
+        pane_id = snapshot.focused
+    zoomed_grid = PaneGrid(panes=(pane_id,), focused=pane_id, recent=(pane_id,))
     return dataclasses.replace(
         snapshot,
-        panels=snapshot.panels,
-        focused=index,
-        layout=DeckLayout.SINGLE,
+        grid=zoomed_grid,
         zoom_snapshot=snapshot,
     )
 
@@ -198,7 +208,8 @@ def exit_zoom_keeping_panels(state: DeckAreaState) -> DeckAreaState:
     snapshot = state.zoom_snapshot
     if snapshot is None:
         return state
-    return dataclasses.replace(snapshot, panels=state.panels, focused=state.focused)
+    grid = focus_pane(snapshot.grid, state.grid.focused)
+    return dataclasses.replace(snapshot, grid=grid, panels=dict(state.panels))
 
 
 def toggle_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:
@@ -209,26 +220,17 @@ def toggle_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaSta
 
 
 def toggle_focus(state: DeckAreaState) -> DeckAreaState:
-    """Move logical focus to the other panel in a split."""
-    if state.layout is DeckLayout.SINGLE:
+    """Move logical focus to the next pane in reading order (wraps)."""
+    if len(state.grid.panes) < 2:
         return state
-    return dataclasses.replace(state, focused=1 - state.focused)
+    return dataclasses.replace(state, grid=cycle_focus(state.grid, 1))
 
 
 def step_ratio(state: DeckAreaState, grow: bool) -> DeckAreaState:
-    """Step the first panel's share through ``RATIO_STEPS``.
+    """Step the focused pane's share through ``RATIO_STEPS``.
 
-    Grow means the focused panel gets bigger. Clamps at the ends.
+    Grow means the focused pane gets bigger. Clamps at the ends.
     """
-    if state.layout is DeckLayout.SINGLE:
+    if len(state.grid.panes) < 2:
         return state
-    try:
-        index = RATIO_STEPS.index(state.ratio)
-    except ValueError:
-        index = 1
-    if state.focused == 0:
-        index = index + 1 if grow else index - 1
-    else:
-        index = index - 1 if grow else index + 1
-    index = max(0, min(len(RATIO_STEPS) - 1, index))
-    return dataclasses.replace(state, ratio=RATIO_STEPS[index])
+    return dataclasses.replace(state, grid=pane_grid.step_ratio(state.grid, grow))

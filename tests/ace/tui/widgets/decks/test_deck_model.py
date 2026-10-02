@@ -63,13 +63,13 @@ def test_cycle_card_id_unknown_anchor_steps_from_default() -> None:
 
 def test_default_single_is_main() -> None:
     state = DeckAreaState()
-    assert state.panels == (DeckPanelState(DeckId.MAIN),)
+    assert state.panels == {0: DeckPanelState(DeckId.MAIN)}
     assert state.focused == 0
 
 
 def test_with_panel_deck_returns_new_state() -> None:
     state = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.MAIN)),
+        panels={0: DeckPanelState(DeckId.MAIN), 1: DeckPanelState(DeckId.MAIN)},
     )
     updated = with_panel_deck(state, 1, DeckId.FILES)
     assert updated.panels[1].deck is DeckId.FILES
@@ -147,13 +147,13 @@ def test_view_policies_with_deck_rejects_invalid() -> None:
 
 def test_replace_helpers_keep_views() -> None:
     state = DeckAreaState(
-        panels=(
-            DeckPanelState(
+        panels={
+            0: DeckPanelState(
                 deck=DeckId.MAIN,
                 preferred_cards={DeckId.MAIN: "reply"},
                 views=DeckViewPolicies(main=DeckView.SPREAD),
             ),
-        ),
+        },
     )
     moved = with_panel_deck(state, 0, DeckId.FILES)
     assert moved.panels[0].views.main is DeckView.SPREAD
@@ -166,14 +166,14 @@ def test_replace_helpers_keep_views() -> None:
 
 def test_with_preferred_card_scopes_to_panel_deck() -> None:
     state = DeckAreaState(
-        panels=(DeckPanelState(deck=DeckId.FILES),),
+        panels={0: DeckPanelState(deck=DeckId.FILES)},
     )
     updated = with_preferred_card(state, 0, "reply")
     assert updated.panels[0].preferred_card_for(DeckId.FILES) == "reply"
     assert updated.panels[0].preferred_card is None
     # An explicit deck stores under that deck even when the panel shows Main.
     main_state = DeckAreaState(
-        panels=(DeckPanelState(deck=DeckId.MAIN),),
+        panels={0: DeckPanelState(deck=DeckId.MAIN)},
     )
     scoped = with_preferred_card(main_state, 0, "reply", DeckId.FILES)
     assert scoped.panels[0].preferred_card_for(DeckId.FILES) == "reply"
@@ -188,12 +188,12 @@ def test_with_preferred_card_scopes_to_panel_deck() -> None:
 
 def test_with_panel_deck_keeps_every_deck_preference() -> None:
     state = DeckAreaState(
-        panels=(
-            DeckPanelState(
+        panels={
+            0: DeckPanelState(
                 deck=DeckId.MAIN,
                 preferred_cards={DeckId.MAIN: "reply", DeckId.FILES: "notes"},
             ),
-        ),
+        },
     )
     moved = with_panel_deck(state, 0, DeckId.FILES)
     assert moved.panels[0].preferred_card == "reply"
@@ -201,13 +201,17 @@ def test_with_panel_deck_keeps_every_deck_preference() -> None:
 
 
 def test_with_panel_view_updates_zoom_snapshot() -> None:
+    from sase.ace.tui.util.pane_grid import Axis, PaneGrid
+
     state = DeckAreaState(
-        panels=(
-            DeckPanelState(DeckId.MAIN),
-            DeckPanelState(DeckId.FILES),
+        grid=PaneGrid(
+            panes=(0, 1),
+            focused=1,
+            axis=Axis.COLS,
+            ratio=50,
+            recent=(1, 0),
         ),
-        focused=1,
-        layout=DeckLayout.LEFT_RIGHT,
+        panels={0: DeckPanelState(DeckId.MAIN), 1: DeckPanelState(DeckId.FILES)},
     )
     zoomed = toggle_zoom(state)
     updated = with_panel_view(zoomed, 1, DeckId.FILES, DeckView.SPREAD)

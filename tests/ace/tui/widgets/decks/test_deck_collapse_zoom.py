@@ -83,16 +83,16 @@ def test_zoom_preserves_collapse_preference() -> None:
     assert deck_layout.toggle_zoom(zoomed) == collapsed
 
 
-def test_layout_key_ends_zoom_without_restoring() -> None:
-    zoomed = deck_layout.toggle_zoom(_split_state())
+def test_layout_key_while_zoomed_only_restores() -> None:
+    state = _split_state()
+    zoomed = deck_layout.toggle_zoom(state)
     ended = deck_layout.toggle_split(
         zoomed, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS)
     )
     assert not deck_layout.is_zoomed(ended)
-    # Applies to the zoomed (single, focused) state: a fresh split opens.
-    assert ended.layout is DeckLayout.TOP_BOTTOM
-    assert ended.focused == 1
-    assert ended.panels[0].deck is DeckId.FILES
+    # A split key while zoomed only restores: the snapshot layout returns
+    # with the panels kept, and no fresh split opens.
+    assert ended == state
 
 
 def test_collapse_key_ends_zoom_then_toggles() -> None:
@@ -117,7 +117,7 @@ def test_sidebar_mode_table() -> None:
         deck_layout.SidebarMode.HIDDEN
     )
     # (mode, key) transitions: Ctrl+S flips EXPANDED<->RAIL and restores HIDDEN;
-    # Z enters HIDDEN and restores; split keys end zoom without restore.
+    # Z enters HIDDEN and restores; split keys only restore the snapshot.
     assert deck_layout.toggle_nodes_collapsed(expanded) == rail
     assert deck_layout.toggle_nodes_collapsed(rail) == expanded
     assert deck_layout.toggle_nodes_collapsed(deck_layout.toggle_zoom(expanded)) == (
@@ -132,21 +132,22 @@ def test_sidebar_mode_table() -> None:
         DeckPanelState(DeckId.TOOLS),
     )
     assert not deck_layout.is_zoomed(ended)
-    assert ended.nodes_collapsed is expanded.nodes_collapsed
+    assert ended == expanded
     # RAIL + split key -> RAIL, split applied.
     rail_split = deck_layout.toggle_split(
         rail, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.FILES)
     )
     assert rail_split.layout is DeckLayout.LEFT_RIGHT
     assert deck_layout.sidebar_mode(rail_split) is deck_layout.SidebarMode.RAIL
-    # HIDDEN zoomed from RAIL + split key -> zoom ends without a snapshot
-    # restore and the sidebar returns to RAIL (the preference).
+    # HIDDEN zoomed from RAIL + split key -> the snapshot restores and the
+    # sidebar returns to RAIL (the preference).
     zoomed_rail = deck_layout.toggle_zoom(rail)
     assert deck_layout.sidebar_mode(zoomed_rail) is deck_layout.SidebarMode.HIDDEN
     ended_from_rail = deck_layout.toggle_split(
         zoomed_rail, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS)
     )
     assert not deck_layout.is_zoomed(ended_from_rail)
+    assert ended_from_rail == rail
     assert deck_layout.sidebar_mode(ended_from_rail) is deck_layout.SidebarMode.RAIL
 
 
@@ -175,6 +176,7 @@ def test_expanded_split_zoom_split_key_keeps_preference() -> None:
         zoomed, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS)
     )
     assert not deck_layout.is_zoomed(ended)
+    assert ended == state
     assert ended.nodes_collapsed is False
 
 
@@ -330,7 +332,7 @@ async def test_ending_zoom_on_second_panel_shows_both_panels_again(
         assert len(area.visible_panels()) == 2
 
 
-async def test_split_key_ends_zoom(tmp_path: Path) -> None:
+async def test_split_key_while_zoomed_only_restores(tmp_path: Path) -> None:
     app = _DetailApp()
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
@@ -346,7 +348,9 @@ async def test_split_key_ends_zoom(tmp_path: Path) -> None:
         detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
         await pilot.pause()
         assert detail.is_deck_zoomed is False
-        assert detail.deck_area.state.layout is DeckLayout.TOP_BOTTOM
+        # Restore-only: the split returns, and no TOP_BOTTOM split opens.
+        assert detail.deck_area.state.layout is DeckLayout.LEFT_RIGHT
+        assert len(detail.deck_area.visible_panels()) == 2
 
 
 async def test_collapse_key_ends_zoom(tmp_path: Path) -> None:

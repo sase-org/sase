@@ -1,4 +1,4 @@
-"""Two pre-composed deck panels with a focused index."""
+"""Pane-ID-keyed deck panels rendered through one flat Textual grid."""
 
 from __future__ import annotations
 
@@ -9,12 +9,16 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.containers import Vertical
 
-from .layout import is_zoomed, toggle_focus
+from sase.ace.tui.util.pane_grid import grid_spec
+from sase.ace.tui.util.pane_grid import focus_pane as _grid_focus_pane
+
+from .layout import is_zoomed
 from .model import (
     DeckAreaState,
     DeckId,
     DeckLayout,
     DeckView,
+    panel_state,
     with_panel_deck,
     with_panel_view,
     with_preferred_card,
@@ -24,7 +28,7 @@ from .titles import ZoomChrome
 
 
 class DeckArea(Vertical):
-    """Area holding two pre-composed deck panels."""
+    """Area holding pane-ID-keyed deck panels in a flat grid."""
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the deck area."""
@@ -41,17 +45,79 @@ class DeckArea(Vertical):
         yield DeckPanel(0, id="agent-deck-panel-0", classes="deck-panel")
         yield DeckPanel(1, id="agent-deck-panel-1", classes="deck-panel hidden")
 
-    def panel(self, index: int) -> DeckPanel:
-        """Return the panel at ``index``."""
-        panels = self.query(DeckPanel)
-        if index < 0 or index >= len(panels):
-            raise IndexError(index)
-        return panels[index]
+    def panel(self, pane_id: int) -> DeckPanel:
+        """Return the panel for ``pane_id`` through the explicit ID map."""
+        try:
+            found = self.query_one(f"#agent-deck-panel-{pane_id}", DeckPanel)
+        except Exception:
+            raise IndexError(pane_id) from None
+        return found
+
+    def _panels_by_id(self) -> dict[int, DeckPanel]:
+        """Return the mounted panels keyed by pane ID (never raises)."""
+        found: dict[int, DeckPanel] = {}
+        for pane_id in (0, 1):
+            try:
+                found[pane_id] = self.query_one(
+                    f"#agent-deck-panel-{pane_id}", DeckPanel
+                )
+            except Exception:
+                continue
+        return found
+
+    def _apply_grid_spec(self, new_state: DeckAreaState) -> None:
+        """Apply the grid tracks, spans and DOM order (never raises)."""
+        try:
+            spec = grid_spec(new_state.grid)
+        except Exception:
+            return
+        try:
+            styles = self.styles
+            styles.grid_size_columns = len(spec.columns)
+            styles.grid_size_rows = len(spec.rows)
+            styles.grid_columns = " ".join(f"{weight}fr" for weight in spec.columns)
+            styles.grid_rows = " ".join(f"{weight}fr" for weight in spec.rows)
+        except Exception:
+            pass
+        try:
+            by_id = self._panels_by_id()
+            for pane_id, cell in spec.cells.items():
+                child = by_id.get(pane_id)
+                if child is None:
+                    continue
+                try:
+                    _, _, column_span, row_span = cell
+                    child.styles.column_span = max(1, column_span)
+                    child.styles.row_span = max(1, row_span)
+                except Exception:
+                    continue
+            current = [
+                child._panel_index
+                for child in self.query(DeckPanel)
+                if child._panel_index in by_id
+            ]
+            if current != list(spec.dom_order):
+                previous: DeckPanel | None = None
+                for pane_id in spec.dom_order:
+                    child = by_id.get(pane_id)
+                    if child is None:
+                        continue
+                    try:
+                        if previous is None:
+                            self.move_child(child, before=0)
+                        else:
+                            self.move_child(child, after=previous)
+                    except Exception:
+                        continue
+                    previous = child
+        except Exception:
+            pass
 
     def apply_state(self, new_state: DeckAreaState) -> None:
-        """Store ``new_state`` and sync CSS classes only."""
+        """Store ``new_state`` and sync grid tracks, spans and classes."""
         self._state = new_state
         self._sync_panel_views(new_state)
+        self._apply_grid_spec(new_state)
         layout = new_state.layout
         for existing in list(self.classes):
             if existing in (
@@ -70,165 +136,171 @@ class DeckArea(Vertical):
         else:
             self.add_class("-left-right")
         self.add_class(f"-ratio-{new_state.ratio}")
-        try:
-            panel0 = self.panel(0)
-        except Exception:
+        by_id = self._panels_by_id()
+        if not by_id:
             return
-        try:
-            panel1 = self.panel(1)
-        except Exception:
-            panel1 = None
         if is_zoomed(new_state):
-            # The zoomed panel keeps its widget, card and scroll; the
+            # The zoomed pane keeps its widget, card and scroll; every
             # other widget hides while the snapshot is held. The zoomed
-            # panel gets its -zoomed class and ZoomChrome before
+            # pane gets its -zoomed class and ZoomChrome before
             # set_focused() repaints the chrome, so every zoom entry and
             # exit is correct by construction.
             snapshot = new_state.zoom_snapshot
             if snapshot is None:
                 return
+            order = snapshot.grid.panes
+            try:
+                position = list(order).index(new_state.focused)
+            except ValueError:
+                position = 0
+            from sase.ace.tui.util.pane_grid import position_glyph as _glyph
+
             chrome = ZoomChrome(
                 from_layout=snapshot.layout,
-                panel_index=new_state.focused,
-                panel_count=len(snapshot.panels),
+                panel_index=position,
+                panel_count=len(order),
             )
-            for index, panel in ((0, panel0), (1, panel1)):
-                if panel is None:
-                    continue
+            try:
+                chrome = dataclasses.replace(
+                    chrome, glyph=_glyph(snapshot.grid, new_state.focused)
+                )
+            except Exception:
+                pass
+            for pane_id, widget in by_id.items():
                 try:
-                    if index == new_state.focused:
-                        panel.set_zoom_chrome(chrome)
-                        panel.remove_class("hidden")
+                    if pane_id == new_state.focused:
+                        widget.set_zoom_chrome(chrome)
+                        widget.remove_class("hidden")
                     else:
-                        panel.set_zoom_chrome(None)
-                        panel.add_class("hidden")
-                    panel.set_focused(index == new_state.focused)
+                        widget.set_zoom_chrome(None)
+                        widget.add_class("hidden")
+                    widget.set_focused(pane_id == new_state.focused)
                 except Exception:
                     pass
             return
+        visible = set(new_state.grid.panes)
         if layout is DeckLayout.SINGLE:
-            if panel1 is not None:
+            sole = new_state.grid.panes[0] if new_state.grid.panes else 0
+            for pane_id, widget in by_id.items():
                 try:
-                    panel1.set_zoom_chrome(None)
+                    widget.set_zoom_chrome(None)
                 except Exception:
                     pass
-                panel1.add_class("hidden")
-            try:
-                panel0.set_zoom_chrome(None)
-            except Exception:
-                pass
-            try:
-                panel0.set_focused(True)
-            except Exception:
-                pass
+                try:
+                    if pane_id == sole:
+                        widget.remove_class("hidden")
+                    else:
+                        widget.add_class("hidden")
+                    widget.set_focused(pane_id == sole)
+                except Exception:
+                    pass
             return
-        # A split shows both panels. Panel 0 can still be hidden here when a
-        # zoom on panel 1 just ended.
-        for index, panel in ((0, panel0), (1, panel1)):
-            if panel is None:
+        # A split shows every grid pane. A widget hidden by a zoom on the
+        # other pane is reshown here.
+        for pane_id, widget in by_id.items():
+            if pane_id not in visible:
                 continue
             try:
-                panel.set_zoom_chrome(None)
-                panel.remove_class("hidden")
-                panel.set_focused(index == new_state.focused)
+                widget.set_zoom_chrome(None)
+                widget.remove_class("hidden")
+                widget.set_focused(pane_id == new_state.focused)
             except Exception:
                 pass
 
     def visible_panels(self) -> tuple[DeckPanel, ...]:
-        """Return the visible panels for the current layout."""
+        """Return the visible panels in grid reading order."""
         if is_zoomed(self._state):
             try:
                 return (self.panel(self._state.focused),)
             except Exception:
                 return ()
-        try:
-            panel0 = self.panel(0)
-        except Exception:
-            return ()
-        if self._state.layout is DeckLayout.SINGLE:
-            return (panel0,)
-        try:
-            panel1 = self.panel(1)
-        except Exception:
-            return (panel0,)
-        return (panel0, panel1)
+        shown: list[DeckPanel] = []
+        for pane_id in self._state.grid.panes:
+            try:
+                shown.append(self.panel(pane_id))
+            except Exception:
+                continue
+        return tuple(shown)
 
     def focused_panel(self) -> DeckPanel:
         """Return the focused panel."""
-        if self._state.layout is DeckLayout.SINGLE and not is_zoomed(self._state):
-            return self.panel(0)
         return self.panel(self._state.focused)
 
-    def set_panel_deck(self, index: int, deck: DeckId) -> None:
+    def set_panel_deck(self, pane_id: int, deck: DeckId) -> None:
         """Update state and the panel's deck."""
-        self._state = with_panel_deck(self._state, index, deck)
-        self.panel(index).set_deck(deck)
+        self._state = with_panel_deck(self._state, pane_id, deck)
+        self.panel(pane_id).set_deck(deck)
 
     def set_panel_view(
-        self, index: int, deck: DeckId, view: DeckView, *, user_initiated: bool = False
+        self,
+        pane_id: int,
+        deck: DeckId,
+        view: DeckView,
+        *,
+        user_initiated: bool = False,
     ) -> None:
         """Update state via ``with_panel_view``, then apply it on the panel.
 
         ``user_initiated`` marks a P/palette change (for the Files media
         toast); state syncs and restores never set it.
         """
-        self._state = with_panel_view(self._state, index, deck, view)
-        self.panel(index).set_view_policy(deck, view, user_initiated=user_initiated)
+        self._state = with_panel_view(self._state, pane_id, deck, view)
+        self.panel(pane_id).set_view_policy(deck, view, user_initiated=user_initiated)
 
     def _sync_panel_views(self, new_state: DeckAreaState) -> None:
         """Sync stored view policies; apply only when changed (never raises)."""
-        for index, panel_state in enumerate(new_state.panels):
+        for pane_id, panel_state_entry in new_state.panels.items():
             try:
-                panel = self.panel(index)
+                widget = self.panel(pane_id)
             except Exception:
                 continue
             try:
-                changed = bool(panel.sync_view_policies(panel_state.views))
+                changed = bool(widget.sync_view_policies(panel_state_entry.views))
             except Exception:
                 continue
             if not changed:
                 continue
             try:
-                if panel.deck is DeckId.MAIN:
-                    document = panel._main_document
+                if widget.deck is DeckId.MAIN:
+                    document = widget._main_document
                     if not document.partial and document.cards:
-                        panel._apply_main_view_change()
+                        widget._apply_main_view_change()
                         continue
-                elif panel.deck is DeckId.FILES:
+                elif widget.deck is DeckId.FILES:
                     # State syncs and restores apply without the
                     # user-initiated flag, so they never toast.
-                    panel._apply_files_view_change()
+                    widget._apply_files_view_change()
                     continue
                 # Other decks need chrome only.
-                panel.refresh_chrome()
+                widget.refresh_chrome()
             except Exception:
                 pass
 
     def set_preferred_card(
-        self, index: int, card_id: str | None, deck: DeckId | None = None
+        self, pane_id: int, card_id: str | None, deck: DeckId | None = None
     ) -> None:
         """Update preferred card and re-show the stored Main document.
 
         The preference is stored under ``deck`` (default: the panel's own
         deck); the re-show always uses Main's entry.
         """
-        self._state = with_preferred_card(self._state, index, card_id, deck)
-        panel = self.panel(index)
+        self._state = with_preferred_card(self._state, pane_id, card_id, deck)
+        widget = self.panel(pane_id)
         try:
-            document = panel._main_document
+            document = widget._main_document
         except Exception:
             return
         try:
-            preferred = self._state.panels[index].preferred_card
+            preferred = panel_state(self._state, pane_id).preferred_card
         except Exception:
             preferred = card_id
         try:
-            panel.show_main_document(document, preferred_card=preferred)
+            widget.show_main_document(document, preferred_card=preferred)
         except Exception:
             pass
 
     def set_preferred_card_state(
-        self, index: int, card_id: str | None, deck: DeckId | None = None
+        self, pane_id: int, card_id: str | None, deck: DeckId | None = None
     ) -> None:
         """Record the preferred card without re-showing the Main document.
 
@@ -238,27 +310,26 @@ class DeckArea(Vertical):
         an identical frame. New subjects and deck switches still go through
         :meth:`set_preferred_card`.
         """
-        self._state = with_preferred_card(self._state, index, card_id, deck)
+        self._state = with_preferred_card(self._state, pane_id, card_id, deck)
 
-    def set_preferred_cards(self, index: int, cards: Mapping[DeckId, str]) -> None:
+    def set_preferred_cards(self, pane_id: int, cards: Mapping[DeckId, str]) -> None:
         """Restore a whole per-deck mapping and re-show the Main document.
 
         Used when applying persisted state so every deck's sticky card is
         restored at once instead of one deck at a time.
         """
-        panels = list(self._state.panels)
-        if index < 0 or index >= len(panels):
-            raise IndexError(index)
-        panels[index] = dataclasses.replace(panels[index], preferred_cards=dict(cards))
-        self._state = dataclasses.replace(self._state, panels=tuple(panels))
-        panel = self.panel(index)
+        current = panel_state(self._state, pane_id)
+        panels = dict(self._state.panels)
+        panels[pane_id] = dataclasses.replace(current, preferred_cards=dict(cards))
+        self._state = dataclasses.replace(self._state, panels=panels)
+        widget = self.panel(pane_id)
         try:
-            document = panel._main_document
+            document = widget._main_document
         except Exception:
             return
         try:
-            panel.show_main_document(
-                document, preferred_card=panels[index].preferred_card
+            widget.show_main_document(
+                document, preferred_card=panels[pane_id].preferred_card
             )
         except Exception:
             pass
@@ -268,14 +339,18 @@ class DeckArea(Vertical):
         return tuple(p for p in self.visible_panels() if p.deck is deck)
 
     def on_deck_panel_focus_requested(self, message: DeckPanelFocusRequested) -> None:
-        """Focus the clicked panel when it differs from the focused one."""
-        index = message.panel_index
-        if self._state.layout is DeckLayout.SINGLE:
+        """Focus the clicked pane by ID when it differs from the focused one."""
+        pane_id = message.panel_index
+        if pane_id == self._state.focused:
             return
-        if index == self._state.focused:
+        if pane_id not in self._state.grid.panes:
             return
         try:
-            self.apply_state(toggle_focus(self._state))
+            self.apply_state(
+                dataclasses.replace(
+                    self._state, grid=_grid_focus_pane(self._state.grid, pane_id)
+                )
+            )
         except Exception:
             return
         try:

@@ -109,15 +109,19 @@ class AgentDeckPersistenceMixin:
         try:
             state = area_state_from_snapshot(snapshot)
             area.apply_state(state)
-            for index, panel_state in enumerate(state.panels):
+            for pane_id in state.grid.panes:
                 try:
-                    detail.show_deck(index, panel_state.deck)
+                    panel_state = state.panels[pane_id]
+                except KeyError:
+                    continue
+                try:
+                    detail.show_deck(pane_id, panel_state.deck)
                 except Exception:
                     pass
                 if panel_state.preferred_cards:
                     try:
                         detail.deck_area.set_preferred_cards(
-                            index, dict(panel_state.preferred_cards)
+                            pane_id, dict(panel_state.preferred_cards)
                         )
                     except Exception:
                         pass

@@ -10,8 +10,8 @@ with the additive optional ``preferred_cards`` object mapping deck names to
 card ids and the additive optional ``views`` object ``{main, files}`` holding
 per-deck view policies. The legacy ``preferred_card`` key is still written
 and read as Main's preference so older files keep their sticky Main card. A
-zoomed session persists its pre-zoom snapshot, so callers must pass the
-effective (unzoomed) state via :func:`snapshot_from_area_state`. Loading fails
+zoomed session persists its restored geometry plus the edits made while
+zoomed. Loading fails
 open: unknown decks or layouts fall back to their defaults while the rest of
 the file still applies. Unknown deck keys and invalid ``preferred_cards``
 entries are skipped; a missing, non-object, or unknown-valued ``views``
@@ -208,20 +208,35 @@ def _decode_agents_deck_state(decoded: Any) -> AgentsDeckStateSnapshot:
 
 
 def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
-    """Capture ``state`` for persistence, unwrapping any zoom snapshot."""
-    effective = state.zoom_snapshot if state.zoom_snapshot is not None else state
+    """Capture ``state`` for persistence, unwrapping any zoom snapshot.
+
+    Panels are written in grid reading order with ``focused`` as the
+    reading-order index; the zoomed pane's edits persist through the
+    restored geometry.
+    """
+    from ..widgets.decks.layout import exit_zoom_keeping_panels
+
+    if state.zoom_snapshot is not None:
+        effective = exit_zoom_keeping_panels(state)
+    else:
+        effective = state
+    order = list(effective.grid.panes[:MAX_PANELS])
     panels = tuple(
         _DeckPanelSnapshot(
-            deck=panel.deck,
-            preferred_cards=dict(panel.preferred_cards),
-            views=panel.views,
+            deck=effective.panels[pane_id].deck,
+            preferred_cards=dict(effective.panels[pane_id].preferred_cards),
+            views=effective.panels[pane_id].views,
         )
-        for panel in effective.panels[:MAX_PANELS]
+        for pane_id in order
+        if pane_id in effective.panels
     ) or (_DeckPanelSnapshot(),)
     layout = effective.layout
     if layout is DeckLayout.SINGLE:
         panels = panels[:1]
-    focused = effective.focused
+    try:
+        focused = list(effective.grid.panes).index(effective.grid.focused)
+    except ValueError:
+        focused = 0
     if focused < 0 or focused >= len(panels):
         focused = 0
     ratio = effective.ratio if effective.ratio in RATIO_STEPS else 50
@@ -235,25 +250,48 @@ def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
 
 
 def area_state_from_snapshot(snapshot: AgentsDeckStateSnapshot) -> DeckAreaState:
-    """Rebuild deck-area state from ``snapshot`` (no zoom snapshot)."""
-    panels = tuple(
-        DeckPanelState(
+    """Rebuild deck-area state from ``snapshot`` (no zoom snapshot).
+
+    Pane IDs ``0..n-1`` are assigned in reading order.
+    """
+    from sase.ace.tui.util.pane_grid import Axis, PaneGrid
+
+    items = list(snapshot.panels) or [_DeckPanelSnapshot()]
+    if snapshot.layout is DeckLayout.SINGLE:
+        items = items[:1]
+    items = items[:MAX_PANELS]
+    order = list(range(len(items)))
+    panels = {
+        pane_id: DeckPanelState(
             deck=item.deck,
             preferred_cards=dict(item.preferred_cards),
             views=item.views,
         )
-        for item in snapshot.panels
-    ) or (DeckPanelState(DeckId.MAIN),)
-    if snapshot.layout is DeckLayout.SINGLE:
-        panels = panels[:1]
-    focused = snapshot.focused
-    if focused < 0 or focused >= len(panels):
-        focused = 0
+        for pane_id, item in zip(order, items, strict=True)
+    }
+    if not panels:
+        panels = {0: DeckPanelState(DeckId.MAIN)}
+        order = [0]
+    focused_index = snapshot.focused
+    if focused_index < 0 or focused_index >= len(order):
+        focused_index = 0
+    focused_id = order[focused_index]
+    if len(order) < 2:
+        grid = PaneGrid(panes=(focused_id,), focused=focused_id, recent=(focused_id,))
+    else:
+        axis = Axis.COLS if snapshot.layout is DeckLayout.LEFT_RIGHT else Axis.ROWS
+        ratio = snapshot.ratio if snapshot.ratio in RATIO_STEPS else 50
+        other = order[1] if focused_id == order[0] else order[0]
+        grid = PaneGrid(
+            panes=tuple(order),
+            focused=focused_id,
+            axis=axis,
+            ratio=ratio,
+            recent=(focused_id, other),
+        )
     return DeckAreaState(
+        grid=grid,
         panels=panels,
-        focused=focused,
-        layout=snapshot.layout,
-        ratio=snapshot.ratio if snapshot.ratio in RATIO_STEPS else 50,
         nodes_collapsed=bool(snapshot.nodes_collapsed),
     )
 

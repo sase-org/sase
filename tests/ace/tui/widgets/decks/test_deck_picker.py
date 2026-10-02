@@ -97,36 +97,38 @@ def test_deck_count_labels() -> None:
     assert _deck_count_label(DeckId.MAIN, object()) == ""
 
 
+def _split(layout: DeckLayout, focused: int) -> DeckAreaState:
+    from sase.ace.tui.util.pane_grid import Axis, PaneGrid
+
+    axis = Axis.COLS if layout is DeckLayout.LEFT_RIGHT else Axis.ROWS
+    other = 1 - focused
+    return DeckAreaState(
+        grid=PaneGrid(
+            panes=(0, 1),
+            focused=focused,
+            axis=axis,
+            ratio=50,
+            recent=(focused, other),
+        ),
+        panels={0: DeckPanelState(DeckId.MAIN), 1: DeckPanelState(DeckId.FILES)},
+    )
+
+
 def test_panel_position_labels() -> None:
+    from sase.ace.tui.widgets.decks.layout import toggle_zoom
+
     single = DeckAreaState()
     assert panel_position_label(single, 0) == "deck"
 
-    top_bottom = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=1,
-        layout=DeckLayout.TOP_BOTTOM,
-    )
+    top_bottom = _split(DeckLayout.TOP_BOTTOM, 1)
     assert panel_position_label(top_bottom, 0) == "top"
     assert panel_position_label(top_bottom, 1) == "bottom"
 
-    left_right = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=1,
-        layout=DeckLayout.LEFT_RIGHT,
-    )
+    left_right = _split(DeckLayout.LEFT_RIGHT, 1)
     assert panel_position_label(left_right, 0) == "left"
     assert panel_position_label(left_right, 1) == "right"
 
-    zoomed = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=1,
-        layout=DeckLayout.SINGLE,
-        zoom_snapshot=DeckAreaState(
-            panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-            focused=1,
-            layout=DeckLayout.TOP_BOTTOM,
-        ),
-    )
+    zoomed = toggle_zoom(_split(DeckLayout.TOP_BOTTOM, 1))
     assert is_zoomed(zoomed)
     assert panel_position_label(zoomed, 1) == "zoomed"
     assert panel_position_label(zoomed, 0) == "zoomed"
@@ -216,14 +218,6 @@ def test_deck_switch_hint_falls_back_without_picker_key() -> None:
     )
 
 
-def _split(layout: DeckLayout, focused: int) -> DeckAreaState:
-    return DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=focused,
-        layout=layout,
-    )
-
-
 def test_other_panel_target_single_opens_bottom_split() -> None:
     assert other_panel_target(DeckAreaState(), 0) == _OtherPanelTarget(
         panel_index=1, label="bottom", opens_split=True, ends_zoom=False
@@ -245,38 +239,32 @@ def test_other_panel_target_left_right_keeps_layout() -> None:
 
 
 def test_other_panel_target_zoomed_from_single_opens_split_and_ends_zoom() -> None:
-    snapshot = DeckAreaState()
-    zoomed = DeckAreaState(
-        panels=snapshot.panels,
-        focused=0,
-        layout=DeckLayout.SINGLE,
-        nodes_collapsed=True,
-        zoom_snapshot=snapshot,
-    )
+    import dataclasses
+
+    from sase.ace.tui.widgets.decks.layout import toggle_zoom
+
+    zoomed = dataclasses.replace(toggle_zoom(DeckAreaState()), nodes_collapsed=True)
     assert other_panel_target(zoomed, 0) == _OtherPanelTarget(
         panel_index=1, label="bottom", opens_split=True, ends_zoom=True
     )
 
 
 def test_other_panel_target_zoomed_from_split_uses_snapshot_orientation() -> None:
+    import dataclasses
+
+    from sase.ace.tui.widgets.decks.layout import toggle_zoom
+
     snapshot = _split(DeckLayout.LEFT_RIGHT, 1)
-    zoomed = DeckAreaState(
-        panels=snapshot.panels,
-        focused=1,
-        layout=DeckLayout.SINGLE,
-        nodes_collapsed=True,
-        zoom_snapshot=snapshot,
-    )
+    zoomed = dataclasses.replace(toggle_zoom(snapshot), nodes_collapsed=True)
     assert other_panel_target(zoomed, 1) == _OtherPanelTarget(
         panel_index=0, label="left", opens_split=False, ends_zoom=True
     )
 
 
-def test_other_panel_target_clamps_out_of_range_source() -> None:
-    target = other_panel_target(_split(DeckLayout.TOP_BOTTOM, 0), 5)
-    assert target.panel_index == 0
-    target = other_panel_target(_split(DeckLayout.TOP_BOTTOM, 0), -1)
-    assert target.panel_index == 1
+def test_other_panel_target_unknown_source_resolves_from_focused() -> None:
+    state = _split(DeckLayout.TOP_BOTTOM, 0)
+    assert other_panel_target(state, 5).panel_index == 1
+    assert other_panel_target(state, -1).panel_index == 1
 
 
 def test_deck_picker_other_hint_phrases() -> None:

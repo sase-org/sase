@@ -5,7 +5,9 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass, field
 from enum import StrEnum
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+
+from sase.ace.tui.util.pane_grid import Axis, PaneGrid
 
 
 class DeckId(StrEnum):
@@ -141,79 +143,110 @@ class DeckPanelState:
         return self.preferred_cards.get(deck)
 
 
+def _default_panels() -> dict[int, DeckPanelState]:
+    """Return the default single-pane session map."""
+    return {0: DeckPanelState(DeckId.MAIN)}
+
+
 @dataclass(frozen=True)
 class DeckAreaState:
-    """Pre-composed deck panels with a focused index."""
+    """Deck panels on a shared split grid, keyed by stable pane ID."""
 
-    panels: tuple[DeckPanelState, ...] = (DeckPanelState(DeckId.MAIN),)
-    focused: int = 0
-    layout: DeckLayout = DeckLayout.SINGLE
-    ratio: int = 50
+    grid: PaneGrid = field(default_factory=PaneGrid)
+    panels: Mapping[int, DeckPanelState] = field(default_factory=_default_panels)
     nodes_collapsed: bool = False
     zoom_snapshot: DeckAreaState | None = None
+
+    def __post_init__(self) -> None:
+        """Detach the session map so frozen states never share a dict."""
+        object.__setattr__(self, "panels", dict(self.panels))
+
+    @property
+    def layout(self) -> DeckLayout:
+        """Return the outer-axis layout derived from the grid."""
+        if len(self.grid.panes) < 2 or self.grid.axis is None:
+            return DeckLayout.SINGLE
+        if self.grid.axis is Axis.ROWS:
+            return DeckLayout.TOP_BOTTOM
+        return DeckLayout.LEFT_RIGHT
+
+    @property
+    def focused(self) -> int:
+        """Return the focused pane ID."""
+        return self.grid.focused
+
+    @property
+    def ratio(self) -> int:
+        """Return the outer first region's share."""
+        return self.grid.ratio
 
 
 SINGLE: DeckAreaState = DeckAreaState()
 
 
-def with_panel_deck(state: DeckAreaState, index: int, deck: DeckId) -> DeckAreaState:
-    """Return a new state with ``index`` showing ``deck``."""
-    panels = list(state.panels)
-    if index < 0 or index >= len(panels):
-        raise IndexError(index)
-    panels[index] = dataclasses.replace(panels[index], deck=deck)
-    return dataclasses.replace(state, panels=tuple(panels))
+def panel_state(state: DeckAreaState, pane_id: int) -> DeckPanelState:
+    """Return the session for ``pane_id``, raising ``IndexError`` when absent."""
+    try:
+        return state.panels[pane_id]
+    except KeyError:
+        raise IndexError(pane_id) from None
+
+
+def with_panel_deck(state: DeckAreaState, pane_id: int, deck: DeckId) -> DeckAreaState:
+    """Return a new state with ``pane_id`` showing ``deck``."""
+    current = panel_state(state, pane_id)
+    panels = dict(state.panels)
+    panels[pane_id] = dataclasses.replace(current, deck=deck)
+    return dataclasses.replace(state, panels=panels)
 
 
 def with_preferred_card(
     state: DeckAreaState,
-    index: int,
+    pane_id: int,
     card_id: str | None,
     deck: DeckId | None = None,
 ) -> DeckAreaState:
-    """Return a new state with ``index`` preferring ``card_id``.
+    """Return a new state with ``pane_id`` preferring ``card_id``.
 
     The preference is stored under ``deck``, which defaults to the panel's
     own deck so cycling on one deck never clobbers another deck's sticky
     card. Deck switches keep the whole mapping (see :func:`with_panel_deck`).
     """
-    panels = list(state.panels)
-    if index < 0 or index >= len(panels):
-        raise IndexError(index)
-    target = deck if deck is not None else panels[index].deck
-    cards = dict(panels[index].preferred_cards)
+    current = panel_state(state, pane_id)
+    target = deck if deck is not None else current.deck
+    cards = dict(current.preferred_cards)
     if card_id is None:
         cards.pop(target, None)
     else:
         cards[target] = card_id
-    panels[index] = dataclasses.replace(panels[index], preferred_cards=cards)
-    return dataclasses.replace(state, panels=tuple(panels))
+    panels = dict(state.panels)
+    panels[pane_id] = dataclasses.replace(current, preferred_cards=cards)
+    return dataclasses.replace(state, panels=panels)
 
 
 def with_panel_view(
-    state: DeckAreaState, index: int, deck: DeckId, view: DeckView
+    state: DeckAreaState, pane_id: int, deck: DeckId, view: DeckView
 ) -> DeckAreaState:
-    """Return a new state with ``index`` holding ``view`` for ``deck``.
+    """Return a new state with ``pane_id`` holding ``view`` for ``deck``.
 
-    When zoomed, the same index in ``zoom_snapshot`` is updated as well so
+    When zoomed, the same pane in ``zoom_snapshot`` is updated as well so
     the change survives unzoom and persistence (which unwraps the zoom).
     """
-    if index < 0 or index >= len(state.panels):
-        raise IndexError(index)
-    updated_views = state.panels[index].views.with_deck(deck, view)
-    panels = list(state.panels)
-    panels[index] = dataclasses.replace(panels[index], views=updated_views)
-    updated = dataclasses.replace(state, panels=tuple(panels))
+    current = panel_state(state, pane_id)
+    updated_views = current.views.with_deck(deck, view)
+    panels = dict(state.panels)
+    panels[pane_id] = dataclasses.replace(current, views=updated_views)
+    updated = dataclasses.replace(state, panels=panels)
     snapshot = state.zoom_snapshot
-    if snapshot is not None and 0 <= index < len(snapshot.panels):
-        snapshot_views = snapshot.panels[index].views.with_deck(deck, view)
-        snapshot_panels = list(snapshot.panels)
-        snapshot_panels[index] = dataclasses.replace(
-            snapshot_panels[index], views=snapshot_views
+    if snapshot is not None and pane_id in snapshot.panels:
+        snapshot_views = snapshot.panels[pane_id].views.with_deck(deck, view)
+        snapshot_panels = dict(snapshot.panels)
+        snapshot_panels[pane_id] = dataclasses.replace(
+            snapshot_panels[pane_id], views=snapshot_views
         )
         updated = dataclasses.replace(
             updated,
-            zoom_snapshot=dataclasses.replace(snapshot, panels=tuple(snapshot_panels)),
+            zoom_snapshot=dataclasses.replace(snapshot, panels=snapshot_panels),
         )
     return updated
 

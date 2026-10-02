@@ -4018,67 +4018,8 @@ HintInputBar #hint-escape-hint {
 }
 
 #agent-deck-area {
+    layout: grid;
     height: 1fr;
-}
-
-#agent-deck-area.-left-right {
-    layout: horizontal;
-}
-
-#agent-deck-area.-top-bottom.-ratio-30 #agent-deck-panel-0 {
-    height: 3fr;
-}
-
-#agent-deck-area.-top-bottom.-ratio-30 #agent-deck-panel-1 {
-    height: 7fr;
-}
-
-#agent-deck-area.-top-bottom.-ratio-50 #agent-deck-panel-0 {
-    height: 5fr;
-}
-
-#agent-deck-area.-top-bottom.-ratio-50 #agent-deck-panel-1 {
-    height: 5fr;
-}
-
-#agent-deck-area.-top-bottom.-ratio-70 #agent-deck-panel-0 {
-    height: 7fr;
-}
-
-#agent-deck-area.-top-bottom.-ratio-70 #agent-deck-panel-1 {
-    height: 3fr;
-}
-
-#agent-deck-area.-left-right #agent-deck-panel-0 {
-    height: 1fr;
-}
-
-#agent-deck-area.-left-right #agent-deck-panel-1 {
-    height: 1fr;
-}
-
-#agent-deck-area.-left-right.-ratio-30 #agent-deck-panel-0 {
-    width: 3fr;
-}
-
-#agent-deck-area.-left-right.-ratio-30 #agent-deck-panel-1 {
-    width: 7fr;
-}
-
-#agent-deck-area.-left-right.-ratio-50 #agent-deck-panel-0 {
-    width: 5fr;
-}
-
-#agent-deck-area.-left-right.-ratio-50 #agent-deck-panel-1 {
-    width: 5fr;
-}
-
-#agent-deck-area.-left-right.-ratio-70 #agent-deck-panel-0 {
-    width: 7fr;
-}
-
-#agent-deck-area.-left-right.-ratio-70 #agent-deck-panel-1 {
-    width: 3fr;
 }
 
 #agent-deck-area .deck-panel {

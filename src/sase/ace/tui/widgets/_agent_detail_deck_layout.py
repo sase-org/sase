@@ -76,7 +76,9 @@ class AgentDetailDeckLayoutMixin:
             self._open_deck_split(target)
             return
         try:
-            self._apply_deck_area_state(toggle_split(state, target, state.panels[-1]))
+            self._apply_deck_area_state(
+                toggle_split(state, target, state.panels[state.focused])
+            )
         except Exception:
             return
         self._notify_deck_state_changed()
@@ -93,16 +95,31 @@ class AgentDetailDeckLayoutMixin:
         ``deck=None`` lets ``choose_new_panel`` pick the new panel's deck, as
         the split keys do. An explicit ``deck`` is shown in the new panel
         instead. The new panel takes focus unless ``focus_new`` is false.
+        A split while zoomed only restores the snapshot: from a
+        zoomed-from-split state nothing opens, and from a zoomed-from-single
+        state the restore runs first and the split then opens from it.
         """
         try:
             area = self.deck_area  # type: ignore[attr-defined]
             state = area.state
         except Exception:
             return False
-        try:
-            was_zoomed_from = state.focused if is_zoomed(state) else None
-        except Exception:
-            was_zoomed_from = None
+        if is_zoomed(state):
+            try:
+                self._apply_deck_area_state(exit_zoom_keeping_panels(state))
+            except Exception:
+                return False
+            try:
+                area.focused_panel().refresh_chrome()
+            except Exception:
+                pass
+            try:
+                state = area.state
+            except Exception:
+                return False
+            if state.layout is not DeckLayout.SINGLE:
+                self._notify_deck_state_changed()
+                return False
         try:
             current_panel = area.focused_panel()
             current_deck = current_panel.deck
@@ -151,28 +168,32 @@ class AgentDetailDeckLayoutMixin:
             current_deck is DeckId.FILES and new_panel.deck is DeckId.FILES
         )
         try:
+            before = set(area.state.grid.panes)
+        except Exception:
+            before = set()
+        try:
             self._apply_deck_area_state(
                 toggle_split(state, target, new_panel, focus_new=focus_new)
             )
         except Exception:
             return False
-        if was_zoomed_from == 1:
-            # Ending the zoom through a split: the zoomed panel's deck
-            # now lives at logical index 0, so widget 0 must show it.
-            try:
-                self.show_deck(0, area.state.panels[0].deck)  # type: ignore[attr-defined]
-            except Exception:
-                pass
         try:
-            self.show_deck(1, new_panel.deck)  # type: ignore[attr-defined]
+            opened = [pid for pid in area.state.grid.panes if pid not in before]
+        except Exception:
+            opened = []
+        if not opened:
+            return False
+        new_id = area.state.grid.focused if focus_new else opened[0]
+        try:
+            self.show_deck(new_id, new_panel.deck)  # type: ignore[attr-defined]
         except Exception:
             pass
         if is_duplicate_files:
             try:
-                panel1 = area.panel(1)
-                file_list = list(getattr(panel1.file_view, "_file_list", []))
+                created = area.panel(new_id)
+                file_list = list(getattr(created.file_view, "_file_list", []))
                 if len(file_list) > 1:
-                    panel1.file_view.next_file()
+                    created.file_view.next_file()
             except Exception:
                 pass
         try:

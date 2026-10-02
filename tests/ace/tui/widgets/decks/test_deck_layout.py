@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.util.pane_grid import Axis, PaneGrid
 from sase.ace.tui.widgets.decks.layout import (
     RATIO_STEPS,
     choose_new_panel,
@@ -21,7 +22,29 @@ from sase.ace.tui.widgets.decks.model import (
 
 
 def _single(deck: DeckId = DeckId.MAIN) -> DeckAreaState:
-    return DeckAreaState(panels=(DeckPanelState(deck),), focused=0)
+    return DeckAreaState(panels={0: DeckPanelState(deck)})
+
+
+def _split(
+    deck0: DeckId,
+    deck1: DeckId,
+    *,
+    focused: int = 1,
+    layout: DeckLayout = DeckLayout.TOP_BOTTOM,
+    ratio: int = 50,
+) -> DeckAreaState:
+    axis = Axis.COLS if layout is DeckLayout.LEFT_RIGHT else Axis.ROWS
+    other = 1 - focused
+    return DeckAreaState(
+        grid=PaneGrid(
+            panes=(0, 1),
+            focused=focused,
+            axis=axis,
+            ratio=ratio,
+            recent=(focused, other),
+        ),
+        panels={0: DeckPanelState(deck0), 1: DeckPanelState(deck1)},
+    )
 
 
 def test_single_backslash_opens_top_bottom() -> None:
@@ -29,7 +52,7 @@ def test_single_backslash_opens_top_bottom() -> None:
     new_panel = DeckPanelState(DeckId.FILES)
     updated = toggle_split(state, DeckLayout.TOP_BOTTOM, new_panel)
     assert updated.layout is DeckLayout.TOP_BOTTOM
-    assert updated.panels == (DeckPanelState(DeckId.MAIN), new_panel)
+    assert updated.panels == {0: DeckPanelState(DeckId.MAIN), 1: new_panel}
     assert updated.focused == 1
     assert updated.ratio == 50
 
@@ -44,42 +67,41 @@ def test_single_pipe_opens_left_right() -> None:
     assert updated.ratio == 50
 
 
-def test_top_bottom_backslash_unsplits_to_first() -> None:
-    state = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=1,
-        layout=DeckLayout.TOP_BOTTOM,
-        ratio=30,
-    )
+def test_top_bottom_backslash_unsplits_keeping_focused() -> None:
+    state = _split(DeckId.MAIN, DeckId.FILES, focused=1, ratio=30)
     updated = toggle_split(state, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS))
     assert updated.layout is DeckLayout.SINGLE
-    assert updated.panels == (DeckPanelState(DeckId.MAIN),)
-    assert updated.focused == 0
+    assert updated.panels == {1: DeckPanelState(DeckId.FILES)}
+    assert updated.focused == 1
     assert updated.ratio == 50
 
 
-def test_left_right_pipe_unsplits_keeps_first() -> None:
-    state = DeckAreaState(
-        panels=(DeckPanelState(DeckId.FILES), DeckPanelState(DeckId.TOOLS)),
-        focused=1,
-        layout=DeckLayout.LEFT_RIGHT,
-        ratio=70,
+def test_top_bottom_backslash_unsplits_keeping_first_when_focused() -> None:
+    state = _split(DeckId.MAIN, DeckId.FILES, focused=0, ratio=30)
+    updated = toggle_split(state, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS))
+    assert updated.panels == {0: DeckPanelState(DeckId.MAIN)}
+    assert updated.focused == 0
+    assert updated.layout is DeckLayout.SINGLE
+
+
+def test_left_right_pipe_unsplits_keeping_focused() -> None:
+    state = _split(
+        DeckId.FILES, DeckId.TOOLS, focused=1, layout=DeckLayout.LEFT_RIGHT, ratio=70
     )
     updated = toggle_split(state, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.MAIN))
-    assert updated.panels == (DeckPanelState(DeckId.FILES),)
-    assert updated.focused == 0
+    assert updated.panels == {1: DeckPanelState(DeckId.TOOLS)}
+    assert updated.focused == 1
     assert updated.layout is DeckLayout.SINGLE
 
 
 def test_rotate_keeps_everything_but_layout() -> None:
+    state = _split(DeckId.MAIN, DeckId.FILES, focused=1, ratio=30)
     state = DeckAreaState(
-        panels=(
-            DeckPanelState(deck=DeckId.MAIN, preferred_cards={DeckId.MAIN: "reply"}),
-            DeckPanelState(DeckId.FILES),
-        ),
-        focused=1,
-        layout=DeckLayout.TOP_BOTTOM,
-        ratio=30,
+        grid=state.grid,
+        panels={
+            0: DeckPanelState(deck=DeckId.MAIN, preferred_cards={DeckId.MAIN: "reply"}),
+            1: DeckPanelState(DeckId.FILES),
+        },
     )
     rotated = toggle_split(state, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
     assert rotated.layout is DeckLayout.LEFT_RIGHT
@@ -198,21 +220,11 @@ def test_final_unknown_or_empty_falls_back_to_duplicate() -> None:
 
 
 def test_ratio_steps_from_each_focused_side_and_clamp() -> None:
-    top = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=0,
-        layout=DeckLayout.TOP_BOTTOM,
-        ratio=50,
-    )
+    top = _split(DeckId.MAIN, DeckId.FILES, focused=0)
     assert step_ratio(top, True).ratio == 70
     assert step_ratio(top, False).ratio == 30
     assert step_ratio(step_ratio(top, True), True).ratio == 70
-    bottom = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=1,
-        layout=DeckLayout.TOP_BOTTOM,
-        ratio=50,
-    )
+    bottom = _split(DeckId.MAIN, DeckId.FILES, focused=1)
     assert step_ratio(bottom, True).ratio == 30
     assert step_ratio(bottom, False).ratio == 70
     assert step_ratio(step_ratio(bottom, False), False).ratio == 70
@@ -224,26 +236,19 @@ def test_toggle_focus_single_is_noop() -> None:
 
 
 def test_toggle_focus_flips_in_split() -> None:
-    state = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=0,
-        layout=DeckLayout.LEFT_RIGHT,
-        ratio=50,
-    )
+    state = _split(DeckId.MAIN, DeckId.FILES, focused=0, layout=DeckLayout.LEFT_RIGHT)
     assert toggle_focus(state).focused == 1
     assert toggle_focus(toggle_focus(state)).focused == 0
 
 
-def test_unsplit_keeps_panel_zero_involution() -> None:
+def test_unsplit_keeps_focused_panel_involution() -> None:
     single = _single(DeckId.MAIN)
     opened = toggle_split(single, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.FILES))
     assert opened.focused == 1
     closed = toggle_split(opened, DeckLayout.LEFT_RIGHT, DeckPanelState(DeckId.TOOLS))
     assert closed == DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN),),
-        focused=0,
-        layout=DeckLayout.SINGLE,
-        ratio=50,
+        grid=PaneGrid(panes=(1,), focused=1, recent=(1,)),
+        panels={1: DeckPanelState(DeckId.FILES)},
     )
 
 
@@ -256,7 +261,7 @@ def test_toggle_split_focus_new_false_keeps_focus_on_first_panel() -> None:
     new_panel = DeckPanelState(DeckId.FILES)
     updated = toggle_split(state, DeckLayout.TOP_BOTTOM, new_panel, focus_new=False)
     assert updated.layout is DeckLayout.TOP_BOTTOM
-    assert updated.panels == (DeckPanelState(DeckId.MAIN), new_panel)
+    assert updated.panels == {0: DeckPanelState(DeckId.MAIN), 1: new_panel}
     assert updated.focused == 0
     assert updated.ratio == 50
     # The default still moves focus into the new panel.
@@ -264,12 +269,7 @@ def test_toggle_split_focus_new_false_keeps_focus_on_first_panel() -> None:
 
 
 def test_toggle_split_focus_new_ignored_by_unsplit_and_rotate() -> None:
-    split = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=1,
-        layout=DeckLayout.TOP_BOTTOM,
-        ratio=30,
-    )
+    split = _split(DeckId.MAIN, DeckId.FILES, focused=1, ratio=30)
     other = DeckPanelState(DeckId.TOOLS)
     for flag in (True, False):
         rotated = toggle_split(split, DeckLayout.LEFT_RIGHT, other, focus_new=flag)
@@ -278,7 +278,21 @@ def test_toggle_split_focus_new_ignored_by_unsplit_and_rotate() -> None:
         assert rotated.ratio == 30
         unsplit = toggle_split(split, DeckLayout.TOP_BOTTOM, other, focus_new=flag)
         assert unsplit.layout is DeckLayout.SINGLE
-        assert unsplit.focused == 0
+        assert unsplit.focused == 1
+        assert unsplit.panels == {1: DeckPanelState(DeckId.FILES)}
+
+
+def test_split_key_while_zoomed_only_restores() -> None:
+    split = _split(DeckId.MAIN, DeckId.FILES, focused=1, layout=DeckLayout.LEFT_RIGHT)
+    zoomed = toggle_zoom(split)
+    assert zoomed.focused == 1
+    restored = toggle_split(zoomed, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS))
+    assert restored == split
+    # Same-key press restores too: no split opens and nothing is lost.
+    zoomed_single = toggle_zoom(_single(DeckId.MAIN))
+    assert toggle_split(
+        zoomed_single, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES)
+    ) == _single(DeckId.MAIN)
 
 
 def test_new_panel_for_deck_duplicate_main_takes_next_card_with_wrap() -> None:
@@ -305,23 +319,17 @@ def test_new_panel_for_deck_non_duplicate_has_no_preferred_card() -> None:
 
 
 def test_exit_zoom_keeping_panels_restores_layout_but_keeps_current_panels() -> None:
-    split = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
-        focused=1,
-        layout=DeckLayout.LEFT_RIGHT,
-        ratio=70,
-        nodes_collapsed=False,
+    import dataclasses
+
+    split = _split(
+        DeckId.MAIN, DeckId.FILES, focused=1, layout=DeckLayout.LEFT_RIGHT, ratio=70
     )
     zoomed = toggle_zoom(split)
     assert zoomed.nodes_collapsed is split.nodes_collapsed
     # A deck changed while zoomed (Ctrl+N) must survive ending the zoom.
-    zoomed = DeckAreaState(
-        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.TOOLS)),
-        focused=zoomed.focused,
-        layout=zoomed.layout,
-        ratio=zoomed.ratio,
-        nodes_collapsed=zoomed.nodes_collapsed,
-        zoom_snapshot=zoomed.zoom_snapshot,
+    zoomed = dataclasses.replace(
+        zoomed,
+        panels={0: DeckPanelState(DeckId.MAIN), 1: DeckPanelState(DeckId.TOOLS)},
     )
 
     restored = exit_zoom_keeping_panels(zoomed)
@@ -330,10 +338,10 @@ def test_exit_zoom_keeping_panels_restores_layout_but_keeps_current_panels() -> 
     assert restored.layout is DeckLayout.LEFT_RIGHT
     assert restored.ratio == 70
     assert restored.nodes_collapsed is False
-    assert restored.panels == (
-        DeckPanelState(DeckId.MAIN),
-        DeckPanelState(DeckId.TOOLS),
-    )
+    assert restored.panels == {
+        0: DeckPanelState(DeckId.MAIN),
+        1: DeckPanelState(DeckId.TOOLS),
+    }
     assert restored.focused == 1
 
 

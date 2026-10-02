@@ -402,9 +402,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-1eu(fits)' \
         --epic-symbol 'sase-1eu(geometry)' \
         --epic-symbol 'sase-1eu(main_pane)' \
-        --epic-symbol 'sase-1eu(other_target)' \
-        --epic-symbol 'sase-1eu(position_glyph)' \
-        --epic-symbol 'sase-1eu(position_name)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -6,6 +6,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.util.pane_grid import focus_pane, free_pane_id, other_target
+from sase.ace.tui.util.pane_grid import position_name as _position_name
+
 from .layout import is_zoomed
 from .model import DeckAreaState, DeckId, DeckLayout
 from .spec import active_deck_cycle
@@ -21,15 +24,13 @@ if TYPE_CHECKING:
     from .availability import DeckAvailability
 
 
-def panel_position_label(state: DeckAreaState, panel_index: int) -> str:
-    """Return the position label for ``panel_index``."""
+def panel_position_label(state: DeckAreaState, pane_id: int) -> str:
+    """Return the position label for ``pane_id``."""
     if is_zoomed(state):
         return "zoomed"
     if state.layout is DeckLayout.SINGLE:
         return "deck"
-    if state.layout is DeckLayout.TOP_BOTTOM:
-        return "top" if panel_index == 0 else "bottom"
-    return "left" if panel_index == 0 else "right"
+    return _position_name(state.grid, pane_id)
 
 
 @dataclass(frozen=True)
@@ -47,18 +48,25 @@ def other_panel_target(state: DeckAreaState, source_index: int) -> _OtherPanelTa
 
     A single (or zoomed-from-single) deck area opens a new bottom panel. Any
     split, including one hidden behind a zoom, keeps its layout and targets
-    the panel that is not ``source_index``.
+    the most recently focused other pane, falling back to the next pane in
+    reading order. An unknown source resolves from the focused pane.
     """
     base = state.zoom_snapshot if state.zoom_snapshot is not None else state
     ends_zoom = is_zoomed(state)
     if base.layout is DeckLayout.SINGLE:
+        new_id = free_pane_id(base.grid)
+        if new_id is None:
+            new_id = 1
         return _OtherPanelTarget(
-            panel_index=1, label="bottom", opens_split=True, ends_zoom=ends_zoom
+            panel_index=new_id, label="bottom", opens_split=True, ends_zoom=ends_zoom
         )
-    panel_index = 1 - min(max(source_index, 0), 1)
+    source = source_index if source_index in base.grid.panes else base.grid.focused
+    target = other_target(focus_pane(base.grid, source))
+    if target is None:
+        target = source
     return _OtherPanelTarget(
-        panel_index=panel_index,
-        label=panel_position_label(base, panel_index),
+        panel_index=target,
+        label=panel_position_label(base, target),
         opens_split=False,
         ends_zoom=ends_zoom,
     )

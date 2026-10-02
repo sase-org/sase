@@ -337,6 +337,10 @@ async def test_fixed_policy_survives_navigation() -> None:
         assert area.state.panels[0].views.main is DeckView.PAGE_CARDS
         assert area.panel(0).view_policy(DeckId.MAIN) is DeckView.PAGE_CARDS
         assert area.panel(1).view_policy(DeckId.MAIN) is DeckView.AUTO
+        # Same-key unsplit keeps the focused panel: focus panel 0 first so
+        # its policy is the one that survives the close.
+        detail.toggle_deck_focus()
+        await pilot.pause()
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
         assert area.state.panels[0].views.main is DeckView.PAGE_CARDS

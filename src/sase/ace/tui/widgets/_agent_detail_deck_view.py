@@ -16,7 +16,7 @@ class AgentDetailDeckViewMixin:
         try:
             panel = area.focused_panel()
         except Exception:
-            panel = area.panel(0)
+            panel = area.visible_panels()[0]
         try:
             index = int(panel.panel_index)
         except Exception:

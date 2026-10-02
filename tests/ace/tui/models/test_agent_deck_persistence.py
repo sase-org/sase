@@ -149,6 +149,8 @@ def test_oversized_file_fails_open(tmp_path: Path) -> None:
 
 
 def test_snapshot_from_area_state_unwraps_zoom() -> None:
+    from sase.ace.tui.widgets.decks.model import with_panel_deck
+
     split = toggle_split(
         DeckAreaState(), DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES)
     )
@@ -157,6 +159,13 @@ def test_snapshot_from_area_state_unwraps_zoom() -> None:
     assert snapshot.layout is DeckLayout.TOP_BOTTOM
     assert len(snapshot.panels) == 2
     assert snapshot.panels[1].deck is DeckId.FILES
+    # A deck changed while zoomed persists through the restored geometry.
+    edited = with_panel_deck(zoomed, zoomed.focused, DeckId.TOOLS)
+    kept = snapshot_from_area_state(edited)
+    assert kept.layout is DeckLayout.TOP_BOTTOM
+    assert kept.focused == 1
+    assert kept.panels[1].deck is DeckId.TOOLS
+    assert kept.panels[0].deck is DeckId.MAIN
 
 
 def test_area_state_round_trip_through_snapshot() -> None:

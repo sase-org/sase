@@ -47,7 +47,31 @@ async def test_backslash_opens_top_bottom_with_focus(tmp_path: Path) -> None:
         assert area.has_class("-ratio-50")
 
 
-async def test_pipe_opens_left_right_and_unsplit_keeps_first(tmp_path: Path) -> None:
+async def test_pipe_opens_left_right_and_unsplit_keeps_focused(tmp_path: Path) -> None:
+    app = _DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        assert detail.deck_area.state.layout is DeckLayout.LEFT_RIGHT
+        assert detail.deck_area.state.focused == 1
+        focused_widget = detail.deck_area.panel(1)
+        focused_deck = focused_widget.deck
+        # Same-key unsplit keeps the focused panel, not panel 0.
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        assert detail.deck_layout is DeckLayout.SINGLE
+        assert detail.deck_area.state.focused == 1
+        assert detail.deck_area.panel(1) is focused_widget
+        assert detail.deck_area.panel(1).deck is focused_deck
+
+
+async def test_unsplit_keeps_first_when_first_focused(tmp_path: Path) -> None:
     app = _DetailApp()
     pin_paged(app)
     async with app.run_test(size=(100, 30)) as pilot:
@@ -60,12 +84,62 @@ async def test_pipe_opens_left_right_and_unsplit_keeps_first(tmp_path: Path) -> 
         card_before = panel0.main_view.active_card_id
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
-        assert detail.deck_area.state.layout is DeckLayout.LEFT_RIGHT
-        assert detail.deck_area.state.focused == 1
+        detail.toggle_deck_focus()
+        await pilot.pause()
+        assert detail.deck_area.state.focused == 0
         detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
         assert detail.deck_layout is DeckLayout.SINGLE
+        assert detail.deck_area.panel(0) is panel0
         assert detail.deck_area.panel(0).main_view.active_card_id == card_before
+
+
+async def test_structural_keys_never_remount_survivors(tmp_path: Path) -> None:
+    """Split, unsplit, rotate, focus, resize and zoom keep widget identity."""
+    app = _DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        area = detail.deck_area
+        widget0 = area.panel(0)
+        widget1 = area.panel(1)
+        scroll0 = widget0.main_view
+        detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+        await pilot.pause()
+        assert area.panel(0) is widget0
+        assert area.panel(1) is widget1
+        assert area.panel(0).main_view is scroll0
+        card_before = widget0.main_view.active_card_id
+        detail.toggle_deck_focus()
+        await pilot.pause()
+        assert area.panel(0) is widget0
+        assert area.panel(1) is widget1
+        detail.step_deck_ratio(True)
+        await pilot.pause()
+        assert area.panel(0) is widget0
+        assert area.panel(1) is widget1
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        assert area.panel(0) is widget0
+        assert area.panel(1) is widget1
+        detail.toggle_deck_zoom()
+        await pilot.pause()
+        assert area.focused_panel() is widget0
+        detail.toggle_deck_zoom()
+        await pilot.pause()
+        assert area.panel(0) is widget0
+        assert area.panel(1) is widget1
+        assert area.panel(0).main_view is scroll0
+        assert area.panel(0).main_view.active_card_id == card_before
+        # Same-key unsplit keeps the focused panel's widget and scroll.
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        assert detail.deck_layout is DeckLayout.SINGLE
+        assert area.focused_panel() is widget0
 
 
 async def test_rotate_keeps_widget_identities(tmp_path: Path) -> None:
