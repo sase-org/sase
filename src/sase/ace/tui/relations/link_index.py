@@ -10,6 +10,7 @@ selected entity's ref might arrive in, so the render path is one
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from threading import RLock
@@ -72,31 +73,63 @@ class LinkIndex:
 
 
 _INDEX_CACHE_LOCK = RLock()
-_INDEX_CACHE: dict[tuple[object, ...], LinkIndex] = {}
-# Keyed by the same aggregate signature as artifact_links._CACHE, so it grows
-# in lockstep and needs the same cap (sase-zn.9.3 heap attribution).
-_INDEX_CACHE_MAX = 64
+# Keyed by project scope derived from the snapshot's source_key; the value
+# carries the full source_key the index was built from. A different
+# source_key for the same scope replaces the old index instead of pinning
+# one permanent entry per superseded signature. Bounds scopes, LRU.
+_INDEX_CACHE: OrderedDict[tuple[object, ...], tuple[tuple[object, ...], LinkIndex]] = (
+    OrderedDict()
+)
+_INDEX_CACHE_MAX = 8
+
+
+def _scope_for_source_key(source_key: tuple[object, ...]) -> tuple[object, ...]:
+    """Derive the cache scope from a snapshot's ``source_key``.
+
+    Artifact-link snapshots carry ``((project_key, mtime_ns, size), ...)``;
+    the scope is the project-key tuple. The empty snapshot's ``()`` key maps
+    to the ``()`` scope. An unexpected shape falls back to the full key so a
+    mismatched entry can never be served.
+    """
+
+    if not source_key:
+        return ()
+    scope: list[object] = []
+    for entry in source_key:
+        if (
+            isinstance(entry, (tuple, list))
+            and len(entry) >= 1
+            and isinstance(entry[0], str)
+        ):
+            scope.append(entry[0])
+        else:
+            return source_key
+    return tuple(scope)
 
 
 def link_index_for_snapshot(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
     """Return the cached :class:`LinkIndex` for *snapshot*, building it once.
 
-    Gated by the snapshot's own ``source_key`` -- the same mtime+size
-    aggregate signature :func:`.artifact_links.load_artifact_links_snapshot`
-    already uses -- so a caller on the render path pays the build cost at
-    most once per aggregate change.
+    Gated by the snapshot's own ``source_key`` within its project scope --
+    the same mtime+size aggregate signature
+    :func:`.artifact_links.load_artifact_links_snapshot` already uses -- so a
+    caller on the render path pays the build cost at most once per aggregate
+    change, and a superseded signature replaces its scope's entry.
     """
 
     key = snapshot.source_key
+    scope = _scope_for_source_key(key)
     with _INDEX_CACHE_LOCK:
-        cached = _INDEX_CACHE.get(key)
-        if cached is not None:
-            return cached
+        cached = _INDEX_CACHE.get(scope)
+        if cached is not None and cached[0] == key:
+            _INDEX_CACHE.move_to_end(scope)
+            return cached[1]
     index = _build_link_index(snapshot)
     with _INDEX_CACHE_LOCK:
-        _INDEX_CACHE[key] = index
+        _INDEX_CACHE[scope] = (key, index)
+        _INDEX_CACHE.move_to_end(scope)
         while len(_INDEX_CACHE) > _INDEX_CACHE_MAX:
-            _INDEX_CACHE.pop(next(iter(_INDEX_CACHE)))
+            _INDEX_CACHE.popitem(last=False)
     return index
 
 

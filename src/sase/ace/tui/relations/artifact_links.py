@@ -7,6 +7,7 @@ off the event loop.
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
@@ -78,12 +79,15 @@ class _KnownTargetIndex:
 
 
 _CACHE_LOCK = RLock()
-_CACHE: dict[tuple[tuple[str, object, object], ...], ArtifactLinksSnapshot] = {}
-# A project's aggregate mtime/size signature changes every time a link is
-# created, so a superseded signature is never looked up again; without a cap
-# this grows by one permanent entry per aggregate change for the life of the
-# process (sase-zn.9.3 heap attribution). Evict the oldest first.
-_CACHE_MAX = 64
+# Keyed by project scope; the value carries the aggregate signature the
+# snapshot was built from. A signature mismatch reloads and replaces that
+# scope's entry, so one live version per scope is pinned instead of one
+# permanent entry per superseded signature. Bounds scopes, LRU.
+_CACHE: OrderedDict[
+    tuple[str, ...],
+    tuple[tuple[tuple[str, object, object], ...], ArtifactLinksSnapshot],
+] = OrderedDict()
+_CACHE_MAX = 8
 
 
 def empty_artifact_links_snapshot() -> ArtifactLinksSnapshot:
@@ -103,10 +107,12 @@ def load_artifact_links_snapshot(project: str | None) -> ArtifactLinksSnapshot:
     if not projects:
         return ArtifactLinksSnapshot()
     signature = tuple(_aggregate_signature(project_key) for project_key in projects)
+    scope = tuple(projects)
     with _CACHE_LOCK:
-        cached = _CACHE.get(signature)
-        if cached is not None:
-            return cached
+        cached = _CACHE.get(scope)
+        if cached is not None and cached[0] == signature:
+            _CACHE.move_to_end(scope)
+            return cached[1]
     rows: list[Mapping[str, Any]] = []
     errors: list[str] = []
     for project_key in projects:
@@ -134,9 +140,10 @@ def load_artifact_links_snapshot(project: str | None) -> ArtifactLinksSnapshot:
         errors=tuple(errors),
     )
     with _CACHE_LOCK:
-        _CACHE[signature] = snapshot
+        _CACHE[scope] = (signature, snapshot)
+        _CACHE.move_to_end(scope)
         while len(_CACHE) > _CACHE_MAX:
-            _CACHE.pop(next(iter(_CACHE)))
+            _CACHE.popitem(last=False)
     return snapshot
 
 

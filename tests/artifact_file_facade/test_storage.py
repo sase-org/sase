@@ -183,6 +183,53 @@ def test_read_artifact_file_index_reuses_parse_until_stat_changes(
     assert parse_count == 2
 
 
+def test_artifact_file_index_cache_holds_one_entry_per_path_across_rewrites(
+    tmp_path: Path,
+) -> None:
+    """N external rewrites leave one cache entry per resolved path (sase-1ez.3)."""
+
+    artifacts_dir = agent_dir(tmp_path)
+    root = tmp_path / ".sase" / "artifacts"
+    index_path = root / "index.jsonl"
+    source = tmp_path / "report.md"
+    source.write_text("# Report\n", encoding="utf-8")
+    stored = store_explicit_artifact_file(
+        source,
+        artifacts_dir,
+        label="Report",
+        artifact_files_root=root,
+    )
+    explicit_module._artifact_file_index_cache.clear()
+    assert read_artifact_file_index(index_path) == [stored]
+
+    rewrites = 32
+    for i in range(rewrites):
+        base = index_path.read_text(encoding="utf-8")
+        # External rewrite without same-process invalidation; the pad line
+        # changes size so the stat signature changes every iteration.
+        index_path.write_text(
+            base + json.dumps({"schema_version": 999, "pad": "x" * i}) + "\n",
+            encoding="utf-8",
+        )
+        assert read_artifact_file_index(index_path) == [stored]
+
+    resolved = index_path.expanduser().resolve(strict=False)
+    assert list(explicit_module._artifact_file_index_cache) == [resolved]
+
+    other_root = tmp_path / ".sase" / "other-artifacts"
+    other_index = other_root / "index.jsonl"
+    other_source = tmp_path / "other.md"
+    other_source.write_text("# Other\n", encoding="utf-8")
+    other_stored = store_explicit_artifact_file(
+        other_source,
+        artifacts_dir,
+        label="Other",
+        artifact_files_root=other_root,
+    )
+    assert read_artifact_file_index(other_index) == [other_stored]
+    assert len(explicit_module._artifact_file_index_cache) == 2
+
+
 def test_read_artifact_file_index_returns_defensive_list(tmp_path: Path) -> None:
     artifacts_dir = agent_dir(tmp_path)
     root = tmp_path / ".sase" / "artifacts"

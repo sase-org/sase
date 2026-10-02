@@ -43,11 +43,13 @@ from sase.core.artifact_file_types import (
 
 _INDEX_CACHE_MAX_PATHS = 32
 _IndexStat = tuple[int, int]
-_IndexCacheKey = tuple[Path, _IndexStat]
 _artifact_file_index_cache_lock = threading.RLock()
-_artifact_file_index_cache: OrderedDict[_IndexCacheKey, tuple[ArtifactFile, ...]] = (
-    OrderedDict()
-)
+# Keyed by resolved index path; the value carries the stat the rows were
+# parsed at. A stat mismatch replaces the entry instead of piling up one
+# permanent entry per (mtime_ns, size) version.
+_artifact_file_index_cache: OrderedDict[
+    Path, tuple[_IndexStat, tuple[ArtifactFile, ...]]
+] = OrderedDict()
 
 
 def store_explicit_artifact_file(
@@ -207,10 +209,11 @@ def read_artifact_file_index(
 ) -> list[ArtifactFile]:
     """Read all artifact-file rows from the persistent index.
 
-    The parsed rows are cached process-wide by resolved path, mtime, and size so
-    repeated readers share one parse until the file changes. Same-process
-    writers also invalidate explicitly, which keeps write-then-read correct on
-    filesystems whose timestamp granularity does not distinguish the writes.
+    The parsed rows are cached process-wide by resolved path; a stat mismatch
+    replaces the entry so repeated readers share one parse until the file
+    changes. Same-process writers also invalidate explicitly, which keeps
+    write-then-read correct on filesystems whose timestamp granularity does
+    not distinguish the writes.
     """
 
     idx = _normalize_index_path(index_path)
@@ -423,12 +426,14 @@ def _get_cached_artifact_file_index(
     index_path: Path,
     stat: _IndexStat,
 ) -> list[ArtifactFile] | None:
-    key = (index_path, stat)
     with _artifact_file_index_cache_lock:
-        rows = _artifact_file_index_cache.get(key)
-        if rows is None:
+        cached = _artifact_file_index_cache.get(index_path)
+        if cached is None:
             return None
-        _artifact_file_index_cache.move_to_end(key)
+        cached_stat, rows = cached
+        if cached_stat != stat:
+            return None
+        _artifact_file_index_cache.move_to_end(index_path)
         return list(rows)
 
 
@@ -437,10 +442,9 @@ def _cache_artifact_file_index(
     stat: _IndexStat,
     rows: list[ArtifactFile],
 ) -> None:
-    key = (index_path, stat)
     with _artifact_file_index_cache_lock:
-        _artifact_file_index_cache[key] = tuple(rows)
-        _artifact_file_index_cache.move_to_end(key)
+        _artifact_file_index_cache[index_path] = (stat, tuple(rows))
+        _artifact_file_index_cache.move_to_end(index_path)
         while len(_artifact_file_index_cache) > _INDEX_CACHE_MAX_PATHS:
             _artifact_file_index_cache.popitem(last=False)
 
@@ -448,9 +452,7 @@ def _cache_artifact_file_index(
 def _invalidate_artifact_file_index_cache(index_path: Path) -> None:
     resolved = index_path.expanduser().resolve(strict=False)
     with _artifact_file_index_cache_lock:
-        for key in tuple(_artifact_file_index_cache):
-            if key[0] == resolved:
-                del _artifact_file_index_cache[key]
+        _artifact_file_index_cache.pop(resolved, None)
 
 
 @contextmanager
