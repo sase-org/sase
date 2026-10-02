@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from .notification_modal_action_types import NotificationMutationResult
@@ -60,7 +61,8 @@ class NotificationUndismissActionsMixin:
             )
             if callable(reader):
                 page = reader(include_dismissed=include_dismissed)
-                self._notifications = list(page.notifications)
+                # Own the rows: page rows may be shared with the facade cache.
+                self._notifications = [replace(row) for row in page.notifications]
                 return
         except Exception:
             pass

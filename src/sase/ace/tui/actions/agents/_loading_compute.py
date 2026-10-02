@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Sequence, Set as AbstractSet
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -381,7 +381,8 @@ def compute_apply_loaded_agents(
     dismissed_snapshot: set[tuple[AgentType, str, str | None]],
     hide_non_run_agents: bool,
     *,
-    dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
+    dismissed_bundle_snapshot: AbstractSet[tuple[AgentType, str, str | None]]
+    | None = None,
     explicit_removals: Any | None = None,
 ) -> PreparedApplyData:
     """Pure-data filter pipeline for ``_apply_loaded_agents``.
@@ -527,7 +528,8 @@ def _prepare_loaded_agents_worker_prep(
     hide_non_run_agents: bool,
     snapshot: PreparedApplySnapshot,
     *,
-    dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
+    dismissed_bundle_snapshot: AbstractSet[tuple[AgentType, str, str | None]]
+    | None = None,
     graphs_owned: bool = False,
 ) -> PreparedApplyData:
     """Prepare async-loaded agents, including post-history Tier 1 patch merge."""
@@ -570,7 +572,8 @@ def prepare_loaded_agents_worker_boundary(
     hide_non_run_agents: bool,
     snapshot: PreparedApplySnapshot,
     *,
-    dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
+    dismissed_bundle_snapshot: AbstractSet[tuple[AgentType, str, str | None]]
+    | None = None,
 ) -> PreparedApplyBoundary:
     """Prepare async-loaded agents through the fold-filter boundary.
 

@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Set as AbstractSet
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
@@ -483,7 +483,8 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         effective_runner_limit: int | None = None,
-        dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
+        dismissed_bundle_snapshot: AbstractSet[tuple[AgentType, str, str | None]]
+        | None = None,
     ) -> None:
         """Apply loaded agent data to app state (main thread only).
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Set as AbstractSet
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -302,7 +302,8 @@ class AgentLoadingStateMixin:
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         effective_runner_limit: int | None = None,
-        dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
+        dismissed_bundle_snapshot: AbstractSet[tuple[AgentType, str, str | None]]
+        | None = None,
     ) -> None:
         raise NotImplementedError
 

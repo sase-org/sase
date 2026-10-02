@@ -200,7 +200,7 @@ def test_artifact_file_index_cache_holds_one_entry_per_path_across_rewrites(
         artifact_files_root=root,
     )
     explicit_module._artifact_file_index_cache.clear()
-    assert read_artifact_file_index(index_path) == [stored]
+    assert read_artifact_file_index(index_path) == (stored,)
 
     rewrites = 32
     for i in range(rewrites):
@@ -211,7 +211,7 @@ def test_artifact_file_index_cache_holds_one_entry_per_path_across_rewrites(
             base + json.dumps({"schema_version": 999, "pad": "x" * i}) + "\n",
             encoding="utf-8",
         )
-        assert read_artifact_file_index(index_path) == [stored]
+        assert read_artifact_file_index(index_path) == (stored,)
 
     resolved = index_path.expanduser().resolve(strict=False)
     assert list(explicit_module._artifact_file_index_cache) == [resolved]
@@ -226,11 +226,13 @@ def test_artifact_file_index_cache_holds_one_entry_per_path_across_rewrites(
         label="Other",
         artifact_files_root=other_root,
     )
-    assert read_artifact_file_index(other_index) == [other_stored]
+    assert read_artifact_file_index(other_index) == (other_stored,)
     assert len(explicit_module._artifact_file_index_cache) == 2
 
 
-def test_read_artifact_file_index_returns_defensive_list(tmp_path: Path) -> None:
+def test_read_artifact_file_index_returns_shared_immutable_snapshot(
+    tmp_path: Path,
+) -> None:
     artifacts_dir = agent_dir(tmp_path)
     root = tmp_path / ".sase" / "artifacts"
     index_path = root / "index.jsonl"
@@ -245,9 +247,18 @@ def test_read_artifact_file_index_returns_defensive_list(tmp_path: Path) -> None
     explicit_module._artifact_file_index_cache.clear()
 
     first = read_artifact_file_index(index_path)
-    first.clear()
+    second = read_artifact_file_index(index_path)
 
-    assert read_artifact_file_index(index_path) == [stored]
+    assert isinstance(first, tuple)
+    assert first == (stored,)
+    # Repeated hits share the cached snapshot instead of fresh copies.
+    assert second is first
+    assert second[0] is first[0]
+    # Caller mutation fails loudly instead of corrupting the cache.
+    with pytest.raises(AttributeError):
+        first.append(stored)  # type: ignore[attr-defined]
+    assert read_artifact_file_index(index_path) == (stored,)
+    assert read_artifact_file_index(index_path) is first
 
 
 def test_artifact_file_index_write_invalidates_cache_when_stat_is_unchanged(
@@ -265,7 +276,7 @@ def test_artifact_file_index_write_invalidates_cache_when_stat_is_unchanged(
         artifact_files_root=root,
     )
     explicit_module._artifact_file_index_cache.clear()
-    assert read_artifact_file_index(index_path) == [stored]
+    assert read_artifact_file_index(index_path) == (stored,)
 
     cached_stat = index_path.stat()
     replacement = replace(stored, label="Bravo")
@@ -278,7 +289,7 @@ def test_artifact_file_index_write_invalidates_cache_when_stat_is_unchanged(
         ns=(cached_stat.st_atime_ns, cached_stat.st_mtime_ns),
     )
 
-    assert read_artifact_file_index(index_path) == [replacement]
+    assert read_artifact_file_index(index_path) == (replacement,)
 
 
 def test_store_explicit_artifact_file_preserves_jsonl_wire_format(
@@ -382,7 +393,7 @@ def test_store_default_artifact_file_writes_index_row_with_source_path(
     assert Path(stored.path).is_relative_to(tmp_path / ".sase" / "artifacts")
 
     indexed = read_artifact_file_index(tmp_path / ".sase" / "artifacts" / "index.jsonl")
-    assert indexed == [stored]
+    assert indexed == (stored,)
 
 
 def test_store_default_artifact_file_returns_none_for_missing_source(
@@ -396,4 +407,4 @@ def test_store_default_artifact_file_returns_none_for_missing_source(
     )
     assert result is None
     indexed = read_artifact_file_index(tmp_path / ".sase" / "artifacts" / "index.jsonl")
-    assert indexed == []
+    assert indexed == ()

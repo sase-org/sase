@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.dismissed_agents import (
     dismissed_bundle_identities_snapshot,
     ensure_dismissed_archive_ready,
@@ -419,9 +421,14 @@ def test_dismissed_bundle_identities_snapshot_reuses_unchanged_signature() -> No
         ),
     ):
         first = dismissed_bundle_identities_snapshot()
-        first.clear()
         second = dismissed_bundle_identities_snapshot()
 
+    assert isinstance(first, frozenset)
+    # Repeated hits share the cached frozenset instead of fresh copies.
+    assert second is first
+    # Caller mutation fails loudly instead of corrupting the cache.
+    with pytest.raises(AttributeError):
+        first.add((AgentType.RUNNING, "indexed_cl", "20250615110000"))  # type: ignore[attr-defined]
     assert second == {
         (AgentType.RUNNING, "indexed_cl", "20250615110000"),
     }

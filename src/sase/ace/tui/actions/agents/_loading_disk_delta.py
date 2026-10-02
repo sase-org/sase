@@ -62,8 +62,8 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
             update_index=not getattr(self, "_artifact_index_schema_bypass", False),
             deleted_artifact_dirs=deleted_artifact_dirs or (),
         )
-        dismissed_bundle_snapshot = set(
-            getattr(load_result, "dismissed_bundle_identities", set())
+        dismissed_bundle_snapshot = getattr(
+            load_result, "dismissed_bundle_identities", None
         )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader

@@ -95,8 +95,8 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
         self._agents_viewport_last_requested_limit = (
             load_result.load_state.requested_limit or 0
         )
-        dismissed_bundle_snapshot = set(
-            getattr(load_result, "dismissed_bundle_identities", set())
+        dismissed_bundle_snapshot = getattr(
+            load_result, "dismissed_bundle_identities", None
         )
         data_cost = classify_agents_data_cost(
             full_history=full_history,
@@ -232,8 +232,8 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
         self._agents_viewport_last_requested_limit = (
             load_result.load_state.requested_limit or 0
         )
-        dismissed_bundle_snapshot = set(
-            getattr(load_result, "dismissed_bundle_identities", set())
+        dismissed_bundle_snapshot = getattr(
+            load_result, "dismissed_bundle_identities", None
         )
         all_agents = load_result.all_agents
         dismissed_from_loader = load_result.dismissed_from_loader

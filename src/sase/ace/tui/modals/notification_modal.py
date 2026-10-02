@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -130,7 +131,9 @@ class NotificationModal(
             initial_index: Index of the notification to highlight initially.
         """
         super().__init__()
-        self._notifications = list(notifications)
+        # Own the rows: snapshot rows may be shared with the facade cache,
+        # and the modal's optimistic updates mutate rows in place.
+        self._notifications = [replace(notification) for notification in notifications]
         self._initial_index = initial_index
         self._section_modes = section_modes or NotificationSectionModes()
         self._current_file_index: int = 0

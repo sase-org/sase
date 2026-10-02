@@ -60,6 +60,7 @@ def test_toggle_mute_sets_muted_and_rebuilds() -> None:
     """m should toggle mute state, persist via mark_muted, and rebuild."""
     notification = _make_notification("n1", action="JumpToAgent")
     modal = NotificationModal([notification])
+    (notification,) = modal._notifications  # owned copies; see intake guard
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
     modal.notify = MagicMock()  # type: ignore[method-assign]
@@ -79,6 +80,7 @@ def test_toggle_mute_unmutes_when_already_muted() -> None:
     notification = _make_notification("n1", action="JumpToAgent")
     notification.muted = True
     modal = NotificationModal([notification])
+    (notification,) = modal._notifications  # owned copies; see intake guard
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
     modal.notify = MagicMock()  # type: ignore[method-assign]
@@ -97,6 +99,7 @@ def test_toggle_mute_moves_row_to_muted_tab_and_highlights_replacement() -> None
     selected = _make_notification("n1", action="JumpToAgent")
     replacement = _make_notification("n2", action="JumpToAgent")
     modal = NotificationModal([selected, replacement])
+    selected, replacement = modal._notifications  # owned copies; see intake guard
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._pending_confirm_notification_id = "n2"
     modal._pending_confirm_notification_ids = ["n2"]
@@ -120,6 +123,7 @@ def test_toggle_mute_with_marks_bulk_mutes_marked_rows_once() -> None:
     n2 = _make_notification("n2", action="JumpToAgent")
     n3 = _make_notification("n3", action="JumpToAgent")
     modal = NotificationModal([n1, n2, n3])
+    n1, n2, n3 = modal._notifications  # owned copies; see intake guard
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._marked_notification_ids = {"n1", "n2", "newer-mark"}
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
@@ -152,6 +156,7 @@ def test_toggle_mute_with_marks_unmutes_and_cancels_snoozes() -> None:
         n.muted = True
         n.snooze_until = "2026-04-22T09:00:00-04:00"
     modal = NotificationModal([n1, n2])
+    n1, n2 = modal._notifications  # owned copies; see intake guard
     modal._active_notification_tag = MUTED_TAB_KEY
     modal._marked_notification_ids = {"n1", "n2"}
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
@@ -182,6 +187,7 @@ def test_toggle_mute_with_mixed_marks_converges_to_muted() -> None:
     n2 = _make_notification("n2", action="JumpToAgent")
     n2.muted = True
     modal = NotificationModal([n1, n2])
+    n1, n2 = modal._notifications  # owned copies; see intake guard
     modal._marked_notification_ids = {"n1", "n2"}
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
@@ -228,6 +234,7 @@ def test_unmute_from_muted_tab_highlights_remaining_muted_row() -> None:
     replacement = _make_notification("n2", action="JumpToAgent")
     replacement.muted = True
     modal = NotificationModal([selected, replacement])
+    selected, replacement = modal._notifications  # owned copies; see intake guard
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
     modal.notify = MagicMock()  # type: ignore[method-assign]
@@ -308,6 +315,7 @@ def test_snooze_callback_with_timedelta_calls_mark_snoozed() -> None:
     """A timedelta from the picker is converted into a durable snooze request."""
     notification = _make_notification("n1", action="JumpToAgent")
     modal = NotificationModal([notification])
+    (notification,) = modal._notifications  # owned copies; see intake guard
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
     modal.notify = MagicMock()  # type: ignore[method-assign]
@@ -343,6 +351,7 @@ def test_snooze_callback_with_datetime_uses_until_label() -> None:
     """A datetime result (e.g. tomorrow morning) preserves the absolute time."""
     notification = _make_notification("n1", action="JumpToAgent")
     modal = NotificationModal([notification])
+    (notification,) = modal._notifications  # owned copies; see intake guard
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
     modal.notify = MagicMock()  # type: ignore[method-assign]
@@ -474,6 +483,7 @@ def test_snooze_with_marks_uses_one_picker_and_bulk_call() -> None:
     n2 = _make_notification("n2", action="JumpToAgent")
     n3 = _make_notification("n3", action="JumpToAgent")
     modal = NotificationModal([n1, n2, n3])
+    n1, n2, n3 = modal._notifications  # owned copies; see intake guard
     modal._marked_notification_ids = {"n1", "n2"}
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
@@ -612,6 +622,7 @@ def test_unmute_on_snoozed_clears_snooze_and_toasts() -> None:
     notification.muted = True
     notification.snooze_until = "2026-04-22T09:00:00-04:00"
     modal = NotificationModal([notification])
+    (notification,) = modal._notifications  # owned copies; see intake guard
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
     modal.notify = MagicMock()  # type: ignore[method-assign]
@@ -641,3 +652,12 @@ def test_styled_label_includes_snooze_badge_when_snoozed() -> None:
     modal = NotificationModal([notification])
     label = modal._create_styled_label(notification)
     assert "⏰" in label.plain
+
+
+def test_modal_intake_copies_shared_snapshot_rows() -> None:
+    """The modal owns its rows: in-place optimistic updates can't reach shared snapshots."""
+    source = _make_notification("n1", action="JumpToAgent")
+    modal = NotificationModal([source])
+    assert modal._notifications[0] is not source
+    modal._notifications[0].muted = True
+    assert source.muted is False

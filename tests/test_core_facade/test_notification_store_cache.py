@@ -76,9 +76,15 @@ def test_unchanged_current_snapshot_does_not_reparse(
     assert calls == [(str(path), False, True)]
     assert [row.id for row in first.notifications] == ["n1"]
     assert [row.id for row in second.notifications] == ["n1"]
-    first.notifications[0].notes.append("mutated")
+    # Repeated hits share the cached row objects instead of deep-cloning them.
+    assert second.notifications[0] is first.notifications[0]
+    # Mutating a returned outer list cannot corrupt the cache.
+    first.notifications.append(first.notifications[0])
+    first.expired_ids.append("bogus")
     third = facade.read_current_notifications_snapshot(path)
-    assert third.notifications[0].notes == ["hello"]
+    assert [row.id for row in third.notifications] == ["n1"]
+    assert third.expired_ids == []
+    assert third.notifications[0] is first.notifications[0]
 
 
 def test_changed_store_reparses_current_snapshot(

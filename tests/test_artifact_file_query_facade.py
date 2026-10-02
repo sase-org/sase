@@ -169,7 +169,7 @@ def test_real_rust_query_matches_python_reader_for_v1_v2_fixture(
     rust_rows = query_artifact_files(index)
     python_rows = read_artifact_file_index(index)
 
-    assert rust_rows == python_rows
+    assert rust_rows == list(python_rows)
 
 
 def test_query_accepts_complete_vcs_row_without_stored_path(

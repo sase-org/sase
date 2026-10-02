@@ -277,6 +277,7 @@ def test_complete_read_tab_success_drops_acted_rows_and_refreshes() -> None:
     n1 = _make_notification("n1", tags=["alpha"])
     n2 = _make_notification("n2", tags=["alpha"])
     modal = NotificationModal([n1, n2])
+    n1, n2 = modal._notifications  # owned copies; see intake guard
     modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
     modal.notify = MagicMock()  # type: ignore[method-assign]
 
@@ -302,6 +303,7 @@ def test_complete_read_tab_after_tab_switch_keeps_new_tab_and_leaves_it_unread()
     a1 = _make_notification("a1", tags=["alpha"])
     b1 = _make_notification("b1", tags=["beta"])
     modal = NotificationModal([a1, b1])
+    a1, b1 = modal._notifications  # owned copies; see intake guard
     captured_ids = ("a1",)
     # Simulate the user navigating to another tab while persistence is in flight.
     modal._active_notification_tag = "beta"

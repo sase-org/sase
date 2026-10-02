@@ -163,8 +163,15 @@ _dismissed_bundle_identities_snapshot_cache: frozenset[
 ] = frozenset()
 
 
-def dismissed_bundle_identities_snapshot() -> set[tuple[AgentType, str, str | None]]:
-    """Return bundle-index identities, re-querying only when its signature changes."""
+def dismissed_bundle_identities_snapshot() -> frozenset[
+    tuple[AgentType, str, str | None]
+]:
+    """Return bundle-index identities, re-querying only when its signature changes.
+
+    Cache hits return the cached ``frozenset`` itself instead of a fresh copy.
+    Callers must treat the result as read-only and copy explicitly before any
+    mutation.
+    """
     global _dismissed_bundle_identities_snapshot_cache
     global _dismissed_bundle_identities_snapshot_initialized
     global _dismissed_bundle_identities_snapshot_signature
@@ -177,7 +184,7 @@ def dismissed_bundle_identities_snapshot() -> set[tuple[AgentType, str, str | No
             _dismissed_bundle_identities_snapshot_initialized
             and signature == _dismissed_bundle_identities_snapshot_signature
         ):
-            return set(_dismissed_bundle_identities_snapshot_cache)
+            return _dismissed_bundle_identities_snapshot_cache
 
         queried = query_summary_identities(dismissed_bundles_dir())
         if queried is None:
@@ -192,7 +199,7 @@ def dismissed_bundle_identities_snapshot() -> set[tuple[AgentType, str, str | No
         _dismissed_bundle_identities_snapshot_cache = frozenset(identities)
         _dismissed_bundle_identities_snapshot_signature = signature
         _dismissed_bundle_identities_snapshot_initialized = True
-        return set(_dismissed_bundle_identities_snapshot_cache)
+        return _dismissed_bundle_identities_snapshot_cache
 
 
 def save_dismissed_bundle(agent: Agent) -> bool:

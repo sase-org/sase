@@ -92,7 +92,7 @@ def test_batch_trash_uses_one_lock_and_preserves_unparsed_lines(
     assert result.bytes_reclaimed == 11
     assert not first_path.exists()
     assert not second_path.exists()
-    assert read_artifact_file_index(index) == []
+    assert read_artifact_file_index(index) == ()
     assert index.read_text(encoding="utf-8") == "not-json\n"
 
 
@@ -117,14 +117,14 @@ def test_byte_free_row_round_trips_with_identical_fields_and_id(
     assert entry == trashed.entries[0]
     assert entry.stored_path is None
     assert entry.stored_filename is None
-    assert read_artifact_file_index(index) == []
+    assert read_artifact_file_index(index) == ()
 
     restored = restore_trashed_artifact_file(entry.entry_id)
 
     assert restored.artifact_id == row.id
     assert restored.restored_path is None
     assert restored.record == row
-    assert read_artifact_file_index(index) == [row]
+    assert read_artifact_file_index(index) == (row,)
     assert list_trashed_artifact_files().entries == ()
 
 
@@ -217,7 +217,7 @@ def test_core_failure_leaves_prior_rows_trashed_and_remaining_rows_live(
             now="2026-07-30T00:00:00Z",
         )
 
-    assert read_artifact_file_index(index) == [second]
+    assert read_artifact_file_index(index) == (second,)
     assert not first_path.exists()
     assert second_path.exists()
     raw_listing = actual_list(str(root / "trash"))

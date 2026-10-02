@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Sequence, Set as AbstractSet
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -77,8 +77,8 @@ class _AgentDiskLoadResult:
     all_agents: list[Agent]
     dismissed_from_loader: list[Agent]
     load_state: AgentLoadState
-    dismissed_bundle_identities: set[tuple[AgentType, str, str | None]] = field(
-        default_factory=set
+    dismissed_bundle_identities: AbstractSet[tuple[AgentType, str, str | None]] = field(
+        default_factory=frozenset
     )
     provider_snapshot: AgentsProviderSnapshot | None = None
 
@@ -384,7 +384,7 @@ def hydrate_agent_attempt_history(agent: Agent) -> bool:
 def _apply_loaded_agent_disk_projections(
     all_agents: list[Agent],
     dismissed_agents: set[tuple[AgentType, str, str | None]],
-    dismissed_bundle_identities: set[tuple[AgentType, str, str | None]],
+    dismissed_bundle_identities: AbstractSet[tuple[AgentType, str, str | None]],
     load_state: AgentLoadState,
 ) -> _AgentDiskLoadResult:
     # Populate retry fields from retry_state.json for running agents. Runtime
@@ -454,7 +454,7 @@ def _apply_loaded_agent_disk_projections(
 
 def _load_agent_artifact_delta_from_disk_impl(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
-    dismissed_bundle_identities: set[tuple[AgentType, str, str | None]],
+    dismissed_bundle_identities: AbstractSet[tuple[AgentType, str, str | None]],
     artifact_dirs: Sequence[Path | str],
     *,
     patch_snapshot: list[Patch] | None = None,

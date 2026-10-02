@@ -206,7 +206,7 @@ def store_default_artifact_file(
 
 def read_artifact_file_index(
     index_path: Path | str | None = None,
-) -> list[ArtifactFile]:
+) -> tuple[ArtifactFile, ...]:
     """Read all artifact-file rows from the persistent index.
 
     The parsed rows are cached process-wide by resolved path; a stat mismatch
@@ -214,11 +214,16 @@ def read_artifact_file_index(
     changes. Same-process writers also invalidate explicitly, which keeps
     write-then-read correct on filesystems whose timestamp granularity does
     not distinguish the writes.
+
+    Cache hits return the cached immutable tuple itself instead of a fresh
+    copy. ``ArtifactFile`` rows are frozen, so sharing is safe; callers that
+    need a mutable sequence (to sort or append in place) must copy explicitly
+    with ``list(rows)``.
     """
 
     idx = _normalize_index_path(index_path)
     if not idx.exists():
-        return []
+        return ()
     stat = _artifact_file_index_stat(idx)
     cached = _get_cached_artifact_file_index(idx, stat)
     if cached is not None:
@@ -231,9 +236,10 @@ def read_artifact_file_index(
             return cached
         rows = _read_index_unlocked(idx)
         _cache_artifact_file_index(idx, stat, rows)
-        # ArtifactFile rows are frozen and treated as immutable; return a new
-        # list so callers cannot corrupt the shared snapshot.
-        return list(rows)
+        cached = _get_cached_artifact_file_index(idx, stat)
+        if cached is not None:
+            return cached
+        return tuple(rows)
 
 
 def list_indexed_artifact_files(
@@ -425,7 +431,7 @@ def _artifact_file_index_stat(index_path: Path) -> _IndexStat:
 def _get_cached_artifact_file_index(
     index_path: Path,
     stat: _IndexStat,
-) -> list[ArtifactFile] | None:
+) -> tuple[ArtifactFile, ...] | None:
     with _artifact_file_index_cache_lock:
         cached = _artifact_file_index_cache.get(index_path)
         if cached is None:
@@ -434,7 +440,7 @@ def _get_cached_artifact_file_index(
         if cached_stat != stat:
             return None
         _artifact_file_index_cache.move_to_end(index_path)
-        return list(rows)
+        return rows
 
 
 def _cache_artifact_file_index(

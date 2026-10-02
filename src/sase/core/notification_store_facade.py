@@ -90,6 +90,9 @@ def read_notifications_snapshot(
     memoized snapshot keyed by the live file's mtime+size token. A due
     ``next_snooze_deadline`` still forces a re-read when ``expire_due_snoozes``
     is set.
+
+    Hits return fresh outer lists sharing the cached row objects. Treat rows
+    as read-only; copy with ``dataclasses.replace`` before changing a field.
     """
     return _read_snapshot_cached(path, include_dismissed, expire_due_snoozes)
 
@@ -364,23 +367,21 @@ def _change_token(path: Path) -> tuple[Any, ...]:
     return (stat.st_mtime_ns, stat.st_size, stat.st_ino)
 
 
-def _clone_notification(notification: Notification) -> Notification:
-    return replace(
-        notification,
-        notes=list(notification.notes),
-        files=list(notification.files),
-        tags=list(notification.tags),
-        action_data=dict(notification.action_data),
-        plus_ones=list(notification.plus_ones),
-    )
-
-
-def _clone_snapshot(
+def _share_snapshot(
     snapshot: NotificationStoreSnapshotWire,
 ) -> NotificationStoreSnapshotWire:
+    """Return a shallow outer copy of a cached snapshot sharing its rows.
+
+    Cache hits share the canonical row objects instead of deep-cloning about
+    1.6k rows per hit. The outer lists are fresh, so appending, sorting, or
+    filtering the returned lists cannot corrupt the cache. The shared
+    :class:`Notification` rows must be treated as read-only: callers that
+    need different field values must copy first with ``dataclasses.replace``
+    and never mutate a row (or its nested lists/dicts) in place.
+    """
     return replace(
         snapshot,
-        notifications=[_clone_notification(row) for row in snapshot.notifications],
+        notifications=list(snapshot.notifications),
         tabs=list(snapshot.tabs),
         expired_ids=list(snapshot.expired_ids),
     )
@@ -422,7 +423,7 @@ def _read_snapshot_cached(
         if cached is not None and cached[0] == token:
             snapshot = cached[1]
             if not (expire and _snooze_deadline_is_due(snapshot.next_snooze_deadline)):
-                return _clone_snapshot(snapshot)
+                return _share_snapshot(snapshot)
 
     snapshot = _read_snapshot_from_rust(path, include_dismissed, expire)
     memo = replace(snapshot, expired_ids=[])
@@ -433,8 +434,8 @@ def _read_snapshot_cached(
         # file before token publication, the snapshot describes the old bytes,
         # so keep it uncached and let the next stable read observe disk.
         if generation == _SNAPSHOT_CACHE_GENERATION and new_token == token:
-            _SNAPSHOT_CACHE[key] = (new_token, _clone_snapshot(memo))
-    return snapshot
+            _SNAPSHOT_CACHE[key] = (new_token, memo)
+    return _share_snapshot(snapshot)
 
 
 def _call_mutating_binding(name: str, *args: Any) -> dict[str, Any]:

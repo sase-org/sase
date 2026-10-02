@@ -206,7 +206,7 @@ def test_unpushed_content_and_probe_failure_leave_row_untouched(
     assert unpushed.verified == ()
     assert unpushed.unresolved_counts == {"digest_not_found": 1}
     assert stored.exists()
-    assert read_artifact_file_index(index) == [row]
+    assert read_artifact_file_index(index) == (row,)
 
     class FailingProbe:
         def durable_candidate_commits(
@@ -243,7 +243,7 @@ def test_unpushed_content_and_probe_failure_leave_row_untouched(
         probe=FailingProbe(),
     )
     assert failed.unresolved_counts == {"vcs_probe_failed": 1}
-    assert read_artifact_file_index(index) == [row]
+    assert read_artifact_file_index(index) == (row,)
 
 
 def test_history_bound_finds_older_exact_content_only_within_bound(
@@ -472,4 +472,4 @@ def test_missing_checkout_and_unknown_project_fail_safe(
     assert no_checkout.unresolved_counts == {"missing_checkout": 1}
     assert unknown_project.unresolved_counts == {"unknown_project": 1}
     assert stored.exists()
-    assert read_artifact_file_index(index) == [row]
+    assert read_artifact_file_index(index) == (row,)
