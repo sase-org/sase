@@ -324,3 +324,221 @@ def test_config_schema_accepts_history_keymaps() -> None:
     Draft7Validator(schema()).validate(
         {"ace": {"keymaps": {"memory": {"open_history": "H", "open_changes": "C"}}}}
     )
+
+
+def test_no_call_from_thread_in_async_workers_under_ace_tui() -> None:
+    """AST guard: async workers must not call ``call_from_thread`` directly.
+
+    ``run_worker`` coroutine workers already run on the app thread, so a
+    direct ``call_from_thread`` raises ``RuntimeError`` (and with
+    ``exit_on_error=False`` the failure is silent). Calls nested inside a
+    ``def``/``lambda`` closure defined in the worker are exempt: those run
+    later on whatever thread invokes the closure (for example a pager
+    refresh callback on a worker thread), where ``call_from_thread`` is
+    correct.
+    """
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[4] / "src" / "sase" / "ace" / "tui"
+    offenders: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.AsyncFunctionDef):
+                continue
+            pending = list(node.body)
+            while pending:
+                child = pending.pop()
+                if isinstance(
+                    child,
+                    (
+                        ast.FunctionDef,
+                        ast.AsyncFunctionDef,
+                        ast.Lambda,
+                        ast.ClassDef,
+                    ),
+                ):
+                    continue
+                if isinstance(child, ast.Call):
+                    func = child.func
+                    if (
+                        isinstance(func, ast.Attribute)
+                        and func.attr == "call_from_thread"
+                    ):
+                        offenders.append(f"{path}:{child.lineno}")
+                pending.extend(ast.iter_child_nodes(child))
+    assert offenders == []
+
+
+def _prepare_history_panel(monkeypatch) -> tuple:
+    """Build a loaded ``MemoryPane`` with the history open path stubbed."""
+    from types import SimpleNamespace
+
+    from textual.screen import Screen
+    from textual.widgets import Static
+
+    from sase.ace.tui.modals.memory_pane import MemoryPane
+    from tests.ace.tui.modals.memory_panel_test_helpers import (
+        MemoryPanelTestApp,
+        install_fixed_load,
+    )
+
+    ref = scope_ref("sase", "sase")
+    snapshots = {
+        "sase": scope_snapshot(ref, (memory_note("gotchas"), memory_note("zebra")))
+    }
+    install_fixed_load(monkeypatch, (ref,), snapshots)
+
+    panel = MemoryPane()
+    app = MemoryPanelTestApp(panel)
+
+    fake_scope = SimpleNamespace(scope_key="project:sase", repo_root="/tmp")
+    service = SimpleNamespace()
+    monkeypatch.setattr(panel, "_history_service_or_none", lambda: service)
+
+    import sase.ace.tui.modals.memory_panel_history as history_module
+
+    monkeypatch.setattr(
+        history_module, "history_scope_for_panel_ref", lambda _ref, _svc: fake_scope
+    )
+    monkeypatch.setattr(
+        history_module,
+        "history_scopes_for_ring",
+        lambda _ring, _svc: [fake_scope],
+    )
+
+    pushed: list = []
+
+    class _FakePager(Screen):
+        def __init__(self, document: object, **_kwargs: object) -> None:
+            super().__init__()
+            self.document = document
+            pushed.append(self)
+
+        def compose(self):  # noqa: ANN202
+            yield Static("pager")
+
+    import sase.pager.screen as pager_screen_module
+    import sase.pager.syntax_policy as syntax_policy_module
+
+    monkeypatch.setattr(pager_screen_module, "PagerScreen", _FakePager)
+    monkeypatch.setattr(
+        syntax_policy_module,
+        "pager_syntax_session_from_config",
+        lambda: SimpleNamespace(syntax_enabled=False),
+    )
+    return panel, app, pushed, service
+
+
+async def test_open_history_key_opens_pager(
+    monkeypatch,
+) -> None:
+    """Pressing ``H`` opens the pager instead of failing silently."""
+    from sase.ace.testing import wait_for
+
+    panel, app, pushed, _service = _prepare_history_panel(monkeypatch)
+    sentinel = object()
+    import sase.memory.history.pager_provider as pager_provider_module
+
+    monkeypatch.setattr(
+        pager_provider_module,
+        "build_history_document",
+        lambda **_kwargs: sentinel,
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("H")
+        await wait_for(pilot, lambda: len(pushed) == 1)
+        assert pushed[0].document is sentinel
+
+
+async def test_open_changes_key_opens_feed_pager(
+    monkeypatch,
+) -> None:
+    """Pressing ``C`` opens the changes feed instead of failing silently."""
+    from types import SimpleNamespace
+
+    from sase.ace.testing import wait_for
+
+    panel, app, pushed, service = _prepare_history_panel(monkeypatch)
+    sentinel = object()
+    service.feed = lambda _scopes, **_kwargs: []
+    import sase.memory.history.feed_document as feed_document_module
+
+    monkeypatch.setattr(
+        feed_document_module,
+        "build_feed_document",
+        lambda _feed, _label: SimpleNamespace(document=sentinel),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("C")
+        await wait_for(pilot, lambda: len(pushed) == 1)
+        assert pushed[0].document is sentinel
+
+
+async def test_open_history_failure_surfaces_error_toast(
+    monkeypatch,
+) -> None:
+    """A pager build miss toasts instead of failing silently."""
+    from sase.ace.testing import wait_for
+
+    panel, app, pushed, _service = _prepare_history_panel(monkeypatch)
+    import sase.memory.history.pager_provider as pager_provider_module
+
+    monkeypatch.setattr(
+        pager_provider_module, "build_history_document", lambda **_kwargs: None
+    )
+    toasts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        panel,
+        "notify",
+        lambda message, *_, **kwargs: toasts.append(
+            (str(message), str(kwargs.get("severity", "")))
+        ),
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("H")
+        await wait_for(pilot, lambda: len(toasts) == 1)
+        assert "could not open history" in toasts[0][0]
+        assert toasts[0][1] == "error"
+        assert pushed == []
+
+
+async def test_open_history_stale_selection_drops_the_open(
+    monkeypatch,
+) -> None:
+    """Moving the cursor while history loads drops the pager open."""
+    import threading
+
+    from sase.ace.testing import wait_for
+
+    panel, app, pushed, _service = _prepare_history_panel(monkeypatch)
+    release = threading.Event()
+    started = threading.Event()
+    sentinel = object()
+    import sase.memory.history.pager_provider as pager_provider_module
+
+    def _slow_build(**_kwargs):  # noqa: ANN202
+        started.set()
+        assert release.wait(timeout=10)
+        return sentinel
+
+    monkeypatch.setattr(pager_provider_module, "build_history_document", _slow_build)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("H")
+        await wait_for(pilot, lambda: started.is_set())
+        await pilot.press("j")
+        release.set()
+        await wait_for(
+            pilot,
+            lambda: (
+                panel._history_open_worker is not None
+                and panel._history_open_worker.is_finished
+            ),
+        )
+        await pilot.pause()
+        assert pushed == []

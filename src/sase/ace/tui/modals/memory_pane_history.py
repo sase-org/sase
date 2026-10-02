@@ -241,8 +241,9 @@ class MemoryPaneHistoryMixin(_MixinBase):
 
             document = await asyncio.to_thread(_build)
             if document is None:
-                self.app.call_from_thread(
-                    self.notify,
+                # This async worker already runs on the app thread, so
+                # notify directly: call_from_thread would raise here.
+                self.notify(
                     "could not open history for this selection",
                     severity="error",
                 )
@@ -256,26 +257,25 @@ class MemoryPaneHistoryMixin(_MixinBase):
                 return
             if not self._ring or self._ring[self._scope_index].key != scope_key:
                 return
+            if self._closed or not self.is_mounted:
+                return
 
-            def _push() -> None:
-                try:
-                    from sase.pager.screen import PagerScreen
-                    from sase.pager.syntax_policy import (
-                        pager_syntax_session_from_config,
+            try:
+                from sase.pager.screen import PagerScreen
+                from sase.pager.syntax_policy import (
+                    pager_syntax_session_from_config,
+                )
+
+                session = pager_syntax_session_from_config()
+                self.app.push_screen(
+                    PagerScreen(
+                        document,
+                        links_enabled=True,
+                        syntax_enabled=session.syntax_enabled,
                     )
-
-                    session = pager_syntax_session_from_config()
-                    self.app.push_screen(
-                        PagerScreen(
-                            document,
-                            links_enabled=True,
-                            syntax_enabled=session.syntax_enabled,
-                        )
-                    )
-                except Exception as exc:
-                    self.notify(f"Could not open pager: {exc}", severity="error")
-
-            self.app.call_from_thread(_push)
+                )
+            except Exception as exc:
+                self.notify(f"Could not open pager: {exc}", severity="error")
 
         self._history_open_worker = self.run_worker(
             _open(),
@@ -359,35 +359,35 @@ class MemoryPaneHistoryMixin(_MixinBase):
 
             built = await asyncio.to_thread(_build_feed)
             if built is None:
-                self.app.call_from_thread(
-                    self.notify,
+                # This async worker already runs on the app thread, so
+                # notify directly: call_from_thread would raise here.
+                self.notify(
                     "could not open the memory changes feed",
                     severity="error",
                 )
                 return
+            if self._closed or not self.is_mounted:
+                return
 
-            def _push_feed() -> None:
-                try:
-                    from sase.pager.screen import PagerScreen
-                    from sase.pager.syntax_policy import (
-                        pager_syntax_session_from_config,
+            try:
+                from sase.pager.screen import PagerScreen
+                from sase.pager.syntax_policy import (
+                    pager_syntax_session_from_config,
+                )
+
+                document, resolve_ref, refresh = built
+                session = pager_syntax_session_from_config()
+                self.app.push_screen(
+                    PagerScreen(
+                        document,
+                        links_enabled=True,
+                        resolve_ref_fn=resolve_ref,
+                        syntax_enabled=session.syntax_enabled,
+                        refresh_document_fn=refresh,
                     )
-
-                    document, resolve_ref, refresh = built
-                    session = pager_syntax_session_from_config()
-                    self.app.push_screen(
-                        PagerScreen(
-                            document,
-                            links_enabled=True,
-                            resolve_ref_fn=resolve_ref,
-                            syntax_enabled=session.syntax_enabled,
-                            refresh_document_fn=refresh,
-                        )
-                    )
-                except Exception as exc:
-                    self.notify(f"Could not open pager: {exc}", severity="error")
-
-            self.app.call_from_thread(_push_feed)
+                )
+            except Exception as exc:
+                self.notify(f"Could not open pager: {exc}", severity="error")
 
         self._history_open_worker = self.run_worker(
             _open_feed(),
