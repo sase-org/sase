@@ -21,13 +21,16 @@ PAGER_TRAIL_LIMIT = 32
 
 @dataclass(frozen=True, slots=True)
 class PagerSearchState:
-    """A restorable snapshot of ``VimSearchController`` state."""
+    """A restorable snapshot of ``VimSearchController`` state.
+
+    The search corpus and its line starts are deliberately absent: both
+    are pure functions of the entry's document and are rebuilt on restore,
+    so trail entries never retain a second full copy of document text.
+    """
 
     mode: VimSearchMode
     direction: SearchDirection
     query: str
-    corpus: str
-    line_starts: tuple[int, ...]
     match_spans: tuple[SearchSpan, ...]
     current_selection: SearchSelection | None
     origin_offset: int

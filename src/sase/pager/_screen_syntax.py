@@ -29,7 +29,12 @@ from sase.pager._syntax_cache import (
     SyntaxResultCache,
     content_digest,
 )
-from sase.pager.document import PagerDocument, PagerSection, section_syntax_language
+from sase.pager.document import (
+    PagerDocument,
+    PagerSection,
+    section_content_digest,
+    section_syntax_language,
+)
 from sase.pager.syntax import (
     SyntaxDisposition,
     SyntaxResult,
@@ -74,14 +79,16 @@ def _syntax_key_for_section(section: PagerSection) -> tuple[str, str | None]:
 
     Committed pins key by ``(identity, blob_oid)``; live history pins
     key by a content digest so a refresh cannot paint stale syntax;
-    non-history sections keep the legacy ``(identity, None)`` shape.
+    non-history sections keep the legacy ``(identity, None)`` shape. The
+    live digest is memoized per section object: the key is recomputed on
+    hot scroll and compose paths.
     """
     pin = section.version_pin
     if pin is None:
         return (section.identity, None)
     if pin.ordinal > 0:
         return (section.identity, pin.blob_oid or pin.commit or f"v{pin.ordinal}")
-    return (section.identity, f"live:{content_digest(section.plain_text)}")
+    return (section.identity, f"live:{section_content_digest(section)}")
 
 
 class PagerSyntaxMixin:
@@ -126,9 +133,12 @@ class PagerSyntaxMixin:
     def _start_syntax_preparation_after_paint(self: Any) -> None:
         self.call_after_refresh(self._schedule_syntax_preparation)
 
-    def _on_app_theme_changed(self: Any) -> None:
+    def _on_app_theme_changed(self: Any, _theme: object = None) -> None:
         # Bump the generation first so any in-flight preparation for the
         # old theme cannot overwrite the new one when it completes.
+        # The optional _theme parameter carries the Textual signal/watch
+        # payload (Signal.publish calls subscribers with the theme); it is
+        # unused because the current theme is re-read from the app.
         try:
             self._syntax_generation += 1
         except Exception:

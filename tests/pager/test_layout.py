@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import random
+
 from rich.console import Console, Group
 from rich.text import Text
 
-from sase.pager._labels import build_label_layer
+from sase.pager._labels import _row_for_character_offset, build_label_layer
 from sase.pager._layout import (
+    ComposedBody,
     ReadingAnchor,
     _section_row_offsets,
     compose_body,
@@ -18,6 +21,7 @@ from sase.pager._layout import (
 )
 from sase.pager._line_mark import LineMark
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
+from sase.pager._gutter import logical_line_count
 
 _CONSOLE = Console(color_system="truecolor")
 
@@ -318,6 +322,116 @@ def test_styled_search_base_of_empty_document_matches_search_corpus() -> None:
     document = PagerDocument(sections=(), title="empty", origin=PagerOrigin.FILE)
 
     assert styled_search_base(document).plain == search_corpus(document)
+
+
+def _reference_reading_anchor_at_row(body: ComposedBody, row: int) -> ReadingAnchor:
+    """The pre-bisect anchor lookup: linear scans over offsets and rows."""
+    section_count = len(body.section_line_rows)
+    if section_count == 0 or body.total_height <= 0:
+        return ReadingAnchor(section_index=0, line=1, row_offset=0)
+    clamped = max(0, min(row, body.total_height - 1))
+    for index in range(1, len(body.section_offsets)):
+        if clamped == body.section_offsets[index]:
+            return ReadingAnchor(section_index=index, line=1, row_offset=0)
+    section_index = 0
+    for index, offset in enumerate(body.section_offsets):
+        start = offset + (1 if index > 0 else 0)
+        if start <= clamped:
+            section_index = index
+        else:
+            break
+    rows = body.section_line_rows[section_index]
+    if not rows:
+        return ReadingAnchor(section_index=section_index, line=1, row_offset=0)
+    line_pos = 0
+    for pos, start in enumerate(rows):
+        if start <= clamped:
+            line_pos = pos
+        else:
+            break
+    return ReadingAnchor(
+        section_index=section_index,
+        line=line_pos + 1,
+        row_offset=clamped - rows[line_pos],
+    )
+
+
+def _reference_current_section_index(offsets: tuple[int, ...], scroll_y: int) -> int:
+    """The pre-bisect section lookup: linear scan for the last offset."""
+    index = 0
+    for candidate, offset in enumerate(offsets):
+        if offset <= scroll_y:
+            index = candidate
+        else:
+            break
+    return index
+
+
+def _reference_estimated_line_rows(text: str, width: int) -> tuple[int, ...]:
+    """The pre-prefix estimator: one offset walk per logical line."""
+    count = logical_line_count(text)
+    if count == 0:
+        return ()
+    rows: list[int] = []
+    cursor = 0
+    for _index in range(count):
+        rows.append(_row_for_character_offset(text, cursor, width))
+        newline = text.find("\n", cursor)
+        cursor = len(text) if newline < 0 else newline + 1
+    return tuple(rows)
+
+
+def _parity_document() -> PagerDocument:
+    return PagerDocument(
+        sections=(
+            _section("a", "alpha\nbeta gamma delta\n"),
+            _section("b", "x" * 100 + "\nshort\n"),
+            _section("c", "日本語の行🎉\nlast"),
+        ),
+        title="3 files",
+        origin=PagerOrigin.FILE,
+    )
+
+
+def test_bisect_lookups_match_the_linear_reference() -> None:
+    """Fixed-seed check: bisect anchor/section lookups keep exact results."""
+    random.seed(20261002)
+    document = _parity_document()
+    for width in (10, 40, 120):
+        body = compose_body(document, width=width)
+        rows = [-5, -1, 0, 1]
+        rows.extend(random.randint(0, body.total_height + 5) for _ in range(60))
+        rows.extend([body.total_height - 1, body.total_height, body.total_height + 100])
+        for row in rows:
+            assert reading_anchor_at_row(body, row) == (
+                _reference_reading_anchor_at_row(body, row)
+            )
+        scrolls = [-5, -1, 0, 1]
+        scrolls.extend(random.randint(0, body.total_height + 5) for _ in range(60))
+        scrolls.extend(
+            [body.total_height - 1, body.total_height, body.total_height + 100]
+        )
+        for scroll_y in scrolls:
+            assert current_section_index(
+                body.section_offsets, scroll_y
+            ) == _reference_current_section_index(body.section_offsets, scroll_y)
+
+
+def test_estimated_line_rows_match_the_per_line_walk() -> None:
+    """The memoized prefix carries exactly the old per-line row estimates."""
+    from sase.pager._layout import _estimated_line_rows  # noqa: PLC2701
+
+    random.seed(424242)
+    lines = ("alpha", "x" * 100, "日本語🎉", "", "  tail  ")
+    for _trial in range(20):
+        text = "\n".join(random.choice(lines) for _ in range(random.randint(1, 12)))
+        if random.random() < 0.5:
+            text += "\n"
+        width = random.choice([1, 10, 40, 120])
+        section = _section("rows", text)
+        assert _estimated_line_rows(section, width) == (
+            _reference_estimated_line_rows(text, width)
+        )
 
 
 def test_styled_search_base_uses_prepared_text_and_link_accents_without_capsules() -> (

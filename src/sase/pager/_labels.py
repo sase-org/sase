@@ -7,6 +7,7 @@ one compact key capsule inserted immediately before each target occurrence.
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ from sase.pager.document import (
     PagerOrigin,
     PagerSection,
     PagerTargetSpan,
+    section_line_prefix,
     section_target_spans,
     target_resolution_cache_identity,
     target_resolution_ref,
@@ -507,13 +509,18 @@ def _occurrence_row(
         if occurrence.section_index < len(section_offsets)
         else 0
     )
-    return offset + row_for_character_offset(
-        section.plain_text, occurrence.target.start, width
+    return offset + _section_row_for_character_offset(
+        section, occurrence.target.start, width
     )
 
 
-def row_for_character_offset(text: str, offset: int, width: int) -> int:
-    """Estimate the wrapped row containing ``offset`` with no I/O."""
+def _row_for_character_offset(text: str, offset: int, width: int) -> int:
+    """Estimate the wrapped row containing ``offset`` with no I/O.
+
+    This is the exact-semantics oracle: the cached section path must agree
+    with it on every offset, which the label parity tests prove on fixed
+    random inputs.
+    """
     row = 0
     column = 0
     max_width = max(width, 1)
@@ -530,6 +537,25 @@ def row_for_character_offset(text: str, offset: int, width: int) -> int:
     return row
 
 
+def _section_row_for_character_offset(
+    section: PagerSection, offset: int, width: int
+) -> int:
+    """Estimate the wrapped row containing ``offset`` in *section*.
+
+    Identical results to :func:`_row_for_character_offset` on the section's
+    plain text: the memoized per-line prefix supplies the row at the
+    containing line's start, and only that line's fragment is walked
+    through the same estimator. Each call costs O(log lines + line length)
+    instead of O(offset).
+    """
+    text = section.plain_text
+    clamped = max(0, min(int(offset), len(text)))
+    line_starts, start_rows = section_line_prefix(section, width)
+    line = max(0, bisect_right(line_starts, clamped) - 1)
+    fragment = text[line_starts[line] : clamped]
+    return start_rows[line] + _row_for_character_offset(fragment, len(fragment), width)
+
+
 __all__ = [
     "LabelWindowScope",
     "PAGER_LABEL_ALPHABET",
@@ -539,6 +565,5 @@ __all__ = [
     "build_label_layer",
     "prefix_free_hint_sequence",
     "render_section_with_labels",
-    "row_for_character_offset",
     "style_target_accents",
 ]

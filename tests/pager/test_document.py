@@ -28,6 +28,7 @@ from sase.bead.cli_show_batch import (
 from sase.bead.cli_detail_style import DetailStyle
 from sase.bead.model import BeadNote, Issue, IssueType
 from sase.pager.adapters import document_from_paths
+from sase.pager._syntax_cache import content_digest
 from sase.pager.document import (
     AttachedTarget,
     PagerDocument,
@@ -35,6 +36,8 @@ from sase.pager.document import (
     PagerSection,
     PagerTargetSpan,
     RawSourceSpec,
+    section_content_digest,
+    section_line_prefix,
     section_syntax_language,
     section_target_spans,
     target_action_destination,
@@ -539,3 +542,67 @@ _plain_render_context = default_show_render_context_resolver(
     resolve_bead_creator_url_fn=lambda _name: None,
     resolve_bead_page_url_fn=lambda _id: None,
 )
+
+
+def _memo_section(body: str = "see src/demo.py:12\nsecond line\n") -> PagerSection:
+    return PagerSection(
+        identity="file:/tmp/memo.py",
+        title="memo.py",
+        kind="file",
+        body=body,
+    )
+
+
+def test_section_target_spans_are_memoized_per_section_and_origin() -> None:
+    """Repeat lookups return the cached merge; origins key separately."""
+    section = _memo_section()
+
+    first = section_target_spans(section, PagerOrigin.FILE)
+    assert section_target_spans(section, PagerOrigin.FILE) is first
+
+    other = section_target_spans(section, PagerOrigin.BEAD)
+    assert other is not first
+    assert section_target_spans(section, PagerOrigin.BEAD) is other
+    # A section with its own origin ignores the passed origin for the key.
+    pinned = PagerSection(
+        identity="bead:sase-1",
+        title="sase-1",
+        kind="bead",
+        body="sase-1\n",
+        origin=PagerOrigin.BEAD,
+    )
+    assert section_target_spans(pinned, PagerOrigin.FILE) is section_target_spans(
+        pinned, PagerOrigin.DIFF
+    )
+
+
+def test_section_content_digest_matches_and_memoizes() -> None:
+    """The memoized digest equals a fresh digest of the plain text."""
+    section = _memo_section()
+
+    assert section_content_digest(section) == content_digest(section.plain_text)
+    assert section_content_digest(section) == section_content_digest(section)
+
+
+def test_section_line_prefix_matches_per_line_estimates() -> None:
+    """Each prefix row equals the direct offset walk at that line start."""
+    from sase.pager._labels import _row_for_character_offset
+
+    section = _memo_section("alpha\n" + "x" * 100 + "\n日本語🎉\n")
+    starts, rows = section_line_prefix(section, 20)
+
+    assert section_line_prefix(section, 20) == (starts, rows)
+    assert len(starts) == len(rows)
+    for start, row in zip(starts, rows, strict=True):
+        assert _row_for_character_offset(section.plain_text, start, 20) == row
+
+
+def test_section_line_prefix_bounds_distinct_widths() -> None:
+    """Width oscillation cannot grow the per-section prefix memo."""
+    section = _memo_section()
+
+    for width in (10, 20, 30, 40, 50, 60):
+        section_line_prefix(section, width)
+
+    widths = [key for key in section._memo if key[0] == "rows"]
+    assert len(widths) <= 4

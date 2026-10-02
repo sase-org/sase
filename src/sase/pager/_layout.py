@@ -11,6 +11,7 @@ Textual layer rebuilds only when the body's actual width changes, per
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 from collections.abc import Mapping
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
@@ -30,11 +31,14 @@ from sase.pager._labels import (
     DanglingPredicate,
     PagerLabelLayer,
     render_section_with_labels,
-    row_for_character_offset,
     style_target_accents,
 )
 from sase.pager._line_mark import LineMark
-from sase.pager.document import PagerDocument, PagerSection
+from sase.pager.document import (
+    PagerDocument,
+    PagerSection,
+    section_line_prefix,
+)
 
 _DIVIDER_LINES = 1
 
@@ -86,24 +90,18 @@ def reading_anchor_at_row(body: ComposedBody, row: int) -> ReadingAnchor:
     if section_count == 0 or body.total_height <= 0:
         return ReadingAnchor(section_index=0, line=1, row_offset=0)
     clamped = max(0, min(row, body.total_height - 1))
-    for index in range(1, len(body.section_offsets)):
-        if clamped == body.section_offsets[index]:
-            return ReadingAnchor(section_index=index, line=1, row_offset=0)
-    section_index = 0
-    for index, _offset in enumerate(body.section_offsets):
-        if _section_body_start(body.section_offsets, index) <= clamped:
-            section_index = index
-        else:
-            break
+    rule = bisect_left(body.section_offsets, clamped, 1)
+    if rule < len(body.section_offsets) and body.section_offsets[rule] == clamped:
+        return ReadingAnchor(section_index=rule, line=1, row_offset=0)
+    body_starts = [
+        _section_body_start(body.section_offsets, index)
+        for index in range(len(body.section_offsets))
+    ]
+    section_index = max(0, bisect_right(body_starts, clamped) - 1)
     rows = body.section_line_rows[section_index]
     if not rows:
         return ReadingAnchor(section_index=section_index, line=1, row_offset=0)
-    line_pos = 0
-    for pos, start in enumerate(rows):
-        if start <= clamped:
-            line_pos = pos
-        else:
-            break
+    line_pos = max(0, bisect_right(rows, clamped) - 1)
     return ReadingAnchor(
         section_index=section_index,
         line=line_pos + 1,
@@ -295,7 +293,7 @@ def _paint_section_body(
         return guttered.text, guttered.row_count, guttered.line_rows
     console = Console(width=max(paint_width, 1), color_system=None, highlight=False)
     height = max(len(console.render_lines(renderable, pad=False)), 1)
-    return renderable, height, _estimated_line_rows(section.plain_text, paint_width)
+    return renderable, height, _estimated_line_rows(section, paint_width)
 
 
 def _absolute_line_rows(
@@ -307,28 +305,23 @@ def _absolute_line_rows(
     return tuple(body_start + row for row in relative)
 
 
-def _estimated_line_rows(text: str, width: int) -> tuple[int, ...]:
-    count = logical_line_count(text)
+def _estimated_line_rows(section: PagerSection, width: int) -> tuple[int, ...]:
+    """Return the estimated first row of each logical line of *section*.
+
+    Values equal the old per-line offset walk: the memoized line-start
+    prefix carries exactly that row per line, and the phantom trailing
+    newline is dropped the same way :func:`logical_line_count` drops it.
+    """
+    count = logical_line_count(section.plain_text)
     if count == 0:
         return ()
-    rows: list[int] = []
-    cursor = 0
-    for _index in range(count):
-        rows.append(row_for_character_offset(text, cursor, width))
-        newline = text.find("\n", cursor)
-        cursor = len(text) if newline < 0 else newline + 1
-    return tuple(rows)
+    _starts, start_rows = section_line_prefix(section, width)
+    return start_rows[:count]
 
 
 def current_section_index(offsets: tuple[int, ...], scroll_y: int) -> int:
     """Return the index of the section whose rule is at or above ``scroll_y``."""
-    index = 0
-    for candidate, offset in enumerate(offsets):
-        if offset <= scroll_y:
-            index = candidate
-        else:
-            break
-    return index
+    return max(0, bisect_right(offsets, scroll_y) - 1)
 
 
 def search_corpus(document: PagerDocument) -> str:

@@ -8,6 +8,7 @@ resolving the reference it names.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -32,6 +33,9 @@ _BARE_BEAD_ID_RE = re.compile(
 )
 # A bare short git sha, seven to forty lowercase hex characters.
 _BARE_SHORT_SHA_RE = re.compile(r"(?<![\w-])[0-9a-f]{7,40}(?![\w-])")
+
+# A UTF-8 character's first byte: any byte that is not a continuation byte.
+_CHARACTER_START_RE = re.compile(rb"[^\x80-\xBF]")
 
 
 class PagerOrigin(StrEnum):
@@ -86,38 +90,81 @@ def scan_links(
     *,
     known_kinds: Iterable[str] = (),
 ) -> tuple[LinkSpan, ...]:
-    """Scan *text* for precedence-ordered link spans, with no I/O."""
-    occupied: list[tuple[int, int]] = []
+    """Scan *text* for precedence-ordered link spans, with no I/O.
+
+    First-wins precedence is exact: Rust links in Rust order, then bare
+    tokens in match order. Overlap checks run against an ordered-interval
+    index (sorted starts plus bisect) instead of a linear scan, so
+    link-dense documents stay near-linear.
+    """
     spans: list[LinkSpan] = []
 
     scan = scan_artifact_ref_document(text, known_kinds=known_kinds)
+    rust_spans: list[tuple[int, int, ArtifactRefDocumentTarget]] = []
     if scan.links:
-        byte_to_char = _byte_to_character_offsets(text)
-        for target in scan.links:
-            if not target.well_formed:
+        well_formed = [target for target in scan.links if target.well_formed]
+        if well_formed:
+            if text.isascii():
+                # Byte offsets are character offsets; skip the table entirely.
+                byte_to_char: Mapping[int, int] | None = None
+            else:
+                byte_to_char = _byte_to_character_offsets(
+                    text,
+                    _needed_byte_offsets(well_formed),
+                )
+            for target in well_formed:
+                raw_start = target.source_span.start
+                raw_end = target.source_span.end
+                start = raw_start if byte_to_char is None else byte_to_char[raw_start]
+                end = raw_end if byte_to_char is None else byte_to_char[raw_end]
+                rust_spans.append((start, end, target))
+    # First-wins greed over Rust spans in Rust order. The scanner emits
+    # spans in document order, so each span overlaps the accepted set iff
+    # it starts before the running maximum end: O(1) per span. An
+    # out-of-order or empty span (never observed) falls back to the exact
+    # linear check for the rest of the input.
+    occupied: list[tuple[int, int]] = []
+    ordered = True
+    last_start = -1
+    max_end = -1
+    for start, end, target in rust_spans:
+        if ordered and end > start and start >= last_start:
+            last_start = start
+            if start < max_end:
                 continue
-            start = byte_to_char[target.source_span.start]
-            end = byte_to_char[target.source_span.end]
+            max_end = max(max_end, end)
+        else:
+            ordered = False
             if _overlaps(start, end, occupied):
                 continue
-            occupied.append((start, end))
-            spans.append(
-                LinkSpan(
-                    LinkSpanKind(target.target_kind),
-                    start,
-                    end,
-                    target.text,
-                    target.target,
-                    target,
-                )
+        occupied.append((start, end))
+        spans.append(
+            LinkSpan(
+                LinkSpanKind(target.target_kind),
+                start,
+                end,
+                target.text,
+                target.target,
+                target,
             )
+        )
 
     recognizer = _BARE_TOKEN_RECOGNIZERS.get(origin)
     if recognizer is not None:
+        rust_index = _FrozenSpanIndex(occupied) if ordered else None
+        bare_max_end = -1
         for match in recognizer(text):
             start, end = match.start(), match.end()
-            if _overlaps(start, end, occupied):
+            if end <= start:
+                if _overlaps(start, end, occupied):
+                    continue
+            elif start < bare_max_end or (
+                rust_index.overlaps(start, end)
+                if rust_index is not None
+                else _overlaps(start, end, occupied)
+            ):
                 continue
+            bare_max_end = max(bare_max_end, end)
             occupied.append((start, end))
             spans.append(LinkSpan(LinkSpanKind.BARE_TOKEN, start, end, match.group(0)))
 
@@ -154,13 +201,64 @@ def _overlaps(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
     )
 
 
-def _byte_to_character_offsets(text: str) -> dict[int, int]:
-    offsets = {0: 0}
-    byte_offset = 0
-    for character_offset, character in enumerate(text, start=1):
-        byte_offset += len(character.encode("utf-8"))
-        offsets[byte_offset] = character_offset
-    return offsets
+class _FrozenSpanIndex:
+    """Bisect-based overlap queries over an accepted, start-sorted span list.
+
+    ``starts`` is sorted and ``prefix_max_ends[i]`` is the maximum end over
+    ``spans[:i + 1]``. A candidate ``(start, end)`` overlaps the set iff the
+    spans starting strictly before ``end`` reach past ``start``.
+    """
+
+    __slots__ = ("prefix_max_ends", "starts")
+
+    def __init__(self, spans: list[tuple[int, int]]) -> None:
+        starts: list[int] = []
+        prefix_max_ends: list[int] = []
+        running = -1
+        for span_start, span_end in spans:
+            starts.append(span_start)
+            running = max(running, span_end)
+            prefix_max_ends.append(running)
+        self.starts = starts
+        self.prefix_max_ends = prefix_max_ends
+
+    def overlaps(self, start: int, end: int) -> bool:
+        """Return whether ``(start, end)`` overlaps any indexed span."""
+        index = bisect_left(self.starts, end)
+        return index > 0 and self.prefix_max_ends[index - 1] > start
+
+
+def _needed_byte_offsets(
+    targets: list[ArtifactRefDocumentTarget],
+) -> list[int]:
+    """Return the sorted byte offsets the scan must convert to characters."""
+    needed = {target.source_span.start for target in targets}
+    needed.update(target.source_span.end for target in targets)
+    return sorted(needed)
+
+
+def _byte_to_character_offsets(text: str, needed: list[int]) -> dict[int, int]:
+    """Map each needed UTF-8 byte offset in *text* to a character offset.
+
+    Only the requested offsets are mapped: the text is encoded once and
+    character-start byte positions are found with a byte-level scan, so a
+    document pays for its links rather than for its characters.
+    """
+    raw = text.encode("utf-8")
+    # Every character's first byte is not a UTF-8 continuation byte; the
+    # match positions are exactly the character-boundary byte offsets.
+    boundaries = [match.start() for match in _CHARACTER_START_RE.finditer(raw)]
+    total = len(raw)
+    mapping: dict[int, int] = {}
+    for offset in needed:
+        if offset == total:
+            mapping[offset] = len(text)
+            continue
+        index = bisect_left(boundaries, offset)
+        if index >= len(boundaries) or boundaries[index] != offset:
+            raise KeyError(offset)
+        mapping[offset] = index
+    return mapping
 
 
 _BARE_TOKEN_RECOGNIZERS: Mapping[

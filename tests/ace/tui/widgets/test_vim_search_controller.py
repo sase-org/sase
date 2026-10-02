@@ -303,3 +303,29 @@ def test_controller_offset_helpers_map_logical_lines() -> None:
     assert offset_to_row_col(starts, 10) == (1, 4)
     assert _offset_for_row(starts, 2) == 11
     assert _offset_for_row(starts, 200) == 11
+
+
+def test_controller_exit_releases_corpus_but_keeps_last_search() -> None:
+    corpus = "alpha\nbeta\nalpha"
+    host = _RecordingHost(corpus)
+    controller = VimSearchController(host)
+
+    controller.start("forward")
+    _type_query(controller, "alpha")
+    controller.handle_key("enter", None)
+    assert controller.mode == "committed"
+    assert controller.corpus == corpus
+    assert controller.line_starts == line_start_offsets(corpus)
+
+    controller.exit(restore_scroll=False, refresh=False)
+
+    assert controller.mode == "off"
+    assert controller.corpus == ""
+    assert controller.line_starts == (0,)
+    assert controller.match_spans == ()
+    assert controller.last_search == ("alpha", "forward")
+
+    # The next search rebuilds the corpus from the host, as before.
+    assert controller.start("forward")
+    assert controller.corpus == corpus
+    assert controller.line_starts == line_start_offsets(corpus)

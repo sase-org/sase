@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from rich.cells import cell_len
 from rich.console import Console, RenderableType
 from rich.text import Text
 
@@ -84,6 +85,15 @@ class PagerSection:
     known_kinds: tuple[str, ...] = ()
     version_pin: VersionPin | None = None  # type: ignore[valid-type]
     _body_text: Text = field(init=False, repr=False, compare=False)
+    # Lazily filled derivation cache: ("spans", origin) -> target spans,
+    # ("rows", width) -> line-start prefix, ("digest",) -> content digest.
+    # Every entry is a pure function of this immutable section, so a copy
+    # that shares the dict (``copy.copy``) shares only identical values.
+    # All reads and writes go through this module's ``section_*`` helpers;
+    # other modules must not touch the slot directly.
+    _memo: dict[tuple[str, object], object] = field(
+        init=False, repr=False, compare=False, default_factory=dict
+    )
 
     def __post_init__(self) -> None:
         if not self.identity.strip():
@@ -280,9 +290,17 @@ def section_target_spans(
     Attached targets win over scanned targets on overlap. The merged tuple is
     sorted by document position so later label allocation can use one shared
     sequence.
+
+    The merge is memoized per section object, keyed by the effective origin.
+    Dangling status is resolved later per label build and is not part of the
+    memo. Sections are immutable, so a memoized merge never goes stale.
     """
-    plain = section.plain_text
     effective_origin = section_origin(section, origin)
+    key = ("spans", effective_origin)
+    cached = section._memo.get(key)
+    if isinstance(cached, tuple):
+        return cached  # type: ignore[return-value]
+    plain = section.plain_text
     attached = tuple(_attached_target_span(target, plain) for target in section.targets)
     attached_ranges = [(target.start, target.end) for target in attached]
     scanned = tuple(
@@ -290,7 +308,89 @@ def section_target_spans(
         for span in scan_links(plain, effective_origin, known_kinds=section.known_kinds)
         if not _overlaps(span.start, span.end, attached_ranges)
     )
-    return tuple(sorted((*attached, *scanned), key=_target_span_sort_key))
+    merged = tuple(sorted((*attached, *scanned), key=_target_span_sort_key))
+    object.__setattr__(section, "_memo", {**section._memo, key: merged})
+    return merged
+
+
+#: How many distinct widths one section's line-start prefix memo keeps.
+#: Widths are effectively one per view lifetime; the cap only bounds
+#: pathological width oscillation.
+_LINE_PREFIX_WIDTH_LIMIT = 4
+
+
+def section_line_prefix(
+    section: PagerSection, width: int
+) -> tuple[tuple[int, ...], ...]:
+    """Return ``(line_starts, start_rows)`` for *section* at *width*.
+
+    ``line_starts[i]`` is the character offset where logical line ``i``
+    starts; ``start_rows[i]`` is the estimated wrapped row that offset sits
+    on, using exactly the cell-width and wrap arithmetic of the offset
+    estimator. The pair is computed in one linear pass
+    and memoized per section object, so each window-mode label occurrence
+    costs a bisect plus an in-line walk instead of a walk from offset zero.
+    """
+    key = ("rows", max(int(width), 1))
+    cached = section._memo.get(key)
+    if isinstance(cached, tuple):
+        return cached  # type: ignore[return-value]
+    prefix = _compute_line_prefix(section.plain_text, max(int(width), 1))
+    memo = dict(section._memo)
+    memo[key] = prefix
+    widths = [entry for entry in memo if entry[0] == "rows"]
+    while len(widths) > _LINE_PREFIX_WIDTH_LIMIT:
+        memo.pop(widths.pop(0))
+    object.__setattr__(section, "_memo", memo)
+    return prefix
+
+
+def section_content_digest(section: PagerSection) -> str:
+    """Return the memoized content digest of *section*'s plain text.
+
+    Live history pins key their syntax state by content (a refresh must not
+    paint stale syntax), and the key is recomputed on hot scroll and compose
+    paths. The digest is a pure function of the immutable section, so it is
+    computed once per section object.
+    """
+    key = ("digest", "")
+    cached = section._memo.get(key)
+    if isinstance(cached, str):
+        return cached
+    from sase.pager._syntax_cache import content_digest
+
+    digest = content_digest(section.plain_text)
+    object.__setattr__(section, "_memo", {**section._memo, key: digest})
+    return digest
+
+
+def _compute_line_prefix(text: str, width: int) -> tuple[tuple[int, ...], ...]:
+    """Compute ``(line_starts, start_rows)`` for *text* in one pass.
+
+    ``start_rows[i]`` equals the offset estimator at ``(text,
+    line_starts[i], width)`` for every line: the running ``(row, column)``
+    state at each
+    ``\\n`` boundary is exactly the state that function carries across the
+    same boundary when walking from offset zero.
+    """
+    max_width = max(int(width), 1)
+    starts = [0]
+    rows = [0]
+    row = 0
+    column = 0
+    for index, character in enumerate(text):
+        if character == "\n":
+            row += 1
+            column = 0
+            starts.append(index + 1)
+            rows.append(row)
+            continue
+        cell_width = max(cell_len(character), 1)
+        if column + cell_width > max_width:
+            row += 1
+            column = 0
+        column += cell_width
+    return (tuple(starts), tuple(rows))
 
 
 def section_syntax_language(section: PagerSection) -> str | None:
@@ -421,6 +521,8 @@ __all__ = [
     "PagerTargetSpan",
     "PagerTargetSource",
     "RawSourceSpec",
+    "section_content_digest",
+    "section_line_prefix",
     "section_origin",
     "section_syntax_language",
     "target_action_destination",

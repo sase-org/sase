@@ -6,7 +6,10 @@ from typing import Any
 
 from textual.widgets import Static
 
-from sase.ace.tui.widgets.vim_search_controller import VimSearchController
+from sase.ace.tui.widgets.vim_search_controller import (
+    VimSearchController,
+    line_start_offsets,
+)
 from sase.pager._labels import LabelWindowScope, PagerLabel, PagerLabelLayer
 from sase.pager._layout import (
     ComposedBody,
@@ -158,12 +161,12 @@ class PagerTrailMixin:
         )
 
     def _current_search_state(self: Any) -> PagerSearchState:
+        # No corpus or line starts: both rebuild from the entry's document
+        # on restore, so trail entries never pin search copies.
         return PagerSearchState(
             mode=self._search.mode,
             direction=self._search.direction,
             query=self._search.query,
-            corpus=self._search.corpus,
-            line_starts=tuple(self._search.line_starts),
             match_spans=tuple(self._search.match_spans),
             current_selection=self._search.current_selection,
             origin_offset=self._search.origin_offset,
@@ -184,8 +187,17 @@ class PagerTrailMixin:
         self._search.mode = state.mode
         self._search.direction = state.direction
         self._search.query = state.query
-        self._search.corpus = state.corpus
-        self._search.line_starts = state.line_starts
+        if state.mode == "off":
+            self._search.corpus = ""
+            self._search.line_starts = (0,)
+        else:
+            # The corpus is a pure function of the restored document (set
+            # by the caller before this runs), so rebuilding it yields
+            # exactly the text the stored match offsets were computed
+            # against.
+            rebuilt = self.vim_search_corpus()
+            self._search.corpus = rebuilt
+            self._search.line_starts = line_start_offsets(rebuilt)
         self._search.match_spans = state.match_spans
         self._search.current_selection = state.current_selection
         self._search.origin_offset = state.origin_offset

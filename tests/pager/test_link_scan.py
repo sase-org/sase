@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import random
+import time
+
 import pytest
 
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
@@ -12,9 +15,12 @@ from sase.ace.tui.widgets.prompt_panel._hint_caps import (
     HINT_TRUNCATION_MESSAGE,
     HintContentBudget,
 )
-from sase.pager.link_scan import (
+from sase.artifact_ref_operations import scan_artifact_ref_document
+from sase.pager.link_scan import (  # noqa: PLC2701
+    LinkSpan,
     LinkSpanKind,
     PagerOrigin,
+    _BARE_TOKEN_RECOGNIZERS,
     scan_bounded_links,
     scan_links,
 )
@@ -365,3 +371,116 @@ def test_scan_bounded_links_keeps_line_suffix_spans(text: str) -> None:
     assert result.content == text
     assert [span.text for span in result.spans] == [text]
     assert result.notice is None
+
+
+def _reference_scan_links(text: str, origin: PagerOrigin) -> tuple[LinkSpan, ...]:
+    """The pre-optimization scanner: linear overlap checks, full offset map.
+
+    Kept as the equivalence oracle for the near-linear rewrite: same
+    first-wins precedence (Rust links in Rust order, then bare tokens),
+    same byte-to-character conversion, same output order.
+    """
+    occupied: list[tuple[int, int]] = []
+    spans: list[LinkSpan] = []
+
+    scan = scan_artifact_ref_document(text)
+    if scan.links:
+        byte_to_char = _reference_byte_to_character_offsets(text)
+        for target in scan.links:
+            if not target.well_formed:
+                continue
+            start = byte_to_char[target.source_span.start]
+            end = byte_to_char[target.source_span.end]
+            if _reference_overlaps(start, end, occupied):
+                continue
+            occupied.append((start, end))
+            spans.append(
+                LinkSpan(
+                    LinkSpanKind(target.target_kind),
+                    start,
+                    end,
+                    target.text,
+                    target.target,
+                    target,
+                )
+            )
+
+    recognizer = _BARE_TOKEN_RECOGNIZERS.get(origin)
+    if recognizer is not None:
+        for match in recognizer(text):
+            start, end = match.start(), match.end()
+            if _reference_overlaps(start, end, occupied):
+                continue
+            occupied.append((start, end))
+            spans.append(LinkSpan(LinkSpanKind.BARE_TOKEN, start, end, match.group(0)))
+
+    spans.sort(key=lambda span: span.start)
+    return tuple(spans)
+
+
+def _reference_overlaps(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
+    return any(
+        start < range_end and range_start < end for range_start, range_end in ranges
+    )
+
+
+def _reference_byte_to_character_offsets(text: str) -> dict[int, int]:
+    offsets = {0: 0}
+    byte_offset = 0
+    for character_offset, character in enumerate(text, start=1):
+        byte_offset += len(character.encode("utf-8"))
+        offsets[byte_offset] = character_offset
+    return offsets
+
+
+_PARITY_PIECES = (
+    "@bead:sase-uk.1",
+    "https://example.com/a/b",
+    "src/foo.py:12",
+    "plain words",
+    "@patch:sase-9x.q",
+    "docs/guide.md",
+    "sase-telegram",
+    "plan:202610/pager_performance.md",
+    "éstag ç日本語🎉",
+    "x" * 60,
+    "commit:abc1234",
+    "[label](https://example.com/y)",
+    "@agent:sase-4z.bob",
+    "sase-uk.1",
+    "abc1234",
+    "deadbeef",
+)
+
+
+def _span_identity(span: LinkSpan) -> tuple[str, int, int, str, object]:
+    return (span.kind.value, span.start, span.end, span.text, span.target)
+
+
+def test_scan_links_matches_reference_on_random_inputs() -> None:
+    """Fixed-seed property test: the rewrite keeps exact scan results."""
+    random.seed(20261002)
+    for _trial in range(60):
+        origin = random.choice(list(PagerOrigin))
+        text = " ".join(
+            random.choice(_PARITY_PIECES) for _ in range(random.randint(1, 25))
+        )
+        if random.random() < 0.3:
+            text = text.replace(" ", "\n", random.randint(0, 3))
+        expected = _reference_scan_links(text, origin)
+        actual = scan_links(text, origin)
+        assert [_span_identity(span) for span in actual] == [
+            _span_identity(span) for span in expected
+        ]
+
+
+def test_scan_links_stays_fast_on_link_dense_input() -> None:
+    """8k link-dense lines scan far below the old quadratic cost."""
+    text = "".join(
+        f"see src/dir/file_{index:05d}.py:{index % 900 + 1}\n" for index in range(8000)
+    )
+    started = time.perf_counter()
+    spans = scan_links(text, PagerOrigin.FILE)
+    elapsed = time.perf_counter() - started
+    assert len(spans) == 8000
+    assert elapsed < 1.5

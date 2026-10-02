@@ -219,6 +219,9 @@ async def _measure_worker(
         notes.append(f"remount probe failed: {type(exc).__name__}: {exc}")
 
     # Leak probe: push/pop a PagerScreen three times, gc, count live views.
+    # The loop variable is deleted before counting: it would otherwise keep
+    # the last popped screen (and its view) alive and the probe could never
+    # report zero.
     try:
         host = SasePager(document)
         live_refs: list[weakref.ReferenceType[PagerView]] = []
@@ -233,6 +236,7 @@ async def _measure_worker(
                     notes.append("leak probe could not find PagerView")
                 await host.pop_screen()
                 await pilot3.pause()
+            del pushed
         gc.collect()
         metrics["leak_live_views"] = sum(1 for ref in live_refs if ref() is not None)
         metrics["leak_probed"] = len(live_refs)

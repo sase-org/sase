@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import random
+
 from rich.color import Color
 from rich.console import Console
 from rich.style import Style
@@ -13,6 +15,8 @@ from sase.pager._labels import (
     PAGER_LABEL_ALPHABET,
     PAGER_LABEL_TWO_KEY_CAPACITY,
     PagerLabel,
+    _row_for_character_offset,
+    _section_row_for_character_offset,
     build_label_layer,
     render_section_with_labels,
     style_target_accents,
@@ -355,3 +359,58 @@ def test_window_scoped_fallback_is_dormant_until_two_key_capacity() -> None:
     assert layer.mode == "window"
     assert layer.target_count == PAGER_LABEL_TWO_KEY_CAPACITY + 1
     assert 0 < layer.visible_label_count <= PAGER_LABEL_TWO_KEY_CAPACITY
+
+
+_ROW_PARITY_LINES = (
+    "hello world",
+    "x" * 120,
+    "日本語テスト🎉",
+    "a\tb",
+    "short",
+    "",
+    "  indented  ",
+    "line with many words " * 8,
+)
+
+
+def test_cached_section_row_matches_the_offset_walk() -> None:
+    """Fixed-seed property test: the prefix path keeps exact row estimates."""
+    random.seed(31337)
+    for _trial in range(60):
+        text = "\n".join(
+            random.choice(_ROW_PARITY_LINES) for _ in range(random.randint(1, 30))
+        )
+        if random.random() < 0.5:
+            text += "\n"
+        width = random.choice([1, 5, 20, 40, 80, 200])
+        section = PagerSection(
+            identity="file:/tmp/rows.txt", title="rows.txt", kind="file", body=text
+        )
+        for _probe in range(20):
+            offset = random.randint(0, len(text) + 3)
+            assert _section_row_for_character_offset(
+                section, offset, width
+            ) == _row_for_character_offset(text, offset, width)
+
+
+def test_window_mode_labels_match_between_row_paths() -> None:
+    """Window-mode occurrence rows agree with the direct offset walk."""
+    body = "".join(
+        f"https://example.test/{index}\n"
+        for index in range(PAGER_LABEL_TWO_KEY_CAPACITY + 1)
+    )
+    document = _document(body)
+    width = 80
+    layer = build_label_layer(
+        document,
+        width=width,
+        window_scope=LabelWindowScope(0, width),
+        section_offsets=(0,),
+    )
+    assert layer.mode == "window"
+    assert layer.labels
+    section = document.sections[0]
+    for label in layer.labels:
+        assert _section_row_for_character_offset(
+            section, label.target.start, width
+        ) == _row_for_character_offset(section.plain_text, label.target.start, width)

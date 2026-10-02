@@ -465,6 +465,10 @@ class PagerView(  # type: ignore[misc]
             pass
 
     def on_unmount(self) -> None:
+        try:
+            self.app.theme_changed_signal.unsubscribe(self)
+        except Exception:
+            pass
         cancel_pump_free_tasks(self)
 
     def compose(self) -> ComposeResult:
@@ -484,7 +488,14 @@ class PagerView(  # type: ignore[misc]
             self._update_trail()
             self._update_footer()
             self._update_subject()
-            self.watch(self.app, "theme", self._on_app_theme_changed, init=False)
+            try:
+                self.app.theme_changed_signal.subscribe(
+                    self, self._on_app_theme_changed
+                )
+            except Exception:
+                # Hosts without a theme signal (unit-test hosts) keep the
+                # legacy watcher; it behaves identically while mounted.
+                self.watch(self.app, "theme", self._on_app_theme_changed, init=False)
             anchor = self._split_anchor
             self._split_anchor = None
             if anchor is not None:

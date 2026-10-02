@@ -46,8 +46,6 @@ def _search_state() -> PagerSearchState:
         mode="off",
         direction="forward",
         query="",
-        corpus="",
-        line_starts=(0,),
         match_spans=(),
         current_selection=None,
         origin_offset=0,

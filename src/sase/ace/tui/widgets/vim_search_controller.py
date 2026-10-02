@@ -296,7 +296,12 @@ class VimSearchController:
         refresh: bool,
         restore_from_current_overlay: bool = False,
     ) -> None:
-        """Tear down search and optionally restore a native-view scroll offset."""
+        """Tear down search and optionally restore a native-view scroll offset.
+
+        The corpus and line starts are released: the remembered search
+        (``query``/``direction`` via ``last_search``) survives, and the
+        corpus is rebuilt on the next search start, as it already is.
+        """
         if not self.is_active:
             return
 
@@ -309,6 +314,8 @@ class VimSearchController:
 
         self.mode = "off"
         self.query = ""
+        self.corpus = ""
+        self.line_starts = (0,)
         self.match_spans = ()
         self.current_selection = None
         self._host.vim_search_hide_overlay()
