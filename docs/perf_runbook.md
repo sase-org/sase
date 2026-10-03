@@ -890,6 +890,30 @@ watchdog beacon. Disable the compact tiers independently with `SASE_TUI_HITCH_DI
 and `SASE_TUI_PUMP_HITCH_DISABLE=1`; the existing stall-tier disable flags remain
 `SASE_TUI_STALL_DISABLE=1` and `SASE_TUI_PUMP_STALL_DISABLE=1`.
 
+Hitch and stall rows (and their recoveries) carry additive whole-process fields:
+
+- `late` and `detected_by` — `true` / `"watchdog_lateness"` when the watchdog's own poll
+  was late even though the loop beacon had already run (the GIL-race blind spot: a
+  stop-the-world pause on another thread freezes every thread, and the beacon recovers
+  first). On-time rows report `false` / `"loop_gap"` (or `"pump_gap"`).
+- `poll_lag_s` — the poll lateness minus one poll interval (`0.0` on on-time rows).
+- `net_stall_seconds` — the duration minus one poll interval, floored at the tier
+  threshold. `stall_seconds` / `duration_seconds` are unchanged.
+- `app_instance_id` — the per-instance ID minted at app construction, so a busy hour
+  spanning restarts splits cleanly per instance.
+- Recovery rows add `gc_overlap_s` (GC pause seconds overlapping the episode),
+  `gc_generations`, and `gc_triggers`, attributed from the GC telemetry ring. A hitch
+  caused by an intentional idle collection is then distinguishable from an interactive
+  freeze.
+
+Filter one instance's late freezes with:
+
+```bash
+jq -c 'select(.event == "tui_hitch" and .late == true) | {ts, stall_seconds,
+        poll_lag_s, net_stall_seconds, gc_overlap_s, app_instance_id}' \
+  ~/.sase/logs/tui_stalls.jsonl
+```
+
 The persistent TUI diagnostic JSONL files under `~/.sase/logs/`—stall, git-operation,
 launch-timing, external-tool, agent-load, and startup records—rotate independently
 before appending a record would make a non-empty file exceed 2 MiB. Each keeps one `.1`
@@ -925,6 +949,31 @@ jq -c 'select(.event == "tui_gc_pause" and .app_instance_id == "<id>")
 
 Disable with `SASE_TUI_GC_TELEMETRY_DISABLE=1`. The service never auto-installs under
 the `sase.ace.testing` harness.
+
+The watchdog contributes exact hitch totals to each heartbeat through a `stall_watchdog`
+heartbeat provider: `loop_hitch_episodes` / `loop_hitch_seconds` and
+`pump_hitch_episodes` / `pump_hitch_seconds` count every recovered episode in the
+window, while `loop_suppressed_episodes` / `loop_suppressed_seconds` (and the pump
+equivalents) count the rate-limited ones. Row counts stay bounded; the totals stay
+exact.
+
+### Frozen-share report
+
+`tools/tui_freeze_report` is the read-only measuring tool for the freeze epic. It
+reports per `app_instance_id` (rows that predate instance IDs are bucketed into
+`tui_startup` windows instead of being dropped) over a `--since` / `--until` window:
+
+```bash
+tools/tui_freeze_report --since 2026-10-01T12:00 --until 2026-10-01T13:00
+tools/tui_freeze_report --instance abc123 --path /tmp/sase-tui-soak.jsonl
+```
+
+Each instance reports the loop-only union frozen share (pump and loop tiers are never
+double-counted), hitch duration median / p90 / max, the late versus on-time split, GC
+share by generation and trigger, idle-collection pause p50 / p95 / max, automatic gen-2
+collections within 2 s of input (a documented heuristic: it needs a
+`last_keypress_age_s` context row within 2 s of the pause), and the RSS / swap
+trajectory from heartbeats.
 
 ## Startup telemetry capture
 

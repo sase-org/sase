@@ -36,6 +36,26 @@ from ._stall_watchdog_records import StallRecordMixin
 
 log = logging.getLogger(f"{__package__}.stall_watchdog")
 
+HEARTBEAT_PROVIDER_NAME = "stall_watchdog"
+
+
+def _snapshot_app_instance_id(app: Any | None) -> str | None:
+    """Read the app instance ID minted at construction, if present.
+
+    Never raises: without an app (or without GC telemetry) the watchdog
+    simply omits ``app_instance_id`` from its rows.
+    """
+    if app is None:
+        return None
+    try:
+        from .gc_telemetry import app_instance_id
+    except Exception:
+        return None
+    try:
+        return app_instance_id(app)
+    except Exception:
+        return None
+
 
 class EventLoopStallWatchdog(StallRecordMixin):
     """Detect event-loop and Textual message-pump stalls from a daemon thread.
@@ -130,20 +150,36 @@ class EventLoopStallWatchdog(StallRecordMixin):
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
         self._last_progress_mono = self._monotonic()
+        self._last_poll_mono = self._last_progress_mono
+        self._app_instance_id = _snapshot_app_instance_id(pump_app)
         self._ping_pending = False
         self._in_hitch = False
         self._hitch_started_mono: float | None = None
         self._hitch_was_recorded = False
+        self._hitch_late = False
+        self._hitch_poll_lag_s = 0.0
+        self._hitch_detected_by = "loop_gap"
         self._in_stall = False
         self._stall_started_mono: float | None = None
+        self._loop_hitch_episodes = 0
+        self._loop_hitch_seconds = 0.0
+        self._loop_suppressed_episodes = 0
+        self._loop_suppressed_seconds = 0.0
         self._pump_ping_pending = False
         self._pump_ping_started_mono: float | None = None
         self._last_pump_ping_mono = 0.0
         self._pump_in_hitch = False
         self._pump_hitch_started_mono: float | None = None
         self._pump_hitch_was_recorded = False
+        self._pump_hitch_late = False
+        self._pump_hitch_poll_lag_s = 0.0
+        self._pump_hitch_detected_by = "pump_gap"
         self._pump_in_stall = False
         self._pump_stall_started_mono: float | None = None
+        self._pump_hitch_episodes = 0
+        self._pump_hitch_seconds = 0.0
+        self._pump_suppressed_episodes = 0
+        self._pump_suppressed_seconds = 0.0
         self._hitch_rate_limiter = HitchRateLimiter(
             max_records=hitch_rate_limit_per_minute,
             window_seconds=hitch_rate_limit_window_seconds,
@@ -165,6 +201,7 @@ class EventLoopStallWatchdog(StallRecordMixin):
             daemon=True,
         )
         self._thread.start()
+        self._register_heartbeat_provider()
 
     def stop(self, timeout: float = 1.0) -> None:
         """Stop the watchdog thread."""
@@ -172,6 +209,60 @@ class EventLoopStallWatchdog(StallRecordMixin):
         thread = self._thread
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=timeout)
+        self._unregister_heartbeat_provider()
+
+    def _register_heartbeat_provider(self) -> None:
+        """Publish exact hitch totals to the GC telemetry heartbeat."""
+        try:
+            from .gc_telemetry import register_heartbeat_provider
+
+            register_heartbeat_provider(
+                HEARTBEAT_PROVIDER_NAME, self._heartbeat_hitch_totals
+            )
+        except Exception:
+            log.debug("stall watchdog heartbeat provider skipped", exc_info=True)
+
+    def _unregister_heartbeat_provider(self) -> None:
+        try:
+            from .gc_telemetry import unregister_heartbeat_provider
+
+            unregister_heartbeat_provider(HEARTBEAT_PROVIDER_NAME)
+        except Exception:
+            log.debug(
+                "stall watchdog heartbeat provider removal skipped", exc_info=True
+            )
+
+    def _heartbeat_hitch_totals(self) -> dict[str, Any]:
+        """Snapshot episode totals since the last heartbeat, then reset.
+
+        Called from the GC telemetry flush thread while writing each
+        ``tui_memory_heartbeat`` row, so the counters always cover exactly
+        the window since the previous heartbeat. Never raises.
+        """
+        try:
+            with self._lock:
+                totals = {
+                    "loop_hitch_episodes": self._loop_hitch_episodes,
+                    "loop_hitch_seconds": round(self._loop_hitch_seconds, 3),
+                    "loop_suppressed_episodes": self._loop_suppressed_episodes,
+                    "loop_suppressed_seconds": round(self._loop_suppressed_seconds, 3),
+                    "pump_hitch_episodes": self._pump_hitch_episodes,
+                    "pump_hitch_seconds": round(self._pump_hitch_seconds, 3),
+                    "pump_suppressed_episodes": self._pump_suppressed_episodes,
+                    "pump_suppressed_seconds": round(self._pump_suppressed_seconds, 3),
+                }
+                self._loop_hitch_episodes = 0
+                self._loop_hitch_seconds = 0.0
+                self._loop_suppressed_episodes = 0
+                self._loop_suppressed_seconds = 0.0
+                self._pump_hitch_episodes = 0
+                self._pump_hitch_seconds = 0.0
+                self._pump_suppressed_episodes = 0
+                self._pump_suppressed_seconds = 0.0
+            return totals
+        except Exception:
+            log.debug("stall watchdog heartbeat totals failed", exc_info=True)
+            return {}
 
     def pause(self) -> None:
         """Pause stall detection for an intentional terminal handoff.
@@ -202,13 +293,22 @@ class EventLoopStallWatchdog(StallRecordMixin):
             if self._pause_depth > 0:
                 return
             self._last_progress_mono = self._monotonic()
+            self._last_poll_mono = self._last_progress_mono
             self._ping_pending = False
             self._in_hitch = False
             self._hitch_started_mono = None
             self._hitch_was_recorded = False
+            self._hitch_late = False
+            self._hitch_poll_lag_s = 0.0
+            self._hitch_detected_by = "loop_gap"
             self._in_stall = False
             self._stall_started_mono = None
             self._reset_pump_state_locked()
+
+    def _in_hitch_after_poll(self) -> bool:
+        """Return whether the loop-gap path already owns the hitch episode."""
+        with self._lock:
+            return self._in_hitch
 
     def _run(self) -> None:
         while not self._stop_event.wait(self._poll_interval_seconds):
@@ -223,6 +323,7 @@ class EventLoopStallWatchdog(StallRecordMixin):
             paused = self._pause_depth > 0
             if paused:
                 self._last_progress_mono = now_mono
+                self._last_poll_mono = now_mono
         if paused:
             return True
         self._schedule_ping()
@@ -231,6 +332,8 @@ class EventLoopStallWatchdog(StallRecordMixin):
             gap = now_mono - self._last_progress_mono
             in_hitch = self._in_hitch
             in_stall = self._in_stall
+            poll_gap = now_mono - self._last_poll_mono
+            self._last_poll_mono = now_mono
             pump_started = self._pump_ping_started_mono
             pump_gap = (
                 now_mono - pump_started
@@ -239,11 +342,30 @@ class EventLoopStallWatchdog(StallRecordMixin):
             )
             pump_in_hitch = self._pump_in_hitch
             pump_in_stall = self._pump_in_stall
+        poll_lag_s = poll_gap - self._poll_interval_seconds
         if self._hitch_enabled:
             if gap >= self._hitch_threshold_seconds and not in_hitch:
                 self._record_hitch(now_mono, gap)
             elif gap < self._hitch_threshold_seconds and in_hitch:
                 self._record_hitch_recovery(now_mono)
+        if (
+            self._hitch_enabled
+            and poll_gap >= self._hitch_threshold_seconds
+            and not self._in_hitch_after_poll()
+        ):
+            # The whole process stopped — including this watchdog thread —
+            # even though the loop beacon already ran and the loop gap looks
+            # small. This is the GIL-race blind spot: a stop-the-world pause
+            # on another thread freezes every thread, and the beacon recovers
+            # before this poll notices. The shared hitch state machine keeps
+            # this from double-recording an episode the loop-gap path owns.
+            self._record_hitch(
+                now_mono,
+                poll_gap,
+                late=True,
+                poll_lag_s=max(0.0, poll_lag_s),
+                detected_by="watchdog_lateness",
+            )
         if gap >= self._threshold_seconds and not in_stall:
             self._record_stall(now_mono, gap)
         elif gap < self._threshold_seconds and in_stall:

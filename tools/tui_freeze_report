@@ -1,0 +1,475 @@
+#!/usr/bin/env python3
+"""Report per-instance TUI frozen share and GC share from ``tui_stalls.jsonl``.
+
+The stall watchdog writes loop/pump hitch and stall rows, the GC telemetry
+service writes ``tui_gc_pause`` and ``tui_memory_heartbeat`` rows, all into
+the same JSONL log. This read-only script turns those rows into the
+acceptance numbers for the freeze epic, split per ``app_instance_id``:
+
+- the loop-only union frozen share (pump and loop tiers are never
+  double-counted: only loop-tier episodes enter the union);
+- median, p90, and max hitch duration;
+- the late (whole-process, ``watchdog_lateness``) versus on-time split;
+- GC share by generation and trigger, from heartbeats and pause rows;
+- idle-collection pause p50/p95/max;
+- automatic gen-2 collections that started within 2 s of input;
+- the RSS/swap trajectory from heartbeats.
+
+Rows that predate instance IDs are bucketed into ``tui_startup`` record
+windows (``startup-<n>``) instead of being dropped; rows outside every
+window land in ``unknown``. Missing additive fields on old rows default to
+the on-time, zero-overlap reading.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from collections.abc import Sequence
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+STALLS_ENV_VAR = "SASE_TUI_STALL_PATH"
+STARTUP_ENV_VAR = "SASE_TUI_STARTUP_PATH"
+
+
+def _default_stalls_path() -> Path:
+    override = os.environ.get(STALLS_ENV_VAR)
+    if override:
+        return Path(override)
+    return Path.home() / ".sase" / "logs" / "tui_stalls.jsonl"
+
+
+def _default_startup_path() -> Path:
+    override = os.environ.get(STARTUP_ENV_VAR)
+    if override:
+        return Path(override)
+    return Path.home() / ".sase" / "logs" / "tui_startup.jsonl"
+
+
+def parse_time(value: str) -> float:
+    """Parse an epoch float or ISO-8601 timestamp into epoch seconds."""
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def load_rows(path: Path) -> list[dict]:
+    """Load JSONL rows, skipping blank lines and corrupt records."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    rows: list[dict] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(record, dict):
+            rows.append(record)
+    return rows
+
+
+def _row_ts(row: dict) -> float | None:
+    ts = row.get("ts")
+    if isinstance(ts, bool):
+        return None
+    if isinstance(ts, (int, float)):
+        return float(ts)
+    return None
+
+
+def bucket_by_instance(
+    rows: list[dict], startups: list[dict]
+) -> dict[str, list[dict]]:
+    """Group rows per app instance, windowing ID-less rows by startup.
+
+    Rows carrying ``app_instance_id`` keep it. Rows without one are placed
+    in the ``tui_startup`` window containing their timestamp
+    (``startup-<n>``); rows outside every window land in ``unknown``.
+    """
+    windows: list[tuple[float, float, str]] = []
+    starts = sorted(
+        (ts, index)
+        for index, row in enumerate(startups)
+        if (ts := _row_ts(row)) is not None
+    )
+    for position, (start_ts, _) in enumerate(starts):
+        end_ts = starts[position + 1][0] if position + 1 < len(starts) else float("inf")
+        windows.append((start_ts, end_ts, f"startup-{position}"))
+
+    buckets: dict[str, list[dict]] = {}
+    for row in rows:
+        instance = row.get("app_instance_id")
+        if isinstance(instance, str) and instance:
+            key = instance
+        else:
+            key = "unknown"
+            ts = _row_ts(row)
+            if ts is not None:
+                for start_ts, end_ts, name in windows:
+                    if start_ts <= ts < end_ts:
+                        key = name
+                        break
+        buckets.setdefault(key, []).append(row)
+    return buckets
+
+
+def _percentile(sorted_values: list[float], rank: float) -> float | None:
+    if not sorted_values:
+        return None
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    position = rank * (len(sorted_values) - 1)
+    lower = int(position)
+    upper = min(lower + 1, len(sorted_values) - 1)
+    fraction = position - lower
+    return sorted_values[lower] + (sorted_values[upper] - sorted_values[lower]) * fraction
+
+
+def _median(values: list[float]) -> float | None:
+    return _percentile(sorted(values), 0.5)
+
+
+def _merge_union(intervals: list[tuple[float, float]]) -> float:
+    """Total covered seconds of possibly overlapping [start, end] intervals."""
+    total = 0.0
+    cursor_start: float | None = None
+    cursor_end = 0.0
+    for start, end in sorted(intervals):
+        if end <= start:
+            continue
+        if cursor_start is None:
+            cursor_start, cursor_end = start, end
+        elif start <= cursor_end:
+            cursor_end = max(cursor_end, end)
+        else:
+            total += cursor_end - cursor_start
+            cursor_start, cursor_end = start, end
+    if cursor_start is not None:
+        total += cursor_end - cursor_start
+    return total
+
+
+def summarize_instance(
+    rows: list[dict], *, since: float | None = None, until: float | None = None
+) -> dict:
+    """Compute the acceptance numbers for one instance bucket."""
+    ordered = sorted(
+        (row for row in rows if _row_ts(row) is not None),
+        key=lambda row: float(row["ts"]),
+    )
+    if since is None:
+        since = float(ordered[0]["ts"]) if ordered else 0.0
+    if until is None:
+        until = float(ordered[-1]["ts"]) if ordered else since
+    window_s = max(0.0, until - since)
+    windowed = [row for row in ordered if since <= float(row["ts"]) <= until]
+
+    # Loop-tier hitch episodes. Pump rows never enter the union, so a freeze
+    # seen by both tiers counts once.
+    open_hitch: dict[str, dict] = {}
+    episodes: list[dict] = []
+    for row in windowed:
+        event = row.get("event")
+        if event == "tui_hitch" and "hitch" not in open_hitch:
+            open_hitch["hitch"] = row
+        elif event == "tui_hitch_recovered" and "hitch" in open_hitch:
+            episodes.append({"hitch": open_hitch.pop("hitch"), "recovery": row})
+    for leftover in open_hitch.values():
+        episodes.append({"hitch": leftover, "recovery": None})
+
+    intervals: list[tuple[float, float]] = []
+    durations: list[float] = []
+    late_episodes = 0
+    late_seconds = 0.0
+    ontime_episodes = 0
+    ontime_seconds = 0.0
+    for episode in episodes:
+        hitch = episode["hitch"]
+        recovery = episode["recovery"]
+        start = float(hitch["ts"])
+        if recovery is not None and isinstance(
+            recovery.get("duration_seconds"), (int, float)
+        ):
+            duration = float(recovery["duration_seconds"])
+        else:
+            stall_seconds = hitch.get("stall_seconds")
+            duration = (
+                float(stall_seconds)
+                if isinstance(stall_seconds, (int, float))
+                else 0.0
+            )
+        duration = max(0.0, duration)
+        intervals.append((start, start + duration))
+        durations.append(duration)
+        late = bool(hitch.get("late", False)) or bool(
+            (recovery or {}).get("late", False)
+        )
+        if late:
+            late_episodes += 1
+            late_seconds += duration
+        else:
+            ontime_episodes += 1
+            ontime_seconds += duration
+
+    frozen_s = _merge_union(intervals)
+    sorted_durations = sorted(durations)
+
+    # GC share from heartbeats (exact per-window totals) and pause rows.
+    gc_seconds_by_gen: dict[str, float] = {}
+    gc_seconds_by_trigger: dict[str, float] = {}
+    for row in windowed:
+        if row.get("event") != "tui_memory_heartbeat":
+            continue
+        generations = row.get("gc_generations")
+        if isinstance(generations, dict):
+            for gen, stats in generations.items():
+                if isinstance(stats, dict) and isinstance(
+                    stats.get("total_s"), (int, float)
+                ):
+                    gc_seconds_by_gen[str(gen)] = gc_seconds_by_gen.get(
+                        str(gen), 0.0
+                    ) + float(stats["total_s"])
+    pause_rows = [row for row in windowed if row.get("event") == "tui_gc_pause"]
+    for row in pause_rows:
+        pause_duration = row.get("duration_s")
+        if not isinstance(pause_duration, (int, float)):
+            continue
+        gen = row.get("generation")
+        trigger = row.get("trigger")
+        key = f"gen-{gen}/{trigger}"
+        gc_seconds_by_trigger[key] = gc_seconds_by_trigger.get(key, 0.0) + float(
+            pause_duration
+        )
+    gc_total_s = sum(gc_seconds_by_gen.values())
+
+    idle_pauses = sorted(
+        float(row["duration_s"])
+        for row in pause_rows
+        if isinstance(row.get("duration_s"), (int, float))
+        and isinstance(row.get("trigger"), str)
+        and row.get("trigger") != "automatic"
+    )
+
+    # Automatic gen-2 collections near input. Pause rows carry no keypress
+    # context, so a pause counts when a context-carrying row within 2 s
+    # reports the last input at most 2 s old. Documented heuristic, not
+    # proof: it undercounts when no hitch row brackets the pause.
+    context_rows = [
+        (float(row["ts"]), float(row["last_keypress_age_s"]))
+        for row in windowed
+        if isinstance(row.get("last_keypress_age_s"), (int, float))
+    ]
+    auto_gen2_total = 0
+    auto_gen2_near_input = 0
+    for row in pause_rows:
+        if row.get("generation") != 2 or row.get("trigger") != "automatic":
+            continue
+        pause_ts = row.get("ts")
+        if not isinstance(pause_ts, (int, float)):
+            continue
+        auto_gen2_total += 1
+        for ctx_ts, age_s in context_rows:
+            if abs(float(pause_ts) - ctx_ts) <= 2.0 and age_s <= 2.0:
+                auto_gen2_near_input += 1
+                break
+
+    heartbeats = sorted(
+        (
+            row
+            for row in windowed
+            if row.get("event") == "tui_memory_heartbeat"
+        ),
+        key=lambda row: float(row["ts"]),
+    )
+    rss_first = heartbeats[0].get("rss_bytes") if heartbeats else None
+    rss_last = heartbeats[-1].get("rss_bytes") if heartbeats else None
+    swap_first = heartbeats[0].get("vmswap_bytes") if heartbeats else None
+    swap_last = heartbeats[-1].get("vmswap_bytes") if heartbeats else None
+
+    return {
+        "row_count": len(windowed),
+        "episodes": len(episodes),
+        "window_s": round(window_s, 3),
+        "frozen_s": round(frozen_s, 3),
+        "frozen_share": (frozen_s / window_s) if window_s > 0 else 0.0,
+        "hitch_duration_median": _median(durations),
+        "hitch_duration_p90": _percentile(sorted_durations, 0.9),
+        "hitch_duration_max": max(durations) if durations else None,
+        "late_episodes": late_episodes,
+        "late_seconds": round(late_seconds, 3),
+        "ontime_episodes": ontime_episodes,
+        "ontime_seconds": round(ontime_seconds, 3),
+        "gc_total_s": round(gc_total_s, 3),
+        "gc_share": (gc_total_s / window_s) if window_s > 0 else 0.0,
+        "gc_seconds_by_generation": {
+            gen: round(total, 3) for gen, total in sorted(gc_seconds_by_gen.items())
+        },
+        "gc_seconds_by_gen_trigger": {
+            key: round(total, 3)
+            for key, total in sorted(gc_seconds_by_trigger.items())
+        },
+        "idle_pause_count": len(idle_pauses),
+        "idle_pause_p50": _median(idle_pauses),
+        "idle_pause_p95": _percentile(idle_pauses, 0.95),
+        "idle_pause_max": max(idle_pauses) if idle_pauses else None,
+        "auto_gen2_total": auto_gen2_total,
+        "auto_gen2_near_input": auto_gen2_near_input,
+        "rss_first_bytes": rss_first,
+        "rss_last_bytes": rss_last,
+        "swap_first_bytes": swap_first,
+        "swap_last_bytes": swap_last,
+        "heartbeat_count": len(heartbeats),
+    }
+
+
+def _format_bytes(value: object) -> str:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return "n/a"
+    total = float(value)
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if total < 1024.0 or unit == "GiB":
+            return f"{total:.1f} {unit}"
+        total /= 1024.0
+    return f"{total:.1f} GiB"
+
+
+def _format_seconds(value: object) -> str:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return "n/a"
+    return f"{float(value):.3f} s"
+
+
+def format_report(summaries: dict[str, dict]) -> str:
+    """Render per-instance summaries as human-readable text."""
+    if not summaries:
+        return "tui_freeze_report: no rows in window\n"
+    lines: list[str] = []
+    for instance in sorted(summaries):
+        summary = summaries[instance]
+        lines.append(f"instance {instance}")
+        lines.append(
+            f"  window: {_format_seconds(summary['window_s'])} "
+            f"frozen: {_format_seconds(summary['frozen_s'])} "
+            f"({summary['frozen_share'] * 100:.2f}%, "
+            f"{summary['episodes']} loop episodes)"
+        )
+        lines.append(
+            f"  hitch duration: median {_format_seconds(summary['hitch_duration_median'])} "
+            f"p90 {_format_seconds(summary['hitch_duration_p90'])} "
+            f"max {_format_seconds(summary['hitch_duration_max'])}"
+        )
+        lines.append(
+            f"  late: {summary['late_episodes']} episodes "
+            f"({_format_seconds(summary['late_seconds'])}) "
+            f"on-time: {summary['ontime_episodes']} episodes "
+            f"({_format_seconds(summary['ontime_seconds'])})"
+        )
+        lines.append(
+            f"  gc: {_format_seconds(summary['gc_total_s'])} "
+            f"({summary['gc_share'] * 100:.2f}% of window) "
+            f"by generation {json.dumps(summary['gc_seconds_by_generation'])}"
+        )
+        lines.append(
+            f"  gc by gen/trigger {json.dumps(summary['gc_seconds_by_gen_trigger'])}"
+        )
+        lines.append(
+            f"  idle collections: {summary['idle_pause_count']} pauses "
+            f"p50 {_format_seconds(summary['idle_pause_p50'])} "
+            f"p95 {_format_seconds(summary['idle_pause_p95'])} "
+            f"max {_format_seconds(summary['idle_pause_max'])}"
+        )
+        lines.append(
+            f"  automatic gen-2 near input: {summary['auto_gen2_near_input']}/"
+            f"{summary['auto_gen2_total']}"
+        )
+        lines.append(
+            f"  rss: {_format_bytes(summary['rss_first_bytes'])} -> "
+            f"{_format_bytes(summary['rss_last_bytes'])} "
+            f"swap: {_format_bytes(summary['swap_first_bytes'])} -> "
+            f"{_format_bytes(summary['swap_last_bytes'])} "
+            f"({summary['heartbeat_count']} heartbeats)"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Report per-app-instance TUI frozen share and GC share from "
+            "tui_stalls.jsonl."
+        )
+    )
+    parser.add_argument(
+        "--path",
+        type=Path,
+        default=None,
+        help="Stall JSONL path. Defaults to $SASE_TUI_STALL_PATH or ~/.sase/logs/tui_stalls.jsonl.",
+    )
+    parser.add_argument(
+        "--startup-path",
+        type=Path,
+        default=None,
+        help="Startup JSONL path used to window rows without app_instance_id.",
+    )
+    parser.add_argument(
+        "--since",
+        default=None,
+        help="Window start as epoch seconds or ISO-8601.",
+    )
+    parser.add_argument(
+        "--until",
+        default=None,
+        help="Window end as epoch seconds or ISO-8601.",
+    )
+    parser.add_argument(
+        "--instance",
+        action="append",
+        default=None,
+        help="Only report this instance (repeatable).",
+    )
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    stalls_path = args.path or _default_stalls_path()
+    startup_path = args.startup_path or _default_startup_path()
+    rows = load_rows(stalls_path)
+    startups = load_rows(startup_path)
+    try:
+        since = parse_time(args.since) if args.since is not None else None
+        until = parse_time(args.until) if args.until is not None else None
+    except ValueError as exc:
+        parser.error(f"invalid --since/--until: {exc}")
+        return 2
+    if since is not None and until is not None and until < since:
+        parser.error("--until must not precede --since")
+        return 2
+
+    buckets = bucket_by_instance(rows, startups)
+    summaries = {}
+    for instance, bucket in buckets.items():
+        if args.instance is not None and instance not in args.instance:
+            continue
+        summary = summarize_instance(bucket, since=since, until=until)
+        if summary["row_count"] == 0:
+            continue
+        summaries[instance] = summary
+    print(format_report(summaries), end="")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
