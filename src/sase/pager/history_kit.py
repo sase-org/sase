@@ -57,12 +57,14 @@ from sase.pager._chrome_history import history_badge as history_badge
 from sase.pager._chrome_history import history_context as history_context
 from sase.pager._chrome_history import honest_chip as honest_chip
 from sase.pager._chrome_history import time_verbs_for_moment as time_verbs_for_moment
+from sase.pager._time_band import TimeBandData as TimeBandData
 from sase.pager._time_band import build_time_band_data as build_time_band_data
 from sase.pager._time_band import chrome_row_budget as chrome_row_budget
 from sase.pager._time_band import format_age as format_age
 from sase.pager._time_band import render_scrubber as render_scrubber
 from sase.pager._time_band import render_sparkline as render_sparkline
 from sase.pager._time_band import render_time_band as render_time_band
+from sase.pager._time_band import time_band_targets as time_band_targets
 from sase.pager._time_band_render_meaning import cause_row as cause_row
 from sase.pager._time_band_render_meaning import meaning_row as meaning_row
 from sase.pager._timeline_picker_rows import PickerColumns as PickerColumns
@@ -92,6 +94,7 @@ __all__ = [
     "HistoryStyles",
     "PickerColumns",
     "SectionTimeState",
+    "TimeBandData",
     "VersionMoment",
     "VersionPin",
     "boundary_notice",
@@ -131,6 +134,7 @@ __all__ = [
     "render_sparkline",
     "render_time_band",
     "step_target",
+    "time_band_targets",
     "time_verbs_for_moment",
     "visible_ordinals_for_timeline",
     "visible_picker_rows",

@@ -219,11 +219,13 @@ class MemoryPane(
             yield Static(self._loading_header_text(), id="memory-panel-header")
             with Horizontal(id="memory-panel-body"):
                 yield OptionList(id=_NOTE_LIST_ID)
-                with VerticalScroll(id="memory-panel-detail"):
+                with Vertical(id="memory-panel-detail"):
                     yield Static("", id="memory-panel-card-title")
-                    yield Static("", id="memory-panel-card-description")
-                    yield Markdown("", id="memory-panel-card-body")
-                    yield Static("", id="memory-panel-card-meta")
+                    yield Static("", id="memory-panel-time-strip")
+                    with VerticalScroll(id="memory-panel-card-scroll"):
+                        yield Static("", id="memory-panel-card-description")
+                        yield Markdown("", id="memory-panel-card-body")
+                        yield Static("", id="memory-panel-card-meta")
             yield _MemoryFilterInput(
                 placeholder="Filter notes…",
                 id=_FILTER_INPUT_ID,

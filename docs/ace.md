@@ -7923,11 +7923,17 @@ The note card also shows a badge row (`CORE · always loaded` /
 grid: type, parent, child count, size (lines and approximate tokens), last modified,
 last audited read, and the on-disk source path. A web row instead shows `WEB` plus
 `EXPANDED`/`COLLAPSED`, and its property grid names strand count and scope -- a web
-descriptor declares no `type:`, so there is no rendering-type row. A strand row shows
-`STRAND`, plus `AUDITED`, `AUDITING`, or `AUDIT FAILED` once the panel has recorded (or
-tried to record) an audited read for it: selecting a strand's card records an audited
-read the same way `sase memory read <web>:<keyword>` does, so previewing a strand in the
-panel is itself an attributable access, not a silent peek.
+descriptor declares no `type:`, so there is no rendering-type row.
+
+The card head is pinned: the title row plus the path line with the pager's state pill
+(`NOW`, `uncommitted`, `UNTRACKED`, `NO VCS`), then a reserved two-row time strip (one
+row on short cards). At clean now the second row names what changed last; honest states
+use the pager's exact words. `H` opens the selection in the pager at now and `C` opens
+the changes feed. A strand row shows `STRAND`, plus `AUDITED`, `AUDITING`, or
+`AUDIT FAILED` once the panel has recorded (or tried to record) an audited read for it:
+selecting a strand's card records an audited read the same way
+`sase memory read <web>:<keyword>` does, so previewing a strand in the panel is itself
+an attributable access, not a silent peek.
 
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`

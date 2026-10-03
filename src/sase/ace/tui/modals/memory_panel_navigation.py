@@ -147,13 +147,13 @@ class MemoryPanelNavigationMixin(_MixinBase):
         self._land_on_identity(target.identity)
 
     def action_scroll_body_down(self) -> None:
-        scroll = self.query_one("#memory-panel-detail", VerticalScroll)
+        scroll = self.query_one("#memory-panel-card-scroll", VerticalScroll)
         scroll.scroll_relative(
             y=max(1, scroll.scrollable_content_region.height // 2), animate=False
         )
 
     def action_scroll_body_up(self) -> None:
-        scroll = self.query_one("#memory-panel-detail", VerticalScroll)
+        scroll = self.query_one("#memory-panel-card-scroll", VerticalScroll)
         scroll.scroll_relative(
             y=-max(1, scroll.scrollable_content_region.height // 2), animate=False
         )

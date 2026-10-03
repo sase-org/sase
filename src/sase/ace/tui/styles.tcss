@@ -7000,12 +7000,21 @@ MemoryPane #memory-panel-detail {
     border: solid $secondary;
     margin-left: 1;
     padding: 0 1;
-    scrollbar-gutter: stable;
 }
 
 MemoryPane #memory-panel-card-title {
     height: auto;
+}
+
+MemoryPane #memory-panel-time-strip {
+    height: 2;
     margin-bottom: 1;
+}
+
+MemoryPane #memory-panel-card-scroll {
+    width: 1fr;
+    height: 1fr;
+    scrollbar-gutter: stable;
 }
 
 MemoryPane #memory-panel-card-description {

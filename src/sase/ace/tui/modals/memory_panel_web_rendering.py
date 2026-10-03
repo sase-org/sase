@@ -37,7 +37,6 @@ def build_rail_node_card_meta(
     children: tuple[MemoryNote, ...] | None = None,
     focused_link_number: int | None = None,
     strand_read_state: str | None = None,
-    history: RenderableType | None = None,
 ) -> RenderableType:
     """Build metadata for a note, web, or strand row."""
     if node.strand is None and node.web is None:
@@ -48,7 +47,6 @@ def build_rail_node_card_meta(
             parent=parent,
             children=children,
             focused_link_number=focused_link_number,
-            history=history,
         )
     if parent is None or children is None:
         parent, children = memory_rail_node_relations(snapshot, node)
@@ -87,9 +85,7 @@ def build_rail_node_card_meta(
         sections.append(chip_rows)
     sections.append(Text("-" * 44, style="dim"))
     if node.strand is not None and node.web is not None:
-        sections.append(
-            _build_strand_property_grid(snapshot, node, accent=accent, history=history)
-        )
+        sections.append(_build_strand_property_grid(snapshot, node, accent=accent))
     elif node.web is not None:
         sections.append(_build_web_property_grid(snapshot, node, accent=accent))
     return Group(*sections)
@@ -139,7 +135,6 @@ def _build_strand_property_grid(
     node: MemoryRailNode,
     *,
     accent: str,
-    history: RenderableType | None = None,
 ) -> RenderableType:
     strand = node.strand
     web = node.web
@@ -157,8 +152,6 @@ def _build_strand_property_grid(
     if strand.metadata:
         rows.append(("Metadata", _metadata_value(strand.metadata)))
     _append_file_rows(snapshot, node.note, rows)
-    if history is not None:
-        rows.append(("History", history))
     rows.append(("Source", memory_note_source_path(snapshot.scope, node.note)))
     return build_property_grid(rows, accent=accent)
 

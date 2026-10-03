@@ -367,7 +367,6 @@ def _build_note_property_grid(
     read_summary: MemoryReadPathSummary | None,
     source_path: str,
     accent: str,
-    history: RenderableType | None = None,
 ) -> RenderableType:
     """Build the aligned type/parent/size/read/source metadata grid."""
     rows: list[tuple[str, str | RenderableType]] = [
@@ -395,8 +394,6 @@ def _build_note_property_grid(
                 f"{format_relative_time(read_summary.last_read_at)}",
             )
         )
-    if history is not None:
-        rows.append(("History", history))
     rows.append(("Source", source_path))
 
     return build_property_grid(rows, accent=accent)
@@ -428,7 +425,6 @@ def build_note_card_meta(
     parent: tuple[MemoryNote, ...] | None = None,
     children: tuple[MemoryNote, ...] | None = None,
     focused_link_number: int | None = None,
-    history: RenderableType | None = None,
 ) -> RenderableType:
     """Build the badge row, link chips, divider, and property grid.
 
@@ -464,7 +460,6 @@ def build_note_card_meta(
             read_summary=snapshot.read_summaries.get(note.relative_path),
             source_path=memory_note_source_path(snapshot.scope, note),
             accent=accent,
-            history=history,
         )
     )
     return Group(*sections)

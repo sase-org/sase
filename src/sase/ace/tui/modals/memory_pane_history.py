@@ -22,10 +22,6 @@ else:
 #: Seconds between stat-only history change probes while the pane is visible.
 _HISTORY_POLL_S = 5.0
 
-#: Settled-unavailable History row text. The last good snapshot stays out
-#: of the way: the row names the retry key instead of showing ``…`` forever.
-_HISTORY_UNAVAILABLE_TEXT = "history unavailable · r retry"
-
 
 class MemoryPaneHistoryMixin(_MixinBase):
     """History summaries and pager actions for ``MemoryPane``."""
@@ -70,12 +66,6 @@ class MemoryPaneHistoryMixin(_MixinBase):
         """Return ``(scope_key, selector, panel_ref, selector)`` for *node*."""
         if node is None or not self._ring:
             return None
-        # Web descriptor rows carry no History row: only notes and strands.
-        if (
-            getattr(node, "web", None) is not None
-            and getattr(node, "strand", None) is None
-        ):
-            return None
         try:
             from .memory_panel_history import selector_for_node
 
@@ -87,33 +77,69 @@ class MemoryPaneHistoryMixin(_MixinBase):
         ref = self._ring[self._scope_index]
         return (ref.key, selector, ref, selector)
 
-    def _history_renderable_for_node(self, node: Any | None) -> Any | None:
-        """Return the History row value without blocking.
+    def _time_strip_snapshot_for_node(self, node: Any | None) -> Any | None:
+        """Return the pinned-head snapshot without blocking.
 
-        Returns ``None`` when the row is omitted (web rows or no
-        selection). Otherwise returns the cached summary, a dim
-        ``history unavailable · r retry`` once a load settles
-        unavailable, or a dim ``…`` placeholder while scheduling the
-        off-thread load.
+        Notes, web descriptors, and strands all show the strip. Returns
+        the last good timeline with a stale mark when the latest load
+        failed, or ``None`` while the first load is still in flight
+        (the strip shows ``indexing…``).
         """
-        from rich.text import Text
+        import time as _time
+
+        from .memory_pane_time_strip import TimeStripSnapshot, subject_id_for_selector
 
         keyed = self._history_key_for_node(node)
         if keyed is None:
             return None
         scope_key, selector, _ref, _raw = keyed
+        is_strand = bool(getattr(node, "strand", None) is not None)
+        try:
+            path_label = str(getattr(node, "identity", "") or selector)
+            note = getattr(node, "note", None)
+            if not is_strand and note is not None:
+                relative = str(getattr(note, "relative_path", "") or "")
+                if relative:
+                    path_label = relative
+        except Exception:
+            path_label = str(selector)
+        subject_id = subject_id_for_selector(selector, is_strand=is_strand)
+        now_epoch = int(_time.time())
         cached = self._history_latest.get((scope_key, selector))
+        failed = (scope_key, selector) in self._history_failed
         if cached is not None:
-            try:
-                from .memory_panel_history import history_value_text
-
-                return history_value_text(cached, accent=self._accent)
-            except Exception:
-                return Text("…", style="dim")
-        if (scope_key, selector) in self._history_failed:
-            return Text(_HISTORY_UNAVAILABLE_TEXT, style="dim")
+            return TimeStripSnapshot(
+                subject_id=subject_id,
+                path_label=path_label,
+                timeline=dict(cached),
+                now_epoch=now_epoch,
+                failed=bool(failed),
+            )
+        if failed:
+            return TimeStripSnapshot(
+                subject_id=subject_id,
+                path_label=path_label,
+                timeline=None,
+                now_epoch=now_epoch,
+                failed=True,
+            )
         self._ensure_history_load(scope_key, selector)
-        return Text("…", style="dim")
+        return TimeStripSnapshot(
+            subject_id=subject_id,
+            path_label=path_label,
+            timeline=None,
+            now_epoch=now_epoch,
+            failed=False,
+        )
+
+    def _time_strip_styles(self) -> Any:
+        """Return the memoized kit styles for the current theme."""
+        try:
+            from .memory_pane_time_strip import get_time_strip_styles
+
+            return get_time_strip_styles(self.app.current_theme)
+        except Exception:
+            return None
 
     def _ensure_history_load(self, scope_key: str, selector: str) -> None:
         if not self._ring or self._loading:

@@ -135,7 +135,7 @@ class MemoryPanelTravelMixin(_MixinBase):
             self.notify(f'Filter cleared to show "{stem}"')
             self._filter_input().value = ""
             self._apply_filter("", include_bodies=False, preferred_note=identity)
-        self.query_one("#memory-panel-detail", VerticalScroll).scroll_home(
+        self.query_one("#memory-panel-card-scroll", VerticalScroll).scroll_home(
             animate=False
         )
 

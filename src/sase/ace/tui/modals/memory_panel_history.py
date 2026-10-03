@@ -1,8 +1,8 @@
 """History entry points for the Memory panel (phase `memory-panel`).
 
 Pure helpers plus thin service wiring for the ``H`` (history) and ``C``
-(changes) bindings and the History card row (epic design
-``plan:202609/memory_history.md`` §4.8 and §16).
+(changes) bindings and the pinned time strip (epic design
+``plan:202610/memory_history_tui.md`` §9).
 
 - Selectors come from the selected rail node, never from free text.
 - Scopes come from the panel's scope ring
@@ -10,7 +10,7 @@ Pure helpers plus thin service wiring for the ``H`` (history) and ``C``
   directory.
 - Everything that touches git or the Rust core runs off the event loop;
   callers schedule :func:`fetch_history_summary` in a worker and render
-  the pure :func:`history_value_text` result.
+  the time strip from the kit.
 """
 
 from __future__ import annotations
@@ -18,8 +18,6 @@ from __future__ import annotations
 import time
 from pathlib import Path
 from typing import Any
-
-_HISTORY_SPARKLINE_WIDTH = 8
 
 
 def selector_for_node(node: Any) -> str | None:
@@ -137,6 +135,12 @@ def fetch_history_summary(
         ]
         versions.sort(key=lambda row: int(row.get("ordinal", 0) or 0))
         state = str(timeline.get("state", "tracked") or "tracked")
+        try:
+            from sase.pager.history_kit import dirty_now_from_timeline
+
+            dirty = bool(dirty_now_from_timeline(timeline))
+        except Exception:
+            dirty = False
         summary: dict[str, Any] = {
             "selector": raw_selector,
             "core_selector": core_selector,
@@ -146,6 +150,7 @@ def fetch_history_summary(
             "now_epoch": int(time.time()),
             "versions": versions,
             "total": len(versions),
+            "dirty": dirty,
         }
         return summary
     except Exception:
@@ -163,156 +168,9 @@ def history_cache_key(summary: dict[str, Any] | None) -> tuple[str, str, str]:
     )
 
 
-def _format_age(now_epoch: int, then_epoch: int) -> str:
-    """Return a compact relative age (``3d``, ``8d``, ``5mo``)."""
-    delta = max(0, int(now_epoch) - int(then_epoch))
-    if delta < 60:
-        return f"{delta}s"
-    if delta < 3600:
-        return f"{delta // 60}m"
-    if delta < 86400:
-        return f"{delta // 3600}h"
-    if delta < 30 * 86400:
-        return f"{delta // 86400}d"
-    if delta < 365 * 86400:
-        return f"{delta // (30 * 86400)}mo"
-    return f"{delta // (365 * 86400)}y"
-
-
-def _sparkline_renderable(volumes: list[int], classes: list[str]) -> Any:
-    """Render the mini sparkline without a current highlight."""
-    try:
-        from sase.pager.history_kit import render_sparkline
-
-        return render_sparkline(volumes, classes, None, _HISTORY_SPARKLINE_WIDTH)
-    except Exception:
-        return None
-
-
-def _format_history_row(summary: dict[str, Any] | None) -> tuple[str, str]:
-    """Return ``(plain_text, style)`` for the History property row.
-
-    ``style`` is ``""`` for the normal row, ``"yellow"`` (amber) for
-    untracked/ignored states, and ``"dim"`` for loading/unavailable
-    states. ``None`` means the row is omitted (flag off is handled by
-    callers; this covers only data-driven omission).
-    """
-    if summary is None:
-        return ("…", "dim")
-    state = str(summary.get("state", "tracked") or "tracked")
-    normalized = state.lower().replace("_", "").replace(" ", "")
-    if "untracked" in normalized:
-        return ("untracked", "yellow")
-    if "ignored" in normalized or "excluded" in normalized:
-        return ("ignored", "yellow")
-    if normalized in ("novcs", "norepo", "nogit") or "no vcs" in state.lower():
-        return ("NO VCS", "dim")
-    versions = summary.get("versions", ())
-    if not isinstance(versions, list) or not versions:
-        return ("untracked", "yellow")
-    volumes: list[int] = []
-    classes: list[str] = []
-    for row in versions:
-        if not isinstance(row, dict):
-            continue
-        details = row.get("summary")
-        detail_map = dict(details) if isinstance(details, dict) else {}
-        try:
-            volumes.append(int(detail_map.get("volume", 0) or 0))
-        except (TypeError, ValueError):
-            volumes.append(0)
-        classes.append(str(row.get("class", "") or "unclassified"))
-    spark_text = _sparkline_renderable(volumes, classes)
-    spark_plain = ""
-    try:
-        spark_plain = spark_text.plain if spark_text is not None else ""
-    except Exception:
-        spark_plain = ""
-    total = int(summary.get("total", len(versions)) or len(versions))
-    newest = versions[-1]
-    try:
-        then = int(newest.get("committer_time", 0) or 0)
-    except (TypeError, ValueError):
-        then = 0
-    now_epoch = int(summary.get("now_epoch", 0) or 0) or int(time.time())
-    age = _format_age(now_epoch, then) if then else "?"
-    provenance = newest.get("provenance")
-    provenance_map = dict(provenance) if isinstance(provenance, dict) else {}
-    bead = str(provenance_map.get("bead", "") or "")
-    agent = str(provenance_map.get("agent", "") or "")
-    who = bead or agent
-    version_word = "version" if total == 1 else "versions"
-    parts = f"{total} {version_word} · changed {age} ago"
-    if who:
-        parts = f"{parts} · {who}"
-    if spark_plain:
-        return (f"{spark_plain}  {parts}", "")
-    return (parts, "")
-
-
-def history_value_text(summary: dict[str, Any] | None, *, accent: str) -> Any:
-    """Return the History row value as Rich text, reusing the sparkline.
-
-    The mini sparkline is the pager ``render_sparkline`` renderable
-    itself (with its per-class styles); the trailing summary uses
-    *accent* normally and amber/dim for honest/loading states.
-    """
-    from rich.text import Text as _Text
-
-    plain, style_key = _format_history_row(summary)
-    if summary is None:
-        return _Text(plain, style="dim")
-    state = str(summary.get("state", "tracked") or "tracked")
-    normalized = state.lower().replace("_", "").replace(" ", "")
-    if "untracked" in normalized or "ignored" in normalized or "excluded" in normalized:
-        return _Text(plain, style="yellow")
-    if normalized in ("novcs", "norepo", "nogit") or "no vcs" in state.lower():
-        return _Text(plain, style="dim")
-    versions = summary.get("versions", ())
-    if not isinstance(versions, list) or not versions:
-        return _Text(plain, style="yellow")
-    volumes: list[int] = []
-    classes: list[str] = []
-    for row in versions:
-        if not isinstance(row, dict):
-            continue
-        details = row.get("summary")
-        detail_map = dict(details) if isinstance(details, dict) else {}
-        try:
-            volumes.append(int(detail_map.get("volume", 0) or 0))
-        except (TypeError, ValueError):
-            volumes.append(0)
-        classes.append(str(row.get("class", "") or "unclassified"))
-    spark = _sparkline_renderable(volumes, classes)
-    # Split the plain row into its sparkline prefix and the summary
-    # suffix so the sparkline keeps its own cell styles.
-    try:
-        spark_plain = spark.plain if spark is not None else ""
-    except Exception:
-        spark = None
-        spark_plain = ""
-    suffix = plain
-    if spark_plain and plain.startswith(spark_plain):
-        suffix = plain[len(spark_plain) :].lstrip()
-    combined = _Text(no_wrap=True)
-    if spark is not None and spark_plain:
-        combined.append(spark)
-        if suffix:
-            combined.append("  ")
-    if suffix:
-        combined.append(suffix, style=accent or "")
-    elif not combined.plain:
-        combined.append(plain, style=accent or "")
-    void_style = style_key
-    if void_style and void_style != "":
-        return _Text(plain, style=void_style)
-    return combined
-
-
 __all__ = [
     "fetch_history_summary",
     "history_cache_key",
     "history_scopes_for_ring",
-    "history_value_text",
     "selector_for_node",
 ]

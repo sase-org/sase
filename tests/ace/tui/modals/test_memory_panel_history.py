@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from rich.console import Console
-from rich.text import Text
 
 from sase.ace.tui.keymaps.app_keymaps import MemoryPanelKeymaps
 from sase.ace.tui.keymaps.bindings import build_memory_bindings, memory_help_bindings
@@ -11,7 +10,6 @@ from sase.ace.tui.modals.memory_panel_history import (
     fetch_history_summary,
     history_cache_key,
     _history_scope_for_panel_ref,
-    history_value_text,
     selector_for_node,
 )
 from sase.ace.tui.modals.memory_panel_rendering import (
@@ -97,34 +95,90 @@ def test_panel_footer_always_shows_history_with_notes() -> None:
     assert "history" not in empty
 
 
-def test_history_row_format_uses_versions_and_provenance() -> None:
-    value = history_value_text(_summary(), accent="#87D7FF")
-    assert "2 versions" in value.plain
-    assert "changed" in value.plain
-    assert "sase-1bc.12" in value.plain
-    # The mini sparkline reuses the pager sparkline cells.
-    assert any(cell in value.plain for cell in "▁▂▃▄▅▆▇█")
-
-
-def test_history_row_shows_amber_untracked_and_dim_loading() -> None:
-    loading = history_value_text(None, accent="#87D7FF")
-    assert loading.plain == "…"
-    assert str(loading.style) == "dim"
-    untracked = history_value_text(
-        _summary(state="untracked", versions=[]), accent="#87D7FF"
+def test_time_strip_clean_now_shows_pill_and_meaning() -> None:
+    from sase.ace.tui.modals.memory_pane_time_strip import (
+        TimeStripSnapshot,
+        build_time_band_for_timeline,
+        render_card_head,
+        render_time_strip,
     )
-    assert untracked.plain == "untracked"
-    assert str(untracked.style) == "yellow"
+    from sase.pager.history_kit import history_styles_for_theme
+
+    timeline = _summary()
+    snapshot = TimeStripSnapshot(
+        subject_id="note:sase/memory/gotchas.md",
+        path_label="sase/memory/gotchas.md",
+        timeline=dict(timeline),
+        now_epoch=1790769600,
+    )
+    styles = history_styles_for_theme(None)
+    head = render_card_head("sase/memory/gotchas.md", snapshot, styles, width=60)
+    assert "NOW" in head.plain
+    assert "sase/memory/gotchas.md" in head.plain
+    data = build_time_band_for_timeline(
+        dict(timeline),
+        subject_id="note:sase/memory/gotchas.md",
+        now_epoch=1790769600,
+    )
+    assert data is not None
+    strip = render_time_strip(data, width=60, rows=2, styles=styles)
+    # Row 2 answers "what changed last?" with the newest meaning.
+    assert (
+        "sase-1bc.12" in strip.plain
+        or "authored" in strip.plain.lower()
+        or strip.plain.strip() != ""
+    )
 
 
-def test_history_value_reuses_pager_sparkline() -> None:
-    value = history_value_text(_summary(), accent="#87D7FF")
-    assert isinstance(value, Text)
-    assert "2 versions" in value.plain
-    assert any(cell in value.plain for cell in "▁▂▃▄▅▆▇█")
+def test_time_strip_untracked_and_no_vcs_use_pager_words() -> None:
+    from sase.ace.tui.modals.memory_pane_time_strip import (
+        build_time_band_for_timeline,
+        render_time_strip,
+    )
+    from sase.pager.history_kit import history_styles_for_theme
+
+    styles = history_styles_for_theme(None)
+    untracked = build_time_band_for_timeline(
+        _summary(state="untracked", versions=[]),
+        subject_id="note:sase/memory/gotchas.md",
+        now_epoch=1790769600,
+    )
+    assert untracked is not None
+    assert (
+        "UNTRACKED"
+        in render_time_strip(untracked, width=60, rows=2, styles=styles).plain
+    )
+    no_vcs = build_time_band_for_timeline(
+        _summary(state="NO VCS", versions=[]),
+        subject_id="note:sase/memory/gotchas.md",
+        now_epoch=1790769600,
+    )
+    assert no_vcs is not None
+    assert "NO VCS" in render_time_strip(no_vcs, width=60, rows=2, styles=styles).plain
 
 
-def test_note_property_grid_includes_history_row() -> None:
+def test_time_strip_indexing_reserves_rows_and_folds() -> None:
+    from sase.ace.tui.modals.memory_pane_time_strip import (
+        build_time_band_for_timeline,
+        render_time_strip,
+        time_strip_row_count,
+    )
+    from sase.pager.history_kit import history_styles_for_theme
+
+    assert time_strip_row_count(10) == 1
+    assert time_strip_row_count(20) == 2
+    styles = history_styles_for_theme(None)
+    data = build_time_band_for_timeline(
+        None, subject_id="note:sase/memory/gotchas.md", loading=True
+    )
+    assert data is not None
+    strip = render_time_strip(data, width=60, rows=2, styles=styles)
+    assert "indexing" in strip.plain.lower()
+    folded = render_time_strip(data, width=60, rows=1, styles=styles)
+    assert "indexing" in folded.plain.lower()
+
+
+def test_note_property_grid_has_no_history_row() -> None:
     note = memory_note("gotchas")
     grid = _build_note_property_grid(
         note,
@@ -134,19 +188,17 @@ def test_note_property_grid_includes_history_row() -> None:
         read_summary=None,
         source_path="/tmp/sase/memory/gotchas.md",
         accent="#fff",
-        history=history_value_text(_summary(), accent="#fff"),
     )
-    # Type, Parent, Children, History, Source.
-    assert grid.row_count == 5
+    # Type, Parent, Children, Source.
+    assert grid.row_count == 4
     console = Console(width=120, no_color=True, legacy_windows=False)
     with console.capture() as capture:
         console.print(grid)
     text = capture.get()
-    assert "History" in text
-    assert "2 versions" in text
+    assert "History" not in text
 
 
-def test_note_card_meta_carries_history_for_notes() -> None:
+def test_note_card_meta_has_no_history_row() -> None:
     ref = scope_ref("sase", "sase")
     note = memory_note("gotchas", description="Gotchas.")
     snapshot = scope_snapshot(ref, (note,))
@@ -154,12 +206,11 @@ def test_note_card_meta_carries_history_for_notes() -> None:
         snapshot,
         note,
         accent="#87D7FF",
-        history=history_value_text(_summary(), accent="#87D7FF"),
     )
     console = Console(width=120, no_color=True, legacy_windows=False)
     with console.capture() as capture:
         console.print(rendered)
-    assert "History" in capture.get()
+    assert "History" not in capture.get()
 
 
 def test_selector_for_node_covers_notes_and_strands() -> None:
@@ -256,11 +307,12 @@ def test_history_row_loads_without_blocking() -> None:
     original = history_module.fetch_history_summary
     history_module.fetch_history_summary = _blocking_fetch  # type: ignore[assignment]
     try:
-        rendered = pane._history_renderable_for_node(node)
+        snapshot = pane._time_strip_snapshot_for_node(node)
     finally:
         history_module.fetch_history_summary = original
-    assert isinstance(rendered, Text)
-    assert rendered.plain == "…"
+    assert snapshot is not None
+    assert snapshot.timeline is None
+    assert snapshot.failed is False
     assert calls == [("sase", "sase/memory/gotchas.md")]
 
 
@@ -290,8 +342,8 @@ def test_unavailable_history_load_does_not_respawn_workers() -> None:
     key = ("sase", "sase/memory/gotchas.md")
 
     # First render schedules the load; completion with no summary marks it.
-    rendered = pane._history_renderable_for_node(node)
-    assert isinstance(rendered, Text) and rendered.plain == "…"
+    snapshot = pane._time_strip_snapshot_for_node(node)
+    assert snapshot is not None and snapshot.timeline is None
     assert len(scheduled) == 1
     event = SimpleNamespace(
         state=WorkerState.SUCCESS,
@@ -300,19 +352,20 @@ def test_unavailable_history_load_does_not_respawn_workers() -> None:
     pane._on_history_state_changed(event)  # type: ignore[arg-type]
     assert key in pane._history_failed
 
-    # Later renders keep the retry row without scheduling again.
+    # Later renders keep the failed snapshot without scheduling again.
     scheduled.clear()
-    rendered = pane._history_renderable_for_node(node)
-    assert isinstance(rendered, Text)
-    assert rendered.plain == "history unavailable · r retry"
+    snapshot = pane._time_strip_snapshot_for_node(node)
+    assert snapshot is not None
+    assert snapshot.failed is True
+    assert snapshot.timeline is None
     assert scheduled == []
 
     # A scope reload clears the miss so a repaired checkout retries.
     pane._history_request = None
     pane._history_worker = None
     pane._history_failed.clear()
-    rendered = pane._history_renderable_for_node(node)
-    assert isinstance(rendered, Text) and rendered.plain == "…"
+    snapshot = pane._time_strip_snapshot_for_node(node)
+    assert snapshot is not None and snapshot.failed is False
     assert len(scheduled) == 1
 
 

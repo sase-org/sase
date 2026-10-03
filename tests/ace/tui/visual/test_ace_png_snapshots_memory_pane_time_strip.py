@@ -1,9 +1,9 @@
-"""PNG goldens for the Memory panel History row (phase `memory-panel`).
+"""PNG goldens for the Memory pane pinned time strip (phase `time-strip`).
 
-A note card with the History row in dark and light themes at 120x40.
-History data is injected deterministically (no git/file I/O): the
-timeline summary is pinned, and the mini sparkline reuses the pager
-``render_sparkline`` cells.
+The card head carries the pager's pill on the path line above a reserved
+two-row strip. History data is injected deterministically (no git/file
+I/O): timeline summaries are pinned into the pane cache and the strip
+renders through ``sase.pager.history_kit``.
 """
 
 from __future__ import annotations
@@ -35,45 +35,56 @@ _V1_TIME = 1789905600  # 2026-09-20 12:00 UTC
 _V2_TIME = 1790085780  # 2026-09-22 14:03 UTC
 
 
-def _history_summary() -> dict:
+def _version(
+    ordinal: int,
+    class_name: str = "authored",
+    volume: int = 10,
+) -> dict:
     return {
-        "selector": "sase/memory/agent_hood.md",
-        "core_selector": "sase/memory/agent_hood.md",
+        "ordinal": ordinal,
+        "commit": f"{ordinal:040d}",
+        "committer_time": _V1_TIME if ordinal == 1 else _V2_TIME,
+        "class": class_name,
+        "hidden": False,
+        "summary": {
+            "section_paths": ["Default Keymap Config"],
+            "words_added": 31,
+            "words_removed": 4,
+            "frontmatter_phrase": None,
+            "created_words": None,
+            "volume": volume,
+        },
+        "provenance": {"agent": "athena", "bead": "sase-1au.5"},
+        "cause": {},
+        "path": "sase/memory/gotchas.md",
+        "blob_oid": "b" * 40,
+    }
+
+
+def _timeline(state: str = "tracked", *, dirty: bool = False) -> dict:
+    versions = [_version(1, "created", 412), _version(2, "authored", 35)]
+    if state in ("untracked", "NO VCS"):
+        return {
+            "selector": "sase/memory/gotchas.md",
+            "core_selector": "sase/memory/gotchas.md",
+            "scope_key": "sase",
+            "state": state,
+            "tip": "",
+            "now_epoch": _NOW,
+            "versions": [],
+            "total": 0,
+            "dirty": False,
+        }
+    return {
+        "selector": "sase/memory/gotchas.md",
+        "core_selector": "sase/memory/gotchas.md",
         "scope_key": "sase",
-        "state": "tracked",
+        "state": state,
         "tip": "1a2b3c4",
         "now_epoch": _NOW,
-        "total": 9,
-        "versions": [
-            {
-                "ordinal": 1,
-                "commit": "1" * 40,
-                "committer_time": _V1_TIME,
-                "class": "created",
-                "hidden": False,
-                "summary": {"volume": 412},
-                "provenance": {},
-                "cause": {},
-                "path": "sase/memory/agent_hood.md",
-                "blob_oid": "a" * 40,
-            },
-            {
-                "ordinal": 2,
-                "commit": "2" * 40,
-                "committer_time": _V2_TIME,
-                "class": "authored",
-                "hidden": False,
-                "summary": {
-                    "volume": 35,
-                    "words_added": 31,
-                    "words_removed": 4,
-                },
-                "provenance": {"agent": "athena", "bead": "sase-1bc.12"},
-                "cause": {},
-                "path": "sase/memory/agent_hood.md",
-                "blob_oid": "b" * 40,
-            },
-        ],
+        "versions": versions,
+        "total": len(versions),
+        "dirty": dirty,
     }
 
 
@@ -81,17 +92,15 @@ def _setup(monkeypatch: pytest.MonkeyPatch) -> None:
     ref = scope_ref("sase", "sase")
     notes = (
         memory_note(
-            "agent_hood",
-            description="An agent hood is a group of agents sharing a name prefix.",
-            body="Agent hood body text describing the concept in more detail.",
+            "gotchas",
+            description="Code conventions and gotchas.",
+            body="Code conventions and gotchas body text.",
         ),
         memory_note(
             "always_note", note_type="core", description="Always loaded context."
         ),
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
-    # Keep history off the real git/service path: the summary below
-    # is injected directly into the pane cache.
 
 
 def _panel_pane(page: AcePage) -> MemoryPane | None:
@@ -113,17 +122,17 @@ def _panel_ready(page: AcePage) -> bool:
     [
         (
             "textual-dark",
-            "memory_panel_history_dark_120x40",
-            "ACE memory panel - history row dark theme",
+            "memory_pane_time_strip_now_clean_dark_120x40",
+            "ACE memory pane - time strip now clean dark",
         ),
         (
             "textual-light",
-            "memory_panel_history_light_120x40",
-            "ACE memory panel - history row light theme",
+            "memory_pane_time_strip_now_clean_light_120x40",
+            "ACE memory pane - time strip now clean light",
         ),
     ],
 )
-async def test_memory_panel_history_png_snapshot(
+async def test_memory_pane_time_strip_now_clean_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     theme: str,
@@ -136,20 +145,19 @@ async def test_memory_panel_history_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         page.app.theme = theme
-        page.app.push_screen(MemoryPanel(initial_note="sase/memory/agent_hood.md"))
+        page.app.push_screen(MemoryPanel(initial_note="sase/memory/gotchas.md"))
         await page.expect_modal("MemoryPanel")
         await wait_for_state(page, lambda: _panel_ready(page), description="panel load")
 
         pane = _panel_pane(page)
         assert pane is not None
-        summary = _history_summary()
+        summary = _timeline()
         pane._history_latest[("sase", summary["selector"])] = summary
-        # The selected note's selector is its relative path.
-        pane._history_latest[("sase", "sase/memory/agent_hood.md")] = summary
+        pane._history_latest[("sase", "sase/memory/gotchas.md")] = summary
         pane._render_note_card()
         pane._update_footer()
         await page.pause()
-        await wait_for_svg_contains(page, "History")
+        await wait_for_svg_contains(page, "NOW")
         await wait_for_svg_contains(page, "H history")
         await wait_for_svg_contains(page, "C changes")
         await wait_for_visual_idle(page)

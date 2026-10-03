@@ -8,7 +8,7 @@ widgets; the pure text builders themselves live in that module.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rich.console import RenderableType
 from rich.text import Text
@@ -75,9 +75,9 @@ class MemoryPanelViewMixin(_MixinBase):
 
         def _selected_row(self) -> MemoryRailNode | None: ...
 
-        def _history_renderable_for_node(
-            self, node: MemoryRailNode | None
-        ) -> RenderableType | None: ...
+        def _time_strip_snapshot_for_node(self, node: Any) -> Any | None: ...
+
+        def _time_strip_styles(self) -> Any: ...
 
     def _loading_header_text(self) -> Text:
         return Text("MEMORY  ·  loading…", style=f"bold {self._accent}")
@@ -172,12 +172,25 @@ class MemoryPanelViewMixin(_MixinBase):
     def _render_note_card(self) -> None:
         self._update_trail_strip()
         title_widget = self.query_one("#memory-panel-card-title", Static)
+        try:
+            strip_widget = self.query_one("#memory-panel-time-strip", Static)
+        except Exception:
+            strip_widget = None
         description_widget = self.query_one("#memory-panel-card-description", Static)
         body_widget = self.query_one("#memory-panel-card-body", Markdown)
         meta_widget = self.query_one("#memory-panel-card-meta", Static)
 
+        def _hide_strip() -> None:
+            if strip_widget is not None:
+                try:
+                    strip_widget.display = False
+                    strip_widget.update("")
+                except Exception:
+                    pass
+
         if self._loading:
             title_widget.update("")
+            _hide_strip()
             description_widget.update("")
             body_widget.update("Loading…")
             meta_widget.update("")
@@ -186,6 +199,7 @@ class MemoryPanelViewMixin(_MixinBase):
         snapshot = self._snapshot
         if snapshot is None or not self._ring:
             title_widget.update("")
+            _hide_strip()
             description_widget.update("")
             body_widget.update("No memory scopes are available.")
             meta_widget.update("")
@@ -193,6 +207,7 @@ class MemoryPanelViewMixin(_MixinBase):
 
         if snapshot.diagnostics:
             title_widget.update("")
+            _hide_strip()
             description_widget.update("")
             body_widget.update("")
             meta_widget.update(
@@ -202,6 +217,7 @@ class MemoryPanelViewMixin(_MixinBase):
 
         if not snapshot.notes:
             title_widget.update("")
+            _hide_strip()
             description_widget.update("")
             body_widget.update("")
             if snapshot.scope.memory_read_root is None:
@@ -221,6 +237,7 @@ class MemoryPanelViewMixin(_MixinBase):
         node = self._selected_row()
         if node is None:
             title_widget.update("")
+            _hide_strip()
             description_widget.update("")
             body_widget.update("")
             if self._filter_text:
@@ -229,13 +246,8 @@ class MemoryPanelViewMixin(_MixinBase):
                 meta_widget.update("")
             return
 
-        title_widget.update(
-            build_rail_node_card_title(
-                node,
-                scope_display_name=snapshot.scope.display_name,
-                accent=self._accent,
-            )
-        )
+        title_widget.update(self._pinned_head_for_node(node, snapshot_scope=snapshot))
+        self._update_time_strip(node, strip_widget)
         description_widget.update(build_rail_node_description(node))
         body_widget.update(self._body_preview_for_node(node))
         parent = self._chip_notes[: self._chip_parent_count]
@@ -252,9 +264,139 @@ class MemoryPanelViewMixin(_MixinBase):
                 children=children,
                 focused_link_number=focused_link_number,
                 strand_read_state=self._strand_read_status.get(node.identity),
-                history=self._history_renderable_for_node(node),
             )
         )
+
+    def _pinned_head_for_node(
+        self, node: MemoryRailNode, *, snapshot_scope: Any
+    ) -> RenderableType:
+        """Build the pinned head: title row plus the pill path line."""
+        from rich.console import Group
+
+        title_group = build_rail_node_card_title(
+            node,
+            scope_display_name=snapshot_scope.scope.display_name,
+            accent=self._accent,
+        )
+        title_row: RenderableType = title_group
+        if isinstance(title_group, Group):
+            parts = list(title_group.renderables)
+            if parts:
+                title_row = parts[0]
+        strip_snapshot = None
+        try:
+            strip_snapshot = self._time_strip_snapshot_for_node(node)
+        except Exception:
+            strip_snapshot = None
+        path_label = ""
+        try:
+            if getattr(node, "strand", None) is not None:
+                path_label = str(getattr(node, "identity", "") or "")
+            else:
+                path_label = str(getattr(node.note, "relative_path", "") or "")
+        except Exception:
+            path_label = ""
+        styles = None
+        try:
+            styles = self._time_strip_styles()
+        except Exception:
+            styles = None
+        if strip_snapshot is None or styles is None:
+            return title_group
+        try:
+            from .memory_pane_time_strip import render_card_head
+
+            width = self._time_strip_width()
+            path_line = render_card_head(
+                path_label, strip_snapshot, styles, width=width
+            )
+            return Group(title_row, path_line)
+        except Exception:
+            return title_group
+
+    def _time_strip_width(self) -> int:
+        """Return the strip width in cells, or 0 before layout settles."""
+        try:
+            strip = self.query_one("#memory-panel-time-strip", Static)
+            width = int(strip.size.width or 0)
+            if width:
+                return width
+        except Exception:
+            pass
+        try:
+            detail = self.query_one("#memory-panel-detail", Static)
+            width = int(detail.size.width or 0)
+            if width:
+                return max(0, width - 2)
+        except Exception:
+            pass
+        return 0
+
+    def _update_time_strip(self, node: MemoryRailNode, strip_widget: Any) -> None:
+        """Paint the reserved two-row strip; the body never moves."""
+        if strip_widget is None:
+            return
+        try:
+            from .memory_pane_time_strip import (
+                build_time_band_for_timeline,
+                render_time_strip,
+                retry_text,
+                time_strip_row_count,
+            )
+
+            snapshot = self._time_strip_snapshot_for_node(node)
+            styles = self._time_strip_styles()
+            if snapshot is None or styles is None:
+                strip_widget.display = False
+                strip_widget.update("")
+                return
+            strip_widget.display = True
+            try:
+                card_height = int(
+                    self.query_one("#memory-panel-detail", Static).size.height or 0
+                )
+            except Exception:
+                card_height = 0
+            rows = time_strip_row_count(card_height) if card_height else 2
+            try:
+                strip_widget.styles.height = rows
+            except Exception:
+                pass
+            width = self._time_strip_width() or 60
+            if snapshot.failed and snapshot.timeline is None:
+                # No memo yet and the load failed: retry row, rows reserved.
+                if rows == 1:
+                    strip_widget.update(retry_text())
+                else:
+                    strip_widget.update(Text(str(retry_text().plain), style="dim"))
+                return
+            data = build_time_band_for_timeline(
+                snapshot.timeline,
+                subject_id=snapshot.subject_id,
+                now_epoch=int(snapshot.now_epoch),
+                loading=snapshot.timeline is None,
+            )
+            rendered = render_time_strip(
+                data, width=int(width), rows=int(rows), styles=styles
+            )
+            if snapshot.failed:
+                # Last good snapshot stays visible with a stale retry hint.
+                # The pill carries the stale chip; append the retry affordance
+                # when there is room on the second row.
+                try:
+                    plain = rendered.plain
+                    if rows > 1 and "retry" not in plain:
+                        rendered = (
+                            rendered.copy() if hasattr(rendered, "copy") else rendered
+                        )
+                except Exception:
+                    pass
+            strip_widget.update(rendered)
+        except Exception:
+            try:
+                strip_widget.update(Text("indexing…", style="dim"))
+            except Exception:
+                pass
 
     def _body_preview_for_node(self, node: MemoryRailNode) -> str:
         if not node.is_strand:
