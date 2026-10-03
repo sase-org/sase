@@ -1219,6 +1219,10 @@ commas:
 | `open_viewer`        | `Z`                 | Hand the source file to the artifact viewer.                                                 |
 | `open_history`       | `H`                 | Open the selected note, web, or strand in the pager at now (see `docs/memory_history.md`).   |
 | `open_changes`       | `C`                 | Open the cross-file memory changes feed (see `docs/memory_history.md`).                      |
+| `history_older`      | `(`                 | Step the memory card to the older version.                                                   |
+| `history_newer`      | `)`                 | Step the memory card to the newer version.                                                   |
+| `history_first`      | `{`                 | Step the memory card to the first version.                                                   |
+| `history_now`        | `}`                 | Return the memory card to now.                                                               |
 | `copy_body`          | `y`                 | Copy the note or strand body to the clipboard.                                               |
 | `copy_source_path`   | `Y`                 | Copy the source path to the clipboard.                                                       |
 | `refresh`            | `r`                 | Re-read the current scope.                                                                   |

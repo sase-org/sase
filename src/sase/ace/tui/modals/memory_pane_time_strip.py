@@ -154,8 +154,15 @@ def build_time_band_for_timeline(
     subject_id: str,
     now_epoch: int = 0,
     loading: bool = False,
+    current_ordinal: int = 0,
+    moment: Any | None = None,
 ) -> Any | None:
-    """Build the kit band model for a now card (never recomputes numbers)."""
+    """Build the kit band model for a card (never recomputes numbers).
+
+    *current_ordinal* 0 with no *moment* is the now card; a past pin
+    passes its kit moment so the band shows the timeline row, meaning
+    row, and tombstone chrome in the pager's own words.
+    """
     from sase.pager.history_kit import build_time_band_data
 
     if timeline is None and not loading:
@@ -177,12 +184,12 @@ def build_time_band_for_timeline(
         return build_time_band_data(
             subject_id=subject_id or "note:",
             timeline=timeline,
-            current_ordinal=0,
+            current_ordinal=int(current_ordinal),
             dirty=dirty,
             loading=bool(loading),
             now_epoch=epoch,
             total_visible=int(total_visible),
-            moment=None,
+            moment=moment,
         )
     except Exception:
         return None
@@ -259,24 +266,44 @@ def render_card_head(
     styles: Any,
     *,
     width: int = 0,
+    moment: Any | None = None,
+    extra_chips: list[Text] | None = None,
 ) -> Text:
-    """Build the path line for a now card in the pager's words."""
+    """Build the path line for a card in the pager's words.
+
+    Without *moment* this is the now card. A past pin passes its kit
+    moment so the pill and context read ``⟲ PAST`` (or the tombstone)
+    exactly as the pager renders them.
+    """
     timeline = snapshot.timeline
     if timeline is None and not snapshot.failed:
         return Text(str(path_label or ""), style="dim")
-    state = _pill_state(
-        timeline if isinstance(timeline, dict) else None,
-        total_visible=0,
-        now_epoch=int(snapshot.now_epoch),
-    )
     budget = max(0, int(width) - len(str(path_label or "")) - 6) if width else 80
-    pill = _pill_for_state(state, styles, budget=max(budget, 8))
-    context = _context_for_state(state, styles)
+    budget = max(int(budget), 8)
+    if moment is not None:
+        try:
+            from sase.pager.history_kit import history_badge, history_context
+
+            pill = history_badge(moment, None, styles, budget)
+            context = history_context(moment, None, styles)
+        except Exception:
+            pill, context = None, None
+    else:
+        state = _pill_state(
+            timeline if isinstance(timeline, dict) else None,
+            total_visible=0,
+            now_epoch=int(snapshot.now_epoch),
+        )
+        pill = _pill_for_state(state, styles, budget=budget)
+        context = _context_for_state(state, styles)
     chips: list[Text] = []
     if isinstance(timeline, dict) and bool(timeline.get("is_template")):
         chips.append(Text("TEMPLATE", style="dim"))
     if snapshot.failed:
         chips.append(Text("stale", style="dim"))
+    for chip in extra_chips or []:
+        if chip is not None and chip.plain:
+            chips.append(chip)
     return _render_path_line(
         str(path_label or ""), pill=pill, context=context, chips=chips, width=width
     )

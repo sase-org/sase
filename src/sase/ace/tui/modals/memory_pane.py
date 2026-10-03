@@ -60,6 +60,7 @@ from .memory_panel_travel import MemoryPanelTravelMixin
 from .memory_panel_view import MemoryPanelViewMixin
 from .memory_pane_history import MemoryPaneHistoryMixin
 from .memory_pane_loading import MemoryPaneLoadingMixin
+from .memory_pane_time import MemoryPaneTimeMixin
 from .numbered_link_keys import (
     NUMBERED_LINK_BINDING,
     arm_numbered_link,
@@ -120,6 +121,7 @@ class MemoryPane(
     MemoryPanelActionsMixin,
     MemoryPaneLoadingMixin,
     MemoryPaneHistoryMixin,
+    MemoryPaneTimeMixin,
     MemoryPanelStateMixin,
     MemoryPanelViewMixin,
     MemoryPanelNavigationMixin,
@@ -130,7 +132,7 @@ class MemoryPane(
 
     BINDINGS = [
         ("escape", "close", "Close"),
-        ("q", "close", "Close"),
+        ("q", "close_direct", "Close"),
         NUMBERED_LINK_BINDING,
     ]
 
@@ -200,6 +202,15 @@ class MemoryPane(
         self._history_open_worker: Worker[None] | None = None
         self._history_probe_worker: Worker[tuple[str, str, bool]] | None = None
         self._history_poll_timer: Any | None = None
+        self._time_pins: dict[tuple[str, str], int] = {}
+        self._time_applied: dict[tuple[str, str], int] = {}
+        self._time_pending: dict[tuple[str, str], str] = {}
+        self._time_bodies: dict[tuple[str, str, int], dict[str, Any]] = {}
+        self._time_parsed: dict[tuple[str, str, int], Any] = {}
+        self._time_prefetched_key: tuple[str, str] | None = None
+        self._time_generation = 0
+        self._time_request: tuple[str, str, int, int] | None = None
+        self._time_worker: Worker[Any] | None = None
 
     def on_key(self, event: events.Key) -> None:
         from .config_hub_keys import handle_config_hub_subtab_select_key
@@ -257,6 +268,7 @@ class MemoryPane(
             self._history_worker,
             self._history_open_worker,
             self._history_probe_worker,
+            self._time_worker,
         ):
             if worker is not None and not worker.is_finished:
                 worker.cancel()
@@ -283,6 +295,23 @@ class MemoryPane(
         self.focus_default()
 
     def action_close(self) -> None:
+        # Esc ladder: the filter closes first, then a past pin returns
+        # to now, then the host closes. `q` closes directly.
+        try:
+            if self._filter_input().display:
+                self._close_filter()
+                return
+        except Exception:
+            pass
+        try:
+            if self._time_unpin_if_pinned():
+                return
+        except Exception:
+            pass
+        if self._host is not None:
+            self._host.close_catalog_pane()
+
+    def action_close_direct(self) -> None:
         if self._host is not None:
             self._host.close_catalog_pane()
 
@@ -352,6 +381,8 @@ class MemoryPane(
             self._on_history_state_changed(event)
         elif event.worker is self._history_probe_worker:
             self._on_history_probe_state_changed(event)
+        elif event.worker is self._time_worker:
+            self._on_time_body_state_changed(event)
 
     # --- passive actions ------------------------------------------------
 
@@ -379,6 +410,27 @@ class MemoryPane(
     def action_copy_body(self) -> None:
         node = self._selected_row()
         if node is None:
+            return
+        try:
+            past = self._past_card_for_node(node)
+        except Exception:
+            past = None
+        if past is not None:
+            # `y` copies the body on screen and names its version.
+            if past.body_text is None:
+                self.notify("past body is still loading", severity="warning")
+                return
+            try:
+                past_note = self._time_past_note(node, past.body_text)
+                shown = past_note.body if past_note is not None else past.body_text
+            except Exception:
+                shown = past.body_text
+            schedule_copy_delivery(
+                self,
+                str(shown or "").strip(),
+                copied_label=f"memory note body (v{past.applied_ordinal})",
+                task_name="sase-memory-panel-copy-body",
+            )
             return
         if node.is_strand and self._strand_read_status.get(node.identity) != "ok":
             self.notify("strand body is waiting on audited read", severity="warning")

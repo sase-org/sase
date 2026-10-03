@@ -520,18 +520,25 @@ def build_panel_footer(
     has_strand_navigation: bool = False,
     can_mutate: bool = False,
     unpublished: bool = False,
+    time_verbs: tuple[str, ...] = (),
+    edit_now: bool = False,
 ) -> str:
     """Build the footer strip, showing only currently-conditional keymaps.
 
     Link and back keys appear when chips or a trail are present.
     Edit/delete appear when a writable note is selected; publish appears
     when this scope is unpublished. History and changes appear whenever
-    notes are listed.
+    notes are listed. Step destinations from ``time_verbs_for_moment``
+    follow the lens keys; while pinned in the past, refusing verbs are
+    hidden and ``o`` reads ``edit now``.
     """
     parts: list[str] = []
     if has_notes:
         parts.append(f"{key_display_name(keymaps.open_history)} history")
         parts.append(f"{key_display_name(keymaps.open_changes)} changes")
+    for verb in time_verbs:
+        if verb:
+            parts.append(str(verb))
     if ring_size > 1:
         parts.append(
             f"{key_display_name(keymaps.next_scope)}/"
@@ -559,7 +566,10 @@ def build_panel_footer(
     if has_notes:
         parts.append(f"{key_display_name(keymaps.copy_body)} copy")
     if has_source_path:
-        parts.append(f"{key_display_name(keymaps.open_source)} source")
+        if edit_now:
+            parts.append(f"{key_display_name(keymaps.open_source)} edit now")
+        else:
+            parts.append(f"{key_display_name(keymaps.open_source)} source")
         parts.append(f"{key_display_name(keymaps.open_viewer)} view")
     return "  ·  ".join(parts)
 

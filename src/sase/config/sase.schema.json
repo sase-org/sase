@@ -2853,6 +2853,22 @@
                   "type": "string",
                   "description": "Open the cross-file memory changes feed"
                 },
+                "history_older": {
+                  "type": "string",
+                  "description": "Step the memory card to the older version"
+                },
+                "history_newer": {
+                  "type": "string",
+                  "description": "Step the memory card to the newer version"
+                },
+                "history_first": {
+                  "type": "string",
+                  "description": "Step the memory card to the first version"
+                },
+                "history_now": {
+                  "type": "string",
+                  "description": "Return the memory card to now"
+                },
                 "copy_body": {
                   "type": "string",
                   "description": "Copy the selected note's body"

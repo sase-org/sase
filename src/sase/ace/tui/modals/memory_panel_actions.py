@@ -84,6 +84,8 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
 
         def _mark_scope_unpublished(self, scope_key: str | None = None) -> None: ...
 
+        def _refuse_while_pinned(self) -> bool: ...
+
         def _selected_row(self) -> MemoryRailNode | None: ...
 
         def _start_scope_load(self) -> None: ...
@@ -91,6 +93,11 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
     def action_add_note(self) -> None:
         if self._loading or self._write_busy or not self._ring:
             return
+        try:
+            if self._refuse_while_pinned():
+                return
+        except Exception:
+            pass
         scope = self._current_scope()
         if scope is None:
             return
@@ -120,6 +127,11 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
     def action_edit_note(self) -> None:
         if self._loading or self._write_busy:
             return
+        try:
+            if self._refuse_while_pinned():
+                return
+        except Exception:
+            pass
         node = self._selected_row()
         snapshot = self._snapshot
         scope = self._current_scope()
@@ -164,6 +176,11 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
     def action_delete_note(self) -> None:
         if self._loading or self._write_busy:
             return
+        try:
+            if self._refuse_while_pinned():
+                return
+        except Exception:
+            pass
         node = self._selected_row()
         snapshot = self._snapshot
         if node is None or snapshot is None:

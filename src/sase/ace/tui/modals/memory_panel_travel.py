@@ -54,6 +54,8 @@ class MemoryPanelTravelMixin(_MixinBase):
 
         def _ensure_strand_read_for_current_selection(self) -> None: ...
 
+        def _refuse_link_while_pinned(self) -> bool: ...
+
         def _render_note_card(self) -> None: ...
 
         def _selected_row(self) -> MemoryRailNode | None: ...
@@ -109,6 +111,11 @@ class MemoryPanelTravelMixin(_MixinBase):
     def _follow_link_index(self, index: int) -> None:
         if not self._chip_notes or not 0 <= index < len(self._chip_notes):
             return
+        try:
+            if self._refuse_link_while_pinned():
+                return
+        except Exception:
+            pass
         self._travel_forward(self._chip_notes[index].relative_path)
 
     def _travel_forward(self, target_note: str) -> None:

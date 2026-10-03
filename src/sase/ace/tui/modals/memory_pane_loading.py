@@ -64,6 +64,9 @@ class MemoryPaneLoadingMixin(_MixinBase):
         _snapshot: MemoryScopeSnapshot | None
         _strand_read_status: dict[str, str]
         _strand_read_worker: Worker[MemoryPanelStrandRead] | None
+
+        def _time_applied_ordinal(self, node: Any | None) -> int: ...
+
         _strand_read_worker_identity: str | None
         _trail: list[str]
 
@@ -296,6 +299,13 @@ class MemoryPaneLoadingMixin(_MixinBase):
         node = self._selected_row()
         if node is None or node.strand is None or node.web is None or not self._ring:
             return
+        try:
+            if self._time_applied_ordinal(node) > 0:
+                # Stepping into a strand's past writes no audited read:
+                # the card shows the historical body instead.
+                return
+        except Exception:
+            pass
         identity = node.identity
         state = self._strand_read_status.get(identity)
         if state in {"pending", "ok"} or (

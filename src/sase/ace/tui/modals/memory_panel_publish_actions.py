@@ -50,6 +50,8 @@ class MemoryPanelPublishActionsMixin(_MixinBase):
 
         def _refresh_prompt_memory_catalogs(self) -> None: ...
 
+        def _refuse_while_pinned(self) -> bool: ...
+
         def _start_scope_load(self) -> None: ...
 
         def action_open_source(self) -> None: ...
@@ -57,6 +59,11 @@ class MemoryPanelPublishActionsMixin(_MixinBase):
     def action_publish(self) -> None:
         if self._loading or self._write_busy or not self._ring:
             return
+        try:
+            if self._refuse_while_pinned():
+                return
+        except Exception:
+            pass
         scope = self._current_scope()
         if scope is None:
             return

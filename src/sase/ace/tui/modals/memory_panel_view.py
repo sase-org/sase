@@ -73,7 +73,23 @@ class MemoryPanelViewMixin(_MixinBase):
 
         def _selected_is_writable(self) -> bool: ...
 
+        def _card_moment(
+            self, node: Any | None, *, applied: bool = True
+        ) -> Any | None: ...
+
+        def _maybe_prefetch_at_now(self, node: Any | None) -> None: ...
+
+        def _now_moment_for_footer(self, node: Any | None) -> Any | None: ...
+
+        def _past_card_for_node(self, node: Any | None) -> Any | None: ...
+
         def _selected_row(self) -> MemoryRailNode | None: ...
+
+        def _time_applied_ordinal(self, node: Any | None) -> int: ...
+
+        def _time_past_note(self, node: Any, body_text: str) -> Any | None: ...
+
+        def _time_pinned_ordinal(self, node: Any | None) -> int: ...
 
         def _time_strip_snapshot_for_node(self, node: Any) -> Any | None: ...
 
@@ -130,6 +146,19 @@ class MemoryPanelViewMixin(_MixinBase):
             self._chip_notes
         ):
             focused_link_stem = self._chip_notes[self._chip_cursor].path.stem
+        pinned = self._time_applied_ordinal(node) > 0 if node is not None else False
+        time_verbs: tuple[str, ...] = ()
+        if node is not None and not self._loading:
+            try:
+                moment = self._card_moment(node)
+                if moment is None and not pinned:
+                    moment = self._now_moment_for_footer(node)
+                if moment is not None:
+                    from .memory_pane_time import step_footer_verbs
+
+                    time_verbs = step_footer_verbs(moment, keymaps=self._keymaps)
+            except Exception:
+                time_verbs = ()
         footer = build_panel_footer(
             self._keymaps,
             has_notes=bool(self._rows),
@@ -142,8 +171,10 @@ class MemoryPanelViewMixin(_MixinBase):
             has_strand_navigation=bool(
                 node is not None and node.web is not None and node.web.strands
             ),
-            can_mutate=self._selected_is_writable(),
-            unpublished=self._scope_is_unpublished(),
+            can_mutate=self._selected_is_writable() and not pinned,
+            unpublished=self._scope_is_unpublished() and not pinned,
+            time_verbs=time_verbs,
+            edit_now=pinned,
         )
         footer_widget = self.query_one("#memory-panel-footer", Static)
         footer_widget.update(footer)
@@ -246,6 +277,26 @@ class MemoryPanelViewMixin(_MixinBase):
                 meta_widget.update("")
             return
 
+        past = self._past_card_for_node(node)
+        if past is not None and past.body_text is not None:
+            self._render_past_card(
+                node,
+                past,
+                snapshot,
+                title_widget,
+                strip_widget,
+                description_widget,
+                body_widget,
+                meta_widget,
+            )
+            self._update_time_frame(node)
+            self._update_footer()
+            return
+        self._update_time_frame(node)
+        try:
+            self._maybe_prefetch_at_now(node)
+        except Exception:
+            pass
         title_widget.update(self._pinned_head_for_node(node, snapshot_scope=snapshot))
         self._update_time_strip(node, strip_widget)
         description_widget.update(build_rail_node_description(node))
@@ -266,11 +317,114 @@ class MemoryPanelViewMixin(_MixinBase):
                 strand_read_state=self._strand_read_status.get(node.identity),
             )
         )
+        self._update_footer()
+
+    def _render_past_card(
+        self,
+        node: MemoryRailNode,
+        past: Any,
+        snapshot: Any,
+        title_widget: Static,
+        strip_widget: Any,
+        description_widget: Static,
+        body_widget: Markdown,
+        meta_widget: Static,
+    ) -> None:
+        """Paint one past version: past pill, strip, frame, body, footer."""
+        from dataclasses import replace as _replace
+
+        from rich.console import Group
+
+        past_note = self._time_past_note(node, past.body_text or "")
+        past_node = node
+        if past_note is not None:
+            try:
+                past_node = _replace(node, note=past_note)
+            except Exception:
+                past_node = node
+        title_widget.update(
+            self._pinned_head_for_node(node, snapshot_scope=snapshot, past=past)
+        )
+        self._update_time_strip(node, strip_widget, past=past)
+        description_widget.update(build_rail_node_description(past_node))
+        if past_note is not None:
+            body_text = past_note.body
+            body_widget.update(body_text if body_text.strip() else "_No body content._")
+        else:
+            body_widget.update(past.body_text or "")
+        parent = self._chip_notes[: self._chip_parent_count]
+        children = self._chip_notes[self._chip_parent_count :]
+        focused_link_number = (
+            self._chip_cursor + 1 if self._chip_cursor is not None else None
+        )
+        meta = build_rail_node_card_meta(
+            snapshot,
+            past_node,
+            accent=self._accent,
+            parent=parent,
+            children=children,
+            focused_link_number=focused_link_number,
+            strand_read_state=None,
+        )
+        # Relation chips are computed from today's graph, so they read
+        # under an explicit `links as of now` caption.
+        if parent or children:
+            meta_widget.update(Group(Text("links as of now", style="dim"), meta))
+        else:
+            meta_widget.update(meta)
+
+    def _update_time_frame(self, node: Any) -> None:
+        """Set the violet past frame (deleted style for tombstones)."""
+        try:
+            detail = self.query_one("#memory-panel-detail")
+        except Exception:
+            return
+        try:
+            applied = self._time_applied_ordinal(node)
+        except Exception:
+            applied = 0
+        if applied <= 0:
+            try:
+                detail.styles.clear_rule("border")
+            except Exception:
+                pass
+            return
+        try:
+            moment = self._card_moment(node)
+            kind = str(getattr(moment, "kind", "") or "")
+        except Exception:
+            kind = ""
+        try:
+            styles = self._time_strip_styles()
+        except Exception:
+            styles = None
+        color = "#B49CFF"
+        if styles is not None:
+            try:
+                color = str(
+                    getattr(
+                        styles,
+                        "tombstone" if kind == "deleted" else "past",
+                        color,
+                    )
+                    or color
+                )
+            except Exception:
+                pass
+        try:
+            detail.styles.border = ("heavy", color)
+        except Exception:
+            pass
 
     def _pinned_head_for_node(
-        self, node: MemoryRailNode, *, snapshot_scope: Any
+        self, node: MemoryRailNode, *, snapshot_scope: Any, past: Any = None
     ) -> RenderableType:
-        """Build the pinned head: title row plus the pill path line."""
+        """Build the pinned head: title row plus the pill path line.
+
+        The title row is always today's title; a past pin shows the
+        historical path with the pager's ``⟲ PAST`` pill on the path
+        line, plus a ``not audited`` chip for strands.
+        """
         from rich.console import Group
 
         title_group = build_rail_node_card_title(
@@ -296,6 +450,14 @@ class MemoryPanelViewMixin(_MixinBase):
                 path_label = str(getattr(node.note, "relative_path", "") or "")
         except Exception:
             path_label = ""
+        moment = getattr(past, "moment", None) if past is not None else None
+        if moment is not None:
+            try:
+                historical = getattr(moment, "path_at_version", None)
+                if historical:
+                    path_label = str(historical)
+            except Exception:
+                pass
         styles = None
         try:
             styles = self._time_strip_styles()
@@ -307,8 +469,16 @@ class MemoryPanelViewMixin(_MixinBase):
             from .memory_pane_time_strip import render_card_head
 
             width = self._time_strip_width()
+            extra_chips = None
+            if moment is not None and getattr(node, "strand", None) is not None:
+                extra_chips = [Text("· not audited", style="dim")]
             path_line = render_card_head(
-                path_label, strip_snapshot, styles, width=width
+                path_label,
+                strip_snapshot,
+                styles,
+                width=width,
+                moment=moment,
+                extra_chips=extra_chips,
             )
             return Group(title_row, path_line)
         except Exception:
@@ -332,7 +502,9 @@ class MemoryPanelViewMixin(_MixinBase):
             pass
         return 0
 
-    def _update_time_strip(self, node: MemoryRailNode, strip_widget: Any) -> None:
+    def _update_time_strip(
+        self, node: MemoryRailNode, strip_widget: Any, past: Any = None
+    ) -> None:
         """Paint the reserved two-row strip; the body never moves."""
         if strip_widget is None:
             return
@@ -363,6 +535,21 @@ class MemoryPanelViewMixin(_MixinBase):
             except Exception:
                 pass
             width = self._time_strip_width() or 60
+            moment = getattr(past, "moment", None) if past is not None else None
+            applied = getattr(past, "applied_ordinal", 0) if past is not None else 0
+            try:
+                target = self._time_pinned_ordinal(node)
+            except Exception:
+                target = 0
+            if moment is not None and target > applied:
+                # Cache miss: the previous version stays on screen while
+                # the worker fetches the target (§5.4 rule 6, last wins).
+                strip_widget.update(
+                    Text(f"loading v{int(target)}…", style="dim")
+                    if rows <= 1
+                    else Text(f"loading v{int(target)}…\n ", style="dim")
+                )
+                return
             if snapshot.failed and snapshot.timeline is None:
                 # No memo yet and the load failed: retry row, rows reserved.
                 if rows == 1:
@@ -375,6 +562,8 @@ class MemoryPanelViewMixin(_MixinBase):
                 subject_id=snapshot.subject_id,
                 now_epoch=int(snapshot.now_epoch),
                 loading=snapshot.timeline is None,
+                current_ordinal=int(applied or 0),
+                moment=moment,
             )
             rendered = render_time_strip(
                 data, width=int(width), rows=int(rows), styles=styles
@@ -399,6 +588,23 @@ class MemoryPanelViewMixin(_MixinBase):
                 pass
 
     def _body_preview_for_node(self, node: MemoryRailNode) -> str:
+        try:
+            past = self._past_card_for_node(node)
+        except Exception:
+            past = None
+        if past is not None:
+            # A pinned strand shows its historical body without writing
+            # an audited read; the past branch renders notes directly.
+            if past.body_text is None:
+                return "_Loading past version..._"
+            try:
+                past_note = self._time_past_note(node, past.body_text)
+                if past_note is not None:
+                    body = past_note.body
+                    return body if body.strip() else "_No body content._"
+                return past.body_text
+            except Exception:
+                return past.body_text or ""
         if not node.is_strand:
             return node.note.body if node.note.body.strip() else "_No body content._"
         state = self._strand_read_status.get(node.identity)

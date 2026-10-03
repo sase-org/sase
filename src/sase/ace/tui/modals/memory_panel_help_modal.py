@@ -74,7 +74,23 @@ class MemoryPanelHelpModal(ModalScreen[None]):
             f"action, so Enter does nothing in this panel. Use l or {NUMBERED_LINK_HELP_KEYS}.",
             style="dim",
         )
-        return Group(text, note)
+        return Group(text, note, self._time_group())
+
+    def _time_group(self) -> RenderableType:
+        """Return the Time group: pill legend, glyphs, and step keys."""
+        text = Text()
+        text.append("\n\nTime", style=f"bold {_ACCENT}")
+        legend = (
+            "\n● NOW · v25 — the live file, at its newest version"
+            "\n⟲ PAST · v24 of 25 — a committed version (violet frame)"
+            "\n◌ NOW · uncommitted — worktree edits on top of the newest version"
+            "\n✖ DELETED · v12 — the deletion tombstone"
+            "\n( older version · ) newer version · { first version · } now"
+            "\nH opens the pager at the exact version on screen"
+            "\nEsc returns to now before closing; o always edits now"
+        )
+        text.append(legend, style="dim")
+        return text
 
     def _scroll(self) -> VerticalScroll:
         return self.query_one("#memory-panel-help-scroll", VerticalScroll)

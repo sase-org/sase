@@ -43,6 +43,12 @@ class MemoryPaneHistoryMixin(_MixinBase):
         _ring: tuple[Any, ...]
         _scope_index: int
 
+        def _after_history_landed(self, scope_key: str, selector: str) -> None: ...
+
+        def _drop_time_state_for_scope(self, scope_key: str) -> None: ...
+
+        def _history_initial_revision(self) -> str: ...
+
         def _render_note_card(self) -> None: ...
 
         def _selected_row(self) -> Any | None: ...
@@ -225,6 +231,10 @@ class MemoryPaneHistoryMixin(_MixinBase):
         if (current[0], current[1]) != (scope_key, selector):
             return  # Stale: the user moved before this load landed.
         try:
+            self._after_history_landed(scope_key, selector)
+        except Exception:
+            pass
+        try:
             self._render_note_card()
         except Exception:
             pass
@@ -252,6 +262,10 @@ class MemoryPaneHistoryMixin(_MixinBase):
                 pass
         for key in [key for key in self._history_latest if key[0] == scope_key]:
             self._history_latest.pop(key, None)
+        try:
+            self._drop_time_state_for_scope(scope_key)
+        except Exception:
+            pass
         if clear_failures:
             for key in [key for key in self._history_failed if key[0] == scope_key]:
                 self._history_failed.discard(key)
@@ -390,7 +404,7 @@ class MemoryPaneHistoryMixin(_MixinBase):
                     return build_history_document(
                         scope=scope,
                         subject=core_selector,
-                        initial_revision="now",
+                        initial_revision=self._history_initial_revision(),
                         view="read",
                         service=service,
                         title=selector,
