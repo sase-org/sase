@@ -11,12 +11,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from sase.ace.tui.keymaps.app_keymaps import MemoryPanelKeymaps
-from sase.ace.tui.modals.memory_pane_time import (
-    _moment_for_card,
-    _parse_past_note,
+from sase.ace.tui.modals._memory_pane_time_shared import moment_for_card
+from sase.ace.tui.modals.memory_pane_time import step_footer_verbs
+from sase.ace.tui.modals.memory_pane_time_pins import _parse_past_note
+from sase.ace.tui.modals.memory_pane_time_steps import (
     _step_boundary_notice,
     _step_destination,
-    step_footer_verbs,
 )
 
 
@@ -52,28 +52,28 @@ def _timeline(*rows: dict, **override: object) -> dict:
 
 def test_older_from_now_lands_on_newest() -> None:
     timeline = _timeline(_row(1), _row(2), _row(3))
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=0)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=0)
     assert moment is not None
     assert _step_destination(moment, "older") == 3
 
 
 def test_older_skips_hidden_versions() -> None:
     timeline = _timeline(_row(1), _row(2, hidden=True), _row(3))
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=3)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=3)
     assert moment is not None
     assert _step_destination(moment, "older") == 1
 
 
 def test_newer_from_newest_returns_to_now() -> None:
     timeline = _timeline(_row(1), _row(2))
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=2)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=2)
     assert moment is not None
     assert _step_destination(moment, "newer") == 0
 
 
 def test_first_and_now_intents() -> None:
     timeline = _timeline(_row(1), _row(2), _row(3))
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=2)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=2)
     assert moment is not None
     assert _step_destination(moment, "first") == 1
     assert _step_destination(moment, "now") == 0
@@ -81,13 +81,13 @@ def test_first_and_now_intents() -> None:
 
 def test_boundaries_return_none_with_pager_notice() -> None:
     timeline = _timeline(_row(1), _row(2))
-    oldest = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=1)
+    oldest = moment_for_card(timeline, subject_id="note:x", pin_ordinal=1)
     assert oldest is not None
     assert _step_destination(oldest, "older") is None
     assert "v1" in _step_boundary_notice(oldest, "older")
     assert _step_destination(oldest, "first") is None
 
-    now = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=0)
+    now = moment_for_card(timeline, subject_id="note:x", pin_ordinal=0)
     assert now is not None
     assert _step_destination(now, "newer") is None
     assert _step_destination(now, "now") is None
@@ -96,24 +96,24 @@ def test_boundaries_return_none_with_pager_notice() -> None:
 
 def test_single_version_has_no_destinations() -> None:
     timeline = _timeline(_row(1))
-    now = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=0)
+    now = moment_for_card(timeline, subject_id="note:x", pin_ordinal=0)
     assert now is not None
     assert _step_destination(now, "older") == 1
-    only = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=1)
+    only = moment_for_card(timeline, subject_id="note:x", pin_ordinal=1)
     assert only is not None
     assert _step_destination(only, "older") is None
     assert _step_destination(only, "newer") == 0
 
 
 def test_no_history_yields_no_moment() -> None:
-    assert _moment_for_card(_timeline(), subject_id="note:x", pin_ordinal=0) is None
-    assert _moment_for_card(None, subject_id="note:x", pin_ordinal=0) is None
-    assert _moment_for_card("nope", subject_id="note:x", pin_ordinal=0) is None  # type: ignore[arg-type]
+    assert moment_for_card(_timeline(), subject_id="note:x", pin_ordinal=0) is None
+    assert moment_for_card(None, subject_id="note:x", pin_ordinal=0) is None
+    assert moment_for_card("nope", subject_id="note:x", pin_ordinal=0) is None  # type: ignore[arg-type]
 
 
 def test_dirty_now_marks_worktree() -> None:
     timeline = _timeline(_row(1), _row(2), dirty=True)
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=0)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=0)
     assert moment is not None
     assert moment.worktree_dirty is True
     assert _step_destination(moment, "older") == 2
@@ -121,14 +121,14 @@ def test_dirty_now_marks_worktree() -> None:
 
 def test_deleted_row_is_tombstone_moment() -> None:
     timeline = _timeline(_row(1), _row(2, **{"class": "deleted"}))
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=2)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=2)
     assert moment is not None
     assert moment.kind == "deleted"
 
 
 def test_footer_verbs_show_only_steps() -> None:
     timeline = _timeline(_row(1), _row(2), _row(3))
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=2)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=2)
     assert moment is not None
     verbs = step_footer_verbs(moment, keymaps=MemoryPanelKeymaps())
     assert verbs == ("( v1", ") v3", "} now", "= diff", "@")
@@ -136,7 +136,7 @@ def test_footer_verbs_show_only_steps() -> None:
 
 def test_footer_verbs_use_configured_keys() -> None:
     timeline = _timeline(_row(1), _row(2))
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=1)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=1)
     assert moment is not None
     keymaps = MemoryPanelKeymaps(history_older="<", history_newer=">", history_now="~")
     verbs = step_footer_verbs(moment, keymaps=keymaps)
@@ -196,7 +196,7 @@ def test_apply_step_caches_hit_applies_atomically() -> None:
     stub._render_note_card = lambda: setattr(stub, "renders", stub.renders + 1)  # type: ignore[attr-defined]
     stub._prefetch_time_bodies = lambda *args, **kwargs: None  # type: ignore[attr-defined]
     stub._time_bodies[(key[0], key[1], 2)] = {"body": "old words"}
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=3)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=3)
     assert moment is not None
     # Pretend the card shows v3 with its body cached.
     stub._time_pins[key] = 3
@@ -226,7 +226,7 @@ def test_apply_step_boundary_toasts_without_moving() -> None:
     stub.notify = lambda message, **kwargs: stub.notices.append(str(message))  # type: ignore[attr-defined]
     from sase.ace.tui.modals.memory_pane_time import MemoryPaneTimeMixin
 
-    moment = _moment_for_card(timeline, subject_id="note:x", pin_ordinal=1)
+    moment = moment_for_card(timeline, subject_id="note:x", pin_ordinal=1)
     assert moment is not None
     MemoryPaneTimeMixin._apply_step_intent(
         stub,  # type: ignore[arg-type]
@@ -418,7 +418,7 @@ def test_past_and_tombstone_card_heads_name_the_age() -> None:
     styles = history_styles_for_theme(None)
 
     past_timeline = _timeline(*rows, _row(3, committer_time=now - day))
-    past = _moment_for_card(past_timeline, subject_id="note:x", pin_ordinal=2)
+    past = moment_for_card(past_timeline, subject_id="note:x", pin_ordinal=2)
     snapshot = TimeStripSnapshot(
         subject_id="note:x",
         path_label="sase/memory/gotchas.md",
@@ -434,7 +434,7 @@ def test_past_and_tombstone_card_heads_name_the_age() -> None:
     gone_timeline = _timeline(
         *rows, _row(3, committer_time=now - 2 * day, **{"class": "deleted"})
     )
-    gone = _moment_for_card(gone_timeline, subject_id="note:x", pin_ordinal=3)
+    gone = moment_for_card(gone_timeline, subject_id="note:x", pin_ordinal=3)
     head = render_card_head(
         "sase/memory/gotchas.md",
         TimeStripSnapshot(
