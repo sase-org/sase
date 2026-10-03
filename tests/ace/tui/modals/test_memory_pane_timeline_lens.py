@@ -17,16 +17,22 @@ from sase.ace.tui.modals.memory_pane_lens import (
     _NotesSnapshot,
     lens_header_text,
 )
+from sase.ace.tui.modals._memory_pane_timeline_lens_shared import (
+    timeline_lens_rows,
+)
 from sase.ace.tui.modals.memory_pane_timeline_lens import (
     MemoryPaneTimelineLensMixin,
+)
+from sase.ace.tui.modals.memory_pane_timeline_lens_actions import (
     _timeline_compare_text,
-    _timeline_hidden_rows,
-    _timeline_hidden_summary_text,
     _timeline_lens_footer,
     _timeline_lens_header_detail,
-    _timeline_lens_rows,
-    _timeline_row_id,
     _timeline_subject_display,
+)
+from sase.ace.tui.modals.memory_pane_timeline_lens_rail import (
+    _timeline_hidden_rows,
+    _timeline_hidden_summary_text,
+    _timeline_row_id,
 )
 
 
@@ -62,7 +68,7 @@ def _timeline(*rows: dict, **override: object) -> dict:
 
 def test_lens_rows_list_now_first_and_skip_hidden() -> None:
     timeline = _timeline(_row(1), _row(2, hidden=True), _row(3))
-    listed, hidden_count, total = _timeline_lens_rows(
+    listed, hidden_count, total = timeline_lens_rows(
         timeline, now_epoch=1790769600, show_hidden=False
     )
     assert total == 3
@@ -75,7 +81,7 @@ def test_lens_rows_list_now_first_and_skip_hidden() -> None:
 
 def test_lens_rows_show_hidden_on_toggle() -> None:
     timeline = _timeline(_row(1), _row(2, hidden=True), _row(3))
-    listed, hidden_count, _ = _timeline_lens_rows(
+    listed, hidden_count, _ = timeline_lens_rows(
         timeline, now_epoch=1790769600, show_hidden=True
     )
     assert hidden_count == 1
@@ -83,8 +89,8 @@ def test_lens_rows_show_hidden_on_toggle() -> None:
 
 
 def test_lens_rows_survive_missing_timeline() -> None:
-    assert _timeline_lens_rows(None, now_epoch=0, show_hidden=False) == ((), 0, 0)
-    assert _timeline_lens_rows({}, now_epoch=0, show_hidden=False)[2] == 0
+    assert timeline_lens_rows(None, now_epoch=0, show_hidden=False) == ((), 0, 0)
+    assert timeline_lens_rows({}, now_epoch=0, show_hidden=False)[2] == 0
 
 
 def test_hidden_summary_counts_through_kit() -> None:
@@ -580,7 +586,7 @@ def test_notes_snapshot_round_trip_shape() -> None:
 
 
 def test_timeline_refuses_untracked_and_no_vcs_with_honest_words() -> None:
-    from sase.ace.tui.modals.memory_pane_timeline_lens import _no_history_refusal
+    from sase.ace.tui.modals.memory_pane_timeline_lens_state import _no_history_refusal
 
     assert (
         _no_history_refusal(_timeline(state="untracked"))

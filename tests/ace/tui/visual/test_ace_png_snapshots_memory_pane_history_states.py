@@ -32,7 +32,12 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import memory_pane_rail_glance_mixin as glance_mixin_module
 from sase.ace.tui.modals import memory_pane_rail_glance_rendering as glance_rows_module
-from sase.ace.tui.modals import memory_pane_timeline_lens as timeline_lens_module
+from sase.ace.tui.modals import (
+    _memory_pane_timeline_lens_shared as timeline_lens_shared_module,
+)
+from sase.ace.tui.modals import (
+    memory_pane_timeline_lens_rail as timeline_lens_rail_module,
+)
 from sase.ace.tui.modals.memory_pane_history import MemoryPaneHistoryMixin
 from sase.ace.tui.modals.memory_panel import MemoryPanel, MemoryPane
 from tests.ace.tui.modals.memory_panel_test_helpers import (
@@ -688,8 +693,8 @@ def _pin_history_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin the pane's wall-clock reads (ages, picker cells) to ``_NOW``."""
     glance_suffix = glance_rows_module.glance_suffix
     deleted_age = glance_rows_module._deleted_age_text
-    lens_rows = timeline_lens_module._timeline_lens_rows
-    hidden_rows = timeline_lens_module._timeline_hidden_rows
+    lens_rows = timeline_lens_shared_module.timeline_lens_rows
+    hidden_rows = timeline_lens_rail_module._timeline_hidden_rows
     strip_snapshot = MemoryPaneHistoryMixin._time_strip_snapshot_for_node
 
     def pinned_glance_suffix(
@@ -722,9 +727,11 @@ def _pin_history_clock(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(glance_mixin_module, "glance_suffix", pinned_glance_suffix)
     monkeypatch.setattr(glance_rows_module, "_deleted_age_text", pinned_deleted_age)
-    monkeypatch.setattr(timeline_lens_module, "_timeline_lens_rows", pinned_lens_rows)
     monkeypatch.setattr(
-        timeline_lens_module, "_timeline_hidden_rows", pinned_hidden_rows
+        timeline_lens_shared_module, "timeline_lens_rows", pinned_lens_rows
+    )
+    monkeypatch.setattr(
+        timeline_lens_rail_module, "_timeline_hidden_rows", pinned_hidden_rows
     )
     monkeypatch.setattr(
         MemoryPane, "_time_strip_snapshot_for_node", pinned_strip_snapshot
