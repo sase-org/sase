@@ -7,17 +7,19 @@ from typing import Any
 
 import pytest
 
-from sase.ace.tui.modals.memory_pane_rail_glance import (
-    _DeletedSubject,
-    _build_deleted_row_text,
-    _build_recency_map,
-    _collect_deleted_subjects,
-    _glance_glyph_only,
-    _glance_suffix,
-    _history_only_node,
-    _is_promotion_class,
-    _node_glance_path,
-    _subject_displays,
+from sase.ace.tui.modals._memory_pane_rail_glance_shared import DeletedSubject
+from sase.ace.tui.modals.memory_pane_rail_glance_feed import (
+    build_recency_map,
+    collect_deleted_subjects,
+    subject_displays,
+)
+from sase.ace.tui.modals.memory_pane_rail_glance_rendering import (
+    build_deleted_row_text,
+    glance_glyph_only,
+    glance_suffix,
+    history_only_node,
+    is_promotion_class,
+    node_glance_path,
 )
 from sase.ace.tui.modals.memory_panel_rendering import build_note_row_text
 
@@ -75,7 +77,7 @@ def test_recency_map_newest_wins_across_authored_and_consequences() -> None:
             ),
         ),
     )
-    recency = _build_recency_map(feed)
+    recency = build_recency_map(feed)
     assert recency["sase/memory/b.md"] == ("authored", _NOW - _DAY)
 
 
@@ -89,16 +91,16 @@ def test_recency_map_skips_malformed_entries() -> None:
             committer_time=_NOW - 3600,
         )
     )
-    recency = _build_recency_map(feed)
+    recency = build_recency_map(feed)
     assert set(recency) == {"sase/memory/good.md"}
 
 
 def test_recency_map_survives_malformed_feed() -> None:
-    assert _build_recency_map(None) == {}
-    assert _build_recency_map({}) == {}
-    assert _build_recency_map({"changesets": "nope"}) == {}
-    assert _collect_deleted_subjects(None) == ()
-    assert _subject_displays(None) == {}
+    assert build_recency_map(None) == {}
+    assert build_recency_map({}) == {}
+    assert build_recency_map({"changesets": "nope"}) == {}
+    assert collect_deleted_subjects(None) == ()
+    assert subject_displays(None) == {}
 
 
 def test_node_glance_path_covers_notes_webs_and_strands() -> None:
@@ -110,17 +112,17 @@ def test_node_glance_path_covers_notes_webs_and_strands() -> None:
     from sase.ace.tui.memory_panel_catalog import MemoryRailNode
 
     note_node = MemoryRailNode(note=memory_note("gotchas"), depth=0)
-    assert _node_glance_path(note_node) == "sase/memory/gotchas.md"
+    assert node_glance_path(note_node) == "sase/memory/gotchas.md"
 
     web = memory_web_with_mentioning_strands()
     web_node = MemoryRailNode(note=memory_note("glossary"), depth=0, web=web)
-    assert _node_glance_path(web_node) == "sase/memory/glossary.md"
+    assert node_glance_path(web_node) == "sase/memory/glossary.md"
 
     strand = web.strands[0]
     strand_node = MemoryRailNode(
         note=memory_note("alpha"), depth=1, web=web, strand=strand
     )
-    assert _node_glance_path(strand_node) == "sase/memory/glossary/alpha.md"
+    assert node_glance_path(strand_node) == "sase/memory/glossary/alpha.md"
 
 
 def test_deleted_subjects_keep_latest_deletion_only() -> None:
@@ -156,7 +158,7 @@ def test_deleted_subjects_keep_latest_deletion_only() -> None:
             commit="p" * 40,
         ),
     )
-    deleted = _collect_deleted_subjects(feed)
+    deleted = collect_deleted_subjects(feed)
     assert [subject.path for subject in deleted] == [
         "sase/memory/gone.md",
         "sase/memory/glossary/old.md",
@@ -170,22 +172,22 @@ def test_deleted_subjects_use_display_names_with_stem_fallback() -> None:
             committer_time=_NOW - _DAY,
         )
     )
-    (only,) = _collect_deleted_subjects(
+    (only,) = collect_deleted_subjects(
         feed, displays={"note:project:sase/gone": "Gone Note"}
     )
     assert only.display == "Gone Note"
-    (fallback,) = _collect_deleted_subjects(feed)
+    (fallback,) = collect_deleted_subjects(feed)
     assert fallback.display == "gone"
 
 
 def test_glance_suffix_uses_kit_glyph_and_age() -> None:
-    assert _glance_suffix("promoted", _NOW - 8 * _DAY, now_epoch=_NOW) == "⇧ 8d"
-    assert _glance_suffix("authored", _NOW - 3 * 3600, now_epoch=_NOW) == "◆ 3h"
-    assert _glance_suffix("rendered", _NOW - 60, now_epoch=_NOW) == "⟳ 1m"
-    assert _glance_glyph_only("deleted") == "✖"
-    assert _is_promotion_class("promoted") is True
-    assert _is_promotion_class("demoted") is True
-    assert _is_promotion_class("authored") is False
+    assert glance_suffix("promoted", _NOW - 8 * _DAY, now_epoch=_NOW) == "⇧ 8d"
+    assert glance_suffix("authored", _NOW - 3 * 3600, now_epoch=_NOW) == "◆ 3h"
+    assert glance_suffix("rendered", _NOW - 60, now_epoch=_NOW) == "⟳ 1m"
+    assert glance_glyph_only("deleted") == "✖"
+    assert is_promotion_class("promoted") is True
+    assert is_promotion_class("demoted") is True
+    assert is_promotion_class("authored") is False
 
 
 def test_note_row_sheds_age_then_glyph() -> None:
@@ -268,12 +270,12 @@ def test_note_row_promotions_keep_highlight() -> None:
 
 
 def test_deleted_row_text() -> None:
-    text = _build_deleted_row_text("gone", _NOW - 21 * _DAY, now_epoch=_NOW)
+    text = build_deleted_row_text("gone", _NOW - 21 * _DAY, now_epoch=_NOW)
     assert text.plain == "✖ gone   deleted 21d"
 
 
 def test_history_only_node_marks_kind_and_ordinal() -> None:
-    subject = _DeletedSubject(
+    subject = DeletedSubject(
         subject_id="note:project:sase/gone",
         path="sase/memory/gone.md",
         display="gone",
@@ -281,7 +283,7 @@ def test_history_only_node_marks_kind_and_ordinal() -> None:
         ordinal=4,
         commit="m" * 40,
     )
-    node = _history_only_node(subject)
+    node = history_only_node(subject)
     assert node.history_only is True
     assert node.deleted_ordinal == 4
     assert node.identity == "sase/memory/gone.md"

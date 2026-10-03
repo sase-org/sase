@@ -30,7 +30,8 @@ from typing import Any
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals import memory_pane_rail_glance as rail_glance_module
+from sase.ace.tui.modals import memory_pane_rail_glance_mixin as glance_mixin_module
+from sase.ace.tui.modals import memory_pane_rail_glance_rendering as glance_rows_module
 from sase.ace.tui.modals import memory_pane_timeline_lens as timeline_lens_module
 from sase.ace.tui.modals.memory_pane_history import MemoryPaneHistoryMixin
 from sase.ace.tui.modals.memory_panel import MemoryPanel, MemoryPane
@@ -685,8 +686,8 @@ def _setup_notes(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _pin_history_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin the pane's wall-clock reads (ages, picker cells) to ``_NOW``."""
-    glance_suffix = rail_glance_module._glance_suffix
-    deleted_age = rail_glance_module._deleted_age_text
+    glance_suffix = glance_rows_module.glance_suffix
+    deleted_age = glance_rows_module._deleted_age_text
     lens_rows = timeline_lens_module._timeline_lens_rows
     hidden_rows = timeline_lens_module._timeline_hidden_rows
     strip_snapshot = MemoryPaneHistoryMixin._time_strip_snapshot_for_node
@@ -719,8 +720,8 @@ def _pin_history_clock(monkeypatch: pytest.MonkeyPatch) -> None:
             return None
         return dataclasses.replace(snapshot, now_epoch=_NOW)
 
-    monkeypatch.setattr(rail_glance_module, "_glance_suffix", pinned_glance_suffix)
-    monkeypatch.setattr(rail_glance_module, "_deleted_age_text", pinned_deleted_age)
+    monkeypatch.setattr(glance_mixin_module, "glance_suffix", pinned_glance_suffix)
+    monkeypatch.setattr(glance_rows_module, "_deleted_age_text", pinned_deleted_age)
     monkeypatch.setattr(timeline_lens_module, "_timeline_lens_rows", pinned_lens_rows)
     monkeypatch.setattr(
         timeline_lens_module, "_timeline_hidden_rows", pinned_hidden_rows
