@@ -27,11 +27,6 @@ from sase._linked_repo_config import (
     LINKED_REPOS_CONFIG_KEY,
     REPOS_CONFIG_KEY,
     SIBLING_REPOS_CONFIG_KEY,
-    _DEFAULT_LINKED_REPO_MARKER,
-    _SIDECAR_REMOTE_URL_KEY,
-    _SIDECAR_REPO_MARKER,
-    _SIDECAR_ROLE_KEY,
-    _SIDECAR_SLUG_KEY,
     inject_default_linked_repos,
     merged_repo_entries_from_config,
     normalize_path,
@@ -39,6 +34,13 @@ from sase._linked_repo_config import (
     resolution_config,
     resolve_config_path,
     revision_pin_for_entry,
+)
+from sase._linked_repo_config_keys import (
+    DEFAULT_LINKED_REPO_MARKER,
+    SIDECAR_REMOTE_URL_KEY,
+    SIDECAR_REPO_MARKER,
+    SIDECAR_ROLE_KEY,
+    SIDECAR_SLUG_KEY,
 )
 from sase._linked_repo_env import (
     LINKED_REPO_ENV_PREFIX,
@@ -195,11 +197,11 @@ def _resolve_linked_repos(
         name = entry.get("name")
         raw_path = entry.get("path")
         auto_clone = entry.get("auto_clone") is True
-        is_sidecar = entry.get(_SIDECAR_REPO_MARKER) is True
+        is_sidecar = entry.get(SIDECAR_REPO_MARKER) is True
         disabled = entry.get("disabled") is True
-        sidecar_role = _entry_text(entry, _SIDECAR_ROLE_KEY)
-        sidecar_slug = _entry_text(entry, _SIDECAR_SLUG_KEY)
-        remote_url = _entry_text(entry, _SIDECAR_REMOTE_URL_KEY)
+        sidecar_role = _entry_text(entry, SIDECAR_ROLE_KEY)
+        sidecar_slug = _entry_text(entry, SIDECAR_SLUG_KEY)
+        remote_url = _entry_text(entry, SIDECAR_REMOTE_URL_KEY)
         if disabled:
             continue
         if is_sidecar and sidecar_role in HIDDEN_SIDECAR_ROLES:
@@ -223,7 +225,7 @@ def _resolve_linked_repos(
 
         primary_dir = resolve_config_path(raw_path, relative_to=primary_root)
         if not Path(primary_dir).is_dir():
-            if entry.get(_DEFAULT_LINKED_REPO_MARKER) is True:
+            if entry.get(DEFAULT_LINKED_REPO_MARKER) is True:
                 continue
             if not is_sidecar:
                 resolution_warnings.append(

@@ -43,7 +43,7 @@ from sase.workspace_provider.ownership import (
 )
 from sase.workspace_provider.reset_replay import ReplayConflict, reset_and_replay
 from sase._sidecar_auto_sync import sync_primary_sidecar_role
-from sase._linked_repo_config import _SIDECAR_REMOTE_URL_KEY, _SIDECAR_ROLE_KEY
+from sase._linked_repo_config_keys import SIDECAR_REMOTE_URL_KEY, SIDECAR_ROLE_KEY
 from sase.axe.chop_script_context import ChopScriptContext
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
@@ -269,10 +269,10 @@ class TestLeasedConflictRecoveryLeavesPrimaryUntouched:
 class TestSidecarAutoSyncLeavesPrimaryUntouched:
     def _entry(self, role: str, *, remote_url: str) -> dict[str, Any]:
         return {
-            _SIDECAR_ROLE_KEY: role,
+            SIDECAR_ROLE_KEY: role,
             "auto_sync": True,
             "disabled": False,
-            _SIDECAR_REMOTE_URL_KEY: remote_url,
+            SIDECAR_REMOTE_URL_KEY: remote_url,
         }
 
     def test_clean_behind_sidecar_fast_forwards_without_touching_primary(
@@ -527,10 +527,10 @@ class TestWaiterDrivenSidecarTickLeavesPrimaryUntouched:
             "_resolved_sidecar_entries",
             lambda *_a, **_kw: [
                 {
-                    _SIDECAR_ROLE_KEY: "beads",
+                    SIDECAR_ROLE_KEY: "beads",
                     "auto_sync": False,
                     "disabled": False,
-                    _SIDECAR_REMOTE_URL_KEY: str(sidecar_remote),
+                    SIDECAR_REMOTE_URL_KEY: str(sidecar_remote),
                 }
             ],
         )

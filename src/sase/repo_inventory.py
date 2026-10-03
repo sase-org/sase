@@ -25,16 +25,18 @@ from sase._linked_repo_config import (
     DEFAULT_BEADS_DESCRIPTION,
     DEFAULT_PLANS_DESCRIPTION,
     HIDDEN_SIDECAR_ROLES,
-    _DEFAULT_LINKED_REPO_MARKER,
-    _SIDECAR_REMOTE_URL_KEY,
-    _SIDECAR_REPO_MARKER,
-    _SIDECAR_ROLE_KEY,
-    _SIDECAR_SLUG_KEY,
     inject_default_linked_repos,
     merged_repo_entries_from_config,
     read_project_local_config,
     resolution_config,
     resolve_config_path,
+)
+from sase._linked_repo_config_keys import (
+    DEFAULT_LINKED_REPO_MARKER,
+    SIDECAR_REMOTE_URL_KEY,
+    SIDECAR_REPO_MARKER,
+    SIDECAR_ROLE_KEY,
+    SIDECAR_SLUG_KEY,
 )
 from sase._repo_inventory_models import (
     RepoCloneRecord,
@@ -284,10 +286,10 @@ def _collect_project_repos(
     disabled_sidecars = {
         token
         for entry in entries
-        if entry.get(_SIDECAR_REPO_MARKER) is True and entry.get("disabled") is True
+        if entry.get(SIDECAR_REPO_MARKER) is True and entry.get("disabled") is True
         for token in (
-            _optional_text(entry.get(_SIDECAR_ROLE_KEY)),
-            _optional_text(entry.get(_SIDECAR_SLUG_KEY)),
+            _optional_text(entry.get(SIDECAR_ROLE_KEY)),
+            _optional_text(entry.get(SIDECAR_SLUG_KEY)),
         )
         if token is not None
     }
@@ -404,12 +406,12 @@ def _collect_project_repos(
             config=resolved_config,
         )
         is_sidecar = (
-            entry.get(_SIDECAR_REPO_MARKER) is True
-            or entry.get(_DEFAULT_LINKED_REPO_MARKER) is True
+            entry.get(SIDECAR_REPO_MARKER) is True
+            or entry.get(DEFAULT_LINKED_REPO_MARKER) is True
             or sidecar_kind is not None
         )
-        sidecar_role = _optional_text(entry.get(_SIDECAR_ROLE_KEY))
-        entry_slug = _optional_text(entry.get(_SIDECAR_SLUG_KEY))
+        sidecar_role = _optional_text(entry.get(SIDECAR_ROLE_KEY))
+        entry_slug = _optional_text(entry.get(SIDECAR_SLUG_KEY))
         if is_sidecar and sidecar_role in HIDDEN_SIDECAR_ROLES:
             try:
                 hidden_path = hidden_sidecar_clone_dir(project_key, sidecar_role)
@@ -442,12 +444,12 @@ def _collect_project_repos(
                     ),
                     source=(
                         "auto-injected sidecar"
-                        if entry.get(_DEFAULT_LINKED_REPO_MARKER) is True
+                        if entry.get(DEFAULT_LINKED_REPO_MARKER) is True
                         else "repos.sidecar config"
                     ),
                     env_name=None,
                     slug=entry_slug,
-                    remote_url=_optional_text(entry.get(_SIDECAR_REMOTE_URL_KEY)),
+                    remote_url=_optional_text(entry.get(SIDECAR_REMOTE_URL_KEY)),
                     sdd_storage=None,
                 )
             )
@@ -501,17 +503,17 @@ def _collect_project_repos(
                 description=_optional_text(entry.get("description")),
                 source=(
                     "auto-injected sidecar"
-                    if entry.get(_DEFAULT_LINKED_REPO_MARKER) is True
+                    if entry.get(DEFAULT_LINKED_REPO_MARKER) is True
                     else (
                         "repos.sidecar config"
-                        if entry.get(_SIDECAR_REPO_MARKER) is True
+                        if entry.get(SIDECAR_REPO_MARKER) is True
                         else "repos.linked config"
                     )
                 ),
                 env_name=env_names.get(index),
                 slug=entry_slug if is_sidecar else None,
                 remote_url=(
-                    _optional_text(entry.get(_SIDECAR_REMOTE_URL_KEY))
+                    _optional_text(entry.get(SIDECAR_REMOTE_URL_KEY))
                     if is_sidecar
                     else None
                 ),
@@ -586,19 +588,19 @@ def _entry_metadata_by_name(
         name = _optional_text(entry.get("name"))
         if name is None:
             continue
-        role = _optional_text(entry.get(_SIDECAR_ROLE_KEY))
-        slug = _optional_text(entry.get(_SIDECAR_SLUG_KEY))
+        role = _optional_text(entry.get(SIDECAR_ROLE_KEY))
+        slug = _optional_text(entry.get(SIDECAR_SLUG_KEY))
         payload: dict[str, object] = {
             "auto_clone": entry.get("auto_clone") is True,
             "auto_sync": entry.get("auto_sync") is True,
             "description": entry.get("description"),
             "env_name": env_names.get(index),
             "is_configured_sidecar": (
-                entry.get(_SIDECAR_REPO_MARKER) is True
-                and entry.get(_DEFAULT_LINKED_REPO_MARKER) is not True
+                entry.get(SIDECAR_REPO_MARKER) is True
+                and entry.get(DEFAULT_LINKED_REPO_MARKER) is not True
             ),
             "path": entry.get("path"),
-            "remote_url": entry.get(_SIDECAR_REMOTE_URL_KEY),
+            "remote_url": entry.get(SIDECAR_REMOTE_URL_KEY),
             "role": role,
             "slug": slug,
         }

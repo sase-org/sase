@@ -604,10 +604,12 @@ def _origin_for_prompt_artifact(record: PromptArtifactRecord) -> str:
 def _agents_sidecar_metadata(workspace: Path) -> tuple[str, str]:
     try:
         from sase._linked_repo_config import (
-            _SIDECAR_ROLE_KEY,
-            _SIDECAR_SLUG_KEY,
             merged_sidecar_entries_from_config,
             resolution_config,
+        )
+        from sase._linked_repo_config_keys import (
+            SIDECAR_ROLE_KEY,
+            SIDECAR_SLUG_KEY,
         )
 
         config = resolution_config(str(workspace), None)
@@ -615,10 +617,8 @@ def _agents_sidecar_metadata(workspace: Path) -> tuple[str, str]:
             config,
             primary_workspace_dir=str(workspace),
         ):
-            if entry.get(_SIDECAR_ROLE_KEY) == "agents":
-                repo = str(
-                    entry.get(_SIDECAR_SLUG_KEY) or entry.get("name") or "agents"
-                )
+            if entry.get(SIDECAR_ROLE_KEY) == "agents":
+                repo = str(entry.get(SIDECAR_SLUG_KEY) or entry.get("name") or "agents")
                 visibility = str(entry.get("visibility") or "public")
                 return repo, visibility
     except Exception:

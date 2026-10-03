@@ -89,17 +89,17 @@ def _sidecar_entry_for_role(role: str) -> dict[str, Any] | None:
         from pathlib import Path as _Path
 
         from sase._linked_repo_config import (
-            _SIDECAR_ROLE_KEY,
             merged_sidecar_entries_from_config,
             resolution_config,
         )
+        from sase._linked_repo_config_keys import SIDECAR_ROLE_KEY
 
         workspace = str(_Path.cwd())
         config = resolution_config(workspace, None)
         for entry in merged_sidecar_entries_from_config(
             config, primary_workspace_dir=workspace
         ):
-            entry_role = entry.get(_SIDECAR_ROLE_KEY) or entry.get("role")
+            entry_role = entry.get(SIDECAR_ROLE_KEY) or entry.get("role")
             if entry_role == role:
                 return dict(entry)
             if entry.get("name") == role:
@@ -123,10 +123,10 @@ def _configured_remote_for_role(role: str) -> str | None:
     if entry is None:
         return None
     try:
-        from sase._linked_repo_config import _SIDECAR_REMOTE_URL_KEY
+        from sase._linked_repo_config_keys import SIDECAR_REMOTE_URL_KEY
     except Exception:
-        _SIDECAR_REMOTE_URL_KEY = "_sase_sidecar_remote_url"  # type: ignore[assignment]
-    for key in (_SIDECAR_REMOTE_URL_KEY, "remote_url"):
+        SIDECAR_REMOTE_URL_KEY = "_sase_sidecar_remote_url"  # type: ignore[assignment]
+    for key in (SIDECAR_REMOTE_URL_KEY, "remote_url"):
         try:
             value = entry.get(key)
         except Exception:

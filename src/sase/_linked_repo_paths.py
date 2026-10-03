@@ -9,14 +9,13 @@ from typing import Any
 
 from sase._linked_repo_config import (
     HIDDEN_SIDECAR_ROLES,
-    _SIDECAR_ROLE_KEY,
-    _SIDECAR_SLUG_KEY,
     RepoConfigCacheKey,
     merged_sidecar_entries_from_config,
     normalize_path,
     repo_config_cache_key,
     resolution_config,
 )
+from sase._linked_repo_config_keys import SIDECAR_ROLE_KEY, SIDECAR_SLUG_KEY
 from sase.core.paths import sase_projects_dir
 
 # Host-scoped linked and sidecar clones are launch-scoped in numbered
@@ -127,8 +126,8 @@ def _sdd_sidecar_repo_dirnames_cached(
     except Exception:
         configured_entries = []
     for entry in configured_entries:
-        role = _entry_text(entry, _SIDECAR_ROLE_KEY)
-        slug = _entry_text(entry, _SIDECAR_SLUG_KEY)
+        role = _entry_text(entry, SIDECAR_ROLE_KEY)
+        slug = _entry_text(entry, SIDECAR_SLUG_KEY)
         tokens = {token for token in (role, slug) if token}
         if role in HIDDEN_SIDECAR_ROLES:
             hidden.update(tokens)

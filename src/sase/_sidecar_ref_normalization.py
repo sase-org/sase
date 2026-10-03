@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from sase._linked_repo_config import _SIDECAR_ROLE_KEY
+from sase._linked_repo_config_keys import SIDECAR_ROLE_KEY
 from sase._sidecar_ref_constants import (
     DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT,
     DEFAULT_DOCUMENT_REF_PATH_GLOBS,
@@ -354,7 +354,7 @@ def _non_document_ref_diagnostics(
 
 
 def entry_role(entry: Mapping[str, Any]) -> str | None:
-    value = entry.get(_SIDECAR_ROLE_KEY) or entry.get("name")
+    value = entry.get(SIDECAR_ROLE_KEY) or entry.get("name")
     if not isinstance(value, str):
         return None
     stripped = value.strip()

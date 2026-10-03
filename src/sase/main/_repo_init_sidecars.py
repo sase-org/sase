@@ -262,10 +262,12 @@ def _beads_remote_for_public_probe() -> str | None:
         from pathlib import Path as _Path
 
         from sase._linked_repo_config import (
-            _SIDECAR_REMOTE_URL_KEY,
-            _SIDECAR_ROLE_KEY,
             merged_sidecar_entries_from_config,
             resolution_config,
+        )
+        from sase._linked_repo_config_keys import (
+            SIDECAR_REMOTE_URL_KEY,
+            SIDECAR_ROLE_KEY,
         )
 
         workspace = str(_Path.cwd())
@@ -273,9 +275,9 @@ def _beads_remote_for_public_probe() -> str | None:
         for entry in merged_sidecar_entries_from_config(
             config, primary_workspace_dir=workspace
         ):
-            role = entry.get(_SIDECAR_ROLE_KEY) or entry.get("role")
+            role = entry.get(SIDECAR_ROLE_KEY) or entry.get("role")
             if role == "beads":
-                remote = entry.get(_SIDECAR_REMOTE_URL_KEY) or entry.get("remote_url")
+                remote = entry.get(SIDECAR_REMOTE_URL_KEY) or entry.get("remote_url")
                 if isinstance(remote, str) and remote.strip():
                     return remote.strip()
                 raw_remote = entry.get("remote_url")

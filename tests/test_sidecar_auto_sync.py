@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 import sase._sidecar_auto_sync as sidecar_auto_sync
-from sase._linked_repo_config import _SIDECAR_REMOTE_URL_KEY, _SIDECAR_ROLE_KEY
+from sase._linked_repo_config_keys import SIDECAR_REMOTE_URL_KEY, SIDECAR_ROLE_KEY
 from sase._sidecar_auto_sync import auto_sync_roles, sync_primary_sidecar_role
 from tests._linked_repo_resolution_helpers import _set_github_origin
 from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
@@ -34,10 +34,10 @@ def _entry(
     remote_url: str | None = None,
 ) -> dict[str, object]:
     return {
-        _SIDECAR_ROLE_KEY: role,
+        SIDECAR_ROLE_KEY: role,
         "auto_sync": auto_sync,
         "disabled": disabled,
-        _SIDECAR_REMOTE_URL_KEY: remote_url,
+        SIDECAR_REMOTE_URL_KEY: remote_url,
     }
 
 

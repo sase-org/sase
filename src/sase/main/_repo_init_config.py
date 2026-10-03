@@ -43,16 +43,18 @@ def configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
     """Resolve the enabled sidecar specifications for ``project_root``."""
 
     from sase._linked_repo_config import (
-        _DEFAULT_LINKED_REPO_MARKER,
-        _SIDECAR_REMOTE_URL_KEY,
-        _SIDECAR_REPO_REF_KEY,
-        _SIDECAR_ROLE_KEY,
-        full_github_repo_name,
         inject_default_linked_repos,
         merged_sidecar_entries_from_config,
         read_project_local_config,
         resolution_config,
     )
+    from sase._linked_repo_config_keys import (
+        DEFAULT_LINKED_REPO_MARKER,
+        SIDECAR_REMOTE_URL_KEY,
+        SIDECAR_REPO_REF_KEY,
+        SIDECAR_ROLE_KEY,
+    )
+    from sase._linked_repo_identity import full_github_repo_name
     from sase.sdd._sidecar_init import SidecarInitSpec
 
     primary = project_root.expanduser().resolve(strict=False)
@@ -72,15 +74,15 @@ def configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
     for entry in entries:
         if entry.get("disabled") is True:
             continue
-        role = _entry_text(entry, _SIDECAR_ROLE_KEY) or _entry_text(entry, "name")
+        role = _entry_text(entry, SIDECAR_ROLE_KEY) or _entry_text(entry, "name")
         if not role:
             continue
         raw_repo = _entry_text(entry, "repo")
         repo: str | None = None
         if raw_repo:
             repo = full_github_repo_name(primary, raw_repo, config=config) or raw_repo
-        elif entry.get(_DEFAULT_LINKED_REPO_MARKER) is not True:
-            resolved_repo = _entry_text(entry, _SIDECAR_REPO_REF_KEY)
+        elif entry.get(DEFAULT_LINKED_REPO_MARKER) is not True:
+            resolved_repo = _entry_text(entry, SIDECAR_REPO_REF_KEY)
             if "/" in resolved_repo:
                 repo = resolved_repo
         visibility = _entry_text(entry, "visibility") or "public"
@@ -88,7 +90,7 @@ def configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
             SidecarInitSpec(
                 role=role,
                 repo=repo,
-                remote_url=_entry_text(entry, _SIDECAR_REMOTE_URL_KEY) or None,
+                remote_url=_entry_text(entry, SIDECAR_REMOTE_URL_KEY) or None,
                 visibility=visibility,
                 description=_entry_text(entry, "description") or None,
             )

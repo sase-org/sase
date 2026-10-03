@@ -63,7 +63,7 @@ def test_resolution_config_caches_only_implicit_config(
 
     monkeypatch.setattr("sase.config.core.load_merged_config", load)
     monkeypatch.setattr(
-        "sase._linked_repo_config.read_project_local_config",
+        "sase._linked_repo_config_state.read_project_local_config",
         lambda _primary: {},
     )
 

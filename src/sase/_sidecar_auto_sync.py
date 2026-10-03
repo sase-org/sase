@@ -19,13 +19,15 @@ from typing import Any, Literal
 from sase._git_remote import git_remotes_match
 from sase._linked_repo_config import (
     HIDDEN_SIDECAR_ROLES,
-    _SIDECAR_REMOTE_URL_KEY,
-    _SIDECAR_REPO_MARKER,
-    _SIDECAR_ROLE_KEY,
     inject_default_linked_repos,
     merged_repo_entries_from_config,
     read_project_local_config,
     resolution_config,
+)
+from sase._linked_repo_config_keys import (
+    SIDECAR_REMOTE_URL_KEY,
+    SIDECAR_REPO_MARKER,
+    SIDECAR_ROLE_KEY,
 )
 from sase._linked_repo_workspaces import refresh_clean_linked_checkout
 from sase.version._git import classify_git_upstream
@@ -103,7 +105,7 @@ def _resolved_sidecar_entries(
         local_config=local_config,
         config=resolved_config,
     )
-    return [entry for entry in entries if entry.get(_SIDECAR_REPO_MARKER) is True]
+    return [entry for entry in entries if entry.get(SIDECAR_REPO_MARKER) is True]
 
 
 def auto_sync_roles(
@@ -117,7 +119,7 @@ def auto_sync_roles(
     for entry in _resolved_sidecar_entries(primary_workspace_dir, config=config):
         if entry.get("disabled") is True or entry.get("auto_sync") is not True:
             continue
-        role = entry.get(_SIDECAR_ROLE_KEY)
+        role = entry.get(SIDECAR_ROLE_KEY)
         if not isinstance(role, str) or not role or role in HIDDEN_SIDECAR_ROLES:
             continue
         roles.append(role)
@@ -156,11 +158,7 @@ def sync_primary_sidecar_role(
     primary = str(context.primary_checkout_dir)
     entries = _resolved_sidecar_entries(primary, config=config)
     entry = next(
-        (
-            candidate
-            for candidate in entries
-            if candidate.get(_SIDECAR_ROLE_KEY) == role
-        ),
+        (candidate for candidate in entries if candidate.get(SIDECAR_ROLE_KEY) == role),
         None,
     )
     if (
@@ -189,7 +187,7 @@ def sync_primary_sidecar_role(
             str(clone_dir),
         )
 
-    expected_remote = entry.get(_SIDECAR_REMOTE_URL_KEY)
+    expected_remote = entry.get(SIDECAR_REMOTE_URL_KEY)
     if isinstance(expected_remote, str) and expected_remote.strip():
         origin = _git_origin_url(clone_dir)
         if origin is None or not git_remotes_match(origin, expected_remote):

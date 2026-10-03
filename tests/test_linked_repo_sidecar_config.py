@@ -9,9 +9,11 @@ from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
 
 from sase._linked_repo_config import (
-    _merge_resolution_config,
     configured_sidecar_roles,
     merged_sidecar_entries_from_config,
+)
+from sase._linked_repo_config_state import (
+    _merge_resolution_config as merge_resolution_config,
 )
 from tests._config_schema_helpers import schema
 from tests._linked_repo_resolution_helpers import _set_github_origin
@@ -86,7 +88,7 @@ def test_bucketed_sidecar_layers_merge_per_role_key(tmp_path: Path) -> None:
     primary = tmp_path / "widget"
     primary.mkdir()
     _set_github_origin(primary, "git@github.com:acme/widget.git")
-    merged = _merge_resolution_config(
+    merged = merge_resolution_config(
         {
             "repos": {
                 "sidecar": {

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase import _linked_repo_config as linked_repo_config
+from sase import _linked_repo_config_state as config_state
 from sase.repo_inventory import (
     collect_repo_inventory,
     repo_inventory_session,
@@ -131,13 +132,13 @@ def test_config_cache_key_memoized_by_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     freezes: list[object] = []
-    real_freeze = linked_repo_config._freeze_config_value
+    real_freeze = config_state._freeze_config_value
 
     def counted(value: object) -> tuple[object, ...]:
         freezes.append(value)
         return real_freeze(value)
 
-    monkeypatch.setattr(linked_repo_config, "_freeze_config_value", counted)
+    monkeypatch.setattr(config_state, "_freeze_config_value", counted)
     config = {"repos": {"linked": [{"name": "x"}]}}
 
     first = linked_repo_config.repo_config_cache_key(config)
@@ -160,13 +161,13 @@ def test_config_cache_key_reset_clears_identity_memo(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     freezes: list[object] = []
-    real_freeze = linked_repo_config._freeze_config_value
+    real_freeze = config_state._freeze_config_value
 
     def counted(value: object) -> tuple[object, ...]:
         freezes.append(value)
         return real_freeze(value)
 
-    monkeypatch.setattr(linked_repo_config, "_freeze_config_value", counted)
+    monkeypatch.setattr(config_state, "_freeze_config_value", counted)
     config = {"repos": {"linked": []}}
 
     linked_repo_config.repo_config_cache_key(config)
@@ -185,13 +186,13 @@ def test_sidecar_dirnames_reuse_identity_memo(
     from sase._linked_repo_paths import _sdd_sidecar_repo_dirnames
 
     freezes: list[object] = []
-    real_freeze = linked_repo_config._freeze_config_value
+    real_freeze = config_state._freeze_config_value
 
     def counted(value: object) -> tuple[object, ...]:
         freezes.append(value)
         return real_freeze(value)
 
-    monkeypatch.setattr(linked_repo_config, "_freeze_config_value", counted)
+    monkeypatch.setattr(config_state, "_freeze_config_value", counted)
     primary = tmp_path / "widget"
     primary.mkdir()
     config = {"repos": {"sidecar": {"custom": {}}}}

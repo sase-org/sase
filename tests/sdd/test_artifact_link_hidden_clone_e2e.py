@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 import sase._sidecar_auto_sync as sidecar_auto_sync
-from sase._linked_repo_config import _SIDECAR_REMOTE_URL_KEY, _SIDECAR_ROLE_KEY
+from sase._linked_repo_config_keys import SIDECAR_REMOTE_URL_KEY, SIDECAR_ROLE_KEY
 from sase._sidecar_auto_sync import auto_sync_roles, sync_primary_sidecar_role
 from sase.bead.model import IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
@@ -42,10 +42,10 @@ _PROJECT_KEY = "acme_widget"
 
 def _entry(role: str, *, remote_url: str) -> dict[str, object]:
     return {
-        _SIDECAR_ROLE_KEY: role,
+        SIDECAR_ROLE_KEY: role,
         "auto_sync": True,
         "disabled": False,
-        _SIDECAR_REMOTE_URL_KEY: remote_url,
+        SIDECAR_REMOTE_URL_KEY: remote_url,
     }
 
 
