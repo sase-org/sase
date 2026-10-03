@@ -8008,6 +8008,22 @@ rows read `✖ name   deleted 3w`, the header gains `· N deleted`, and each car
 tombstone -- the `✖ DELETED` pill, a deleted-style frame, the tombstone strip row, and
 the last content. Tombstones are read-only (`(`/`{` step older, `@` and `H` work).
 
+A collapsed `▸ INSTRUCTIONS · N` group closes the Notes rail, listing every `AGENTS.md`
+instruction file (plus provider shims) with `≡ N shims`, `⚠ diverged`, and `TEMPLATE`
+chips where they apply. `space` toggles it; the group header itself selects nothing.
+Instruction cards are read-only -- managed files refuse edits
+(`rendered from memory · edit its source notes`), hand-written ones point at `o` -- and
+carry the pager's cause row instead of a meaning row. Stepping (`(`/`)`/`{`/`}`), diff
+(`=`), the Timeline lens (`@`), and the pager hand-off (`H`) all work on instruction
+rows exactly as on notes.
+
+The Changes header leads with a review chip from the per-scope watermark: `● N new`,
+`not reviewed yet · m to mark`, or `✓ nothing new` (omitted when the review state is
+unavailable). Rows for changesets newer than the watermark carry a `●` dot. `m` marks
+the shown scope reviewed -- optimistic, persisted off-thread -- and toasts
+`marked N changesets reviewed`. The Config hub `MEMORY` sub-tab badges the same count
+(`●N`), quiet until there is something new.
+
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`
 scope resolved through the active [`use_chezmoi`](configuration.md#use_chezmoi) mode,

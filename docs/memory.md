@@ -136,7 +136,11 @@ can be browsed in the pager — a time axis over the same files this guide descr
 `)`, `=`, `@`, `[`, `]`), the glyph table, the `sase memory history` CLI (with
 `--format json` for agents), what is and is not tracked, and the performance budgets. In
 the Memory panel, `H` opens the selected note, web, or strand at now and `C` opens the
-cross-file changes feed. Viewing history never writes an audited read.
+cross-file changes feed; the card itself is time-aware (pinned head with the pager's
+pill and a two-row time strip, `(`/`)`/`{`/`}` stepping, `=` diff, `@` Timeline lens,
+`C` Changes lens with a review watermark, an `INSTRUCTIONS` group, and a recency glance
+on every rail row -- see [Memory panel](ace.md#memory-panel)). Viewing history never
+writes an audited read.
 
 ## Audited Reads
 
