@@ -56,6 +56,110 @@ class _ViewRequest:
     bead_ids: tuple[str, ...] = ()
     tool_run_log_ids: tuple[str, ...] = ()
     tool_run_jump_ids: tuple[str, ...] = ()
+    memory_version_pins: tuple[Any, ...] = ()
+
+
+def _memory_version_pin_sections(
+    pins: tuple[Any, ...],
+) -> tuple[list[Any], list[str]]:
+    """Build one pager section per version-pinned memory hint (off-thread).
+
+    Returns ``(sections, failures)``. Committed pins open through
+    ``build_history_document`` at the version read; not-in-git launch
+    snapshots open as read-only documents from the stored snapshot
+    bytes. Mirrors ``_materialize_tool_run_log_documents``: real I/O
+    here, UI effects in the caller.
+    """
+    from pathlib import Path as _Path
+
+    sections: list[Any] = []
+    failures: list[str] = []
+    if not pins:
+        return (sections, failures)
+    try:
+        from sase.memory.history.service import shared_history_service
+
+        service = shared_history_service()
+    except Exception as exc:
+        return (sections, [f"memory history unavailable: {exc}"])
+    for pin in pins:
+        title = str(getattr(pin, "title", "") or "memory version")
+        snapshot_path = getattr(pin, "snapshot_path", None)
+        if getattr(pin, "revision", "") == "snapshot" or snapshot_path:
+            snapshot_title = str(
+                getattr(pin, "snapshot_title", None) or f"{title} · not in git"
+            )
+            section = _snapshot_section(snapshot_path, snapshot_title, title)
+            if section is None:
+                failures.append(f"{title}: snapshot unavailable")
+                continue
+            sections.append(section)
+            continue
+        scope_key = str(getattr(pin, "scope_key", "") or "")
+        repo_root = str(getattr(pin, "repo_root", "") or "")
+        subject = str(getattr(pin, "subject", "") or "")
+        revision = str(getattr(pin, "revision", "") or "now")
+        try:
+            if scope_key == "home":
+                scope = service.home_scope()
+                if scope is None:
+                    raise ValueError("home memory is not in git (NO VCS)")
+            else:
+                scope = service.project_scope(_Path(repo_root))
+        except Exception as exc:
+            failures.append(f"{title}: cannot resolve scope: {exc}")
+            continue
+        try:
+            from sase.memory.history.pager_provider import (
+                build_history_document,
+            )
+
+            document = build_history_document(
+                scope=scope,
+                subject=subject,
+                initial_revision=revision,
+                view="read",
+                service=service,
+                title=title,
+            )
+        except Exception as exc:
+            failures.append(f"{title}: cannot open {revision}: {exc}")
+            continue
+        try:
+            sections.extend(document.sections)
+        except Exception:
+            failures.append(f"{title}: cannot open {revision}")
+    return (sections, failures)
+
+
+def _snapshot_section(
+    snapshot_path: Any, snapshot_title: str, title: str
+) -> Any | None:
+    """Return a read-only pager section for stored snapshot bytes."""
+    if not snapshot_path:
+        return None
+    try:
+        from pathlib import Path as _Path
+
+        body = _Path(str(snapshot_path)).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        from sase.pager.document import PagerOrigin, PagerSection
+        from sase.pager.syntax_policy import classify_source
+    except Exception:
+        return None
+    return PagerSection(
+        identity=f"memory-launch-snapshot:{title}",
+        title=snapshot_title,
+        kind="file",
+        body=body,
+        subject_ref=str(snapshot_path),
+        raw_source=classify_source(
+            category="raw_file", logical_filename="AGENTS.md", source=body
+        ),
+        origin=PagerOrigin.FILE,
+    )
 
 
 def _materialize_tool_run_log_documents(
@@ -319,6 +423,14 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
         bead_ids: tuple[str, ...] = tuple(bead_ids_list)
         tool_run_log_ids: tuple[str, ...] = tuple(tool_run_log_list)
         tool_run_jump_ids: tuple[str, ...] = tuple(tool_run_jump_list)
+        version_pins_map: dict[int, Any] = getattr(
+            self, "_hint_memory_version_pins", {}
+        )
+        memory_version_pins = tuple(
+            version_pins_map[hint]
+            for hint in selected_hints
+            if hint in version_pins_map
+        )
 
         if (
             not files
@@ -326,6 +438,7 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
             and not bead_ids
             and not tool_run_log_ids
             and not tool_run_jump_ids
+            and not memory_version_pins
         ):
             self.notify("No valid files selected", severity="warning")  # type: ignore[attr-defined]
             return None
@@ -363,6 +476,7 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
             bead_ids=bead_ids,
             tool_run_log_ids=tool_run_log_ids,
             tool_run_jump_ids=tool_run_jump_ids,
+            memory_version_pins=memory_version_pins,
         )
         tool_reports: dict[str, SlowToolCallReportSpec] = getattr(
             self, "_hint_tool_call_reports", {}
@@ -468,6 +582,17 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
                 except Exception:
                     continue
 
+        version_sections: list[Any] = []
+        if request.memory_version_pins and (
+            not request.copy_to_clipboard and not request.open_in_editor
+        ):
+            pinned, pin_failures = await asyncio.to_thread(
+                _memory_version_pin_sections, request.memory_version_pins
+            )
+            for failure in pin_failures:
+                self.notify(failure, severity="warning")  # type: ignore[attr-defined]
+            version_sections.extend(pinned)
+
         files = list(outcome.files)
         if request.copy_to_clipboard:
             items = [*request.bead_ids, *files]
@@ -494,7 +619,12 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
             self._open_files_in_editor(result)  # type: ignore[attr-defined]
             return
 
-        if not files and not outcome.bead_sections and not tool_run_sections:
+        if (
+            not files
+            and not outcome.bead_sections
+            and not tool_run_sections
+            and not version_sections
+        ):
             if not request.commit_specs:
                 self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
             return
@@ -516,7 +646,7 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
                 files,
                 request.commit_specs,
                 link_context=outcome.link_context,
-                bead_sections=outcome.bead_sections,
+                bead_sections=(*outcome.bead_sections, *version_sections),
             )
         except OSError as exc:
             self.notify(  # type: ignore[attr-defined]

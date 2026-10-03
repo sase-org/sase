@@ -1217,7 +1217,7 @@ commas:
 | `publish`               | `I`                 | Open the publish confirmation (`sase memory init`).                                                  |
 | `open_source`           | `o`                 | Open the note or strand body in `$EDITOR`.                                                           |
 | `open_viewer`           | `Z`                 | Hand the source file to the artifact viewer.                                                         |
-| `open_history`          | `H`                 | Open the selected note, web, or strand in the pager at now (see `docs/memory_history.md`).           |
+| `open_history`          | `H`                 | Open the selection in the pager at the card's exact version and view (see `docs/memory_history.md`). |
 | `open_changes`          | `C`                 | Open or close the Changes lens (day-grouped changesets; see `docs/memory_history.md`).               |
 | `history_older`         | `(`                 | Step the memory card to the older version.                                                           |
 | `history_newer`         | `)`                 | Step the memory card to the newer version.                                                           |

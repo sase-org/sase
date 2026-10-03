@@ -557,3 +557,126 @@ def test_attributed_reason_aligns_under_primary_text() -> None:
     row = next(line for line in lines if "tui_perf.md" in line)
     reason = next(line for line in lines if "↳" in line)
     assert reason.index("↳") == row.index("tui_perf.md")
+
+
+def test_chips_append_at_row_end_without_reflow() -> None:
+    from sase.ace.tui.widgets.prompt_panel._agent_memory_versions import (
+        MemoryVersionChip,
+    )
+
+    event = _event(
+        canonical_path="gotchas.md",
+        timestamp="2026-05-24T14:20:08+00:00",
+        read_id="chip-read",
+    )
+    text = Text()
+    append_agent_memory_reads_section(
+        text,
+        events=(_display(event),),
+        chips={"chip-read": MemoryVersionChip("≡ now", "dim")},
+    )
+
+    assert "gotchas.md  ≡ now" in text.plain
+
+
+def test_past_chip_appends_version_and_newer_count() -> None:
+    from sase.ace.tui.widgets.prompt_panel._agent_memory_versions import (
+        MemoryVersionChip,
+    )
+
+    event = _event(
+        canonical_path="dispatch.md",
+        timestamp="2026-05-24T14:20:08+00:00",
+        read_id="past-read",
+    )
+    text = Text()
+    append_agent_memory_reads_section(
+        text,
+        events=(_display(event),),
+        chips={"past-read": MemoryVersionChip("v12 ⟲ 2 newer", "#9d7cd8")},
+    )
+
+    assert "dispatch.md  v12 ⟲ 2 newer" in text.plain
+
+
+def test_version_pin_registers_hint_number() -> None:
+    from sase.ace.tui.widgets.prompt_panel._agent_memory_versions import (
+        MemoryVersionPin,
+    )
+
+    event = _event(
+        canonical_path="gotchas.md",
+        timestamp="2026-05-24T14:20:08+00:00",
+        read_id="pin-read",
+    )
+    pin = MemoryVersionPin(
+        scope_key="project:sase",
+        repo_root="/tmp/repo",
+        subject="gotchas.md",
+        revision="v24",
+        title="gotchas.md",
+    )
+    state = _hint_state()
+    text = Text()
+    append_agent_memory_reads_section(
+        text,
+        events=(_display(event),),
+        hint_state=state,
+        version_pins={"pin-read": pin},
+    )
+
+    assert state.memory_version_pins == {1: pin}
+    assert state.hint_mappings[1] == event.resolved_path
+
+
+def test_launch_row_renders_first_with_chip() -> None:
+    from sase.ace.tui.widgets.prompt_panel._agent_memory_versions import (
+        MemoryLaunchRow,
+        MemoryVersionChip,
+    )
+
+    event = _event(
+        canonical_path="gotchas.md",
+        timestamp="2026-05-24T14:20:08+00:00",
+        read_id="launch-read",
+    )
+    launch = MemoryLaunchRow(
+        display="AGENTS.md",
+        chip=MemoryVersionChip("v258 ⟲ 2 newer since launch", "#9d7cd8"),
+        blob_oid="a" * 40,
+        ordinal=258,
+    )
+    text = Text()
+    append_agent_memory_reads_section(
+        text, events=(_display(event),), launch_row=launch
+    )
+
+    lines = text.plain.splitlines()
+    assert "AGENTS.md as launched" in lines[0]
+    launch_index = next(
+        index for index, line in enumerate(lines) if line.startswith("  launch")
+    )
+    read_index = next(index for index, line in enumerate(lines) if "gotchas.md" in line)
+    assert launch_index < read_index
+    launch_line = lines[launch_index]
+    assert "AGENTS.md" in launch_line
+    assert "v258 ⟲ 2 newer since launch" in launch_line
+
+
+def test_launch_row_alone_renders_without_reads() -> None:
+    from sase.ace.tui.widgets.prompt_panel._agent_memory_versions import (
+        MemoryLaunchRow,
+        MemoryVersionChip,
+    )
+
+    launch = MemoryLaunchRow(
+        display="AGENTS.md",
+        chip=MemoryVersionChip("◌ as launched · not in git", "#FFAF00"),
+        blob_oid="a" * 40,
+        ordinal=None,
+    )
+    text = Text()
+    append_agent_memory_reads_section(text, events=(), launch_row=launch)
+
+    assert "AGENTS.md as launched" in text.plain
+    assert "◌ as launched · not in git" in text.plain

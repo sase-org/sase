@@ -56,7 +56,7 @@ _CONFIG_TABS_MICRO_BELOW_WIDTH_WITH_FLAGS = 60
 _MEMORY_BADGE_POLL_S = 30.0
 
 
-def compute_memory_badge(
+def _compute_memory_badge(
     launch_workspace: str | None, history: Any
 ) -> tuple[int | None, Any]:
     """Return ``(badge_count, change_token)`` for the launch project scope.
@@ -268,7 +268,7 @@ class ConfigHubPane(Vertical):
                     history = ace_memory_history(self.app)
                 except Exception:
                     return None
-                return compute_memory_badge(launch_workspace, history)
+                return _compute_memory_badge(launch_workspace, history)
 
             result = await asyncio.to_thread(_query)
             if not isinstance(result, tuple) or len(result) != 2:

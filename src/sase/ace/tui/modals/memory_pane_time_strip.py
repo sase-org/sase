@@ -282,10 +282,34 @@ def render_card_head(
     budget = max(int(budget), 8)
     if moment is not None:
         try:
-            from sase.pager.history_kit import history_badge, history_context
+            from sase.pager.history_kit import (
+                format_age,
+                history_badge,
+                history_context,
+            )
 
+            # The pager's context names the pinned version's age (``10d``),
+            # falling back to repeating ``vN`` only when the age is unknown.
+            committed = getattr(moment, "committed_time", None)
+            age = (
+                str(format_age(int(snapshot.now_epoch), int(committed)))
+                if committed
+                else ""
+            )
             pill = history_badge(moment, None, styles, budget)
-            context = history_context(moment, None, styles)
+            context = history_context(moment, {"age": age}, styles)
+            if width and context is not None:
+                # Shed like the pager: the full context, then the
+                # ``Δ vA → vB`` short form, then nothing.
+                room = int(width) - len(str(path_label or "")) - 5
+                room -= len(pill.plain) if pill is not None else 0
+                if len(context.plain) > room:
+                    short = history_context(moment, {"age": age}, styles, short=True)
+                    context = (
+                        short
+                        if short is not None and len(short.plain) <= room
+                        else None
+                    )
         except Exception:
             pill, context = None, None
     else:
@@ -299,7 +323,9 @@ def render_card_head(
     chips: list[Text] = []
     if isinstance(timeline, dict) and bool(timeline.get("is_template")):
         chips.append(Text("TEMPLATE", style="dim"))
-    if snapshot.failed:
+    if snapshot.failed and isinstance(timeline, dict):
+        # ``stale`` marks the last good snapshot kept on screen; with no
+        # snapshot there is nothing stale to mark.
         chips.append(Text("stale", style="dim"))
     for chip in extra_chips or []:
         if chip is not None and chip.plain:

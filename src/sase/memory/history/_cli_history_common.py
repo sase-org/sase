@@ -42,11 +42,17 @@ def at_to_version(
 ) -> tuple[str, str | None]:
     """Translate ``-A/--at`` to a core version selector plus notice.
 
-    Ordinals (``7``/``v7``), ``~N``, SHA prefixes, and ``now`` pass
-    through. Dates select the latest version at or before that day.
+    Ordinals (``7``/``v7``), ``~N``, SHA prefixes, ``blob:OID``, and
+    ``now`` pass through. Dates select the latest version at or before
+    that day. A ``blob:OID`` selector (a full blob OID or a unique
+    prefix of at least 7 hex characters) resolves through the timeline
+    to the newest committed version with that blob, so it reads the
+    same on wheels before and after the core ``blob:`` selector.
     """
     if at == "now" or at.startswith("~") or at.startswith("v") or at.isdigit():
         return at, None
+    if len(at) >= 5 and at[:5].lower() == "blob:":
+        return _blob_to_version(service, scope, core_selector, at)
     # A bare date is YYYY-MM-DD; anything else goes to core as a SHA prefix.
     if len(at) == 10 and at[4] == "-" and at[7] == "-":
         bound = parse_date_bound(at, end_of_day=True)
@@ -68,4 +74,68 @@ def at_to_version(
     return at, None
 
 
-__all__ = ["at_to_version", "emit_json", "parse_date_bound"]
+def _blob_to_version(
+    service: HistoryService,
+    scope: Any,
+    core_selector: str,
+    at: str,
+) -> tuple[str, str | None]:
+    """Resolve ``blob:OID`` through the timeline to newest ``vN``."""
+    raw = at[5:]
+    if len(raw) < 7 or any(ch not in "0123456789abcdefABCDEF" for ch in raw):
+        raise HistoryScopeError(f"invalid version selector: {at}")
+    ordinal = blob_ordinal_from_timeline(
+        service.timeline(scope, core_selector, include_hidden=True), raw
+    )
+    if ordinal is None:
+        raise HistoryNotFoundError(f"no version {at} for subject {core_selector!r}")
+    if ordinal == -1:
+        raise HistoryScopeError(
+            f"ambiguous blob prefix {at} for subject {core_selector!r}"
+        )
+    return f"v{ordinal}", f"{core_selector} at {at} is v{ordinal}"
+
+
+def blob_ordinal_from_timeline(timeline: dict[str, Any], raw_oid: str) -> int | None:
+    """Return the newest committed ordinal matching a blob OID prefix.
+
+    ``raw_oid`` is the hex after ``blob:`` (at least 7 characters).
+    Deleted rows never match. Returns the newest ordinal, ``None`` when
+    nothing matches, or ``-1`` when the prefix is ambiguous across
+    distinct blobs.
+    """
+    lowered = raw_oid.lower()
+    newest = 0
+    distinct: set[str] = set()
+    for row in timeline.get("versions", ()):
+        if not isinstance(row, dict):
+            continue
+        try:
+            ordinal = int(row.get("ordinal", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if ordinal <= 0:
+            continue
+        if str(row.get("kind", "") or "").lower() == "deleted":
+            continue
+        blob = row.get("blob_oid")
+        if not isinstance(blob, str) or not blob:
+            continue
+        if not blob.lower().startswith(lowered):
+            continue
+        distinct.add(blob.lower())
+        if ordinal > newest:
+            newest = ordinal
+    if newest == 0:
+        return None
+    if len(distinct) > 1:
+        return -1
+    return newest
+
+
+__all__ = [
+    "at_to_version",
+    "blob_ordinal_from_timeline",
+    "emit_json",
+    "parse_date_bound",
+]

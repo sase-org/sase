@@ -135,12 +135,12 @@ can be browsed in the pager — a time axis over the same files this guide descr
 [Memory History](memory_history.md): subjects and versions, the time band, keys (`(`,
 `)`, `=`, `@`, `[`, `]`), the glyph table, the `sase memory history` CLI (with
 `--format json` for agents), what is and is not tracked, and the performance budgets. In
-the Memory panel, `H` opens the selected note, web, or strand at now and `C` opens the
-cross-file changes feed; the card itself is time-aware (pinned head with the pager's
-pill and a two-row time strip, `(`/`)`/`{`/`}` stepping, `=` diff, `@` Timeline lens,
-`C` Changes lens with a review watermark, an `INSTRUCTIONS` group, and a recency glance
-on every rail row -- see [Memory panel](ace.md#memory-panel)). Viewing history never
-writes an audited read.
+the Memory panel, `H` opens the selected note, web, or strand in the pager at the card's
+exact version and view; the card itself is time-aware (pinned head with the pager's pill
+and a two-row time strip, `(`/`)`/`{`/`}` stepping, `=` diff, `@` Timeline lens, `C`
+Changes lens with a review watermark, an `INSTRUCTIONS` group, and a recency glance on
+every rail row -- see [Memory panel](ace.md#memory-panel)). Viewing history never writes
+an audited read.
 
 ## Audited Reads
 
@@ -214,7 +214,10 @@ A numbered `v` hint on a single-note read opens that note. On a batch read, the 
 opens each requested note or strand file as its own pager section, in the order the read
 printed them. `@` opens them in `$EDITOR` and `%` copies their paths. Link or mention
 context is not opened. When the read can no longer be resolved, the hint pages a
-generated report with the recorded metadata instead.
+generated report with the recorded metadata instead. Reads that captured a blob OID
+carry a version chip (`≡ now`, `vK ⟲ N newer`, `◌ uncommitted at read`), and their hint
+opens the pager pinned to the version read (see
+[Memory History](memory_history.md#in-the-tui)).
 
 ## Memory Webs
 

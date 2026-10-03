@@ -111,30 +111,30 @@ def has_provenance(changeset: dict[str, Any]) -> bool:
 
 
 @dataclass(frozen=True, slots=True)
-class ProvenanceItem:
+class _ProvenanceItem:
     """One bead/agent/commit chip on a changeset row."""
 
     visible: str
     ref: str
 
 
-def provenance_items(changeset: dict[str, Any]) -> tuple[ProvenanceItem, ...]:
+def provenance_items(changeset: dict[str, Any]) -> tuple[_ProvenanceItem, ...]:
     """Return the bead/agent/commit chips for one changeset (wire order)."""
     provenance = changeset.get("provenance", {})
     if not isinstance(provenance, dict):
         provenance = {}
     commit = changeset.get("commit")
-    items: list[ProvenanceItem] = []
+    items: list[_ProvenanceItem] = []
     bead = provenance.get("bead")
     if isinstance(bead, str) and bead:
-        items.append(ProvenanceItem(visible=bead, ref=f"bead:{bead}"))
+        items.append(_ProvenanceItem(visible=bead, ref=f"bead:{bead}"))
     agent = provenance.get("agent")
     if isinstance(agent, str) and agent:
-        items.append(ProvenanceItem(visible=agent, ref=f"agent:{agent}"))
+        items.append(_ProvenanceItem(visible=agent, ref=f"agent:{agent}"))
     short = commit[:7] if isinstance(commit, str) and commit else ""
     if short:
         items.append(
-            ProvenanceItem(
+            _ProvenanceItem(
                 visible=short, ref=f"commit:{commit if isinstance(commit, str) else ''}"
             )
         )
@@ -142,7 +142,7 @@ def provenance_items(changeset: dict[str, Any]) -> tuple[ProvenanceItem, ...]:
 
 
 @dataclass(frozen=True, slots=True)
-class FeedSubjectView:
+class _FeedSubjectView:
     """One authored subject inside a changeset."""
 
     subject_id: str
@@ -156,16 +156,16 @@ class FeedSubjectView:
     revision: str
 
 
-def authored_subjects(
+def _authored_subjects(
     changeset: dict[str, Any], scope_key: str
-) -> tuple[FeedSubjectView, ...]:
+) -> tuple[_FeedSubjectView, ...]:
     """Return the authored subject views for one changeset (wire order)."""
     raw = changeset.get("authored", ())
     if not isinstance(raw, (list, tuple)):
         return ()
     commit = changeset.get("commit")
     changeset_commit = commit if isinstance(commit, str) else None
-    views: list[FeedSubjectView] = []
+    views: list[_FeedSubjectView] = []
     for entry in raw:
         if not isinstance(entry, dict):
             continue
@@ -178,7 +178,7 @@ def authored_subjects(
         except Exception:
             meaning = ""
         views.append(
-            FeedSubjectView(
+            _FeedSubjectView(
                 subject_id=subject_id,
                 display=short_display_for_subject_id(subject_id),
                 class_name=class_name,
@@ -191,14 +191,6 @@ def authored_subjects(
             )
         )
     return tuple(views)
-
-
-def first_subject_label(changeset: dict[str, Any], scope_key: str) -> str:
-    """Return the first authored subject's display name, or ``""``."""
-    subjects = authored_subjects(changeset, scope_key)
-    if not subjects:
-        return ""
-    return subjects[0].display
 
 
 def changeset_word_delta(changeset: dict[str, Any]) -> str:
@@ -232,7 +224,7 @@ def changeset_word_delta(changeset: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
-def consequence_displays(changeset: dict[str, Any]) -> tuple[str, ...]:
+def _consequence_displays(changeset: dict[str, Any]) -> tuple[str, ...]:
     """Return the short display names of generated consequences."""
     raw = changeset.get("consequences", ())
     if not isinstance(raw, (list, tuple)):
@@ -244,18 +236,18 @@ def consequence_displays(changeset: dict[str, Any]) -> tuple[str, ...]:
     )
 
 
-def is_regen_only(changeset: dict[str, Any]) -> bool:
+def _is_regen_only(changeset: dict[str, Any]) -> bool:
     """Return whether a changeset folds into the regen-only count row."""
     return bool(changeset.get("regen_only", False))
 
 
-def is_home_scope(scope_key: str) -> bool:
+def _is_home_scope(scope_key: str) -> bool:
     """Return whether *scope_key* is the home scope (tagged ``⌂``)."""
     return scope_key == "home"
 
 
 @dataclass(frozen=True, slots=True)
-class ChangesetView:
+class _ChangesetView:
     """One changeset row's view-model for the feed and the Changes lens."""
 
     scope_key: str
@@ -273,12 +265,12 @@ class ChangesetView:
     first_subject: str
     extra_subjects: int
     word_delta: str
-    provenance: tuple[ProvenanceItem, ...]
-    authored: tuple[FeedSubjectView, ...]
+    provenance: tuple[_ProvenanceItem, ...]
+    authored: tuple[_FeedSubjectView, ...]
     consequences: tuple[str, ...]
 
 
-def changeset_view(changeset: dict[str, Any]) -> ChangesetView:
+def changeset_view(changeset: dict[str, Any]) -> _ChangesetView:
     """Return the view-model for one raw changeset dict. Never raises."""
     try:
         scope_key = str(changeset.get("scope_key", "") or "")
@@ -304,11 +296,11 @@ def changeset_view(changeset: dict[str, Any]) -> ChangesetView:
     except Exception:
         bead, agent = "", ""
     try:
-        authored = authored_subjects(changeset, scope_key)
+        authored = _authored_subjects(changeset, scope_key)
     except Exception:
         authored = ()
     try:
-        consequences = consequence_displays(changeset)
+        consequences = _consequence_displays(changeset)
     except Exception:
         consequences = ()
     first = authored[0].display if authored else ""
@@ -321,7 +313,7 @@ def changeset_view(changeset: dict[str, Any]) -> ChangesetView:
         provenance_chips = provenance_items(changeset)
     except Exception:
         provenance_chips = ()
-    return ChangesetView(
+    return _ChangesetView(
         scope_key=scope_key,
         commit=commit,
         committer_time=epoch,
@@ -329,8 +321,8 @@ def changeset_view(changeset: dict[str, Any]) -> ChangesetView:
         subject_line=subject_line,
         bead=bead,
         agent=agent,
-        home=is_home_scope(scope_key),
-        regen_only=is_regen_only(changeset),
+        home=_is_home_scope(scope_key),
+        regen_only=_is_regen_only(changeset),
         boilerplate=bool(changeset.get("boilerplate", False)),
         day_key=day_key(epoch),
         day_title=day_header(epoch),
@@ -344,17 +336,17 @@ def changeset_view(changeset: dict[str, Any]) -> ChangesetView:
 
 
 @dataclass(frozen=True, slots=True)
-class FeedDay:
+class _FeedDay:
     """One day group: visible changesets plus folded regen-only rows."""
 
     key: str
     title: str
     epoch: int
-    visible: tuple[ChangesetView, ...]
-    hidden: tuple[ChangesetView, ...]
+    visible: tuple[_ChangesetView, ...]
+    hidden: tuple[_ChangesetView, ...]
 
 
-def group_feed(feed: dict[str, Any]) -> tuple[FeedDay, ...]:
+def group_feed(feed: dict[str, Any]) -> tuple[_FeedDay, ...]:
     """Group raw changesets by local day (wire order preserved).
 
     Regen-only changesets split into the day's ``hidden`` fold; every
@@ -386,20 +378,20 @@ def group_feed(feed: dict[str, Any]) -> tuple[FeedDay, ...]:
         if epoch > newest:
             group["epoch"] = epoch
             group["title"] = day_header(epoch)
-    days: list[FeedDay] = []
+    days: list[_FeedDay] = []
     for key in order:
         group = groups[key]
         items = list(group["items"])
         visible = tuple(
-            changeset_view(item) for item in items if not is_regen_only(item)
+            changeset_view(item) for item in items if not _is_regen_only(item)
         )
-        hidden = tuple(changeset_view(item) for item in items if is_regen_only(item))
+        hidden = tuple(changeset_view(item) for item in items if _is_regen_only(item))
         try:
             epoch = int(group["epoch"] or 0)
         except (TypeError, ValueError):
             epoch = 0
         days.append(
-            FeedDay(
+            _FeedDay(
                 key=key,
                 title=str(group["title"]),
                 epoch=epoch,
@@ -410,20 +402,20 @@ def group_feed(feed: dict[str, Any]) -> tuple[FeedDay, ...]:
     return tuple(days)
 
 
-def flatten_visible(days: tuple[FeedDay, ...]) -> tuple[ChangesetView, ...]:
+def flatten_visible(days: tuple[_FeedDay, ...]) -> tuple[_ChangesetView, ...]:
     """Return every visible changeset across days, newest day first."""
-    rows: list[ChangesetView] = []
+    rows: list[_ChangesetView] = []
     for day in days:
         rows.extend(day.visible)
     return tuple(rows)
 
 
 def dedupe_changesets(
-    changesets: tuple[ChangesetView, ...] | list[ChangesetView],
-) -> tuple[ChangesetView, ...]:
+    changesets: tuple[_ChangesetView, ...] | list[_ChangesetView],
+) -> tuple[_ChangesetView, ...]:
     """Dedupe changesets by ``(scope, commit)`` keeping the first row."""
     seen: set[tuple[str, str]] = set()
-    kept: list[ChangesetView] = []
+    kept: list[_ChangesetView] = []
     for view in changesets:
         try:
             key = (str(view.scope_key), str(view.commit))
@@ -437,14 +429,14 @@ def dedupe_changesets(
 
 
 def filter_changesets(
-    changesets: tuple[ChangesetView, ...] | list[ChangesetView],
+    changesets: tuple[_ChangesetView, ...] | list[_ChangesetView],
     query: str,
-) -> tuple[ChangesetView, ...]:
+) -> tuple[_ChangesetView, ...]:
     """Filter changesets by commit subject, subject names, bead, agent."""
     needle = str(query or "").strip().lower()
     if not needle:
         return tuple(changesets)
-    kept: list[ChangesetView] = []
+    kept: list[_ChangesetView] = []
     for view in changesets:
         try:
             haystacks = [
@@ -463,9 +455,9 @@ def filter_changesets(
 
 
 def window_changesets(
-    changesets: tuple[ChangesetView, ...] | list[ChangesetView],
+    changesets: tuple[_ChangesetView, ...] | list[_ChangesetView],
     limit: int,
-) -> tuple[tuple[ChangesetView, ...], int]:
+) -> tuple[tuple[_ChangesetView, ...], int]:
     """Return ``(shown, older_count)`` for a bounded window of rows."""
     rows = tuple(changesets)
     try:
@@ -475,7 +467,7 @@ def window_changesets(
     return (rows[:count], max(0, len(rows) - min(len(rows), count)))
 
 
-def changeset_row_text(view: ChangesetView, *, width: int = 0) -> str:
+def changeset_row_text(view: _ChangesetView, *, width: int = 0) -> str:
     """Return the one-line rail text for one changeset row.
 
     Shows clock, class glyph of the first authored subject, the first
@@ -513,40 +505,25 @@ def older_window_text(older_count: int) -> str:
     return f"  ··· {older_count} older · j loads more"
 
 
-def scope_chips_text(scope_keys: tuple[str, ...]) -> str:
-    """Return the header scope chips (``sase + home``) for a feed."""
-    return " + ".join(key for key in scope_keys if key)
-
-
 __all__ = [
     "FEED_WINDOW",
     "MAX_INLINE_SECTIONS",
-    "ChangesetView",
-    "FeedDay",
-    "FeedSubjectView",
-    "ProvenanceItem",
-    "authored_subjects",
     "changeset_row_text",
     "changeset_view",
     "changeset_word_delta",
-    "consequence_displays",
     "day_header",
     "day_key",
     "dedupe_changesets",
     "entry_revision",
     "entry_selector",
     "filter_changesets",
-    "first_subject_label",
     "flatten_visible",
     "format_clock",
     "group_feed",
     "has_provenance",
-    "is_home_scope",
-    "is_regen_only",
     "older_window_text",
     "provenance_items",
     "regen_count_text",
-    "scope_chips_text",
     "window_changesets",
     "words_suffix",
 ]

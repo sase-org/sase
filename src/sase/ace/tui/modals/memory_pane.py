@@ -257,6 +257,7 @@ class MemoryPane(
         self._timeline_subject_identity: str | None = None
         self._timeline_rows_all: tuple[dict[str, Any], ...] = ()
         self._timeline_listed: tuple[dict[str, Any], ...] = ()
+        self._timeline_columns: Any = None
         self._timeline_cursor = 0
         self._timeline_open_key: tuple[str, str] | None = None
         self._timeline_base: int | None = None
@@ -508,6 +509,10 @@ class MemoryPane(
             self._on_diff_state_changed(event)
         elif event.worker is self._glance_worker:
             self._on_glance_state_changed(event)
+        elif event.worker is self._instruction_worker:
+            self._on_instructions_state_changed(event)
+        elif event.worker is self._instruction_body_worker:
+            self._on_instruction_body_state_changed(event)
 
     # --- passive actions ------------------------------------------------
 

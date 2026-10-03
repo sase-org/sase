@@ -12,7 +12,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
-from sase.ace.tui.modals.config_hub_pane import compute_memory_badge
+from sase.ace.tui.modals.config_hub_pane import _compute_memory_badge
 from sase.ace.tui.modals.memory_pane_review import (
     ScopeReview,
     changeset_is_unreviewed,
@@ -201,19 +201,19 @@ def _fake_history(
 
 def test_compute_memory_badge_returns_count_and_token() -> None:
     history = _fake_history(_wire(new_count=2))
-    assert compute_memory_badge("/tmp/sase", history) == (2, ("tok",))
+    assert _compute_memory_badge("/tmp/sase", history) == (2, ("tok",))
 
 
 def test_compute_memory_badge_hides_unreviewed_and_failed() -> None:
-    assert compute_memory_badge("/tmp/sase", _fake_history(_wire(watermark=None))) == (
+    assert _compute_memory_badge("/tmp/sase", _fake_history(_wire(watermark=None))) == (
         None,
         ("tok",),
     )
-    assert compute_memory_badge("/tmp/sase", _fake_history(_wire(new_count=0))) == (
+    assert _compute_memory_badge("/tmp/sase", _fake_history(_wire(new_count=0))) == (
         None,
         ("tok",),
     )
-    assert compute_memory_badge(
+    assert _compute_memory_badge(
         "/tmp/sase", _fake_history(RuntimeError("store gone"))
     ) == (None, ("tok",))
 
@@ -225,4 +225,4 @@ def test_compute_memory_badge_hides_without_project_scope() -> None:
         ),
         change_token=lambda _scope: None,
     )
-    assert compute_memory_badge("/tmp/elsewhere", history) == (None, None)
+    assert _compute_memory_badge("/tmp/elsewhere", history) == (None, None)

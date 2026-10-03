@@ -84,7 +84,7 @@ def get_version(
     *,
     include_body: bool = False,
 ) -> dict[str, Any]:
-    """Return one version by ordinal, ``~N``, SHA prefix, or ``now``."""
+    """Return one version by ordinal, ``~N``, SHA prefix, ``blob:OID``, or ``now``."""
     return _call(
         "memory_history_version",
         {

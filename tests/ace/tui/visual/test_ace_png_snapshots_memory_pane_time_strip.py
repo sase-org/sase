@@ -8,6 +8,9 @@ renders through ``sase.pager.history_kit``.
 
 from __future__ import annotations
 
+import dataclasses
+from typing import Any
+
 import pytest
 
 from sase.ace.testing import AcePage
@@ -89,6 +92,19 @@ def _timeline(state: str = "tracked", *, dirty: bool = False) -> dict:
 
 
 def _setup(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The strip's ages (``latest · 10d``) come from the snapshot's clock;
+    # pin it so the golden does not drift day to day.
+    strip_snapshot = MemoryPane._time_strip_snapshot_for_node
+
+    def pinned_strip_snapshot(self: MemoryPane, node: Any | None) -> Any | None:
+        snapshot = strip_snapshot(self, node)
+        if snapshot is None:
+            return None
+        return dataclasses.replace(snapshot, now_epoch=_NOW)
+
+    monkeypatch.setattr(
+        MemoryPane, "_time_strip_snapshot_for_node", pinned_strip_snapshot
+    )
     ref = scope_ref("sase", "sase")
     notes = (
         memory_note(

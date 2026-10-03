@@ -38,7 +38,7 @@ _PROMOTION_CLASSES = frozenset({"promoted", "demoted"})
 
 
 @dataclass(frozen=True)
-class DeletedSubject:
+class _DeletedSubject:
     """One subject whose latest feed entry is a deletion."""
 
     subject_id: str
@@ -78,7 +78,7 @@ def _entry_time(changeset: dict[str, Any]) -> int | None:
     return moment if moment > 0 else None
 
 
-def build_recency_map(feed: Any) -> dict[str, tuple[str, int]]:
+def _build_recency_map(feed: Any) -> dict[str, tuple[str, int]]:
     """Return ``{path: (class, committer_time)}`` for the newest entry.
 
     The feed arrives newest first, so the first entry seen per path
@@ -106,7 +106,7 @@ def build_recency_map(feed: Any) -> dict[str, tuple[str, int]]:
     return recency
 
 
-def subject_displays(subjects: Any) -> dict[str, str]:
+def _subject_displays(subjects: Any) -> dict[str, str]:
     """Return ``{subject_id: display_name}`` from a subjects wire dict."""
     displays: dict[str, str] = {}
     try:
@@ -143,9 +143,9 @@ def _display_for_entry(
         return path
 
 
-def deleted_subjects(
+def _collect_deleted_subjects(
     feed: Any, *, displays: dict[str, str] | None = None
-) -> tuple[DeletedSubject, ...]:
+) -> tuple[_DeletedSubject, ...]:
     """Return subjects whose latest entry is a deletion, newest first.
 
     The feed arrives newest first, so the first entry seen per
@@ -166,7 +166,7 @@ def deleted_subjects(
                     latest[subject_id] = (changeset, entry)
     except Exception:
         return ()
-    deleted: list[DeletedSubject] = []
+    deleted: list[_DeletedSubject] = []
     for subject_id, (changeset, entry) in latest.items():
         try:
             if entry.get("class") != "deleted":
@@ -183,7 +183,7 @@ def deleted_subjects(
                 ordinal = 0
             commit = entry.get("commit", changeset.get("commit", ""))
             deleted.append(
-                DeletedSubject(
+                _DeletedSubject(
                     subject_id=subject_id,
                     path=path,
                     display=_display_for_entry(subject_id, path, displays),
@@ -197,7 +197,7 @@ def deleted_subjects(
     return tuple(deleted)
 
 
-def glance_suffix(class_name: str, committer_time: int, *, now_epoch: int = 0) -> str:
+def _glance_suffix(class_name: str, committer_time: int, *, now_epoch: int = 0) -> str:
     """Return the ``glyph age`` suffix (``⇧ 8d``) for one newest change."""
     try:
         from sase.pager.history_kit import format_age, glyph_for
@@ -214,7 +214,7 @@ def glance_suffix(class_name: str, committer_time: int, *, now_epoch: int = 0) -
     return f"{glyph} {age}"
 
 
-def glance_glyph_only(class_name: str) -> str:
+def _glance_glyph_only(class_name: str) -> str:
     """Return just the vocabulary glyph for a change class."""
     try:
         from sase.pager.history_kit import glyph_for
@@ -224,7 +224,7 @@ def glance_glyph_only(class_name: str) -> str:
         return ""
 
 
-def node_glance_path(node: Any) -> str:
+def _node_glance_path(node: Any) -> str:
     """Return the feed path a rail row matches on (strands: strand file)."""
     try:
         strand = getattr(node, "strand", None)
@@ -240,7 +240,7 @@ def node_glance_path(node: Any) -> str:
     return ""
 
 
-def deleted_age_text(committer_time: int, *, now_epoch: int = 0) -> str:
+def _deleted_age_text(committer_time: int, *, now_epoch: int = 0) -> str:
     """Return the compact age for a DELETED row (``3w``)."""
     try:
         from sase.pager.history_kit import format_age
@@ -253,7 +253,7 @@ def deleted_age_text(committer_time: int, *, now_epoch: int = 0) -> str:
         return ""
 
 
-def build_deleted_row_text(
+def _build_deleted_row_text(
     display: str, committer_time: int, *, now_epoch: int = 0
 ) -> Text:
     """Return one DELETED rail row: ``✖ name   deleted 3w``.
@@ -262,7 +262,7 @@ def build_deleted_row_text(
     group identically. Never raises.
     """
     try:
-        age = deleted_age_text(int(committer_time), now_epoch=int(now_epoch))
+        age = _deleted_age_text(int(committer_time), now_epoch=int(now_epoch))
     except Exception:
         age = ""
     text = Text(style=_DELETED_ROW_STYLE)
@@ -276,7 +276,7 @@ def build_deleted_row_text(
     return text
 
 
-def history_only_node(subject: DeletedSubject) -> MemoryRailNode:
+def _history_only_node(subject: _DeletedSubject) -> MemoryRailNode:
     """Return the history-only rail node for one deleted subject.
 
     The synthetic note carries the deleted path so history selectors,
@@ -302,7 +302,7 @@ def history_only_node(subject: DeletedSubject) -> MemoryRailNode:
     )
 
 
-def is_promotion_class(class_name: str) -> bool:
+def _is_promotion_class(class_name: str) -> bool:
     """Return whether a glance class keeps its highlight (``⇧``/``⇩``)."""
     try:
         return str(class_name) in _PROMOTION_CLASSES
@@ -328,7 +328,7 @@ class MemoryPaneRailGlanceMixin(_MixinBase):
     if TYPE_CHECKING:
         _closed: bool
         _current_note: str | None
-        _deleted_subjects: tuple[DeletedSubject, ...]
+        _deleted_subjects: tuple[_DeletedSubject, ...]
         _filter_bodies: bool
         _filter_text: str
         _glance_failed: bool
@@ -373,7 +373,7 @@ class MemoryPaneRailGlanceMixin(_MixinBase):
     def _note_row_glance(self, node: Any) -> tuple[str, str, bool]:
         """Return ``(full, glyph, promoted)`` for one rail row, or blanks."""
         try:
-            path = node_glance_path(node)
+            path = _node_glance_path(node)
         except Exception:
             return ("", "", False)
         if not path:
@@ -386,15 +386,15 @@ class MemoryPaneRailGlanceMixin(_MixinBase):
             return ("", "", False)
         class_name, moment = hit
         try:
-            full = glance_suffix(str(class_name), int(moment))
+            full = _glance_suffix(str(class_name), int(moment))
         except Exception:
             return ("", "", False)
         if not full:
             return ("", "", False)
         return (
             full,
-            glance_glyph_only(str(class_name)),
-            is_promotion_class(class_name),
+            _glance_glyph_only(str(class_name)),
+            _is_promotion_class(class_name),
         )
 
     def _glance_column_width(self) -> int:
@@ -411,7 +411,7 @@ class MemoryPaneRailGlanceMixin(_MixinBase):
             now_epoch = int(_now.time())
             widest = 0
             for class_name, moment in entries:
-                suffix = glance_suffix(
+                suffix = _glance_suffix(
                     str(class_name), int(moment), now_epoch=now_epoch
                 )
                 widest = max(widest, Text(suffix).cell_len if suffix else 0)
@@ -435,7 +435,7 @@ class MemoryPaneRailGlanceMixin(_MixinBase):
             try:
                 if needle and needle not in str(subject.path).casefold():
                     continue
-                rows.append(history_only_node(subject))
+                rows.append(_history_only_node(subject))
             except Exception:
                 continue
         return tuple(rows)
@@ -477,7 +477,7 @@ class MemoryPaneRailGlanceMixin(_MixinBase):
             from textual.widgets.option_list import Option  # noqa: PLC0415
 
             return Option(
-                build_deleted_row_text(display, int(moment or 0)), id=identity
+                _build_deleted_row_text(display, int(moment or 0)), id=identity
             )
         except Exception:
             return None
@@ -534,8 +534,10 @@ class MemoryPaneRailGlanceMixin(_MixinBase):
             except Exception as exc:
                 return (scope_key, {}, (), f"feed: {exc}", generation)
             try:
-                recency = build_recency_map(feed)
-                deleted = deleted_subjects(feed, displays=subject_displays(subjects))
+                recency = _build_recency_map(feed)
+                deleted = _collect_deleted_subjects(
+                    feed, displays=_subject_displays(subjects)
+                )
             except Exception as exc:
                 return (scope_key, {}, (), f"map: {exc}", generation)
             return (scope_key, recency, deleted, None, generation)
@@ -772,17 +774,6 @@ class MemoryPaneRailGlanceMixin(_MixinBase):
 
 
 __all__ = [
-    "DeletedSubject",
     "MemoryPaneRailGlanceMixin",
-    "build_deleted_row_text",
-    "build_recency_map",
-    "deleted_age_text",
-    "deleted_subjects",
-    "glance_glyph_only",
-    "glance_suffix",
-    "history_only_node",
     "history_only_refusal",
-    "is_promotion_class",
-    "node_glance_path",
-    "subject_displays",
 ]

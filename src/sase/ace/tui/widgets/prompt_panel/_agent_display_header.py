@@ -351,6 +351,10 @@ def build_header_text(
         append_agent_context_section(
             header_text,
             memory_reads=summary.memory_reads,
+            memory_version_chips=summary.memory_version_chips,
+            memory_version_pins=summary.memory_version_pins,
+            memory_launch_row=summary.memory_launch_row,
+            memory_launch_pin=summary.memory_launch_pin,
             glossary_reads=summary.glossary_reads,
             skill_uses=summary.skill_uses,
             opened_workspaces=summary.opened_workspaces,

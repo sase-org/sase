@@ -65,6 +65,7 @@ class HeaderHintState:
     glossary_reports: dict[str, GlossaryReadReportSpec] = field(default_factory=dict)
     memory_reports: dict[str, MemoryReadReportSpec] = field(default_factory=dict)
     artifact_read_refs: dict[str, ArtifactReadRefSpec] = field(default_factory=dict)
+    memory_version_pins: dict[int, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ class AgentHintRender:
     glossary_reports: dict[str, GlossaryReadReportSpec] = field(default_factory=dict)
     memory_reports: dict[str, MemoryReadReportSpec] = field(default_factory=dict)
     artifact_read_refs: dict[str, ArtifactReadRefSpec] = field(default_factory=dict)
+    memory_version_pins: dict[int, Any] = field(default_factory=dict)
     header_enrichment_pending: bool = False
 
 
@@ -134,6 +136,10 @@ class DetailHeaderSummary:
     artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = ()
     bead_touch_entries: tuple[BeadTouchEntry, ...] = ()
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
+    memory_version_chips: dict[str, Any] = field(default_factory=dict)
+    memory_version_pins: dict[str, Any] = field(default_factory=dict)
+    memory_launch_row: Any | None = None
+    memory_launch_pin: Any | None = None
     glossary_reads: tuple[GlossaryReadDisplayEvent, ...] = ()
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()

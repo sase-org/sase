@@ -5,9 +5,11 @@ store plus single-flight board (:class:`HistoryQueryBase`) and the
 records shared by more than one section (:class:`TimelineEntry` for
 the timeline memo, :class:`_Flight` for in-flight calls). The section
 mixins (``_memory_history_timelines``, ``_memory_history_content``,
-``_memory_history_collections``, ``_memory_history_tokens``) subclass
-:class:`HistoryQueryBase` (``CollectionQueries`` extends ``TokenQueries``
-for its change-token memos), so every query shares one memo store
+``_memory_history_collections``, ``_memory_history_tokens``,
+``_memory_history_blobs``) subclass :class:`HistoryQueryBase`
+(``CollectionQueries`` extends ``TokenQueries`` for its change-token
+memos; ``BlobQueries`` extends ``TimelineQueries`` for its timeline
+memo), so every query shares one memo store
 without importing a ``_``-prefixed name across modules. Import from
 :mod:`sase.ace.tui.memory_history`, not from here.
 """
@@ -64,6 +66,9 @@ class HistoryQueryBase:
             OrderedDict()
         )
         self._known_blobs: dict[tuple[str, str, str], str | None] = {}
+        self._blob_memo: dict[
+            tuple[str, str, str, tuple[Any, ...]], dict[str, Any]
+        ] = {}
         self._subjects_memo: dict[str, tuple[tuple[Any, ...], dict[str, Any]]] = {}
         self._feed_memo: dict[
             tuple[str, ...], tuple[tuple[Any, ...], dict[str, Any]]

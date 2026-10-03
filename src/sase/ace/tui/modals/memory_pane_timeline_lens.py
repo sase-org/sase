@@ -50,6 +50,65 @@ def _timeline_row_id(label: str, class_name: str, ordinal: int) -> str:
     return f"{_TIMELINE_ROW_PREFIX}{label}:{class_name}:{int(ordinal)}"
 
 
+def _timeline_row_text(
+    row: dict[str, Any],
+    columns: Any,
+    format_picker_row: Any,
+    *,
+    is_cursor: bool,
+    is_open: bool,
+    base: int | None,
+    pending: bool,
+) -> Any:
+    """Return one lens row's prompt: picker cells plus ``◇``/``…`` marks."""
+    label = str(row.get("label", "") or "")
+    try:
+        if columns is None:
+            text: Any = Text(f"{label} {row.get('change', '')}".strip())
+        else:
+            text = format_picker_row(row, columns, is_open=is_open, is_cursor=is_cursor)
+    except Exception:
+        text = Text(label)
+    try:
+        if (
+            base is not None
+            and int(row.get("ordinal", -1) or 0) == int(base)
+            and not is_cursor
+        ):
+            # ``◇`` takes the cursor cell of the picker's two-cell marker
+            # column, so the row keeps its width and never wraps.
+            if columns is not None and text.plain[1:2] == " ":
+                text = Text.assemble(text[:1], Text("◇", style="dim"), text[2:])
+            else:
+                text = Text.assemble(Text("◇ ", style="dim"), text)
+    except Exception:
+        pass
+    if pending and is_cursor and not is_open:
+        text = Text.assemble(text, Text(" …", style="dim"))
+    return text
+
+
+def _newest_first(timeline: dict[str, Any]) -> dict[str, Any]:
+    """Return *timeline* with versions in the pager picker's order.
+
+    The card's memoized summary keeps versions oldest-first for the
+    strip; the picker lists pseudo rows, then committed versions
+    newest-first, exactly as the core wire reaches the pager.
+    """
+    versions = timeline.get("versions", ())
+    if not isinstance(versions, (list, tuple)):
+        return timeline
+
+    def _key(version: Any) -> tuple[bool, int]:
+        try:
+            ordinal = int(version.get("ordinal", 0) or 0)
+        except (AttributeError, TypeError, ValueError):
+            ordinal = 0
+        return (ordinal > 0, -ordinal)
+
+    return {**timeline, "versions": sorted(versions, key=_key)}
+
+
 def _timeline_lens_rows(
     timeline: dict[str, Any] | None,
     *,
@@ -87,7 +146,9 @@ def _timeline_lens_rows(
                     newest = max(newest, ordinal)
         now_matches = newest > 0 and not bool(timeline.get("dirty", False))
         rows = build_picker_rows(
-            timeline, now_epoch=int(now_epoch), now_matches_newest=now_matches
+            _newest_first(timeline),
+            now_epoch=int(now_epoch),
+            now_matches_newest=now_matches,
         )
     except Exception:
         return ((), 0, 0)
@@ -131,7 +192,7 @@ def _timeline_hidden_rows(
             hidden_picker_rows,
         )
 
-        rows = build_picker_rows(timeline, now_epoch=int(now_epoch))
+        rows = build_picker_rows(_newest_first(timeline), now_epoch=int(now_epoch))
         return tuple(hidden_picker_rows(tuple(rows)))
     except Exception:
         return ()
@@ -262,6 +323,26 @@ def _timeline_subject_display(node: Any) -> str:
         return identity
 
 
+def _no_history_refusal(timeline: dict[str, Any]) -> str | None:
+    """Return the honest ``@`` refusal when *timeline* has no versions.
+
+    An untracked subject or a no-VCS scope has nothing to step through,
+    so ``@`` names that state instead of opening an empty lens.
+    """
+    from .memory_pane_history import honest_no_history_toast
+
+    try:
+        committed = any(
+            isinstance(row, dict) and int(row.get("ordinal", 0) or 0) > 0
+            for row in timeline.get("versions", ()) or ()
+        )
+    except (AttributeError, TypeError, ValueError):
+        committed = False
+    if committed:
+        return None
+    return honest_no_history_toast(timeline)
+
+
 class MemoryPaneTimelineLensMixin(_MixinBase):
     """The ``@`` Timeline lens: rail rows, preview, base, and hand-off."""
 
@@ -283,6 +364,7 @@ class MemoryPaneTimelineLensMixin(_MixinBase):
         _time_pending: dict[tuple[str, str], str]
         _time_pins: dict[tuple[str, str], int]
         _timeline_base: int | None
+        _timeline_columns: Any
         _timeline_cursor: int
         _timeline_filter: str
         _timeline_has_hidden_line: bool
@@ -370,6 +452,10 @@ class MemoryPaneTimelineLensMixin(_MixinBase):
                     self.notify("history unavailable · r retry", severity="warning")
                 else:
                     self.notify("indexing history… · @ retries", severity="warning")
+                return
+            refusal = _no_history_refusal(timeline)
+            if refusal is not None:
+                self.notify(refusal, severity="warning")
                 return
             try:
                 keyed = self._history_key_for_node(node)
@@ -570,37 +656,22 @@ class MemoryPaneTimelineLensMixin(_MixinBase):
             columns = picker_columns(listed, available)
         except Exception:
             columns = None
+        self._timeline_columns = columns
         options: list[Option] = []
         for index, row in enumerate(listed):
             if not isinstance(row, dict):
                 continue
             label = str(row.get("label", "") or "")
             class_name = str(row.get("class", "") or "")
-            is_cursor = index == cursor
-            is_open = open_key == (label, class_name)
-            try:
-                if columns is None:
-                    text: Any = Text(f"{label} {row.get('change', '')}".strip())
-                else:
-                    text = format_picker_row(
-                        row, columns, is_open=is_open, is_cursor=is_cursor
-                    )
-            except Exception:
-                text = Text(label)
-            try:
-                if (
-                    base is not None
-                    and int(row.get("ordinal", -1) or 0) == int(base)
-                    and not is_cursor
-                ):
-                    text = Text.assemble(text, Text("  ◇", style="dim"))
-            except Exception:
-                pass
-            try:
-                if pending and is_cursor and not is_open:
-                    text = Text.assemble(text, Text(" …", style="dim"))
-            except Exception:
-                pass
+            text = _timeline_row_text(
+                row,
+                columns,
+                format_picker_row,
+                is_cursor=index == cursor,
+                is_open=open_key == (label, class_name),
+                base=base,
+                pending=pending,
+            )
             options.append(Option(text, id=_timeline_row_id(label, class_name, 0)))
         hidden_line = ""
         try:
@@ -645,6 +716,49 @@ class MemoryPaneTimelineLensMixin(_MixinBase):
             self._resize_timeline_rail()
         except Exception:
             pass
+
+    def _repaint_timeline_rows(self, *indices: int) -> None:
+        """Repaint only *indices* so cursor and base marks follow motion.
+
+        A full rail render reflows every row; motion only changes the
+        rows it leaves and lands on, so this keeps ``j``/``k`` cheap.
+        """
+        columns = getattr(self, "_timeline_columns", None)
+        if columns is None:
+            self._render_timeline_rail()
+            return
+        try:
+            from sase.pager.history_kit import format_picker_row  # noqa: PLC0415
+
+            option_list = self._note_list()
+        except Exception:
+            return
+        listed = tuple(getattr(self, "_timeline_listed", ()))
+        cursor = int(getattr(self, "_timeline_cursor", 0) or 0)
+        open_key = getattr(self, "_timeline_open_key", None)
+        base = getattr(self, "_timeline_base", None)
+        pending = bool(getattr(self, "_timeline_preview_pending", False))
+        for index in sorted(set(indices)):
+            if not 0 <= index < len(listed) or not isinstance(listed[index], dict):
+                continue
+            row = listed[index]
+            label = str(row.get("label", "") or "")
+            class_name = str(row.get("class", "") or "")
+            try:
+                option_list.replace_option_prompt_at_index(
+                    index,
+                    _timeline_row_text(
+                        row,
+                        columns,
+                        format_picker_row,
+                        is_cursor=index == cursor,
+                        is_open=open_key == (label, class_name),
+                        base=base,
+                        pending=pending,
+                    ),
+                )
+            except Exception:
+                pass
 
     def _resize_timeline_rail(self) -> None:
         """Pin the rail to its maximum width in the Timeline lens."""
@@ -716,6 +830,7 @@ class MemoryPaneTimelineLensMixin(_MixinBase):
             pass
         if idx == summary_index:
             return  # The hidden-summary row holds the pin, it moves nothing.
+        previous = int(getattr(self, "_timeline_cursor", 0) or 0)
         self._timeline_cursor = idx
         self._timeline_scheduled = idx
         try:
@@ -732,8 +847,8 @@ class MemoryPaneTimelineLensMixin(_MixinBase):
                 ):
                     needs_load = True
             self._timeline_preview_pending = bool(needs_load)
-            if needs_load:
-                self._render_timeline_rail()
+            if previous != idx:
+                self._repaint_timeline_rows(previous, idx)
         except Exception:
             pass
         try:

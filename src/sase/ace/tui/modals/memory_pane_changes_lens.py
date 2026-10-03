@@ -27,6 +27,7 @@ from rich.text import Text
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
+from .memory_pane_diff import CARD_FOLD_VERB
 from .memory_pane_lens import LENS_CHANGES, LENS_NOTES, LENS_TIMELINE, lens_header_text
 from .memory_pane_review import (
     ScopeReview,
@@ -1286,7 +1287,9 @@ class MemoryPaneChangesLensMixin(_MixinBase):
                             build_diff_body,
                         )
 
-                        rendered = build_diff_body(comparison, target_body)
+                        rendered = build_diff_body(
+                            comparison, target_body, fold_verb=CARD_FOLD_VERB
+                        )
                         results[key] = rendered.text.plain.strip() or "(no changes)"
                     except Exception:
                         try:

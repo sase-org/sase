@@ -281,3 +281,171 @@ def test_step_keymap_defaults_cover_all_step_keys() -> None:
         "history_first",
         "history_now",
     }
+
+
+def _pinned_stub(applied: int) -> SimpleNamespace:
+    """Return a stub whose selected row displays version *applied*."""
+    from sase.ace.tui.modals.memory_pane_time import MemoryPaneTimeMixin
+
+    stub = SimpleNamespace(notices=[], _time_pins={}, _time_applied={})
+    stub._selected_row = lambda: _node()  # type: ignore[attr-defined]
+    stub._time_applied_ordinal = lambda _node: applied  # type: ignore[attr-defined]
+    stub.notify = lambda message, **_kw: stub.notices.append(str(message))  # type: ignore[attr-defined]
+    for name in ("_refuse_while_pinned", "_refuse_link_while_pinned"):
+        setattr(stub, name, getattr(MemoryPaneTimeMixin, name).__get__(stub))
+    return stub
+
+
+def test_pinned_card_refuses_edits_and_links() -> None:
+    from sase.ace.tui.modals.memory_pane_time import PIN_EDIT_REFUSAL
+
+    pinned = _pinned_stub(3)
+    assert pinned._refuse_while_pinned() is True
+    assert pinned._refuse_link_while_pinned() is True
+    assert pinned.notices == [
+        PIN_EDIT_REFUSAL,
+        "links are as of now · H follows them at v3",
+    ]
+
+    now = _pinned_stub(0)
+    assert now._refuse_while_pinned() is False
+    assert now._refuse_link_while_pinned() is False
+    assert now.notices == []
+
+
+def test_mutating_actions_stop_while_pinned() -> None:
+    """``a``, ``e``, ``d``, and ``I`` all stop at the past-edit guard."""
+    from sase.ace.tui.modals.memory_panel_actions import MemoryPanelActionsMixin
+
+    pushed: list[object] = []
+    stub = SimpleNamespace(
+        _loading=False,
+        _write_busy=False,
+        _ring=("sase",),
+        app=SimpleNamespace(push_screen=lambda *args, **_kw: pushed.append(args)),
+    )
+    stub._refuse_while_pinned = lambda: True  # type: ignore[attr-defined]
+
+    def _unexpected() -> None:
+        raise AssertionError("guarded action ran past the pin refusal")
+
+    stub._current_scope = _unexpected  # type: ignore[attr-defined]
+    stub._selected_row = _unexpected  # type: ignore[attr-defined]
+    for action in (
+        "action_add_note",
+        "action_edit_note",
+        "action_delete_note",
+        "action_publish",
+    ):
+        getattr(MemoryPanelActionsMixin, action)(stub)
+    assert pushed == []
+
+
+def test_past_strand_writes_no_audited_read() -> None:
+    """A strand shown in the past records no read; at now it still does."""
+    from sase.ace.tui.modals.memory_pane_loading import MemoryPaneLoadingMixin
+
+    strand_node = SimpleNamespace(
+        identity="glossary:alpha",
+        strand=SimpleNamespace(slug="alpha"),
+        web=SimpleNamespace(slug="glossary"),
+    )
+    workers: list[str] = []
+
+    def _stub(applied: int) -> SimpleNamespace:
+        stub = SimpleNamespace(
+            _ring=(SimpleNamespace(key="sase"),),
+            _scope_index=0,
+            _strand_read_status={},
+            _strand_read_worker=None,
+            _strand_read_worker_identity=None,
+        )
+        stub._selected_row = lambda: strand_node  # type: ignore[attr-defined]
+        stub._time_applied_ordinal = lambda _node: applied  # type: ignore[attr-defined]
+        stub.run_worker = lambda *_args, **kwargs: workers.append(kwargs["group"])  # type: ignore[attr-defined]
+        return stub
+
+    past = _stub(2)
+    MemoryPaneLoadingMixin._ensure_strand_read_for_current_selection(past)  # type: ignore[arg-type]
+    assert workers == []
+    assert past._strand_read_status == {}
+
+    now = _stub(0)
+    MemoryPaneLoadingMixin._ensure_strand_read_for_current_selection(now)  # type: ignore[arg-type]
+    assert workers == ["memory-panel-strand-read"]
+    assert now._strand_read_status == {"glossary:alpha": "pending"}
+
+
+def test_pin_reresolves_after_timeline_change() -> None:
+    """A surviving pin holds across a rebuild; a vanished one returns to now."""
+    from sase.ace.tui.modals.memory_pane_time import MemoryPaneTimeMixin
+
+    key = ("project:sase", "sase/memory/gotchas.md")
+    stub = _stub_mixin()
+    stub.notify = lambda message, **_kw: stub.notices.append(str(message))  # type: ignore[attr-defined]
+    stub._render_note_card = lambda: setattr(stub, "renders", stub.renders + 1)  # type: ignore[attr-defined]
+    stub._time_pins[key] = 2
+    stub._time_applied[key] = 2
+
+    grown = _timeline(_row(1), _row(2), _row(3), _row(4))
+    MemoryPaneTimeMixin._reresolve_time_pin(stub, key, _node(), grown)  # type: ignore[arg-type]
+    assert stub._time_pins[key] == 2
+    assert stub._time_applied[key] == 2
+    assert stub.notices == []
+
+    rewritten = _timeline(_row(1))
+    MemoryPaneTimeMixin._reresolve_time_pin(stub, key, _node(), rewritten)  # type: ignore[arg-type]
+    assert key not in stub._time_pins
+    assert key not in stub._time_applied
+    assert stub.notices == ["that version is gone · back at now"]
+    assert stub.renders == 1
+
+
+def test_past_and_tombstone_card_heads_name_the_age() -> None:
+    """The pinned head reads ``⟲ PAST · vK of N   <age>`` like the pager."""
+    from sase.ace.tui.modals.memory_pane_time_strip import (
+        TimeStripSnapshot,
+        render_card_head,
+    )
+    from sase.pager.history_kit import history_styles_for_theme
+
+    now = 1790769600
+    day = 86400
+    rows = [
+        _row(1, committer_time=now - 30 * day),
+        _row(2, committer_time=now - 10 * day),
+    ]
+    styles = history_styles_for_theme(None)
+
+    past_timeline = _timeline(*rows, _row(3, committer_time=now - day))
+    past = _moment_for_card(past_timeline, subject_id="note:x", pin_ordinal=2)
+    snapshot = TimeStripSnapshot(
+        subject_id="note:x",
+        path_label="sase/memory/gotchas.md",
+        timeline=past_timeline,
+        now_epoch=now,
+    )
+    head = render_card_head(
+        "sase/memory/gotchas.md", snapshot, styles, width=90, moment=past
+    ).plain
+    assert "PAST · v2 of 3" in head
+    assert head.rstrip().endswith("10d")
+
+    gone_timeline = _timeline(
+        *rows, _row(3, committer_time=now - 2 * day, **{"class": "deleted"})
+    )
+    gone = _moment_for_card(gone_timeline, subject_id="note:x", pin_ordinal=3)
+    head = render_card_head(
+        "sase/memory/gotchas.md",
+        TimeStripSnapshot(
+            subject_id="note:x",
+            path_label="sase/memory/gotchas.md",
+            timeline=gone_timeline,
+            now_epoch=now,
+        ),
+        styles,
+        width=90,
+        moment=gone,
+    ).plain
+    assert "DELETED · v3" in head
+    assert head.rstrip().endswith("2d")

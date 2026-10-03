@@ -2847,11 +2847,11 @@
                 },
                 "open_history": {
                   "type": "string",
-                  "description": "Open the selected note, web, or strand in the pager at now"
+                  "description": "Open the selection in the pager at the card's exact version and view"
                 },
                 "open_changes": {
                   "type": "string",
-                  "description": "Open the cross-file memory changes feed"
+                  "description": "Open or close the Changes lens (day-grouped memory changesets)"
                 },
                 "history_older": {
                   "type": "string",

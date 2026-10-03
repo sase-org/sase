@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from typing import Any
 
 from rich.text import Text
 
@@ -103,6 +104,10 @@ def append_agent_context_section(
     artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = (),
     bead_touch_entries: tuple[BeadTouchEntry, ...] = (),
     hint_state: HeaderHintState | None = None,
+    memory_version_chips: dict[str, Any] | None = None,
+    memory_version_pins: dict[str, Any] | None = None,
+    memory_launch_row: Any | None = None,
+    memory_launch_pin: Any | None = None,
     responsive_ranges: dict[str, tuple[int, int]] | None = None,
     fold_level: FoldLevel | None = None,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
@@ -176,6 +181,10 @@ def append_agent_context_section(
             lane,
             events=memory_reads,
             hint_state=hint_state,
+            chips=memory_version_chips,
+            version_pins=memory_version_pins,
+            launch_row=memory_launch_row,
+            launch_pin=memory_launch_pin,
         ),
         "GLOSSARY": lambda lane: append_agent_glossary_reads_section(
             lane,

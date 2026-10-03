@@ -33,6 +33,9 @@ else:
 #: Toast shown when ``=`` cannot diff the current selection.
 DIFF_UNAVAILABLE = "comparison unavailable · kept the read view"
 
+#: Card diff folds cannot expand in place; the label points at the pager.
+CARD_FOLD_VERB = "H to expand"
+
 #: Cap for memoized committed diffs per pane (FIFO eviction).
 _DIFF_MEMO_SIZE = 64
 
@@ -230,7 +233,10 @@ class MemoryPaneDiffMixin(_MixinBase):
             from sase.pager.history_kit import build_diff_body
 
             built = build_diff_body(
-                comparison, target_body, history_styles=self._time_strip_styles()
+                comparison,
+                target_body,
+                history_styles=self._time_strip_styles(),
+                fold_verb=CARD_FOLD_VERB,
             )
             return built.text
         except Exception:
@@ -648,6 +654,7 @@ class MemoryPaneDiffMixin(_MixinBase):
 
 
 __all__ = [
+    "CARD_FOLD_VERB",
     "DIFF_UNAVAILABLE",
     "MemoryPaneDiffMixin",
 ]

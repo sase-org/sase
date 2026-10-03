@@ -205,8 +205,9 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help=(
             "Show one version: an ordinal (7 or v7), ~N (~1 is newest), a "
-            "commit SHA prefix, now for the worktree file, or a YYYY-MM-DD "
-            "date (latest version at or before it)"
+            "commit SHA prefix, blob:OID (a full blob OID or a unique "
+            "prefix of at least 7 hex characters), now for the worktree "
+            "file, or a YYYY-MM-DD date (latest version at or before it)"
         ),
     )
     history_parser.add_argument(

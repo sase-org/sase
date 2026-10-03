@@ -112,6 +112,7 @@ def render_named_proc_hint_document(
         commit_views=header_hint_state.commit_views,
         glossary_reports=header_hint_state.glossary_reports,
         memory_reports=header_hint_state.memory_reports,
+        memory_version_pins=header_hint_state.memory_version_pins,
         artifact_read_refs=header_hint_state.artifact_read_refs,
         header_enrichment_pending=False,
     )
@@ -176,6 +177,7 @@ def render_monitor_hint_document(
         commit_views=header_hint_state.commit_views,
         glossary_reports=header_hint_state.glossary_reports,
         memory_reports=header_hint_state.memory_reports,
+        memory_version_pins=header_hint_state.memory_version_pins,
         artifact_read_refs=header_hint_state.artifact_read_refs,
         header_enrichment_pending=not detail_header_summary_is_complete(summary),
     )
@@ -240,6 +242,7 @@ def render_gate_hint_document(
         commit_views=header_hint_state.commit_views,
         glossary_reports=header_hint_state.glossary_reports,
         memory_reports=header_hint_state.memory_reports,
+        memory_version_pins=header_hint_state.memory_version_pins,
         artifact_read_refs=header_hint_state.artifact_read_refs,
         header_enrichment_pending=not detail_header_summary_is_complete(summary),
     )

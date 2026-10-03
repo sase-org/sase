@@ -72,7 +72,9 @@ class MemoryPanelTravelMixin(_MixinBase):
         """
         self._chip_cursor = None
         node = self._selected_row()
-        if node is None or self._snapshot is None:
+        # History-only rows (instruction files, tombstones) render no
+        # relation chips, so they offer no link targets either.
+        if node is None or self._snapshot is None or node.history_only:
             self._chip_notes = ()
             self._chip_parent_count = 0
             return

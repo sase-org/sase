@@ -314,6 +314,7 @@ def build_diff_body(
     *,
     expanded: frozenset[int] | set[int] = frozenset(),
     history_styles: Any | None = None,
+    fold_verb: str = FOLD_TOKEN,
 ) -> _DiffBody:
     """Build the diff-view body for one version comparison.
 
@@ -323,7 +324,9 @@ def build_diff_body(
     labels (3 lines of context stay visible on each side). *expanded*
     holds fold indices that render in full instead. Word insert/delete
     tones come from *history_styles* when given, else the legacy
-    ``INSERT_STYLE``/``DELETE_STYLE`` fallbacks.
+    ``INSERT_STYLE``/``DELETE_STYLE`` fallbacks. *fold_verb* replaces the
+    label's ``expand`` token for surfaces that cannot expand in place
+    (the Memory card reads ``H to expand``).
     """
     insert_style = INSERT_STYLE
     delete_style = DELETE_STYLE
@@ -400,9 +403,9 @@ def build_diff_body(
                     body.append("\n")
                     body_lines += 1
             else:
-                label = _fold_label_text(hidden) + "\n"
+                label = _fold_label_text(hidden, fold_verb) + "\n"
                 label_start = len(body.plain)
-                token_offset = label.index(FOLD_TOKEN)
+                token_offset = label.index(fold_verb)
                 body.append(label, style=FOLD_STYLE)
                 body_lines += 1
                 targets.append(
@@ -410,8 +413,8 @@ def build_diff_body(
                         kind=FOLD_TARGET_KIND,
                         target=fold_index,
                         start=label_start + token_offset,
-                        end=label_start + token_offset + len(FOLD_TOKEN),
-                        text=FOLD_TOKEN,
+                        end=label_start + token_offset + len(fold_verb),
+                        text=fold_verb,
                     )
                 )
                 folds.append(
@@ -473,10 +476,10 @@ def _append_target_line(
         body.append(line)
 
 
-def _fold_label_text(hidden_count: int) -> str:
+def _fold_label_text(hidden_count: int, verb: str = FOLD_TOKEN) -> str:
     """Return the fold label for *hidden_count* unchanged lines."""
     noun = "line" if hidden_count == 1 else "lines"
-    return f"┄┄ {hidden_count} unchanged {noun} · {FOLD_TOKEN} ┄┄"
+    return f"┄┄ {hidden_count} unchanged {noun} · {verb} ┄┄"
 
 
 def diff_endpoints(

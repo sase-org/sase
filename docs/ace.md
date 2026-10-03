@@ -7963,11 +7963,12 @@ use the pager's exact words. `(` and `)` step the card through committed version
 jumps to the first, `}` returns to now); a violet frame marks the past and `Esc` returns
 to now before closing. `=` toggles a sticky word-diff view: the shown version against
 its parent, the latest change at clean now, or pending edits at dirty now. `H` opens the
-selection in the pager at the card's exact version and view, and `C` opens the changes
-feed. A strand row shows `STRAND`, plus `AUDITED`, `AUDITING`, or `AUDIT FAILED` once
-the panel has recorded (or tried to record) an audited read for it: selecting a strand's
-card records an audited read the same way `sase memory read <web>:<keyword>` does, so
-previewing a strand in the panel is itself an attributable access, not a silent peek.
+selection in the pager at the card's exact version and view, and `C` opens the Changes
+lens (below). A strand row shows `STRAND`, plus `AUDITED`, `AUDITING`, or `AUDIT FAILED`
+once the panel has recorded (or tried to record) an audited read for it: selecting a
+strand's card records an audited read the same way `sase memory read <web>:<keyword>`
+does, so previewing a strand in the panel is itself an attributable access, not a silent
+peek.
 
 `@` turns the rail into the selected subject's timeline: one row per version in the
 pager picker's exact cells, with `▸` on the cursor, `●` on the version the card showed
@@ -8023,6 +8024,15 @@ unavailable). Rows for changesets newer than the watermark carry a `●` dot. `m
 the shown scope reviewed -- optimistic, persisted off-thread -- and toasts
 `marked N changesets reviewed`. The Config hub `MEMORY` sub-tab badges the same count
 (`●N`), quiet until there is something new.
+
+Memory history reaches the Agents tab too: the `SASE CONTEXT` / `MEMORY` lane appends a
+version chip to each audited read with a captured blob -- dim `≡ now`, `vK ⟲ N newer`,
+amber `◌ uncommitted at read`, or one `⟲ N of M changed` aggregate for a batch read --
+and leads with an `AGENTS.md as launched` row resolved from launch evidence
+(`◌ as launched · not in git` or `snapshot unavailable` when it cannot match a commit).
+Chips load in a later off-thread pass and append at the row end, so they never delay or
+reflow the lane. A `v` hint on a chipped row opens the pager pinned to the version read;
+see [Memory History](memory_history.md#in-the-tui).
 
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`

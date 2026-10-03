@@ -76,6 +76,7 @@ def _build_memory_read_report(spec: MemoryReadReportSpec) -> str:
         "",
         *_metadata_lines(spec, selectors=selectors),
         "",
+        *_versions_read_lines(event),
     ]
     if failure_note is not None:
         lines.extend(
@@ -196,6 +197,48 @@ def _metadata_lines(
         f"- **Definition bytes**: {event.byte_count}",
         f"- **Frontmatter stripped**: {event.frontmatter_stripped}",
     ]
+
+
+def _versions_read_lines(event: MemoryReadEvent) -> list[str]:
+    """Render the per-target versions the agent read (agents-bridge).
+
+    Lists each target's blob OID short form so a batch read names the
+    exact version read per file. Reads that predate blob capture list
+    no versions.
+    """
+    pairs = _read_blob_pairs(event)
+    if not pairs:
+        return []
+    lines = ["## Versions read", ""]
+    for target, oid in pairs:
+        if oid:
+            lines.append(f"- **{target}**: `blob:{oid[:12]}`")
+        else:
+            lines.append(f"- **{target}**: (version not recorded)")
+    lines.append("")
+    return lines
+
+
+def _read_blob_pairs(event: MemoryReadEvent) -> list[tuple[str, str | None]]:
+    """Return ``(target, blob_oid)`` pairs in read order for *event*."""
+    if event.included_blob_oids:
+        pairs: list[tuple[str, str | None]] = []
+        for entry in event.included_blob_oids:
+            try:
+                target, oid = entry
+            except (TypeError, ValueError):
+                continue
+            pairs.append((str(target), str(oid) if oid else None))
+        if pairs:
+            return pairs
+    selectors = _event_selectors(event)
+    targets = list(selectors) or (
+        [event.canonical_path] if event.canonical_path else []
+    )
+    single_oid: str | None = (
+        event.blob_oid if isinstance(event.blob_oid, str) and event.blob_oid else None
+    )
+    return [(str(target), single_oid) for target in targets if str(target)]
 
 
 def _reproduced_command(event: MemoryReadEvent, selectors: tuple[str, ...]) -> str:

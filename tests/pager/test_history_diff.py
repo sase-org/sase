@@ -127,6 +127,17 @@ def test_long_unchanged_runs_fold_with_jump_targets() -> None:
     assert "unchanged filler line 13" in body_lines
 
 
+def test_fold_verb_relabels_folds_for_the_memory_card() -> None:
+    from sase.ace.tui.modals.memory_pane_diff import CARD_FOLD_VERB
+
+    rendered = build_diff_body(_changed_comparison(), _body(), fold_verb=CARD_FOLD_VERB)
+    plain = rendered.text.plain
+    assert "unchanged lines · H to expand ┄┄" in plain
+    assert "· expand ┄┄" not in plain
+    for target in rendered.fold_targets:
+        assert plain[target.start : target.end] == CARD_FOLD_VERB
+
+
 def test_expanded_folds_render_in_full() -> None:
     folded = build_diff_body(_changed_comparison(), _body())
     expanded = build_diff_body(

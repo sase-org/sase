@@ -2,10 +2,12 @@
 
 Every committed version of every SASE memory note, web, strand, and agent instruction
 file (`AGENTS.md` plus its provider shims, project and home) can be browsed quickly and
-understood at a glance. The pager is the single place where history is read: open any
-memory file in the pager, press `H` on a Memory panel row, press `C` for the cross-file
-changes feed, or run `sase memory history` (`--format json` for agents). Git remains the
-only store; a disposable, incremental metadata index provides the speed.
+understood at a glance. The pager is the deep-read surface: open any memory file in the
+pager, press `H` on a Memory panel row, or run `sase memory history` (`--format json`
+for agents). The ACE Memory panel and Agents tab are time-aware too (see
+[In the TUI](#in-the-tui)), and every hand-off lands the pager on the exact version that
+was on screen. Git remains the only store; a disposable, incremental metadata index
+provides the speed.
 
 ## Concepts
 
@@ -140,11 +142,11 @@ when dirty); the picker's `=` sets any other base. Arriving from the feed, a cau
 a band source link, or `-d` opens the diff view; arriving from a note, the Memory panel,
 or a plain file opens the read view.
 
-**Changes feed.** `sase memory history` with no selector, or `C` in the Memory panel:
-one section per day, each changeset listing its authored subjects as labels that open
-`subject@version` in the diff view. Generated consequences fold under their cause,
-regen-only changesets collapse into an expandable count, home changes interleave tagged
-`⌂`, and `r` resyncs.
+**Changes feed.** `sase memory history` with no selector (the Memory panel's `C` Changes
+lens reviews the same changesets in place; its `H` opens one here): one section per day,
+each changeset listing its authored subjects as labels that open `subject@version` in
+the diff view. Generated consequences fold under their cause, regen-only changesets
+collapse into an expandable count, home changes interleave tagged `⌂`, and `r` resyncs.
 
 ## Glyphs
 
@@ -168,6 +170,34 @@ Hidden versions (`≈`, `↦`) show with `-a/--all`. A deleted subject shows its
 content exactly as committed — the deletion notice lives in chrome (the `✖ DELETED` pill
 and a band tombstone row), never as a body line, so line numbers still match the file.
 
+## In the TUI
+
+The ACE [Memory panel](ace.md#memory-panel) card speaks the same vocabulary without
+leaving ACE:
+
+- **Card.** A pinned head carries the pager's state pill and a two-row time strip.
+  `(`/`)`/`{`/`}` step the card through versions (a violet frame marks the past, and
+  `Esc` returns to now before closing), `=` toggles the word-diff view, and `H` opens
+  the pager at the card's exact version, view, and compare base.
+- **Lenses.** `@` turns the rail into the subject's timeline (`b` sets a compare base),
+  and `C` turns it into a day-grouped Changes review of the scope or `All scopes`, with
+  a `● N new` review chip, unreviewed-row dots, and `m` to mark the scope reviewed (the
+  same watermark as `-m` below).
+- **Rail.** Every row ends with a recency glance (`◆ 3h`, `⇧ 8d`), `D` lists deleted
+  subjects with read-only tombstone cards, and a collapsed `INSTRUCTIONS` group lists
+  each `AGENTS.md` and its shims.
+
+In the Agents tab, the `SASE CONTEXT` / `MEMORY` lane shows which version each audited
+read actually saw, resolved from the read's blob OID: `≡ now`, `vK ⟲ N newer`,
+`◌ uncommitted at read` when the blob matches no committed version, and one
+`⟲ N of M changed` chip for a batch read. A leading `AGENTS.md as launched` row resolves
+the workspace's root `AGENTS.md` from launch evidence (`◌ as launched · not in git` when
+its bytes were never committed, `snapshot unavailable` when the stored bytes are gone);
+agents launched before evidence capture show no launch row. The row's `v` hint opens the
+pager pinned to that version (or the stored snapshot as a read-only document), and the
+batch read report lists each target's version read. Reads that predate blob capture get
+no chip.
+
 ## CLI
 
 ```bash
@@ -177,6 +207,7 @@ sase memory history sase/memory/tui.md     # repo-relative path also works
 sase memory history glossary:stitch        # strand by web:keyword
 sase memory history AGENTS.md -d           # instruction change as a diff
 sase memory history tui.md -A v7           # one version with its body
+sase memory history tui.md -A blob:1a2b3c4 # the version an agent read, by blob OID
 sase memory history tui.md -f json         # Rust wire unchanged, for agents
 sase memory history -S home --since 2026-09-01 -l 20
 sase memory history -m                     # mark the shown scopes reviewed
@@ -185,11 +216,11 @@ sase memory history -m                     # mark the shown scopes reviewed
 Selectors accept flat names, repo-relative paths, bare web names, `web:keyword` strands
 (with alias lookup), instruction paths (`AGENTS.md`, `CLAUDE.md`, `~/AGENTS.md`, …), and
 historical names (`build_and_run.md` resolves to the renamed subject, with a notice).
-Options: `-a/--all`, `-A/--at REV` (`v7`, `~2`, SHA prefix, or date), `-d/--diff`,
-`-f/--format {json,pager,text}` (pager on a TTY, else text), `-l/--limit N`,
-`-m/--mark-reviewed` (feed mode only; an error with selectors), `-p/--project REF`,
-`-s/--since DATE`, `-S/--scope {all,home,project}`. Viewing history never writes a
-read-audit event.
+Options: `-a/--all`, `-A/--at REV` (`v7`, `~2`, SHA prefix, `blob:OID`, or date),
+`-d/--diff`, `-f/--format {json,pager,text}` (pager on a TTY, else text),
+`-l/--limit N`, `-m/--mark-reviewed` (feed mode only; an error with selectors),
+`-p/--project REF`, `-s/--since DATE`, `-S/--scope {all,home,project}`. Viewing history
+never writes a read-audit event.
 
 **Review watermark.** The feed header reports `● N new since you last reviewed <date>`
 per scope: the default-visible changesets (not hidden, not regen-only) that are strict

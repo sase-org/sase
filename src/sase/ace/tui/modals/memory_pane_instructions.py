@@ -59,7 +59,7 @@ class InstructionSubject:
     shims: tuple[str, ...]
 
 
-def instruction_display_for_subject_id(subject_id: str) -> str:
+def _instruction_display_for_subject_id(subject_id: str) -> str:
     """Return the rail name for an instructions wire subject id.
 
     ``instructions:project:sase/.`` becomes ``AGENTS.md`` and
@@ -114,7 +114,7 @@ def instruction_subjects(subjects: Any) -> tuple[InstructionSubject, ...]:
             # row, so the rail names rows by directory from the primary
             # path (``AGENTS.md``, ``src/sase/ace/AGENTS.md``, …).
             primary = paths[0] if paths else ""
-            display = primary or instruction_display_for_subject_id(subject_id)
+            display = primary or _instruction_display_for_subject_id(subject_id)
             try:
                 diverged_count = int(row.get("diverged_count", 0) or 0)
             except (TypeError, ValueError):
@@ -218,12 +218,13 @@ def build_instructions_group_text(expanded: bool, count: int) -> Text:
         return Text("▸ INSTRUCTIONS", style="dim")
 
 
-def instruction_row_chips(subject: InstructionSubject) -> tuple[str, ...]:
+def _instruction_row_chips(subject: InstructionSubject) -> tuple[str, ...]:
     """Return the dim rail chips for one instruction row, in order."""
     chips: list[str] = []
     try:
         if subject.shims:
-            chips.append(f"≡ {len(subject.shims)} shims")
+            count = len(subject.shims)
+            chips.append(f"≡ {count} shim" if count == 1 else f"≡ {count} shims")
     except Exception:
         pass
     try:
@@ -245,7 +246,7 @@ def build_instruction_row_text(subject: InstructionSubject) -> Text:
     try:
         text.append("● ")
         text.append(subject.display or subject.path)
-        for chip in instruction_row_chips(subject):
+        for chip in _instruction_row_chips(subject):
             text.append("  ")
             text.append(chip, style="dim")
     except Exception:
@@ -388,11 +389,9 @@ __all__ = [
     "build_instruction_group_card_title",
     "build_instruction_row_text",
     "build_instructions_group_text",
-    "instruction_display_for_subject_id",
     "instruction_edit_refusal",
     "instruction_group_node",
     "instruction_node",
-    "instruction_row_chips",
     "instruction_subjects",
     "is_instruction_group_row",
     "is_instruction_subject_row",

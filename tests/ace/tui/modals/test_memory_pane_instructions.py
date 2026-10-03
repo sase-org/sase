@@ -12,11 +12,11 @@ from sase.ace.tui.modals.memory_pane_instructions import (
     build_instruction_card_title,
     build_instruction_row_text,
     build_instructions_group_text,
-    instruction_display_for_subject_id,
+    _instruction_display_for_subject_id,
     instruction_edit_refusal,
     instruction_group_node,
     instruction_node,
-    instruction_row_chips,
+    _instruction_row_chips,
     instruction_subjects,
     is_instruction_group_row,
     is_instruction_subject_row,
@@ -133,20 +133,22 @@ def test_subjects_template_diverged_and_malformed() -> None:
 
 def test_display_for_subject_id() -> None:
     assert (
-        instruction_display_for_subject_id("instructions:project:sase/.") == "AGENTS.md"
+        _instruction_display_for_subject_id("instructions:project:sase/.")
+        == "AGENTS.md"
     )
     assert (
-        instruction_display_for_subject_id("instructions:project:sase/src/sase/ace")
+        _instruction_display_for_subject_id("instructions:project:sase/src/sase/ace")
         == "src/sase/ace/AGENTS.md"
     )
 
 
 def test_row_chips_cover_shims_diverged_template() -> None:
-    assert instruction_row_chips(_subject()) == ("≡ 4 shims",)
+    assert _instruction_row_chips(_subject()) == ("≡ 4 shims",)
     diverged = _subject(diverged=True)
-    assert "⚠ diverged" in instruction_row_chips(diverged)
-    assert "TEMPLATE" in instruction_row_chips(_subject(template=True))
-    assert instruction_row_chips(_subject(shims=())) == ()
+    assert "⚠ diverged" in _instruction_row_chips(diverged)
+    assert "TEMPLATE" in _instruction_row_chips(_subject(template=True))
+    assert _instruction_row_chips(_subject(shims=())) == ()
+    assert _instruction_row_chips(_subject(shims=("CLAUDE.md",))) == ("≡ 1 shim",)
     row = build_instruction_row_text(_subject())
     assert row.plain.startswith("● AGENTS.md")
     assert "≡ 4 shims" in row.plain
@@ -385,3 +387,54 @@ def test_strip_second_row_is_cause_row_for_instructions() -> None:
     assert note_data is not None
     note_strip = render_time_strip(note_data, width=80, rows=2, styles=styles)
     assert "rendered · sources" not in note_strip.plain
+
+
+def test_open_source_opens_handwritten_and_refuses_managed() -> None:
+    """``o`` opens a hand-written ``AGENTS.md``; a managed one refuses."""
+    from sase.ace.tui.modals.memory_pane import MemoryPane
+    from sase.ace.tui.modals.memory_pane_instructions import (
+        INSTRUCTION_GROUP_TOAST,
+        MANAGED_INSTRUCTION_REFUSAL,
+    )
+
+    def _run(subject: InstructionSubject, node: Any) -> tuple[list[str], list[str]]:
+        stub = _stub((subject,), expanded=True)
+        opened: list[str] = []
+        toasts: list[str] = []
+        stub._selected_row = lambda: node
+        stub.action_open_in_editor = lambda: opened.append("editor")
+        stub._start_restat = lambda _note: opened.append("restat")
+        stub.notify = lambda message, **_kw: toasts.append(str(message))
+        MemoryPane.action_open_source(stub)  # type: ignore[arg-type]
+        return opened, toasts
+
+    handwritten = _subject(managed=False)
+    opened, toasts = _run(handwritten, instruction_node(handwritten))
+    assert opened == ["editor", "restat"]
+    assert toasts == []
+
+    managed = _subject()
+    opened, toasts = _run(managed, instruction_node(managed))
+    assert opened == []
+    assert toasts == [MANAGED_INSTRUCTION_REFUSAL]
+
+    opened, toasts = _run(managed, instruction_group_node())
+    assert opened == []
+    assert toasts == [INSTRUCTION_GROUP_TOAST]
+
+
+def test_instruction_rows_offer_no_relation_links() -> None:
+    """The root ``AGENTS.md`` card shows no chips, so Tab/l follow nothing."""
+    from sase.ace.tui.modals.memory_panel_travel import MemoryPanelTravelMixin
+
+    stub = SimpleNamespace(
+        _chip_cursor=3,
+        _chip_notes=("stale",),
+        _chip_parent_count=1,
+        _snapshot=object(),
+    )
+    stub._selected_row = lambda: instruction_node(_subject())
+    MemoryPanelTravelMixin._refresh_links_for_current_note(stub)  # type: ignore[arg-type]
+    assert stub._chip_notes == ()
+    assert stub._chip_parent_count == 0
+    assert stub._chip_cursor is None

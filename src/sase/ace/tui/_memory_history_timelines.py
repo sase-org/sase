@@ -55,6 +55,11 @@ def _timeline_fingerprint(wire: dict[str, Any]) -> tuple[Any, ...]:
 class TimelineQueries(HistoryQueryBase):
     """Stale-while-revalidate timeline queries."""
 
+    @staticmethod
+    def _fingerprint(wire: dict[str, Any]) -> tuple[Any, ...]:
+        """Return the timeline change marker sections memoize against."""
+        return _timeline_fingerprint(wire)
+
     def timeline(
         self, scope: Any, selector: str, *, include_hidden: bool = False
     ) -> dict[str, Any]:

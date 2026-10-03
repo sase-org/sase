@@ -69,7 +69,8 @@ def test_lens_rows_list_now_first_and_skip_hidden() -> None:
     assert hidden_count == 1
     assert listed[0]["label"] == "now"
     labels = [row["label"] for row in listed]
-    assert labels == ["now", "v1", "v3"]
+    # The pager picker's order: now first, then newest-first.
+    assert labels == ["now", "v3", "v1"]
 
 
 def test_lens_rows_show_hidden_on_toggle() -> None:
@@ -78,7 +79,7 @@ def test_lens_rows_show_hidden_on_toggle() -> None:
         timeline, now_epoch=1790769600, show_hidden=True
     )
     assert hidden_count == 1
-    assert [row["label"] for row in listed] == ["now", "v1", "v2", "v3"]
+    assert [row["label"] for row in listed] == ["now", "v3", "v2", "v1"]
 
 
 def test_lens_rows_survive_missing_timeline() -> None:
@@ -250,7 +251,7 @@ def test_hidden_toggle_rebuilds_and_keeps_cursor() -> None:
     stub._update_header = lambda: None  # type: ignore[attr-defined]
     stub._update_footer = lambda: None  # type: ignore[attr-defined]
     stub._timeline_rebuild_rows(timeline)
-    assert [row["label"] for row in stub._timeline_listed][:2] == ["now", "v1"]
+    assert [row["label"] for row in stub._timeline_listed][:2] == ["now", "v3"]
     stub.action_history_toggle_hidden()
     assert stub._timeline_show_hidden is True
     assert "v2" in [row["label"] for row in stub._timeline_listed]
@@ -523,13 +524,13 @@ async def test_pager_handoff_carries_cursor_pin_and_base(monkeypatch) -> None:
         await pilot.pause()
         await pilot.press("b")
         await pilot.pause()
-        assert panel._timeline_base == 1
+        assert panel._timeline_base == 3
         await pilot.press("j")
         await pilot.pause()
         await pilot.press("H")
         await wait_for(pilot, lambda: len(pushed) == 1)
         assert seen["initial_revision"] == "v2"
-        assert seen["compare_base"] == "v1"
+        assert seen["compare_base"] == "v3"
         assert seen["view"] == "read"
         assert pushed[0].document is sentinel
 
@@ -576,3 +577,49 @@ def test_notes_snapshot_round_trip_shape() -> None:
     assert snapshot.card_pin == 24
     assert snapshot.diff_view is True
     assert "glossary" in snapshot.expanded_webs
+
+
+def test_timeline_refuses_untracked_and_no_vcs_with_honest_words() -> None:
+    from sase.ace.tui.modals.memory_pane_timeline_lens import _no_history_refusal
+
+    assert (
+        _no_history_refusal(_timeline(state="untracked"))
+        == "no history yet · commit this file to start its history"
+    )
+    assert _no_history_refusal(_timeline(state="no_vcs")) == (
+        "home memory is not in git"
+    )
+    assert _no_history_refusal(_timeline(_row(1), state="tracked")) is None
+    assert _no_history_refusal(_timeline(state="tracked")) is None
+
+
+async def test_cursor_and_base_marks_follow_motion(monkeypatch) -> None:
+    """Moving off the base row shows ``◇`` there and ``▸`` on the new row.
+
+    Bodies prefetch, so motion often needs no preview load; the marks
+    must still follow the cursor instead of waiting for a full repaint.
+    """
+    from sase.ace.testing import wait_for
+
+    panel, app, _pushed = _prepare_lens_panel(monkeypatch)
+
+    def _prompt(index: int) -> str:
+        option = panel._note_list().get_option_at_index(index)
+        prompt = option.prompt
+        return prompt.plain if hasattr(prompt, "plain") else str(prompt)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await wait_for(pilot, lambda: bool(panel._history_latest))
+        await pilot.press("@")
+        await pilot.pause()
+        await pilot.press("j")
+        await pilot.pause()
+        await pilot.press("b")
+        await pilot.pause()
+        assert panel._timeline_base == 3
+        await pilot.press("j")
+        await pilot.pause()
+        await wait_for(pilot, lambda: "◇" in _prompt(1))
+        assert "▸" not in _prompt(1)
+        assert "▸" in _prompt(2)

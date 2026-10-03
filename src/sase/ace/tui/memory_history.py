@@ -17,13 +17,14 @@ tasks, never on the event loop or a keystroke path (epic design
 - No query calls ``sync()`` first: core queries sync internally.
   Only the quiet-time warm-up syncs.
 
-This module is the public face of five private siblings:
+This module is the public face of six private siblings:
 :mod:`sase.ace.tui._memory_history_base` (memo store, single-flight,
 scopes, warm-up), ``_memory_history_timelines`` (stale-while-revalidate
 timelines), ``_memory_history_content`` (body/comparison LRUs),
-``_memory_history_collections`` (subjects/feed memos), and
-``_memory_history_tokens`` (change tokens and invalidation). Import
-from here, not from them.
+``_memory_history_collections`` (subjects/feed memos),
+``_memory_history_tokens`` (change tokens and invalidation), and
+``_memory_history_blobs`` (blob-OID version lookups for the Agents
+tab). Import from here, not from them.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from sase.ace.tui._memory_history_blobs import BlobQueries
 from sase.ace.tui._memory_history_collections import CollectionQueries
 from sase.ace.tui._memory_history_content import ContentQueries
 from sase.ace.tui._memory_history_timelines import TimelineQueries
@@ -39,7 +41,7 @@ from sase.memory.history.service import shared_history_service
 
 
 class AceMemoryHistory(
-    TimelineQueries, ContentQueries, CollectionQueries, TokenQueries
+    BlobQueries, TimelineQueries, ContentQueries, CollectionQueries, TokenQueries
 ):
     """Memoized, single-flight history queries for one ACE app."""
 

@@ -130,6 +130,10 @@ class TokenQueries(HistoryQueryBase):
                 key for key in self._timeline_memo if key[:2] == (scope_key, selector)
             ]:
                 del self._timeline_memo[key]
+            for blob_key in [
+                key for key in self._blob_memo if key[:2] == (scope_key, selector)
+            ]:
+                del self._blob_memo[blob_key]
             self._seen_tokens.pop((scope_key, selector), None)
             for memo_key in [
                 key for key in self._known_blobs if key[:2] == (scope_key, selector)
@@ -144,6 +148,8 @@ class TokenQueries(HistoryQueryBase):
         with self._lock:
             for key in [key for key in self._timeline_memo if key[0] == scope_key]:
                 del self._timeline_memo[key]
+            for blob_key in [key for key in self._blob_memo if key[0] == scope_key]:
+                del self._blob_memo[blob_key]
             for memo_key in [key for key in self._known_blobs if key[0] == scope_key]:
                 del self._known_blobs[memo_key]
             self._seen_tokens = {

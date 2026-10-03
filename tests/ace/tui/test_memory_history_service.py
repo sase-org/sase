@@ -390,3 +390,119 @@ def test_ace_memory_history_is_app_scoped() -> None:
     second_app = SimpleNamespace()
     assert ace_memory_history(first_app) is ace_memory_history(first_app)
     assert ace_memory_history(first_app) is not ace_memory_history(second_app)
+
+
+def _blob_timeline_wire():
+    blob_a = "a" * 40
+    blob_b = "b" * 40
+    return {
+        "state": "tracked",
+        "tip": "b" * 40,
+        "worktree_oid": blob_b,
+        "head_oid": blob_b,
+        "versions": [
+            {
+                "ordinal": 2,
+                "commit": "b" * 40,
+                "class": "authored",
+                "kind": "edited",
+                "blob_oid": blob_b,
+                "path": "sase/memory/gotchas.md",
+            },
+            {
+                "ordinal": 1,
+                "commit": "a" * 40,
+                "class": "authored",
+                "kind": "edited",
+                "blob_oid": blob_a,
+                "path": "sase/memory/gotchas.md",
+            },
+        ],
+    }
+
+
+def test_version_for_blob_resolves_newest_match() -> None:
+    service = _FakeService()
+    service.timeline_wire = _blob_timeline_wire()
+    history, _ = _history(service)
+    scope = _FakeScope()
+
+    result = history.version_for_blob(scope, "gotchas.md", "a" * 40)
+    assert result["ordinal"] == 1
+    assert result["newest"] == 2
+    assert result["newer_count"] == 1
+    assert result["now_matches"] is False
+
+
+def test_version_for_blob_now_matches_newest_clean() -> None:
+    service = _FakeService()
+    service.timeline_wire = _blob_timeline_wire()
+    history, _ = _history(service)
+    scope = _FakeScope()
+
+    result = history.version_for_blob(scope, "gotchas.md", "b" * 40)
+    assert result["ordinal"] == 2
+    assert result["newer_count"] == 0
+    # The fake wire names no pseudo rows and the kit moment reads now.
+    assert result["now_matches"] is True
+
+
+def test_version_for_blob_missing_blob_is_lookup_error() -> None:
+    service = _FakeService()
+    service.timeline_wire = _blob_timeline_wire()
+    history, _ = _history(service)
+    scope = _FakeScope()
+
+    with pytest.raises(LookupError, match="blob:"):
+        history.version_for_blob(scope, "gotchas.md", "d" * 40)
+
+
+def test_version_for_blob_short_prefix_is_value_error() -> None:
+    service = _FakeService()
+    history, _ = _history(service)
+    scope = _FakeScope()
+
+    with pytest.raises(ValueError, match="invalid version selector"):
+        history.version_for_blob(scope, "gotchas.md", "abc")
+
+
+def test_version_for_blob_memoizes_by_fingerprint() -> None:
+    service = _FakeService()
+    service.timeline_wire = _blob_timeline_wire()
+    history, clock_value = _history(service)
+    scope = _FakeScope()
+
+    first = history.version_for_blob(scope, "gotchas.md", "a" * 40)
+    second = history.version_for_blob(scope, "gotchas.md", "a" * 40)
+    assert first == second
+    assert service.calls["timeline"] == 1
+
+    # A changed timeline fingerprint re-resolves instead of reusing the memo.
+    clock_value[0] += 5.0
+    service.timeline_wire = _blob_timeline_wire()
+    service.timeline_wire["tip"] = "c" * 40
+    third = history.version_for_blob(scope, "gotchas.md", "a" * 40)
+    assert third["ordinal"] == 1
+    assert service.calls["timeline"] == 2
+
+
+def test_version_for_blob_skips_tombstone_blob() -> None:
+    service = _FakeService()
+    wire = _blob_timeline_wire()
+    wire["versions"] = [
+        {
+            "ordinal": 3,
+            "commit": "c" * 40,
+            "class": "authored",
+            "kind": "deleted",
+            "blob_oid": "a" * 40,
+            "path": "sase/memory/gotchas.md",
+        },
+        *wire["versions"],
+    ]
+    service.timeline_wire = wire
+    history, _ = _history(service)
+    scope = _FakeScope()
+
+    result = history.version_for_blob(scope, "gotchas.md", "a" * 40)
+    assert result["ordinal"] == 1

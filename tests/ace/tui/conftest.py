@@ -63,3 +63,19 @@ def _isolate_commits_project_display_inventory(
         "sase.project_display_names.load_project_ref_display_snapshot",
         ProjectRefDisplaySnapshot,
     )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_memory_history_warmup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep ACE startup from syncing the host checkout's memory history.
+
+    The post-startup warm-up indexes the cwd project and home on a thread
+    worker, which ties tests to the checkout running the suite and keeps
+    ``wait_for_visual_idle`` waiting on a cold index. Startup resolves the
+    function through its module at call time, so this no-op covers every
+    app; the warm-up's own tests import the real function at import time.
+    """
+    monkeypatch.setattr(
+        "sase.ace.tui.memory_history.schedule_history_warmup",
+        lambda _app, **_kwargs: False,
+    )

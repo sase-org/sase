@@ -22,6 +22,7 @@ from ._agent_display_async_types import AgentDetailRenderContext
 from ._agent_display_header_summary import (
     LANE_RESOLUTION_BATCHES,
     build_detail_header_summary,
+    enrich_memory_versions,
     merge_detail_header_summary_lanes,
     should_refresh_detail_header_summary,
 )
@@ -144,6 +145,15 @@ class AgentDisplayWorkerMixin(
                 if merged is None
                 else merge_detail_header_summary_lanes(merged, partial)
             )
+            if "memory" in batch_lanes:
+                # Memory version chips resolve on the memory batch before
+                # its own publish, so they ride that publish (no extra
+                # publish) and row resolution is never delayed by chip I/O.
+                # Only visible rows plus the launch row resolve.
+                try:
+                    merged = enrich_memory_versions(merged, agent)
+                except Exception:
+                    pass
             if remaining and callable(call_from_thread):
                 call_from_thread(
                     self._publish_partial_detail_header_summary,  # type: ignore[attr-defined]

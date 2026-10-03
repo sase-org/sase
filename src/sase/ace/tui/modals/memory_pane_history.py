@@ -22,6 +22,41 @@ else:
 #: Seconds between stat-only history change probes while the pane is visible.
 _HISTORY_POLL_S = 5.0
 
+_UNTRACKED_TOAST = "no history yet · commit this file to start its history"
+_NO_VCS_TOAST = "home memory is not in git"
+
+
+def honest_no_history_toast(timeline: dict | None) -> str | None:
+    """Return the honest toast for an untracked or no-VCS timeline.
+
+    Mirrors the pager band's honest states; ``None`` for any other state.
+    """
+    state = ""
+    if isinstance(timeline, dict):
+        state = str(timeline.get("state", "") or "")
+    normalized = state.lower().replace("_", "").replace(" ", "")
+    if "untracked" in normalized:
+        return _UNTRACKED_TOAST
+    if normalized in ("novcs", "norepo", "nogit"):
+        return _NO_VCS_TOAST
+    return None
+
+
+def _history_open_failure(
+    timeline: dict | None, *, home_without_scope: bool, reason: str
+) -> str:
+    """Return the honest toast for a failed ``H`` pager build.
+
+    An untracked subject or a no-VCS home scope names its state;
+    anything else names the reason.
+    """
+    if home_without_scope:
+        return _NO_VCS_TOAST
+    honest = honest_no_history_toast(timeline)
+    if honest is not None:
+        return honest
+    return f"could not open history: {reason or 'unknown reason'}"
+
 
 class MemoryPaneHistoryMixin(_MixinBase):
     """History summaries and pager actions for ``MemoryPane``."""
@@ -402,11 +437,13 @@ class MemoryPaneHistoryMixin(_MixinBase):
         ref = self._ring[self._scope_index]
         scope_key = ref.key
         identity = node.identity
+        home_without_scope = False
 
         async def _open() -> None:
             import asyncio
 
-            def _build() -> Any | None:
+            def _build() -> Any:
+                nonlocal home_without_scope
                 try:
                     from sase.memory.history.pager_provider import (
                         build_history_document,
@@ -418,11 +455,12 @@ class MemoryPaneHistoryMixin(_MixinBase):
 
                     history = self._ace_history()
                     if history is None:
-                        return None
+                        return "history service unavailable"
                     service = history.service
                     scope = history.scope_for_ref(ref)
                     if scope is None:
-                        return None
+                        home_without_scope = getattr(ref, "kind", "") == "home"
+                        return "no history scope for this selection"
                     try:
                         core_selector = translate_history_selector(
                             selector, Path(str(getattr(scope, "repo_root", ".")))
@@ -447,15 +485,21 @@ class MemoryPaneHistoryMixin(_MixinBase):
                         service=service,
                         title=selector,
                     )
-                except Exception:
-                    return None
+                except Exception as exc:
+                    return str(exc) or type(exc).__name__
 
             document = await asyncio.to_thread(_build)
-            if document is None:
+            if self._closed or not self.is_mounted or not self._host_visible:
+                return
+            if document is None or isinstance(document, str):
                 # This async worker already runs on the app thread, so
                 # notify directly: call_from_thread would raise here.
                 self.notify(
-                    "could not open history for this selection",
+                    _history_open_failure(
+                        self._history_latest.get((scope_key, selector)),
+                        home_without_scope=home_without_scope,
+                        reason=document or "",
+                    ),
                     severity="error",
                 )
                 return
@@ -467,8 +511,6 @@ class MemoryPaneHistoryMixin(_MixinBase):
             if current is None or current.identity != identity:
                 return
             if not self._ring or self._ring[self._scope_index].key != scope_key:
-                return
-            if self._closed or not self.is_mounted:
                 return
 
             try:

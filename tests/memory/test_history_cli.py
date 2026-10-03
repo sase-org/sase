@@ -347,3 +347,51 @@ def test_json_feed_wire_carries_no_review_state(
         "hidden_changeset_count",
         "schema_version",
     }
+
+
+def _blob_of(fixture_repo: dict[str, str], selector: str, ordinal: int) -> str:
+    service = HistoryService()
+    scopes = service.scopes_for("project", fixture_repo["repo"])
+    timeline = service.timeline(scopes[0], selector, include_hidden=True)
+    for row in timeline.get("versions", ()):
+        if int(row.get("ordinal", 0) or 0) == ordinal:
+            blob = row.get("blob_oid")
+            assert isinstance(blob, str) and len(blob) == 40
+            return blob
+    raise AssertionError(f"no v{ordinal} for {selector}")
+
+
+def test_at_blob_full_oid_selects_version(
+    fixture_repo: dict[str, str],
+) -> None:
+    blob = _blob_of(fixture_repo, "note.md", 1)
+    text = _run(_args(selectors=["note.md"], at=f"blob:{blob}"))
+    assert "Original line." in text
+    assert "Added line." not in text
+
+
+def test_at_blob_prefix_selects_newest_match(
+    fixture_repo: dict[str, str],
+) -> None:
+    blob = _blob_of(fixture_repo, "note.md", 2)
+    text = _run(_args(selectors=["note.md"], at=f"blob:{blob[:12]}"))
+    assert "Added line." in text
+
+
+def test_at_blob_missing_names_blob(
+    fixture_repo: dict[str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing = "d" * 40
+    with pytest.raises(SystemExit):
+        _run(_args(selectors=["note.md"], at=f"blob:{missing}"))
+    captured = capsys.readouterr()
+    assert f"blob:{missing}" in captured.err
+
+
+def test_at_blob_short_prefix_is_invalid(
+    fixture_repo: dict[str, str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit):
+        _run(_args(selectors=["note.md"], at="blob:abc"))
+    captured = capsys.readouterr()
+    assert "invalid version selector: blob:abc" in captured.err

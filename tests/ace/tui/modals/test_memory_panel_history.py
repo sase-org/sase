@@ -424,8 +424,12 @@ def test_no_call_from_thread_in_async_workers_under_ace_tui() -> None:
     assert offenders == []
 
 
-def _prepare_history_panel(monkeypatch) -> tuple:
-    """Build a loaded ``MemoryPane`` with the history open path stubbed."""
+def _prepare_history_panel(monkeypatch, *, webs: tuple = ()) -> tuple:
+    """Build a loaded ``MemoryPane`` with the history open path stubbed.
+
+    With *webs*, the scope holds only those webs plus their descriptor
+    notes, so the first rail row is the first web's descriptor.
+    """
     from types import SimpleNamespace
 
     from textual.screen import Screen
@@ -438,9 +442,13 @@ def _prepare_history_panel(monkeypatch) -> tuple:
     )
 
     ref = scope_ref("sase", "sase")
-    snapshots = {
-        "sase": scope_snapshot(ref, (memory_note("gotchas"), memory_note("zebra")))
-    }
+    if webs:
+        notes = tuple(
+            memory_note(web.slug, note_type=None, type_source="missing") for web in webs
+        )
+    else:
+        notes = (memory_note("gotchas"), memory_note("zebra"))
+    snapshots = {"sase": scope_snapshot(ref, notes, webs=webs)}
     install_fixed_load(monkeypatch, (ref,), snapshots)
 
     panel = MemoryPane()
@@ -601,3 +609,165 @@ async def test_open_history_stale_selection_drops_the_open(
         )
         await pilot.pause()
         assert pushed == []
+
+
+async def test_open_history_key_opens_web_descriptor_and_strand(
+    monkeypatch,
+) -> None:
+    """``H`` opens a web descriptor by path and a strand as ``web:slug``."""
+    from sase.ace.testing import wait_for
+    from tests.ace.tui.modals.memory_panel_test_helpers import (
+        install_fake_strand_read,
+        memory_web_with_mentioning_strands,
+    )
+
+    web = memory_web_with_mentioning_strands()
+    panel, app, pushed, _service = _prepare_history_panel(monkeypatch, webs=(web,))
+    install_fake_strand_read(monkeypatch)
+    titles: list[str] = []
+    import sase.memory.history.pager_provider as pager_provider_module
+
+    def _build(**kwargs):  # noqa: ANN202
+        titles.append(str(kwargs.get("title")))
+        return object()
+
+    monkeypatch.setattr(pager_provider_module, "build_history_document", _build)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("H")
+        await wait_for(pilot, lambda: len(pushed) == 1)
+        assert titles == ["sase/memory/glossary.md"]
+        app.pop_screen()
+        await pilot.press("space")
+        await pilot.press("j")
+        await wait_for(
+            pilot,
+            lambda: getattr(panel._selected_row(), "strand", None) is not None,
+        )
+        await pilot.press("H")
+        await wait_for(pilot, lambda: len(pushed) == 2)
+        assert titles[-1] == "glossary:alpha"
+
+
+async def test_open_history_failure_names_the_reason(
+    monkeypatch,
+) -> None:
+    """A raising pager build toasts ``could not open history: <reason>``."""
+    from sase.ace.testing import wait_for
+
+    panel, app, pushed, _service = _prepare_history_panel(monkeypatch)
+    import sase.memory.history.pager_provider as pager_provider_module
+
+    def _boom(**_kwargs):  # noqa: ANN202
+        raise RuntimeError("index is locked")
+
+    monkeypatch.setattr(pager_provider_module, "build_history_document", _boom)
+    toasts: list[str] = []
+    monkeypatch.setattr(
+        panel, "notify", lambda message, *_, **_kw: toasts.append(str(message))
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("H")
+        await wait_for(pilot, lambda: len(toasts) == 1)
+        assert toasts == ["could not open history: index is locked"]
+        assert pushed == []
+
+
+async def test_open_history_hidden_hub_drops_the_open(
+    monkeypatch,
+) -> None:
+    """Hiding the hosting hub while history loads drops the pager open."""
+    import threading
+
+    from sase.ace.testing import wait_for
+
+    panel, app, pushed, _service = _prepare_history_panel(monkeypatch)
+    release = threading.Event()
+    started = threading.Event()
+    import sase.memory.history.pager_provider as pager_provider_module
+
+    def _slow_build(**_kwargs):  # noqa: ANN202
+        started.set()
+        assert release.wait(timeout=10)
+        return object()
+
+    monkeypatch.setattr(pager_provider_module, "build_history_document", _slow_build)
+    toasts: list[str] = []
+    monkeypatch.setattr(
+        panel, "notify", lambda message, *_, **_kw: toasts.append(str(message))
+    )
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("H")
+        await wait_for(pilot, lambda: started.is_set())
+        panel.on_center_tab_visibility_changed(False)
+        release.set()
+        await wait_for(
+            pilot,
+            lambda: (
+                panel._history_open_worker is not None
+                and panel._history_open_worker.is_finished
+            ),
+        )
+        await pilot.pause()
+        assert pushed == []
+        assert toasts == []
+
+
+def test_open_history_failure_uses_honest_state_words() -> None:
+    """Untracked and no-VCS misses toast the pager's honest words."""
+    from sase.ace.tui.modals.memory_pane_history import _history_open_failure
+
+    assert (
+        _history_open_failure(
+            {"state": "untracked"}, home_without_scope=False, reason="x"
+        )
+        == "no history yet · commit this file to start its history"
+    )
+    assert (
+        _history_open_failure({"state": "no_vcs"}, home_without_scope=False, reason="")
+        == "home memory is not in git"
+    )
+    assert (
+        _history_open_failure(None, home_without_scope=True, reason="no scope")
+        == "home memory is not in git"
+    )
+    assert (
+        _history_open_failure(
+            {"state": "tracked"}, home_without_scope=False, reason="boom"
+        )
+        == "could not open history: boom"
+    )
+    assert (
+        _history_open_failure(None, home_without_scope=False, reason="")
+        == "could not open history: unknown reason"
+    )
+
+
+def test_stale_chip_marks_only_a_kept_snapshot() -> None:
+    """``stale`` rides with the last good strip, never with no snapshot."""
+    from sase.ace.tui.modals.memory_pane_time_strip import (
+        TimeStripSnapshot,
+        render_card_head,
+    )
+    from sase.pager.history_kit import history_styles_for_theme
+
+    styles = history_styles_for_theme(None)
+    kept = TimeStripSnapshot(
+        subject_id="note:sase/memory/gotchas.md",
+        path_label="sase/memory/gotchas.md",
+        timeline=_summary(),
+        now_epoch=1790769600,
+        failed=True,
+    )
+    assert "stale" in render_card_head("sase/memory/gotchas.md", kept, styles).plain
+    nothing = TimeStripSnapshot(
+        subject_id="note:sase/memory/gotchas.md",
+        path_label="sase/memory/gotchas.md",
+        timeline=None,
+        now_epoch=1790769600,
+        failed=True,
+    )
+    head = render_card_head("sase/memory/gotchas.md", nothing, styles).plain
+    assert "stale" not in head

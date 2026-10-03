@@ -423,3 +423,54 @@ def test_memory_read_file_paths_records_no_memory_read_event(
     assert memory_read_file_paths(event)
 
     assert read_memory_read_events(log_path=log_path) == (event,)
+
+
+def test_build_report_lists_batch_versions_read(tmp_path: Path) -> None:
+    import dataclasses
+
+    _seed_decisions_web(tmp_path, link_reference="none")
+    base = _event(cwd=tmp_path)
+    event = dataclasses.replace(
+        base,
+        selectors=("decisions:corpus-before-mechanism", "decisions:memory-webs"),
+        included_blob_oids=(
+            ("decisions:corpus-before-mechanism", "a" * 40),
+            ("decisions:memory-webs", "b" * 40),
+        ),
+    )
+
+    report = _build_memory_read_report(_spec(event))
+
+    assert "## Versions read" in report
+    assert f"- **decisions:corpus-before-mechanism**: `blob:{'a' * 12}`" in report
+    assert f"- **decisions:memory-webs**: `blob:{'b' * 12}`" in report
+
+
+def test_build_report_lists_single_version_read(tmp_path: Path) -> None:
+    import dataclasses
+
+    _seed_decisions_web(tmp_path, link_reference="none")
+    base = _event(cwd=tmp_path)
+    event = dataclasses.replace(base, blob_oid="c" * 40)
+
+    report = _build_memory_read_report(_spec(event))
+
+    assert "## Versions read" in report
+    assert f"`blob:{'c' * 12}`" in report
+
+
+def test_build_report_omits_versions_section_without_targets(tmp_path: Path) -> None:
+    import dataclasses
+
+    _seed_decisions_web(tmp_path, link_reference="none")
+    base = _event(cwd=tmp_path)
+    event = dataclasses.replace(
+        base,
+        selectors=(),
+        canonical_path="",
+        resolved_targets=(),
+    )
+
+    report = _build_memory_read_report(_spec(event))
+
+    assert "## Versions read" not in report

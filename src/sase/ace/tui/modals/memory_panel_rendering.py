@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from rich.cells import cell_len
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
@@ -135,51 +136,106 @@ def build_note_row_text(
     """Build one note-rail row: tree indent, glyphs, stem, and description.
 
     *glance* is the full ``glyph age`` suffix (``⇧ 8d``); when
-    *content_width* is positive the suffix is right-aligned to it,
-    shedding the age first and then the glyph so the stem never wraps.
+    *content_width* is positive the suffix is right-aligned on the row's
+    first line. A description that would collide wraps below it; the
+    suffix sheds the age first and then the glyph so the stem never wraps.
     """
-    if node.is_web and node.web is not None:
-        base = _build_web_row_text(node, generated_paths=generated_paths)
-    elif node.is_strand and node.strand is not None:
-        base = _build_strand_row_text(node)
-    else:
-        note = node.note
-        base = Text()
-        if node.depth > 0:
-            base.append(_CHILD_INDENT, style="dim")
-        marker = _CORE_MARK if note.type == "core" else _REFERENCE_MARK
-        base.append(f"{marker} ")
-        if note.relative_path in generated_paths:
-            base.append(f"{_GENERATED_MARK} ")
-        if _note_is_invalid(note):
-            base.append(f"{_INVALID_MARK} ", style="bold")
-        base.append(note.path.stem)
-        snippet = collapse_description(note.description)
-        if snippet:
-            base.append("  ")
-            base.append(snippet, style="dim")
+    base = _build_row_text(node, generated_paths=generated_paths, detail=True)
     if not glance:
         return base
-    suffix = glance
-    if content_width > 0:
-        full_len = Text(suffix).cell_len
-        if base.cell_len + 2 + full_len > content_width:
-            suffix = glance_glyph
-            if base.cell_len + 2 + Text(suffix).cell_len > content_width:
-                return base
-        pad = content_width - base.cell_len - Text(suffix).cell_len
-        if pad < 2:
-            return base
-        base.append(" " * pad)
-    else:
-        base.append("  ")
     style = "bold" if glance_promoted else "dim"
-    base.append(suffix, style=style)
+    if content_width <= 0:
+        base.append("  ")
+        base.append(glance, style=style)
+        return base
+    head_len = _build_row_text(
+        node, generated_paths=generated_paths, detail=False
+    ).cell_len
+    for suffix in (glance, glance_glyph):
+        if not suffix:
+            continue
+        placed = _place_first_line_suffix(
+            base, Text(suffix, style=style), content_width, head_len
+        )
+        if placed is not None:
+            return placed
     return base
 
 
+def _build_row_text(
+    node: MemoryRailNode, *, generated_paths: frozenset[str], detail: bool
+) -> Text:
+    """Build a rail row; ``detail=False`` stops after the name the rail keys on."""
+    if node.is_web and node.web is not None:
+        return _build_web_row_text(node, generated_paths=generated_paths, detail=detail)
+    if node.is_strand and node.strand is not None:
+        return _build_strand_row_text(node, detail=detail)
+    note = node.note
+    base = Text()
+    if node.depth > 0:
+        base.append(_CHILD_INDENT, style="dim")
+    marker = _CORE_MARK if note.type == "core" else _REFERENCE_MARK
+    base.append(f"{marker} ")
+    if note.relative_path in generated_paths:
+        base.append(f"{_GENERATED_MARK} ")
+    if _note_is_invalid(note):
+        base.append(f"{_INVALID_MARK} ", style="bold")
+    base.append(note.path.stem)
+    snippet = collapse_description(note.description) if detail else ""
+    if snippet:
+        base.append("  ")
+        base.append(snippet, style="dim")
+    return base
+
+
+def _place_first_line_suffix(
+    base: Text, suffix: Text, width: int, head_len: int
+) -> Text | None:
+    """Right-align *suffix* on *base*'s first line of *width* cells.
+
+    Text past the room left on line one continues on the next line,
+    broken at a space inside the detail when there is one. ``None``
+    when the first *head_len* cells (the name) would not fit beside it.
+    """
+    room = int(width) - suffix.cell_len - 2
+    if room < head_len:
+        return None
+    if base.cell_len <= room:
+        line = base.copy()
+        line.append(" " * (int(width) - base.cell_len - suffix.cell_len))
+        line.append_text(suffix)
+        return line
+    plain = base.plain
+    head_chars = _chars_within_cells(plain, head_len)
+    offset = _chars_within_cells(plain, room)
+    space = plain.rfind(" ", head_chars, offset + 1)
+    cut = space if space >= head_chars else offset
+    first = base[:cut]
+    first.rstrip()
+    rest = base[cut:]
+    skip = len(rest.plain) - len(rest.plain.lstrip())
+    rest = rest[skip:]
+    line = first.copy()
+    line.append(" " * (int(width) - first.cell_len - suffix.cell_len))
+    line.append_text(suffix)
+    if rest.plain:
+        line.append("\n")
+        line.append_text(rest)
+    return line
+
+
+def _chars_within_cells(plain: str, cells: int) -> int:
+    """Return how many leading characters of *plain* fit in *cells* cells."""
+    used = 0
+    for index, char in enumerate(plain):
+        used += cell_len(char)
+        if used > cells:
+            return index
+    return len(plain)
+
+
 def _build_web_row_text(
-    node: MemoryRailNode, *, generated_paths: frozenset[str]
+    node: MemoryRailNode, *, generated_paths: frozenset[str], detail: bool = True
 ) -> Text:
     web = node.web
     assert web is not None
@@ -191,6 +247,8 @@ def _build_web_row_text(
     if node.note.relative_path in generated_paths:
         text.append(f"{_GENERATED_MARK} ")
     text.append(web.slug)
+    if not detail:
+        return text
     strand_word = web.strand_noun if len(web.strands) == 1 else f"{web.strand_noun}s"
     text.append(f"  {len(web.strands)} {strand_word}", style="dim")
     snippet = collapse_description(web.description)
@@ -200,13 +258,15 @@ def _build_web_row_text(
     return text
 
 
-def _build_strand_row_text(node: MemoryRailNode) -> Text:
+def _build_strand_row_text(node: MemoryRailNode, *, detail: bool = True) -> Text:
     strand = node.strand
     assert strand is not None
     text = Text()
     text.append("  " * max(0, node.depth), style="dim")
     text.append(f"{_STRAND_MARK} ")
     text.append(strand.keyword)
+    if not detail:
+        return text
     if strand.aliases:
         text.append("  ")
         text.append("aka " + " · ".join(strand.aliases), style="dim")
