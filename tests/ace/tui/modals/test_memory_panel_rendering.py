@@ -8,7 +8,6 @@ from sase.ace.tui.keymaps.app_keymaps import MemoryPanelKeymaps
 from sase.ace.tui.memory_panel_catalog import MemoryRailNode
 from sase.ace.tui.modals.memory_panel_help_modal import MemoryPanelHelpModal
 from sase.ace.tui.modals.memory_panel_rendering import (
-    _build_note_property_grid,
     build_empty_scope_message,
     build_empty_scope_no_root_message,
     build_note_badge_row,
@@ -18,6 +17,7 @@ from sase.ace.tui.modals.memory_panel_rendering import (
     build_panel_header,
     note_rail_width,
 )
+from sase.ace.tui.modals.memory_panel_rendering_card import _build_note_property_grid
 from tests.ace.tui.modals.memory_panel_test_helpers import (
     memory_note,
     memory_web_with_mentioning_strands,

@@ -13,10 +13,10 @@ from sase.ace.tui.modals.memory_panel_history import (
     selector_for_node,
 )
 from sase.ace.tui.modals.memory_panel_rendering import (
-    _build_note_property_grid,
     build_note_card_meta,
     build_panel_footer,
 )
+from sase.ace.tui.modals.memory_panel_rendering_card import _build_note_property_grid
 from tests.ace.tui.modals.memory_panel_test_helpers import (
     memory_note,
     scope_ref,
