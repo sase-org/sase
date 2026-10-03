@@ -11,8 +11,6 @@ from sase.core.eligibility_facade import (
     validate_artifact_link_release_evidence,
 )
 
-pytestmark = pytest.mark.contract
-
 
 def test_facade_resolves_schema_version() -> None:
     assert _artifact_link_eligibility_wire_schema_version() >= 1

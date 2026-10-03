@@ -75,7 +75,7 @@ class LaunchSpawnRequest:
             "is_home_mode": self.is_home_mode,
             "vcs_ref": self.vcs_ref,
             "deferred_workspace": self.deferred_workspace,
-            "local_xprompts_file": self.local_macros_file,
+            "local_macros_file": self.local_macros_file,
             "extra_env": self.extra_env,
             "retry_transfer_from_pid": self.transfer_from_pid,
         }

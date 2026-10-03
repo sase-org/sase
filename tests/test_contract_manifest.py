@@ -260,8 +260,29 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # set measured 57.25 s under the command above on this host at load average
 # ~13-21 (single run; 792 tests). The next candidate should displace an entry
 # rather than add one.
+#
+# Re-curated to 73 on 2026-10-03 (sase-1eq.3.1 landing) by admitting
+# `test_macro_terminology.py` and displacing `test_core_eligibility_facade.py`,
+# keeping the cap at 73. The macro guard earns its place the same way the other
+# terminology audits did: the xprompt->macro rename is a repo-wide invariant no
+# import edge expresses, and it runs in seconds (4.47 s for 3 tests in the
+# refreshed set; ~4.5 s standalone). Its NAME-token and import scans now apply
+# a conservative case-insensitive `xprompt` substring prefilter before
+# tokenize/AST-parse, retaining the path scan and all NAME/import detection,
+# legacy exceptions, and diagnostics. The displaced facade's six tests import
+# and exercise one facade rather than audit the repository; they remain as
+# ordinary tests. A change to `src/sase/core/eligibility_facade.py` still
+# selects `tests/test_core_eligibility_facade.py` through the depth-2 import
+# closure (26 files including it, verified on this tree), and Rust-side
+# boundary changes escalate via the core-identity fingerprint
+# (`ENVIRONMENT_ESCALATING_INPUTS` covers core-cargo/extension) to the full
+# suite, which runs the demoted test anyway. The whole refreshed 73-entry set
+# measured 61.59 s under the command above on this host (single run; 800
+# passed plus the already documented sase-1ex publication-binding failure in
+# `test_check_sase_core_rs_bindings_tool.py`, classified separately). The next
+# candidate should displace an entry rather than add one.
 _MANIFEST_ENTRY_BUDGET = 73
-_MEASURED_SERIAL_COST = "57.25 serial seconds across 73 entries"
+_MEASURED_SERIAL_COST = "61.59 serial seconds across 73 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

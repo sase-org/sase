@@ -209,6 +209,10 @@ def test_macro_source_avoids_xprompt_identifiers() -> None:
         if _LEGACY_FIXTURE_MARK in relative.as_posix():
             continue
         text = path.read_text(encoding="utf-8")
+        if "xprompt" not in text.lower():
+            # Conservative prefilter: no NAME token can match without the
+            # substring. Path scan above still runs for every file.
+            continue
         lines = text.splitlines()
         try:
             tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
@@ -236,6 +240,10 @@ def test_macro_imports_avoid_xprompt_modules() -> None:
         if _LEGACY_FIXTURE_MARK in relative.as_posix():
             continue
         text = path.read_text(encoding="utf-8")
+        if "xprompt" not in text.lower():
+            # Conservative prefilter: no import module string can match
+            # without the substring. NAME/path detection is unchanged.
+            continue
         lines = text.splitlines()
         try:
             tree = ast.parse(text)
