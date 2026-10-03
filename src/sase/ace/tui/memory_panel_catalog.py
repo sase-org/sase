@@ -82,6 +82,13 @@ class MemoryRailNode:
     strand: MemoryStrand | None = None
     strand_scope: WebScope | None = None
     expanded: bool = False
+    #: History-only rows (phase rail-glance DELETED group) have no live
+    #: ``MemoryNote``: the synthetic note carries the deleted path so
+    #: history selectors resolve, while note-only paths skip or refuse
+    #: these rows. ``deleted_ordinal`` is the deletion version the
+    #: tombstone card pins to.
+    history_only: bool = False
+    deleted_ordinal: int = 0
 
     @property
     def identity(self) -> str:

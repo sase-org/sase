@@ -386,6 +386,7 @@ _MEMORY_BINDING_META: tuple[tuple[str, str], ...] = (
     ("history_timeline", "Timeline Lens"),
     ("history_compare_base", "Set Compare Base"),
     ("history_toggle_hidden", "Reveal Hidden Versions"),
+    ("toggle_deleted", "Deleted Subjects"),
     ("copy_body", "Copy Body"),
     ("copy_source_path", "Copy Source Path"),
     ("refresh", "Refresh"),

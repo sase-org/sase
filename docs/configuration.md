@@ -1227,6 +1227,7 @@ commas:
 | `history_timeline`      | `@`                 | Open or close the Timeline lens (the rail becomes the subject's version timeline).           |
 | `history_compare_base`  | `b`                 | Set or clear the Timeline lens compare base (pager hand-off carries it).                     |
 | `history_toggle_hidden` | `.`                 | Reveal hidden versions in the Timeline lens (chip shortcuts are inert there).                |
+| `toggle_deleted`        | `D`                 | Show or hide the DELETED group of tombstoned subjects (see `docs/memory_history.md`).        |
 | `copy_body`             | `y`                 | Copy the note or strand body to the clipboard.                                               |
 | `copy_source_path`      | `Y`                 | Copy the source path to the clipboard.                                                       |
 | `refresh`               | `r`                 | Re-read the current scope.                                                                   |

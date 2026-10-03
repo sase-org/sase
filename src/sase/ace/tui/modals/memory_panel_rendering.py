@@ -82,11 +82,14 @@ def build_panel_header(
     scope_count: int,
     accent: str,
     unpublished: bool = False,
+    deleted_count: int = 0,
 ) -> RenderableType:
     """Build the ``MEMORY · scope · N notes · scope i/N`` header line.
 
     *unpublished* renders a right-aligned ``⚠ UNPUBLISHED`` badge after a
     panel write that has not yet been published with ``sase memory init``.
+    *deleted_count* appends the ``· N deleted`` chip while the DELETED
+    group is shown.
     """
     left = Text()
     left.append("MEMORY", style=f"bold {accent}")
@@ -97,6 +100,8 @@ def build_panel_header(
     left.append(f"  ·  {note_count} {note_word}", style="dim")
     if scope_count > 0:
         left.append(f"  ·  scope {scope_index + 1}/{scope_count}", style="dim")
+    if deleted_count > 0:
+        left.append(f"  ·  {deleted_count} deleted", style="dim")
     if not unpublished:
         return left
     grid = Table.grid(expand=True, padding=(0, 0, 0, 2))
@@ -119,29 +124,58 @@ def _note_is_orphaned(note: MemoryNote, notes_by_path: dict[str, MemoryNote]) ->
 
 
 def build_note_row_text(
-    node: MemoryRailNode, *, generated_paths: frozenset[str]
+    node: MemoryRailNode,
+    *,
+    generated_paths: frozenset[str],
+    glance: str = "",
+    glance_glyph: str = "",
+    glance_promoted: bool = False,
+    content_width: int = 0,
 ) -> Text:
-    """Build one note-rail row: tree indent, glyphs, stem, and description."""
+    """Build one note-rail row: tree indent, glyphs, stem, and description.
+
+    *glance* is the full ``glyph age`` suffix (``⇧ 8d``); when
+    *content_width* is positive the suffix is right-aligned to it,
+    shedding the age first and then the glyph so the stem never wraps.
+    """
     if node.is_web and node.web is not None:
-        return _build_web_row_text(node, generated_paths=generated_paths)
-    if node.is_strand and node.strand is not None:
-        return _build_strand_row_text(node)
-    note = node.note
-    text = Text()
-    if node.depth > 0:
-        text.append(_CHILD_INDENT, style="dim")
-    marker = _CORE_MARK if note.type == "core" else _REFERENCE_MARK
-    text.append(f"{marker} ")
-    if note.relative_path in generated_paths:
-        text.append(f"{_GENERATED_MARK} ")
-    if _note_is_invalid(note):
-        text.append(f"{_INVALID_MARK} ", style="bold")
-    text.append(note.path.stem)
-    snippet = collapse_description(note.description)
-    if snippet:
-        text.append("  ")
-        text.append(snippet, style="dim")
-    return text
+        base = _build_web_row_text(node, generated_paths=generated_paths)
+    elif node.is_strand and node.strand is not None:
+        base = _build_strand_row_text(node)
+    else:
+        note = node.note
+        base = Text()
+        if node.depth > 0:
+            base.append(_CHILD_INDENT, style="dim")
+        marker = _CORE_MARK if note.type == "core" else _REFERENCE_MARK
+        base.append(f"{marker} ")
+        if note.relative_path in generated_paths:
+            base.append(f"{_GENERATED_MARK} ")
+        if _note_is_invalid(note):
+            base.append(f"{_INVALID_MARK} ", style="bold")
+        base.append(note.path.stem)
+        snippet = collapse_description(note.description)
+        if snippet:
+            base.append("  ")
+            base.append(snippet, style="dim")
+    if not glance:
+        return base
+    suffix = glance
+    if content_width > 0:
+        full_len = Text(suffix).cell_len
+        if base.cell_len + 2 + full_len > content_width:
+            suffix = glance_glyph
+            if base.cell_len + 2 + Text(suffix).cell_len > content_width:
+                return base
+        pad = content_width - base.cell_len - Text(suffix).cell_len
+        if pad < 2:
+            return base
+        base.append(" " * pad)
+    else:
+        base.append("  ")
+    style = "bold" if glance_promoted else "dim"
+    base.append(suffix, style=style)
+    return base
 
 
 def _build_web_row_text(
@@ -182,11 +216,17 @@ def _build_strand_row_text(node: MemoryRailNode) -> Text:
     return text
 
 
+def note_rail_content_width(rail_width: int) -> int:
+    """Return the text width inside a rail of *rail_width* (chrome aside)."""
+    return max(0, int(rail_width) - _NOTE_RAIL_CHROME)
+
+
 def note_rail_width(
     nodes: tuple[MemoryRailNode, ...],
     *,
     generated_paths: frozenset[str],
     available_width: int,
+    glance_width: int = 0,
 ) -> int:
     """Return the width ``#memory-panel-notes`` should take.
 
@@ -194,6 +234,7 @@ def note_rail_width(
     so the rail is never narrower than its historical fixed width and never
     takes the note card's share of *available_width* -- the panel body's
     content width, or ``0`` before the first layout has settled.
+    *glance_width* reserves the recency column (suffix plus its gap).
     """
     if not nodes:
         return _NOTE_RAIL_MIN_WIDTH
@@ -201,6 +242,8 @@ def note_rail_width(
         build_note_row_text(node, generated_paths=generated_paths).cell_len
         for node in nodes
     )
+    if glance_width > 0:
+        widest += int(glance_width) + 2
     desired = widest + _NOTE_RAIL_CHROME
     cap = _NOTE_RAIL_MAX_WIDTH
     if available_width > 0:
@@ -522,6 +565,7 @@ def build_panel_footer(
     unpublished: bool = False,
     time_verbs: tuple[str, ...] = (),
     edit_now: bool = False,
+    deleted_verb: str = "",
 ) -> str:
     """Build the footer strip, showing only currently-conditional keymaps.
 
@@ -536,6 +580,8 @@ def build_panel_footer(
     if has_notes:
         parts.append(f"{key_display_name(keymaps.open_history)} history")
         parts.append(f"{key_display_name(keymaps.open_changes)} changes")
+    if deleted_verb:
+        parts.append(deleted_verb)
     for verb in time_verbs:
         if verb:
             parts.append(str(verb))
@@ -591,5 +637,6 @@ __all__ = [
     "iso_from_mtime_ns",
     "memory_card_accent",
     "memory_note_source_path",
+    "note_rail_content_width",
     "note_rail_width",
 ]

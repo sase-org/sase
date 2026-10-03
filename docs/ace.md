@@ -7979,6 +7979,17 @@ subject, subject names, bead, and agent; `r` refetches. Leaving (`Esc`, `C`, or 
 restores the Notes rail exactly, and `@` is inert inside the lens. A scope that fails
 (or has no VCS) shows as a header chip instead of being silently dropped.
 
+Every Notes rail row ends with a recency glance: the newest change's class glyph and
+compact age (`⇧ 8d`, `◆ 3h`, `⟳ 1h`), right-aligned and built off-thread from one
+`subjects()` plus one `feed()` per scope load, so rows paint first and gain the column
+when the map lands (a failed load omits the column and keeps the rail). Promotions
+`⇧`/`⇩` keep their highlight; narrow rails shed the age first, then the glyph, and the
+stem never wraps. `D` toggles a trailing `DELETED` group of subjects whose latest entry
+is a deletion (newest deletion first; a deleted-then-recreated subject is not listed):
+rows read `✖ name   deleted 3w`, the header gains `· N deleted`, and each card is the
+tombstone -- the `✖ DELETED` pill, a deleted-style frame, the tombstone strip row, and
+the last content. Tombstones are read-only (`(`/`{` step older, `@` and `H` work).
+
 `p` and `P` cycle the scope ring -- every enabled project with a memory root, the
 project you opened from even when it has none (so `a` can bootstrap it), and one `Home`
 scope resolved through the active [`use_chezmoi`](configuration.md#use_chezmoi) mode,

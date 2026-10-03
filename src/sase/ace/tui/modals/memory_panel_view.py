@@ -27,6 +27,7 @@ from .memory_panel_rendering import (
     build_rail_node_description,
     note_rail_width,
 )
+from sase.ace.tui.keymaps.display import key_display_name
 from .trail_strip import build_trail_strip
 from .memory_panel_web_rendering import build_rail_node_card_meta
 
@@ -117,6 +118,10 @@ class MemoryPanelViewMixin(_MixinBase):
                 self._snapshot.scope.display_name if self._snapshot else ""
             )
             note_count = len(self._snapshot.notes) if self._snapshot else 0
+            try:
+                deleted_count = int(self._deleted_header_count())  # type: ignore[attr-defined]
+            except Exception:
+                deleted_count = 0
             header = build_panel_header(
                 scope_display_name=scope_display_name,
                 note_count=note_count,
@@ -124,6 +129,7 @@ class MemoryPanelViewMixin(_MixinBase):
                 scope_count=len(self._ring),
                 accent=self._accent,
                 unpublished=self._scope_is_unpublished(),
+                deleted_count=deleted_count,
             )
         self.query_one("#memory-panel-header", Static).update(header)
 
@@ -139,10 +145,15 @@ class MemoryPanelViewMixin(_MixinBase):
             if self._snapshot is not None
             else frozenset()
         )
+        try:
+            glance_width = int(self._glance_column_width())  # type: ignore[attr-defined]
+        except Exception:
+            glance_width = 0
         width = note_rail_width(
             self._all_rows,
             generated_paths=generated_paths,
             available_width=body.size.width,
+            glance_width=glance_width,
         )
         current = note_list.styles.width
         if current is not None and current.is_cells and int(current.value) == width:
@@ -174,6 +185,11 @@ class MemoryPanelViewMixin(_MixinBase):
                     time_verbs = step_footer_verbs(moment, keymaps=self._keymaps)
             except Exception:
                 time_verbs = ()
+        try:
+            deleted_key = key_display_name(self._keymaps.toggle_deleted)
+            deleted_verb = f"{deleted_key} deleted"
+        except Exception:
+            deleted_verb = ""
         footer = build_panel_footer(
             self._keymaps,
             has_notes=bool(self._rows),
@@ -190,6 +206,7 @@ class MemoryPanelViewMixin(_MixinBase):
             unpublished=self._scope_is_unpublished() and not pinned,
             time_verbs=time_verbs,
             edit_now=pinned,
+            deleted_verb=deleted_verb if bool(self._rows) else "",
         )
         footer_widget = self.query_one("#memory-panel-footer", Static)
         footer_widget.update(footer)

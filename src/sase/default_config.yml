@@ -639,6 +639,7 @@ ace:
       history_timeline: "@"
       history_compare_base: "b"
       history_toggle_hidden: "full_stop"
+      toggle_deleted: "D"
       copy_body: "y"
       copy_source_path: "Y"
       refresh: "r"

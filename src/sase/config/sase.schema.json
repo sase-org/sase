@@ -2885,6 +2885,10 @@
                   "type": "string",
                   "description": "Reveal hidden versions in the Timeline lens"
                 },
+                "toggle_deleted": {
+                  "type": "string",
+                  "description": "Show or hide the DELETED group of tombstoned subjects"
+                },
                 "copy_body": {
                   "type": "string",
                   "description": "Copy the selected note's body"

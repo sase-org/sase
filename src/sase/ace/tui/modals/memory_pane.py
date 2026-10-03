@@ -63,6 +63,7 @@ from .memory_pane_diff import MemoryPaneDiffMixin
 from .memory_pane_history import MemoryPaneHistoryMixin
 from .memory_pane_lens import MemoryPaneLensMixin
 from .memory_pane_loading import MemoryPaneLoadingMixin
+from .memory_pane_rail_glance import MemoryPaneRailGlanceMixin
 from .memory_pane_time import MemoryPaneTimeMixin
 from .memory_pane_timeline_lens import MemoryPaneTimelineLensMixin
 from .numbered_link_keys import (
@@ -143,6 +144,7 @@ class MemoryPane(
     MemoryPaneChangesLensMixin,
     MemoryPaneTimelineLensMixin,
     MemoryPaneLensMixin,
+    MemoryPaneRailGlanceMixin,
     MemoryPanelActionsMixin,
     MemoryPaneLoadingMixin,
     MemoryPaneHistoryMixin,
@@ -274,6 +276,12 @@ class MemoryPane(
         self._changes_sections: dict[tuple[str, str, str], str] = {}
         self._changes_section_failed: set[tuple[str, str, str]] = set()
         self._changes_worker: Worker[None] | None = None
+        self._glance_map: dict[str, tuple[str, int]] = {}
+        self._glance_failed = False
+        self._glance_generation = 0
+        self._glance_worker: Worker[Any] | None = None
+        self._show_deleted = False
+        self._deleted_subjects: tuple[Any, ...] = ()
 
     def on_key(self, event: events.Key) -> None:
         from .config_hub_keys import handle_config_hub_subtab_select_key
@@ -359,6 +367,7 @@ class MemoryPane(
             self._time_worker,
             self._diff_worker,
             self._changes_worker,
+            self._glance_worker,
         ):
             if worker is not None and not worker.is_finished:
                 worker.cancel()
@@ -480,12 +489,16 @@ class MemoryPane(
             self._on_time_body_state_changed(event)
         elif event.worker is self._diff_worker:
             self._on_diff_state_changed(event)
+        elif event.worker is self._glance_worker:
+            self._on_glance_state_changed(event)
 
     # --- passive actions ------------------------------------------------
 
     def _source_action_path(self) -> str | None:
         node = self._selected_row()
         if node is None or not self._ring:
+            return None
+        if node.history_only:
             return None
         return memory_note_source_path(self._ring[self._scope_index], node.note)
 
@@ -494,6 +507,11 @@ class MemoryPane(
 
     def action_open_source(self) -> None:
         node = self._selected_row()
+        if node is not None and node.history_only:
+            from .memory_pane_rail_glance import history_only_refusal
+
+            self.notify(history_only_refusal(), severity="warning")
+            return
         self.action_open_in_editor()
         if node is not None:
             self._start_restat(node.note)

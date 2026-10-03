@@ -137,6 +137,11 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         scope = self._current_scope()
         if node is None or snapshot is None or scope is None:
             return
+        if node.history_only:
+            from .memory_pane_rail_glance import history_only_refusal
+
+            self.app.notify(history_only_refusal(), severity="warning")
+            return
         if node.is_strand:
             self.app.notify(
                 "memory strands are edited from their source file",
@@ -184,6 +189,11 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         node = self._selected_row()
         snapshot = self._snapshot
         if node is None or snapshot is None:
+            return
+        if node.history_only:
+            from .memory_pane_rail_glance import history_only_refusal
+
+            self.app.notify(history_only_refusal(), severity="warning")
             return
         if node.is_strand:
             self._confirm_strand_delete(node, snapshot)

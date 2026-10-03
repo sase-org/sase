@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
+from rich.text import Text
 from textual.widgets import Input, OptionList
 from textual.widgets.option_list import Option
 
@@ -19,7 +20,7 @@ from sase.ace.tui.util.selection import restore_selection_by_identity
 from sase.memory.text_filter import filter_memory_notes
 from sase.memory.web.models import WebScope
 
-from .memory_panel_rendering import build_note_row_text
+from .memory_panel_rendering import build_note_row_text, note_rail_content_width
 
 if TYPE_CHECKING:
     from textual.widget import Widget as _MixinBase
@@ -116,6 +117,26 @@ class MemoryPanelStateMixin(_MixinBase):
             preferred_note=preferred_note,
         )
 
+    def _note_row_glance(self, node: MemoryRailNode) -> tuple[str, str, bool]:
+        """Return ``(full, glyph, promoted)`` glance suffixes for one row.
+
+        The rail-glance mixin overrides this once its off-thread map
+        lands; the default keeps rows glance-free.
+        """
+        return ("", "", False)
+
+    def _deleted_filter_matches(self, pattern: str) -> tuple[MemoryRailNode, ...]:
+        """Return DELETED rows matching *pattern*; ``()`` by default."""
+        return ()
+
+    def _glance_column_width(self) -> int:
+        """Return the widest glance suffix; ``0`` omits the column."""
+        return 0
+
+    def _deleted_header_count(self) -> int:
+        """Return the header's ``N deleted`` count; ``0`` hides the chip."""
+        return 0
+
     def _apply_filter(
         self,
         pattern: str,
@@ -136,6 +157,10 @@ class MemoryPanelStateMixin(_MixinBase):
         nodes = tuple(
             node for node in self._all_rows if node.note.relative_path in matched_paths
         )
+        try:
+            nodes = (*nodes, *self._deleted_filter_matches(pattern))
+        except Exception:
+            pass
         preferred = preferred_note if preferred_note is not None else self._current_note
         self._set_rows(nodes, preferred_note=preferred)
         self._update_header()
@@ -157,15 +182,21 @@ class MemoryPanelStateMixin(_MixinBase):
             if self._snapshot is not None
             else frozenset()
         )
+        try:
+            width_value = self._note_list().styles.width
+            rail_width = (
+                int(width_value.value)
+                if width_value is not None and width_value.is_cells
+                else 0
+            )
+        except Exception:
+            rail_width = 0
+        content_width = note_rail_content_width(rail_width)
         self._rows = nodes
         self._selection_guard.clear()
         option_list.clear_options()
         option_list.add_options(
-            Option(
-                build_note_row_text(node, generated_paths=generated_paths),
-                id=node.identity,
-            )
-            for node in nodes
+            self._rail_option(node, generated_paths, content_width) for node in nodes
         )
         if nodes:
             identity = nodes[row].identity
@@ -178,6 +209,42 @@ class MemoryPanelStateMixin(_MixinBase):
         self._refresh_links_for_current_note()
         self._ensure_strand_read_for_current_selection()
         self._render_note_card()
+
+    def _history_only_option(self, node: MemoryRailNode) -> Option | None:
+        """Return the rail option for a history-only row; ``None`` by default."""
+        return None
+
+    def _rail_option(
+        self,
+        node: MemoryRailNode,
+        generated_paths: frozenset[str],
+        content_width: int,
+    ) -> Option:
+        """Return the rail option for *node* (glance or DELETED row)."""
+        if node.history_only:
+            try:
+                option = self._history_only_option(node)
+            except Exception:
+                option = None
+            if option is not None:
+                return option
+            return Option(Text(node.identity), id=node.identity)
+        try:
+            full, glyph, promoted = self._note_row_glance(node)
+        except Exception:
+            full, glyph, promoted = ("", "", False)
+        try:
+            prompt = build_note_row_text(
+                node,
+                generated_paths=generated_paths,
+                glance=full,
+                glance_glyph=glyph,
+                glance_promoted=promoted,
+                content_width=content_width,
+            )
+        except Exception:
+            prompt = build_note_row_text(node, generated_paths=generated_paths)
+        return Option(prompt, id=node.identity)
 
     # --- selection helpers ------------------------------------------------
 
@@ -207,6 +274,7 @@ class MemoryPanelStateMixin(_MixinBase):
         return (
             node is not None
             and not node.is_strand
+            and not node.history_only
             and snapshot is not None
             and node.note.relative_path not in snapshot.generated_paths
         )
