@@ -258,6 +258,14 @@ class PromptBarMountMixin:
                 self._active_prompt_bar = None
         except Exception:  # noqa: BLE001 - explicit state is best-effort.
             pass
+        # Detaching the bar dismisses its session: drop any pending
+        # `<space>` late prefill so a later publish cannot resurrect text
+        # into a newer session. `invalidate_prompt_session` already clears
+        # this on its paths; this covers detaches that bypass it.
+        try:
+            self._pending_space_prefill = None  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 - pending state is best-effort.
+            pass
         # Transfer focus to a live widget *before* the forcible detach below.
         # Without this, Screen.focused can be left pointing at the PromptTextArea
         # that is about to be ripped out of the DOM, swallowing the next keys

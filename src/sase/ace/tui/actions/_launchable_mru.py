@@ -47,6 +47,7 @@ def init_launchable_mru_state(self: Any) -> None:
     self._launchable_mru_last_signature = None
     self._launchable_mru_tick_count = 0
     self._launchable_mru_tick_timer = None
+    self._pending_space_prefill = None
 
 
 class LaunchableMruMixin:
@@ -167,6 +168,15 @@ class LaunchableMruMixin:
         self._launchable_mru_token = token
         self._launchable_mru_last_signature = signature
         self._drain_launchable_mru_build()
+        if getattr(self, "_pending_space_prefill", None) is not None:
+            try:
+                from sase.ace.tui.actions.agent_workflow._space_prefill import (
+                    try_apply_pending_space_prefill,
+                )
+
+                try_apply_pending_space_prefill(self, pairs)
+            except Exception:  # noqa: BLE001 - late prefill never breaks publish.
+                log.debug("Pending <space> prefill skipped", exc_info=True)
 
     def _finish_launchable_mru_build_skipped(self: Any, generation: int) -> None:
         """Close out a fast-path-skipped build; the snapshot stays current."""
@@ -187,6 +197,12 @@ class LaunchableMruMixin:
         )
         self._launchable_mru_generation = generation
         self._drain_launchable_mru_build()
+        # An error publish carries no prefill: drop the pending entry so the
+        # blank bar stays blank instead of waiting on a stale session.
+        try:
+            self._pending_space_prefill = None
+        except Exception:  # noqa: BLE001 - pending state is best-effort.
+            pass
 
     def _drain_launchable_mru_build(self: Any) -> None:
         """Mark the in-flight build done and start one pending follow-up."""

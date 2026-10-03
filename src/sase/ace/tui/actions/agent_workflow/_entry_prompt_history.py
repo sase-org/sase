@@ -32,8 +32,14 @@ class EntryPromptHistoryMixin:
         from ...modals import PromptHistoryAction, PromptHistoryResult
         from ...modals.prompts_modal import PromptsOrigin
 
-        # Load the MRU head (same as Space).
-        pairs = load_launchable_vcs_xprompt_mru_pairs()
+        # Load the MRU head (same as Space): the snapshot when ready, else
+        # the synchronous loader without ever writing the MRU file. `,.`
+        # opens a modal anyway, so a cold snapshot may pay for one load.
+        from ._space_prefill import peek_ready_mru_pairs
+
+        pairs = peek_ready_mru_pairs(self)
+        if pairs is None:
+            pairs = list(load_launchable_vcs_xprompt_mru_pairs(prune=False))
         if not pairs:
             self.notify("No previously launched VCS xprompt", severity="warning")  # type: ignore[attr-defined]
             return

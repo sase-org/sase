@@ -115,3 +115,11 @@ def invalidate_prompt_session(
     cast(Any, app)._prompt_session = None
     if clear_context:
         cast(Any, app)._prompt_context = None
+    # A retired session drops any pending `<space>` late prefill keyed to
+    # it (dismissal, replacement, or a new `<space>`): the next publish
+    # must never clobber a newer session. Best-effort; the apply guard
+    # re-checks liveness before touching the bar.
+    try:
+        cast(Any, app)._pending_space_prefill = None
+    except Exception:  # noqa: BLE001 - pending state is best-effort.
+        pass

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from sase.ace.patch.project_spec_path import preferred_project_spec_path
@@ -11,23 +12,24 @@ if TYPE_CHECKING:
     from ...modals import SelectionItem
 
 
-def _resolve_vcs_xprompt_mru_head() -> tuple[str, str, str] | None:
+def resolve_vcs_xprompt_mru_head(
+    pairs: Sequence[tuple[str, str]] | None,
+) -> tuple[str, str, str] | None:
     """Resolve the VCS xprompt MRU head into a ready-to-mount prefill.
 
-    Returns ``(initial_text, display_name, history_sort_key)``, or ``None``
-    when the MRU is empty. ``initial_text`` uses the ``+<project>`` tag for
+    Takes the ``(canonical_prefix, display_prefix)`` pairs instead of
+    loading them, so `<space>` and the other MRU-head entry points serve
+    the prefill from the app-owned snapshot without I/O. Returns
+    ``(initial_text, display_name, history_sort_key)``, or ``None`` when
+    the MRU is empty. ``initial_text`` uses the ``+<project>`` tag for
     project entries (Patch entries keep their ``#`` ref) while
     ``display_name``/``history_sort_key`` keep today's display/canonical
     project spelling so history grouping agrees with every other prefill
     surface.
     """
-    from sase.history.vcs_xprompt_mru import (
-        load_launchable_vcs_xprompt_mru_pairs,
-        mru_prefix_project_name,
-    )
+    from sase.history.vcs_xprompt_mru import mru_prefix_project_name
     from sase.project_tags import known_project_tag_for, peek_project_tag_catalog
 
-    pairs = load_launchable_vcs_xprompt_mru_pairs()
     if not pairs:
         return None
     canonical_prefix, display_prefix = pairs[0]
@@ -72,7 +74,48 @@ class EntryCustomMixin:
         if callable(legacy_override):
             legacy_override()
             return
-        resolved = _resolve_vcs_xprompt_mru_head()
+        from ._space_prefill import (
+            drop_pending_space_prefill,
+            peek_space_prefill_pairs,
+            record_pending_space_prefill,
+        )
+
+        pairs = peek_space_prefill_pairs(self)
+        if pairs is not None:
+            # Warm snapshot: prefill with no I/O. An empty MRU opens a
+            # blank bar, matching the legacy empty-store behavior.
+            drop_pending_space_prefill(self)
+            resolved = resolve_vcs_xprompt_mru_head(pairs)
+            if resolved is None:
+                self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+                return
+            initial_text, display_name, history_sort_key = resolved
+            self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                initial_text=initial_text,
+                display_name=display_name,
+                history_sort_key=history_sort_key,
+            )
+            return
+        if hasattr(self, "peek_launchable_mru_snapshot"):
+            # Cold, error, or launch-pending snapshot: open the blank home
+            # bar at once and apply a late prefill only to an untouched
+            # session when the next snapshot publishes. Request a build
+            # best-effort (single-flight coalesces) so the prefill arrives
+            # even when no build is currently in flight.
+            self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+            record_pending_space_prefill(self)
+            try:
+                request = getattr(self, "request_launchable_mru_refresh", None)
+                if callable(request):
+                    request(reason="space-cold")
+            except Exception:  # noqa: BLE001 - the next tick retries.
+                pass
+            return
+        from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru_pairs
+
+        resolved = resolve_vcs_xprompt_mru_head(
+            load_launchable_vcs_xprompt_mru_pairs(prune=False)
+        )
         if resolved is None:
             self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
             return
@@ -89,7 +132,19 @@ class EntryCustomMixin:
 
     def action_start_last_vcs_xprompt_in_editor(self) -> None:
         """Open editor with the most recently used launchable VCS xprompt."""
-        resolved = _resolve_vcs_xprompt_mru_head()
+        from ._space_prefill import peek_ready_mru_pairs
+
+        pairs = peek_ready_mru_pairs(self)
+        if pairs is None:
+            # Cold/error snapshot (or a host without one): the editor
+            # opens anyway, so fall back to the synchronous loader without
+            # ever writing the MRU file.
+            from sase.history.vcs_xprompt_mru import (
+                load_launchable_vcs_xprompt_mru_pairs,
+            )
+
+            pairs = list(load_launchable_vcs_xprompt_mru_pairs(prune=False))
+        resolved = resolve_vcs_xprompt_mru_head(pairs)
         if resolved is None:
             self.notify("No previous VCS xprompt", severity="warning")  # type: ignore[attr-defined]
             return
