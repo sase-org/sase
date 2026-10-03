@@ -375,6 +375,20 @@ def patch_startup_loaders(
         "get_cached_update_status",
         lambda **_kwargs: None,
     )
+    # The Config hub MEMORY ●N badge resolves real git/core review state
+    # off-thread, which would leak host state into unrelated goldens.
+    # Visual tests set the badge deterministically through
+    # ``ConfigHubPane._apply_memory_badge`` instead.
+    from sase.ace.tui.modals import config_hub_pane as config_hub_pane_module
+
+    def _noop_memory_badge_refresh(_self: Any) -> None:
+        return None
+
+    monkeypatch.setattr(
+        config_hub_pane_module.ConfigHubPane,
+        "refresh_memory_badge",
+        _noop_memory_badge_refresh,
+    )
     monkeypatch.setattr(
         update_toast,
         "_fetch_incoming_commits",

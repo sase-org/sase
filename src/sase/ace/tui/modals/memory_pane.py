@@ -266,6 +266,8 @@ class MemoryPane(
         self._timeline_scheduled = -1
         self._timeline_has_hidden_line = False
         self._changes_feed: dict[str, Any] | None = None
+        self._changes_review: tuple[Any, ...] = ()
+        self._changes_mark_worker: Any | None = None
         self._changes_listed: tuple[dict[str, Any], ...] = ()
         self._changes_cursor = 0
         self._changes_scheduled = -1

@@ -91,6 +91,8 @@ class MemoryPanelHelpModal(ModalScreen[None]):
             "\nb sets the compare base in the Timeline lens; . reveals hidden versions"
             "\nC turns the rail into day-grouped changesets (··· older loads more;"
             " p/P adds All scopes; .N opens one subject)"
+            "\nm marks the shown scope(s) reviewed in the Changes lens"
+            " (● new rows, ●N hub badge; opening the lens marks nothing)"
             "\nH opens the pager at the exact version on screen"
             "\nEsc peels filter, then lens, then pin, before closing; o always edits now"
         )

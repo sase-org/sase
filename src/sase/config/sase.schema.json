@@ -2889,6 +2889,10 @@
                   "type": "string",
                   "description": "Show or hide the DELETED group of tombstoned subjects"
                 },
+                "mark_reviewed": {
+                  "type": "string",
+                  "description": "Mark the Changes lens scope(s) reviewed through the newest changeset"
+                },
                 "copy_body": {
                   "type": "string",
                   "description": "Copy the selected note's body"

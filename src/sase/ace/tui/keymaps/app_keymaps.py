@@ -446,6 +446,7 @@ class MemoryPanelKeymaps:
     history_compare_base: str = "b"
     history_toggle_hidden: str = "full_stop"
     toggle_deleted: str = "D"
+    mark_reviewed: str = "m"
     copy_body: str = "y"
     copy_source_path: str = "Y"
     refresh: str = "r"

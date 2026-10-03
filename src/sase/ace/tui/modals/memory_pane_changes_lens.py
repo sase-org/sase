@@ -28,6 +28,15 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from .memory_pane_lens import LENS_CHANGES, LENS_NOTES, LENS_TIMELINE, lens_header_text
+from .memory_pane_review import (
+    ScopeReview,
+    changeset_is_unreviewed,
+    entries_by_scope,
+    feed_newest_commit,
+    mark_reviewed_toast,
+    review_chip,
+    review_entries,
+)
 
 if TYPE_CHECKING:
     from textual.widget import Widget as _MixinBase
@@ -185,9 +194,16 @@ def _changes_lens_header_detail(
     query: str = "",
     failed_scopes: tuple[str, ...] = (),
     all_scopes: bool = False,
+    review: str = "",
 ) -> str:
-    """Return the header detail (``last 100 of 489 · 9 regen-only``)."""
+    """Return the header detail (``● 3 new · last 100 of 489 · 9 regen``).
+
+    The review chip (``● N new``, ``not reviewed yet · m to mark``,
+    or ``✓ nothing new``) leads when the watermark state is known.
+    """
     bits: list[str] = []
+    if review:
+        bits.append(review)
     if total:
         if older:
             bits.append(f"last {shown} of {total}")
@@ -209,7 +225,12 @@ def _changes_lens_header_detail(
 
 
 def _changes_lens_footer(keymaps: Any) -> str:
-    """Return the Changes lens footer with the effective configured keys."""
+    """Return the Changes lens footer with the effective configured keys.
+
+    Terse Timeline-style verbs: the one-line footer ellipsizes past
+    about 103 cells, so the open verb hardcodes ``⏎`` (as the Timeline
+    footer does) instead of the long ``Enter / l`` display name.
+    """
     try:
         from sase.ace.tui.keymaps import key_display_name  # noqa: PLC0415
 
@@ -219,18 +240,17 @@ def _changes_lens_footer(keymaps: Any) -> str:
             except Exception:
                 return fallback
 
-        changes = _key(getattr(keymaps, "open_changes", "C"), "C")
         nxt = _key(getattr(keymaps, "next_scope", "p"), "p")
         prv = _key(getattr(keymaps, "prev_scope", "P"), "P")
         filt = _key(getattr(keymaps, "filter_notes", "/"), "/")
-        follow = _key(getattr(keymaps, "follow_link", "enter,l"), "⏎")
         refresh = _key(getattr(keymaps, "refresh", "r"), "r")
+        mark = _key(getattr(keymaps, "mark_reviewed", "m"), "m")
     except Exception:
-        changes, nxt, prv, filt, follow, refresh = "C", "p", "P", "/", "⏎", "r"
-    _ = changes
+        nxt, prv, filt, refresh, mark = "p", "P", "/", "r", "m"
     return (
-        f"j/k changeset  ·  {follow} open in pager  ·  .N subject  ·  "
-        f"{nxt}/{prv} scope  ·  {filt} filter  ·  {refresh} refetch  ·  esc notes"
+        f"j/k changeset  ·  ⏎/.N open  ·  "
+        f"{nxt}/{prv} scope  ·  {filt} filter  ·  {refresh} refetch  ·  "
+        f"{mark} reviewed  ·  esc notes"
     )
 
 
@@ -311,7 +331,9 @@ class MemoryPaneChangesLensMixin(_MixinBase):
         _changes_limit: int
         _changes_listed: tuple[dict[str, Any], ...]
         _changes_loading: bool
+        _changes_mark_worker: Any | None
         _changes_older: int
+        _changes_review: tuple[Any, ...]
         _changes_scheduled: int
         _changes_scope_label: str
         _changes_sections: dict[tuple[str, str, str], str]
@@ -395,6 +417,7 @@ class MemoryPaneChangesLensMixin(_MixinBase):
             self._changes_feed = None
             self._changes_listed = ()
             self._changes_loading = True
+            self._changes_review = ()
             try:
                 self._render_changes_rail()
             except Exception:
@@ -465,6 +488,10 @@ class MemoryPaneChangesLensMixin(_MixinBase):
             ("_changes_loading", False),
             ("_changes_sections", {}),
             ("_changes_section_failed", set()),
+            # The review watermark survives a mark worker: clearing the
+            # lens must never cancel the off-thread persist. The worker
+            # repaints only while the lens is still open.
+            ("_changes_review", ()),
         ):
             try:
                 setattr(self, attr, value)
@@ -572,7 +599,17 @@ class MemoryPaneChangesLensMixin(_MixinBase):
                 except Exception as exc:
                     return exc
 
+            def _query_review() -> Any:
+                try:
+                    history = self._ace_history()
+                    if history is None:
+                        return None
+                    return history.service.review_state(list(scopes))
+                except Exception:
+                    return None
+
             feed = await asyncio.to_thread(_query)
+            review = await asyncio.to_thread(_query_review)
             if not self._lens_is_changes():
                 return
             if int(getattr(self, "_changes_generation", 0) or 0) != generation:
@@ -588,6 +625,10 @@ class MemoryPaneChangesLensMixin(_MixinBase):
             try:
                 self._changes_feed = dict(feed)
                 self._changes_loading = False
+                if isinstance(review, dict):
+                    # Keep last good on failure: an unreadable store must
+                    # not clear the dots the lens already showed.
+                    self._changes_review = review_entries(review)
                 self._changes_rebuild_rows()
                 self._render_changes_rail()
                 self._render_note_card()
@@ -680,6 +721,16 @@ class MemoryPaneChangesLensMixin(_MixinBase):
         except Exception:
             return
         options: list[Option] = []
+        try:
+            review_indexed = entries_by_scope(
+                tuple(getattr(self, "_changes_review", ()) or ())
+            )
+        except Exception:
+            review_indexed = {}
+        try:
+            dot_accent = str(getattr(self, "_accent", "") or "")
+        except Exception:
+            dot_accent = ""
         for row in listed:
             if not isinstance(row, dict):
                 continue
@@ -702,11 +753,27 @@ class MemoryPaneChangesLensMixin(_MixinBase):
                         line = changeset_row_text(view)
                     except Exception:
                         line = ""
-                options.append(
-                    Option(
-                        Text(line or "(changeset)"), id=str(row.get("id", "") or None)
+                try:
+                    dotted = view is not None and changeset_is_unreviewed(
+                        view, review_indexed
                     )
-                )
+                except Exception:
+                    dotted = False
+                if dotted:
+                    prompt = Text()
+                    prompt.append(
+                        "● ",
+                        style=f"bold {dot_accent}" if dot_accent else "bold",
+                    )
+                    prompt.append(line or "(changeset)")
+                    options.append(Option(prompt, id=str(row.get("id", "") or None)))
+                else:
+                    options.append(
+                        Option(
+                            Text(line or "(changeset)"),
+                            id=str(row.get("id", "") or None),
+                        )
+                    )
             elif kind == "regen":
                 try:
                     count = int(row.get("count", 0) or 0)
@@ -1320,6 +1387,10 @@ class MemoryPaneChangesLensMixin(_MixinBase):
                     scope_name = str(getattr(scope, "display_name", "") or "")
             except Exception:
                 scope_name = ""
+            try:
+                chip = review_chip(tuple(getattr(self, "_changes_review", ()) or ()))
+            except Exception:
+                chip = ""
             detail = _changes_lens_header_detail(
                 scope_label=scope_name,
                 shown=shown,
@@ -1329,6 +1400,7 @@ class MemoryPaneChangesLensMixin(_MixinBase):
                 query=str(getattr(self, "_changes_filter", "") or ""),
                 failed_scopes=tuple(getattr(self, "_changes_failed", ()) or ()),
                 all_scopes=bool(getattr(self, "_changes_all_scopes", False)),
+                review=chip,
             )
             header = lens_header_text(
                 lens=LENS_CHANGES,
@@ -1477,6 +1549,9 @@ class MemoryPaneChangesLensMixin(_MixinBase):
             self._changes_feed = None
             self._changes_listed = ()
             self._changes_loading = True
+            # The scope changed, so the old watermark chip must not
+            # linger while the new scope loads.
+            self._changes_review = ()
             self._render_changes_rail()
             self._update_header()
         except Exception:
@@ -1500,6 +1575,193 @@ class MemoryPaneChangesLensMixin(_MixinBase):
             return
         try:
             super().action_refresh()  # type: ignore[misc]
+        except Exception:
+            pass
+
+    def action_mark_reviewed(self) -> None:
+        """``m`` marks the shown scope(s) reviewed (Changes lens only).
+
+        Clears the dots optimistically, persists the watermark
+        off-thread through each shown scope's newest changeset, then
+        toasts ``marked N changesets reviewed · <scope>``. A persist
+        failure restores the dots and toasts instead. Never marks
+        from Notes, the Timeline lens, or a card: opening the lens
+        marks nothing, and neither does this key anywhere else.
+        """
+        if not self._lens_is_changes():
+            return
+        scopes, _failed, label = self._changes_scopes_for_lens()
+        if not scopes:
+            try:
+                self.notify("nothing to mark reviewed", severity="warning")
+            except Exception:
+                pass
+            return
+        previous = tuple(getattr(self, "_changes_review", ()) or ())
+        indexed = entries_by_scope(previous)
+        listed = tuple(getattr(self, "_changes_listed", ()) or ())
+        views = tuple(
+            row.get("view")
+            for row in listed
+            if isinstance(row, dict)
+            and row.get("kind") == "changeset"
+            and row.get("view") is not None
+        )
+        targets: list[tuple[Any, str, str, int]] = []
+        for scope in scopes:
+            try:
+                key = str(getattr(scope, "scope_key", "") or "")
+            except Exception:
+                continue
+            if not key:
+                continue
+            entry = indexed.get(key)
+            newest = ""
+            try:
+                newest = str(entry.newest_commit or "") if entry is not None else ""
+            except Exception:
+                newest = ""
+            if not newest:
+                newest = feed_newest_commit(views, key)
+            if not newest:
+                continue
+            if entry is not None and entry.has_watermark:
+                try:
+                    count = max(0, int(entry.new_count or 0))
+                except (TypeError, ValueError):
+                    count = 0
+            else:
+                count = sum(
+                    1
+                    for row in listed
+                    if isinstance(row, dict)
+                    and row.get("kind") == "changeset"
+                    and row.get("view") is not None
+                    and str(getattr(row.get("view"), "scope_key", "") or "") == key
+                    and changeset_is_unreviewed(row.get("view"), indexed)
+                )
+            targets.append((scope, key, newest, count))
+        if not targets:
+            try:
+                self.notify("no changesets to mark reviewed", severity="warning")
+            except Exception:
+                pass
+            return
+        optimistic: dict[str, ScopeReview] = dict(indexed)
+        for _scope, key, newest, _count in targets:
+            try:
+                latest = max(
+                    [
+                        int(getattr(view, "committer_time", 0) or 0)
+                        for view in views
+                        if str(getattr(view, "scope_key", "") or "") == key
+                    ]
+                    + [0]
+                )
+            except Exception:
+                latest = 0
+            old = optimistic.get(key)
+            try:
+                stamp = int(getattr(old, "watermark_time", 0) or 0) if old else 0
+            except (TypeError, ValueError):
+                stamp = 0
+            optimistic[key] = ScopeReview(
+                scope_key=key,
+                new_count=0,
+                watermark_time=max(stamp, latest),
+                has_watermark=True,
+                newest_commit=newest,
+            )
+        self._changes_review = tuple(optimistic.values())
+        try:
+            self._render_changes_rail()
+            self._update_header()
+        except Exception:
+            pass
+        try:
+            all_scopes = bool(getattr(self, "_changes_all_scopes", False))
+        except Exception:
+            all_scopes = False
+        total = sum(count for _, _, _, count in targets)
+        toast_label = "all scopes" if all_scopes else str(label or "")
+        try:
+            generation = int(getattr(self, "_changes_generation", 0) or 0)
+        except (TypeError, ValueError):
+            generation = 0
+
+        async def _mark() -> None:
+            import asyncio
+
+            def _persist() -> Any:
+                try:
+                    history = self._ace_history()
+                    if history is None:
+                        return None
+                    service = history.service
+                except Exception:
+                    return None
+                try:
+                    for scope, _key, through, _count in targets:
+                        service.mark_reviewed(scope, through)
+                except Exception as exc:
+                    return exc
+                try:
+                    return service.review_state(
+                        [scope for scope, _k, _t, _c in targets]
+                    )
+                except Exception:
+                    return True
+
+            outcome = await asyncio.to_thread(_persist)
+            failed = outcome is None or isinstance(outcome, BaseException)
+            try:
+                live = self._lens_is_changes() and (
+                    int(getattr(self, "_changes_generation", 0) or 0) == generation
+                )
+            except (TypeError, ValueError):
+                live = False
+            if not failed and isinstance(outcome, dict) and live:
+                # Confirm with core's exact post-mark state: new
+                # changesets may have landed while the mark persisted.
+                try:
+                    self._changes_review = review_entries(outcome)
+                    self._render_changes_rail()
+                    self._update_header()
+                except Exception:
+                    pass
+            elif failed:
+                if live:
+                    # Roll back to the pre-mark dots.
+                    try:
+                        self._changes_review = previous
+                        self._render_changes_rail()
+                        self._update_header()
+                    except Exception:
+                        pass
+                try:
+                    self.notify("could not mark reviewed", severity="error")
+                except Exception:
+                    pass
+                return
+            try:
+                self.notify(mark_reviewed_toast(toast_label, total))
+            except Exception:
+                pass
+            try:
+                host = getattr(self, "_host", None)
+                refresh = getattr(host, "refresh_memory_badge", None)
+                if callable(refresh):
+                    refresh()
+            except Exception:
+                pass
+
+        try:
+            self._changes_mark_worker = self.run_worker(
+                _mark(),
+                exclusive=True,
+                group="memory-panel-changes-mark",
+                exit_on_error=False,
+            )
         except Exception:
             pass
 

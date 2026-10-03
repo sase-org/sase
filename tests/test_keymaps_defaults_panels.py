@@ -158,6 +158,7 @@ def test_default_config_covers_all_memory_keymaps() -> None:
         "history_compare_base": "b",
         "history_toggle_hidden": "full_stop",
         "toggle_deleted": "D",
+        "mark_reviewed": "m",
         "copy_body": "y",
         "copy_source_path": "Y",
         "refresh": "r",

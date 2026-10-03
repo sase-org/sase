@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from typing import Any, cast
 
 from textual import on
@@ -35,6 +36,11 @@ from .config_hub_session import (
     config_subtab_order,
     validated_config_subtab,
 )
+from .memory_pane_review import (
+    memory_badge_count,
+    memory_badge_label,
+    review_entries,
+)
 
 _EMPTY_ID = "config-hub-empty"
 # Five-child strip (Flags off: All/Launch/Memory/Snippets/XPrompts): full
@@ -45,6 +51,50 @@ _CONFIG_TABS_MICRO_BELOW_WIDTH = 49
 # Six-child strip (Flags on): full labels are 81 cells, compact 59.
 _CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS = 82
 _CONFIG_TABS_MICRO_BELOW_WIDTH_WITH_FLAGS = 60
+
+#: Seconds between stat-only MEMORY badge probes while the hub is visible.
+_MEMORY_BADGE_POLL_S = 30.0
+
+
+def compute_memory_badge(
+    launch_workspace: str | None, history: Any
+) -> tuple[int | None, Any]:
+    """Return ``(badge_count, change_token)`` for the launch project scope.
+
+    ``None`` hides the badge: zero unreviewed changesets, no watermark
+    yet, NO VCS, or an unreadable store. Pure orchestration over the
+    injected history service; never raises.
+    """
+    from pathlib import Path
+
+    try:
+        root = Path(launch_workspace) if launch_workspace else Path.cwd()
+    except Exception:
+        return (None, None)
+    try:
+        service = history.service
+    except Exception:
+        return (None, None)
+    try:
+        scope = service.project_scope(root)
+    except Exception:
+        return (None, None)
+    try:
+        key = str(getattr(scope, "scope_key", "") or "")
+    except Exception:
+        return (None, None)
+    if not key:
+        return (None, None)
+    try:
+        token = history.change_token(scope)
+    except Exception:
+        token = None
+    try:
+        wire = service.review_state([scope])
+    except Exception:
+        return (None, token)
+    entries = review_entries(wire if isinstance(wire, dict) else None)
+    return (memory_badge_count(entries, key), token)
 
 
 def _config_hub_strip_thresholds(tab_count: int) -> tuple[int, int]:
@@ -130,6 +180,10 @@ class ConfigHubPane(Vertical):
         self._host_visible = True
         self._initial_navigation_pending = True
         self._pending_subtab_select = False
+        self._memory_badge_count: int | None = None
+        self._memory_badge_token: Any = None
+        self._memory_badge_timer: Any | None = None
+        self._memory_badge_worker: Any | None = None
 
     def compose(self) -> ComposeResult:
         yield PanelTabStrip(
@@ -156,10 +210,162 @@ class ConfigHubPane(Vertical):
             name=f"config-hub-open-{self._active_subtab}",
             group="config-hub-navigation",
         )
+        try:
+            self._memory_badge_timer = self.set_interval(
+                _MEMORY_BADGE_POLL_S, self._memory_badge_tick
+            )
+        except Exception:
+            self._memory_badge_timer = None
+        # One quiet-time compute after the history warm-up; the poll
+        # and the memory child's push keep it fresh afterwards.
+        try:
+            self.refresh_memory_badge()
+        except Exception:
+            pass
 
     def on_unmount(self) -> None:
         self._pending_subtab_select = False
         self._set_pane_active(self._active_child(), False)
+        timer = getattr(self, "_memory_badge_timer", None)
+        self._memory_badge_timer = None
+        if timer is not None:
+            try:
+                timer.stop()
+            except Exception:
+                pass
+
+    def refresh_memory_badge(self) -> None:
+        """Schedule an off-thread MEMORY ``●N`` badge refresh.
+
+        Never blocks the hub: the stat-only token plus the review
+        state resolve in a thread worker and only a changed count
+        repaints the strip. The memory child calls this after ``m``;
+        the quiet-time poll calls it on its cadence. Never raises.
+        """
+        try:
+            # No `is_mounted` gate here: it is still False inside
+            # `on_mount`, where the first refresh is scheduled. The
+            # worker continuation re-checks mount state before it
+            # touches the strip.
+            worker = getattr(self, "_memory_badge_worker", None)
+            if worker is not None and not worker.is_finished:
+                return
+        except Exception:
+            pass
+        try:
+            entry = getattr(self, "_entry", None)
+            launch_workspace = entry.launch_workspace if entry is not None else None
+        except Exception:
+            launch_workspace = None
+
+        async def _refresh() -> None:
+            import asyncio
+
+            def _query() -> Any:
+                try:
+                    from sase.ace.tui.memory_history import ace_memory_history
+
+                    history = ace_memory_history(self.app)
+                except Exception:
+                    return None
+                return compute_memory_badge(launch_workspace, history)
+
+            result = await asyncio.to_thread(_query)
+            if not isinstance(result, tuple) or len(result) != 2:
+                return
+            count, token = result
+            try:
+                if not self.is_mounted:
+                    return
+            except Exception:
+                return
+            try:
+                if (
+                    token is not None
+                    and token == self._memory_badge_token
+                    and (count or None) == self._memory_badge_count
+                ):
+                    return
+                self._memory_badge_token = token
+            except Exception:
+                pass
+            try:
+                self._apply_memory_badge(count)
+            except Exception:
+                pass
+
+        try:
+            self._memory_badge_worker = self.run_worker(
+                _refresh(),
+                exclusive=True,
+                group="config-hub-memory-badge",
+                exit_on_error=False,
+            )
+        except Exception:
+            pass
+
+    def _memory_badge_tick(self) -> None:
+        """Quiet-time badge probe: refresh off-thread, never blocking."""
+        try:
+            if not self.is_mounted or not self._host_visible:
+                return
+        except Exception:
+            return
+        try:
+            gate = getattr(self.app, "_nav_gate", None)
+            if gate is not None and gate.is_navigating():
+                return
+        except Exception:
+            pass
+        try:
+            self.refresh_memory_badge()
+        except Exception:
+            pass
+
+    def _apply_memory_badge(self, count: int | None) -> None:
+        """Repaint the MEMORY sub-tab label with (or without) ``●N``."""
+        try:
+            total = int(count) if count else 0
+        except (TypeError, ValueError):
+            total = 0
+        badge = total if total > 0 else None
+        if badge == self._memory_badge_count:
+            return
+        self._memory_badge_count = badge
+        try:
+            strip = self.query_one("#config-hub-tabs", PanelTabStrip)
+        except Exception:
+            return
+        tabs = []
+        for tab in tuple(getattr(self, "_panel_tabs", ()) or ()):
+            try:
+                is_memory = str(getattr(tab, "id", "") or "") == "memory"
+            except Exception:
+                is_memory = False
+            if not is_memory:
+                tabs.append(tab)
+                continue
+            try:
+                base_label = str(getattr(tab, "label", "") or "")
+                base_compact = (
+                    str(getattr(tab, "compact_label", "") or "") or base_label
+                )
+                base_micro = str(getattr(tab, "micro_label", "") or "") or base_label
+            except Exception:
+                tabs.append(tab)
+                continue
+            tabs.append(
+                replace(
+                    tab,
+                    label=memory_badge_label(base_label, badge),
+                    compact_label=memory_badge_label(base_compact, badge),
+                    micro_label=memory_badge_label(base_micro, badge),
+                )
+            )
+        try:
+            strip.set_tabs(tabs, active_tab=self._active_subtab)
+        except Exception:
+            pass
 
     def request_close(self) -> None:
         """Dismiss the enclosing Admin Center (Glossary host contract)."""
