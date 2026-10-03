@@ -184,10 +184,6 @@ _agent_owner_config_cache: tuple[tuple[Any, ...], AgentOwnerConfigSnapshot] | No
 # refreshes revalidate cached config on a slower cadence than they repaint.
 _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS = 5.0
 CONFIG_TOKEN_REFRESH_THREAD_NAME = "sase-config-token-refresh"
-# Poll cadence for the long-lived revalidator: it wakes promptly on the
-# getter's signal and otherwise re-checks the deadline on this interval so
-# a changed config is picked up within one refresh cadence.
-_CONFIG_TOKEN_REVALIDATOR_POLL_SECONDS = 0.05
 _config_cache_generation = 0
 _current_config_token_cache_value: tuple[Any, ...] | None = None
 _current_config_token_cache_deadline = 0.0
@@ -309,6 +305,13 @@ def _config_token_revalidator_loop(
     epoch/cwd under the cache lock, recomputes off-lock, and publishes only
     when the epoch still matches. A missed drain window therefore cannot
     install a stale token into a successor generation.
+
+    The loop blocks on ``wake`` instead of polling: an expired getter read
+    sets ``wake`` to trigger a recompute, and the deadline wait uses
+    ``wake.wait(timeout=<time to deadline>)`` so the thread stays idle when
+    nothing reads the token. Every stop path must set ``wake`` as well as
+    ``stop`` so a parked wait returns promptly; ``stop`` is re-checked after
+    every wake.
     """
     while not stop.is_set():
         with _current_config_token_cache_lock:
@@ -317,8 +320,12 @@ def _config_token_revalidator_loop(
             epoch = _current_config_token_cache_epoch
             cwd = _current_config_token_cache_cwd
         if cached is None:
-            if stop.wait(_CONFIG_TOKEN_REVALIDATOR_POLL_SECONDS):
+            # No token yet; the next getter warms the cache synchronously.
+            # Park until signalled or one cadence elapses, then re-check.
+            wake.wait(timeout=_CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS)
+            if stop.is_set():
                 break
+            wake.clear()
             continue
         try:
             now = time.monotonic()
@@ -326,13 +333,15 @@ def _config_token_revalidator_loop(
             now = deadline
         if now < deadline:
             remaining = deadline - now
-            nap = min(remaining, _CONFIG_TOKEN_REVALIDATOR_POLL_SECONDS)
-            wake.clear()
-            if stop.wait(nap):
+            if remaining > _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS:
+                remaining = _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
+            # A getter expiry signal wakes us early; otherwise we sleep
+            # until the deadline (at most one cadence, never sub-second
+            # polling while idle).
+            wake.wait(timeout=remaining)
+            if stop.is_set():
                 break
-            # A getter signal wakes us early; otherwise the poll re-checks
-            # the (possibly faked) clock so tests driving fake time still
-            # observe a refresh within one cadence.
+            wake.clear()
             continue
         wake.clear()
         try:
@@ -341,11 +350,15 @@ def _config_token_revalidator_loop(
             log.debug("Background config-token refresh failed", exc_info=True)
             token = None
         published = _publish_revalidator_token(token, cache_epoch=epoch, cache_cwd=cwd)
+        if stop.is_set():
+            break
         if not published:
-            # Stale epoch or raced chdir: back off instead of busy-looping
+            # Stale epoch or raced chdir: park instead of busy-looping
             # on an expired deadline the getter will recompute synchronously.
-            if stop.wait(_CONFIG_TOKEN_REVALIDATOR_POLL_SECONDS):
+            wake.wait(timeout=_CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS)
+            if stop.is_set():
                 break
+            wake.clear()
 
 
 def _ensure_config_token_revalidator_locked() -> threading.Thread | None:
@@ -353,7 +366,9 @@ def _ensure_config_token_revalidator_locked() -> threading.Thread | None:
     global _current_config_token_refresh_thread
     global _config_token_revalidator_stop, _config_token_revalidator_wake
     live = _current_config_token_refresh_thread
-    if live is not None and live.is_alive():
+    # A registered-but-unstarted thread reports is_alive() False until start()
+    # runs, so treat ident-is-None as live: only the registering caller starts it.
+    if live is not None and (live.is_alive() or live.ident is None):
         return None
     stop = threading.Event()
     wake = threading.Event()

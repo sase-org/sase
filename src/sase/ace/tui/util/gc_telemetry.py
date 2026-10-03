@@ -193,6 +193,7 @@ class GCTelemetry:
         self._queue_dropped = 0
         now = self._monotonic()
         self._install_mono = now
+        self._last_heartbeat_mono = now
         self._last_flush_mono = now
         self._next_heartbeat_mono = now + self.first_heartbeat_delay_s
         self._window_start_mono = now
@@ -356,7 +357,9 @@ class GCTelemetry:
             self._last_major_faults = major
         if rss is not None:
             self._last_rss = rss
-        window_s = round(now - self._install_mono, 6)
+        uptime_s = round(now - self._install_mono, 6)
+        window_s = round(now - self._last_heartbeat_mono, 6)
+        self._last_heartbeat_mono = now
         generations: dict[str, dict[str, float | int]] = {}
         for generation in range(len(self._gen_counts)):
             count = self._gen_counts[generation]
@@ -378,7 +381,7 @@ class GCTelemetry:
             "ts": time.time(),
             "pid": os.getpid(),
             "app_instance_id": self.instance_id,
-            "uptime_s": window_s,
+            "uptime_s": uptime_s,
             "window_s": window_s,
             "rss_bytes": rss,
             "vmswap_bytes": swap,

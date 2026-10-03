@@ -936,7 +936,9 @@ The GC telemetry service (`src/sase/ace/tui/util/gc_telemetry.py`, installed fro
   `rss_bytes` / `vmswap_bytes` (from `/proc/self/status`, `null` off Linux),
   `major_faults` and `major_faults_delta` (from `/proc/self/stat`), `gc_count` /
   `gc_threshold` / `gc_freeze_count`, exact per-generation `count` / `total_s` / `max_s`
-  for the window they cover (`gc_generations`), and instance `uptime_s`.
+  for the window they cover (`gc_generations`), instance `uptime_s` (since install), and
+  `window_s` (wall-clock span since the previous heartbeat, so GC share is exact as
+  `total_s / window_s`).
 
 Every row carries `app_instance_id` (also on `tui_startup` and `tui_agent_load` rows),
 so a busy hour spanning restarts splits cleanly per instance. Filter one instance's GC

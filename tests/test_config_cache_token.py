@@ -17,6 +17,7 @@ from tests._config_cache_helpers import (
     _reset_config_token_cache,
     _wait_for_config_token,
 )
+from tests._conftest_runtime import _drain_config_token_refresh
 
 
 def test_current_config_token_serves_stale_while_refreshing() -> None:
@@ -461,3 +462,39 @@ def test_revalidator_picks_up_changed_config_within_one_cadence() -> None:
         clear_config_cache()
         assert current_config_token() == ("token", 3)
         assert calls == 3
+
+
+def _barrier_reader(barrier: threading.Barrier, failures: list[BaseException]) -> None:
+    try:
+        barrier.wait(timeout=2.0)
+        current_config_token()
+    except BaseException as exc:  # noqa: BLE001 - collected for assert
+        failures.append(exc)
+
+
+def test_concurrent_first_reads_start_single_revalidator() -> None:
+    """Concurrent first reads behind a barrier start exactly one revalidator."""
+    for _ in range(25):
+        _drain_config_token_refresh()
+        barrier = threading.Barrier(8)
+        failures: list[BaseException] = []
+
+        readers = [
+            threading.Thread(target=_barrier_reader, args=(barrier, failures))
+            for _ in range(8)
+        ]
+        for reader in readers:
+            reader.start()
+        for reader in readers:
+            reader.join(timeout=5.0)
+        assert not failures
+        assert all(not reader.is_alive() for reader in readers)
+
+        workers = [
+            thread
+            for thread in threading.enumerate()
+            if thread.name == config_core.CONFIG_TOKEN_REFRESH_THREAD_NAME
+            and thread.is_alive()
+        ]
+        assert len(workers) == 1
+        assert config_core._current_config_token_refresh_thread is workers[0]

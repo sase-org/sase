@@ -236,6 +236,27 @@ def test_heartbeat_parses_proc_and_tracks_fault_delta(
     assert emitted[-1]["uptime_s"] == pytest.approx(300.0)
 
 
+def test_heartbeat_window_spans_since_previous_heartbeat(
+    emitted: list[dict[str, Any]], clock: _Clock, tmp_path: Path
+) -> None:
+    tel = GCTelemetry(
+        app_instance_id="test-instance",
+        monotonic=clock,
+        emit=emitted.append,
+        status_path=tmp_path / "missing-status",
+        stat_path=tmp_path / "missing-stat",
+    )
+    clock.advance(300.0)
+    tel._write_heartbeat(clock.now)
+    assert emitted[-1]["window_s"] == pytest.approx(300.0)
+    assert emitted[-1]["uptime_s"] == pytest.approx(300.0)
+
+    clock.advance(120.0)
+    tel._write_heartbeat(clock.now)
+    assert emitted[-1]["window_s"] == pytest.approx(120.0)
+    assert emitted[-1]["uptime_s"] == pytest.approx(420.0)
+
+
 def test_heartbeat_degrades_cleanly_without_proc(
     telemetry: GCTelemetry,
     emitted: list[dict[str, Any]],

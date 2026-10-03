@@ -147,6 +147,8 @@ def _drain_config_token_refresh(
     A timed-out join leaves a still-live worker registered and raises so a
     later test cannot inherit a silently orphaned single-flight slot.
     """
+    import time as _time
+
     from sase.config import core as config_core
 
     with config_core._current_config_token_cache_lock:
@@ -163,7 +165,25 @@ def _drain_config_token_refresh(
         except Exception:
             pass
     if thread is not None and thread is not threading.current_thread():
-        thread.join(timeout=timeout)
+        # The getter registers the thread under the lock and starts it after
+        # releasing the lock. Joining in that window raises "cannot join
+        # thread before it is started", so wait (bounded by the join timeout)
+        # for the registering caller to start it before joining.
+        deadline = _time.perf_counter() + timeout
+        while thread.ident is None and _time.perf_counter() < deadline:
+            _time.sleep(0.001)
+        remaining = max(0.0, deadline - _time.perf_counter())
+        if thread.ident is None:
+            # Never started: stop is already set, so a late start exits
+            # immediately instead of orphaning. Treat as drained once the
+            # registering caller can no longer leave a live worker behind.
+            with config_core._current_config_token_cache_lock:
+                if config_core._current_config_token_refresh_thread is thread:
+                    config_core._current_config_token_refresh_thread = None
+                    config_core._config_token_revalidator_stop = None
+                    config_core._config_token_revalidator_wake = None
+            return
+        thread.join(timeout=remaining)
     with config_core._current_config_token_cache_lock:
         if config_core._current_config_token_refresh_thread is not thread:
             return
