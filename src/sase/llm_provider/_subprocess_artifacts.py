@@ -3,8 +3,11 @@
 import json
 import os
 import re
+import sys
 from datetime import UTC, datetime
 from typing import IO
+
+from rich.file_proxy import FileProxy
 
 # Matches ANSI escape sequences: CSI, OSC, charset selection, and other
 # single-character escapes. Used to clean PTY output that may contain color
@@ -156,7 +159,12 @@ def append_stream_delta(
         live_reply_file.write(text)
         live_reply_file.flush()
     if not suppress_output:
-        print(text, end="", flush=True)
+        # Rich's Live console swaps sys.stdout for a FileProxy. Flushing that
+        # proxy prints its current fragment with a newline, splitting streamed
+        # words and inline Markdown across terminal lines. The existing chunk
+        # closure writes a newline and flushes the accumulated proxy text.
+        # Ordinary stdout and logging streams still need each delta flushed.
+        print(text, end="", flush=not isinstance(sys.stdout, FileProxy))
 
 
 def initial_usage_totals() -> dict[str, int]:

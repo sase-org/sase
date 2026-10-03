@@ -8,6 +8,12 @@ a payload type, the right fix is a re-capture, not a loosened assertion.
 from __future__ import annotations
 
 import json
+import os
+import pty
+import select
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -207,6 +213,95 @@ def test_muse_stream_prints_one_console_block_per_run_stream(
     )
 
     assert capsys.readouterr().out == "It doesn't split\nnext\n"
+
+
+def test_muse_deltas_keep_rich_file_proxy_lines_intact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Proxy fragments stay buffered until newline, while artifacts flush each delta."""
+    from io import StringIO
+
+    from rich.console import Console
+    from rich.file_proxy import FileProxy
+
+    from sase.llm_provider._subprocess_artifacts import append_stream_delta
+
+    artifacts = tmp_path / "live_reply.md"
+    timestamps = tmp_path / "live_reply_timestamps.jsonl"
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    output = StringIO()
+    proxy = FileProxy(Console(file=output), output)
+
+    monkeypatch.setattr("sys.stdout", proxy)
+    with (
+        artifacts.open("a", encoding="utf-8") as reply,
+        timestamps.open("a", encoding="utf-8") as timestamp_file,
+    ):
+        append_stream_delta("inline `co", False, reply, timestamp_file, new_chunk=True)
+        assert output.getvalue() == ""
+        assert artifacts.read_text(encoding="utf-8") == "inline `co"
+
+        append_stream_delta(
+            "de` stays\nfinal fragment", False, reply, timestamp_file, new_chunk=False
+        )
+        assert output.getvalue() == "inline `code` stays\n"
+        assert (
+            artifacts.read_text(encoding="utf-8")
+            == "inline `code` stays\nfinal fragment"
+        )
+
+        # Muse closes the chunk with a newline; that flushes the final unterminated
+        # proxy buffer without fragmenting the earlier line.
+        print(flush=True)
+
+    assert output.getvalue() == "inline `code` stays\nfinal fragment\n"
+
+
+def test_muse_stream_framing_under_provider_timer_in_a_pty() -> None:
+    """Exercise the actual Rich Live/FileProxy path used by provider_timer."""
+    master_fd, slave_fd = pty.openpty()
+    script = (
+        "import time\n"
+        "from sase.output import provider_timer\n"
+        "from sase.llm_provider._subprocess_artifacts import append_stream_delta\n"
+        "with provider_timer('Waiting for test provider'):\n"
+        "    append_stream_delta('inline `co', False, None, None, new_chunk=True)\n"
+        "    time.sleep(0.65)\n"
+        "    append_stream_delta('de` stays\\nfinal fragment', False, None, None, new_chunk=False)\n"
+        "    time.sleep(0.1)\n"
+        "    print(flush=True)\n"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", script],
+        stdin=subprocess.DEVNULL,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        close_fds=True,
+    )
+    os.close(slave_fd)
+    output = bytearray()
+    deadline = time.monotonic() + 5
+    try:
+        while process.poll() is None or select.select([master_fd], [], [], 0)[0]:
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, "provider_timer PTY probe exceeded five seconds"
+            readable, _, _ = select.select([master_fd], [], [], min(remaining, 0.1))
+            if readable:
+                try:
+                    output.extend(os.read(master_fd, 8192))
+                except OSError:
+                    break
+        assert process.wait(timeout=max(0.1, deadline - time.monotonic())) == 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        os.close(master_fd)
+
+    rendered = output.decode("utf-8", errors="replace")
+    assert "inline `code` stays" in rendered
+    assert "final fragment" in rendered
 
 
 def test_muse_stream_keeps_task_failures_out_of_a_successful_run() -> None:
