@@ -17,18 +17,24 @@ import datetime
 from types import SimpleNamespace
 from typing import Any
 
+from sase.ace.tui.modals.memory_pane_changes_card import (
+    _changes_provenance_text,
+    _changes_section_title,
+    _changes_totals_text,
+)
+from sase.ace.tui.modals.memory_pane_changes_feed import (
+    _changes_day_label,
+    _changes_lens_rows,
+    _changes_row_id,
+    _changes_row_is_selectable,
+)
+from sase.ace.tui.modals.memory_pane_changes_header import (
+    _changes_lens_footer,
+    _changes_lens_header_detail,
+)
 from sase.ace.tui.modals.memory_pane_changes_lens import (
     MORE_ROW_ID,
     MemoryPaneChangesLensMixin,
-    _changes_day_label,
-    _changes_lens_footer,
-    _changes_lens_header_detail,
-    _changes_lens_rows,
-    _changes_provenance_text,
-    _changes_row_id,
-    _changes_row_is_selectable,
-    _changes_section_title,
-    _changes_totals_text,
 )
 
 _DAY_ONE = 1790486400
