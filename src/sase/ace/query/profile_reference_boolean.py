@@ -205,8 +205,8 @@ def _tokenize_boolean_query(
         elif char == ")":
             tokens.append(_ProfileToken("rparen", ")", pos))
             pos += 1
-        elif char in {item.trigger for item in profile.macros}:
-            token, pos = _parse_macro(query, pos, profile)
+        elif char in {item.trigger for item in profile.shorthands}:
+            token, pos = _parse_shorthand(query, pos, profile)
             tokens.append(token)
         elif char in {item.sigil for item in profile.sigils}:
             token, pos = _parse_field_sigil(query, pos, profile)
@@ -297,7 +297,7 @@ def _parse_predicate_sigil(
     raise ProfileQueryError(f"Unexpected character: {char}", pos)
 
 
-def _parse_macro(
+def _parse_shorthand(
     query: str,
     pos: int,
     profile: CompiledQueryProfile,
@@ -306,20 +306,23 @@ def _parse_macro(
     if pos + 1 >= len(query):
         raise ProfileQueryError(f"Invalid {trigger} shorthand", pos)
     letter = query[pos + 1].lower()
-    macro = next(
+    shorthand = next(
         (
             item
-            for item in profile.macros
+            for item in profile.shorthands
             if item.trigger == trigger and item.letter.lower() == letter
         ),
         None,
     )
-    if macro is None:
-        valid = ", ".join(f"{item.trigger}{item.letter}" for item in profile.macros)
+    if shorthand is None:
+        valid = ", ".join(f"{item.trigger}{item.letter}" for item in profile.shorthands)
         raise ProfileQueryError(f"Invalid {trigger} shorthand (use {valid})", pos)
-    field = require_filterable_field(profile, macro.field, pos)
-    value = normalize_query_value(field, macro.value, position=pos)
-    return (_ProfileToken("property", value, pos, property_key=macro.field), pos + 2)
+    field = require_filterable_field(profile, shorthand.field, pos)
+    value = normalize_query_value(field, shorthand.value, position=pos)
+    return (
+        _ProfileToken("property", value, pos, property_key=shorthand.field),
+        pos + 2,
+    )
 
 
 def _parse_field_sigil(

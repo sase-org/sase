@@ -17,12 +17,12 @@ from sase.vcs_log.filter_query import CommitFilterQueryError, parse_commit_filte
 from tests._query_profile_helpers import assert_closed_host_predicates
 
 
-def test_stitches_profile_has_no_sigils_or_macros() -> None:
+def test_stitches_profile_has_no_sigils_or_shorthands() -> None:
     profile = compile_query_profile(stitches_query_schema())
     assert profile.pane_id == "stitches"
     assert profile.boolean is False
     assert profile.sigils == ()
-    assert profile.macros == ()
+    assert profile.shorthands == ()
     assert_closed_host_predicates(profile)
 
 

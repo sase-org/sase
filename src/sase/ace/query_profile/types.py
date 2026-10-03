@@ -57,11 +57,11 @@ class QuerySigilSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class QueryMacroSpec:
+class QueryShorthandSpec:
     """A ``<trigger><letter>`` shorthand for a fixed ``field:value`` pair.
 
     ``trigger`` must be one of
-    :data:`sase.ace.query_profile.registry.HOST_MACRO_TRIGGERS`.
+    :data:`sase.ace.query_profile.registry.HOST_SHORTHAND_TRIGGERS`.
     """
 
     trigger: str
@@ -89,7 +89,7 @@ class ArtifactQuerySchema:
     sigils: tuple[QuerySigilSpec, ...] = ()
     predicates: tuple[str, ...] = ()
     any_special: bool = False
-    macros: tuple[QueryMacroSpec, ...] = ()
+    shorthands: tuple[QueryShorthandSpec, ...] = ()
     free_text_hint: str = ""
     identity_field: str | None = None
 
@@ -98,6 +98,6 @@ __all__ = [
     "ArtifactQuerySchema",
     "FieldValueKind",
     "QueryFieldSpec",
-    "QueryMacroSpec",
+    "QueryShorthandSpec",
     "QuerySigilSpec",
 ]

@@ -1,4 +1,4 @@
-"""The flat Files dialect. No sigils or macros."""
+"""The flat Files dialect. No sigils or shorthands."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ _FILE_ORIGIN_VALUES: tuple[str, ...] = ("ref", "created", "capture")
 
 
 def files_query_schema() -> ArtifactQuerySchema:
-    """The flat Files dialect. No sigils or macros."""
+    """The flat Files dialect. No sigils or shorthands."""
 
     enum_fields = (
         QueryFieldSpec(

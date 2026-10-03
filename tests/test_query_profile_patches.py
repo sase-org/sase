@@ -54,9 +54,11 @@ def test_patches_profile_sigils_match_the_tokenizer() -> None:
         assert to_canonical_string(expr) == f"{field}:widget"
 
 
-def test_patches_profile_macros_match_the_status_shorthands() -> None:
+def test_patches_profile_shorthands_match_the_status_shorthands() -> None:
     profile = compile_query_profile(patches_query_schema())
-    macro_map = {(item.trigger, item.letter): item.value for item in profile.macros}
+    shorthand_map = {
+        (item.trigger, item.letter): item.value for item in profile.shorthands
+    }
     expected = {
         "d": "DRAFT",
         "m": "MAILED",
@@ -65,7 +67,7 @@ def test_patches_profile_macros_match_the_status_shorthands() -> None:
         "w": "WIP",
         "y": "READY",
     }
-    assert macro_map == {("%", letter): value for letter, value in expected.items()}
+    assert shorthand_map == {("%", letter): value for letter, value in expected.items()}
     for letter, value in expected.items():
         expr = parse_query(f"%{letter}")
         assert to_canonical_string(expr) == f"status:{value}"

@@ -1,4 +1,4 @@
-"""The flat Stitches (commits) dialect. No sigils or macros."""
+"""The flat Stitches (commits) dialect. No sigils or shorthands."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _MERGE_VISIBILITY_VALUES: tuple[str, ...] = get_args(MergeVisibility)
 
 
 def stitches_query_schema() -> ArtifactQuerySchema:
-    """The flat Stitches (commits) dialect. No sigils or macros."""
+    """The flat Stitches (commits) dialect. No sigils or shorthands."""
 
     fields = (
         QueryFieldSpec(

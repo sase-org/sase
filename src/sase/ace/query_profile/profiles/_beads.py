@@ -1,4 +1,4 @@
-"""The flat Beads dialect. No sigils or macros."""
+"""The flat Beads dialect. No sigils or shorthands."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from ..types import ArtifactQuerySchema, QueryFieldSpec
 
 
 def beads_query_schema() -> ArtifactQuerySchema:
-    """The flat Beads dialect. No sigils or macros."""
+    """The flat Beads dialect. No sigils or shorthands."""
 
     enum_fields = (
         QueryFieldSpec(

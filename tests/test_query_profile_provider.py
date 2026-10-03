@@ -28,7 +28,7 @@ def test_provider_query_schema_derives_fields_from_the_notes_fixture() -> None:
     profile = compile_query_profile(provider_query_schema("notes", spec))
     assert profile.pane_id == "ref:notes"
     assert profile.boolean is False
-    assert profile.sigils == () and profile.macros == ()
+    assert profile.sigils == () and profile.shorthands == ()
     assert_closed_host_predicates(profile)
     # ``related`` and ``family`` back the fixture's declared relations: a
     # ``ref.relations[].source`` must name a declared ``ref.properties`` key, so
@@ -84,6 +84,6 @@ def test_provider_query_schema_grants_only_closed_host_predicates() -> None:
     spec = {"ref": {"properties": {"anything": {"type": "string"}}}}
     schema = provider_query_schema("kind", spec)
     assert schema.sigils == ()
-    assert schema.macros == ()
+    assert schema.shorthands == ()
     assert schema.predicates == tuple(sorted(HOST_PREDICATES))
     assert schema.any_special is True

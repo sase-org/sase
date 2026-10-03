@@ -11,7 +11,7 @@ from sase.ace.query.profile_highlighting import (
 from sase.ace.query_profile import (
     ArtifactQuerySchema,
     QueryFieldSpec,
-    QueryMacroSpec,
+    QueryShorthandSpec,
     QuerySigilSpec,
     compile_query_profile,
 )
@@ -20,7 +20,7 @@ from sase.ace.query_profile.profiles import beads_query_schema, patches_query_sc
 _BEADS_PROFILE = compile_query_profile(beads_query_schema())
 _PATCHES_PROFILE = compile_query_profile(patches_query_schema())
 
-_SIGIL_MACRO_PROFILE = compile_query_profile(
+_SIGIL_SHORTHAND_PROFILE = compile_query_profile(
     ArtifactQuerySchema(
         pane_id="test-flat-shorthand",
         boolean=False,
@@ -29,7 +29,7 @@ _SIGIL_MACRO_PROFILE = compile_query_profile(
             QueryFieldSpec(key="status", filterable=True, negatable=True),
         ),
         sigils=(QuerySigilSpec("+", "project"),),
-        macros=(QueryMacroSpec("%", "d", "status", "done"),),
+        shorthands=(QueryShorthandSpec("%", "d", "status", "done"),),
         predicates=(),
         any_special=False,
         free_text_hint="free text",
@@ -174,13 +174,13 @@ def test_half_typed_key_only_token() -> None:
 
 
 def test_sigil() -> None:
-    assert _classify_flat_query_tokens("+myproj", _SIGIL_MACRO_PROFILE) == [
+    assert _classify_flat_query_tokens("+myproj", _SIGIL_SHORTHAND_PROFILE) == [
         ("+myproj", "shorthand")
     ]
 
 
-def test_macro() -> None:
-    assert _classify_flat_query_tokens("%d", _SIGIL_MACRO_PROFILE) == [
+def test_shorthand() -> None:
+    assert _classify_flat_query_tokens("%d", _SIGIL_SHORTHAND_PROFILE) == [
         ("%d", "shorthand")
     ]
 

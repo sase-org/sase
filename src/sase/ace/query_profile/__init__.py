@@ -5,8 +5,8 @@ once per pane dialect (see :mod:`sase.ace.query_profile.profiles`) and
 compiled by :func:`~sase.ace.query_profile.compiler.compile_query_profile`
 into an immutable, digest-stable
 :class:`~sase.ace.query_profile.compiler.CompiledQueryProfile`. Sigils,
-zero-argument predicates, and macro triggers may only be selected from the
-closed host vocabularies in :mod:`sase.ace.query_profile.registry` -- a
+zero-argument predicates, and shorthand triggers may only be selected from
+the closed host vocabularies in :mod:`sase.ace.query_profile.registry` -- a
 schema can never invent new punctuation or matcher behavior.
 
 ``ArtifactsPaneContract`` (:mod:`sase.ace.tui._artifact_tab_model`) compiles
@@ -33,7 +33,7 @@ from .registry import (
     HOST_DATE_BOUND_KEYS,
     HOST_DURATION_BOUND_KEYS,
     HOST_FIELD_VALUE_KINDS,
-    HOST_MACRO_TRIGGERS,
+    HOST_SHORTHAND_TRIGGERS,
     HOST_PREDICATES,
     HOST_SIGIL_CHARS,
     HostPredicateDef,
@@ -42,7 +42,7 @@ from .types import (
     ArtifactQuerySchema,
     FieldValueKind,
     QueryFieldSpec,
-    QueryMacroSpec,
+    QueryShorthandSpec,
     QuerySigilSpec,
 )
 from .compiler import CompiledQueryProfile, QueryProfileError, compile_query_profile
@@ -68,7 +68,7 @@ __all__ = [
     "HOST_DATE_BOUND_KEYS",
     "HOST_DURATION_BOUND_KEYS",
     "HOST_FIELD_VALUE_KINDS",
-    "HOST_MACRO_TRIGGERS",
+    "HOST_SHORTHAND_TRIGGERS",
     "HOST_PREDICATES",
     "HOST_SIGIL_CHARS",
     "ArtifactQuerySchema",
@@ -76,7 +76,7 @@ __all__ = [
     "FieldValueKind",
     "HostPredicateDef",
     "QueryFieldSpec",
-    "QueryMacroSpec",
+    "QueryShorthandSpec",
     "QueryProfileError",
     "QuerySigilSpec",
     "agents_live_query_schema",

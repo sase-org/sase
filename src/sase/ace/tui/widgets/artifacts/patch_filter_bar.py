@@ -83,8 +83,8 @@ class PatchFilterBar(FilterBar):
         *,
         negated: bool,
     ) -> list[CompletionCandidate]:
-        if kind == "macro":
-            return self._macro_candidates(prefix)
+        if kind == "shorthand":
+            return self._shorthand_candidates(prefix)
 
         candidates = super()._candidates_for(kind, prefix, negated=negated)
         if kind == self._sigil_value_field:
@@ -127,14 +127,16 @@ class PatchFilterBar(FilterBar):
             )
         return candidates
 
-    def _macro_candidates(self, prefix: str) -> list[CompletionCandidate]:
+    def _shorthand_candidates(self, prefix: str) -> list[CompletionCandidate]:
         if self._profile is None:
             return []
         folded_prefix = prefix.casefold()
         candidates = []
-        for macro in self._profile.macros:
-            token = f"{macro.trigger}{macro.letter}"
-            if folded_prefix and not macro.letter.casefold().startswith(folded_prefix):
+        for shorthand in self._profile.shorthands:
+            token = f"{shorthand.trigger}{shorthand.letter}"
+            if folded_prefix and not shorthand.letter.casefold().startswith(
+                folded_prefix
+            ):
                 continue
             candidates.append(
                 filter_candidate(
@@ -144,7 +146,7 @@ class PatchFilterBar(FilterBar):
                     metadata=FilterCompletionMetadata(
                         kind="key",
                         value=token,
-                        hint=f"{macro.field}:{macro.value}",
+                        hint=f"{shorthand.field}:{shorthand.value}",
                     ),
                 )
             )

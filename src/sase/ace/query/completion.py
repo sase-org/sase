@@ -33,9 +33,9 @@ def patch_completion_context(
     if folded in {"and", "or", "not"}:
         return ("key", "", False)
     if token == "%":
-        return ("macro", "", False)
+        return ("shorthand", "", False)
     if token.startswith("%"):
-        return ("macro", token[1:].casefold(), False)
+        return ("shorthand", token[1:].casefold(), False)
     sigil_fields = {item.sigil: item.field for item in profile.sigils}
     if token[0] in sigil_fields:
         return (sigil_fields[token[0]], token[1:], negated)

@@ -84,7 +84,7 @@ def test_query_facade_keeps_profile_batch_compatibility_helper() -> None:
     assert query_facade.evaluate_artifact_query_many("facade", rows, profile) == [True]
 
 
-def test_boolean_profile_honors_sigils_macros_predicates_and_search_text() -> None:
+def test_boolean_profile_honors_sigils_shorthands_predicates_and_search_text() -> None:
     profile = compile_query_profile(patches_query_schema())
     rows = [
         {

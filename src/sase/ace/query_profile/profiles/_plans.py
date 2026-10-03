@@ -1,4 +1,4 @@
-"""The flat Plans dialect. No sigils or macros."""
+"""The flat Plans dialect. No sigils or shorthands."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from ..types import ArtifactQuerySchema, QueryFieldSpec
 
 
 def plans_query_schema() -> ArtifactQuerySchema:
-    """The flat Plans dialect. No sigils or macros.
+    """The flat Plans dialect. No sigils or shorthands.
 
     None of ``kind``/``status``/``tier`` are enum-validated today (unlike
     the equivalent Beads keys), so they compile as plain strings even though

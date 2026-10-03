@@ -7,13 +7,14 @@ import pytest
 from sase.ace.query_profile import (
     ArtifactQuerySchema,
     QueryFieldSpec,
-    QueryMacroSpec,
+    QueryShorthandSpec,
     QueryProfileError,
     QuerySigilSpec,
     compile_query_profile,
     patches_query_schema,
 )
 from sase.ace.query_profile.registry import HOST_PREDICATES
+from sase.core.rust import require_rust_binding
 
 
 def _minimal_schema(**overrides: object) -> ArtifactQuerySchema:
@@ -114,31 +115,52 @@ def test_compile_accepts_any_special_with_full_predicate_set() -> None:
     assert profile.any_special is True
 
 
-def test_compile_rejects_macro_with_non_host_trigger() -> None:
+def test_compile_rejects_shorthand_with_non_host_trigger() -> None:
     schema = _minimal_schema(
-        macros=(QueryMacroSpec(trigger="$", letter="d", field="alpha", value="X"),)
+        shorthands=(
+            QueryShorthandSpec(trigger="$", letter="d", field="alpha", value="X"),
+        )
     )
     with pytest.raises(QueryProfileError, match="not host-recognized"):
         compile_query_profile(schema)
 
 
-def test_compile_rejects_macro_targeting_undeclared_field() -> None:
+def test_compile_rejects_shorthand_targeting_undeclared_field() -> None:
     schema = _minimal_schema(
-        macros=(QueryMacroSpec(trigger="%", letter="d", field="missing", value="X"),)
+        shorthands=(
+            QueryShorthandSpec(trigger="%", letter="d", field="missing", value="X"),
+        )
     )
     with pytest.raises(QueryProfileError, match="undeclared"):
         compile_query_profile(schema)
 
 
-def test_compile_rejects_duplicate_macro() -> None:
+def test_compile_rejects_duplicate_shorthand() -> None:
     schema = _minimal_schema(
-        macros=(
-            QueryMacroSpec(trigger="%", letter="d", field="alpha", value="X"),
-            QueryMacroSpec(trigger="%", letter="d", field="alpha", value="Y"),
+        shorthands=(
+            QueryShorthandSpec(trigger="%", letter="d", field="alpha", value="X"),
+            QueryShorthandSpec(trigger="%", letter="d", field="alpha", value="Y"),
         )
     )
-    with pytest.raises(QueryProfileError, match="duplicate macro"):
+    with pytest.raises(QueryProfileError, match="duplicate shorthand"):
         compile_query_profile(schema)
+
+
+def test_wire_payload_sends_shorthands_with_the_canonical_digest() -> None:
+    profile = compile_query_profile(patches_query_schema())
+    wire = profile.to_wire()
+
+    # Pinned core accepts ``shorthands`` as an alias for its ``macros``
+    # field; only the alias key goes across the wire.
+    assert "shorthands" in wire
+    assert "macros" not in wire
+    assert wire["digest"] == profile.digest
+
+    compile_query = require_rust_binding("compile_query_with_profile")
+    # Rust recomputes the digest from its canonical ``macros``-keyed
+    # payload and rejects a mismatch, so a successful compile proves the
+    # stored digest still matches those canonical bytes.
+    compile_query("%w", wire)
 
 
 def test_digest_is_stable_across_repeated_compiles() -> None:

@@ -14,7 +14,7 @@ def test_plans_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
     profile = compile_query_profile(plans_query_schema())
     assert profile.pane_id == "ref:plan"
     assert profile.boolean is False
-    assert profile.sigils == () and profile.macros == ()
+    assert profile.sigils == () and profile.shorthands == ()
     assert_closed_host_predicates(profile)
     sample_values = {
         "kind": "proposal",

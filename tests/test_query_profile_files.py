@@ -17,7 +17,7 @@ def test_files_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
     profile = compile_query_profile(files_query_schema())
     assert profile.pane_id == "files"
     assert profile.boolean is False
-    assert profile.sigils == () and profile.macros == ()
+    assert profile.sigils == () and profile.shorthands == ()
     assert_closed_host_predicates(profile)
     sample_values = {
         "kind": "file",

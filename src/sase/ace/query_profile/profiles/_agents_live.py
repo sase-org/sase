@@ -1,4 +1,4 @@
-"""The boolean live Agents tab dialect. No sigils, macros, or predicates."""
+"""The boolean live Agents tab dialect. No sigils, shorthands, or predicates."""
 
 from __future__ import annotations
 

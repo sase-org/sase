@@ -88,7 +88,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("~NAME / sibling:NAME", "Revert-family siblings"),
                 ("&NAME / name:NAME", "Exact Patch name"),
                 *_relation_rows(km, contracts.get("patches")),
-                ("%w/%d/%y/%m/%s/%r", "Status macros"),
+                ("%w/%d/%y/%m/%s/%r", "Status shorthands"),
                 ("!!! / !!", "Has / lacks error suffixes"),
                 ("@@@ / !@", "Has / lacks running agents"),
                 ("$$$ / !$ / *", "Process state / any special state"),

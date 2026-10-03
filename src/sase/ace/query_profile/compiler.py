@@ -5,9 +5,15 @@ argument into Rust parse/compile/evaluate calls and into the Python
 reference evaluator, instead of each of those consumers special-casing a
 pane. Compilation validates the schema against the closed host vocabularies
 in :mod:`sase.ace.query_profile.registry`, canonicalizes field/sigil/
-predicate/macro order so authoring order never affects the result, and
+predicate/shorthand order so authoring order never affects the result, and
 computes a stable digest so callers can detect a changed dialect (for
 example to invalidate a cached saved query).
+
+The wire payload sent to Rust names the shorthand list ``shorthands``,
+which pinned core accepts as an alias. The digest is still computed from a
+canonical payload whose list sits under the ``macros`` key, so the digest
+matches the canonical bytes Rust hashes. A later core flip owns the
+canonical key.
 """
 
 from __future__ import annotations
@@ -19,11 +25,16 @@ from typing import Any
 
 from .registry import (
     HOST_FIELD_VALUE_KINDS,
-    HOST_MACRO_TRIGGERS,
     HOST_PREDICATES,
+    HOST_SHORTHAND_TRIGGERS,
     HOST_SIGIL_CHARS,
 )
-from .types import ArtifactQuerySchema, QueryFieldSpec, QueryMacroSpec, QuerySigilSpec
+from .types import (
+    ArtifactQuerySchema,
+    QueryFieldSpec,
+    QueryShorthandSpec,
+    QuerySigilSpec,
+)
 
 
 class QueryProfileError(ValueError):
@@ -40,7 +51,7 @@ class CompiledQueryProfile:
     sigils: tuple[QuerySigilSpec, ...]
     predicates: tuple[str, ...]
     any_special: bool
-    macros: tuple[QueryMacroSpec, ...]
+    shorthands: tuple[QueryShorthandSpec, ...]
     free_text_hint: str
     digest: str
     identity_field: str | None = None
@@ -74,9 +85,12 @@ class CompiledQueryProfile:
             sigils=self.sigils,
             predicates=self.predicates,
             any_special=self.any_special,
-            macros=self.macros,
+            shorthands=self.shorthands,
             free_text_hint=self.free_text_hint,
         )
+        # Pinned core still hashes the canonical payload with the list under
+        # the ``macros`` key, so rename the key only on the wire copy.
+        payload["shorthands"] = payload.pop("macros")
         payload["digest"] = self.digest
         return payload
 
@@ -85,7 +99,7 @@ def compile_query_profile(schema: ArtifactQuerySchema) -> CompiledQueryProfile:
     """Validate *schema* against the closed host vocabularies and compile it.
 
     Compilation is pure and order-independent: fields, sigils, predicates,
-    and macros are sorted into a canonical order so that two schemas
+    and shorthands are sorted into a canonical order so that two schemas
     describing the same dialect always compile to byte-identical wire
     payloads and digests, regardless of the order they were authored in.
     """
@@ -93,7 +107,9 @@ def compile_query_profile(schema: ArtifactQuerySchema) -> CompiledQueryProfile:
     fields = tuple(sorted(schema.fields, key=lambda item: item.key))
     sigils = tuple(sorted(schema.sigils, key=lambda item: item.sigil))
     predicates = tuple(sorted(schema.predicates))
-    macros = tuple(sorted(schema.macros, key=lambda item: (item.trigger, item.letter)))
+    shorthands = tuple(
+        sorted(schema.shorthands, key=lambda item: (item.trigger, item.letter))
+    )
     payload = _canonical_payload(
         pane_id=schema.pane_id,
         boolean=schema.boolean,
@@ -101,7 +117,7 @@ def compile_query_profile(schema: ArtifactQuerySchema) -> CompiledQueryProfile:
         sigils=sigils,
         predicates=predicates,
         any_special=schema.any_special,
-        macros=macros,
+        shorthands=shorthands,
         free_text_hint=schema.free_text_hint,
     )
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -113,7 +129,7 @@ def compile_query_profile(schema: ArtifactQuerySchema) -> CompiledQueryProfile:
         sigils=sigils,
         predicates=predicates,
         any_special=schema.any_special,
-        macros=macros,
+        shorthands=shorthands,
         free_text_hint=schema.free_text_hint,
         digest=digest,
         identity_field=schema.identity_field,
@@ -128,9 +144,12 @@ def _canonical_payload(
     sigils: tuple[QuerySigilSpec, ...],
     predicates: tuple[str, ...],
     any_special: bool,
-    macros: tuple[QueryMacroSpec, ...],
+    shorthands: tuple[QueryShorthandSpec, ...],
     free_text_hint: str,
 ) -> dict[str, Any]:
+    # The ``macros`` key below is the canonical digest spelling pinned core
+    # still hashes; :meth:`CompiledQueryProfile.to_wire` renames it to
+    # ``shorthands`` on the copy it sends across the wire.
     return {
         "pane_id": pane_id,
         "boolean": boolean,
@@ -145,7 +164,7 @@ def _canonical_payload(
                 "field": item.field,
                 "value": item.value,
             }
-            for item in macros
+            for item in shorthands
         ],
         "free_text_hint": free_text_hint,
     }
@@ -222,21 +241,23 @@ def _validate(schema: ArtifactQuerySchema) -> None:
             f"{', '.join(sorted(HOST_PREDICATES))}"
         )
 
-    macro_keys: set[tuple[str, str]] = set()
-    for macro in schema.macros:
-        if macro.trigger not in HOST_MACRO_TRIGGERS:
+    shorthand_keys: set[tuple[str, str]] = set()
+    for shorthand in schema.shorthands:
+        if shorthand.trigger not in HOST_SHORTHAND_TRIGGERS:
             raise QueryProfileError(
-                f"macro trigger {macro.trigger!r} is not host-recognized "
-                f"(valid triggers: {', '.join(sorted(HOST_MACRO_TRIGGERS))})"
+                f"shorthand trigger {shorthand.trigger!r} is not host-recognized "
+                f"(valid triggers: {', '.join(sorted(HOST_SHORTHAND_TRIGGERS))})"
             )
-        macro_key = (macro.trigger, macro.letter)
-        if macro_key in macro_keys:
-            raise QueryProfileError(f"duplicate macro: {macro.trigger}{macro.letter}")
-        macro_keys.add(macro_key)
-        if macro.field not in field_keys:
+        shorthand_key = (shorthand.trigger, shorthand.letter)
+        if shorthand_key in shorthand_keys:
             raise QueryProfileError(
-                f"macro {macro.trigger}{macro.letter} targets undeclared "
-                f"field {macro.field!r}"
+                f"duplicate shorthand: {shorthand.trigger}{shorthand.letter}"
+            )
+        shorthand_keys.add(shorthand_key)
+        if shorthand.field not in field_keys:
+            raise QueryProfileError(
+                f"shorthand {shorthand.trigger}{shorthand.letter} targets "
+                f"undeclared field {shorthand.field!r}"
             )
 
     if schema.identity_field is None:

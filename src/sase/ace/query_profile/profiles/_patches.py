@@ -1,4 +1,4 @@
-"""The boolean Patch dialect: sigils, macros, and predicates included."""
+"""The boolean Patch dialect: sigils, shorthands, and predicates included."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from ..registry import HOST_PREDICATES
 from ..types import (
     ArtifactQuerySchema,
     QueryFieldSpec,
-    QueryMacroSpec,
+    QueryShorthandSpec,
     QuerySigilSpec,
 )
 
@@ -25,7 +25,7 @@ _PATCH_PROPERTY_HINTS: dict[str, str] = {
 
 
 def patches_query_schema() -> ArtifactQuerySchema:
-    """The boolean Patch dialect: sigils, macros, and predicates included."""
+    """The boolean Patch dialect: sigils, shorthands, and predicates included."""
 
     property_fields = tuple(
         QueryFieldSpec(
@@ -53,8 +53,8 @@ def patches_query_schema() -> ArtifactQuerySchema:
         QuerySigilSpec("~", "sibling"),
         QuerySigilSpec("&", "name"),
     )
-    macros = tuple(
-        QueryMacroSpec("%", letter, "status", value)
+    shorthands = tuple(
+        QueryShorthandSpec("%", letter, "status", value)
         for letter, value in sorted(STATUS_SHORTHANDS.items())
     )
     return ArtifactQuerySchema(
@@ -64,7 +64,7 @@ def patches_query_schema() -> ArtifactQuerySchema:
         sigils=sigils,
         predicates=tuple(sorted(HOST_PREDICATES)),
         any_special=True,
-        macros=macros,
+        shorthands=shorthands,
         free_text_hint=(
             "name, description, status, origin, project, refs, parent, "
             "pr_url, notes (implicit AND)"

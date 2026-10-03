@@ -1,4 +1,4 @@
-"""The boolean Artifacts Agent pane dialect. No sigils or macros."""
+"""The boolean Artifacts Agent pane dialect. No sigils or shorthands."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from ._agents_shared import (
 
 
 def agents_query_schema() -> ArtifactQuerySchema:
-    """The boolean Artifacts Agent pane dialect. No sigils or macros."""
+    """The boolean Artifacts Agent pane dialect. No sigils or shorthands."""
 
     relation_values = _agent_relation_values()
     enum_fields = (

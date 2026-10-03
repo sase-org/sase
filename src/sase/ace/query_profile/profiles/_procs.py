@@ -1,4 +1,4 @@
-"""The flat Procs dialect. No sigils, macros, or host predicates."""
+"""The flat Procs dialect. No sigils, shorthands, or host predicates."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from ..types import ArtifactQuerySchema, QueryFieldSpec
 
 
 def procs_query_schema() -> ArtifactQuerySchema:
-    """The flat Procs dialect. No sigils, macros, or host predicates.
+    """The flat Procs dialect. No sigils, shorthands, or host predicates.
 
     Free text (and its explicit ``text:`` spelling) searches the command
     string, row label, and retained output. Every field is negatable, and

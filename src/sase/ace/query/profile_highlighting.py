@@ -60,9 +60,9 @@ def _classify_flat_query_tokens(
 
     Branch order mirrors
     :func:`sase.ace.query.profile_reference_flat._flat_clauses` exactly
-    (predicate, then sigil/macro shorthand, then ``key:value``, then free
-    text) so the highlight can never disagree with what the flat parser
-    would actually accept. Never raises.
+    (predicate, then sigil/shorthand, then ``key:value``, then free text)
+    so the highlight can never disagree with what the flat parser would
+    actually accept. Never raises.
     """
     try:
         tokens = tokenize(text, strict=False)
@@ -72,7 +72,7 @@ def _classify_flat_query_tokens(
     known_keys = {key.casefold() for key in profile.filterable_fields()}
     known_keys.add("limit")
     sigil_map = {item.sigil: item.field for item in profile.sigils}
-    macro_tokens = {f"{item.trigger}{item.letter}" for item in profile.macros}
+    shorthand_tokens = {f"{item.trigger}{item.letter}" for item in profile.shorthands}
 
     spans: list[tuple[str, str]] = []
     cursor = 0
@@ -80,7 +80,7 @@ def _classify_flat_query_tokens(
         if token.start > cursor:
             spans.append((text[cursor : token.start], "whitespace"))
         spans.extend(
-            _classify_token(token, profile, known_keys, sigil_map, macro_tokens)
+            _classify_token(token, profile, known_keys, sigil_map, shorthand_tokens)
         )
         cursor = token.end
     if cursor < len(text):
@@ -93,7 +93,7 @@ def _classify_token(
     profile: CompiledQueryProfile,
     known_keys: set[str],
     sigil_map: dict[str, str],
-    macro_tokens: set[str],
+    shorthand_tokens: set[str],
 ) -> list[tuple[str, str]]:
     raw = token.raw
     spans: list[tuple[str, str]] = []
@@ -110,7 +110,7 @@ def _classify_token(
             spans.append((body_raw, predicate_style))
             return spans
 
-        if body in macro_tokens:
+        if body in shorthand_tokens:
             spans.append((body_raw, "shorthand"))
             return spans
 

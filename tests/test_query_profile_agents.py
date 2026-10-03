@@ -25,7 +25,7 @@ def test_agents_profile_filterable_fields_are_all_accepted_by_the_parser() -> No
     profile = compile_query_profile(agents_query_schema())
     assert profile.pane_id == "agents"
     assert profile.boolean is True
-    assert profile.sigils == () and profile.macros == ()
+    assert profile.sigils == () and profile.shorthands == ()
     assert_closed_host_predicates(profile)
     sample_values = {
         "name": "sase-r8.9.land",
@@ -187,7 +187,7 @@ def test_agents_live_profile_filterable_fields_are_all_accepted_by_parser() -> N
     profile = compile_query_profile(agents_live_query_schema())
     assert profile.pane_id == "agents-live"
     assert profile.boolean is True
-    assert profile.sigils == () and profile.macros == ()
+    assert profile.sigils == () and profile.shorthands == ()
     assert profile.predicates == ()
     assert profile.any_special is False
     sample_values = {

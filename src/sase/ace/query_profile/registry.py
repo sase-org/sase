@@ -1,8 +1,9 @@
 """Closed, host-validated vocabularies for the shared Artifacts query profile.
 
 Every pane-authored :class:`~sase.ace.query_profile.types.ArtifactQuerySchema`
-may only select from these fixed sigil characters, predicate kinds, macro
-trigger characters, and field-value kinds. A schema can point a sigil at one
+may only select from these fixed sigil characters, predicate kinds,
+shorthand trigger characters, and field-value kinds. A schema can point a
+sigil at one
 of its own declared fields, or enable one of these predicate kinds, but it
 can never invent new punctuation or matcher behavior. That keeps every
 dialect's shorthand grammar centrally auditable instead of scattered
@@ -16,7 +17,7 @@ from dataclasses import dataclass
 
 
 HOST_SIGIL_CHARS: frozenset[str] = frozenset({"+", "^", "~", "&"})
-HOST_MACRO_TRIGGERS: frozenset[str] = frozenset({"%"})
+HOST_SHORTHAND_TRIGGERS: frozenset[str] = frozenset({"%"})
 HOST_FIELD_VALUE_KINDS: frozenset[str] = frozenset(
     {"string", "enum", "bool", "date", "int"}
 )
@@ -55,7 +56,7 @@ __all__ = [
     "HOST_DATE_BOUND_KEYS",
     "HOST_DURATION_BOUND_KEYS",
     "HOST_FIELD_VALUE_KINDS",
-    "HOST_MACRO_TRIGGERS",
+    "HOST_SHORTHAND_TRIGGERS",
     "HOST_PREDICATES",
     "HOST_SIGIL_CHARS",
     "HostPredicateDef",

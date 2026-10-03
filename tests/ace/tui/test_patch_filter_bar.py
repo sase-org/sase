@@ -44,7 +44,7 @@ def patch_profile():
         ("^par", 4, ("ancestor", "par", False)),
         ("~sib", 4, ("sibling", "sib", False)),
         ("&nam", 4, ("name", "nam", False)),
-        ("%", 1, ("macro", "", False)),
+        ("%", 1, ("shorthand", "", False)),
         ('"quoted', 7, ("text", "quoted", False)),
     ],
 )
@@ -68,12 +68,12 @@ def test_patch_filter_bar_offers_patch_specific_rows(patch_profile) -> None:
     assert "#" in displays
 
 
-def test_patch_filter_bar_macro_rows(patch_profile) -> None:
+def test_patch_filter_bar_shorthand_rows(patch_profile) -> None:
     bar = PatchFilterBar(profile=patch_profile)
 
     displays = [
         candidate.display
-        for candidate in bar._candidates_for("macro", "", negated=False)
+        for candidate in bar._candidates_for("shorthand", "", negated=False)
     ]
 
     assert "%w" in displays
