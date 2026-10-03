@@ -183,15 +183,22 @@ class PagerBodyMixin:
     def row_text(self: Any, row: int) -> Text:
         """Return the row ``Text`` for absolute *row*.
 
-        The overlay line while search is painted, else the model row from
-        the current paint epoch.
+        The match-painted line while lazy search is active, the legacy
+        overlay line while a full-text overlay is painted, else the model
+        row from the current paint epoch.
         """
         try:
             widget = self._body_scroll()
         except Exception:
             widget = None
-        if widget is not None and widget.overlay_active:
-            return widget.overlay_line(row)
+        if widget is not None:
+            try:
+                if widget.match_active:
+                    return self._search_row_text(row)
+            except Exception:
+                pass
+            if widget.overlay_active:
+                return widget.overlay_line(row)
         renderer = self._body_renderer
         if renderer is None:
             return Text("")
@@ -207,11 +214,20 @@ class PagerBodyMixin:
             widget = self._body_scroll()
         except Exception:
             widget = None
-        if widget is not None and widget.overlay_active:
+        if widget is not None:
             try:
-                return widget.overlay_line(row).plain
+                if widget.match_active:
+                    try:
+                        return self._search_row_text(row).plain
+                    except Exception:
+                        return ""
             except Exception:
-                return ""
+                pass
+            if widget.overlay_active:
+                try:
+                    return widget.overlay_line(row).plain
+                except Exception:
+                    return ""
         return self._model_plain_row(row)
 
     def _model_plain_row(self: Any, row: int) -> str:

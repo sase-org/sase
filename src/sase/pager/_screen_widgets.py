@@ -102,11 +102,34 @@ class PagerBodyScroll(ScrollView):
         self._overlay_text: Text | None = None
         self._overlay_starts: array | None = None
         self._overlay_index: SpanIndex | None = None
+        self._match_active = False
+        self._match_line_count = 0
 
     @property
     def overlay_active(self) -> bool:
         """Return whether the search overlay is the current paint source."""
         return self._overlay_text is not None
+
+    @property
+    def match_active(self) -> bool:
+        """Return whether the lazy match overlay is the paint source."""
+        return self._match_active
+
+    def set_match_overlay(self, line_count: int) -> None:
+        """Paint *line_count* lazily-sourced match rows until cleared."""
+        self._match_active = True
+        self._match_line_count = max(int(line_count), 0)
+        self.clear_strip_cache()
+        self._refresh_virtual_size()
+        self.refresh(layout=True)
+
+    def clear_match_overlay(self) -> None:
+        """Drop the lazy match overlay without touching the model."""
+        self._match_active = False
+        self._match_line_count = 0
+        self.clear_strip_cache()
+        self._refresh_virtual_size()
+        self.refresh(layout=True)
 
     @property
     def overlay_line_count(self) -> int:
@@ -148,6 +171,8 @@ class PagerBodyScroll(ScrollView):
 
     def on_unmount(self) -> None:
         self._strip_cache.clear()
+        self._match_active = False
+        self._match_line_count = 0
 
     def render_line(self, y: int) -> Strip:
         """Paint absolute row ``scroll_y + y`` as one strip; never raises."""
@@ -164,6 +189,8 @@ class PagerBodyScroll(ScrollView):
         """Return the painted row count of the active source."""
         if self._overlay_text is not None:
             return self.overlay_line_count
+        if self._match_active:
+            return self._match_line_count
         view = _owning_view(self)
         body = getattr(view, "_body", None) if view is not None else None
         try:
@@ -205,7 +232,7 @@ class PagerBodyScroll(ScrollView):
                 epoch = int(view._body_paint_epoch)
             except Exception:
                 epoch = 0
-        overlay = self._overlay_text is not None
+        overlay = self._overlay_text is not None or self._match_active
         scroll_x = 0 if overlay else int(offset.x)
         absolute_row = int(offset.y) + y
         # Rows past the painted source stay blank: the line model clamps
@@ -281,6 +308,8 @@ class PagerBodyScroll(ScrollView):
                 width = 1
         if self._overlay_text is not None:
             height = self.overlay_line_count
+        elif self._match_active:
+            height = self._match_line_count
         elif view is not None and view._body is not None:
             try:
                 height = int(view._body.total_height)

@@ -88,10 +88,14 @@ class _VimSearchHost(Protocol):
     def vim_search_notify(self, message: str) -> None:
         """Surface non-blocking search feedback."""
 
-    # ``vim_search_styled_base`` is deliberately absent from this protocol:
-    # it is an opt-in extension point (see ``VimSearchController._styled_base``),
-    # and every other host keeps rendering the plain ``Text(self.corpus)``
-    # default it had before the pager needed preserved colors during search.
+    # ``vim_search_styled_base`` and ``vim_search_paint_matches`` are
+    # deliberately absent from this protocol: both are opt-in extension
+    # points (see ``VimSearchController._styled_base`` and
+    # ``_render_overlay``). Hosts without ``vim_search_styled_base``
+    # (every host but the pager, as of this writing) render the plain
+    # ``Text(self.corpus)`` default; hosts without
+    # ``vim_search_paint_matches`` (every host but the pager) receive
+    # the fully styled ``Text`` through ``vim_search_paint_overlay``.
 
 
 def line_start_offsets(text: str) -> tuple[int, ...]:
@@ -150,6 +154,12 @@ class VimSearchController:
         self.restore_scroll_x = 0
         self.restore_scroll_y = 0
         self.last_search: tuple[str, SearchDirection] | None = None
+        # Single-entry (corpus, query) -> spans cache so ``n``/``N``
+        # repeats and direction toggles reuse the last regex run while
+        # the corpus is unchanged. The corpus entry aliases
+        # ``self.corpus`` (no second copy) and is cleared on exit, so
+        # trail entries never pin search text through it.
+        self._span_cache: tuple[str, str, tuple[SearchSpan, ...]] | None = None
 
     @property
     def is_active(self) -> bool:
@@ -173,6 +183,7 @@ class VimSearchController:
         self.query = ""
         self.match_spans = ()
         self.current_selection = None
+        self._span_cache = None
         self.mode = "typing"
 
         self._host.vim_search_started()
@@ -264,7 +275,7 @@ class VimSearchController:
             else recorded_direction
         )
         origin = self._current_origin()
-        spans = find_search_matches(self.corpus, query)
+        spans = self._cached_matches(query)
         selection = select_search_match(
             spans,
             origin,
@@ -318,6 +329,7 @@ class VimSearchController:
         self.line_starts = (0,)
         self.match_spans = ()
         self.current_selection = None
+        self._span_cache = None
         self._host.vim_search_hide_overlay()
         self._host.vim_search_exited(refresh=refresh)
         if restore_scroll:
@@ -347,6 +359,15 @@ class VimSearchController:
             self._update_preview()
         return "consumed"
 
+    def _cached_matches(self, query: str) -> tuple[SearchSpan, ...]:
+        """Return match spans for *query*, reusing the last run when valid."""
+        cached = self._span_cache
+        if cached is not None and cached[0] == self.corpus and cached[1] == query:
+            return cached[2]
+        spans = find_search_matches(self.corpus, query)
+        self._span_cache = (self.corpus, query, spans)
+        return spans
+
     def _update_preview(self) -> None:
         if not self.query:
             self.match_spans = ()
@@ -356,7 +377,7 @@ class VimSearchController:
             self._scroll_to_origin()
             return
 
-        spans = find_search_matches(self.corpus, self.query)
+        spans = self._cached_matches(self.query)
         selection = select_search_match(
             spans,
             self.origin_offset,
@@ -416,6 +437,14 @@ class VimSearchController:
         return Text(self.corpus, no_wrap=True, overflow="crop")
 
     def _render_overlay(self) -> None:
+        paint_matches = getattr(self._host, "vim_search_paint_matches", None)
+        if callable(paint_matches):
+            selection = self.current_selection
+            current_index: int | None = None
+            if selection is not None and 0 <= selection.index < len(self.match_spans):
+                current_index = selection.index
+            paint_matches(tuple(self.match_spans), current_index)
+            return
         body = self._styled_base()
         for start, end in self.match_spans:
             if end > start:
