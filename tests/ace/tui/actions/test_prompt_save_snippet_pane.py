@@ -24,7 +24,7 @@ from sase.ace.tui.modals.snippet_name_modal import (
 from sase.ace.tui.modals.snippet_save_confirm_modal import SnippetSaveConfirmModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
-from sase.xprompt.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
 
 from ._prompt_save_xprompt_helpers import _SaveFlowApp, _wait_save_tasks
 
@@ -133,7 +133,7 @@ async def test_gt_new_snippet_loop_writes_publishes_expands_and_restores_cursor(
             "sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane._load_snippet_names_by_path",
             return_value={str(config): frozenset()},
         ),
-        patch("sase.xprompt.save_state.save_last_used_location", return_value=True),
+        patch("sase.macro.save_state.save_last_used_location", return_value=True),
     ):
         async with app.run_test(size=(110, 34)) as pilot:
             await pilot.pause()
@@ -290,7 +290,7 @@ async def test_snippet_pane_confirmation_save_writes_publishes_and_closes(
     _write_snippet_config(config, {})
     app = _SaveFlowApp("agent prompt")
 
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             bar = app.query_one(PromptInputBar)

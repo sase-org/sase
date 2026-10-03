@@ -93,7 +93,7 @@ def test_normally_completing_followup_breaks_exec_loop(
 
     with (
         patch(
-            "sase.xprompt.workflow_runner.execute_workflow",
+            "sase.macro.workflow_runner.execute_workflow",
             side_effect=execute_workflow,
         ),
         patch("sase.axe.run_agent_exec.reset_killed"),
@@ -154,7 +154,7 @@ def test_killed_followup_runs_kill_handoff_again(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.xprompt.workflow_runner.execute_workflow",
+            "sase.macro.workflow_runner.execute_workflow",
             side_effect=execute_workflow,
         ),
         patch("sase.axe.run_agent_exec.reset_killed"),

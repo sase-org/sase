@@ -30,8 +30,8 @@ from sase.plan_gate import (
     execute_plan_gate_command,
     translate_plan_gate_response,
 )
-from sase.xprompt.directive_edit import PromptWaitDirective
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directive_edit import PromptWaitDirective
+from sase.macro.directives import extract_prompt_directives
 from tests._axe_run_agent_exec_plan_followup_prompt_helpers import run_plan_approval
 from tests._axe_run_agent_exec_plan_helpers import patched_plan_deps
 from tests._plan_gate_fixtures import (

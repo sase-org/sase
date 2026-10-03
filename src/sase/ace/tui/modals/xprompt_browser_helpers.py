@@ -17,15 +17,15 @@ from sase.content_layout import (
 )
 from sase.main.plugin_discovery import discover_plugin_resources
 from sase.project_display_names import project_display_name_for
-from sase.xprompt.loader import (
+from sase.macro.loader import (
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
 )
-from sase.xprompt.project_identity import (
+from sase.macro.project_identity import (
     canonical_xprompt_project,
     known_project_namespaces,
 )
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.workflow_models import Workflow
 
 
 @dataclass

@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.sdd.files import dry_expand_embedded_workflows, expand_prompt_for_spec
-from sase.xprompt.models import UNSET, InputArg
+from sase.macro.models import UNSET, InputArg
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +64,7 @@ def _make_standalone_workflow(name: str) -> _FakeWorkflow:
 # dry_expand_embedded_workflows
 # ---------------------------------------------------------------------------
 
-_LOADER_PATH = "sase.xprompt.loader.get_all_workflows"
+_LOADER_PATH = "sase.macro.loader.get_all_workflows"
 
 
 def test_dry_expand_no_workflows() -> None:
@@ -211,7 +211,7 @@ def test_dry_expand_no_pre_post_steps_executed() -> None:
     with (
         patch(_LOADER_PATH, return_value={"greet": wf}),
         patch(
-            "sase.xprompt.workflow_executor_utils.render_template",
+            "sase.macro.workflow_executor_utils.render_template",
             return_value="Hello!",
         ) as mock_render,
     ):

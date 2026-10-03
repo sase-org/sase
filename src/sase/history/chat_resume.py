@@ -35,13 +35,13 @@ def sanitize_resume_prompt(prompt: str) -> str:
         return prompt
 
     # Lazy imports avoid import-cycle risk with sase.xprompt.
-    from sase.xprompt._disabled_regions import strip_disabled_region_markers
-    from sase.xprompt._fenced_blocks import (
+    from sase.macro._disabled_regions import strip_disabled_region_markers
+    from sase.macro._fenced_blocks import (
         protect_fenced_blocks,
         unprotect_fenced_blocks,
     )
-    from sase.xprompt._parsing_references import iter_xprompt_references
-    from sase.xprompt.directives import strip_known_directives
+    from sase.macro._parsing_references import iter_xprompt_references
+    from sase.macro.directives import strip_known_directives
 
     fenced_blocks: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced_blocks)
@@ -81,7 +81,7 @@ def find_resume_ref_groups(text: str) -> list[tuple[str, str, list[str]]]:
         if raw_arg.startswith("`") and raw_arg.endswith("`"):
             arguments = [raw_arg[1:-1]]
         elif xprompt_name in {"fork", "resume"}:
-            from sase.xprompt._parsing import parse_args
+            from sase.macro._parsing import parse_args
 
             arguments, _ = parse_args(raw_arg, preserve_empty_args=True)
             arguments = [argument for argument in arguments if argument]

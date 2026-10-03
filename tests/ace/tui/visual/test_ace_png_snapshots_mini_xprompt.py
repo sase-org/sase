@@ -25,8 +25,8 @@ from sase.ace.tui.modals.unified_xprompt_save_modal import UnifiedSaveLocation
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.xprompt.naming import SaveResolution
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.naming import SaveResolution
+from sase.macro.save import SaveTargetFormat
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

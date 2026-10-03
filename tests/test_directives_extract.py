@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import (
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import (
     PromptDirectives,
     extract_prompt_directives,
 )
@@ -118,7 +118,7 @@ def test_model_directive_alias_kwargs_do_not_count_as_positional_models() -> Non
 
 def test_model_directive_alias_override_expands_xprompt_reference() -> None:
     with patch(
-        "sase.xprompt.directives.process_xprompt_references",
+        "sase.macro.directives.process_xprompt_references",
         return_value="sonnet",
     ) as process:
         _, directives = extract_prompt_directives("%m(opus, medium=#fast)\nReview")
@@ -200,7 +200,7 @@ def test_xprompt_ref_in_directive_arg() -> None:
     prompt = "%model:#gemini_small_model\nReview this code"
 
     with patch(
-        "sase.xprompt.directives.process_xprompt_references",
+        "sase.macro.directives.process_xprompt_references",
     ) as mock_process:
         mock_process.return_value = "gemini-2.5-flash"
         cleaned, directives = extract_prompt_directives(prompt)
@@ -380,7 +380,7 @@ def test_model_alias_prefix_strips_before_xprompt_expansion(
         },
     )
 
-    with patch("sase.xprompt.directives.process_xprompt_references") as mock_process:
+    with patch("sase.macro.directives.process_xprompt_references") as mock_process:
         mock_process.return_value = "agy_flash"
         _, directives = extract_prompt_directives("%m:@#agy\nReview")
 

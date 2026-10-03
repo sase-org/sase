@@ -36,7 +36,7 @@ from sase.feature_flags import override_flags
 from sase.notification_gates.paths import REQUEST_FILENAME
 from sase.ops.models import DurableOperationRequest
 from sase.ops.names import RUN_LAUNCH
-from sase.xprompt.code_value import CodeValue
+from sase.macro.code_value import CodeValue
 
 
 def _agent_result() -> AgentLaunchResult:
@@ -122,7 +122,7 @@ def _run_launch_query(
         )
         stack.enter_context(
             patch(
-                "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+                "sase.macro.unresolved.scan_query_for_unresolved_references",
                 return_value=[],
             )
         )
@@ -618,7 +618,7 @@ def test_isolated_direct_bash_proc_settles_without_agent(
                 return_value=[],
             ),
             patch(
-                "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+                "sase.macro.unresolved.scan_query_for_unresolved_references",
                 return_value=[],
             ),
             patch("sase.ops.commands.run.emit_run_launch_result", emit),

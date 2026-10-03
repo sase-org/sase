@@ -32,8 +32,8 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     vcs_repo_completion_candidates,
 )
-from sase.xprompt.model_completion import build_model_completion_catalog
-from sase.xprompt.vcs_repo_completion import (
+from sase.macro.model_completion import build_model_completion_catalog
+from sase.macro.vcs_repo_completion import (
     VcsRepoTrigger,
     fetch_repo_candidates,
 )
@@ -41,7 +41,7 @@ from sase.xprompt.vcs_repo_completion import (
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
     from sase.ace.tui.widgets.prompt_path_inventory import PromptPathSnapshot
-    from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
+    from sase.macro.vcs_repo_completion import VcsRepoFetchResult
 
 
 class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):

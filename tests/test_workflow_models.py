@@ -1,7 +1,7 @@
 """Tests for Workflow model methods."""
 
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import InputArg, InputType
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 # ============================================================================
 # Workflow.appears_as_agent() tests

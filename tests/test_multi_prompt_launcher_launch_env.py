@@ -11,7 +11,7 @@ from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planne
 from sase.agent.output_variable_context import SASE_AGENT_VAR_UPSTREAMS_ENV
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
-from sase.xprompt.used_xprompts import SASE_LAUNCH_SWARM_XPROMPTS
+from sase.macro.used_macros import SASE_LAUNCH_SWARM_XPROMPTS
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

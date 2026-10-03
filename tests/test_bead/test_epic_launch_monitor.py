@@ -14,7 +14,7 @@ from sase.dev_update.code_swap_lock import (
     guarded_exec_argv,
     logical_argv_from_guarded_exec,
 )
-from sase.xprompt.directive_edit import PromptWaitDirective
+from sase.macro.directive_edit import PromptWaitDirective
 
 from .epic_launch_test_helpers import fake_lease, start_epic_launch_monitor_request
 

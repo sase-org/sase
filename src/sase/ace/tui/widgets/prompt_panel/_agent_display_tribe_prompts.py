@@ -181,7 +181,7 @@ def _append_entry_tags(
     if multi_project and digest.project is not None:
         if digest.project.startswith("#"):
             try:
-                from sase.xprompt import extract_project_from_vcs_tag
+                from sase.macro import extract_project_from_vcs_tag
 
                 bare = extract_project_from_vcs_tag(digest.project) or digest.project
             except Exception:

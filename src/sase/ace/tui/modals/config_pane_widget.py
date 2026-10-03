@@ -224,7 +224,7 @@ class ConfigPane(
             resolved_local_paths = local_paths
             if not resolved_local_paths and project is not None:
                 from sase.content_layout import resolve_project_layout
-                from sase.xprompt.loader import get_known_project_workspaces
+                from sase.macro.loader import get_known_project_workspaces
 
                 workspace = get_known_project_workspaces().get(project)
                 if workspace is not None:

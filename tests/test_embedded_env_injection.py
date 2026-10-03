@@ -6,15 +6,15 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt.workflow_executor_steps_embedded import EmbeddedWorkflowMixin
-from sase.xprompt.workflow_models import (
+from sase.macro.workflow_executor_steps_embedded import EmbeddedWorkflowMixin
+from sase.macro.workflow_models import (
     Workflow,
     WorkflowExecutionError,
     WorkflowState,
     WorkflowStep,
 )
 
-_LOADER_PATH = "sase.xprompt.loader.get_all_workflows"
+_LOADER_PATH = "sase.macro.loader.get_all_workflows"
 
 
 def _make_workflow_with_env(
@@ -107,7 +107,7 @@ class TestExpandEmbeddedInjectsEnv:
 
     def test_environment_template_rendering(self) -> None:
         """Environment values are rendered as Jinja2 templates with args."""
-        from sase.xprompt.models import InputArg
+        from sase.macro.models import InputArg
 
         wf = _make_workflow_with_env("mywf", {"MY_VAR": "{{ method }}"})
         wf.inputs = [InputArg(name="method")]
@@ -123,7 +123,7 @@ class TestExpandEmbeddedInjectsEnv:
 
     def test_embedded_workflow_colon_arg_decodes_plus_space_substitution(self) -> None:
         """Embedded workflow prompt_part rendering receives decoded colon args."""
-        from sase.xprompt.models import InputArg, InputType
+        from sase.macro.models import InputArg, InputType
 
         wf = Workflow(
             name="mywf",
@@ -185,7 +185,7 @@ class TestQueryExpandInjectsEnv:
         from sase.main.query_handler._embedded_workflows import (
             expand_embedded_workflows_in_query,
         )
-        from sase.xprompt.models import InputArg
+        from sase.macro.models import InputArg
 
         wf = _make_workflow_with_env("mywf", {"MY_VAR": "{{ method }}"})
         wf.inputs = [InputArg(name="method")]

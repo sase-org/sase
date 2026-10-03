@@ -26,11 +26,11 @@ from sase.core.prompt_history_filter_wire import (
     PromptHistoryRowFacts,
     PromptHistorySeed,
 )
-from sase.xprompt._parsing_vcs_tags import (
+from sase.macro._parsing_vcs_tags import (
     extract_project_from_vcs_tag,
     find_vcs_workflow_tag_span,
 )
-from sase.xprompt._prompt_segments import split_prompt_segments
+from sase.macro._prompt_segments import split_prompt_segments
 
 _GITHUB_PROVIDER_PREFIX = "gh_"
 _GITHUB_PROVIDER_SEPARATOR = "__"
@@ -150,7 +150,7 @@ def _segment_active_ref(segment: str) -> str | None:
         expand_project_tags_with_catalog,
         peek_project_tag_catalog,
     )
-    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
+    from sase.macro import extract_vcs_workflow_tag, find_vcs_workflow_tag
 
     prompt = segment
     if "+" in segment:
@@ -211,7 +211,7 @@ def _first_project_tag_candidate(
     if "+" not in draft:
         return None
     from sase.project_tags import find_project_tags
-    from sase.xprompt._literal_zones import literal_zone_ranges
+    from sase.macro._literal_zones import literal_zone_ranges
 
     try:
         scanned = find_project_tags(draft)

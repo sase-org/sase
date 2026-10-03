@@ -56,7 +56,7 @@ if TYPE_CHECKING:
     from sase.bead.operation_context import BeadOperationContext
     from sase.bead.project import EpicPreclaimRollback
     from sase.bead.work import PatchLaunchContext, VCSLaunchContext
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 
 def launch_epic_bead_work(
@@ -106,7 +106,7 @@ def launch_epic_bead_work(
         build_epic_work_plan_from_beads_dir,
         render_multi_prompt,
     )
-    from sase.bead.xprompts import (
+    from sase.bead.macros import (
         BeadXPromptNotFoundError,
         resolve_land_epic_xprompt,
         resolve_work_phase_xprompt,
@@ -181,7 +181,7 @@ def launch_epic_bead_work(
     rendered_segment_capacity = queue_capacities.segment_capacity or None
 
     def _render_prompt(*, launch_names: frozenset[str] | None = None) -> str:
-        from sase.xprompt.directive_edit import (
+        from sase.macro.directive_edit import (
             apply_inherited_agent_tab,
             inherited_agent_tab,
         )

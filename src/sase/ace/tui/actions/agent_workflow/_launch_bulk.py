@@ -266,7 +266,7 @@ def _plan_one_bulk_patch(
     from sase.core.paths import sase_projects_dir
     from sase.project_display_names import humanize_cl_name
     from sase.workspace_provider import detect_workflow_type
-    from sase.xprompt import replace_vcs_workflow_tags
+    from sase.macro import replace_vcs_workflow_tags
 
     cl_name = patch.name
     project_name = patch.project_name or patch.project_basename

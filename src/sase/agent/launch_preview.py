@@ -240,7 +240,7 @@ def _clan_annotations_for_preview(
 def _tab_annotation_for_preview(prompt: str) -> str | None:
     """Return the ``Tab:`` field value for a slot prompt, if it has one."""
     try:
-        from sase.xprompt.directive_edit import scan_tab_directive
+        from sase.macro.directive_edit import scan_tab_directive
 
         scan = scan_tab_directive(prompt)
     except Exception:
@@ -320,7 +320,7 @@ def _requester_continuation_preview_lines(
 def _model_directives_for_preview(prompt: str) -> tuple[str | None, dict[str, str]]:
     """Return parsed ``%model`` fields for read-only launch previews."""
     try:
-        from sase.xprompt.directives import extract_prompt_directives
+        from sase.macro.directives import extract_prompt_directives
 
         _, directives = extract_prompt_directives(prompt)
     except Exception:
@@ -331,7 +331,7 @@ def _model_directives_for_preview(prompt: str) -> tuple[str | None, dict[str, st
 def _hold_fields_for_preview(prompt: str) -> dict[str, Any] | None:
     """Return parsed ``%hold`` fields for read-only launch previews."""
     try:
-        from sase.xprompt.directives import extract_prompt_directives
+        from sase.macro.directives import extract_prompt_directives
 
         _, directives = extract_prompt_directives(prompt)
     except Exception:
@@ -401,7 +401,7 @@ def _hold_entry_preview_lines(
         format_pending_capture,
         preview_pending_capture,
     )
-    from sase.xprompt.hold_directive import format_hold_directive
+    from sase.macro.hold_directive import format_hold_directive
 
     directive = format_hold_directive(dict(hold)) or "%hold"
     scope = str(hold.get("scope") or "project")

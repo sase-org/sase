@@ -16,8 +16,8 @@ from sase.plan_chain import (
     agent_session_role_for_suffix,
     is_plan_chain_artifact_meta,
 )
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import extract_prompt_directives
 
 
 def test_name_directive_agent_session_attach_form_parses_and_strips() -> None:

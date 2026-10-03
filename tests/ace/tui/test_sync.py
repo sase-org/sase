@@ -33,7 +33,7 @@ _PATCH_CLAIM_NEXT_DIR = "sase.running_field.claim_next_axe_workspace_dir"
 _PATCH_GET_DIR = "sase.running_field.get_workspace_directory_for_num"
 _PATCH_CLAIM = "sase.running_field.claim_workspace"
 _PATCH_RELEASE = "sase.running_field.release_workspace"
-_PATCH_WORKFLOW = "sase.xprompt.execute_workflow"
+_PATCH_WORKFLOW = "sase.macro.execute_workflow"
 
 
 @pytest.fixture
@@ -157,7 +157,7 @@ class TestSyncTaskFailure:
     def test_returns_failure_on_workflow_execution_error(
         self, _patch_running_field, _patch_vcs, _patch_clean
     ) -> None:
-        from sase.xprompt.workflow_models import WorkflowExecutionError
+        from sase.macro.workflow_models import WorkflowExecutionError
 
         with patch(
             _PATCH_WORKFLOW, side_effect=WorkflowExecutionError("workflow broke")

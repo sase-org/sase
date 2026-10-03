@@ -109,7 +109,7 @@ def _load_project_changespec_names_cache_signature(
 
 
 def _invalidate_xprompt_project_identity() -> None:
-    from sase.xprompt.project_identity import invalidate_xprompt_project_identity
+    from sase.macro.project_identity import invalidate_xprompt_project_identity
 
     invalidate_xprompt_project_identity()
 

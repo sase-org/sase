@@ -6,7 +6,7 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from sase.config.core import current_config_token
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 from .model_alias_policy import (
     BUILTIN_MODEL_ALIAS_NAMES,

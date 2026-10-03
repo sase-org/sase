@@ -18,7 +18,7 @@ import pytest
 
 from sase.axe import runner_utils
 from sase.axe.run_agent_exec import run_execution_loop
-from sase.xprompt.workflow_models import WorkflowExecutionError
+from sase.macro.workflow_models import WorkflowExecutionError
 
 from tests.fakey.harness import (
     FakeyRetryHarness,

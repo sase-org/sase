@@ -20,7 +20,7 @@ import pytest
 from sase.agent.launch_types import AgentLaunchResult
 from sase.workspace_provider import reset_workflow_metadata_caches
 from sase.workspace_provider._hookspec import WorkflowMetadata
-from sase.xprompt.unresolved import format_unresolved_references_toast
+from sase.macro.unresolved import format_unresolved_references_toast
 from tests._workspace_provider_helpers import (
     _restore_xprompt_vcs_caches_on_teardown,
     git_metadata,
@@ -89,7 +89,7 @@ def _run_successful_launch_query(
         )
         stack.enter_context(
             patch(
-                "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+                "sase.macro.unresolved.scan_query_for_unresolved_references",
                 return_value=scan_unresolved,
             )
         )
@@ -108,7 +108,7 @@ def _run_successful_launch_query(
         if record_mru is not None:
             stack.enter_context(
                 patch(
-                    "sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage",
+                    "sase.history.vcs_macro_mru.record_vcs_xprompt_usage",
                     record_mru,
                 )
             )
@@ -133,10 +133,10 @@ def test_launch_query_does_not_record_default_git_home_prefix(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    from sase.history.vcs_xprompt_mru import _load_vcs_xprompt_mru
+    from sase.history.vcs_macro_mru import _load_vcs_xprompt_mru
 
     fake_mru = tmp_path / "vcs_xprompt_mru.json"
-    monkeypatch.setattr("sase.history.vcs_xprompt_mru._MRU_FILE", fake_mru)
+    monkeypatch.setattr("sase.history.vcs_macro_mru._MRU_FILE", fake_mru)
 
     _run_successful_launch_query(monkeypatch, "#git:home do work")
 
@@ -166,7 +166,7 @@ def test_launch_query_does_not_record_mru_when_launch_fails(
     with (
         patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
         patch(
-            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            "sase.macro.unresolved.scan_query_for_unresolved_references",
             return_value=(),
         ),
         patch(
@@ -174,7 +174,7 @@ def test_launch_query_does_not_record_mru_when_launch_fails(
             side_effect=RuntimeError("boom"),
         ),
         patch(
-            "sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage",
+            "sase.history.vcs_macro_mru.record_vcs_xprompt_usage",
             record,
         ),
         pytest.raises(SystemExit) as exc_info,
@@ -197,7 +197,7 @@ def test_launch_query_runtime_error_emits_failed_typed_result(
     with (
         patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
         patch(
-            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            "sase.macro.unresolved.scan_query_for_unresolved_references",
             return_value=(),
         ),
         patch(
@@ -232,7 +232,7 @@ def test_launch_query_partial_multi_prompt_failure_emits_rollback_summary(
     with (
         patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
         patch(
-            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            "sase.macro.unresolved.scan_query_for_unresolved_references",
             return_value=(),
         ),
         patch(
@@ -277,7 +277,7 @@ def test_launch_query_unexpected_exception_emits_typed_result_and_reraises(
     with (
         patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
         patch(
-            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            "sase.macro.unresolved.scan_query_for_unresolved_references",
             return_value=(),
         ),
         patch(

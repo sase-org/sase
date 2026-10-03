@@ -24,7 +24,7 @@ from sase.llm_provider.types import InvokeResult
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.sdd.store import SddStore
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 
 def _run_git(repo: Path, *args: str) -> str:

@@ -215,7 +215,7 @@ class PromptBarSaveSnippetMixin(
         via_chezmoi: bool = False,
     ) -> bool:
         """Write one snippet, publish it live, and offer post-write actions."""
-        from sase.xprompt.save_state import save_last_used_location
+        from sase.macro.save_state import save_last_used_location
 
         try:
             await asyncio.to_thread(write_snippet_sync, write_path, trigger, body)
@@ -241,7 +241,7 @@ class PromptBarSaveSnippetMixin(
         self.notify(  # type: ignore[attr-defined]
             f"{verb} snippet '{trigger}' in {display_path}"
         )
-        from sase.xprompt.write_targets import (
+        from sase.macro.write_targets import (
             XPromptWriteTarget,
             classify_written_file,
             write_target_for_written_path,
@@ -357,7 +357,7 @@ def _load_snippet_save_disk_state(
     target: SnippetPaneTarget,
 ) -> _SnippetSaveDiskState:
     from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
-    from sase.xprompt.snippet_targets import load_snippet_template
+    from sase.macro.snippet_targets import load_snippet_template
 
     try:
         existing_body = load_snippet_template(target.write_path, target.trigger)

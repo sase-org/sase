@@ -13,8 +13,8 @@ from sase.ace.tui.widgets._prompt_jump_target import (
     detect_jump_target_at_cursor,
     resolve_jump_target,
 )
-from sase.xprompt.models import XPrompt
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import XPrompt
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 def _detect(text: str, needle: str) -> JumpToken | None:

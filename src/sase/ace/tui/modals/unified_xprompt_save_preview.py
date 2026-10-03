@@ -12,12 +12,12 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.xprompt.config_yaml import generate_xprompt_yaml
-from sase.xprompt.naming import markdown_save_plan
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import build_markdown_xprompt
-from sase.xprompt.save_index import DefinitionKind
-from sase.xprompt.snippet_config_yaml import generate_snippet_yaml
+from sase.macro.config_yaml import generate_xprompt_yaml
+from sase.macro.naming import markdown_save_plan
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import build_markdown_xprompt
+from sase.macro.save_index import DefinitionKind
+from sase.macro.snippet_config_yaml import generate_snippet_yaml
 
 from .unified_xprompt_save_support import SaveMode, UnifiedSaveLocation
 

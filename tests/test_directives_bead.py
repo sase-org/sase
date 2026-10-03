@@ -10,12 +10,12 @@ from sase.agent.launch_validation import rewrite_force_reuse_name_directives
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
 from sase.agent.repeat_launcher import spawn_repeat_batch
 from sase.agent.retry_prompt import rewrite_retry_prompt_name
-from sase.xprompt._directive_extract import extract_prompt_directives as extract_with
-from sase.xprompt.directive_edit import (
+from sase.macro._directive_extract import extract_prompt_directives as extract_with
+from sase.macro.directive_edit import (
     demote_prompt_clan_declaration,
     rewrite_prompt_clan_member_name,
 )
-from sase.xprompt.directives import (
+from sase.macro.directives import (
     DirectiveError,
     extract_prompt_directives,
     split_prompt_for_models,

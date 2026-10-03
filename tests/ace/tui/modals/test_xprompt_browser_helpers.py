@@ -17,8 +17,8 @@ from sase.ace.tui.modals.xprompt_browser_preview import (
     create_meta_text,
     create_simple_preview,
 )
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import InputArg, InputType
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 def test_classify_source_default_xprompts_builtin(tmp_path: Path) -> None:
@@ -147,7 +147,7 @@ def test_browser_filters_and_previews_descriptions() -> None:
             "sase.ace.tui.modals.xprompt_browser_pane.get_all_prompts",
             return_value=prompts,
         ),
-        patch("sase.xprompt.loader.get_all_project_local_prompts", return_value={}),
+        patch("sase.macro.loader.get_all_project_local_prompts", return_value={}),
     ):
         pane = XPromptBrowserPane()
 

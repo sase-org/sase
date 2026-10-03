@@ -54,10 +54,10 @@ def test_submitted_xprompt_artifact_does_not_change_raw_xprompt_behavior(
 
     write_submitted_xprompt_artifact(str(tmp_path), submitted)
     with (
-        patch("sase.xprompt.resolve_xprompt_aliases", return_value=resolved),
-        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch("sase.macro.resolve_xprompt_aliases", return_value=resolved),
+        patch("sase.macro._parsing.extract_vcs_workflow_tag", return_value=None),
         patch(
-            "sase.xprompt.processor.process_xprompt_references", return_value="expanded"
+            "sase.macro.processor.process_xprompt_references", return_value="expanded"
         ),
     ):
         preprocess_prompt_xprompts(submitted, str(tmp_path))
@@ -73,10 +73,10 @@ def test_preprocess_prompt_xprompts_archives_revival_inputs(
     resolved = "#real original"
     write_submitted_xprompt_artifact(str(tmp_path), submitted)
     with (
-        patch("sase.xprompt.resolve_xprompt_aliases", return_value=resolved),
-        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch("sase.macro.resolve_xprompt_aliases", return_value=resolved),
+        patch("sase.macro._parsing.extract_vcs_workflow_tag", return_value=None),
         patch(
-            "sase.xprompt.processor.process_xprompt_references",
+            "sase.macro.processor.process_xprompt_references",
             return_value="expanded",
         ),
     ):
@@ -100,8 +100,8 @@ def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The runner writes macros.json (e.g. #plan) before expansion erases it."""
-    import sase.xprompt.used_xprompts as used_xprompts
-    from sase.xprompt.models import XPrompt
+    import sase.macro.used_macros as used_xprompts
+    from sase.macro.models import XPrompt
 
     # Isolate from an ambient launch-boundary swarm (e.g. this test process
     # itself running as a swarm-launched agent); the catalog patched below
@@ -119,12 +119,10 @@ def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
     )
 
     with (
+        patch("sase.macro.resolve_xprompt_aliases", side_effect=lambda prompt: prompt),
+        patch("sase.macro._parsing.extract_vcs_workflow_tag", return_value=None),
         patch(
-            "sase.xprompt.resolve_xprompt_aliases", side_effect=lambda prompt: prompt
-        ),
-        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
-        patch(
-            "sase.xprompt.processor.process_xprompt_references",
+            "sase.macro.processor.process_xprompt_references",
             side_effect=lambda prompt, **_kwargs: "expanded",
         ) as process,
     ):
@@ -149,9 +147,9 @@ def test_preprocess_prompt_xprompts_captures_launch_swarm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A swarm-launched child records its origin before prompt expansion."""
-    import sase.xprompt.used_xprompts as used_xprompts
-    from sase.xprompt.models import XPrompt
-    from sase.xprompt.tags import XPromptTag
+    import sase.macro.used_macros as used_xprompts
+    from sase.macro.models import XPrompt
+    from sase.macro.tags import XPromptTag
 
     monkeypatch.setenv(
         used_xprompts.SASE_LAUNCH_SWARM_XPROMPTS,
@@ -179,12 +177,12 @@ def test_preprocess_prompt_xprompts_captures_launch_swarm(
 
     with (
         patch(
-            "sase.xprompt.resolve_xprompt_aliases",
+            "sase.macro.resolve_xprompt_aliases",
             side_effect=lambda prompt: prompt,
         ),
-        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch("sase.macro._parsing.extract_vcs_workflow_tag", return_value=None),
         patch(
-            "sase.xprompt.processor.process_xprompt_references",
+            "sase.macro.processor.process_xprompt_references",
             return_value="expanded",
         ),
     ):
@@ -222,9 +220,9 @@ def test_runner_setup_artifacts_keep_project_alias_canonical(
     write_submitted_xprompt_artifact(str(tmp_path), prompt)
     with (
         patch("sase.config.load_merged_config", return_value={"xprompt_aliases": {}}),
-        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch("sase.macro._parsing.extract_vcs_workflow_tag", return_value=None),
         patch(
-            "sase.xprompt.processor.process_xprompt_references",
+            "sase.macro.processor.process_xprompt_references",
             side_effect=lambda text, **_kwargs: text,
         ),
     ):
@@ -243,7 +241,7 @@ def test_expand_deferred_launch_xprompts_limits_embedded_expansion(
 ) -> None:
     with (
         patch(
-            "sase.xprompt.processor.process_xprompt_references",
+            "sase.macro.processor.process_xprompt_references",
             side_effect=lambda prompt, **_kwargs: prompt,
         ),
         patch(
@@ -268,7 +266,7 @@ def test_expand_deferred_launch_xprompts_limits_embedded_expansion(
 def test_deferred_fork_starts_disabled_marker_after_workspace_line(
     tmp_path: Path,
 ) -> None:
-    from sase.xprompt.workflow_models import Workflow, WorkflowStep
+    from sase.macro.workflow_models import Workflow, WorkflowStep
 
     fork = Workflow(
         name="fork",
@@ -288,14 +286,14 @@ def test_deferred_fork_starts_disabled_marker_after_workspace_line(
 
     with (
         patch(
-            "sase.xprompt.processor.process_xprompt_references",
+            "sase.macro.processor.process_xprompt_references",
             side_effect=lambda prompt, **_kwargs: prompt,
         ),
         patch(
-            "sase.xprompt.loader.get_all_workflows",
+            "sase.macro.loader.get_all_workflows",
             return_value={"fork": fork},
         ),
-        patch("sase.xprompt.used_xprompts.write_used_xprompts"),
+        patch("sase.macro.used_macros.write_used_xprompts"),
     ):
         expanded = expand_deferred_launch_xprompts(
             "#gh:sase #fork Continue the work",
@@ -310,9 +308,9 @@ def test_deferred_launch_xprompts_preserve_original_usage_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import sase.xprompt.used_xprompts as used_xprompts
-    from sase.xprompt.models import XPrompt
-    from sase.xprompt.workflow_models import Workflow, WorkflowStep
+    import sase.macro.used_macros as used_xprompts
+    from sase.macro.models import XPrompt
+    from sase.macro.workflow_models import Workflow, WorkflowStep
 
     parts = {
         "beau": XPrompt(name="beau", content="beau body"),
@@ -340,7 +338,7 @@ def test_deferred_launch_xprompts_preserve_original_usage_metadata(
         "normalize_vcs_underscore_refs",
         lambda prompt: prompt,
     )
-    monkeypatch.setattr("sase.xprompt.loader.get_all_workflows", lambda: workflows)
+    monkeypatch.setattr("sase.macro.loader.get_all_workflows", lambda: workflows)
 
     launch_prompt = "#gh:sase #fork #beau #plan"
     partially_expanded = "#gh:sase #fork beau body plan body"
@@ -357,12 +355,12 @@ def test_deferred_launch_xprompts_preserve_original_usage_metadata(
             side_effect=lambda prompt: prompt,
         ),
         patch(
-            "sase.xprompt.resolve_xprompt_aliases",
+            "sase.macro.resolve_xprompt_aliases",
             side_effect=lambda prompt: prompt,
         ),
-        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch("sase.macro._parsing.extract_vcs_workflow_tag", return_value=None),
         patch(
-            "sase.xprompt.processor.process_xprompt_references",
+            "sase.macro.processor.process_xprompt_references",
             side_effect=process,
         ),
     ):
@@ -383,8 +381,8 @@ def test_deferred_launch_xprompts_preserve_original_usage_metadata(
 
 
 def _load_fork_workflow():
-    from sase.xprompt.loader import get_sase_package_xprompts_dir
-    from sase.xprompt.workflow_loader import _load_workflow_from_file
+    from sase.macro.loader import get_sase_package_xprompts_dir
+    from sase.macro.workflow_loader import _load_workflow_from_file
 
     workflow = _load_workflow_from_file(get_sase_package_xprompts_dir() / "fork.yml")
     assert workflow is not None
@@ -445,7 +443,7 @@ class TestBareForkSelfExclusion:
         artifacts_dir = _write_named_agent(tmp_path, "20260504020202", "current_run")
 
         with patch(
-            "sase.xprompt.loader.get_all_workflows",
+            "sase.macro.loader.get_all_workflows",
             return_value={"fork": _load_fork_workflow()},
         ):
             expanded = expand_deferred_launch_xprompts(
@@ -476,7 +474,7 @@ class TestBareForkSelfExclusion:
         artifacts_dir = _write_named_agent(tmp_path, "20260504020202", "current_run")
 
         with patch(
-            "sase.xprompt.loader.get_all_workflows",
+            "sase.macro.loader.get_all_workflows",
             return_value={"fork": _load_fork_workflow()},
         ):
             expanded = expand_deferred_launch_xprompts(

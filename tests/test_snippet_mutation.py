@@ -22,9 +22,9 @@ from sase.snippet.mutation import (
     update_snippet,
     upsert_snippet_at_path,
 )
-from sase.xprompt import glossary_catalog as catalog_mod
-from sase.xprompt.models import XPrompt
-from sase.xprompt.snippet_config_yaml import snippet_config_digest
+from sase.macro import glossary_catalog as catalog_mod
+from sase.macro.models import XPrompt
+from sase.macro.snippet_config_yaml import snippet_config_digest
 
 
 def _record(
@@ -70,7 +70,7 @@ def _install_project(
         ],
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {},
     )
     return config_path
@@ -130,7 +130,7 @@ def test_add_refuses_xprompt_shadow_without_force(
 ) -> None:
     config_path = _install_project(tmp_path, monkeypatch, "timezone: UTC\n")
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {
             "todo": XPrompt(name="todo", content="from xprompt", snippet=True)
         },
@@ -193,7 +193,7 @@ def test_delete_reveals_shadowed_definition(
         "ace:\n  snippets:\n    todo: |\n      from config$0\n",
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {
             "todo": XPrompt(
                 name="todo",
@@ -224,7 +224,7 @@ def test_delete_refuses_xprompt_only_definition(
 ) -> None:
     _install_project(tmp_path, monkeypatch, "timezone: UTC\n")
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {
             "todo": XPrompt(name="todo", content="from xprompt", snippet=True)
         },
@@ -264,7 +264,7 @@ def test_upsert_at_path_rewires_prompt_save(
 ) -> None:
     config_path = tmp_path / "custom.yml"
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {},
     )
     monkeypatch.setattr(

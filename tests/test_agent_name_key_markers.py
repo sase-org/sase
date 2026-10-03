@@ -17,9 +17,9 @@ from sase.agent.multi_prompt_reference_directives import (
     extract_static_clan_directive,
     extract_static_name_directive,
 )
-from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
-from sase.xprompt.loader_sources import load_xprompt_from_file
-from tests._xprompt_swarm_helpers import patch_catalog
+from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
+from sase.macro.loader_sources import load_xprompt_from_file
+from tests._macro_swarm_helpers import patch_catalog
 
 
 def _configure_allocation(
@@ -96,7 +96,7 @@ def test_blocked_root_raises_directive_error_instead_of_hanging(
     blocked base looked identically available, so the per-token loop never
     terminated. This must surface as one clear ``DirectiveError`` instead.
     """
-    from sase.xprompt._exceptions import DirectiveError
+    from sase.macro._exceptions import DirectiveError
 
     _configure_allocation(
         monkeypatch,

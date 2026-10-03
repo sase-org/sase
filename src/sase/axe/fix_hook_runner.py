@@ -48,7 +48,7 @@ from sase.main.query_handler import (
 )
 from sase.artifacts import create_artifacts_directory
 from sase.content import ensure_str_content
-from sase.xprompt import escape_for_xprompt, process_xprompt_references
+from sase.macro import escape_for_xprompt, process_xprompt_references
 
 
 def _update_hook_suffix(
@@ -167,7 +167,7 @@ def main() -> int:
         print()
 
         # Build the prompt using xprompt reference (tag-based lookup with fallback)
-        from sase.xprompt.tags import XPromptTag, get_by_tag
+        from sase.macro.tags import XPromptTag, get_by_tag
 
         fh_wf = get_by_tag(XPromptTag.fix_hook)
         fh_name = fh_wf.name if fh_wf else "fix_hook"

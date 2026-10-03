@@ -10,7 +10,7 @@ from sase.wait_spec import (
     parse_wait_spec,
     wait_spec_from_name_lists,
 )
-from sase.xprompt.directive_edit import PromptWaitDirective
+from sase.macro.directive_edit import PromptWaitDirective
 
 
 def test_parse_agents_only() -> None:

@@ -13,7 +13,7 @@ from sase.bead.work import (
     task_model_directive_value,
     task_work_segment_env,
 )
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.workflow_models import Workflow
 
 
 def test_task_prompt_has_exact_single_segment_order_and_feedback_tail() -> None:

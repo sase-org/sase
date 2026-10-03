@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from sase.procs.models import Proc
     from sase.monitor.models import MonitorRecord
     from sase.workspace_provider.lease import OperationalLease
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 
 _EPIC_LAUNCH_TAGS = ("epic", "launch")
@@ -81,7 +81,7 @@ def build_epic_launch_argv(
 def _validated_capacity_or_none(capacity: int | None) -> int | None:
     if capacity is None:
         return None
-    from sase.xprompt.queue_directive import validate_queue_capacity
+    from sase.macro.queue_directive import validate_queue_capacity
 
     return validate_queue_capacity(capacity)
 

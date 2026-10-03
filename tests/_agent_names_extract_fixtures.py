@@ -52,7 +52,7 @@ def run_extract(
 
     with (
         patch.dict(os.environ, env_patch, clear=False),
-        patch("sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p),
+        patch("sase.macro.process_xprompt_references", side_effect=lambda p, **kw: p),
         patch(
             "sase.llm_provider.registry.get_default_provider_name", return_value="test"
         ),

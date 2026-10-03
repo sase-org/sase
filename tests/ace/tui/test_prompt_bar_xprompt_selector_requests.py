@@ -28,10 +28,10 @@ from sase.ace.tui.widgets.xprompt_inline_expansion import (
     _InlineExpansionReason,
     _InlineExpansionResult,
 )
-from sase.xprompt import loader_sources
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.project_identity import invalidate_xprompt_project_identity
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro import loader_sources
+from sase.macro.models import InputArg, InputType
+from sase.macro.project_identity import invalidate_xprompt_project_identity
+from sase.macro.workflow_models import Workflow, WorkflowStep
 from tests.main.project_handler_helpers import (
     _disk_project_records,
     _write_project,

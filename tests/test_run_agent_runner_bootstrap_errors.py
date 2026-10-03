@@ -19,7 +19,7 @@ from sase.axe import (
 )
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
 from sase.llm_provider.gate_intent_guard import GateIntentLostError
-from sase.xprompt.workflow_models import WorkflowExecutionError
+from sase.macro.workflow_models import WorkflowExecutionError
 
 
 def _runner_args(tmp_path: Path) -> SimpleNamespace:

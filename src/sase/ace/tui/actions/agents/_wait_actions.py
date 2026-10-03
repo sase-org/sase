@@ -17,7 +17,7 @@ from sase.ace.tui.models.agent_session_preview_cache import (
     should_resolve_agent_session_plan_preview,
 )
 from sase.project_display_names import humanize_cl_name
-from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait_and_queue
+from sase.macro.directive_edit import PromptWaitDirective, set_prompt_wait_and_queue
 
 from ..proc_actions import TrackedProcCompletion
 from ._wait_helpers import (
@@ -40,7 +40,7 @@ def _capacity_wait_label(result: WaitModalResult) -> str:
     if result.capacity is not None:
         return f"capacity budget {result.capacity}"
     if result.capacity_multiplier is not None:
-        from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+        from sase.macro.queue_directive import format_queue_capacity_multiplier
 
         formatted = format_queue_capacity_multiplier(result.capacity_multiplier)
         label = formatted if formatted is not None else str(result.capacity_multiplier)
@@ -86,7 +86,7 @@ def _prepare_wait_relaunch_prompt(
 
 def _prompt_forces_name_reuse(prompt: str) -> bool:
     """Return whether *prompt* already carries a trusted force-reuse identity."""
-    from sase.xprompt.directives import DirectiveError, extract_prompt_directives
+    from sase.macro.directives import DirectiveError, extract_prompt_directives
 
     try:
         _, directives = extract_prompt_directives(prompt)

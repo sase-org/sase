@@ -42,10 +42,10 @@ from sase.main._init_skills_sources import (
 )
 from sase.main._init_skills_source_integrity import skill_source_integrity_error
 from sase.main.init_plan import InitAction, InitOperation, InitPlan
-from sase.xprompt.load_issues import collect_xprompt_load_issues
-from sase.xprompt.loader import get_all_xprompts, load_skills_from_package
-from sase.xprompt.loader_skills import SKILL_PLACEMENT_ISSUE_KIND
-from sase.xprompt.models import XPrompt
+from sase.macro.load_issues import collect_xprompt_load_issues
+from sase.macro.loader import get_all_xprompts, load_skills_from_package
+from sase.macro.loader_skills import SKILL_PLACEMENT_ISSUE_KIND
+from sase.macro.models import XPrompt
 
 _COMMAND_LABEL = "skill init"
 _PRETTIER_WARNING = (

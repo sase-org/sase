@@ -131,7 +131,7 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
         )
         from sase.ace.tui.modals import InputCollectionModal
         from sase.history.prompt_placeholders import record_prompt_placeholders
-        from sase.xprompt.loader_parsing import parse_yaml_front_matter
+        from sase.macro.loader_parsing import parse_yaml_front_matter
 
         agent_count = max(1, len(parse_multi_prompt(prompt).segments))
 
@@ -224,7 +224,7 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
         :func:`apply_inherited_agent_tab`.
         """
         from sase.ace.tui.agent_tabs_launch_view import view_inherited_tab_name
-        from sase.xprompt.directive_edit import apply_inherited_agent_tab
+        from sase.macro.directive_edit import apply_inherited_agent_tab
 
         try:
             tab = view_inherited_tab_name(self)

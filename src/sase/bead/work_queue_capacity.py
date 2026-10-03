@@ -23,18 +23,18 @@ from typing import TYPE_CHECKING, NamedTuple
 from sase.bead.work import EpicWorkPlan, phase_requires_plan
 from sase.feature_flags.registry import FeatureFlag
 from sase.feature_flags.snapshot import current_flags
-from sase.xprompt._exceptions import XPromptError
-from sase.xprompt.directives import extract_prompt_directives
-from sase.xprompt.processor import (
+from sase.macro._exceptions import XPromptError
+from sase.macro.directives import extract_prompt_directives
+from sase.macro.processor import (
     LAUNCH_DEFERRED_XPROMPT_NAMES,
     process_xprompt_references,
 )
-from sase.xprompt.queue_directive import format_queue_directive
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.queue_directive import format_queue_directive
+from sase.macro.workflow_models import Workflow
 
 if TYPE_CHECKING:
-    from sase.xprompt._directive_types import PromptDirectives
-    from sase.xprompt.models import XPrompt
+    from sase.macro._directive_types import PromptDirectives
+    from sase.macro.models import XPrompt
 
 _DEFAULT_QUEUE_WEIGHT = 1.0
 

@@ -30,7 +30,7 @@ from sase.agent.multi_prompt_references import (
     rewrite_bare_wait_directives,
 )
 from sase.agent.multi_prompt_vcs import resolve_segment_vcs_context
-from sase.agent.multi_prompt_xprompts import (
+from sase.agent.multi_prompt_macros import (
     local_xprompts_for_segment,
     serialize_local_xprompts,
 )
@@ -48,7 +48,7 @@ from sase.history.multi_agent_prompt import (
     MULTI_AGENT_PROMPT_FILE_ENV,
     save_multi_agent_prompt_file,
 )
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 def spawn_segments_into(
@@ -83,8 +83,8 @@ def spawn_segments_into(
     from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.artifacts import create_artifacts_directory
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
-    from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
-    from sase.xprompt.directives import has_deferred_start_directive
+    from sase.macro._parsing import normalize_default_vcs_workflow_segment
+    from sase.macro.directives import has_deferred_start_directive
 
     timer = LaunchTimingRecorder(
         "agent_launch_multi_prompt",
@@ -369,7 +369,7 @@ def spawn_segments_into(
                 if multi_agent_prompt_file is not None:
                     slot_env[MULTI_AGENT_PROMPT_FILE_ENV] = multi_agent_prompt_file
                 if segment_swarm_names:
-                    from sase.xprompt.used_xprompts import launch_swarm_env_entries
+                    from sase.macro.used_macros import launch_swarm_env_entries
 
                     slot_env.update(launch_swarm_env_entries(segment_swarm_names))
                 clan_payload = clan_prepass.membership_env_by_segment.get(i)

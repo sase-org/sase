@@ -17,7 +17,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.history.prompt_store import PromptHistoryLoadError, rewrite_prompt_text_exact
-from sase.xprompt._directive_time import parse_absolute_time, parse_duration
+from sase.macro._directive_time import parse_absolute_time, parse_duration
 
 
 @dataclass(frozen=True)

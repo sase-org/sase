@@ -14,7 +14,7 @@ from textual.color import Color
 from sase.pager.syntax import SyntaxRole
 
 if TYPE_CHECKING:
-    from sase.xprompt.highlight_theme import HighlightStyle
+    from sase.macro.highlight_theme import HighlightStyle
 
 MIN_SYNTAX_CONTRAST = 4.5
 MIN_MARKDOWN_CONTRAST = 7.0
@@ -194,7 +194,7 @@ def _syntax_palette_from_values(
     error: str | None,
     dark: bool | None = None,
 ) -> SyntaxPalette:
-    from sase.xprompt.highlight_theme import HighlightStyle
+    from sase.macro.highlight_theme import HighlightStyle
 
     presentation = _presentation_from_values(
         foreground,
@@ -446,7 +446,7 @@ def _derive_argument_color(
 ) -> str | None:
     if parse_color(base) is None:
         return None
-    from sase.xprompt.highlight_theme import derive_argument_color
+    from sase.macro.highlight_theme import derive_argument_color
 
     return derive_argument_color(base, foreground=foreground, background=background)
 

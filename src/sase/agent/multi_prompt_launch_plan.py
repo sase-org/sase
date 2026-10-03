@@ -19,10 +19,10 @@ from sase.agent.multi_prompt_vcs import (
     SegmentVcsContext,
     resolve_segment_vcs_context,
 )
-from sase.agent.multi_prompt_xprompts import local_xprompts_for_segment
+from sase.agent.multi_prompt_macros import local_xprompts_for_segment
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.core.agent_launch_wire import LaunchFanoutPlanWire
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 def future_agent_artifacts_dir(*, project_name: str, timestamp: str) -> Path:
@@ -63,7 +63,7 @@ def plan_segment_fanout(
 ) -> tuple[LaunchFanoutPlanWire, bool]:
     """Return one segment's launch plan and whether it is a real fan-out."""
     from sase.core.agent_launch_facade import plan_fake_fanout
-    from sase.xprompt.directives import plan_prompt_fanout_variants
+    from sase.macro.directives import plan_prompt_fanout_variants
 
     fanout_plan = (
         preplanned_fanout_plan
@@ -74,7 +74,7 @@ def plan_segment_fanout(
         )
     )
     if fanout_plan is None and preplanned_fanout_plan is None and "#" in segment:
-        from sase.xprompt.processor import (
+        from sase.macro.processor import (
             LAUNCH_DEFERRED_XPROMPT_NAMES,
             process_xprompt_references,
         )
@@ -139,15 +139,15 @@ def prepare_clan_launches(
     """Resolve rootless clan identity and validate every member before spawn."""
     from sase.agent.names import AgentNameBaseReservedError
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
-    from sase.xprompt._exceptions import DirectiveError
-    from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
-    from sase.xprompt.directives import has_deferred_start_directive
+    from sase.macro._exceptions import DirectiveError
+    from sase.macro._parsing import normalize_default_vcs_workflow_segment
+    from sase.macro.directives import has_deferred_start_directive
 
     # Resolve xprompts before the static clan scan so a declaration or conflict
     # introduced by an xprompt fails the whole batch before timestamp/workspace
     # allocation. Literal fenced/disabled regions remain protected by the
     # shared directive collector used by ``extract_static_clan_directive``.
-    from sase.xprompt import (
+    from sase.macro import (
         LAUNCH_DEFERRED_XPROMPT_NAMES,
         process_xprompt_references,
     )

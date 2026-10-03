@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import (
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import (
     SaveTargetFormat,
     load_config_xprompt_markdown,
     save_config_xprompt,
@@ -76,8 +76,8 @@ def write_mini_xprompt_sync(
     body: str,
 ) -> _MiniXPromptWriteResult:
     """Write one mini-xprompt through the established xprompt save primitives."""
-    from sase.xprompt.models import XPrompt
-    from sase.xprompt.segment_separators import xprompt_has_segment_separators
+    from sase.macro.models import XPrompt
+    from sase.macro.segment_separators import xprompt_has_segment_separators
 
     if not body.strip():
         raise ValueError("mini-xprompt body is empty")
@@ -106,7 +106,7 @@ def _mini_xprompt_frontmatter_for_save(raw: str) -> PromptFrontmatter:
     """Parse frontmatter strictly enough for a final write."""
     import yaml  # type: ignore[import-untyped]
 
-    from sase.xprompt.loader_parsing import parse_yaml_front_matter
+    from sase.macro.loader_parsing import parse_yaml_front_matter
 
     text = raw.strip()
     if not text:

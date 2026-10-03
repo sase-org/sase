@@ -19,7 +19,7 @@ _HEAVY_MODULES = (
     "sase.axe.lumberjack",
     "sase.axe.orchestrator",
     "sase.llm_provider",
-    "sase.xprompt",
+    "sase.macro",
 )
 
 
@@ -44,7 +44,7 @@ def test_chop_sdk_import_excludes_heavy_packages() -> None:
             "sase.axe.lumberjack",
             "sase.axe.orchestrator",
             "sase.llm_provider",
-            "sase.xprompt",
+            "sase.macro",
         ]
         present = [name for name in heavy if name in sys.modules]
         assert not present, present
@@ -66,7 +66,7 @@ def test_chop_builtin_import_excludes_heavy_packages() -> None:
             "sase.axe.check_cycles",
             "sase.axe.hook_jobs",
             "sase.llm_provider",
-            "sase.xprompt",
+            "sase.macro",
         ]
         present = [name for name in heavy if name in sys.modules]
         assert not present, present

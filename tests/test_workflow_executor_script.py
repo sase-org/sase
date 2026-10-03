@@ -6,9 +6,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from sase.xprompt import WorkflowExecutor
-from sase.xprompt.models import OutputSpec
-from sase.xprompt.workflow_models import Workflow, WorkflowExecutionError, WorkflowStep
+from sase.macro import WorkflowExecutor
+from sase.macro.models import OutputSpec
+from sase.macro.workflow_models import Workflow, WorkflowExecutionError, WorkflowStep
 
 from tests._workflow_executor_helpers import (
     _create_mock_hitl_handler,

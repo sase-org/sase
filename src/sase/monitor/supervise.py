@@ -22,7 +22,7 @@ from typing import Any, Literal, cast
 
 from sase.agent.env_hygiene import scrub_agent_identity_env
 from sase.axe.agent_meta import write_agent_meta_atomic
-from sase.xprompt.directive_edit import SASE_AGENT_TAB_ENV
+from sase.macro.directive_edit import SASE_AGENT_TAB_ENV
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.bead.epic_launch_handoff import (
     MONITOR_ARTIFACTS_ENV,

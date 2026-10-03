@@ -262,7 +262,7 @@ def test_provider_disable_expiry_uses_configured_tz(tz_divergence: None) -> None
 
 
 def test_xprompt_catalog_generated_at_uses_configured_tz(tz_divergence: None) -> None:
-    from sase.xprompt._catalog_render import compute_stats
+    from sase.macro._catalog_render import compute_stats
 
     stats = compute_stats([])
     assert abs((stats.generated_at - local_now()).total_seconds()) < 5
@@ -311,7 +311,7 @@ def test_workflow_duration_display_under_divergence(tz_divergence: None) -> None
 
 def test_wait_absolute_time_uses_configured_clock(tz_divergence: None) -> None:
     from sase.axe.run_agent_wait import remaining_until
-    from sase.xprompt._directive_time import parse_absolute_time
+    from sase.macro._directive_time import parse_absolute_time
 
     iso = parse_absolute_time("1430")
     assert iso is not None

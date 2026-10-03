@@ -27,14 +27,14 @@ from sase.ace.tui.modals.xprompt_location_modal import (
     XPROMPT_USER_OVERLAY_LABEL_PREFIX,
     shorten_xprompt_location_path,
 )
-from sase.xprompt.snippet_targets import (
+from sase.macro.snippet_targets import (
     SNIPPET_PROJECT_CONFIG_LABEL,
     SNIPPET_USER_CONFIG_LABEL,
     SNIPPET_USER_OVERLAY_LABEL_PREFIX,
     SnippetConfigLocation,
     SnippetSaveTarget,
 )
-from sase.xprompt.write_targets import resolve_xprompt_write_target
+from sase.macro.write_targets import resolve_xprompt_write_target
 
 SaveLocationKind = Literal["directory", "config"]
 

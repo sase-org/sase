@@ -40,7 +40,7 @@ def _patch_loaders(
         lambda project=None: {},
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_project_local_prompts",
+        "sase.macro.loader.get_all_project_local_prompts",
         lambda: {},
     )
     # Keep the Projects pane cheap and deterministic.

@@ -16,7 +16,7 @@ from sase.axe.run_agent_directive_metadata import (
 if TYPE_CHECKING:
     from sase.agent.clan_membership import ClanMembershipPlan
     from sase.agent.agent_session_attach import AgentSessionAttachLaunchPlan
-    from sase.xprompt.directives import PromptDirectives
+    from sase.macro.directives import PromptDirectives
 
 log = logging.getLogger(__name__)
 

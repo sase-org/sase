@@ -9,7 +9,7 @@ import pytest
 from sase.integrations.editor_helpers import handle_editor_helper_bridge
 from sase.main.parser import create_parser
 from sase.snippet.models import SnippetSourceContribution
-from sase.xprompt.models import UNSET, InputArg, XPrompt
+from sase.macro.models import UNSET, InputArg, XPrompt
 
 
 def _install_snippet_sources(
@@ -18,7 +18,7 @@ def _install_snippet_sources(
     snippets: dict[str, str],
 ) -> None:
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: xprompts,
     )
     contributions = tuple(

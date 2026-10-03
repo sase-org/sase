@@ -12,7 +12,7 @@ from ._notification_modal_responses import write_workflow_action_response
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
-    from sase.xprompt import HITLResult
+    from sase.macro import HITLResult
 
     from ...modals import WorkflowHITLInput
 
@@ -46,7 +46,7 @@ def handle_hitl(app: object, notification: Notification) -> bool:
 
 def _handle_legacy_hitl(app: object, notification: Notification) -> bool:
     """Keep the direct response writer for pre-gate workflow bundles only."""
-    from sase.xprompt import HITLResult
+    from sase.macro import HITLResult
     from sase.notification_gates.debug import debug_context_from_notification
 
     from ...modals import WorkflowHITLInput, WorkflowHITLModal
@@ -148,7 +148,7 @@ def _handle_neutral_hitl(app: object, notification: Notification) -> bool:
             )
             return
 
-        from sase.xprompt import HITLResult
+        from sase.macro import HITLResult
         from sase.notification_gates.debug import debug_context_from_notification
 
         from ...modals import WorkflowHITLModal

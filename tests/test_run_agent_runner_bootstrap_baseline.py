@@ -29,7 +29,7 @@ from sase.llm_provider.commit_finalizer_baseline import (
     BASELINE_FILENAME,
     FINALIZER_BASELINE_FILENAME,
 )
-from sase.xprompt.hold_directive import HoldFields
+from sase.macro.hold_directive import HoldFields
 
 
 def _runner_args(tmp_path: Path) -> SimpleNamespace:

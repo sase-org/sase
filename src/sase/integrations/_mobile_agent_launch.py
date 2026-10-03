@@ -14,7 +14,7 @@ from typing import Any
 
 from sase.artifacts import launch_artifacts_dir
 from sase.llm_provider.config import format_model_directive_value
-from sase.xprompt._parsing import normalize_launch_xprompt_at_refs
+from sase.macro._parsing import normalize_launch_xprompt_at_refs
 
 from ._mobile_agent_common import (
     MOBILE_AGENT_SCHEMA_VERSION,

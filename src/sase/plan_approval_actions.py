@@ -92,7 +92,7 @@ from sase.plan_approval_choices import (
 
 if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin, EpicLaunchSubmission
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 HOST_PLAN_ARCHIVE_PROTOCOL = "host_v2"
 

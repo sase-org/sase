@@ -51,7 +51,7 @@ from sase.ace.tui.widgets._directive_completion_types import (
     PathCandidateBuilder,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.xprompt.model_completion import build_model_completion_catalog
+from sase.macro.model_completion import build_model_completion_catalog
 
 # Proc kinds an ordinary ``%wait`` cannot resolve. ``#fork`` accepts a named
 # proc, but wait dependencies resolve agent artifacts only, so offering a

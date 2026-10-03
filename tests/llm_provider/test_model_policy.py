@@ -310,6 +310,6 @@ def test_supported_efforts_match_provider_cli_mechanics() -> None:
 
 
 def _rung_index(level: str) -> int:
-    from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+    from sase.macro.effort import EFFORT_LEVELS_ORDERED
 
     return EFFORT_LEVELS_ORDERED.index(level)

@@ -25,7 +25,7 @@ from sase.agent.multi_prompt_vcs import (
     SegmentVcsContext as _SegmentVcsContext,
     extract_vcs_ref as _extract_vcs_ref,
 )
-from sase.agent.multi_prompt_xprompts import (
+from sase.agent.multi_prompt_macros import (
     deserialize_local_xprompts as deserialize_local_xprompts,
     extract_called_xprompt_names as _extract_called_xprompt_names,
     local_xprompts_for_segment as _local_xprompts_for_segment,
@@ -33,7 +33,7 @@ from sase.agent.multi_prompt_xprompts import (
 )
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.core.agent_launch_wire import LaunchFanoutPlanWire
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 __all__ = [
     "MultiPromptPartialLaunchError",

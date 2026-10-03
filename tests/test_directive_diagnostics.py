@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.xprompt.directive_diagnostics import find_retired_directive_usages
+from sase.macro.directive_diagnostics import find_retired_directive_usages
 
 
 @pytest.mark.parametrize(

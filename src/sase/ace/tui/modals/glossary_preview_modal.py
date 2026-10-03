@@ -12,7 +12,7 @@ from textual.widgets import Markdown, Static
 
 from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.core.glossary_facade import GlossaryEntry
-from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
+from sase.macro.glossary_catalog import EditorGlossaryCatalog
 
 from ._source_file_actions import SourceFileActionsMixin
 from .base import CopyModeForwardingMixin

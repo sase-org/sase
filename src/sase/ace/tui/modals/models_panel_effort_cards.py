@@ -14,7 +14,7 @@ from textual.widgets import OptionList, Static
 from textual.widgets._option_list import Option
 
 from sase.llm_provider import EffectiveDefaultEffortSnapshot
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.macro.effort import EFFORT_LEVELS_ORDERED
 
 from .base import OptionListNavigationMixin
 from .models_panel_duration import format_remaining

@@ -17,7 +17,7 @@ from sase.ace.tui.widgets.model_alias_completion import (
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
-from tests._xprompt_model_completion_helpers import (
+from tests._macro_model_completion_helpers import (
     clear_model_completion_cache as clear_model_completion_cache,
 )
 

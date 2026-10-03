@@ -19,7 +19,7 @@ from sase.axe.config import ChopConfig
 from sase.axe.state import chop_run_log_path, read_chop_run
 from sase.core.agent_launch_wire import AgentUnitWire, HoldFieldsWire, LaunchUnitWire
 from sase.feature_flags import override_flags
-from sase.xprompt import extract_vcs_workflow_tag
+from sase.macro import extract_vcs_workflow_tag
 
 from tests._axe_chop_proposal_launch_helpers import (
     config,

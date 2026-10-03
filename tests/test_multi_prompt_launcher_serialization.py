@@ -10,7 +10,7 @@ from sase.agent.multi_prompt_launcher import (
     deserialize_local_xprompts,
 )
 from sase.core.paths import PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
-from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.macro.models import InputArg, InputType, XPrompt
 
 
 def test_serialize_deserialize_roundtrip_simple() -> None:

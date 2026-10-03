@@ -204,7 +204,7 @@ def _raw_vcs_tag(
     agents: Sequence[Agent],
 ) -> str | None:
     """Resolve one agent's smart VCS tag before display-name rewriting."""
-    from sase.xprompt import (
+    from sase.macro import (
         extract_vcs_workflow_tag,
         find_vcs_workflow_tag,
         replace_ref_in_vcs_tag,
@@ -228,7 +228,7 @@ def _raw_vcs_tag(
     if not agent.is_project_agent:
         return replace_ref_in_vcs_tag(vcs_tag, agent.cl_name)
 
-    from sase.xprompt.workflow_validator_extract import extract_xprompt_calls
+    from sase.macro.workflow_validator_extract import extract_xprompt_calls
 
     if any(call.name == "pr" for call in extract_xprompt_calls(raw_content)):
         if not prompt_name:

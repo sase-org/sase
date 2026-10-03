@@ -12,7 +12,7 @@ from sase.main._init_skills_manifest import (
     plan_skill_manifest_ownership,
     retired_skill_files_with_drift,
 )
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 SkillTargetStatus = Literal["current", "stale", "missing", "retired"]
 AppliedSkillTargetStatus = Literal[

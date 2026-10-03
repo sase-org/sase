@@ -17,7 +17,7 @@ from ._types import (
 )
 
 if TYPE_CHECKING:
-    from sase.xprompt.models import InputArg
+    from sase.macro.models import InputArg
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
     from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
 

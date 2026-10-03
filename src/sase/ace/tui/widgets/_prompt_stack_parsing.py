@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sase.agent.multi_prompt import split_segments_protecting_fences
-from sase.xprompt.loader_parsing import parse_yaml_front_matter
+from sase.macro.loader_parsing import parse_yaml_front_matter
 
 
 def split_prompt_text(text: str) -> list[str]:

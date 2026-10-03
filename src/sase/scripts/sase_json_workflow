@@ -14,8 +14,8 @@ import sys
 def _setup_mode(schema_str: str) -> None:
     """Parse schema and return schema JSON and semantic hints."""
     import yaml
-    from sase.xprompt.loader_parsing import parse_output_from_front_matter
-    from sase.xprompt.output_validation import extract_semantic_type_hints
+    from sase.macro.loader_parsing import parse_output_from_front_matter
+    from sase.macro.output_validation import extract_semantic_type_hints
 
     schema_data = yaml.safe_load(schema_str.strip("`"))
     output_spec = parse_output_from_front_matter(schema_data)
@@ -38,8 +38,8 @@ def _setup_mode(schema_str: str) -> None:
 
 def _validate_mode(schema_json: str, response_file: str) -> None:
     """Validate response against schema."""
-    from sase.xprompt.models import OutputSpec
-    from sase.xprompt.output_validation import validate_response
+    from sase.macro.models import OutputSpec
+    from sase.macro.output_validation import validate_response
 
     with open(response_file) as f:
         response = f.read()

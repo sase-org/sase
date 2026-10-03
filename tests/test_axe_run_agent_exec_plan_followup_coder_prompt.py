@@ -6,8 +6,8 @@ from unittest.mock import patch
 import pytest
 
 from sase.llm_provider._plan_utils import PlanApprovalResult
-from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directive_edit import PromptWaitDirective, set_prompt_wait
+from sase.macro.directives import extract_prompt_directives
 from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
     patch_plan_deps,
     run_followup_plan,
@@ -166,7 +166,7 @@ class TestPlanFollowupCoderWait:
     """Approval waits stamp a canonical ``%wait`` onto the coder successor."""
 
     def test_empty_wait_leaves_coder_prompt_byte_identical(self, tmp_path) -> None:
-        with patch("sase.xprompt.directive_edit.set_prompt_wait") as set_wait:
+        with patch("sase.macro.directive_edit.set_prompt_wait") as set_wait:
             prompt = _approve_coder_prompt(tmp_path)
 
         set_wait.assert_not_called()

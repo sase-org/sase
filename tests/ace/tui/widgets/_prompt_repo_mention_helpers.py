@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 
 from sase.repo_inventory import RepoKind, RepoRecord
-from sase.xprompt.glossary_catalog import EditorGlossaryProject
-from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog, RepoMention
+from sase.macro.glossary_catalog import EditorGlossaryProject
+from sase.macro.repo_mention_catalog import EditorRepoMentionCatalog, RepoMention
 
 
 def install_warm_repo_mentions(

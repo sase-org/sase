@@ -349,7 +349,7 @@ def _launch_plan_diagnostic_from_dict(
 
 
 def _code_value_from_dict(data: dict[str, Any]) -> Any:
-    from sase.xprompt.code_value import CodeValue
+    from sase.macro.code_value import CodeValue
 
     info = data.get("info_string")
     return CodeValue(

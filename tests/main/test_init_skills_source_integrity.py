@@ -15,7 +15,7 @@ def test_skill_source_integrity_allows_clean_merged_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo_root = tmp_path / "repo"
-    skills_dir = repo_root / "src" / "sase" / "xprompts" / "skills"
+    skills_dir = repo_root / "src" / "sase" / "macros" / "skills"
     skills_dir.mkdir(parents=True)
     calls: list[tuple[str, ...]] = []
 
@@ -42,7 +42,7 @@ def test_skill_source_integrity_allows_clean_merged_source(
         "status",
         "--porcelain=v1",
         "--",
-        "src/sase/xprompts/skills",
+        "src/sase/macros/skills",
     ) in calls
     assert (
         "merge-base",
@@ -57,14 +57,14 @@ def test_skill_source_integrity_reports_dirty_skill_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo_root = tmp_path / "repo"
-    skills_dir = repo_root / "src" / "sase" / "xprompts" / "skills"
+    skills_dir = repo_root / "src" / "sase" / "macros" / "skills"
     skills_dir.mkdir(parents=True)
 
     def fake_run_git(root: Path, *args: str) -> str:
         if args == ("rev-parse", "--show-toplevel"):
             return str(repo_root)
         if args[:2] == ("status", "--porcelain=v1"):
-            return " M src/sase/xprompts/skills/foo.md"
+            return " M src/sase/macros/skills/foo.md"
         raise AssertionError(args)
 
     monkeypatch.setattr(
@@ -76,7 +76,7 @@ def test_skill_source_integrity_reports_dirty_skill_paths(
 
     assert error is not None
     assert "uncommitted changes" in error
-    assert "src/sase/xprompts/skills/foo.md" in error
+    assert "src/sase/macros/skills/foo.md" in error
     assert "Land the skill source change" in error
     assert "--allow-dirty" in error
 
@@ -86,7 +86,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo_root = tmp_path / "repo"
-    skills_dir = repo_root / "src" / "sase" / "xprompts" / "skills"
+    skills_dir = repo_root / "src" / "sase" / "macros" / "skills"
     skills_dir.mkdir(parents=True)
 
     def fake_run_git(root: Path, *args: str) -> str:

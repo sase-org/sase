@@ -126,7 +126,7 @@ def prompt_key_io_probe() -> Iterator[PromptKeyIoCounts]:
         return _wrapper
 
     with contextlib.ExitStack() as stack:
-        import sase.history.vcs_xprompt_mru as mru_module
+        import sase.history.vcs_macro_mru as mru_module
 
         stack.enter_context(
             mock.patch.object(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 import sase.history.prompt_metadata as prompt_metadata
-import sase.xprompt._parsing as xprompt_parsing
+import sase.macro._parsing as xprompt_parsing
 from sase.history.prompt_metadata import (
     clean_prompt_preview,
     summarize_prompt_for_list,

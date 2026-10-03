@@ -2,8 +2,8 @@
 
 import pytest
 
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import split_prompt_for_alternatives
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import split_prompt_for_alternatives
 
 
 def testsplit_prompt_for_alternatives_two_args() -> None:

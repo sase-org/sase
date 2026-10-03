@@ -37,7 +37,7 @@ from .postprocessing import (
     save_prompt_to_file,
 )
 from .preprocessing import preprocess_prompt
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 from .config import resolve_effective_effort
 from .continuation_budget import enforce_continuation_budget
 from .gate_intent_guard import raise_if_gate_intent_lost

@@ -9,7 +9,7 @@ from sase.project_tags import (
     known_project_tag_for,
     peek_project_tag_catalog,
 )
-from sase.xprompt import extract_project_from_vcs_tag, extract_vcs_workflow_tag
+from sase.macro import extract_project_from_vcs_tag, extract_vcs_workflow_tag
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase

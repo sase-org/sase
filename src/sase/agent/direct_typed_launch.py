@@ -127,11 +127,11 @@ def dispatch_direct_typed_launch(
     """
     from sase.agent.launch_admission import dispatch_typed_launch_request
     from sase.core.agent_launch_facade import sanitize_condition_inputs
-    from sase.xprompt.code_value import (
+    from sase.macro.code_value import (
         TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
         typed_launch_units_enabled,
     )
-    from sase.xprompt.directives import DirectiveError, has_typed_launch_directive
+    from sase.macro.directives import DirectiveError, has_typed_launch_directive
 
     try:
         expanded_prompt = expand_prompt_for_typed_launch(prompt)
@@ -206,7 +206,7 @@ def typed_launch_run_payload(
 ) -> dict[str, object]:
     """Build the durable ``run.launch`` success payload for typed dispatch."""
     from sase.core.agent_launch_wire import agent_launch_wire_to_json_dict
-    from sase.xprompt.unresolved import format_unresolved_references_toast
+    from sase.macro.unresolved import format_unresolved_references_toast
 
     identities = _unit_identities(admission_dir(bundle_dir) / UNITS_DIRNAME)
     unit_results: list[dict[str, object]] = []

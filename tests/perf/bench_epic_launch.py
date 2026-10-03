@@ -292,7 +292,7 @@ def _write_agent_meta(
 
 @contextlib.contextmanager
 def _patched_launch_boundary(spawn_times: list[float]) -> Iterator[None]:
-    from sase.xprompt.workflow_models import Workflow
+    from sase.macro.workflow_models import Workflow
 
     class _FakeResult:
         pid = 1
@@ -306,11 +306,11 @@ def _patched_launch_boundary(spawn_times: list[float]) -> Iterator[None]:
 
     with (
         patch(
-            "sase.bead.xprompts.resolve_work_phase_xprompt",
+            "sase.bead.macros.resolve_work_phase_xprompt",
             lambda project=None: Workflow(name="bd/work_phase_bead"),
         ),
         patch(
-            "sase.bead.xprompts.resolve_land_epic_xprompt",
+            "sase.bead.macros.resolve_land_epic_xprompt",
             lambda project=None: Workflow(name="bd/land_epic"),
         ),
         patch("sase.agent.launcher.launch_agent_from_cwd", launch_agent_from_cwd),

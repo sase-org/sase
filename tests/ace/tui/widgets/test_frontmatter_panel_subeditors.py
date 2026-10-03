@@ -18,7 +18,7 @@ from sase.ace.tui.widgets.frontmatter_panel import (
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.xprompt.models import InputType
+from sase.macro.models import InputType
 
 
 class _PromptBarApp(App[None]):

@@ -34,7 +34,7 @@ from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import WORKFLOW_DURATION, WORKFLOW_EXECUTIONS
 from sase.artifacts import create_artifacts_directory
 from sase.ace.hooks.summarize_utils import get_file_summary
-from sase.xprompt import escape_for_xprompt
+from sase.macro import escape_for_xprompt
 
 # Workflow completion marker (same pattern as other axe runners)
 WORKFLOW_COMPLETE_MARKER = "===WORKFLOW_COMPLETE=== PROPOSAL_ID: "

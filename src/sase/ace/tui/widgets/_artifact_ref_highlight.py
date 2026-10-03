@@ -20,7 +20,7 @@ from sase.artifact_refs import (
     artifact_ref_context,
     parsable_artifact_ref_kinds,
 )
-from sase.xprompt.project_identity import known_project_namespaces
+from sase.macro.project_identity import known_project_namespaces
 
 from ._jinja_highlight import (
     _JINJA_THEME_NAME,

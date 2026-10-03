@@ -13,7 +13,7 @@ from textual.widgets import Static
 from sase.ace.testing import wait_for
 from sase.ace.tui.modals.glossary_preview_modal import GlossaryPreviewModal
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
-from sase.xprompt.glossary_catalog import (
+from sase.macro.glossary_catalog import (
     EditorGlossaryCatalog,
     EditorGlossaryProject,
     _GlossaryConfigSignature,

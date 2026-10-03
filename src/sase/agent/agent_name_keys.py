@@ -12,11 +12,11 @@ from sase.agent.names import (
     AgentNameNamespaceReservationIndex,
     iter_agent_name_key_markers,
 )
-from sase.xprompt._disabled_regions import (
+from sase.macro._disabled_regions import (
     protect_disabled_regions,
     unprotect_disabled_regions,
 )
-from sase.xprompt._fenced_blocks import (
+from sase.macro._fenced_blocks import (
     protect_fenced_blocks_only,
     unprotect_fenced_blocks,
 )
@@ -133,7 +133,7 @@ def resolve_agent_name_key_markers(segments: Sequence[str]) -> list[str]:
     if not shapes_by_key:
         return list(segments)
 
-    from sase.xprompt._exceptions import DirectiveError
+    from sase.macro._exceptions import DirectiveError
 
     try:
         tokens = _allocate_key_tokens(shapes_by_key)

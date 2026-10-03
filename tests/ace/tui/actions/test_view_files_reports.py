@@ -13,8 +13,8 @@ from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
 from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 from sase.memory.memory_read_report import MemoryReadReportSpec
-from sase.xprompt._glossary_catalog_projects import EditorGlossaryProject
-from sase.xprompt.glossary_catalog import (
+from sase.macro._glossary_catalog_projects import EditorGlossaryProject
+from sase.macro.glossary_catalog import (
     EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION,
     EditorGlossaryCatalog,
     EditorGlossaryCatalogResult,
@@ -219,7 +219,7 @@ async def test_glossary_hint_is_materialized_for_pager(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr(
-        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        "sase.macro.glossary_catalog.editor_glossary_catalog_for_project",
         lambda _project: _catalog_result(),
     )
     report_path = str(tmp_path / ".sase" / "glossary_read_reports" / "report.md")
@@ -270,7 +270,7 @@ async def test_mixed_glossary_tool_call_and_file_selection_preserves_order(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr(
-        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        "sase.macro.glossary_catalog.editor_glossary_catalog_for_project",
         lambda _project: _catalog_result(),
     )
     notes = tmp_path / "notes.md"

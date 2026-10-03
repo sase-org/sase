@@ -318,7 +318,7 @@ def _is_stable_documentation_reference(
         path in {"INSTALL.md", "Justfile", "README.md", "mkdocs.yml"}
         or path.startswith("docs/")
         or path.startswith("sase/memory/")
-        or path.startswith("src/sase/xprompts/skills/")
+        or path.startswith("src/sase/macros/skills/")
     ):
         return False
     return _line_contains(

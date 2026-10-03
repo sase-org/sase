@@ -16,7 +16,7 @@ from sase.llm_provider.model_alias_policy import (
 )
 from sase.llm_provider.registry import resolve_model_provider
 from tests._model_alias_defaults_fixture import frozen_selector_member
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.workflow_models import Workflow
 
 from .work_test_helpers import assert_bare_auto_directives, epic, phase, seed
 

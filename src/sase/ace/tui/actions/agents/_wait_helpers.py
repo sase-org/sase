@@ -12,7 +12,7 @@ from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
 )
 from sase.plan_chain import agent_session_role_for_suffix
-from sase.xprompt.directive_edit import PromptWaitDirective
+from sase.macro.directive_edit import PromptWaitDirective
 
 from ...models.agent_status import is_failed_agent_status, is_resumable_done_status
 from ._fork_scope import (
@@ -57,7 +57,7 @@ def _capacity_label(result: WaitModalResult) -> str | None:
     if result.capacity is not None:
         return str(result.capacity)
     if result.capacity_multiplier is not None:
-        from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+        from sase.macro.queue_directive import format_queue_capacity_multiplier
 
         formatted = format_queue_capacity_multiplier(result.capacity_multiplier)
         return formatted if formatted is not None else str(result.capacity_multiplier)

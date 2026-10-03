@@ -6,7 +6,7 @@ import pytest
 
 import sase.ace.tui.modals.history_pane as history_pane
 import sase.history.prompt_metadata as prompt_metadata
-import sase.xprompt._parsing as xprompt_parsing
+import sase.macro._parsing as xprompt_parsing
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.prompts_modal import (
     PromptsModal,

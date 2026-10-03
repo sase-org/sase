@@ -17,9 +17,9 @@ from sase.agent.launch_validation import (
     validate_user_agent_name,
 )
 from sase.agent.multi_prompt_reference_resume import _RESUME_REF_RE
-from sase.xprompt._directive_types import _DIRECTIVE_PATTERN
-from sase.xprompt._parsing import parse_args
-from sase.xprompt._parsing_vcs_tags import _DIRECTIVE_PREFIX_RE
+from sase.macro._directive_types import _DIRECTIVE_PATTERN
+from sase.macro._parsing import parse_args
+from sase.macro._parsing_vcs_tags import _DIRECTIVE_PREFIX_RE
 
 
 @pytest.mark.parametrize(

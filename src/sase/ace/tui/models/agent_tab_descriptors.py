@@ -380,7 +380,7 @@ def resolve_agent_tab_style_inputs(*, allow_disk: bool = False) -> AgentTabStyle
             from sase.core.paths import sase_projects_dir
             from sase.core.project_lifecycle_facade import list_project_records
             from sase.project_accents import accent_among_keys
-            from sase.xprompt.loader import get_known_project_workspaces
+            from sase.macro.loader import get_known_project_workspaces
 
             try:
                 records = list_project_records(sase_projects_dir(), "all")

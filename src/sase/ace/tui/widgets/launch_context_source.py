@@ -47,8 +47,8 @@ from sase.llm_provider.model_launch_settings import (
 )
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 from sase.llm_provider.temporary_override_peek import peek_active_temporary_override
-from sase.xprompt.directives import PromptDirectives
-from sase.xprompt.loader import get_known_project_workspaces
+from sase.macro.directives import PromptDirectives
+from sase.macro.loader import get_known_project_workspaces
 
 # Same cadence the two indicator widgets used to poll on independently. Still
 # affordable only because the tick is pure peek (time-gated ``os.stat`` +

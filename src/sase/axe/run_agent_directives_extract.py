@@ -78,7 +78,7 @@ def extract_directives_and_write_meta(
 
     # Merge env-var-delivered local xprompts (from multi-prompt launcher)
     # with frontmatter-defined ones. Frontmatter takes precedence.
-    from sase.agent.multi_prompt_xprompts import take_local_macros_path
+    from sase.agent.multi_prompt_macros import take_local_macros_path
 
     env_xprompts_path = take_local_macros_path(os.environ)
     if env_xprompts_path:
@@ -260,7 +260,7 @@ def extract_directives_and_write_meta(
     # Persist %id tribe= for the Agents tab's workflow identity.
     persist_pending_tribe_write(pending_tribe_write, directives.tribe)
 
-    from sase.xprompt.hold_directive import HoldFields
+    from sase.macro.hold_directive import HoldFields
 
     auto_mode = directives.auto_mode
     return AgentInfo(

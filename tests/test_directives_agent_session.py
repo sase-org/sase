@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from sase.agent.multi_prompt_reference_directives import extract_static_clan_directive
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import extract_prompt_directives
 
 
 @pytest.mark.parametrize(

@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.xprompt.highlight_theme import ACE_THEME_NAME
+from sase.macro.highlight_theme import ACE_THEME_NAME
 
 from ...config import get_ace_page_size
 from ...query import parse_query_for_profile

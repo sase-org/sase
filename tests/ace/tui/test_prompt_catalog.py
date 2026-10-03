@@ -13,7 +13,7 @@ from sase.ace.tui.actions._startup_prompt_catalog import StartupPromptCatalogMix
 from sase.ace.tui.actions._startup_watchers import StartupWatchersMixin
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 from sase.snippet.models import SnippetSourceContribution
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 def _config_contributions(
@@ -167,7 +167,7 @@ def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
         lambda _projects: ("changed",),
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {
             "review": XPrompt(
                 name="review",
@@ -227,7 +227,7 @@ def test_prompt_catalog_preserves_explicit_capitalized_collisions(
         lambda _projects: ("changed",),
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {
             "foo": XPrompt(name="foo", content="xprompt lower", snippet=True),
             "Foo": XPrompt(name="Foo", content="xprompt capital", snippet=True),
@@ -286,7 +286,7 @@ def test_config_dirty_build_invalidates_warm_merged_config(monkeypatch) -> None:
         "_prompt_source_token",
         lambda _projects: ("fresh",) if state["fresh"] else ("stale",),
     )
-    monkeypatch.setattr("sase.xprompt.loader.get_all_xprompts", lambda project=None: {})
+    monkeypatch.setattr("sase.macro.loader.get_all_xprompts", lambda project=None: {})
     monkeypatch.setattr(
         prompt_catalog,
         "build_xprompt_assist_entries",

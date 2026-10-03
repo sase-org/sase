@@ -87,7 +87,7 @@ def test_project_context_falls_back_to_detection(
         "sase.workspace_provider.marker.find_marker_from_cwd",
         lambda _cwd: None,
     )
-    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: "sase")
+    monkeypatch.setattr("sase.macro.loader.detect_project", lambda: "sase")
     assert _project_context(str(tmp_path)) == ("sase", None)
 
 
@@ -99,5 +99,5 @@ def test_project_context_when_nothing_resolves(
         "sase.workspace_provider.marker.find_marker_from_cwd",
         lambda _cwd: None,
     )
-    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: None)
+    monkeypatch.setattr("sase.macro.loader.detect_project", lambda: None)
     assert _project_context(str(tmp_path)) == (None, None)

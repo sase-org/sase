@@ -404,7 +404,7 @@ def _resolve_time_wait(
     now: float,
     started: float,
 ) -> dict[str, Any]:
-    from sase.xprompt._directive_time import parse_absolute_time, parse_duration
+    from sase.macro._directive_time import parse_absolute_time, parse_duration
 
     value = str(wait.value or "")
     duration = parse_duration(value)

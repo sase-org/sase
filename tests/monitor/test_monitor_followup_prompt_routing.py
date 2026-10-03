@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sase.monitor.followup_prompt import compose_followup_prompt
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 
 from ._followup_prompt_fixtures import _COMMON
 

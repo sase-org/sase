@@ -142,8 +142,8 @@ def _run_microbenchmark(
     naive_max_blocks: int,
 ) -> list[dict[str, Any]]:
     _insert_repo_paths()
-    from sase.xprompt._fenced_blocks import fenced_block_details
-    from sase.xprompt._utf8_offsets import (
+    from sase.macro._fenced_blocks import fenced_block_details
+    from sase.macro._utf8_offsets import (
         byte_offsets_to_character_offsets,
         character_offsets_to_byte_offsets,
     )

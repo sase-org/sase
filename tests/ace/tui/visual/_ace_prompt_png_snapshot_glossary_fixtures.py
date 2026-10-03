@@ -11,7 +11,7 @@ import pytest
 from sase.ace.tui import AceApp
 from sase.ace.tui.glossary_catalog import PromptGlossaryContext
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
-from sase.xprompt.glossary_catalog import (
+from sase.macro.glossary_catalog import (
     EditorGlossaryCatalog,
     EditorGlossaryProject,
     _GlossaryConfigSignature,

@@ -12,7 +12,7 @@ from sase.bead.epic_launch import (
     epic_launch_origin_from_gate_source,
     resolve_epic_launch_project,
 )
-from sase.xprompt.directive_edit import PromptWaitDirective
+from sase.macro.directive_edit import PromptWaitDirective
 
 
 def test_build_epic_launch_argv_carries_approval_linking_options() -> None:

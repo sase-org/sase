@@ -1,16 +1,16 @@
 """Tests for xprompt processor internal parsing and substitution functions."""
 
 import pytest
-from sase.xprompt._exceptions import XPromptArgumentError
-from sase.xprompt._jinja import substitute_placeholders
-from sase.xprompt._parsing import (
+from sase.macro._exceptions import XPromptArgumentError
+from sase.macro._jinja import substitute_placeholders
+from sase.macro._parsing import (
     _process_text_block,
     find_matching_paren_for_args,
     parse_args,
     parse_workflow_reference,
 )
-from sase.xprompt.models import XPrompt
-from sase.xprompt.processor import expand_single_xprompt
+from sase.macro.models import XPrompt
+from sase.macro.processor import expand_single_xprompt
 
 # Tests for parse_named_arg
 

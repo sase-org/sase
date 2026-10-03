@@ -132,7 +132,7 @@ def run_authorized_launch_query(
         patch("sase.ops.cli.load_request", return_value=request),
         patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
         patch(
-            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            "sase.macro.unresolved.scan_query_for_unresolved_references",
             return_value=[],
         ),
         patch(

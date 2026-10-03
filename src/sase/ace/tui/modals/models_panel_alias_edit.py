@@ -14,7 +14,7 @@ from sase.llm_provider import (
 )
 from sase.llm_provider.config import validate_model_alias_selector_value
 from sase.llm_provider.load_balancing import concatenated_selector_members
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 from .config_commit import push_config_commit_prompt, submit_config_commit_task
 from .custom_model_input_modal import CustomModelInputModal

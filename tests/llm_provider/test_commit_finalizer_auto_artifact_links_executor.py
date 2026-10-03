@@ -25,7 +25,7 @@ from sase.linked_repos import LINKED_REPOS_JSON_ENV
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 from tests._conftest_environment import redirect_sase_home
 
 from ._commit_finalizer_artifact_links_helpers import (

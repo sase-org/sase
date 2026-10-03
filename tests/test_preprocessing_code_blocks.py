@@ -3,16 +3,16 @@
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from sase.xprompt import _fenced_blocks
+from sase.macro import _fenced_blocks
 from sase.llm_provider.preprocessing import preprocess_prompt, preprocess_prompt_late
-from sase.xprompt._fenced_blocks import (
+from sase.macro._fenced_blocks import (
     fenced_block_details,
     fenced_block_ranges,
     protect_fenced_blocks,
     protect_fenced_blocks_only,
     unprotect_fenced_blocks,
 )
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 _BOXED_INNER_FENCE_PROMPT = (
     "before\n"
@@ -164,7 +164,7 @@ class TestPreprocessPromptCodeBlockProtection:
     @patch("sase.file_references.format_with_prettier")
     @patch("sase.file_references.process_file_references")
     @patch("sase.file_references.process_command_substitution")
-    @patch("sase.xprompt.process_xprompt_references")
+    @patch("sase.macro.process_xprompt_references")
     @patch("sase.llm_provider.preprocessing.extract_prompt_directives")
     def test_text_outside_code_blocks_still_processed(
         self,

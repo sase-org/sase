@@ -17,9 +17,9 @@ from sase.ace.tui.widgets.jinja_completion import (
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt.jinja_assist import JinjaScope
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.jinja_assist import JinjaScope
+from sase.macro.models import InputArg, InputType
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 from ._completion_helpers import CompletionTestApp
 from ._prompt_stack_helpers import mini_xprompt_target
@@ -138,7 +138,7 @@ async def test_input_declaring_prompt_hides_patch_name() -> None:
 
 
 async def test_menu_rows_match_engine_order() -> None:
-    from sase.xprompt import jinja_assist
+    from sase.macro import jinja_assist
 
     app = CompletionTestApp()
     async with app.run_test() as pilot:

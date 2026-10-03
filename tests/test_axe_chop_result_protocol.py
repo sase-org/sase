@@ -21,7 +21,7 @@ from sase.axe.state import (
     read_chop_run,
 )
 from sase.core.axe_chop_facade import derive_chop_agent_name
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 
 from tests.axe_chop_runner_helpers import make_script
 

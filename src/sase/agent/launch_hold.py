@@ -23,7 +23,7 @@ from sase.core.agent_launch_wire import (
     LaunchUnitWire,
     ProcUnitWire,
 )
-from sase.xprompt.hold_directive import HoldFields
+from sase.macro.hold_directive import HoldFields
 
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
@@ -86,7 +86,7 @@ def _arm_hold_for_fields(
     """
     try:
         from sase.core.agent_hold_facade import arm_agent_hold, resolve_hold_ttl_seconds
-        from sase.xprompt.hold_directive import hold_fields_to_selectors
+        from sase.macro.hold_directive import hold_fields_to_selectors
 
         selectors = hold_fields_to_selectors(fields)
         ttl_seconds = resolve_hold_ttl_seconds(fields.ttl_seconds)

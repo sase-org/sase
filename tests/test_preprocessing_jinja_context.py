@@ -5,13 +5,13 @@ from unittest.mock import patch
 import pytest
 
 from sase.llm_provider.preprocessing import preprocess_prompt_early
-from sase.xprompt.runtime_context import bind_runtime_template_vars
+from sase.macro.runtime_context import bind_runtime_template_vars
 
 
 class TestJinjaContextRendering:
     """Verify that context dict variables are available in Jinja2 templates."""
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_n_variable_rendered(self, _mock_xprompt: object) -> None:
         """{{ N }} renders to the iteration number when context has N."""
         result = preprocess_prompt_early(
@@ -20,7 +20,7 @@ class TestJinjaContextRendering:
         )
         assert "Iteration 3 of work" in result.prompt
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_n_variable_first_iteration(self, _mock_xprompt: object) -> None:
         """{{ N }} renders to 1 for the first iteration."""
         result = preprocess_prompt_early(
@@ -29,7 +29,7 @@ class TestJinjaContextRendering:
         )
         assert "Run 1" in result.prompt
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_n_not_in_context_raises(self, _mock_xprompt: object) -> None:
         """{{ N }} without N in context raises UndefinedError."""
         from jinja2 import UndefinedError
@@ -42,7 +42,7 @@ class TestJinjaContextRendering:
                 context={"cl_name": "test"},
             )
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_wait_chats_rendered(self, _mock_xprompt: object) -> None:
         """{{ wait_chats | join(',') }} renders when context has wait_chats."""
         result = preprocess_prompt_early(
@@ -51,7 +51,7 @@ class TestJinjaContextRendering:
         )
         assert "Transcripts: ~/.sase/chats/a.md,~/.sase/chats/b.md" in result.prompt
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_wait_namespace_rendered_from_runtime_context(
         self,
         _mock_xprompt: object,
@@ -69,7 +69,7 @@ class TestJinjaContextRendering:
 
         assert "Transcripts: ~/.sase/chats/a.md" in result.prompt
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_context_input_overrides_runtime_wait_namespace(
         self,
         _mock_xprompt: object,
@@ -87,7 +87,7 @@ class TestJinjaContextRendering:
 
         assert "Wait: input" in result.prompt
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_unknown_wait_member_raises_at_runtime(
         self,
         _mock_xprompt: object,
@@ -101,7 +101,7 @@ class TestJinjaContextRendering:
             with pytest.raises(Exception, match="no attribute 'missing'"):
                 preprocess_prompt_early("{{ wait.missing }}", context={})
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_wait_chats_not_in_context_raises(self, _mock_xprompt: object) -> None:
         """{{ wait_chats }} without wait_chats in context raises UndefinedError."""
         from jinja2 import UndefinedError
@@ -114,7 +114,7 @@ class TestJinjaContextRendering:
                 context={"cl_name": "test"},
             )
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_disabled_region_preserves_new_multi_model_syntax(
         self,
         _mock_xprompt: object,
@@ -132,7 +132,7 @@ class TestJinjaContextRendering:
 
         assert "%{%m:claude/opus | %m:codex/gpt-5.6-sol}" in result.prompt
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_disabled_region_jinja_content_is_opaque(
         self,
         _mock_xprompt: object,
@@ -150,7 +150,7 @@ class TestJinjaContextRendering:
         assert "{{ value }}" in result.prompt
         assert "{% endfor %}" in result.prompt
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_disabled_region_does_not_block_outside_jinja_rendering(
         self,
         _mock_xprompt: object,
@@ -168,7 +168,7 @@ class TestJinjaContextRendering:
         assert "Run 7" in result.prompt
         assert "Keep {{ N }} literal." in result.prompt
 
-    @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
+    @patch("sase.macro.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_disabled_region_markers_survive_early_jinja_rendering(
         self,
         _mock_xprompt: object,

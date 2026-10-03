@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import (
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import (
     SaveTargetFormat,
     save_config_xprompt,
     save_markdown_xprompt,

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks, spawn_pump_free_task
 from sase.ace.tui.widgets.jinja_completion import jinja_scope_for_editor
-from sase.xprompt import jinja_assist, jinja_inspect
+from sase.macro import jinja_assist, jinja_inspect
 
 _POSITIONAL_RE = re.compile(r"_[0-9]+")
 

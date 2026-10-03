@@ -3,15 +3,15 @@
 import tempfile
 
 import pytest
-from sase.xprompt import WorkflowExecutor
-from sase.xprompt.workflow_models import (
+from sase.macro import WorkflowExecutor
+from sase.macro.workflow_models import (
     Workflow,
     WorkflowExecutionError,
     WorkflowStep,
     WorkflowValidationError,
 )
-from sase.xprompt.workflow_loader_parse import _parse_workflow_step
-from sase.xprompt.workflow_validator_checks import validate_finally_steps
+from sase.macro.workflow_loader_parse import _parse_workflow_step
+from sase.macro.workflow_validator_checks import validate_finally_steps
 
 
 class TestFinallyStepExecution:
@@ -45,7 +45,7 @@ class TestFinallyStepExecution:
         """Finally step should execute when a prior step returns False (HITL reject)."""
         from unittest.mock import MagicMock
 
-        from sase.xprompt import HITLHandler, HITLResult
+        from sase.macro import HITLHandler, HITLResult
 
         steps = [
             WorkflowStep(

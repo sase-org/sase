@@ -4,7 +4,7 @@ import os
 import tempfile
 from typing import Any
 
-from sase.xprompt.workflow_models import WorkflowStep
+from sase.macro.workflow_models import WorkflowStep
 
 
 def _evaluate_standalone_condition(condition: str, context: dict[str, Any]) -> bool:
@@ -20,7 +20,7 @@ def _evaluate_standalone_condition(condition: str, context: dict[str, Any]) -> b
     Returns:
         True if condition evaluates to truthy, False otherwise.
     """
-    from sase.xprompt.workflow_executor_utils import create_jinja_env
+    from sase.macro.workflow_executor_utils import create_jinja_env
 
     env = create_jinja_env()
     try:
@@ -60,14 +60,14 @@ def execute_standalone_steps(
     import subprocess
     import sys
 
-    from sase.xprompt.workflow_executor_types import output_types_from_step
-    from sase.xprompt.workflow_executor_utils import (
+    from sase.macro.workflow_executor_types import output_types_from_step
+    from sase.macro.workflow_executor_utils import (
         apply_chdir_output,
         coerce_output_types,
         parse_bash_output,
         render_template,
     )
-    from sase.xprompt.workflow_models import WorkflowExecutionError
+    from sase.macro.workflow_models import WorkflowExecutionError
 
     for step in steps:
         # Evaluate step condition (if: field) - skip step if condition is false
@@ -163,7 +163,7 @@ def execute_standalone_steps(
         elif step.is_agent_step() and step.agent:
             from sase.content import ensure_str_content
             from sase.llm_provider import LLMInvocationError, invoke_agent
-            from sase.xprompt import process_xprompt_references
+            from sase.macro import process_xprompt_references
 
             rendered_prompt = render_template(step.agent, context)
             expanded_prompt = process_xprompt_references(rendered_prompt)

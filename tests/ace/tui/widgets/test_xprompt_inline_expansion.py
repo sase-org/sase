@@ -9,9 +9,9 @@ from sase.ace.tui.widgets.xprompt_inline_expansion import (
     expand_inline_xprompt,
 )
 from sase.agent.prompt_inputs import render_prompt_with_inputs
-from sase.xprompt.models import InputArg, InputType, XPrompt
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 _MODULE = "sase.ace.tui.widgets.xprompt_inline_expansion"
 

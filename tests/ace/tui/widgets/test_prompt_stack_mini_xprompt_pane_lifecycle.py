@@ -13,9 +13,9 @@ from sase.ace.tui.modals.mini_xprompt_target_catalog import (
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt.naming import SaveResolution
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.naming import SaveResolution
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import SaveTargetFormat
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
 
 

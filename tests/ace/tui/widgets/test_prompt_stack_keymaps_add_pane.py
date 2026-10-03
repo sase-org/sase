@@ -8,7 +8,7 @@ import pytest
 
 from sase.ace.tui.modals.snippet_name_modal import SnippetNameResult
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.xprompt.snippet_targets import SnippetSaveTarget
+from sase.macro.snippet_targets import SnippetSaveTarget
 
 from ._prompt_stack_keymap_helpers import PromptStackKeymapApp
 

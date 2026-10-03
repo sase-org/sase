@@ -14,8 +14,8 @@ from sase.agent.output_variable_context import (
     encode_agent_var_upstreams,
 )
 from sase.axe.run_agent_exec import _build_named_args
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
-from sase.xprompt.workflow_runner import execute_workflow
+from sase.macro.workflow_models import Workflow, WorkflowStep
+from sase.macro.workflow_runner import execute_workflow
 from tests._agent_names_fixtures import make_agent
 from tests._agent_output_variable_context_fixtures import (
     PLAN_PATH,
@@ -89,7 +89,7 @@ def test_waited_producer_variables_render_in_later_workflow_prompt(
         ],
     )
 
-    with patch("sase.xprompt.workflow_executor.WorkflowExecutor") as executor_cls:
+    with patch("sase.macro.workflow_executor.WorkflowExecutor") as executor_cls:
         executor = executor_cls.return_value
         executor.execute.return_value = True
         executor.state.steps = []
@@ -156,7 +156,7 @@ def test_structured_variables_reach_jinja_as_json_stringifying_containers(
         ],
     )
 
-    with patch("sase.xprompt.workflow_executor.WorkflowExecutor") as executor_cls:
+    with patch("sase.macro.workflow_executor.WorkflowExecutor") as executor_cls:
         executor = executor_cls.return_value
         executor.execute.return_value = True
         executor.state.steps = []
@@ -209,7 +209,7 @@ def test_submitted_plan_file_renders_in_later_workflow_prompt(
         ],
     )
 
-    with patch("sase.xprompt.workflow_executor.WorkflowExecutor") as executor_cls:
+    with patch("sase.macro.workflow_executor.WorkflowExecutor") as executor_cls:
         executor = executor_cls.return_value
         executor.execute.return_value = True
         executor.state.steps = []
@@ -263,7 +263,7 @@ def test_raw_key_producer_renders_via_bracket_access(tmp_path: Path) -> None:
         ],
     )
 
-    with patch("sase.xprompt.workflow_executor.WorkflowExecutor") as executor_cls:
+    with patch("sase.macro.workflow_executor.WorkflowExecutor") as executor_cls:
         executor = executor_cls.return_value
         executor.execute.return_value = True
         executor.state.steps = []

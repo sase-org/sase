@@ -1,8 +1,8 @@
 """Tests for xprompt output validation module."""
 
 import pytest
-from sase.xprompt.models import OutputSpec
-from sase.xprompt.output_validation import (
+from sase.macro.models import OutputSpec
+from sase.macro.output_validation import (
     OutputValidationError,
     _validate_semantic_type,
     extract_semantic_type_hints,

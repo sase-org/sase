@@ -289,7 +289,7 @@ mentor_profiles:
     monkeypatch.chdir(tmp_path)
 
     with mentor_config_from_yaml(yaml_content):
-        with patch("sase.xprompt.loader.detect_project", return_value="sase"):
+        with patch("sase.macro.loader.detect_project", return_value="sase"):
             profiles = _load_mentor_profiles()
 
     assert len(profiles) == 1
@@ -318,7 +318,7 @@ mentor_profiles:
     monkeypatch.chdir(tmp_path)
 
     with mentor_config_from_yaml(yaml_content):
-        with patch("sase.xprompt.loader.detect_project", return_value="sase"):
+        with patch("sase.macro.loader.detect_project", return_value="sase"):
             profiles = _load_mentor_profiles()
 
     assert len(profiles) == 1
@@ -346,7 +346,7 @@ mentor_profiles:
     monkeypatch.chdir(tmp_path)
 
     with mentor_config_from_yaml(yaml_content):
-        with patch("sase.xprompt.loader.detect_project", return_value=None):
+        with patch("sase.macro.loader.detect_project", return_value=None):
             profiles = _load_mentor_profiles()
 
     assert len(profiles) == 1

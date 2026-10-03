@@ -273,7 +273,7 @@ class PromptJumpMixin(_MixinBase):
             XPromptBinding,
             XPromptReadonlyTarget,
         )
-        from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+        from sase.macro.prompt_frontmatter import PromptFrontmatter
 
         binding = None
         read_only_target = None

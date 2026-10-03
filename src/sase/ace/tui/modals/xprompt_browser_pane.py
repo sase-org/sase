@@ -17,8 +17,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.xprompt import get_all_prompts
-from sase.xprompt.workflow_models import Workflow
+from sase.macro import get_all_prompts
+from sase.macro.workflow_models import Workflow
 
 from ..actions.navigation.jump_hints import normalize_jump_key
 from ..util.selection import ProgrammaticSelectionGuard, restore_selection_by_identity

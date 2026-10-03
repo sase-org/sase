@@ -28,7 +28,7 @@ from sase.agent.names import (
     retry_agent_name_template,
     wait_agent_name_template,
 )
-from sase.xprompt._exceptions import DirectiveError
+from sase.macro._exceptions import DirectiveError
 from tests._dynamic_agent_session_attach_helpers import (
     _artifact_record,
     _patch_attach_snapshot,

@@ -82,9 +82,9 @@ def normalize_request_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
 def build_preview_plan(prompt: str) -> tuple[str, Any]:
     from sase.agent.launch_request_types import LaunchRequestError
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
+    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
-    from sase.xprompt._parsing import (
+    from sase.macro._parsing import (
         normalize_default_vcs_workflow,
         normalize_default_vcs_workflow_segment,
     )
@@ -132,11 +132,11 @@ def build_preview_plan(prompt: str) -> tuple[str, Any]:
     if repeat_plan.slots:
         return query, repeat_plan
 
-    from sase.xprompt.directives import plan_prompt_fanout_variants
+    from sase.macro.directives import plan_prompt_fanout_variants
 
     fanout_plan = plan_prompt_fanout_variants(query)
     if fanout_plan is None and "#" in query:
-        from sase.xprompt.processor import (
+        from sase.macro.processor import (
             LAUNCH_DEFERRED_XPROMPT_NAMES,
             process_xprompt_references,
             prompt_may_reference_xprompt,
@@ -162,9 +162,9 @@ def expand_prompt_for_typed_launch(prompt: str) -> str:
     dispatch apply the default VCS tag to remaining agent prose.
     """
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
+    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
-    from sase.xprompt.processor import (
+    from sase.macro.processor import (
         LAUNCH_DEFERRED_XPROMPT_NAMES,
         process_xprompt_references,
         prompt_may_reference_xprompt,
@@ -230,7 +230,7 @@ def prepare_typed_launch_plan(
     """
     from sase.core.agent_launch_facade import plan_typed_launch_units
     from sase.core.agent_launch_wire import agent_launch_wire_to_json_dict
-    from sase.xprompt.directives import DirectiveError
+    from sase.macro.directives import DirectiveError
 
     try:
         plan = plan_typed_launch_units(

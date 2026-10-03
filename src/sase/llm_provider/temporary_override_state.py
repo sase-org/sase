@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_home
-from sase.xprompt.effort import is_valid_effort
+from sase.macro.effort import is_valid_effort
 
 from .model_launch_settings import (
     BIG_EPIC_LANDER_MODEL_FIELD,

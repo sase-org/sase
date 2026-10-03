@@ -15,7 +15,7 @@ from sase.finalizers.declaration import (
     submit_final_manifest,
 )
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 from .finalizer_declaration_channel_test_helpers import clean_state, prepare_agent_env
 

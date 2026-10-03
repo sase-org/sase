@@ -9,20 +9,20 @@ from typing import TYPE_CHECKING
 from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 
-from sase.xprompt import highlight as xprompt_highlight
+from sase.macro import highlight as xprompt_highlight
 from sase.ace.tui.widgets._jinja_highlight import (
     _JINJA_THEME_NAME,
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.xprompt.highlight import (
+from sase.macro.highlight import (
     HighlightSpan,
     XPromptArgumentSource,
     XPromptHighlightRole,
     highlight_spans,
 )
 from sase.project_accents import PROJECT_ACCENTS
-from sase.xprompt.highlight_theme import (
+from sase.macro.highlight_theme import (
     derive_argument_color,
     xprompt_argument_palette,
 )

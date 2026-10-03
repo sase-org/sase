@@ -16,7 +16,7 @@ from sase._plan_approval_protocol import (
 if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin
     from sase.bead.epic_launch import EpicLaunchSubmission
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 
 def prepare_epic_launch(

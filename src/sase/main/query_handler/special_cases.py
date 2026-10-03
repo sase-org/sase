@@ -7,13 +7,13 @@ from ._launch import launch_query
 
 
 def _print_standalone_deprecation(name: str) -> None:
-    from sase.xprompt.workflow_runner import standalone_deprecation_message
+    from sase.macro.workflow_runner import standalone_deprecation_message
 
     print(f"Warning: {standalone_deprecation_message(name)}", file=sys.stderr)
 
 
 def _print_invalid_standalone_marker(name: str) -> None:
-    from sase.xprompt.workflow_runner import invalid_explicit_standalone_message
+    from sase.macro.workflow_runner import invalid_explicit_standalone_message
 
     print(f"Error: {invalid_explicit_standalone_message(name)}", file=sys.stderr)
 
@@ -50,7 +50,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         vcs_prefix = args_after_run[0][:-2]
     if vcs_prefix is not None:
         if vcs_prefix.startswith("#"):
-            from sase.xprompt import parse_workflow_reference, strip_hitl_suffix
+            from sase.macro import parse_workflow_reference, strip_hitl_suffix
 
             workflow_ref = vcs_prefix[1:]  # Strip leading "#"
             workflow_ref, _ = strip_hitl_suffix(workflow_ref)
@@ -66,7 +66,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                 # Replace all embedded VCS workflow tags with the
                 # current prefix to handle cross-VCS reuse and
                 # multi-prompt segments.
-                from sase.xprompt import replace_vcs_workflow_tags
+                from sase.macro import replace_vcs_workflow_tags
 
                 launch_query(replace_vcs_workflow_tags(prompt, vcs_prefix))
                 sys.exit(0)
@@ -103,7 +103,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
     if args_after_run:
         potential_query = args_after_run[0]
         if potential_query.startswith("#"):
-            from sase.xprompt import (
+            from sase.macro import (
                 get_all_prompts,
                 iter_xprompt_references,
                 parse_workflow_reference,
@@ -169,7 +169,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
     if args_after_run:
         potential_query = args_after_run[0]
         # Get known prompts dynamically (includes both xprompts and workflows)
-        from sase.xprompt import get_all_prompts
+        from sase.macro import get_all_prompts
 
         known_prompts = set(get_all_prompts().keys())
         single_prompt_token = len(

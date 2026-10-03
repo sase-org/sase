@@ -7,7 +7,7 @@ from sase.ace.tui.actions.agents._wait_resume import (
     _wait_modal_candidates,
 )
 from sase.ace.tui.modals import WaitModalResult
-from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
+from sase.macro.directive_edit import PromptWaitDirective, set_prompt_wait
 from tests.ace.tui._agent_wait_resume_helpers import make_waiting_agent
 
 

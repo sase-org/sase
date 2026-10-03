@@ -209,7 +209,7 @@ def test_hitl_feedback_option_keeps_its_closed_empty_input(
     gate_home: Path,
 ) -> None:
     """The audited built-in that would break if the note were always injected."""
-    from sase.xprompt.workflow_hitl_gate import create_workflow_hitl_gate
+    from sase.macro.workflow_hitl_gate import create_workflow_hitl_gate
 
     gate = create_workflow_hitl_gate(
         step_name="review",

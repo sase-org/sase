@@ -112,7 +112,7 @@ def _bead_catalog_entries(request: dict[str, Any]) -> list[dict[str, Any]]:
     try:
         from sase.bead.store_locator import open_bead_candidates_for_project
         from sase.project_display_names import project_display_name_for
-        from sase.xprompt.project_identity import get_known_project_workspaces
+        from sase.macro.project_identity import get_known_project_workspaces
     except Exception:
         return []
 

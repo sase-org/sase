@@ -162,7 +162,7 @@ def _base_launch_patches() -> ExitStack:
     )
     stack.enter_context(
         patch(
-            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            "sase.macro.unresolved.scan_query_for_unresolved_references",
             return_value=(),
         )
     )
@@ -232,7 +232,7 @@ def test_launch_query_runs_tags_after_dispatch_before_reuse_spawn_and_mru(
         assert prefix == "#gh:sase"
 
     monkeypatch.setattr(
-        "sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage", _record_mru
+        "sase.history.vcs_macro_mru.record_vcs_xprompt_usage", _record_mru
     )
     monkeypatch.setattr(
         "sase.ops.commands.run.emit_run_launch_result", lambda **kwargs: None
@@ -259,7 +259,7 @@ def test_launch_query_tag_failure_blocks_spawn(
     monkeypatch.setattr("sase.main.query_handler._launch.launch_agents_from_cwd", spawn)
     record_mru = MagicMock()
     monkeypatch.setattr(
-        "sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage", record_mru
+        "sase.history.vcs_macro_mru.record_vcs_xprompt_usage", record_mru
     )
     failed: list[str] = []
     monkeypatch.setattr(
@@ -478,8 +478,8 @@ def test_unit_guard_covers_swarm_expanded_segments(
     monkeypatch: pytest.MonkeyPatch, tag_catalog: ProjectTagCatalog
 ) -> None:
     """Each post-swarm segment enforces the one-target rule on its own."""
-    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
-    from tests._xprompt_swarm_helpers import patch_catalog, xp
+    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
+    from tests._macro_swarm_helpers import patch_catalog, xp
 
     _patch_tag_catalog(monkeypatch, tag_catalog)
     swarm = {"crew": xp("crew", "+sase do A\n---\n+bob do B")}

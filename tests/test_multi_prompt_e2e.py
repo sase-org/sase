@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 # ---------------------------------------------------------------------------
@@ -25,7 +25,7 @@ def test_cli_multi_prompt_launches_detached() -> None:
 
     with (
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
-        patch("sase.xprompt.get_all_prompts", return_value={}),
+        patch("sase.macro.get_all_prompts", return_value={}),
     ):
         from sase.main.query_handler.special_cases import handle_run_special_cases
 
@@ -61,7 +61,7 @@ def test_cli_single_prompt_launches_detached() -> None:
 
     with (
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
-        patch("sase.xprompt.get_all_prompts", return_value={}),
+        patch("sase.macro.get_all_prompts", return_value={}),
     ):
         with pytest.raises(SystemExit):
             from sase.main.query_handler.special_cases import (
@@ -163,12 +163,10 @@ def test_full_flow_parse_and_launch() -> None:
 
     # Verify xprompt expansion works for each segment.
     with (
-        patch("sase.xprompt.processor.get_all_xprompts", return_value={}),
-        patch(
-            "sase.xprompt.processor.resolve_xprompt_aliases", side_effect=lambda x: x
-        ),
+        patch("sase.macro.processor.get_all_xprompts", return_value={}),
+        patch("sase.macro.processor.resolve_xprompt_aliases", side_effect=lambda x: x),
     ):
-        from sase.xprompt.processor import process_xprompt_references
+        from sase.macro.processor import process_xprompt_references
 
         for segment in multi.segments:
             expanded = process_xprompt_references(
@@ -195,7 +193,7 @@ def test_full_flow_frontmatter_only_single_agent() -> None:
 
 def test_has_wait_directive_per_segment() -> None:
     """has_wait_directive correctly detects %wait in individual segments."""
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     prompt = "Fix the bug\n---\n%wait:previous\nAdd tests\n---\nDeploy"
     multi = parse_multi_prompt(prompt)

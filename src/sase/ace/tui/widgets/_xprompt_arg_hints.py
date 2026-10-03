@@ -14,7 +14,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     merge_local_xprompt_entries,
     named_args_skeleton,
 )
-from sase.xprompt.project_identity import canonical_xprompt_project
+from sase.macro.project_identity import canonical_xprompt_project
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
-from sase.xprompt.effort import is_valid_effort
+from sase.macro.effort import is_valid_effort
 
 EFFORT_OVERRIDE_WIRE_SCHEMA_VERSION = 1
 

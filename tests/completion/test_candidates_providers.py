@@ -413,7 +413,7 @@ def test_pending_plan_catalog_stays_off_the_forbidden_imports() -> None:
         "bad = [m for m in sys.modules if m.split('.')[0] in "
         "{'textual', 'rich'} or m == 'sase.ace' or "
         "m.startswith(('sase.ace.', 'sase.sdd.', 'sase.bead.', "
-        "'sase.workspace_provider.', 'sase.xprompt.', 'sase.llm_provider.', "
+        "'sase.workspace_provider.', 'sase.macro.', 'sase.llm_provider.', "
         "'sase.notifications.', 'sase.gate_turn.')) "
         "or m in ('sase.notifications', 'sase.gate_turn', 'sase.main.parser')]; "
         "sys.exit('forbidden imports: ' + ','.join(bad) if bad else 0)"

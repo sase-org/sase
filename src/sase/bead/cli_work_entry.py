@@ -16,7 +16,7 @@ from sase.bead.model import BeadTier, IssueType
 
 if TYPE_CHECKING:
     from sase.bead.operation_context import BeadOperationContext
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 
 def handle_bead_work(
@@ -484,7 +484,7 @@ def _capacity_from_args(args: argparse.Namespace) -> int | None:
     raw = getattr(args, "capacity", None)
     if raw is None:
         return None
-    from sase.xprompt.queue_directive import validate_queue_capacity
+    from sase.macro.queue_directive import validate_queue_capacity
 
     try:
         return validate_queue_capacity(raw)

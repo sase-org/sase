@@ -4,15 +4,15 @@ import os
 import tempfile
 
 import pytest
-from sase.xprompt.models import OutputSpec
-from sase.xprompt.workflow_loader import _parse_workflow_step
-from sase.xprompt.workflow_models import (
+from sase.macro.models import OutputSpec
+from sase.macro.workflow_loader import _parse_workflow_step
+from sase.macro.workflow_models import (
     Workflow,
     WorkflowStep,
     WorkflowValidationError,
 )
-from sase.xprompt.workflow_validator_checks import validate_cross_step_field_refs
-from sase.xprompt.workflow_executor import WorkflowExecutor
+from sase.macro.workflow_validator_checks import validate_cross_step_field_refs
+from sase.macro.workflow_executor import WorkflowExecutor
 
 
 # --- Phase 2: Parsing tests ---

@@ -76,7 +76,7 @@ def _remove_inherited_multi_agent_prompt_env(env: dict[str, str]) -> None:
 
 def _remove_inherited_swarm_xprompts_env(env: dict[str, str]) -> None:
     """Drop stale swarm provenance inherited from a parent agent."""
-    from sase.xprompt.used_xprompts import pop_launch_swarm_env
+    from sase.macro.used_macros import pop_launch_swarm_env
 
     pop_launch_swarm_env(env)
 

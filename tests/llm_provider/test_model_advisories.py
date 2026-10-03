@@ -170,7 +170,7 @@ def test_model_picker_option_renders_the_advisory(contributor: str) -> None:
 
 @pytest.mark.parametrize("contributor", _CONTRIBUTORS)
 def test_model_completion_detail_carries_the_advisory(contributor: str) -> None:
-    from sase.xprompt.model_completion import build_model_completion_catalog
+    from sase.macro.model_completion import build_model_completion_catalog
 
     entries = {
         entry.value: entry
@@ -190,7 +190,7 @@ def test_model_completion_detail_carries_the_advisory(contributor: str) -> None:
 
 @pytest.mark.parametrize("contributor", _CONTRIBUTORS)
 def test_model_completion_payload_exposes_the_advisory(contributor: str) -> None:
-    from sase.xprompt.model_completion import model_completion_catalog_payload
+    from sase.macro.model_completion import model_completion_catalog_payload
 
     entries = {
         entry["value"]: entry
@@ -203,7 +203,7 @@ def test_model_completion_payload_exposes_the_advisory(contributor: str) -> None
 
 def test_model_completion_and_lsp_catalog_include_spark_13_metadata() -> None:
     """The payload materializes the catalog consumed by the xprompt LSP."""
-    from sase.xprompt.model_completion import model_completion_catalog_payload
+    from sase.macro.model_completion import model_completion_catalog_payload
 
     entries = {
         entry["value"]: entry

@@ -53,13 +53,13 @@ from sase.ace.tui.widgets.xprompt_completion import (
     extract_xprompt_token_around_cursor,
 )
 from sase.project_tags import find_project_tag_trigger
-from sase.xprompt.vcs_project_completion import VcsProjectTrigger
-from sase.xprompt.vcs_ref_completion import (
+from sase.macro.vcs_project_completion import VcsProjectTrigger
+from sase.macro.vcs_ref_completion import (
     VcsRefTrigger,
     find_vcs_ref_trigger,
     load_vcs_ref_completion_config,
 )
-from sase.xprompt.vcs_repo_completion import (
+from sase.macro.vcs_repo_completion import (
     VcsRepoTrigger,
     find_vcs_repo_trigger,
     load_vcs_repo_completion_config,

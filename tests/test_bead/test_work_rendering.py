@@ -26,9 +26,9 @@ from sase.bead.work_plan import (
     _build_epic_work_plan,
 )
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
-from sase.xprompt.directive_edit import PromptWaitDirective
-from sase.xprompt.directives import DirectiveError, extract_prompt_directives
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.directive_edit import PromptWaitDirective
+from sase.macro.directives import DirectiveError, extract_prompt_directives
+from sase.macro.workflow_models import Workflow
 
 from .work_test_helpers import depends, epic, phase, seed
 

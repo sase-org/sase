@@ -196,11 +196,11 @@ def test_non_xprompt_swarm_segment_passes_through() -> None:
     by ``expand_xprompt_swarms``."""
     from unittest.mock import patch
 
-    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
-    from sase.xprompt.models import XPrompt
+    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
+    from sase.macro.models import XPrompt
 
     catalog = {"plain": XPrompt(name="plain", content="just one body")}
-    with patch("sase.agent.xprompt_swarm.get_all_xprompts", return_value=catalog):
+    with patch("sase.agent.macro_swarm.get_all_xprompts", return_value=catalog):
         out = expand_xprompt_swarms_with_metadata(["#plain"])
         assert [segment.prompt for segment in out] == ["#plain"]
 

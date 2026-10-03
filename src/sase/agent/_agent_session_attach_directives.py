@@ -142,10 +142,10 @@ def extract_agent_session_attach_directive(
     if "%" not in prompt:
         return None
 
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
-    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+    from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.macro._disabled_regions import protect_disabled_regions
+    from sase.macro._fenced_blocks import protect_fenced_blocks
+    from sase.macro._parsing import find_matching_paren_for_args, parse_args
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -214,7 +214,7 @@ def _prompt_segment_at_offset(
     fenced_ranges: list[tuple[int, int]],
 ) -> str:
     """Return the top-level ``---`` segment containing *offset*."""
-    from sase.xprompt._parsing import _SEGMENT_SEPARATOR_RE
+    from sase.macro._parsing import _SEGMENT_SEPARATOR_RE
 
     start = 0
     end = len(prompt)

@@ -4,14 +4,14 @@ The ``gL`` / ``Ctrl+G L`` prompt-local keymap turns the active prompt pane into
 a local ``xprompts:`` helper stored in the prompt bar's shared frontmatter and
 replaces the pane with an invocation of that helper.  Every decision the keymap
 makes -- normalizing and validating the helper name, inferring its inputs from
-the pane body, building the :class:`~sase.xprompt.models.XPrompt`, and rendering
+the pane body, building the :class:`~sase.macro.models.XPrompt`, and rendering
 the invocation skeleton -- lives here as plain logic so it can be unit-tested
 without a running Textual app.
 
 Name validation reuses the launch path's underscore-scoping rule (via
 :func:`parse_local_xprompt_entries`) so a helper saved here behaves identically
 to one authored in raw YAML, the Frontmatter Panel, or an xprompt ``.md`` file.
-Input inference reuses :func:`sase.xprompt.jinja_inspect.undeclared_variables`
+Input inference reuses :func:`sase.macro.jinja_inspect.undeclared_variables`
 so engine scope variables (``root``, run builtins, and friends) are never
 mistaken for inputs.
 """
@@ -29,15 +29,15 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     xprompt_assist_entry_from_local_xprompt,
 )
 from sase.config.core import load_merged_config
-from sase.xprompt.jinja_assist import JinjaScope
-from sase.xprompt.jinja_inspect import undeclared_variables
-from sase.xprompt.loader_parsing import (
+from sase.macro.jinja_assist import JinjaScope
+from sase.macro.jinja_inspect import undeclared_variables
+from sase.macro.loader_parsing import (
     LocalXPromptNameError,
     parse_local_xprompt_entries,
 )
-from sase.xprompt.models import InputArg, InputType, XPrompt
-from sase.xprompt.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
-from sase.xprompt.raw_placeholders import (
+from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+from sase.macro.raw_placeholders import (
     placeholder_input_names,
     raw_placeholder_fields,
     substitute_raw_placeholders,

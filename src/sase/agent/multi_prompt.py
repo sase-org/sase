@@ -16,13 +16,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from sase.xprompt._fenced_blocks import protect_fenced_blocks
-from sase.xprompt.loader_parsing import (
+from sase.macro._fenced_blocks import protect_fenced_blocks
+from sase.macro.loader_parsing import (
     LocalXPromptNameError,
     parse_local_xprompt_entries,
     parse_yaml_front_matter,
 )
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 _SEGMENT_SEP_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
@@ -32,7 +32,7 @@ def split_segments_protecting_fences(body: str) -> list[str]:
 
     Empty/whitespace-only segments are dropped.  Used both by
     :func:`parse_multi_prompt` (to split user-submitted prompts) and by
-    :mod:`sase.agent.xprompt_swarm` (to split an xprompt swarm body
+    :mod:`sase.agent.macro_swarm` (to split an xprompt swarm body
     after argument substitution).
     """
     from sase.core.agent_launch_facade import plan_agent_launch_fanout

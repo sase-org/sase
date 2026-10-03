@@ -12,7 +12,7 @@ from sase.ace.tui.widgets.prompt_stack import (
     split_frontmatter,
     split_prompt_text,
 )
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase

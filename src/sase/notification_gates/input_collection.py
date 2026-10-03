@@ -15,7 +15,7 @@ from typing import Any
 from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.model_validation import GateError
-from sase.xprompt.models import UNSET, InputArg
+from sase.macro.models import UNSET, InputArg
 
 
 def collected_input_fields(options: Sequence[GateOption]) -> tuple[GateInputField, ...]:

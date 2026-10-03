@@ -14,8 +14,8 @@ from sase.bead import db
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
-from sase.xprompt.models import InputArg, InputType, XPrompt
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.workflow_models import Workflow
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
@@ -185,7 +185,7 @@ def fake_cli_work_xprompts(monkeypatch: pytest.MonkeyPatch) -> None:
     work_phase = Workflow(name="bd/work_phase_bead")
     work_task = Workflow(name="bd/work_task")
     land_epic = Workflow(name="bd/land_epic")
-    from sase.xprompt.processor import process_xprompt_references
+    from sase.macro.processor import process_xprompt_references
 
     catalog = cli_work_xprompt_catalog()
 
@@ -206,15 +206,15 @@ def fake_cli_work_xprompts(monkeypatch: pytest.MonkeyPatch) -> None:
         )
 
     monkeypatch.setattr(
-        "sase.bead.xprompts.resolve_work_phase_xprompt",
+        "sase.bead.macros.resolve_work_phase_xprompt",
         lambda project=None: work_phase,
     )
     monkeypatch.setattr(
-        "sase.bead.xprompts.resolve_work_task_xprompt",
+        "sase.bead.macros.resolve_work_task_xprompt",
         lambda project=None: work_task,
     )
     monkeypatch.setattr(
-        "sase.bead.xprompts.resolve_land_epic_xprompt",
+        "sase.bead.macros.resolve_land_epic_xprompt",
         lambda project=None: land_epic,
     )
     monkeypatch.setattr(

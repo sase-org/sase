@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.xprompt import xprompt_inspect
+from sase.macro import macro_inspect
 
 from .fixtures import (
     AGENT_SIZES,
@@ -120,7 +120,7 @@ def test_xprompt_tokenizer_guard_limit_benchmark() -> None:
 
     for _ in range(100):
         started = time.perf_counter()
-        xprompt_inspect.tokenize(text, known_skills=known_skills)
+        macro_inspect.tokenize(text, known_skills=known_skills)
         samples_ms.append((time.perf_counter() - started) * 1_000)
 
     ordered = sorted(samples_ms)
@@ -148,7 +148,7 @@ def test_xprompt_tokenizer_code_heavy_benchmark() -> None:
 
     for _ in range(100):
         started = time.perf_counter()
-        xprompt_inspect.tokenize(text)
+        macro_inspect.tokenize(text)
         samples_ms.append((time.perf_counter() - started) * 1_000)
 
     ordered = sorted(samples_ms)

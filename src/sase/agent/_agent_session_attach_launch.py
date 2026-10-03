@@ -275,7 +275,7 @@ def _decode_model_alias_overrides(raw: str) -> dict[str, str]:
 
 def _prompt_model_alias_overrides(prompt: str) -> dict[str, str]:
     try:
-        from sase.xprompt.directives import extract_prompt_directives
+        from sase.macro.directives import extract_prompt_directives
 
         _, directives = extract_prompt_directives(prompt)
     except Exception:
@@ -285,7 +285,7 @@ def _prompt_model_alias_overrides(prompt: str) -> dict[str, str]:
 
 def _prompt_agent_session_root_role_suffix(prompt: str) -> str:
     try:
-        from sase.xprompt.directives import extract_prompt_directives
+        from sase.macro.directives import extract_prompt_directives
 
         _, directives = extract_prompt_directives(prompt)
     except Exception:

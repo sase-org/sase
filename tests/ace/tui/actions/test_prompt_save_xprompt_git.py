@@ -16,7 +16,7 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt import (
 from sase.ace.tui.modals.post_write_actions_modal import PostWriteActionsModal
 from sase.ops.names import GIT_POST_WRITE
 from sase.post_write_operations import run_post_write_command_sync
-from sase.xprompt.write_targets import PostWriteActionKind, PostWriteActionOffer
+from sase.macro.write_targets import PostWriteActionKind, PostWriteActionOffer
 
 from ._prompt_save_xprompt_helpers import _CommitHarness
 
@@ -28,11 +28,11 @@ def test_commit_push_confirmation_submits_tracked_task(tmp_path: Path) -> None:
     harness = _CommitHarness()
     with (
         patch(
-            "sase.xprompt.write_targets.get_git_root",
+            "sase.macro.write_targets.get_git_root",
             return_value=str(tmp_path),
         ),
         patch(
-            "sase.xprompt.write_targets.has_git_changes",
+            "sase.macro.write_targets.has_git_changes",
             return_value=True,
         ),
     ):
@@ -69,11 +69,11 @@ def test_successful_snippet_commit_refreshes_config_catalog(tmp_path: Path) -> N
     harness = _CommitHarness()
     with (
         patch(
-            "sase.xprompt.write_targets.get_git_root",
+            "sase.macro.write_targets.get_git_root",
             return_value=str(tmp_path),
         ),
         patch(
-            "sase.xprompt.write_targets.has_git_changes",
+            "sase.macro.write_targets.has_git_changes",
             return_value=True,
         ),
     ):
@@ -109,11 +109,11 @@ def test_failed_or_skipped_snippet_commit_does_not_refresh_catalog(
     harness = _CommitHarness()
     with (
         patch(
-            "sase.xprompt.write_targets.get_git_root",
+            "sase.macro.write_targets.get_git_root",
             return_value=str(tmp_path),
         ),
         patch(
-            "sase.xprompt.write_targets.has_git_changes",
+            "sase.macro.write_targets.has_git_changes",
             return_value=True,
         ),
     ):

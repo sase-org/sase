@@ -17,7 +17,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     build_xprompt_assist_entries,
 )
-from sase.xprompt import project_identity
+from sase.macro import project_identity
 
 from tests.main.project_handler_helpers import _disk_project_records, _write_project
 
@@ -191,7 +191,7 @@ def registered_project_xprompts(
                 ("get_sase_package_default_xprompts_dir", tmp_path / "defaults"),
             ):
                 stack.enter_context(
-                    patch(f"sase.xprompt.catalog.{target}", return_value=value)
+                    patch(f"sase.macro.catalog.{target}", return_value=value)
                 )
             yield workspace
     finally:

@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import extract_prompt_directives
 
 
 @pytest.mark.parametrize("prompt", ["%name:legacy\nDo work", "%n:legacy\nDo work"])

@@ -10,7 +10,7 @@ from __future__ import annotations
 import abc
 from typing import Any
 
-from sase.xprompt._literal_zones import code_literal_ranges
+from sase.macro._literal_zones import code_literal_ranges
 
 
 class VisualCompiledSpans(abc.ABC):

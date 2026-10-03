@@ -16,8 +16,8 @@ def test_directory_workflow_is_not_registered_workspace_provider() -> None:
 
 
 def test_directory_workflow_is_not_builtin_xprompt() -> None:
-    from sase.xprompt.loader import get_all_prompts
-    from sase.xprompt.workflow_loader import get_all_workflows
+    from sase.macro.loader import get_all_prompts
+    from sase.macro.workflow_loader import get_all_workflows
 
     assert "cd" not in get_all_workflows(project="test")
     assert "cd" not in get_all_prompts(project="test")

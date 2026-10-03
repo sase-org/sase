@@ -106,7 +106,7 @@ def test_slow_retrying_finalizer_projects_active_tail_end_to_end(
     from sase.finalizers.progress import ProgressJournal
     from sase.finalizers.run_view_inputs import RunTarget, build_node_request
     from sase.llm_provider.commit_finalizer_types import DirtyState
-    from sase.xprompt.directives import PromptDirectives
+    from sase.macro.directives import PromptDirectives
     from tests.finalizers_live_e2e_test_helpers import (
         command_instance,
         config_for,

@@ -7,7 +7,7 @@ from typing import Any, NamedTuple, TYPE_CHECKING
 from sase.axe.run_agent_directive_clans import ClanSummaryResolutionRequest
 
 if TYPE_CHECKING:
-    from sase.xprompt.hold_directive import HoldFields
+    from sase.macro.hold_directive import HoldFields
 
 
 class AgentInfo(NamedTuple):

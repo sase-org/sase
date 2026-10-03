@@ -16,7 +16,7 @@ def compose_coder_prompt(
     placement: CoderPlacement,
 ) -> str:
     """Compose the ``#coder`` prompt used for previews and recovery hints."""
-    from sase.xprompt._parsing_args import escape_for_xprompt
+    from sase.macro._parsing_args import escape_for_xprompt
 
     argument = plan_argument.strip()
     if _needs_quoting(argument):
@@ -35,7 +35,7 @@ def compose_coder_prompt(
     prompt = "\n".join(lines)
     if wait is not None:
         try:
-            from sase.xprompt.directive_edit import set_prompt_wait
+            from sase.macro.directive_edit import set_prompt_wait
 
             prompt = set_prompt_wait(prompt, wait)  # type: ignore[arg-type]
         except Exception:

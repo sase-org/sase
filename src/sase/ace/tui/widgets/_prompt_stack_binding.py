@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 from ._prompt_stack_parsing import split_frontmatter
 from ._prompt_stack_targets import SourceFingerprint, XPromptBinding

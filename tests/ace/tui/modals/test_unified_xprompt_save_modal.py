@@ -13,8 +13,8 @@ from sase.ace.tui.modals.unified_xprompt_save_modal import (
     UnifiedXPromptSaveResult,
 )
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import SaveTargetFormat
 
 
 class _ModalApp(App[None]):

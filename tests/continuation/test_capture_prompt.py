@@ -17,7 +17,7 @@ from sase.continuation_capture import (
 from sase.continuation_capture.rollout import MONITOR_CONTINUATION_CAPTURE_ENV
 from sase.feature_flags import override_flags
 from sase.llm_provider.preprocessing import preprocess_prompt_early
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 from tests._continuation_capture_helpers import (

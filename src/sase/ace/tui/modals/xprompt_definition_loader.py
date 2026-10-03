@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import load_config_xprompt_markdown
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import load_config_xprompt_markdown
 
 from .xprompt_browser_helpers import (
     is_yaml_backed_source,

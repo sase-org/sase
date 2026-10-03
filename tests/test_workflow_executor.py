@@ -5,8 +5,8 @@ import tempfile
 from unittest.mock import patch
 
 from sase.llm_provider.messages import AIMessage
-from sase.xprompt import WorkflowExecutor
-from sase.xprompt.workflow_models import WorkflowStep
+from sase.macro import WorkflowExecutor
+from sase.macro.workflow_models import WorkflowStep
 
 from tests._workflow_executor_helpers import _create_test_workflow
 
@@ -128,7 +128,7 @@ class TestShouldHitl:
                     _fake_expand,
                 ),
                 patch(
-                    "sase.xprompt.used_xprompts.write_used_xprompts",
+                    "sase.macro.used_macros.write_used_xprompts",
                 ) as mock_write_used,
                 patch("sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent),
             ):
@@ -229,7 +229,7 @@ class TestShouldHitl:
                     return_value={"git": ref_pattern},
                 ),
                 patch(
-                    "sase.xprompt.loader.get_known_project_workspaces",
+                    "sase.macro.loader.get_known_project_workspaces",
                     return_value=set(),
                 ),
                 patch("sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent),

@@ -15,8 +15,8 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_targets import
 from sase.ace.tui.modals import UnifiedXPromptSaveResult
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import SaveTargetFormat
 
 from ._prompt_save_xprompt_helpers import _SaveFlowApp, _SaveHarness
 
@@ -36,7 +36,7 @@ async def test_unified_markdown_result_writes_typed_name_authoritatively(
         exists=False,
         frontmatter=PromptFrontmatter(name="ns/foo", description="Saved"),
     )
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         await harness._write_xprompt_target(target, "new body")
 
     written = Path(target.path).read_text(encoding="utf-8")
@@ -63,7 +63,7 @@ async def test_unified_config_result_inserts_xprompt(tmp_path: Path) -> None:
         exists=False,
         frontmatter=PromptFrontmatter(description="Review code"),
     )
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         await harness._write_xprompt_target(target, "check this")
 
     payload = yaml.safe_load(config.read_text(encoding="utf-8"))
@@ -86,8 +86,8 @@ def test_bound_markdown_write_uses_resolved_write_path(
     read_path.write_text("applied\n", encoding="utf-8")
     write_path.write_text("old source\n", encoding="utf-8")
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
-    monkeypatch.setattr("sase.xprompt.write_targets.CHEZMOI_HOME", source_root)
-    monkeypatch.setattr("sase.xprompt.write_targets.get_use_chezmoi", lambda: True)
+    monkeypatch.setattr("sase.macro.write_targets.CHEZMOI_HOME", source_root)
+    monkeypatch.setattr("sase.macro.write_targets.get_use_chezmoi", lambda: True)
     binding = XPromptBinding.for_file(read_path, reference="#review")
 
     write_binding_sync(binding, PromptFrontmatter(description="Saved"), "new body")
@@ -117,7 +117,7 @@ async def test_unified_snippet_result_writes_only_active_pane_and_refreshes(
         frontmatter=PromptFrontmatter(),
     )
 
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         await harness._write_snippet_target(target, "beta")
 
     payload = yaml.safe_load(config.read_text(encoding="utf-8"))
@@ -158,7 +158,7 @@ async def test_chezmoi_source_save_expands_in_same_mounted_prompt_before_apply(
         }
     )
 
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         async with app.run_test() as pilot:
             text_area = app.query_one(PromptTextArea)
             assert text_area.is_mounted
@@ -202,7 +202,7 @@ async def test_second_save_replaces_pending_trigger_deterministically(
     )
     harness = _SaveHarness()
 
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         await harness._write_snippet_target(target, "first")
         await harness._write_snippet_target(target, "second")
 
@@ -251,7 +251,7 @@ async def test_save_snippet_uses_resolved_chezmoi_target_for_post_write(
     source.write_text(yaml.safe_dump({"ace": {"snippets": {}}}), encoding="utf-8")
     harness = _SaveHarness()
 
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         ok = await harness.save_snippet(
             write_path=str(source),
             read_path=str(home_target),

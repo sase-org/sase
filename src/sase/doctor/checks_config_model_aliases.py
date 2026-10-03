@@ -7,7 +7,7 @@ from sase.doctor.checks_config_common import (
     MAX_DETAIL_ROWS,
     REMOVED_IMPLICIT_ALIAS_GUIDANCE,
 )
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 
 _RETIRED_BUILTIN_ALIAS_NAMES = {

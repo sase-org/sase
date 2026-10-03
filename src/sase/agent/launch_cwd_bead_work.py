@@ -29,8 +29,8 @@ def _canonicalize_bead_work_ref(ref: str) -> str:
         return alias_ref
 
     try:
-        from sase.xprompt._parsing import resolve_known_project_ref
-        from sase.xprompt.loader import get_known_project_workspaces
+        from sase.macro._parsing import resolve_known_project_ref
+        from sase.macro.loader import get_known_project_workspaces
 
         return resolve_known_project_ref(ref, get_known_project_workspaces()) or ref
     except Exception:
@@ -91,8 +91,8 @@ def launch_planned_bead_work_agents(
     from sase.history.prompt import add_or_update_prompt
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.workspace_provider import get_ref_patterns
-    from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
-    from sase.xprompt.directives import plan_prompt_fanout_variants
+    from sase.macro._parsing import normalize_default_vcs_workflow_segment
+    from sase.macro.directives import plan_prompt_fanout_variants
 
     try:
         normalized_segments = [
@@ -264,7 +264,7 @@ def _reserve_planned_bead_work_launch(
         AgentIdentitySnapshot,
         normalize_owned_agent_name,
     )
-    from sase.xprompt.directives import has_deferred_start_directive
+    from sase.macro.directives import has_deferred_start_directive
 
     if len(preplanned_fanout_plans) != len(segments):
         raise ValueError("preplanned_fanout_plans must match bead-work segments")

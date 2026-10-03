@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.feature_flags import override_flags
-from sase.integrations.xprompt_lsp import (
+from sase.integrations.macro_lsp import (
     SASE_DEFAULT_CONFIG_PATH_ENV,
     SASE_AGENT_HOLDS_ENV,
     SASE_MACRO_BUILTIN_DIR_ENV,
@@ -38,27 +38,27 @@ def stub_lsp_catalog_defaults(
 ) -> None:
     """Keep LSP catalog materialization inside pytest temp directories."""
     monkeypatch.setattr(
-        "sase.integrations.xprompt_lsp._default_vcs_project_catalog_path",
+        "sase.integrations.macro_lsp._default_vcs_project_catalog_path",
         lambda: tmp_path / "macro_lsp" / "vcs_project_catalog.json",
     )
     monkeypatch.setattr(
-        "sase.integrations.xprompt_lsp._default_model_catalog_path",
+        "sase.integrations.macro_lsp._default_model_catalog_path",
         lambda: tmp_path / "macro_lsp" / "model_catalog.json",
     )
     monkeypatch.setattr(
-        "sase.integrations.xprompt_lsp._default_artifact_ref_catalog_path",
+        "sase.integrations.macro_lsp._default_artifact_ref_catalog_path",
         lambda: tmp_path / "macro_lsp" / "artifact_ref_catalog.json",
     )
     monkeypatch.setattr(
-        "sase.integrations.xprompt_lsp._default_glossary_catalog_path",
+        "sase.integrations.macro_lsp._default_glossary_catalog_path",
         lambda: tmp_path / "macro_lsp" / "glossary_catalog.json",
     )
     monkeypatch.setattr(
-        "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
+        "sase.macro.vcs_project_completion.vcs_project_catalog_payload",
         lambda: {"schema_version": 2, "workflow_names": [], "entries": []},
     )
     monkeypatch.setattr(
-        "sase.xprompt.model_completion.model_completion_catalog_payload",
+        "sase.macro.model_completion.model_completion_catalog_payload",
         lambda: {"schema_version": 1, "entries": []},
     )
     monkeypatch.setattr(
@@ -66,7 +66,7 @@ def stub_lsp_catalog_defaults(
         lambda: {"schema_version": 1, "default_project": None, "projects": []},
     )
     monkeypatch.setattr(
-        "sase.xprompt.glossary_catalog.editor_glossary_lsp_catalog_payload",
+        "sase.macro.glossary_catalog.editor_glossary_lsp_catalog_payload",
         lambda: {"schema_version": 1, "default_project": None, "projects": []},
     )
 
@@ -81,11 +81,11 @@ def test_prepare_lsp_environment_sets_package_catalog_paths(tmp_path: Path) -> N
 
     assert env[SASE_XPROMPT_PACKAGE_DIR_ENV] == str(package_dir)
     assert env[SASE_XPROMPT_BUILTIN_DIR_ENV] == "/custom/xprompts"
-    assert env[SASE_XPROMPT_DEFAULT_DIR_ENV] == str(package_dir / "default_xprompts")
+    assert env[SASE_XPROMPT_DEFAULT_DIR_ENV] == str(package_dir / "default_macros")
     assert env[SASE_DEFAULT_CONFIG_PATH_ENV] == str(package_dir / "default_config.yml")
     assert env[SASE_MACRO_PACKAGE_DIR_ENV] == str(package_dir)
     assert env[SASE_MACRO_BUILTIN_DIR_ENV] == "/custom/xprompts"
-    assert env[SASE_MACRO_DEFAULT_DIR_ENV] == str(package_dir / "default_xprompts")
+    assert env[SASE_MACRO_DEFAULT_DIR_ENV] == str(package_dir / "default_macros")
 
 
 def test_prepare_lsp_environment_adopts_legacy_catalog_override(
@@ -126,7 +126,7 @@ def test_prepare_lsp_environment_materializes_vcs_project_catalog(
     }
 
     with patch(
-        "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
+        "sase.macro.vcs_project_completion.vcs_project_catalog_payload",
         return_value=payload,
     ):
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
@@ -157,7 +157,7 @@ def test_prepare_lsp_environment_materializes_model_catalog(
     }
 
     with patch(
-        "sase.xprompt.model_completion.model_completion_catalog_payload",
+        "sase.macro.model_completion.model_completion_catalog_payload",
         return_value=payload,
     ):
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
@@ -233,7 +233,7 @@ def test_prepare_lsp_environment_materializes_glossary_catalog(
     }
 
     with patch(
-        "sase.xprompt.glossary_catalog.editor_glossary_lsp_catalog_payload",
+        "sase.macro.glossary_catalog.editor_glossary_lsp_catalog_payload",
         return_value=payload,
     ):
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
@@ -247,7 +247,7 @@ def test_prepare_lsp_environment_defaults_vcs_catalog_path(tmp_path: Path) -> No
     payload = {"schema_version": 2, "workflow_names": [], "entries": []}
 
     with patch(
-        "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
+        "sase.macro.vcs_project_completion.vcs_project_catalog_payload",
         return_value=payload,
     ):
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
@@ -263,7 +263,7 @@ def test_prepare_lsp_environment_defaults_model_catalog_path(tmp_path: Path) -> 
     payload = {"schema_version": 1, "entries": []}
 
     with patch(
-        "sase.xprompt.model_completion.model_completion_catalog_payload",
+        "sase.macro.model_completion.model_completion_catalog_payload",
         return_value=payload,
     ):
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
@@ -297,7 +297,7 @@ def test_prepare_lsp_environment_defaults_glossary_catalog_path(tmp_path: Path) 
     payload = {"schema_version": 1, "default_project": None, "projects": []}
 
     with patch(
-        "sase.xprompt.glossary_catalog.editor_glossary_lsp_catalog_payload",
+        "sase.macro.glossary_catalog.editor_glossary_lsp_catalog_payload",
         return_value=payload,
     ):
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
@@ -317,7 +317,7 @@ def test_prepare_lsp_environment_swallows_vcs_catalog_failure(
     }
 
     with patch(
-        "sase.xprompt.vcs_project_completion.vcs_project_catalog_payload",
+        "sase.macro.vcs_project_completion.vcs_project_catalog_payload",
         side_effect=RuntimeError("boom"),
     ):
         # A broken catalog build must never propagate out of env preparation.
@@ -338,7 +338,7 @@ def test_prepare_lsp_environment_swallows_model_catalog_failure(
     }
 
     with patch(
-        "sase.xprompt.model_completion.model_completion_catalog_payload",
+        "sase.macro.model_completion.model_completion_catalog_payload",
         side_effect=RuntimeError("boom"),
     ):
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
@@ -374,7 +374,7 @@ def test_prepare_lsp_environment_swallows_glossary_catalog_failure(
     }
 
     with patch(
-        "sase.xprompt.glossary_catalog.editor_glossary_lsp_catalog_payload",
+        "sase.macro.glossary_catalog.editor_glossary_lsp_catalog_payload",
         side_effect=RuntimeError("boom"),
     ):
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
@@ -413,11 +413,11 @@ def test_prepare_lsp_environment_emits_plugin_metadata(
     env: dict[str, str] = {}
     with (
         patch(
-            "sase.integrations.xprompt_lsp.discover_plugin_resources",
+            "sase.integrations.macro_lsp.discover_plugin_resources",
             side_effect=fake_discover,
         ),
         patch(
-            "sase.integrations.xprompt_lsp.importlib.resources.files",
+            "sase.integrations.macro_lsp.importlib.resources.files",
             side_effect=fake_resources_files,
         ),
     ):
@@ -466,11 +466,11 @@ def test_prepare_lsp_environment_respects_plugin_disable_env(
             },
         ),
         patch(
-            "sase.integrations.xprompt_lsp.discover_plugin_resources",
+            "sase.integrations.macro_lsp.discover_plugin_resources",
             return_value=[module],
         ),
         patch(
-            "sase.integrations.xprompt_lsp.importlib.resources.files",
+            "sase.integrations.macro_lsp.importlib.resources.files",
             return_value=plugin_root,
         ),
     ):

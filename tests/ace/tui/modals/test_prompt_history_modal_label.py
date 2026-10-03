@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 import sase.history.prompt_metadata as prompt_metadata
-import sase.xprompt._parsing as xprompt_parsing
+import sase.macro._parsing as xprompt_parsing
 import sase.ace.tui.modals.history_pane as history_pane
 from sase.ace.tui.modals._prompt_history_rows import (
     _MIN_PREVIEW_WIDTH,

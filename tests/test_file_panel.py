@@ -6,8 +6,8 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock
 
-from sase.xprompt.models import OutputSpec
-from sase.xprompt.workflow_executor import WorkflowExecutor
+from sase.macro.models import OutputSpec
+from sase.macro.workflow_executor import WorkflowExecutor
 
 # --- _get_output_types tests ---
 

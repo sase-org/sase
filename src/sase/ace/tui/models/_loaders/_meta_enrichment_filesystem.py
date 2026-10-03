@@ -61,7 +61,7 @@ def _resolve_capacity_multiplier(data: dict[str, object]) -> float | None:
     Delegates validity (finite, positive, at most two decimals) to the shared
     queue adapter so filesystem and wire loaders agree with admission.
     """
-    from sase.xprompt.queue_directive import resolve_authored_queue_capacity_multiplier
+    from sase.macro.queue_directive import resolve_authored_queue_capacity_multiplier
 
     try:
         return resolve_authored_queue_capacity_multiplier(data)

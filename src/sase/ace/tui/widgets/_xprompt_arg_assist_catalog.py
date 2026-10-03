@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from sase.xprompt.catalog import build_structured_xprompts_catalog
-from sase.xprompt.models import XPrompt
-from sase.xprompt.reference_display import (
+from sase.macro.catalog import build_structured_xprompts_catalog
+from sase.macro.models import XPrompt
+from sase.macro.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
     workflow_reference_prefix,
 )
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.workflow_models import Workflow
 
 from ._xprompt_arg_assist_inputs import input_hint_from_input_arg
 from ._xprompt_arg_assist_models import XPromptAssistEntry, XPromptInputHint
@@ -90,7 +90,7 @@ def xprompt_assist_entry_from_local_xprompt(
     Panel's ``xprompts:`` field completes, soft-completes, and shows argument
     hints in every prompt pane exactly like a global xprompt.
     """
-    from sase.xprompt.models import xprompt_to_workflow
+    from sase.macro.models import xprompt_to_workflow
 
     return xprompt_assist_entry_from_workflow(name, xprompt_to_workflow(xprompt))
 

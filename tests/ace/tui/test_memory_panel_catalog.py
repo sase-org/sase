@@ -15,7 +15,7 @@ from sase.core.project_lifecycle_wire import (
 )
 from sase.memory.notes import AGENTS_PARENT
 from sase.memory.read_log import MemoryReadPathSummary
-from sase.xprompt import glossary_catalog as xprompt_catalog
+from sase.macro import glossary_catalog as xprompt_catalog
 
 _SASE_BEADS = "sase" + "_beads"
 _SASE_BEADS_NOTE = f"sase/memory/{_SASE_BEADS}.md"

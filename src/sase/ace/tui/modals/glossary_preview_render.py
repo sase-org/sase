@@ -17,7 +17,7 @@ from sase.core.glossary_facade import (
 )
 from sase.memory.web.resolution import resolve_glossary_closure
 from sase.memory.web.catalog import glossary_source_from_wire
-from sase.xprompt.highlight_theme import derive_argument_color
+from sase.macro.highlight_theme import derive_argument_color
 
 _COLOR_MUTED = "dim"
 _COLOR_LABEL = "dim"

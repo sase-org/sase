@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.xprompt.models import UNSET, InputArg
-from sase.xprompt.properties import single_line_default
+from sase.macro.models import UNSET, InputArg
+from sase.macro.properties import single_line_default
 
 from ._xprompt_arg_assist_models import XPromptAssistEntry, XPromptInputHint
 

@@ -157,7 +157,7 @@ def build_fork_injected_history(
 
 
 def _wrap_fork_history(heading: str, body: str) -> str:
-    from sase.xprompt._disabled_regions import wrap_disabled_region
+    from sase.macro._disabled_regions import wrap_disabled_region
 
     region_body = f"{heading}\n\n{body}\n\n---\n"
     return f"{wrap_disabled_region(region_body)}\n# New Query"

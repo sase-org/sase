@@ -17,7 +17,7 @@ from sase.ace.tui.modals.repo_preview_render import (
     repo_not_cloned_hint,
 )
 from sase.repo_inventory import RepoCloneRecord, RepoRecord
-from sase.xprompt.repo_mention_catalog import RepoMention
+from sase.macro.repo_mention_catalog import RepoMention
 
 
 def _render_text(renderable: object) -> str:

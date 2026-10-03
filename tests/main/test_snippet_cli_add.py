@@ -13,8 +13,8 @@ import yaml
 
 from sase.main.parser import create_parser
 from sase.snippet import cli_add
-from sase.xprompt.models import XPrompt
-from sase.xprompt.snippet_config_yaml import snippet_config_digest
+from sase.macro.models import XPrompt
+from sase.macro.snippet_config_yaml import snippet_config_digest
 
 from .snippet_cli_helpers import install_writable_snippet_project
 
@@ -237,10 +237,10 @@ def test_add_restore_command_round_trips_multiline_and_spaced_path(
     workspace = tmp_path / "work space"
     workspace.mkdir()
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {},
     )
-    from sase.xprompt import glossary_catalog as catalog_mod
+    from sase.macro import glossary_catalog as catalog_mod
 
     from .snippet_cli_helpers import project_record
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from sase.xprompt.models import MemoryType
+from sase.macro.models import MemoryType
 
 
 @dataclass(frozen=True, slots=True)

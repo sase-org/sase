@@ -125,8 +125,8 @@ def resolve_known_project_vcs_launch_ref(
         enable_known_project_for_launch_ref,
         extract_known_project_vcs_launch_ref,
     )
-    from sase.xprompt._parsing import resolve_known_project_ref
-    from sase.xprompt.loader import get_known_project_workspaces
+    from sase.macro._parsing import resolve_known_project_ref
+    from sase.macro.loader import get_known_project_workspaces
 
     known_ref = extract_known_project_vcs_launch_ref(prompt)
     if known_ref is None:

@@ -12,7 +12,7 @@ from sase.ace.tui.modals import ConfirmActionModal
 from sase.ace.tui.modals.snippet_name_modal import SnippetNameResult
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt.snippet_targets import SnippetSaveTarget
+from sase.macro.snippet_targets import SnippetSaveTarget
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
 
 

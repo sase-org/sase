@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sase.xprompt.repo_mention_catalog import (
+from sase.macro.repo_mention_catalog import (
     EditorRepoMentionCatalog,
     EditorRepoMentionCatalogResult,
     editor_repo_mention_catalog_for_project,

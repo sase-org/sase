@@ -10,8 +10,8 @@ import pytest
 from sase.ace.tui import AceApp
 from sase.ace.tui.repo_mention_catalog import PromptRepoMentionContext
 from sase.repo_inventory import RepoRecord
-from sase.xprompt.glossary_catalog import EditorGlossaryProject
-from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog, RepoMention
+from sase.macro.glossary_catalog import EditorGlossaryProject
+from sase.macro.repo_mention_catalog import EditorRepoMentionCatalog, RepoMention
 from tests.ace.tui.visual._ace_prompt_png_snapshot_wire import (
     VisualCompiledSpans,
     visual_editor_range,

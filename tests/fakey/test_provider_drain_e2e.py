@@ -41,7 +41,7 @@ from sase.procs import wait_for_proc
 from sase.procs.models import Proc
 from sase.procs.request import ProcSubmitRequest
 from sase.procs.runtime import proc_operation_result_path
-from sase.xprompt.workflow_models import WorkflowExecutionError
+from sase.macro.workflow_models import WorkflowExecutionError
 
 from tests.fakey.harness import FakeyRetryHarness, usage_limit_failure
 

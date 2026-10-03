@@ -19,8 +19,8 @@ from sase.main.qa_prompt import (
     merge_qa_for_prompt,
 )
 from sase.main.query_handler import expand_embedded_workflows_in_query
-from sase.xprompt.directives import extract_prompt_directives
-from sase.xprompt.workflow_models import WorkflowExecutionError
+from sase.macro.directives import extract_prompt_directives
+from sase.macro.workflow_models import WorkflowExecutionError
 
 
 def _q(question: str, label: str = "A") -> dict[str, object]:

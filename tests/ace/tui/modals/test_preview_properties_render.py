@@ -11,8 +11,8 @@ from sase.ace.tui.modals.preview_properties_render import (
     build_properties_band,
     build_properties_view,
 )
-from sase.xprompt.cli_show_model import ShowInput, ShowStep
-from sase.xprompt.properties import XPromptProperties
+from sase.macro.cli_show_model import ShowInput, ShowStep
+from sase.macro.properties import XPromptProperties
 
 
 def _properties(**overrides: object) -> XPromptProperties:

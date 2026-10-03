@@ -246,7 +246,7 @@ def test_prepare_kill_and_edit_prompt_reopens_named_unparseable_prompt() -> None
     rewritten = prepare_kill_and_edit_prompt(prompt, "foo")
     assert rewritten == "%model:@no_such_alias\n%id:!foo\nDo work"
 
-    from sase.xprompt.directives import DirectiveError, extract_prompt_directives
+    from sase.macro.directives import DirectiveError, extract_prompt_directives
 
     with pytest.raises(DirectiveError):
         extract_prompt_directives(rewritten)

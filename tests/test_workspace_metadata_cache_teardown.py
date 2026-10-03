@@ -27,7 +27,7 @@ _THIS_FILE = str(Path(__file__).resolve())
 def test_spy_metadata_patch_poisons_pattern_within_its_own_test(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.xprompt._parsing_vcs_tags import extract_vcs_workflow_tag
+    from sase.macro._parsing_vcs_tags import extract_vcs_workflow_tag
     from tests._workspace_provider_helpers import patch_spy_metadata
 
     patch_spy_metadata(monkeypatch)
@@ -37,7 +37,7 @@ def test_spy_metadata_patch_poisons_pattern_within_its_own_test(
 def test_no_workspace_metadata_patch_clears_pattern_within_its_own_test(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.xprompt._parsing_vcs_tags import extract_vcs_workflow_tag
+    from sase.macro._parsing_vcs_tags import extract_vcs_workflow_tag
     from tests._workspace_provider_helpers import patch_no_workspace_metadata
 
     patch_no_workspace_metadata(monkeypatch)
@@ -46,7 +46,7 @@ def test_no_workspace_metadata_patch_clears_pattern_within_its_own_test(
 
 def test_default_vcs_tag_pattern_resolves_after_metadata_patch_teardown() -> None:
     """Runs after the two poisoners above; must not see their fake metadata."""
-    from sase.xprompt._parsing_vcs_tags import extract_vcs_workflow_tag
+    from sase.macro._parsing_vcs_tags import extract_vcs_workflow_tag
 
     assert extract_vcs_workflow_tag("#git:x ") == "#git:x "
 

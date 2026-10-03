@@ -119,7 +119,7 @@ def test_loader_resolves_file_hook_provider_templates(monkeypatch: Any) -> None:
         "sase.config.file_hooks.current_config_token", lambda: ("token",)
     )
     monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
-    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: "sase")
+    monkeypatch.setattr("sase.macro.loader.detect_project", lambda: "sase")
     monkeypatch.setattr(
         "sase.artifact_providers.get_artifact_provider_registry",
         _registry_with_file_hook_provider,
@@ -279,7 +279,7 @@ def test_loader_auto_scopes_project_local_hooks(monkeypatch: Any) -> None:
         "sase.config.file_hooks.current_config_token", lambda: ("token",)
     )
     monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
-    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: "sase")
+    monkeypatch.setattr("sase.macro.loader.detect_project", lambda: "sase")
 
     hooks = _load_file_hooks()
 
@@ -293,7 +293,7 @@ def test_loader_auto_scopes_empty_project_local_filters(monkeypatch: Any) -> Non
         "sase.config.file_hooks.current_config_token", lambda: ("token",)
     )
     monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
-    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: "sase")
+    monkeypatch.setattr("sase.macro.loader.detect_project", lambda: "sase")
 
     hooks = _load_file_hooks()
 

@@ -7,8 +7,8 @@ from datetime import datetime
 
 from sase.ace.tui.models.agent_time import format_compact_duration, format_wait_until
 from sase.core.time import local_now
-from sase.xprompt._directive_time import parse_absolute_time, parse_duration
-from sase.xprompt._exceptions import DirectiveError
+from sase.macro._directive_time import parse_absolute_time, parse_duration
+from sase.macro._exceptions import DirectiveError
 
 
 @dataclass(frozen=True)
@@ -150,7 +150,7 @@ def prefill_capacity_token(
 ) -> str:
     """Return a modal capacity-field prefill preserving the authored form."""
     if multiplier is not None:
-        from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+        from sase.macro.queue_directive import format_queue_capacity_multiplier
 
         formatted = format_queue_capacity_multiplier(multiplier)
         return formatted if formatted is not None else ""
@@ -169,7 +169,7 @@ def validate_capacity_token(token: str) -> CapacityValidation:
             message="uses the global max_running_agents budget",
             css_class="wait-time-neutral",
         )
-    from sase.xprompt.queue_directive import parse_queue_capacity_value
+    from sase.macro.queue_directive import parse_queue_capacity_value
 
     try:
         parsed = parse_queue_capacity_value(token)
@@ -189,7 +189,7 @@ def validate_capacity_token(token: str) -> CapacityValidation:
         )
     multiplier = parsed.get("queue_capacity_multiplier")
     if multiplier is not None:
-        from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+        from sase.macro.queue_directive import format_queue_capacity_multiplier
 
         try:
             numeric = float(str(multiplier))
@@ -233,7 +233,7 @@ def validate_capacity_token(token: str) -> CapacityValidation:
             css_class="wait-time-error",
         )
     if capacity < 1:
-        from sase.xprompt.queue_directive import validate_queue_capacity
+        from sase.macro.queue_directive import validate_queue_capacity
 
         try:
             validate_queue_capacity(token)

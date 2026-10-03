@@ -75,7 +75,7 @@ def plan_agent_restart(
     _refuse_container_name(meta_name, presented_name, lookup_registered_name)
     rewritten = _rewrite_prompt_identity(raw_prompt, meta_name, meta)
     if model_override:
-        from sase.xprompt.directive_edit import set_prompt_model
+        from sase.macro.directive_edit import set_prompt_model
 
         rewritten = set_prompt_model(rewritten, model_override)
 
@@ -303,6 +303,6 @@ def _refuse_hard_disabled_provider(rewritten_prompt: str) -> None:
 
 
 def _prompt_fans_out(prompt: str) -> bool:
-    from sase.xprompt.directives import plan_prompt_fanout_variants
+    from sase.macro.directives import plan_prompt_fanout_variants
 
     return plan_prompt_fanout_variants(prompt) is not None

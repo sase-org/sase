@@ -25,11 +25,11 @@ from sase.content_layout import (
 )
 from sase.core.snippet_catalog_facade import compose_snippet_catalog
 from sase.snippet.catalog import load_snippet_catalog, prompt_catalog_projection
-from sase.xprompt.loader import (
+from sase.macro.loader import (
     detect_project,
     get_xprompt_search_paths,
 )
-from sase.xprompt.project_identity import (
+from sase.macro.project_identity import (
     canonical_xprompt_project,
     known_project_namespaces,
 )

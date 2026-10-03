@@ -13,7 +13,7 @@ from sase.main._init_skills_rendering import (
     RenderedSkillTarget,
 )
 from sase.main.init_plan import InitAction, InitOperation, InitPlan
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 class _SkillManifestWrite(Protocol):

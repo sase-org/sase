@@ -175,7 +175,7 @@ def _append_capacity_fields(text: Text, agent: Agent) -> None:
         multiplier=multiplier,
     )
     if multiplier is not None and capacity is None:
-        from sase.xprompt.queue_directive import resolve_queue_capacity_multiplier
+        from sase.macro.queue_directive import resolve_queue_capacity_multiplier
 
         resolved = resolve_queue_capacity_multiplier(
             multiplier, wait_agent.runner_effective_limit

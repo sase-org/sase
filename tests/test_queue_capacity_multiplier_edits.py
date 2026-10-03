@@ -26,12 +26,12 @@ from sase.ops.commands._agent_directive import (
     _capacity_pair_from_payload,
     persist_directive_from_payload,
 )
-from sase.xprompt.directive_edit import (
+from sase.macro.directive_edit import (
     PromptWaitDirective,
     set_prompt_queue,
     set_prompt_wait_and_queue,
 )
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 
 
 def test_modal_accepts_multiplier_and_prefills_authored_form() -> None:

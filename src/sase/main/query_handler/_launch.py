@@ -120,7 +120,7 @@ def launch_query(query: str) -> None:
         sys.exit(1)
 
     from sase.output import print_status
-    from sase.xprompt.unresolved import (
+    from sase.macro.unresolved import (
         format_unresolved_reference_warning,
         format_unresolved_references_toast,
         scan_query_for_unresolved_references,
@@ -528,7 +528,7 @@ def _record_launched_vcs_xprompt_usage(query: str) -> None:
     at the MRU head; a single-segment query keeps today's behavior.
     """
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
+    from sase.history.vcs_macro_mru import record_vcs_xprompt_usage
 
     segments = parse_multi_prompt(query).segments
     for segment in segments:
@@ -544,7 +544,7 @@ def _launched_vcs_xprompt_prefix(segment: str) -> str | None:
     prefix, matches only at the start of the segment) instead of a
     registry-ordered search, so this agrees with what actually launched.
     """
-    from sase.xprompt._parsing import (
+    from sase.macro._parsing import (
         extract_project_from_vcs_tag,
         extract_vcs_workflow_tag,
     )

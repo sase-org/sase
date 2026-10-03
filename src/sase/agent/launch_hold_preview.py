@@ -51,7 +51,7 @@ def _iter_prompt_holds(
     prompt: str, *, project: str | None
 ) -> list[tuple[str, Mapping[str, Any], str | None, Mapping[str, Any] | None]]:
     """Enumerate ``(label, hold_fields, project)`` for every unit in *prompt*."""
-    from sase.xprompt.code_value import typed_launch_units_enabled
+    from sase.macro.code_value import typed_launch_units_enabled
 
     if typed_launch_units_enabled() and ("%if" in prompt or "%proc" in prompt):
         return _typed_prompt_holds(prompt)
@@ -114,7 +114,7 @@ def _non_typed_prompt_holds(
     prompt: str, *, project: str | None
 ) -> list[tuple[str, Mapping[str, Any], str | None, Mapping[str, Any] | None]]:
     from sase.agent.launch_guard import plan_launch_units
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     entries: list[
         tuple[str, Mapping[str, Any], str | None, Mapping[str, Any] | None]
@@ -206,7 +206,7 @@ def _broad_hold_description(
         format_pending_capture,
         preview_pending_capture,
     )
-    from sase.xprompt.hold_directive import format_hold_directive
+    from sase.macro.hold_directive import format_hold_directive
 
     directive = format_hold_directive(dict(hold)) or HOLD_DIRECTIVE_MARKER
     scope = str(hold.get("scope") or "project")

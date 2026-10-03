@@ -29,7 +29,7 @@ from sase.llm_provider.model_alias_policy import (
     XSMALL_MODEL_ALIAS_NAME,
     _ModelAliasDefaults,
 )
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 _FROZEN_ALIASES: dict[str, dict[str, str]] = {
     XSMALL_MODEL_ALIAS_NAME: {

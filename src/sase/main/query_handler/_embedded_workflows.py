@@ -10,8 +10,8 @@ from sase.content import (
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
 )
-from sase.xprompt._disabled_regions import ensure_disabled_region_at_line_start
-from sase.xprompt.workflow_models import WorkflowStep
+from sase.macro._disabled_regions import ensure_disabled_region_at_line_start
+from sase.macro.workflow_models import WorkflowStep
 
 
 @dataclass
@@ -58,7 +58,7 @@ def expand_embedded_workflows_in_query(
     """
     raw_query = query
     if artifacts_dir:
-        from sase.xprompt.used_xprompts import write_used_xprompts
+        from sase.macro.used_macros import write_used_xprompts
 
         write_used_xprompts(
             artifacts_dir,
@@ -66,20 +66,20 @@ def expand_embedded_workflows_in_query(
             step_only=preserve_existing_xprompt_metadata,
         )
 
-    from sase.xprompt._literal_zones import literal_zone_ranges
-    from sase.xprompt._parsing import (
+    from sase.macro._literal_zones import literal_zone_ranges
+    from sase.macro._parsing import (
         iter_xprompt_references,
         normalize_vcs_underscore_refs,
     )
-    from sase.xprompt.loader import get_all_workflows
-    from sase.xprompt.input_binding import InputBindingError, bind_input_args
-    from sase.xprompt.processor import process_xprompt_references
-    from sase.xprompt.workflow_executor_steps_embedded_types import (
+    from sase.macro.loader import get_all_workflows
+    from sase.macro.input_binding import InputBindingError, bind_input_args
+    from sase.macro.processor import process_xprompt_references
+    from sase.macro.workflow_executor_steps_embedded_types import (
         format_inline_workflow_reference_error,
         parse_workflow_reference_args,
     )
-    from sase.xprompt.workflow_executor_utils import render_template
-    from sase.xprompt.workflow_models import WorkflowExecutionError
+    from sase.macro.workflow_executor_utils import render_template
+    from sase.macro.workflow_models import WorkflowExecutionError
 
     from ._standalone_steps import execute_standalone_steps
 

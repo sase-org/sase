@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sase.procs.text_bounding import tail_text_by_lines_and_chars
 from sase.turns.prompt import OUTPUT_TAIL_MAX_CHARS, untrusted_output_section
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 
 
 def _tail_block(section: list[str]) -> tuple[str, str]:

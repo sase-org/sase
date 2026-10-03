@@ -161,7 +161,7 @@ def _install_research_highlights_use(
         lambda: ("research-highlights-e2e",),
     )
     monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
-    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: "sase")
+    monkeypatch.setattr("sase.macro.loader.detect_project", lambda: "sase")
     return _load_file_hooks()
 
 

@@ -12,7 +12,7 @@ from typing import Any
 from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
 from sase.main.init_memory.config import project_memory_name
-from sase.xprompt._directive_scan import DispatchDirectiveScan, scan_dispatch_directive
+from sase.macro._directive_scan import DispatchDirectiveScan, scan_dispatch_directive
 
 from .config import load_dispatch_config
 from .models import MachineRecord, is_reference_id
@@ -168,7 +168,7 @@ def _tab_dispatch_preflight(query: str, machine: MachineRecord) -> str | None:
     version comes from a no-network source only (a federation cache-only
     host response); an unknown version warns and proceeds.
     """
-    from sase.xprompt._tab_inheritance import (
+    from sase.macro._tab_inheritance import (
         segment_has_active_tab_directive,
         split_prompt_segments,
     )

@@ -19,8 +19,8 @@ def has_bare_resume_reference(prompt: str) -> bool:
     if "#fork" not in prompt:
         return False
 
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+    from sase.macro._disabled_regions import protect_disabled_regions
+    from sase.macro._fenced_blocks import protect_fenced_blocks
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -38,11 +38,11 @@ def rewrite_bare_resume_references(prompt: str, agent_name: str) -> str:
     if "#fork" not in prompt:
         return prompt
 
-    from sase.xprompt._disabled_regions import (
+    from sase.macro._disabled_regions import (
         protect_disabled_regions,
         unprotect_disabled_regions,
     )
-    from sase.xprompt._fenced_blocks import (
+    from sase.macro._fenced_blocks import (
         protect_fenced_blocks,
         unprotect_fenced_blocks,
     )
@@ -74,8 +74,8 @@ def has_non_resume_xprompt_reference(prompt: str) -> bool:
     if "#" not in prompt:
         return False
 
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+    from sase.macro._disabled_regions import protect_disabled_regions
+    from sase.macro._fenced_blocks import protect_fenced_blocks
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)

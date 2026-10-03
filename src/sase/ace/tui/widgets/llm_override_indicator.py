@@ -21,7 +21,7 @@ from sase.llm_provider.temporary_override import (
     peek_active_temporary_override,
     resolve_effective_default_provider_model as resolve_effective_default_provider_model,
 )
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 from ._override_pill import (
     DEFAULT_LANE_PALETTE,

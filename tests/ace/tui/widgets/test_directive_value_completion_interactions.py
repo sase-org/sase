@@ -9,7 +9,7 @@ from textual.widgets import Static
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.macro.effort import EFFORT_LEVELS_ORDERED
 
 from ._completion_helpers import CompletionTestApp
 from ._directive_completion_helpers import (

@@ -14,11 +14,11 @@ import yaml  # type: ignore[import-untyped]
 from sase.main.init_plan import InitOperation
 from sase.markdown_width import markdown_print_width, prettier_markdown_argv
 from sase.mdtemplates import render_markdown_template
-from sase.xprompt.loader_skills import (
+from sase.macro.loader_skills import (
     SKILL_FRAME_TEMPLATE_FILENAME,
     get_sase_package_skill_resource,
 )
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 # Skill planning runs inside ``sase doctor`` (config.init), which promises

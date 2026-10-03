@@ -8,7 +8,7 @@ import pytest
 
 from sase.agent.launch_admission_store import admission_dir, write_unit_receipt
 from sase.axe.chop_typed_admission import make_axe_chop_agent_dispatcher
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 from tests._axe_chop_proposal_launch_clan_dispatch_helpers import (
     capturing_launch,
     wait_unit,

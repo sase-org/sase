@@ -18,7 +18,7 @@ from sase.ace.tui.keymaps import (
 )
 from sase.ace.tui.widgets.typed_input_form import TypedInputForm
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.xprompt.models import InputType, XPromptValidationError
+from sase.macro.models import InputType, XPromptValidationError
 
 from .gate_input_panel_model import (
     GateBranchInputError,

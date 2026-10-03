@@ -16,12 +16,12 @@ from textual.widgets import Label, Static
 import yaml  # type: ignore[import-untyped]
 
 from sase.ace.tui.widgets.prompt_stack import split_frontmatter
-from sase.xprompt.config_yaml import generate_xprompt_yaml
-from sase.xprompt.loader_parsing import parse_yaml_front_matter
-from sase.xprompt.models import XPrompt
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat, build_markdown_xprompt
-from sase.xprompt.segment_separators import xprompt_has_segment_separators
+from sase.macro.config_yaml import generate_xprompt_yaml
+from sase.macro.loader_parsing import parse_yaml_front_matter
+from sase.macro.models import XPrompt
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import SaveTargetFormat, build_markdown_xprompt
+from sase.macro.segment_separators import xprompt_has_segment_separators
 
 MiniXPromptSaveConfirmResult = Literal[
     "save",

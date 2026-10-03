@@ -121,7 +121,7 @@ _FIELD_DEFAULTS: dict[type[Any], dict[str, object]] = {}
 def _resolve_queue_capacity(data: Mapping[str, Any]) -> tuple[int | None, bool]:
     global _resolve_authored_queue_capacity
     if _resolve_authored_queue_capacity is None:
-        from sase.xprompt.queue_directive import resolve_authored_queue_capacity
+        from sase.macro.queue_directive import resolve_authored_queue_capacity
 
         _resolve_authored_queue_capacity = resolve_authored_queue_capacity
     return _resolve_authored_queue_capacity(data)
@@ -130,7 +130,7 @@ def _resolve_queue_capacity(data: Mapping[str, Any]) -> tuple[int | None, bool]:
 def _resolve_queue_capacity_multiplier(data: Mapping[str, Any]) -> float | None:
     global _resolve_authored_queue_capacity_multiplier
     if _resolve_authored_queue_capacity_multiplier is None:
-        from sase.xprompt.queue_directive import (
+        from sase.macro.queue_directive import (
             resolve_authored_queue_capacity_multiplier,
         )
 

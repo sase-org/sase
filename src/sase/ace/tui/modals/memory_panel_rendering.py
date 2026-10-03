@@ -29,7 +29,7 @@ from sase.memory.inventory import MemoryStats
 from sase.memory.notes import AGENTS_PARENT, MemoryNote, collapse_description
 from sase.memory.read_log import MemoryReadPathSummary
 from sase.notifications.models import format_relative_time
-from sase.xprompt.highlight_theme import derive_argument_color
+from sase.macro.highlight_theme import derive_argument_color
 
 from .glossary_preview_render import build_numbered_chip_rows
 from .numbered_link_keys import NUMBERED_LINK_CHIP_PREFIX

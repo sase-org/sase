@@ -2,7 +2,7 @@
 
 A persistent, navigable, focusable panel rendered directly above the prompt
 stack (``#prompt-stack``).  It is the visible editing surface over the structured
-:class:`~sase.xprompt.prompt_frontmatter.PromptFrontmatter` model built in Phase
+:class:`~sase.macro.prompt_frontmatter.PromptFrontmatter` model built in Phase
 2: it renders one row per set field with a type-styled value summary and a status
 chip, validates live through the shared ``sase-core`` engine (so its guidance
 never drifts from the xprompt LSP), and offers the common-case editors plus a raw
@@ -52,8 +52,8 @@ from sase.ace.tui.widgets._frontmatter_panel_raw import FrontmatterPanelRawMixin
 from sase.ace.tui.widgets._frontmatter_panel_rendering import (
     FrontmatterPanelRenderingMixin,
 )
-from sase.xprompt.frontmatter_schema import frontmatter_field_schema
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.frontmatter_schema import frontmatter_field_schema
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 _PANEL_BORDER_ROWS = 2
 _PANEL_BOTTOM_MARGIN = 1

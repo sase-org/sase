@@ -131,7 +131,7 @@ def load_workflow_states(
     Returns:
         List of WorkflowEntry objects.
     """
-    from sase.xprompt import StepState, StepStatus
+    from sase.macro import StepState, StepStatus
 
     entries: list[WorkflowEntry] = []
 

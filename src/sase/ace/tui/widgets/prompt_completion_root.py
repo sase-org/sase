@@ -62,7 +62,7 @@ def _normalize_prompt_refs(prompt: str) -> str:
         pass
 
     try:
-        from sase.xprompt._parsing import normalize_vcs_underscore_refs
+        from sase.macro._parsing import normalize_vcs_underscore_refs
 
         return normalize_vcs_underscore_refs(prompt)
     except Exception:
@@ -127,7 +127,7 @@ def _known_project_base_dir(
         return None
 
     try:
-        from sase.xprompt._parsing import iter_known_project_vcs_refs
+        from sase.macro._parsing import iter_known_project_vcs_refs
 
         refs = iter_known_project_vcs_refs(prompt, known_projects)
     except Exception:
@@ -150,7 +150,7 @@ def _ensure_known_projects_loaded(
 
 def _load_known_project_workspaces() -> dict[str, Any]:
     try:
-        from sase.xprompt.loader import get_known_project_workspaces
+        from sase.macro.loader import get_known_project_workspaces
 
         try:
             return dict(get_known_project_workspaces(include_states="all"))
@@ -167,7 +167,7 @@ def _known_project_base_dir_for_ref(
     known_projects: dict[str, Any],
 ) -> str | None:
     try:
-        from sase.xprompt._parsing import resolve_known_project_ref
+        from sase.macro._parsing import resolve_known_project_ref
 
         project = resolve_known_project_ref(ref, known_projects)
     except Exception:

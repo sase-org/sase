@@ -370,7 +370,7 @@ def main() -> NoReturn:
 
     # --- lsp ---
     if args.command == "lsp":
-        from sase.integrations.xprompt_lsp import handle_xprompt_lsp_command
+        from sase.integrations.macro_lsp import handle_xprompt_lsp_command
 
         handle_xprompt_lsp_command(args)
 
@@ -429,7 +429,7 @@ def main() -> NoReturn:
                 sys.exit(1)
             sys.exit(0)
 
-        from sase.xprompt.loader import get_sase_package_xprompts_dir
+        from sase.macro.loader import get_sase_package_xprompts_dir
 
         xprompts_dir = get_sase_package_xprompts_dir()
         if args.name == "xprompts-dir":
@@ -618,7 +618,7 @@ def main() -> NoReturn:
 
     # --- xprompt ---
     if args.command == "xprompt":
-        from .xprompt_handler import handle_xprompt_command
+        from .macro_handler import handle_xprompt_command
 
         handle_xprompt_command(args)
 

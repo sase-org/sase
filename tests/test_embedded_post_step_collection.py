@@ -1,11 +1,11 @@
 """Tests for _collect_embedded_step_outputs()."""
 
-from sase.xprompt.models import OutputSpec
-from sase.xprompt.workflow_executor_steps_embedded import EmbeddedWorkflowInfo
-from sase.xprompt.workflow_executor_steps_prompt_outputs import (
+from sase.macro.models import OutputSpec
+from sase.macro.workflow_executor_steps_embedded import EmbeddedWorkflowInfo
+from sase.macro.workflow_executor_steps_prompt_outputs import (
     _collect_embedded_step_outputs,
 )
-from sase.xprompt.workflow_models import WorkflowStep
+from sase.macro.workflow_models import WorkflowStep
 
 
 def _make_info(

@@ -28,9 +28,9 @@ from sase.llm_provider.load_balancing import (
 )
 from sase.llm_provider.model_alias_policy import implicit_alias_targets
 from sase.llm_provider.model_policy import validate_manifest_policy
-from sase.xprompt import model_completion
+from sase.macro import model_completion
 
-from tests._xprompt_model_completion_helpers import (
+from tests._macro_model_completion_helpers import (
     clear_model_completion_cache as clear_model_completion_cache,
 )
 

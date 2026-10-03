@@ -20,7 +20,7 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 
 _LOCAL_XPROMPT_NAME = "_stash_helper"

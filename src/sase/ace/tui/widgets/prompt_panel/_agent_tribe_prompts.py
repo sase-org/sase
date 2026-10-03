@@ -17,7 +17,7 @@ from hashlib import blake2b
 from typing import TYPE_CHECKING
 
 from sase.history.prompt_metadata import summarize_prompt_for_list
-from sase.xprompt import extract_project_from_vcs_tag, extract_vcs_workflow_tag
+from sase.macro import extract_project_from_vcs_tag, extract_vcs_workflow_tag
 
 from ..._agent_completion_prompt import split_prompt_preamble
 from ...util.xprompt_syntax import xprompt_overlay_spans

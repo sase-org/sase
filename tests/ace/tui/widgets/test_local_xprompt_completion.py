@@ -19,8 +19,8 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     merge_local_xprompt_entries,
     xprompt_assist_entry_from_local_xprompt,
 )
-from sase.xprompt.models import InputArg, InputType, XPrompt
-from sase.xprompt.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
 
 
 class _PromptBarApp(App[None]):

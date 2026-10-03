@@ -19,10 +19,10 @@ from sase.ace.tui.widgets.directive_completion import (
 from sase.ace.tui.widgets._directive_completion_tokens import (
     extract_directive_arg_token_around_cursor,
 )
-from sase.xprompt._directive_types import AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
-from sase.xprompt.directives import extract_prompt_directives
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
-from sase.xprompt.model_completion import ModelCompletionEntry
+from sase.macro._directive_types import AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
+from sase.macro.directives import extract_prompt_directives
+from sase.macro.effort import EFFORT_LEVELS_ORDERED
+from sase.macro.model_completion import ModelCompletionEntry
 
 from ._directive_completion_helpers import (
     MODEL_CATALOG_PATCH,

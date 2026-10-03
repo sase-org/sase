@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 
-HEAVY_PREFIXES = ("sase.llm_provider", "sase.xprompt")
+HEAVY_PREFIXES = ("sase.llm_provider", "sase.macro")
 
 
 def test_tool_modules_do_not_import_the_provider_stack() -> None:

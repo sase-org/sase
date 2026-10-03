@@ -19,9 +19,9 @@ from sase.feature_flags import override_flags
 from sase.main.parser_gate import register_gate_parser
 from sase.notification_gates.model_turn import GateTurnNext
 from sase.notification_gates.models import GateError, GateSpec
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt._directive_edit_identity import set_prompt_name
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._exceptions import DirectiveError
+from sase.macro._directive_edit_identity import set_prompt_name
+from sase.macro.directives import extract_prompt_directives
 from tests._notification_gates_fixtures import custom_gate_spec
 
 

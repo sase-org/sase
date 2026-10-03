@@ -2,8 +2,8 @@
 
 import pytest
 
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import extract_prompt_directives
 
 
 # --- %wait time= duration directive tests ---

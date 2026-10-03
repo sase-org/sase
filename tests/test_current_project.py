@@ -17,7 +17,7 @@ from sase.current_project import (
     peek_current_project_change_token,
     resolve_current_project,
 )
-from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage, vcs_xprompt_mru_path
+from sase.history.vcs_macro_mru import record_vcs_xprompt_usage, vcs_xprompt_mru_path
 from sase import current_project as current_project_mod
 
 

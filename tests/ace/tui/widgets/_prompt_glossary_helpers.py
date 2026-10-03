@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
-from sase.xprompt.glossary_catalog import (
+from sase.macro.glossary_catalog import (
     EditorGlossaryCatalog,
     EditorGlossaryProject,
     _GlossaryConfigSignature,

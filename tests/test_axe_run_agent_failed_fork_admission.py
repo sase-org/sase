@@ -20,7 +20,7 @@ from sase.axe.run_agent_phases import extract_directives_and_write_meta
 from sase.axe.run_agent_wait_deps import initial_dependencies_resolved
 from sase.core.dismissed_agent_completion import FAILURE_OUTCOME
 from sase.linked_repos import LinkedRepoResolution
-from sase.xprompt.directives import has_deferred_start_directive
+from sase.macro.directives import has_deferred_start_directive
 
 from tests._agent_names_fixtures import make_agent as _make_agent
 from tests._axe_run_agent_runner_retry_helpers import (

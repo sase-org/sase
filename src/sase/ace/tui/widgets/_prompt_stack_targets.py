@@ -7,7 +7,7 @@ import hashlib
 from pathlib import Path
 from typing import Literal
 
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.save import SaveTargetFormat
 
 
 @dataclass(frozen=True)
@@ -60,7 +60,7 @@ class XPromptBinding:
         *,
         reference: str | None = None,
     ) -> XPromptBinding:
-        from sase.xprompt.write_targets import (
+        from sase.macro.write_targets import (
             canonical_reference_for_path,
             resolve_xprompt_write_target,
         )
@@ -91,7 +91,7 @@ class XPromptBinding:
         *,
         reference: str | None = None,
     ) -> XPromptBinding:
-        from sase.xprompt.write_targets import (
+        from sase.macro.write_targets import (
             canonical_reference_for_path,
             resolve_xprompt_write_target,
         )

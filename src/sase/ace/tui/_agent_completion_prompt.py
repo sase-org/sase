@@ -41,7 +41,7 @@ def _leading_workspace_tag(body: str) -> str | None:
                 return tag
     if "#" not in body:
         return None
-    from sase.xprompt import extract_vcs_workflow_tag
+    from sase.macro import extract_vcs_workflow_tag
 
     return extract_vcs_workflow_tag(body)
 
@@ -70,7 +70,7 @@ def _first_workspace_tag(body: str) -> str | None:
                 return tag
     if "#" not in body:
         return None
-    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
+    from sase.macro import extract_vcs_workflow_tag, find_vcs_workflow_tag
 
     return extract_vcs_workflow_tag(body) or find_vcs_workflow_tag(body)
 
@@ -79,7 +79,7 @@ def vcs_workflow_from_prompt(raw_prompt: str) -> AgentVcsWorkflow | None:
     if not raw_prompt:
         return None
 
-    from sase.xprompt import extract_project_from_vcs_tag
+    from sase.macro import extract_project_from_vcs_tag
     from sase.project_display_names import (
         humanize_vcs_refs_in_text,
         project_display_name_for,
@@ -183,7 +183,7 @@ def _strip_frontmatter(text: str) -> str:
 
 
 def _strip_leading_prompt_directives(text: str) -> str:
-    from sase.xprompt._parsing import find_matching_paren_for_args
+    from sase.macro._parsing import find_matching_paren_for_args
 
     current = text.lstrip()
     while current.startswith("%"):
@@ -216,7 +216,7 @@ def _strip_leading_vcs_tag(text: str) -> str:
     if not stripped.startswith("#"):
         return stripped
     try:
-        from sase.xprompt import strip_vcs_workflow_tag
+        from sase.macro import strip_vcs_workflow_tag
 
         return strip_vcs_workflow_tag(stripped).lstrip()
     except Exception:

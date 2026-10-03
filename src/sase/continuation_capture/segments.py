@@ -16,7 +16,7 @@ from ._storage import optional_int, source_ref, wire_reference_or_none
 from .models import ContinuationSegmentCapture
 
 if TYPE_CHECKING:
-    from sase.xprompt._trace import ExpansionTrace
+    from sase.macro._trace import ExpansionTrace
 
 _INJECTED_ANCESTRY_WORKFLOW_NAMES = frozenset({"fork", "fork_by_chat"})
 _CANONICAL_LOCAL_PROVENANCE = frozenset({"local_authored", "local_materialized"})

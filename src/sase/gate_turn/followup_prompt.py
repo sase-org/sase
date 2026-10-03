@@ -25,7 +25,7 @@ from sase.turns.prompt import (
     untrusted_output_section,
     widen_fence,
 )
-from sase.xprompt._disabled_regions import wrap_disabled_region
+from sase.macro._disabled_regions import wrap_disabled_region
 
 #: Per-option and total bounds on the JSON embedded in ``## Results``. These
 #: bound the *prompt* only -- the full result stays on disk in

@@ -356,7 +356,7 @@ def _entry_has_authored_multiplier(entry: RunnerQueueEntry) -> bool:
     """Return whether a valid multiplier stands in for absent integer capacity."""
     if entry.threshold is not None or entry.capacity_multiplier is None:
         return False
-    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+    from sase.macro.queue_directive import format_queue_capacity_multiplier
 
     return format_queue_capacity_multiplier(entry.capacity_multiplier) is not None
 

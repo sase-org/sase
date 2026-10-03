@@ -1,8 +1,8 @@
 """Tests for parallel step parsing and hidden field parsing in workflow_loader."""
 
 import pytest
-from sase.xprompt.workflow_loader import _parse_workflow_step
-from sase.xprompt.workflow_models import WorkflowValidationError
+from sase.macro.workflow_loader import _parse_workflow_step
+from sase.macro.workflow_models import WorkflowValidationError
 
 # ============================================================================
 # Parallel step parsing tests

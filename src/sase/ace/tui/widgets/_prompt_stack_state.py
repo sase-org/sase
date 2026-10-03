@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 from ._prompt_stack_binding import PromptStackBindingMixin
 from ._prompt_stack_parsing import split_frontmatter, split_prompt_text

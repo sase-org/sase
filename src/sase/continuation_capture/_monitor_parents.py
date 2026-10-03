@@ -44,7 +44,7 @@ def wait_for_starter_settle(starter_artifacts_dir: str) -> bool:
     """Wait, bounded, for a named starter to reach its terminal marker.
 
     Imported lazily: :mod:`sase.turns.followup` pulls in :mod:`sase.agent`
-    and :mod:`sase.xprompt`, which import back from this package, so a
+    and :mod:`sase.macro`, which import back from this package, so a
     top-level import here would be circular.
     """
     from sase.turns.followup import (

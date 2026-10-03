@@ -4,12 +4,12 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import (
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import (
     extract_prompt_directives,
     split_prompt_for_models,
 )
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 def test_split_prompt_for_models_rejects_paren_multi_model() -> None:
@@ -154,11 +154,11 @@ def test_split_prompt_for_models_spaces_in_args() -> None:
 
 def test_split_prompt_for_models_after_xprompt_expansion() -> None:
     """Xprompt-expanded model branches are split by split_prompt_for_models."""
-    from sase.xprompt.processor import process_xprompt_references
+    from sase.macro.processor import process_xprompt_references
 
     # Simulate what happens when #swarm expands to %{%model:opus | %model:sonnet}
     with patch(
-        "sase.xprompt.processor.process_xprompt_references",
+        "sase.macro.processor.process_xprompt_references",
         wraps=process_xprompt_references,
     ):
         expanded = "%i:foo\n%{%model:opus | %model:sonnet}\nReview this code"
@@ -171,7 +171,7 @@ def test_split_prompt_for_models_after_xprompt_expansion() -> None:
 
 def test_split_prompt_for_models_requires_caller_expanded_xprompt_body() -> None:
     """The planner splits xprompt-injected model branches after caller expansion."""
-    from sase.xprompt.processor import process_xprompt_references
+    from sase.macro.processor import process_xprompt_references
 
     xprompts = {
         "_fanout": XPrompt(
@@ -182,7 +182,7 @@ def test_split_prompt_for_models_requires_caller_expanded_xprompt_body() -> None
 
     assert split_prompt_for_models("#_fanout", extra_xprompts=xprompts) is None
 
-    with patch("sase.xprompt.processor.get_all_xprompts", return_value={}):
+    with patch("sase.macro.processor.get_all_xprompts", return_value={}):
         expanded = process_xprompt_references("#_fanout", extra_xprompts=xprompts)
 
     result = split_prompt_for_models(expanded, extra_xprompts=xprompts)
@@ -205,7 +205,7 @@ def test_split_prompt_for_models_xprompt_model_axis_composes_with_alts() -> None
     2 alts x 2 alts x 2 models = 8 variants, split evenly across the raw
     opus/#codex branches.
     """
-    from sase.xprompt.processor import process_xprompt_references
+    from sase.macro.processor import process_xprompt_references
 
     catalog = {
         "codex": XPrompt(name="codex", content="gpt-5.6-sol"),
@@ -227,7 +227,7 @@ def test_split_prompt_for_models_xprompt_model_axis_composes_with_alts() -> None
     assert all("%model" not in variant for variant in raw)
 
     # Expanding the launch-shaping xprompt first unlocks the model axis.
-    with patch("sase.xprompt.processor.get_all_xprompts", return_value={}):
+    with patch("sase.macro.processor.get_all_xprompts", return_value={}):
         expanded = process_xprompt_references(prompt, extra_xprompts=catalog)
     result = split_prompt_for_models(expanded, extra_xprompts=catalog)
     assert result is not None

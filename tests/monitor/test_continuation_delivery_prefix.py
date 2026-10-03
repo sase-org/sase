@@ -141,7 +141,7 @@ def test_auto_launch_prefix_reauthors_auto_directive(
 
 def test_queue_launch_prefix_positive_budget_is_parseable() -> None:
     from sase.feature_flags import override_flags
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     with override_flags(queue_capacity_budget=True):
         prefix = queue_launch_prefix(
@@ -163,7 +163,7 @@ def test_queue_launch_prefix_positive_budget_is_parseable() -> None:
 
 def test_queue_launch_prefix_legacy_zero_does_not_reenter_on_parser() -> None:
     from sase.feature_flags import override_flags
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     with override_flags(queue_capacity_budget=True):
         prefix = queue_launch_prefix(

@@ -176,7 +176,7 @@ def test_fix_hook_runner_publishes_env_and_reports_no_proposal(
         lambda _project_file: "git",
     )
     monkeypatch.setattr(
-        "sase.xprompt.tags.get_by_tag",
+        "sase.macro.tags.get_by_tag",
         lambda _tag: None,
     )
     monkeypatch.setattr(

@@ -25,7 +25,7 @@ from sase.doctor.checks_config_skills import check_config_skills_applied
 from sase.doctor.checks_config_sdd import check_config_sdd
 from sase.doctor.checks_config_timezone import check_config_timezone
 from sase.doctor.checks_config_tribes import check_config_tribes
-from sase.doctor.checks_config_xprompts import (
+from sase.doctor.checks_config_macros import (
     check_config_model_xprompts,
     check_config_xprompt_definitions,
     check_config_xprompt_directives,

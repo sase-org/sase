@@ -16,7 +16,7 @@ from textual.message import Message
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt.models import InputArg, InputType
+from sase.macro.models import InputArg, InputType
 
 from ._completion_helpers import CompletionTestApp
 

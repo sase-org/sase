@@ -10,8 +10,8 @@ from ._types import PromptContext, invalidate_prompt_session
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets import PromptInputBar
-    from sase.xprompt.models import XPrompt
-    from sase.xprompt.workflow_models import Workflow
+    from sase.macro.models import XPrompt
+    from sase.macro.workflow_models import Workflow
 
 log = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ class PromptBarRequestsMixin:
                             )
                         except Exception:  # noqa: BLE001 - fall back to raw.
                             pass
-                from sase.xprompt import replace_vcs_workflow_tags
+                from sase.macro import replace_vcs_workflow_tags
 
                 return replace_vcs_workflow_tags(prompt_text, vcs_prefix)
             return prompt_text
@@ -363,7 +363,7 @@ class PromptBarRequestsMixin:
         # (``local_xprompts``) so the ``Ctrl+I`` expansion helper can resolve a
         # selected local helper -- or a global xprompt that references one --
         # the same way the launch path would.
-        from sase.xprompt.models import xprompt_to_workflow
+        from sase.macro.models import xprompt_to_workflow
 
         extra_prompts: dict[str, Workflow] = {}
         local_xprompts: dict[str, XPrompt] = {}
@@ -382,12 +382,12 @@ class PromptBarRequestsMixin:
                     effective_vcs_workflow_tag_with_catalog,
                     peek_project_tag_catalog,
                 )
-                from sase.xprompt._parsing import (
+                from sase.macro._parsing import (
                     extract_project_from_vcs_tag,
                     extract_vcs_workflow_tag,
                 )
-                from sase.xprompt.loader import load_project_local_xprompts
-                from sase.xprompt.project_identity import (
+                from sase.macro.loader import load_project_local_xprompts
+                from sase.macro.project_identity import (
                     canonical_xprompt_project,
                     known_project_namespaces,
                 )
@@ -445,7 +445,7 @@ class PromptBarRequestsMixin:
             from sase.ace.tui.widgets.xprompt_inline_expansion import (
                 expand_inline_xprompt,
             )
-            from sase.xprompt.workflow_models import Workflow
+            from sase.macro.workflow_models import Workflow
 
             if origin_bar is None or not origin_bar.is_mounted:
                 return "Prompt pane is no longer available - selection discarded"

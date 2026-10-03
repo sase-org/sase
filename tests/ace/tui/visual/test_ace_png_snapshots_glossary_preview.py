@@ -12,12 +12,12 @@ from sase.ace.tui.modals.glossary_preview_modal import GlossaryPreviewModal
 from sase.ace.tui.modals.repo_preview_modal import RepoPreviewModal
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.repo_inventory import RepoCloneRecord, RepoRecord
-from sase.xprompt.glossary_catalog import (
+from sase.macro.glossary_catalog import (
     EditorGlossaryCatalog,
     EditorGlossaryProject,
     _GlossaryConfigSignature,
 )
-from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog, RepoMention
+from sase.macro.repo_mention_catalog import EditorRepoMentionCatalog, RepoMention
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     patches,

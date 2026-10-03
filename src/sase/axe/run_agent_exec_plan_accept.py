@@ -555,7 +555,7 @@ def prepare_accepted_plan_successor(
     wait_beads = _wait_name_tuple(getattr(plan_result, "wait_beads", ()))
     wait_hoods = _wait_name_tuple(getattr(plan_result, "wait_hoods", ()))
     if wait_agents or wait_beads or wait_hoods:
-        from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
+        from sase.macro.directive_edit import PromptWaitDirective, set_prompt_wait
 
         successor_prompt = set_prompt_wait(
             successor_prompt,

@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.xprompt.loader import get_sase_package_xprompts_dir
-from sase.xprompt.workflow_loader import _load_workflow_from_file
+from sase.macro.loader import get_sase_package_xprompts_dir
+from sase.macro.workflow_loader import _load_workflow_from_file
 
 
 # ---------------------------------------------------------------------------

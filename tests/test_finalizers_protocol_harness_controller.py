@@ -24,7 +24,7 @@ from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 from .finalizers_protocol_harness_test_helpers import (
     dirty_repo,

@@ -12,7 +12,7 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     vcs_repo_completion_candidates,
 )
 from sase.workspace_provider import VcsRepoEntry
-from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
+from sase.macro.vcs_repo_completion import VcsRepoFetchResult
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

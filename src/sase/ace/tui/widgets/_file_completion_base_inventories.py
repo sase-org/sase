@@ -24,7 +24,7 @@ from sase.ace.tui.widgets.model_explicit_completion import (
 )
 from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 from sase.llm_provider.temporary_override import peek_active_alias_overrides
-from sase.xprompt.model_completion import peek_cached_model_completion_catalog
+from sase.macro.model_completion import peek_cached_model_completion_catalog
 
 if TYPE_CHECKING:
     from sase.ace.tui.agent_completion import AgentCompletionCandidate

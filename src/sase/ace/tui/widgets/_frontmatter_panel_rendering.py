@@ -9,16 +9,16 @@ from rich.text import Text
 from textual.widgets import Static
 import yaml  # type: ignore[import-untyped]
 
-from sase.xprompt.frontmatter_schema import (
+from sase.macro.frontmatter_schema import (
     FrontmatterDiagnostic,
     FrontmatterFieldKind,
 )
-from sase.xprompt.models import UNSET, InputArg, XPrompt
+from sase.macro.models import UNSET, InputArg, XPrompt
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
 
-    from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+    from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 else:
     _MixinBase = object

@@ -4,8 +4,8 @@ import tempfile
 from unittest.mock import patch
 
 import pytest
-from sase.xprompt import WorkflowExecutor
-from sase.xprompt.workflow_models import Workflow, WorkflowExecutionError, WorkflowStep
+from sase.macro import WorkflowExecutor
+from sase.macro.workflow_models import Workflow, WorkflowExecutionError, WorkflowStep
 
 from tests._workflow_executor_helpers import _create_test_workflow
 
@@ -33,7 +33,7 @@ class TestEmbeddedWorkflowExpansion:
                 artifacts_dir=tmpdir,
             )
 
-            with patch("sase.xprompt.loader.get_all_workflows") as mock_get_workflows:
+            with patch("sase.macro.loader.get_all_workflows") as mock_get_workflows:
                 mock_get_workflows.return_value = {
                     "inject_workflow": workflow_with_hashes
                 }
@@ -60,7 +60,7 @@ class TestEmbeddedWorkflowExpansion:
             )
 
             with patch(
-                "sase.xprompt.loader.get_all_workflows",
+                "sase.macro.loader.get_all_workflows",
                 return_value={"deploy": standalone},
             ):
                 with pytest.raises(WorkflowExecutionError, match=r"Use `#!deploy`"):
@@ -81,7 +81,7 @@ class TestEmbeddedWorkflowExpansion:
             )
 
             with patch(
-                "sase.xprompt.loader.get_all_workflows",
+                "sase.macro.loader.get_all_workflows",
                 return_value={"commit": embeddable},
             ):
                 with pytest.raises(

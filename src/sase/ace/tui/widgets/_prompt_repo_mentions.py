@@ -21,7 +21,7 @@ from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.xprompt.repo_mention_catalog import (
+from sase.macro.repo_mention_catalog import (
     EditorRepoMentionCatalog,
     RepoMentionSpan,
     lookup_repo_mention,

@@ -26,8 +26,8 @@ from sase.bead.work_plan import (
     _build_epic_work_plan,
     _plan_from_payload,
 )
-from sase.xprompt.directives import extract_prompt_directives
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.directives import extract_prompt_directives
+from sase.macro.workflow_models import Workflow
 
 from .work_test_helpers import depends, epic, phase, seed, wave_bead_ids
 

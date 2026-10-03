@@ -8,7 +8,7 @@ __all__ = ["register_bead_onboard_parser", "register_bead_work_parser"]
 
 
 def _queue_capacity_arg(value: str) -> int:
-    from sase.xprompt.queue_directive import validate_queue_capacity
+    from sase.macro.queue_directive import validate_queue_capacity
 
     try:
         return validate_queue_capacity(value)

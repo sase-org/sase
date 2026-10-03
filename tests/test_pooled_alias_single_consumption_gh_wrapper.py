@@ -19,9 +19,9 @@ import pytest
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
 from sase.llm_provider.messages import AIMessage
 from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
-from sase.xprompt.models import InputArg, InputType, create_anonymous_workflow
-from sase.xprompt.tags import XPromptTag
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import InputArg, InputType, create_anonymous_workflow
+from sase.macro.tags import XPromptTag
+from sase.macro.workflow_models import Workflow, WorkflowStep
 from tests._model_alias_defaults_fixture import frozen_selector_provider_model_effort
 
 _POOL_ALIAS = LARGE_MODEL_ALIAS_NAME
@@ -91,7 +91,7 @@ def _run_renamed_gh_launch(
     )
 
     from sase.llm_provider.launch_selection import resolve_launch_selection
-    from sase.xprompt.directives import PromptDirectives
+    from sase.macro.directives import PromptDirectives
 
     # Prove redemption uses the bootstrap reservation even if another launch
     # advances the same pool before this workflow reaches its prompt step.
@@ -111,11 +111,9 @@ def _run_renamed_gh_launch(
 
     anon_workflow = create_anonymous_workflow(prompt)
     with (
+        patch("sase.macro.loader.get_all_prompts", return_value=_gh_workflow_catalog()),
         patch(
-            "sase.xprompt.loader.get_all_prompts", return_value=_gh_workflow_catalog()
-        ),
-        patch(
-            "sase.xprompt.loader.get_all_workflows",
+            "sase.macro.loader.get_all_workflows",
             return_value=_gh_workflow_catalog(),
         ),
         patch("sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent),
@@ -124,7 +122,7 @@ def _run_renamed_gh_launch(
             side_effect=_fake_save_chat_history,
         ),
     ):
-        from sase.xprompt.workflow_runner import execute_workflow
+        from sase.macro.workflow_runner import execute_workflow
 
         execute_workflow(
             anon_workflow.name,
@@ -191,7 +189,7 @@ def test_gh_wrapper_display_rename_keeps_verbose_output_handling(
             return _noop
 
     monkeypatch.setattr(
-        "sase.xprompt.workflow_output.WorkflowOutputHandler",
+        "sase.macro.workflow_output.WorkflowOutputHandler",
         _FakeWorkflowOutputHandler,
     )
 

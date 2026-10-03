@@ -37,8 +37,8 @@ from sase.snippet.models import (
     SnippetMutationOutcome,
     SnippetRelations,
 )
-from sase.xprompt.save_index import invalidate_save_index
-from sase.xprompt.snippet_config_yaml import (
+from sase.macro.save_index import invalidate_save_index
+from sase.macro.snippet_config_yaml import (
     SnippetConfigConflictError,
     apply_snippet_config_text,
     insert_snippet_into_config,
@@ -47,8 +47,8 @@ from sase.xprompt.snippet_config_yaml import (
     preview_snippet_upsert,
     snippet_config_digest,
 )
-from sase.xprompt.snippet_targets import resolve_snippet_save_target
-from sase.xprompt.write_targets import resolve_xprompt_write_target
+from sase.macro.snippet_targets import resolve_snippet_save_target
+from sase.macro.write_targets import resolve_xprompt_write_target
 
 SnippetConflictError = SnippetConfigConflictError
 

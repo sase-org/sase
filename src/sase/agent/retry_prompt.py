@@ -15,7 +15,7 @@ def rewrite_retry_prompt_name(
 ) -> str:
     """Replace or prepend the top-level prompt ``%id`` directive for retry."""
     from sase.agent.agent_session_attach import extract_agent_session_attach_directive
-    from sase.xprompt.directive_edit import set_prompt_name
+    from sase.macro.directive_edit import set_prompt_name
 
     # A retry name is already the concrete derived name (for example,
     # ``foo--reviewer.r0``). Keeping session= would reinterpret that full name
@@ -45,7 +45,7 @@ def force_name_reuse_in_prompt(
 ) -> str:
     """Mark the first explicit top-level ``%id`` directive for forced reuse."""
     from sase.agent.names import is_agent_name_template
-    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+    from sase.macro._parsing import find_matching_paren_for_args, parse_args
 
     scan: tuple[str, Callable[[str], str]] | None = None
     for match, protected, restore in _iter_top_level_id_directives(raw_prompt):
@@ -126,15 +126,15 @@ def _iter_top_level_id_directives(
     if "%i" not in prompt:
         return
 
-    from sase.xprompt._directive_types import (
+    from sase.macro._directive_types import (
         _DIRECTIVE_ALIASES,
         _DIRECTIVE_PATTERN,
     )
-    from sase.xprompt._disabled_regions import (
+    from sase.macro._disabled_regions import (
         protect_disabled_regions,
         unprotect_disabled_regions,
     )
-    from sase.xprompt._fenced_blocks import (
+    from sase.macro._fenced_blocks import (
         protect_fenced_blocks,
         unprotect_fenced_blocks,
     )

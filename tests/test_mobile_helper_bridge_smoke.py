@@ -9,7 +9,7 @@ from sase.integrations.chat_install import (
     ChatInstallLaunchResult,
     ChatInstallStatusResult,
 )
-from sase.xprompt.catalog import (
+from sase.macro.catalog import (
     StructuredCatalogEntry,
     StructuredCatalogProjection,
     StructuredCatalogStats,

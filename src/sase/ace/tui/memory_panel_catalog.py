@@ -41,7 +41,7 @@ from sase.memory.web.closure import (
 )
 from sase.memory.web.discovery import discover_memory_webs
 from sase.memory.web.models import MemoryStrand, MemoryWeb, WebScope
-from sase.xprompt.glossary_catalog import (
+from sase.macro.glossary_catalog import (
     enabled_project_records,
     glossary_project_record_for_workspace,
 )

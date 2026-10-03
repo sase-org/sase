@@ -10,7 +10,7 @@ so the original import path keeps working. It collects no tests itself.
 
 from __future__ import annotations
 
-from tests._xprompt_model_completion_helpers import (
+from tests._macro_model_completion_helpers import (
     clear_model_completion_cache as clear_model_completion_cache,
 )
 from tests.ace.tui.widgets._model_alias_completion_shared import (

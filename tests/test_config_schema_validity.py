@@ -13,7 +13,7 @@ from tests._config_schema_helpers import schema as config_schema
 
 
 def _workflow_schema() -> dict[str, Any]:
-    resource = importlib.resources.files("sase") / "xprompts" / "workflow.schema.json"
+    resource = importlib.resources.files("sase") / "macros" / "workflow.schema.json"
     document = json.loads(resource.read_text(encoding="utf-8"))
     assert isinstance(document, dict)
     return document
@@ -21,7 +21,7 @@ def _workflow_schema() -> dict[str, Any]:
 
 def _bundled_schemas() -> Iterator[tuple[str, dict[str, Any]]]:
     yield "src/sase/config/sase.schema.json", config_schema()
-    yield "src/sase/xprompts/workflow.schema.json", _workflow_schema()
+    yield "src/sase/macros/workflow.schema.json", _workflow_schema()
 
 
 def _json_pointer(path: tuple[str, ...]) -> str:

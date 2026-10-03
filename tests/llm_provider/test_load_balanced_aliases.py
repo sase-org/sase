@@ -20,7 +20,7 @@ from sase.llm_provider.load_balancing import (
     parse_model_alias_selector,
 )
 from sase.llm_provider.registry import resolve_model_provider_with_effort
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 from tests.llm_provider._load_balanced_alias_helpers import configure_pool
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 

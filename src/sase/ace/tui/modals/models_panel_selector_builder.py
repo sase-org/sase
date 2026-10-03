@@ -46,7 +46,7 @@ from sase.llm_provider.model_alias_resolution import (
     resolved_target_routing,
 )
 from sase.llm_provider.provider_priority import resolve_provider_routing_context
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 from .base import OptionListNavigationMixin
 from .custom_model_input_modal import CustomModelInputModal

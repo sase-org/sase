@@ -1,14 +1,14 @@
 """Immutable launchable-MRU snapshot for prompt project cycling.
 
 Epic sase-1ex, phase mru-snapshot. The prompt ``<ctrl+n/p>`` keys used to call
-:func:`sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru` on every
+:func:`sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru` on every
 press, re-validating the whole MRU (project records, ``git config``
 subprocesses, stats) on the UI thread. This module is the Textual-free pure
 model for the replacement: an immutable snapshot owned by ``AceApp`` that a
 single-flight worker builds off the pump while the keys only peek it.
 
 A build calls the existing
-:func:`~sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru_pairs`
+:func:`~sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs`
 with ``prune=False``, so validation policy stays single-sourced and key
 paths never write the MRU file. ``"ready"`` with no pairs means "the MRU is
 empty" and is distinct from ``"cold"`` ("not built yet").
@@ -70,7 +70,7 @@ def _compute_launchable_mru_inputs_signature() -> tuple[object, ...]:
     """
     parts: list[object] = []
     try:
-        from sase.history.vcs_xprompt_mru import vcs_xprompt_mru_path
+        from sase.history.vcs_macro_mru import vcs_xprompt_mru_path
 
         parts.append(_stat_parts(vcs_xprompt_mru_path()))
     except Exception:  # noqa: BLE001 - a broken stat degrades to "changed".
@@ -115,7 +115,7 @@ def build_launchable_mru_data(
     publish an ``"error"`` snapshot instead of stale data.
     """
     from sase.current_project import peek_current_project_change_token
-    from sase.history.vcs_xprompt_mru import (
+    from sase.history.vcs_macro_mru import (
         load_launchable_vcs_xprompt_mru_pairs,
     )
 

@@ -1,7 +1,7 @@
 """Jinja2 completion candidates for the prompt input bar.
 
 Candidates come from the shared Rust engine (``sase-core``
-``editor::jinja``) through :mod:`sase.xprompt.jinja_assist`, so the menu
+``editor::jinja``) through :mod:`sase.macro.jinja_assist`, so the menu
 offers exactly what the unknown-variable lint accepts. The engine ranks,
 fuzzy-matches, and documents every item; this module only rehydrates the
 items as :class:`CompletionCandidate` rows carrying display metadata.
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.xprompt import jinja_assist
+from sase.macro import jinja_assist
 
 
 @dataclass(frozen=True, slots=True)

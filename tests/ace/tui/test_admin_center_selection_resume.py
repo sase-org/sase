@@ -156,7 +156,7 @@ def _patch_all_surfaces(
         lambda project=None: dict(prompts),
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_project_local_prompts",
+        "sase.macro.loader.get_all_project_local_prompts",
         lambda: {},
     )
     return view

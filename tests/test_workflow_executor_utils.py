@@ -1,6 +1,6 @@
 """Tests for parse_bash_output in workflow_executor_utils."""
 
-from sase.xprompt.workflow_executor_utils import parse_bash_output
+from sase.macro.workflow_executor_utils import parse_bash_output
 
 
 class TestParseBashOutput:

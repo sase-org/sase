@@ -457,7 +457,7 @@ def _load_file_hooks() -> list[FileHookConfig]:
     raw_hooks = _effective_raw_file_hooks()
     detected_project: str | None = None
     if any(_needs_detected_project(item, source) for item, source in raw_hooks):
-        from sase.xprompt.loader import detect_project
+        from sase.macro.loader import detect_project
 
         detected_project = detect_project()
 

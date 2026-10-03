@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from sase.monitor.followup_prompt import compose_followup_prompt
-from sase.xprompt._literal_zones import code_literal_ranges
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._literal_zones import code_literal_ranges
+from sase.macro.directives import extract_prompt_directives
 
 from ._followup_prompt_fixtures import _COMMON
 

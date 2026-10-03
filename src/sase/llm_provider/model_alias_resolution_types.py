@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 from .load_balancing import MemberAvailability
 from .model_alias_policy import DEFAULT_MODEL_ALIAS_NAME

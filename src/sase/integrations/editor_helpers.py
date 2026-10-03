@@ -7,7 +7,7 @@ import json
 import sys
 from typing import TextIO
 
-from sase.xprompt.vcs_repo_completion import vcs_repo_catalog_response
+from sase.macro.vcs_repo_completion import vcs_repo_catalog_response
 
 from ._editor_helper_agents import agent_catalog_response
 from ._editor_helper_finalizers import finalizer_catalog_response

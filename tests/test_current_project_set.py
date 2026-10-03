@@ -18,8 +18,8 @@ from sase.current_project import (
     set_current_project,
 )
 from sase import current_project as current_project_mod
-from tests._vcs_xprompt_mru_helpers import patched_mru_file, write_named_project
-from tests.test_vcs_xprompt_mru_pruning import _patch_git_and_gh_metadata
+from tests._vcs_macro_mru_helpers import patched_mru_file, write_named_project
+from tests.test_vcs_macro_mru_pruning import _patch_git_and_gh_metadata
 
 
 def _record(
@@ -194,7 +194,7 @@ def test_detected_provider_survives_record_when_vcs_kind_differs(
     )
     _install_snapshots(monkeypatch, [record])
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_known_project_workspaces",
+        "sase.macro.loader.get_known_project_workspaces",
         lambda *_a, **_k: {"gh_acme__widgets": workspace},
     )
     monkeypatch.setattr(

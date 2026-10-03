@@ -16,7 +16,7 @@ from sase.main.init_skills_handler import (
     run_init_skills,
 )
 from sase.markdown_width import prettier_markdown_argv
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 from tests.main.init_skills_handler_helpers import (
     make_args,
     stub_under_wrapped_skill,

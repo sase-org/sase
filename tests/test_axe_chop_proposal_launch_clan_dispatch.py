@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.axe.chop_typed_admission import make_axe_chop_agent_dispatcher
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 from tests._axe_chop_proposal_launch_clan_dispatch_helpers import (
     capturing_launch,
     clan_marker_path,

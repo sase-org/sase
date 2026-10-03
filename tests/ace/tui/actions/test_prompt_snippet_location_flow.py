@@ -22,7 +22,7 @@ from sase.ace.tui.modals.snippet_name_modal import (
     SnippetNameResult,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.xprompt.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
 
 from ._prompt_save_xprompt_helpers import _SaveFlowApp
 

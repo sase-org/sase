@@ -32,7 +32,7 @@ from sase.workflows.commit.commit_tracking import (
     write_unpushed_commit_marker,
 )
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 from tests.llm_provider._commit_finalizer_sibling_helpers import mark_opened_external
 
 from .finalizers_live_e2e_test_helpers import (

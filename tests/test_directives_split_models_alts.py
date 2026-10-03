@@ -3,8 +3,8 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.xprompt.directives import split_prompt_for_models
-from sase.xprompt.models import XPrompt
+from sase.macro.directives import split_prompt_for_models
+from sase.macro.models import XPrompt
 from tests._agent_names_fixtures import make_agent as _make_agent
 
 

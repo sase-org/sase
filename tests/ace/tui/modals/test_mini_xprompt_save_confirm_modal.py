@@ -14,7 +14,7 @@ from sase.ace.tui.modals.mini_xprompt_save_confirm_modal import (
     MiniXPromptSaveConfirmModal,
     MiniXPromptSaveConfirmState,
 )
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.save import SaveTargetFormat
 
 
 class _ModalApp(App[None]):

@@ -160,7 +160,7 @@ def runner_capacity_snapshot_from_capacity_records(
         "deference_seconds_per_step": int(deference_seconds_per_step),
         "deference_max_seconds": int(deference_max_seconds),
     }
-    from sase.xprompt.queue_directive import launch_feature_flag_keys
+    from sase.macro.queue_directive import launch_feature_flag_keys
 
     request["feature_flags"] = launch_feature_flag_keys()
     snapshot = _core_runner_capacity_snapshot(request)

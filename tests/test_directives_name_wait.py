@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import extract_prompt_directives
 
 
 # --- %id directive tests ---
@@ -324,7 +324,7 @@ def test_wait_reserved_tribe_reference_is_rejected(prompt: str) -> None:
 
 def test_wait_reserved_tribe_reference_rejected_in_template_expansion() -> None:
     """The expansion path guards the reference too, not just the parse path."""
-    from sase.xprompt._directive_values import resolve_wait_templates
+    from sase.macro._directive_values import resolve_wait_templates
 
     expanded = {"wait": ["@default"]}
     with pytest.raises(DirectiveError, match="reserved @default panel"):

@@ -76,7 +76,7 @@ from sase.ace.tui.widgets.prompt_stack import (
     PromptStackState,
     XPromptReadonlyTarget,
 )
-from sase.xprompt.models import InputArg
+from sase.macro.models import InputArg
 
 __all__ = ["PromptInputBar", "StashedPromptPane"]
 

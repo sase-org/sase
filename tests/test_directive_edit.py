@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt.directive_edit import (
+from sase.macro.directive_edit import (
     PromptWaitDirective,
     demote_prompt_clan_declaration,
     prompt_declares_clan,
@@ -20,7 +20,7 @@ from sase.xprompt.directive_edit import (
     set_prompt_wait,
     set_prompt_wait_and_queue,
 )
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 
 
 def test_set_prompt_model_replaces_model_only() -> None:
@@ -557,7 +557,7 @@ def test_alt_branch_directives_are_not_rewritten() -> None:
 
 
 def test_demote_prompt_clan_declaration_removes_eol_shorthand_summary() -> None:
-    from sase.xprompt.directive_edit import demote_prompt_clan_declaration
+    from sase.macro.directive_edit import demote_prompt_clan_declaration
 
     prompt = (
         "%id:research.worker\n"

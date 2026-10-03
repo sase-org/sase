@@ -12,7 +12,7 @@ from sase.core.agent_scan_wire import (
     RunningMarkerWire,
     WaitingMarkerWire,
 )
-from sase.xprompt.hold_directive import HoldFields, hold_fields_to_selectors
+from sase.macro.hold_directive import HoldFields, hold_fields_to_selectors
 
 pytest.importorskip("sase_core_rs")
 

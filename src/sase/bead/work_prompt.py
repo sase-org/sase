@@ -24,8 +24,8 @@ from sase.llm_provider.config import format_model_directive_value
 from sase.llm_provider.config import select_epic_land_model_expression
 
 if TYPE_CHECKING:
-    from sase.xprompt.directive_edit import PromptWaitDirective
-    from sase.xprompt.workflow_models import Workflow
+    from sase.macro.directive_edit import PromptWaitDirective
+    from sase.macro.workflow_models import Workflow
 
 
 def epic_land_model_directive_value(
@@ -258,7 +258,7 @@ def _queue_capacity_lines(capacity: int | None) -> list[str]:
     """Render the epic-launch capacity directive, preserving omitted defaults."""
     if capacity is None:
         return []
-    from sase.xprompt.queue_directive import format_queue_directive
+    from sase.macro.queue_directive import format_queue_directive
 
     line = format_queue_directive(capacity=capacity)
     return [line] if line else []
@@ -309,7 +309,7 @@ def _clan_identity_directives(
 
 def _contains_top_level_segment_separator(text: str) -> bool:
     """Return whether *text* has an unfenced prompt segment separator."""
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+    from sase.macro._fenced_blocks import protect_fenced_blocks
 
     protected = protect_fenced_blocks(text, [])
     return bool(re.search(r"^---\s*$", protected, flags=re.MULTILINE))

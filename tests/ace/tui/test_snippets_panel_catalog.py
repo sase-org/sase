@@ -14,7 +14,7 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
 )
 from sase.snippet.models import SnippetCatalog
-from sase.xprompt import glossary_catalog as xprompt_catalog
+from sase.macro import glossary_catalog as xprompt_catalog
 
 
 def _record(
@@ -194,7 +194,7 @@ def test_load_snapshot_for_malformed_ace_yields_diagnostics_not_raise(
     record = _record("gh_broken__broken", broken_ws, display_name="Broken")
     _install_records(monkeypatch, [record])
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {},
     )
 
@@ -238,7 +238,7 @@ def test_snapshot_cache_rereads_only_on_mtime_change(
     record = _record("gh_demo__demo", workspace, display_name="Demo")
     _install_records(monkeypatch, [record])
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {},
     )
 
@@ -278,7 +278,7 @@ def test_snapshot_cache_rereads_when_config_token_changes(
     record = _record("gh_demo__demo", workspace, display_name="Demo")
     _install_records(monkeypatch, [record])
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {},
     )
     tokens = iter([("token-a",), ("token-b",)])
@@ -312,7 +312,7 @@ def test_invalidate_snippet_project_drops_exactly_one_project(
     ]
     _install_records(monkeypatch, records)
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: {},
     )
 

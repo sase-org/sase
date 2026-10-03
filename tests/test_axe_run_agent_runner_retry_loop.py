@@ -29,7 +29,7 @@ class TestRetryLoop:
         patches = base_patches(str(tmp_path / "artifacts"))
         execute_mock = MagicMock(side_effect=RuntimeError("authentication failed"))
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=None)
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
 
         run_main(patches, tmp_path)
 
@@ -41,7 +41,7 @@ class TestRetryLoop:
         config = make_retry_config(error_patterns=["rate limit"])
         execute_mock = MagicMock(side_effect=RuntimeError("authentication failed"))
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=config)
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
 
         run_main(patches, tmp_path)
 
@@ -59,7 +59,7 @@ class TestRetryLoop:
             ]
         )
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=config)
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
         patches[f"{RETRY}.time.sleep"] = MagicMock()
 
         run_main(patches, tmp_path)
@@ -87,7 +87,7 @@ class TestRetryLoop:
             ]
         )
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=config)
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
         patches[f"{RETRY}.time.sleep"] = capture_sleep
 
         run_main(patches, tmp_path)
@@ -106,7 +106,7 @@ class TestRetryLoop:
             ]
         )
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=config)
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
         patches[f"{RETRY}.time.sleep"] = MagicMock()
 
         run_main(patches, tmp_path)
@@ -129,7 +129,7 @@ class TestRetryLoop:
             ]
         )
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=config)
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
         patches[f"{RETRY}.time.sleep"] = MagicMock()
 
         env_overrides: list[str] = []
@@ -154,7 +154,7 @@ class TestRetryLoop:
         config = make_retry_config(max_retries=2, wait_times=[5])
         execute_mock = MagicMock(side_effect=RuntimeError("rate limit exceeded"))
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=config)
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
 
         kill_calls = 0
 
@@ -184,7 +184,7 @@ class TestRetryLoop:
             ]
         )
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=config)
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
         patches[f"{RETRY}.time.sleep"] = MagicMock()
 
         run_main(patches, tmp_path)
@@ -204,7 +204,7 @@ class TestRetryLoop:
         artifacts_dir = tmp_path / "artifacts"
         patches = base_patches(str(artifacts_dir))
         patches[f"{EXEC}.get_retry_config"] = MagicMock(return_value=None)
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = MagicMock(
+        patches["sase.macro.workflow_runner.execute_workflow"] = MagicMock(
             return_value=WorkflowResult("success")
         )
 
@@ -238,7 +238,7 @@ class TestRetryLoop:
                 WorkflowResult("success"),
             ]
         )
-        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches["sase.macro.workflow_runner.execute_workflow"] = execute_mock
         patches[f"{RETRY}.time.sleep"] = MagicMock()
 
         run_main(patches, tmp_path)

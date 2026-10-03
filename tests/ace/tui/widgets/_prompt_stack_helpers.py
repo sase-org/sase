@@ -7,7 +7,7 @@ from sase.ace.tui.widgets.prompt_stack import (
     SnippetPaneTarget,
     mini_xprompt_draft_hash,
 )
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.save import SaveTargetFormat
 
 
 def snippet_target(

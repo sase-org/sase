@@ -27,8 +27,8 @@ from sase.llm_provider.temporary_override import (
     set_temporary_override,
 )
 from sase.llm_provider.temporary_override_state import TemporaryLLMOverride
-from sase.xprompt import model_completion
-from tests._xprompt_model_completion_helpers import metadata_payload
+from sase.macro import model_completion
+from tests._macro_model_completion_helpers import metadata_payload
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 

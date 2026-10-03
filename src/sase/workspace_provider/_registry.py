@@ -68,7 +68,7 @@ def reset_workflow_metadata_caches() -> None:
         cache_clear()
 
     from sase.history import prompt_metadata
-    from sase.xprompt import _parsing, _parsing_vcs_refs, _parsing_vcs_tags
+    from sase.macro import _parsing, _parsing_vcs_refs, _parsing_vcs_tags
 
     _parsing._VCS_TAG_PATTERN = None
     _parsing._VCS_TAG_EMBEDDED_PATTERN = None

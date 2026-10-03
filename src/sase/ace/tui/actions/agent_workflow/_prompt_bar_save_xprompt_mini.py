@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.xprompt.save import SkillPlacementError
+from sase.macro.save import SkillPlacementError
 
 from ._prompt_bar_save_xprompt_mini_io import (
     MiniXPromptSaveDiskState,
@@ -207,8 +207,8 @@ class PromptBarMiniXPromptSaveMixin:
         import asyncio
 
         from ...widgets.prompt_stack import SourceFingerprint
-        from sase.xprompt.save_state import save_last_used_location
-        from sase.xprompt.write_targets import (
+        from sase.macro.save_state import save_last_used_location
+        from sase.macro.write_targets import (
             XPromptWriteTarget,
             classify_written_file,
             write_target_for_written_path,
@@ -331,7 +331,7 @@ class PromptBarMiniXPromptSaveMixin:
     ) -> None:
         import asyncio
 
-        from sase.xprompt.save_index import invalidate_save_index
+        from sase.macro.save_index import invalidate_save_index
 
         await asyncio.to_thread(invalidate_save_index, target.location_path)
         refresh_config = getattr(self, "_request_prompt_catalog_config_refresh", None)

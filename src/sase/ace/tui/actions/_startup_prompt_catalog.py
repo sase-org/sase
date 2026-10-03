@@ -17,8 +17,8 @@ if TYPE_CHECKING:
         PromptSpellcheckSettings,
     )
     from ..widgets.xprompt_arg_assist import XPromptAssistEntry
-    from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
-    from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog
+    from sase.macro.glossary_catalog import EditorGlossaryCatalog
+    from sase.macro.repo_mention_catalog import EditorRepoMentionCatalog
 
 log = logging.getLogger(__name__)
 

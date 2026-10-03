@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from sase.xprompt.directives import has_runner_threshold_directive
-from sase.xprompt.queue_directive import format_queue_directive
+from sase.macro.directives import has_runner_threshold_directive
+from sase.macro.queue_directive import format_queue_directive
 
 
 @dataclass(frozen=True)

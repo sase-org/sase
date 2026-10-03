@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.core.xprompt_skill_definition_facade import (
+from sase.core.macro_skill_definition_facade import (
     XpromptSkillDefinitionResolution,
 )
 from sase.pager import _resolve_skills

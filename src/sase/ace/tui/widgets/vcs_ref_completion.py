@@ -6,8 +6,8 @@ from typing import Literal
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.workspace_provider import VcsNamespaceEntry, get_display_name
-from sase.xprompt.vcs_project_completion import VcsProjectEntry
-from sase.xprompt.vcs_ref_completion import (
+from sase.macro.vcs_project_completion import VcsProjectEntry
+from sase.macro.vcs_ref_completion import (
     VcsRefCandidate,
     build_vcs_ref_candidates,
     filter_vcs_ref_candidates,

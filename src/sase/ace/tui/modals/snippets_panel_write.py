@@ -29,7 +29,7 @@ from sase.snippet.mutation import (
     delete_snippet,
     update_snippet,
 )
-from sase.xprompt.write_targets import (
+from sase.macro.write_targets import (
     PostWriteActionOffer,
     XPromptWriteTarget,
     build_post_write_action_offers,

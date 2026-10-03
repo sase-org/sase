@@ -18,7 +18,7 @@ from sase.finalizers.plan import (
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.preprocessing import _PreprocessResult
 from sase.llm_provider.types import InvokeResult
-from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
+from sase.macro.directives import PromptDirectives, extract_prompt_directives
 
 
 def _default_finalizer_layer() -> ConfigLayer:

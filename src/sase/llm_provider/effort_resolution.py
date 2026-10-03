@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from sase.core.rust import require_rust_binding
-from sase.xprompt.effort import is_valid_effort
+from sase.macro.effort import is_valid_effort
 
 if TYPE_CHECKING:
-    from sase.xprompt.directives import PromptDirectives
+    from sase.macro.directives import PromptDirectives
 
     from .effort_override import TemporaryEffortOverride
 

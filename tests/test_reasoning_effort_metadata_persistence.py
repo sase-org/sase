@@ -377,8 +377,8 @@ def test_agent_meta_default_lane_reserves_pool_once(
 
 def test_step_marker_persists_and_preserves_effort(tmp_path: Path) -> None:
     """The step marker stores ``reasoning_effort`` and preserves it on rewrite."""
-    from sase.xprompt.workflow_executor import WorkflowExecutor
-    from sase.xprompt.workflow_models import (
+    from sase.macro.workflow_executor import WorkflowExecutor
+    from sase.macro.workflow_models import (
         StepState,
         StepStatus,
         Workflow,

@@ -389,7 +389,7 @@ def _merge_seed_into_store(
 
 
 def _placeholder_spans(text: str) -> tuple[Any, ...]:
-    from sase.xprompt.placeholder_completion import placeholder_spans
+    from sase.macro.placeholder_completion import placeholder_spans
 
     return placeholder_spans(text)
 

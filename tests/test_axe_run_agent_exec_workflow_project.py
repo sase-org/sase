@@ -81,10 +81,10 @@ def test_run_execution_loop_home_mode_passes_none_project(tmp_path: Path) -> Non
             return_value="/tmp/test_chat.md",
         ),
         patch(
-            "sase.xprompt.models.create_anonymous_workflow",
+            "sase.macro.models.create_anonymous_workflow",
             return_value=anon_workflow,
         ),
-        patch("sase.xprompt.workflow_runner.execute_workflow") as mock_execute,
+        patch("sase.macro.workflow_runner.execute_workflow") as mock_execute,
         patch("sase.axe.run_agent_exec.was_killed", return_value=False),
         patch("sase.axe.run_agent_exec.reset_killed"),
         patch("sase.axe.run_agent_exec._finalize_loop", return_value=final_result),
@@ -117,10 +117,10 @@ def test_run_execution_loop_non_home_mode_passes_workspace_provider_project(
             return_value="/tmp/test_chat.md",
         ),
         patch(
-            "sase.xprompt.models.create_anonymous_workflow",
+            "sase.macro.models.create_anonymous_workflow",
             return_value=anon_workflow,
         ),
-        patch("sase.xprompt.workflow_runner.execute_workflow") as mock_execute,
+        patch("sase.macro.workflow_runner.execute_workflow") as mock_execute,
         patch(
             "sase.workspace_provider.get_workspace_name",
             return_value="sase",
@@ -165,10 +165,10 @@ def test_run_execution_loop_backstop_raises_lost_gate_intent(
         patch("sase.history.chat.generate_chat_filename", return_value="test_chat"),
         patch("sase.history.chat.get_chat_file_path", return_value="/tmp/test_chat.md"),
         patch(
-            "sase.xprompt.models.create_anonymous_workflow",
+            "sase.macro.models.create_anonymous_workflow",
             return_value=anon_workflow,
         ),
-        patch("sase.xprompt.workflow_runner.execute_workflow", side_effect=_execute),
+        patch("sase.macro.workflow_runner.execute_workflow", side_effect=_execute),
         patch("sase.axe.run_agent_exec.was_killed", return_value=False),
         patch("sase.axe.run_agent_exec.reset_killed"),
         patch("sase.axe.run_agent_exec._finalize_loop") as finalize,
@@ -203,11 +203,11 @@ def test_run_execution_loop_converts_workflow_error_to_lost_gate_intent(
         patch("sase.history.chat.generate_chat_filename", return_value="test_chat"),
         patch("sase.history.chat.get_chat_file_path", return_value="/tmp/test_chat.md"),
         patch(
-            "sase.xprompt.models.create_anonymous_workflow",
+            "sase.macro.models.create_anonymous_workflow",
             return_value=anon_workflow,
         ),
         patch(
-            "sase.xprompt.workflow_runner.execute_workflow",
+            "sase.macro.workflow_runner.execute_workflow",
             side_effect=RuntimeError("429 Too Many Requests"),
         ),
         patch("sase.axe.run_agent_exec.was_killed", return_value=False),

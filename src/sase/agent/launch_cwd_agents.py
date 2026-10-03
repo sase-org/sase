@@ -130,7 +130,7 @@ def launch_agents_from_cwd_impl(
     # Lineage inheritance (R2): agent-initiated direct launches stamp the
     # inherited tab here. Idempotent with the LaunchApproval stamping, which
     # runs first when approval gates the launch.
-    from sase.xprompt.directive_edit import (
+    from sase.macro.directive_edit import (
         apply_inherited_agent_tab as _apply_inherited_tab,
         inherited_agent_tab as _inherited_tab,
     )
@@ -228,7 +228,7 @@ def launch_agents_from_cwd_impl(
     from sase.agent.launch_projects import (
         enable_known_project_vcs_refs_for_launch_prompt,
     )
-    from sase.xprompt._parsing import normalize_default_vcs_workflow
+    from sase.macro._parsing import normalize_default_vcs_workflow
 
     query = normalize_default_vcs_workflow(expanded_segments[0])
     enable_known_project_vcs_refs_for_launch_prompt(query)
@@ -236,7 +236,7 @@ def launch_agents_from_cwd_impl(
         segment_env = expanded.segment_extra_env[0] or {}
         extra_env = {**(extra_env or {}), **segment_env}
     if expanded.swarm_xprompts[0]:
-        from sase.xprompt.used_xprompts import launch_swarm_env_entries
+        from sase.macro.used_macros import launch_swarm_env_entries
 
         extra_env = {
             **(extra_env or {}),

@@ -22,7 +22,7 @@ from sase.notification_gates.input_collection import (
 from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_validation import GateError
 from sase.notification_gates.models import GateFeedbackMode, GateOption
-from sase.xprompt.models import InputType
+from sase.macro.models import InputType
 
 #: Properties a raw-schema editor never renders because a sibling control on
 #: the modal already collects them (and the executor injects/merges them).

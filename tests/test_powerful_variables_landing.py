@@ -72,7 +72,7 @@ def test_published_docs_do_not_restore_var_show() -> None:
         "docs/configuration.md",
         "docs/cli.md",
         "docs/xprompt.md",
-        "src/sase/xprompts/skills/sase_var.md",
+        "src/sase/macros/skills/sase_var.md",
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         assert "sase var show" not in text, relative

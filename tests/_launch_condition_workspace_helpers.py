@@ -16,7 +16,7 @@ from sase.core.agent_launch_wire import (
     LaunchUnitWire,
     agent_launch_wire_to_json_dict,
 )
-from sase.xprompt.code_value import CodeValue, make_code_value
+from sase.macro.code_value import CodeValue, make_code_value
 
 
 def _code(source: str = "exit 0") -> CodeValue:

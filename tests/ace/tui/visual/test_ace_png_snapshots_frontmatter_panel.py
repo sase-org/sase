@@ -19,7 +19,7 @@ from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.macro.models import InputArg, InputType, XPrompt
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

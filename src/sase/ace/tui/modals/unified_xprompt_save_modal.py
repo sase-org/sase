@@ -14,7 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.xprompt.naming import (
+from sase.macro.naming import (
     ResolutionSource,
     SaveResolution,
     markdown_save_plan,
@@ -23,9 +23,9 @@ from sase.xprompt.naming import (
     validate_xprompt_name,
 )
 from sase.content_layout import skill_reference_name
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat
-from sase.xprompt.save_index import (
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import SaveTargetFormat
+from sase.macro.save_index import (
     DefinitionKind,
     load_definition,
 )

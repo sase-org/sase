@@ -19,7 +19,7 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.workflow_models import Workflow
 
 from tests.ace.tui.test_xprompt_browser_load_keymap import (
     _hint_text,

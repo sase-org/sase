@@ -2,11 +2,11 @@
 
 import pytest
 
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
-from sase.xprompt.workflow_validator import validate_workflow
-from sase.xprompt.workflow_validator_checks import detect_unused_inputs
-from sase.xprompt.workflow_validator_extract import (
+from sase.macro.models import InputArg, InputType
+from sase.macro.workflow_models import Workflow, WorkflowStep
+from sase.macro.workflow_validator import validate_workflow
+from sase.macro.workflow_validator_checks import detect_unused_inputs
+from sase.macro.workflow_validator_extract import (
     collect_used_variables,
     extract_template_refs,
 )
@@ -80,7 +80,7 @@ def test_validate_workflow_allows_disabled_qa_block_with_empty_jinja(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Regression for agent resumes containing disabled Q&A text with ``{{}}``."""
-    monkeypatch.setattr("sase.xprompt.workflow_validator.get_all_xprompts", lambda: {})
+    monkeypatch.setattr("sase.macro.workflow_validator.get_all_xprompts", lambda: {})
     workflow = Workflow(
         name="test",
         steps=[

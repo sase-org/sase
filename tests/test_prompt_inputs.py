@@ -17,7 +17,7 @@ from sase.agent.prompt_inputs import (
     parse_prompt_input_request,
     render_prompt_with_inputs,
 )
-from sase.xprompt.models import InputType
+from sase.macro.models import InputType
 
 # A representative prompt: two required inputs, one optional (defaulted), local
 # xprompts in frontmatter, and two ``---``-separated segments referencing them.

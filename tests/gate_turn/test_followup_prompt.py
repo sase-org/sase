@@ -8,8 +8,8 @@ from sase.gate_turn.followup_prompt import (
     format_gate_outcome_line,
 )
 from sase.turns.prompt import OUTPUT_TAIL_MAX_CHARS
-from sase.xprompt._disabled_regions import disabled_region_ranges
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._disabled_regions import disabled_region_ranges
+from sase.macro.directives import extract_prompt_directives
 
 _COMMON = {
     "model": None,

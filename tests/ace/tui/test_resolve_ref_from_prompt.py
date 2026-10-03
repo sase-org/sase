@@ -17,8 +17,8 @@ from tests._workspace_provider_helpers import git_metadata
 @pytest.fixture(autouse=True)
 def _reset_vcs_tag_pattern_cache() -> object:
     """Rebuild the lazily-cached VCS tag pattern from the real providers."""
-    import sase.xprompt._parsing as parsing
-    import sase.xprompt._parsing_vcs_tags as vcs_tags
+    import sase.macro._parsing as parsing
+    import sase.macro._parsing_vcs_tags as vcs_tags
 
     parsing._VCS_TAG_PATTERN = None
     vcs_tags._VCS_TAG_PATTERN = None

@@ -21,7 +21,7 @@ from sase.llm_provider.provider_disable import (
     get_active_provider_disables,
 )
 from sase.notifications.store import load_notifications
-from sase.xprompt.workflow_models import WorkflowExecutionError
+from sase.macro.workflow_models import WorkflowExecutionError
 
 from tests.fakey.harness import FakeyRetryHarness, usage_limit_failure
 

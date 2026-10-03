@@ -53,7 +53,7 @@ def test_concurrent_auto_extract_assigns_unique_names(tmp_path: Path) -> None:
             "sase.agent.names.get_next_auto_name",
             side_effect=slow_get_next_auto_name,
         ),
-        patch("sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p),
+        patch("sase.macro.process_xprompt_references", side_effect=lambda p, **kw: p),
         patch(
             "sase.llm_provider.registry.get_default_provider_name",
             return_value="test",
@@ -107,7 +107,7 @@ def test_concurrent_explicit_extract_rejects_collision(tmp_path: Path) -> None:
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p),
+        patch("sase.macro.process_xprompt_references", side_effect=lambda p, **kw: p),
         patch(
             "sase.llm_provider.registry.get_default_provider_name",
             return_value="test",
@@ -146,7 +146,7 @@ def test_generated_name_marker_env_is_consumed(tmp_path: Path) -> None:
         patch.object(Path, "home", return_value=tmp_path),
         patch("sase.agent.names.claim_agent_name"),
         patch.dict(os.environ, {"SASE_AGENT_GENERATED_NAME": "1"}, clear=False),
-        patch("sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p),
+        patch("sase.macro.process_xprompt_references", side_effect=lambda p, **kw: p),
         patch(
             "sase.llm_provider.registry.get_default_provider_name",
             return_value="test",

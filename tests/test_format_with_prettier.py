@@ -268,7 +268,7 @@ def test_agent_prompt_formatter_preserves_table_literals_with_prettier(
 def test_preprocess_prompt_late_preserves_table_literals() -> None:
     """Launch-time preprocessing preserves every non-Jinja table literal."""
     from sase.llm_provider.preprocessing import preprocess_prompt_late
-    from sase.xprompt import is_jinja2_template
+    from sase.macro import is_jinja2_template
 
     for text in _LITERAL_CASES:
         # The table's Jinja row is invalid Jinja (`...` is not valid

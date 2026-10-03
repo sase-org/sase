@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.bead.epic_launch import _update_epic_launch_metadata, finish_epic_launch
-from sase.xprompt.directive_edit import PromptWaitDirective
+from sase.macro.directive_edit import PromptWaitDirective
 
 
 def test_update_epic_launch_metadata_backfills_all_host_fields(

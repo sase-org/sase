@@ -17,7 +17,7 @@ from sase.core.agent_launch_wire import (
     launch_plan_from_dict,
 )
 from sase.feature_flags import override_flags
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 
 
 def _configure_allocation(

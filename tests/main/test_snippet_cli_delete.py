@@ -13,7 +13,7 @@ import yaml
 
 from sase.main.parser import create_parser
 from sase.snippet import cli_delete
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 from .snippet_cli_helpers import install_writable_snippet_project
 

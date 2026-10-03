@@ -35,7 +35,7 @@ from sase.finalizers.progress import (
 from sase.finalizers.status_summary import FinalizerStatusTracker
 from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.llm_provider.types import InvokeResult
-from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
+from sase.macro.directives import PromptDirectives, extract_prompt_directives
 
 
 def _journal_events(artifacts_dir: Path) -> list[dict[str, Any]]:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.xprompt.catalog import (
+from sase.macro.catalog import (
     StructuredCatalogAttachment,
     StructuredCatalogEntry,
     StructuredCatalogInput,

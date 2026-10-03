@@ -7,15 +7,15 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt.workflow_loader import (
+from sase.macro.workflow_loader import (
     _discover_workflow_files,
     _load_workflow_from_file,
     _namespace_workflow,
     get_all_workflows,
 )
-from sase.xprompt.models import InputArg
-from sase.xprompt.project_identity import invalidate_xprompt_project_identity
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.models import InputArg
+from sase.macro.project_identity import invalidate_xprompt_project_identity
+from sase.macro.workflow_models import Workflow
 from tests.main.project_handler_helpers import _disk_project_records, _write_project
 
 
@@ -25,7 +25,7 @@ def workflow_project_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[Path]:
     from sase import project_aliases, project_display_names
-    from sase.xprompt import loader_sources
+    from sase.macro import loader_sources
 
     projects_root = tmp_path / "sase-home" / "projects"
     projects_root.mkdir(parents=True)
@@ -163,20 +163,18 @@ def test_namespace_workflow_preserves_descriptions() -> None:
 def test_get_all_workflows_without_project_excludes_project_workflows() -> None:
     """Test that get_all_workflows without project param doesn't load project workflows."""
     with (
+        patch("sase.macro.workflow_loader._load_workflows_from_files", return_value={}),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_files", return_value={}
-        ),
-        patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            "sase.macro.workflow_loader._load_workflows_from_internal",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project"
+            "sase.macro.workflow_loader._load_workflows_from_project"
         ) as mock_load_project,
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project_workspace"
+            "sase.macro.workflow_loader._load_workflows_from_project_workspace"
         ) as mock_load_project_workspace,
-        patch("sase.xprompt.workflow_loader.detect_project", return_value=None),
+        patch("sase.macro.workflow_loader.detect_project", return_value=None),
     ):
         get_all_workflows()  # No project param
 
@@ -202,19 +200,19 @@ def test_get_all_workflows_file_overrides_project() -> None:
 
     with (
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_files",
+            "sase.macro.workflow_loader._load_workflows_from_files",
             return_value={"test": file_workflow},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            "sase.macro.workflow_loader._load_workflows_from_internal",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project",
+            "sase.macro.workflow_loader._load_workflows_from_project",
             return_value={"test": project_workflow},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project_workspace",
+            "sase.macro.workflow_loader._load_workflows_from_project_workspace",
             return_value={},
         ),
     ):
@@ -235,7 +233,7 @@ def test_yml_files_discovered_as_workflow_files() -> None:
         )
 
         with patch(
-            "sase.xprompt.workflow_loader.get_xprompt_search_paths",
+            "sase.macro.workflow_loader.get_xprompt_search_paths",
             return_value=[search_dir],
         ):
             discovered = _discover_workflow_files()
@@ -287,23 +285,23 @@ def test_get_all_workflows_file_overrides_plugin() -> None:
 
     with (
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            "sase.macro.workflow_loader._load_workflows_from_internal",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_plugins",
+            "sase.macro.workflow_loader._load_workflows_from_plugins",
             return_value={"nightly_docs": plugin_workflow},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project",
+            "sase.macro.workflow_loader._load_workflows_from_project",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project_workspace",
+            "sase.macro.workflow_loader._load_workflows_from_project_workspace",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_files",
+            "sase.macro.workflow_loader._load_workflows_from_files",
             return_value={"nightly_docs": file_workflow},
         ),
     ):
@@ -335,23 +333,23 @@ def test_get_all_workflows_ignores_config_workflows_block(
     with (
         patch("sase.config.core.CONFIG_DIR", config_dir),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            "sase.macro.workflow_loader._load_workflows_from_internal",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_plugins",
+            "sase.macro.workflow_loader._load_workflows_from_plugins",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project",
+            "sase.macro.workflow_loader._load_workflows_from_project",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project_workspace",
+            "sase.macro.workflow_loader._load_workflows_from_project_workspace",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_files",
+            "sase.macro.workflow_loader._load_workflows_from_files",
             return_value={},
         ),
     ):
@@ -378,22 +376,22 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
 
     with (
         patch(
-            "sase.xprompt.workflow_loader.known_project_namespaces",
+            "sase.macro.workflow_loader.known_project_namespaces",
             return_value={"sase": workspace},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            "sase.macro.workflow_loader._load_workflows_from_internal",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_plugins",
+            "sase.macro.workflow_loader._load_workflows_from_plugins",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project",
+            "sase.macro.workflow_loader._load_workflows_from_project",
             return_value={},
         ),
-        patch("sase.xprompt.workflow_loader.detect_project", return_value=None),
+        patch("sase.macro.workflow_loader.detect_project", return_value=None),
     ):
         workflows = get_all_workflows(project="sase")
 
@@ -428,22 +426,22 @@ def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
 
     with (
         patch(
-            "sase.xprompt.workflow_loader.known_project_namespaces",
+            "sase.macro.workflow_loader.known_project_namespaces",
             return_value={"sase": workspace},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            "sase.macro.workflow_loader._load_workflows_from_internal",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_plugins",
+            "sase.macro.workflow_loader._load_workflows_from_plugins",
             return_value={},
         ),
         patch(
-            "sase.xprompt.workflow_loader._load_workflows_from_project",
+            "sase.macro.workflow_loader._load_workflows_from_project",
             return_value={},
         ),
-        patch("sase.xprompt.workflow_loader.detect_project", return_value=None),
+        patch("sase.macro.workflow_loader.detect_project", return_value=None),
     ):
         workflows = get_all_workflows(project="sase")
 
@@ -468,7 +466,7 @@ def test_get_all_workflows_uses_canonical_registered_project_identity(
     outside.mkdir()
     monkeypatch.chdir(outside)
 
-    with patch("sase.xprompt.workflow_loader.detect_project", return_value=None):
+    with patch("sase.macro.workflow_loader.detect_project", return_value=None):
         workflows = get_all_workflows(project=project_ref)
 
     assert set(workflows).issuperset({"proj/flow"})
@@ -498,11 +496,11 @@ def test_get_all_workflows_current_checkout_wins_without_registry_read(
 
     with (
         patch(
-            "sase.xprompt.workflow_loader.detect_project",
+            "sase.macro.workflow_loader.detect_project",
             return_value="gh_org__proj",
         ),
         patch(
-            "sase.xprompt.workflow_loader.known_project_namespaces",
+            "sase.macro.workflow_loader.known_project_namespaces",
             side_effect=AssertionError("registry copy should not be read"),
         ),
     ):
@@ -526,7 +524,7 @@ def test_get_all_workflows_does_not_resolve_disabled_registered_project(
     outside.mkdir()
     monkeypatch.chdir(outside)
 
-    with patch("sase.xprompt.workflow_loader.detect_project", return_value=None):
+    with patch("sase.macro.workflow_loader.detect_project", return_value=None):
         workflows = get_all_workflows(project="short")
 
     assert "proj/flow" not in workflows

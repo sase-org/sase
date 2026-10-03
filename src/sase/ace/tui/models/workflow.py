@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from sase.core.time import local_now
-from sase.xprompt import StepState, StepStatus
+from sase.macro import StepState, StepStatus
 
 
 @dataclass

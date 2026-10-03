@@ -18,7 +18,7 @@ from sase.llm_provider.retry_config import (
     RetryState,
     get_retry_config,
 )
-from sase.xprompt.workflow_models import WorkflowExecutionError
+from sase.macro.workflow_models import WorkflowExecutionError
 from tests._axe_run_agent_exec_retry_helpers import (
     _restore_model_override_env,  # noqa: F401 (registers the autouse fixture)
     config_with_nudge,

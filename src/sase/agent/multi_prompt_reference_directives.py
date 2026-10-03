@@ -18,13 +18,13 @@ def extract_static_clan_directive(prompt: str) -> StaticClanDirective | None:
     if "%" not in prompt:
         return None
 
-    from sase.xprompt._directive_collect import collect_prompt_directive_matches
-    from sase.xprompt._directive_values import (
+    from sase.macro._directive_collect import collect_prompt_directive_matches
+    from sase.macro._directive_values import (
         resolve_clan_membership,
         resolve_clan_tribe,
     )
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+    from sase.macro._disabled_regions import protect_disabled_regions
+    from sase.macro._fenced_blocks import protect_fenced_blocks
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -58,10 +58,10 @@ def extract_static_name_directive(prompt: str) -> str | None:
     if "%" not in prompt:
         return None
 
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
-    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+    from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.macro._disabled_regions import protect_disabled_regions
+    from sase.macro._fenced_blocks import protect_fenced_blocks
+    from sase.macro._parsing import find_matching_paren_for_args, parse_args
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -113,10 +113,10 @@ def has_bare_wait_directive(prompt: str) -> bool:
     if "%" not in prompt:
         return False
 
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
-    from sase.xprompt._parsing import find_matching_paren_for_args
+    from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.macro._disabled_regions import protect_disabled_regions
+    from sase.macro._fenced_blocks import protect_fenced_blocks
+    from sase.macro._parsing import find_matching_paren_for_args
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -143,16 +143,16 @@ def rewrite_bare_wait_directives(prompt: str, agent_name: str) -> str:
     if "%" not in prompt:
         return prompt
 
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import (
+    from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.macro._disabled_regions import (
         protect_disabled_regions,
         unprotect_disabled_regions,
     )
-    from sase.xprompt._fenced_blocks import (
+    from sase.macro._fenced_blocks import (
         protect_fenced_blocks,
         unprotect_fenced_blocks,
     )
-    from sase.xprompt._parsing import find_matching_paren_for_args
+    from sase.macro._parsing import find_matching_paren_for_args
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)

@@ -294,7 +294,7 @@ def _compact_source_path(source_path: str, skill_name: str) -> Text | None:
 
 
 def _is_packaged_source(source_path: str, skill_name: str) -> bool:
-    from sase.xprompt.loader_skills import get_sase_package_skills_dir
+    from sase.macro.loader_skills import get_sase_package_skills_dir
 
     packaged = get_sase_package_skills_dir() / f"{skill_name}.md"
     return source_path == str(packaged)

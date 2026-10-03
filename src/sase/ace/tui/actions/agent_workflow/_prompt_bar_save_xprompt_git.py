@@ -21,7 +21,7 @@ from sase.post_write_operations import (
     process_error_text,
     run_git_commit_push_sync,
 )
-from sase.xprompt.write_targets import (
+from sase.macro.write_targets import (
     PostWriteActionKind,
     PostWriteActionOffer,
     WrittenFileKind,

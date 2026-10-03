@@ -7,7 +7,7 @@ from collections.abc import Callable
 from rich.text import Text
 from textual.widgets.option_list import Option
 
-from sase.xprompt.reference_display import workflow_reference_prefix
+from sase.macro.reference_display import workflow_reference_prefix
 
 from .pane_entry_jump import apply_jump_hint_prefix
 from .xprompt_browser_helpers import BrowserItem, append_input_args

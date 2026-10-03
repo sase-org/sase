@@ -9,24 +9,24 @@ from typing import Literal
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.xprompt.loader import (
+from sase.macro.loader import (
     detect_project,
     get_all_workflows,
     get_all_xprompts,
 )
-from sase.xprompt.loader_parsing import parse_xprompt_entries
-from sase.xprompt.loader_sources import load_xprompt_from_file
-from sase.xprompt.naming import (
+from sase.macro.loader_parsing import parse_xprompt_entries
+from sase.macro.loader_sources import load_xprompt_from_file
+from sase.macro.naming import (
     ResolutionSource,
     SaveResolution,
     markdown_save_plan,
     resolution_after_save,
     validate_xprompt_name,
 )
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat
-from sase.xprompt.segment_separators import xprompt_has_segment_separators
-from sase.xprompt.write_targets import (
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import SaveTargetFormat
+from sase.macro.segment_separators import xprompt_has_segment_separators
+from sase.macro.write_targets import (
     XPromptWriteTarget,
     resolve_xprompt_write_target,
     write_target_for_written_path,

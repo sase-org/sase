@@ -21,7 +21,7 @@ from sase.ace.tui.widgets._model_shortcut_marker import (
     model_shortcut_context_payload,
     model_shortcut_edit_payload,
 )
-from sase.xprompt.model_completion import (
+from sase.macro.model_completion import (
     ModelCompletionEntry,
     model_completion_entry_wire_rows,
 )

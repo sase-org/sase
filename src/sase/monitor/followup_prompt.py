@@ -29,7 +29,7 @@ from sase.turns.prompt import (
     untrusted_output_section,
 )
 from sase.tool.triage_display import followup_triage_lines, load_followup_triage
-from sase.xprompt._disabled_regions import wrap_disabled_region
+from sase.macro._disabled_regions import wrap_disabled_region
 
 from .result_projection import (
     DEFAULT_NEXT_OUTPUT,

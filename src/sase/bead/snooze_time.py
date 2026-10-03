@@ -7,7 +7,7 @@ gates collect (:mod:`sase.bead.snooze_gate_input`), and the ACE modal's
 custom field -- parses it here, so ``3d`` cannot mean one thing in one place
 and something else in another.
 
-The relative vocabulary is :func:`sase.xprompt._directive_time.parse_duration`
+The relative vocabulary is :func:`sase.macro._directive_time.parse_duration`
 (``30m``, ``2h``, ``1h30m``) widened with a leading day component (``3d``,
 ``1d12h``), because a bead snooze is routinely measured in days while a
 notification snooze is not.
@@ -33,7 +33,7 @@ import re
 
 from sase.core import time as core_time
 from sase.core.time import get_timezone
-from sase.xprompt._directive_time import parse_duration
+from sase.macro._directive_time import parse_duration
 
 ACCEPTED_SNOOZE_FORMS = (
     "accepted forms: a duration such as 30m, 2h, 1h30m, 3d, or 1d12h, or an "

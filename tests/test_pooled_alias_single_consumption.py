@@ -24,9 +24,9 @@ import pytest
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
 from sase.llm_provider.messages import AIMessage
 from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
-from sase.xprompt.models import create_anonymous_workflow
-from sase.xprompt.workflow_executor import WorkflowExecutor
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import create_anonymous_workflow
+from sase.macro.workflow_executor import WorkflowExecutor
+from sase.macro.workflow_models import Workflow, WorkflowStep
 from tests._model_alias_defaults_fixture import frozen_selector_provider_model_effort
 
 _POOL_ALIAS = LARGE_MODEL_ALIAS_NAME
@@ -377,7 +377,7 @@ def test_concurrent_consuming_resolutions_serialize_without_double_consumption(
     serialization from unrelated global state the broader runner touches.
     """
     from sase.llm_provider.launch_selection import resolve_launch_selection
-    from sase.xprompt.directives import PromptDirectives
+    from sase.macro.directives import PromptDirectives
 
     del tmp_path  # unused; the pool lock lives under the isolated fake HOME
     n = 8

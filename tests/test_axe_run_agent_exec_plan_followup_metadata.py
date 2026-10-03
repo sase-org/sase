@@ -10,7 +10,7 @@ from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec_plan_accept import _accepted_plan_action_for_meta
 from sase.llm_provider._plan_utils import PlanApprovalResult
-from sase.xprompt._exceptions import DirectiveError
+from sase.macro._exceptions import DirectiveError
 from tests._axe_run_agent_exec_plan_helpers import (
     _non_handoff_plan_gate_creation,
     make_ctx,

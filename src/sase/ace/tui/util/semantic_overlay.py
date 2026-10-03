@@ -14,10 +14,10 @@ from sase.ace.tui.util.lazy_syntax import (
 )
 from sase.ace.tui.util.semantic_styles import SemanticHighlightStyles
 from sase.core.glossary_facade import scan_glossary_spans
-from sase.xprompt import alt_inspect, xprompt_inspect
-from sase.xprompt._literal_zones import code_literal_ranges
-from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
-from sase.xprompt.repo_mention_catalog import (
+from sase.macro import alt_inspect, macro_inspect
+from sase.macro._literal_zones import code_literal_ranges
+from sase.macro.glossary_catalog import EditorGlossaryCatalog
+from sase.macro.repo_mention_catalog import (
     EditorRepoMentionCatalog,
     scan_repo_mentions,
 )
@@ -102,7 +102,7 @@ def _protected_ranges(
     if skip_xprompt:
         ranges.extend(
             (span.start, span.end)
-            for span in xprompt_inspect.tokenize(source, known_skills=known_skills)
+            for span in macro_inspect.tokenize(source, known_skills=known_skills)
         )
         ranges.extend((span.start, span.end) for span in alt_inspect.tokenize(source))
     return ranges

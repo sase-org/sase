@@ -6,8 +6,8 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.models import InputArg, InputType
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

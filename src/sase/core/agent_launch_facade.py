@@ -160,7 +160,7 @@ def plan_agent_launch_fanout(
 def _filter_conditional_launch_segments(prompt: str) -> list[str]:
     """Return prompts surviving static ``%if(should_run=...)`` omission."""
 
-    from sase.xprompt._exceptions import DirectiveError
+    from sase.macro._exceptions import DirectiveError
 
     binding = require_rust_binding("filter_conditional_launch_segments")
     try:
@@ -212,12 +212,12 @@ def plan_typed_launch_units(
     """
 
     from sase.agent.agent_name_keys import resolve_agent_name_key_markers
-    from sase.xprompt.code_value import reject_disabled_code_directives
+    from sase.macro.code_value import reject_disabled_code_directives
 
     filtered_prompt = filter_conditional_prompt_text(prompt)
     reject_disabled_code_directives(filtered_prompt)
     resolved_prompt = resolve_agent_name_key_markers([filtered_prompt])[0]
-    from sase.xprompt.queue_directive import launch_feature_flag_keys
+    from sase.macro.queue_directive import launch_feature_flag_keys
 
     binding = require_rust_binding("plan_typed_launch_units")
     payload = binding(
@@ -287,7 +287,7 @@ def admission_unit_results(
 def agent_unit_dispatch_prompt(agent: AgentUnitWire) -> str:
     """Rebuild an agent launch prompt from a typed unit without waits or %if."""
 
-    from sase.xprompt.queue_directive import launch_feature_flag_keys
+    from sase.macro.queue_directive import launch_feature_flag_keys
 
     binding = require_rust_binding("agent_unit_dispatch_prompt")
     return str(

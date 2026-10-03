@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.core.xprompt_skill_definition_facade import (
+from sase.core.macro_skill_definition_facade import (
     XpromptSkillDefinitionResolution,
     resolve_xprompt_skill_definition,
 )

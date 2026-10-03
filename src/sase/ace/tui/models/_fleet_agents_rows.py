@@ -493,7 +493,7 @@ def _valid_fleet_multiplier(value: object) -> float | None:
         numeric = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
-    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+    from sase.macro.queue_directive import format_queue_capacity_multiplier
 
     try:
         formatted = format_queue_capacity_multiplier(numeric)

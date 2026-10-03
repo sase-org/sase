@@ -43,7 +43,7 @@ from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.model_validation import first_schema_error
 from sase.notification_gates.models import GateError, GateSpec
-from sase.xprompt.models import InputType
+from sase.macro.models import InputType
 
 _SAMPLE_VALUES: dict[InputType, Any] = {
     InputType.WORD: "value",

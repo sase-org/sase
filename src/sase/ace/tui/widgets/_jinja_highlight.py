@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any
 from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 
-from sase.xprompt import jinja_inspect
-from sase.xprompt.highlight import MAX_HIGHLIGHT_BYTES, MAX_HIGHLIGHT_LINES
+from sase.macro import jinja_inspect
+from sase.macro.highlight import MAX_HIGHLIGHT_BYTES, MAX_HIGHLIGHT_LINES
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase

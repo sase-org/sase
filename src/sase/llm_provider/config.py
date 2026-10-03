@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from sase.config import load_merged_config
-from sase.xprompt.effort import is_valid_effort
+from sase.macro.effort import is_valid_effort
 
 from .effort_resolution import (
     EffectiveDefaultEffortSnapshot,
@@ -21,7 +21,7 @@ from .effort_resolution import (
 DEFAULT_MODEL_ALIAS_HISTORY_LIMIT = 10
 
 if TYPE_CHECKING:
-    from sase.xprompt.directives import PromptDirectives
+    from sase.macro.directives import PromptDirectives
 
     from .effort_override import TemporaryEffortOverride
 

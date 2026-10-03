@@ -27,16 +27,16 @@ def _rewrite_template_wait_directives(
     if "%" not in prompt:
         return prompt
 
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import (
+    from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.macro._disabled_regions import (
         protect_disabled_regions,
         unprotect_disabled_regions,
     )
-    from sase.xprompt._fenced_blocks import (
+    from sase.macro._fenced_blocks import (
         protect_fenced_blocks,
         unprotect_fenced_blocks,
     )
-    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+    from sase.macro._parsing import find_matching_paren_for_args, parse_args
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -103,15 +103,15 @@ def _rewrite_template_resume_references(
     if "#fork" not in prompt and "#resume" not in prompt:
         return prompt
 
-    from sase.xprompt._disabled_regions import (
+    from sase.macro._disabled_regions import (
         protect_disabled_regions,
         unprotect_disabled_regions,
     )
-    from sase.xprompt._fenced_blocks import (
+    from sase.macro._fenced_blocks import (
         protect_fenced_blocks,
         unprotect_fenced_blocks,
     )
-    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+    from sase.macro._parsing import find_matching_paren_for_args, parse_args
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)

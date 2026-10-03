@@ -7,7 +7,7 @@ Each fetcher imports its real dependencies inside the function so requesting
 one kind never pays for the others. These modules must stay off the
 ``sase.ace`` / ``sase.main.parser`` / ``rich`` / ``textual`` import set: the
 candidates fast path forbids those packages. That means no
-``sase.sdd`` / ``sase.bead`` / ``sase.workspace_provider`` / ``sase.xprompt``
+``sase.sdd`` / ``sase.bead`` / ``sase.workspace_provider`` / ``sase.macro``
 / ``sase.llm_provider`` package imports (their ``__init__`` modules pull the
 forbidden set), at module scope or inside a fetcher.
 """

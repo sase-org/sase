@@ -12,7 +12,7 @@ from sase.main import init_skills_handler
 from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
 from sase.main._init_skills_manifest import SKILLS_MANIFEST_FILENAME
 from sase.main.init_skills_handler import handle_init_skills_command
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 from tests.main.init_skills_handler_helpers import (
     make_args,
     stub_manifest_git,
@@ -119,7 +119,7 @@ def test_handler_dirty_chezmoi_source_is_refused_before_write(
         "skill_source_integrity_error",
         lambda: (
             "refusing chezmoi skill deploy because xprompt sources have "
-            "uncommitted changes:\n  M src/sase/xprompts/skills/foo.md"
+            "uncommitted changes:\n  M src/sase/macros/skills/foo.md"
         ),
     )
     chezmoi_home = tmp_path / "chezmoi" / "home"
@@ -135,7 +135,7 @@ def test_handler_dirty_chezmoi_source_is_refused_before_write(
     assert not chezmoi_home.exists()
     deploy_mock.assert_not_called()
     err = capsys.readouterr().err
-    assert "src/sase/xprompts/skills/foo.md" in err
+    assert "src/sase/macros/skills/foo.md" in err
 
 
 def test_handler_yes_does_not_imply_force_or_allow_dirty(

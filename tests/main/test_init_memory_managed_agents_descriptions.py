@@ -45,7 +45,7 @@ def test_init_memory_managed_agents_wraps_long_memory_descriptions(
             description=(
                 "Read when working with sase agent skills (aka xprompt skills), "
                 "which are generated from source templates in the "
-                "`src/sase/xprompts/skills/` and deployed to managed locations "
+                "`src/sase/macros/skills/` and deployed to managed locations "
                 "(my chezmoi repo, for example)."
             ),
         ),

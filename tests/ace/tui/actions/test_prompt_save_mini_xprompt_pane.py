@@ -23,8 +23,8 @@ from sase.ace.tui.modals.mini_xprompt_target_catalog import (
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import SourceFingerprint, split_frontmatter
-from sase.xprompt.naming import SaveResolution
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.naming import SaveResolution
+from sase.macro.save import SaveTargetFormat
 
 from ._prompt_save_xprompt_helpers import _SaveFlowApp, _wait_save_tasks
 
@@ -105,7 +105,7 @@ async def test_mini_xprompt_pane_markdown_save_writes_and_closes(
     path = tmp_path / "review.md"
     app = _SaveFlowApp("agent prompt")
 
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             bar = app.query_one(PromptInputBar)
@@ -140,7 +140,7 @@ async def test_mini_xprompt_pane_config_save_writes_entry(
     config.write_text("theme: dark\n", encoding="utf-8")
     app = _SaveFlowApp("agent prompt")
 
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             bar = app.query_one(PromptInputBar)
@@ -254,7 +254,7 @@ async def test_mini_xprompt_pane_changed_on_disk_requires_overwrite(
     path.write_text(loaded_markdown, encoding="utf-8")
     app = _SaveFlowApp("agent prompt")
 
-    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+    with patch("sase.macro.save_state.save_last_used_location", return_value=True):
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             bar = app.query_one(PromptInputBar)

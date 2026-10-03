@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.main.query_handler.special_cases import handle_run_special_cases
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 def _mock_workflow_names() -> MagicMock:
@@ -26,7 +26,7 @@ def test_vcs_dot_prompt_single_arg_triggers_history_picker() -> None:
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         patch("sase.workspace_provider.get_workflow_names", mock_names),
         patch("sase.workspace_provider._registry.get_workflow_names", mock_names),
-        patch("sase.xprompt._parsing._VCS_TAG_PATTERN", None),
+        patch("sase.macro._parsing._VCS_TAG_PATTERN", None),
         pytest.raises(SystemExit),
     ):
         handle_run_special_cases(["#gh:sase ."])
@@ -51,7 +51,7 @@ def test_vcs_dot_prompt_strips_cross_vcs_prefix() -> None:
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         patch("sase.workspace_provider.get_workflow_names", mock_names),
         patch("sase.workspace_provider._registry.get_workflow_names", mock_names),
-        patch("sase.xprompt._parsing._VCS_TAG_PATTERN", None),
+        patch("sase.macro._parsing._VCS_TAG_PATTERN", None),
         pytest.raises(SystemExit),
     ):
         handle_run_special_cases(["#gh:sase", "."])
@@ -67,7 +67,7 @@ def test_run_special_cases_executes_explicit_standalone_workflow() -> None:
         steps=[WorkflowStep(name="run", bash="echo sync")],
     )
     with (
-        patch("sase.xprompt.get_all_prompts", return_value={"sync": workflow}),
+        patch("sase.macro.get_all_prompts", return_value={"sync": workflow}),
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit) as exc,
     ):
@@ -86,7 +86,7 @@ def test_run_special_cases_warns_for_legacy_standalone_workflow(
         steps=[WorkflowStep(name="run", bash="echo sync")],
     )
     with (
-        patch("sase.xprompt.get_all_prompts", return_value={"sync": workflow}),
+        patch("sase.macro.get_all_prompts", return_value={"sync": workflow}),
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit),
     ):
@@ -106,7 +106,7 @@ def test_run_special_cases_rejects_bang_for_embeddable_workflow(
         steps=[WorkflowStep(name="main", prompt_part="Commit context")],
     )
     with (
-        patch("sase.xprompt.get_all_prompts", return_value={"commit": workflow}),
+        patch("sase.macro.get_all_prompts", return_value={"commit": workflow}),
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit) as exc,
     ):
@@ -125,7 +125,7 @@ def test_run_single_token_prompt_dispatches_directly() -> None:
     dispatch-less `run` namespace and exit with "Unknown command: run".
     """
     with (
-        patch("sase.xprompt.get_all_prompts", MagicMock(return_value={})),
+        patch("sase.macro.get_all_prompts", MagicMock(return_value={})),
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit) as excinfo,
     ):
@@ -138,7 +138,7 @@ def test_run_single_token_prompt_dispatches_directly() -> None:
 def test_run_single_flag_like_token_falls_through() -> None:
     """Unknown flag-like tokens still fall through to argparse's error."""
     with (
-        patch("sase.xprompt.get_all_prompts", MagicMock(return_value={})),
+        patch("sase.macro.get_all_prompts", MagicMock(return_value={})),
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
     ):
         handled = handle_run_special_cases(["--bogus-flag"])
@@ -152,7 +152,7 @@ def test_run_deprecated_daemon_flag_warns_and_launches(
 ) -> None:
     """The hidden -d shim keeps old automation working while warning."""
     with (
-        patch("sase.xprompt.get_all_prompts", MagicMock(return_value={})),
+        patch("sase.macro.get_all_prompts", MagicMock(return_value={})),
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit) as excinfo,
     ):
@@ -206,7 +206,7 @@ def test_launch_query_from_agent_context_requests_approval(
             return_value=[],
         ),
         patch(
-            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            "sase.macro.unresolved.scan_query_for_unresolved_references",
             return_value=[],
         ),
         patch(
@@ -245,7 +245,7 @@ def test_entry_run_known_prompt_falls_through_to_run_branch(
     monkeypatch.setattr(sys, "argv", ["sase", "run", "known_prompt_name"])
     with (
         patch(
-            "sase.xprompt.get_all_prompts",
+            "sase.macro.get_all_prompts",
             MagicMock(return_value={"known_prompt_name": object()}),
         ),
         patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,

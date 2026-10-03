@@ -5,8 +5,8 @@ from unittest.mock import patch
 import pytest
 
 from sase.llm_provider.preprocessing import preprocess_prompt_early
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import extract_prompt_directives
 
 
 def test_wait_time_duration_sets_field() -> None:

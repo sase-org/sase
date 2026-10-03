@@ -64,7 +64,7 @@ class TestDisablePlugins:
     @skip_no_both
     def test_disable_all_blocks_workflows(self) -> None:
         """SASE_DISABLE_PLUGINS=1 prevents plugin workflow loading."""
-        from sase.xprompt.workflow_loader import _load_workflows_from_plugins
+        from sase.macro.workflow_loader import _load_workflows_from_plugins
 
         with patch.dict(os.environ, {"SASE_DISABLE_PLUGINS": "1"}):
             workflows = _load_workflows_from_plugins()

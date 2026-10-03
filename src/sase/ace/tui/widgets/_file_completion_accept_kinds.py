@@ -38,9 +38,9 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 )
 from sase.project_tags import apply_project_tag_selection
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
-from sase.xprompt.vcs_project_completion import VcsProjectEntry
-from sase.xprompt.vcs_ref_completion import apply_vcs_ref_selection
-from sase.xprompt.vcs_repo_completion import apply_vcs_repo_selection
+from sase.macro.vcs_project_completion import VcsProjectEntry
+from sase.macro.vcs_ref_completion import apply_vcs_ref_selection
+from sase.macro.vcs_repo_completion import apply_vcs_repo_selection
 
 
 class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):

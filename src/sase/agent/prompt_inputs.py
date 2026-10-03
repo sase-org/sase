@@ -13,7 +13,7 @@ This module is pure logic (no Textual): it reuses the existing runtime parsers
 coercion (:meth:`InputArg.validate_and_convert`), and Jinja substitution
 (:func:`substitute_placeholders`) so nothing here reimplements parsing,
 validation, or rendering. ``input`` is canonical and ``inputs`` is accepted as an
-alias, matching :class:`sase.xprompt.prompt_frontmatter.PromptFrontmatter`.
+alias, matching :class:`sase.macro.prompt_frontmatter.PromptFrontmatter`.
 """
 
 from __future__ import annotations
@@ -23,17 +23,17 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.xprompt._exceptions import XPromptArgumentError
-from sase.xprompt._disabled_regions import (
+from sase.macro._exceptions import XPromptArgumentError
+from sase.macro._disabled_regions import (
     protect_disabled_regions,
     unprotect_disabled_regions,
 )
-from sase.xprompt._jinja import is_jinja2_template, substitute_placeholders
-from sase.xprompt.loader_parsing import (
+from sase.macro._jinja import is_jinja2_template, substitute_placeholders
+from sase.macro.loader_parsing import (
     parse_inputs_from_front_matter,
     parse_yaml_front_matter,
 )
-from sase.xprompt.models import UNSET, InputArg, XPromptValidationError
+from sase.macro.models import UNSET, InputArg, XPromptValidationError
 
 # Frontmatter keys that declare prompt inputs (``input`` canonical, ``inputs``
 # accepted as an alias). Both are consumed/removed by ``render_prompt_with_inputs``.

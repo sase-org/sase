@@ -49,7 +49,7 @@ def _terminal_build_counter() -> tuple[Any, list[int]]:
 
 def _patched_mru(mru: list[str]) -> Any:
     return patch(
-        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
         return_value=mru,
     )
 
@@ -214,7 +214,7 @@ async def test_jinja_diagnostics_drops_stale_result() -> None:
 
 async def test_cycle_highlight_reuses_wire_memo() -> None:
     """Repeated highlight builds convert warm entries to wire format once."""
-    from sase.xprompt import highlight as xprompt_highlight
+    from sase.macro import highlight as xprompt_highlight
 
     from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 

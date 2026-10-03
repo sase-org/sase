@@ -5,7 +5,7 @@ from io import StringIO
 from inline_snapshot import snapshot
 from rich.console import Console
 
-from sase.xprompt.workflow_output import (
+from sase.macro.workflow_output import (
     LoopInfo,
     ParentStepContext,
     WorkflowOutputHandler,

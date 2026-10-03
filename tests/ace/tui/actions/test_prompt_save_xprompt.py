@@ -15,8 +15,8 @@ from sase.ace.tui.modals import UnifiedSaveLocation, UnifiedXPromptSaveModal
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.snippet_targets import SnippetSaveTarget
+from sase.macro.models import InputArg, InputType
+from sase.macro.snippet_targets import SnippetSaveTarget
 
 from ._prompt_save_xprompt_helpers import (
     _SaveFlowApp,
@@ -46,7 +46,7 @@ async def test_request_opens_one_screen_with_active_pane_snippet_source() -> Non
             "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
             return_value=[],
         ),
-        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
     ):
         await harness.on_prompt_input_bar_save_as_xprompt_requested(
             PromptInputBar.SaveAsXpromptRequested(
@@ -107,9 +107,9 @@ async def test_request_adds_configured_snippet_target_to_unified_picker(
             "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
             return_value=[snippet_location],
         ),
-        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
         patch(
-            "sase.xprompt.snippet_targets.resolve_snippet_save_target",
+            "sase.macro.snippet_targets.resolve_snippet_save_target",
             return_value=snippet_target,
         ),
     ):
@@ -141,7 +141,7 @@ async def test_request_converts_placeholders_for_xprompt_preview_only() -> None:
             "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
             return_value=[],
         ),
-        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
     ):
         await harness.on_prompt_input_bar_save_as_xprompt_requested(
             PromptInputBar.SaveAsXpromptRequested(
@@ -193,7 +193,7 @@ async def test_request_keeps_placeholders_when_conversion_disabled(
             "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
             return_value=[],
         ),
-        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
     ):
         await harness.on_prompt_input_bar_save_as_xprompt_requested(
             PromptInputBar.SaveAsXpromptRequested(
@@ -220,7 +220,7 @@ async def test_request_reuses_undeclared_jinja_name_without_duplicate_input() ->
             "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
             return_value=[],
         ),
-        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
     ):
         await harness.on_prompt_input_bar_save_as_xprompt_requested(
             PromptInputBar.SaveAsXpromptRequested(
@@ -265,7 +265,7 @@ async def test_ctrl_g_x_then_panel_ctrl_x_switches_to_snippet_mode(
             "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
             return_value=[snippet_location],
         ),
-        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
     ):
         async with app.run_test(size=(105, 36)) as pilot:
             await pilot.pause()
@@ -319,7 +319,7 @@ async def test_save_request_returns_while_location_reads_are_stuck() -> None:
                 side_effect=_slow_locations,
             ),
             patch(
-                "sase.xprompt.save_state.load_last_used_locations",
+                "sase.macro.save_state.load_last_used_locations",
                 side_effect=_slow_last_used,
             ),
         ):
@@ -357,7 +357,7 @@ async def test_skill_draft_requests_canonical_skill_destinations() -> None:
             "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
             return_value=[],
         ),
-        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+        patch("sase.macro.save_state.load_last_used_locations", return_value={}),
     ):
         await harness.on_prompt_input_bar_save_as_xprompt_requested(
             PromptInputBar.SaveAsXpromptRequested(

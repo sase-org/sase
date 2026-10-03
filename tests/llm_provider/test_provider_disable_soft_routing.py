@@ -35,7 +35,7 @@ from sase.llm_provider.registry import (
     resolve_model_provider_with_effort,
 )
 from sase.llm_provider.temporary_override_state import TemporaryLLMOverride
-from tests._xprompt_model_completion_helpers import metadata_payload
+from tests._macro_model_completion_helpers import metadata_payload
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 

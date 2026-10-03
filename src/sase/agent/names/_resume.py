@@ -12,9 +12,9 @@ import threading
 import time
 
 from sase.core.paths import sase_home
-from sase.xprompt._disabled_regions import protect_disabled_regions
-from sase.xprompt._fenced_blocks import protect_fenced_blocks
-from sase.xprompt._parsing import (
+from sase.macro._disabled_regions import protect_disabled_regions
+from sase.macro._fenced_blocks import protect_fenced_blocks
+from sase.macro._parsing import (
     find_matching_paren_for_args,
     parse_args,
 )
@@ -193,8 +193,8 @@ def single_wait_agent_name(prompt: str | None) -> str | None:
         return None
 
     try:
-        from sase.xprompt.directives import extract_prompt_directives
-        from sase.xprompt._exceptions import DirectiveError
+        from sase.macro.directives import extract_prompt_directives
+        from sase.macro._exceptions import DirectiveError
 
         _, directives = extract_prompt_directives(prompt)
     except DirectiveError:
@@ -205,10 +205,10 @@ def single_wait_agent_name(prompt: str | None) -> str | None:
 
 def _has_non_explicit_wait_directive(prompt: str) -> bool:
     """Return True for bare/plus/empty ``%wait`` directives."""
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
-    from sase.xprompt._parsing import find_matching_paren_for_args
+    from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.macro._disabled_regions import protect_disabled_regions
+    from sase.macro._fenced_blocks import protect_fenced_blocks
+    from sase.macro._parsing import find_matching_paren_for_args
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)

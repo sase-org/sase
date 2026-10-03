@@ -99,7 +99,7 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
         prepare_agent_name_request,
         resolve_agent_identity,
     )
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     _prompt, directives = extract_prompt_directives("%id:foo\nDo work")
     request = prepare_agent_name_request(

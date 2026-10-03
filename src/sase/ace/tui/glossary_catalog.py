@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sase.xprompt.glossary_catalog import (
+from sase.macro.glossary_catalog import (
     EditorGlossaryCatalog,
     EditorGlossaryCatalogResult,
     editor_glossary_catalog_for_project,

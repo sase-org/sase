@@ -16,7 +16,7 @@ from ._plan_gate_shared import (
 )
 
 if TYPE_CHECKING:
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 
 def plan_context_from_envelope(bundle_path: Path, envelope: Mapping[str, Any]) -> Any:

@@ -14,8 +14,8 @@ from sase.ace.tui.modals.dispatch_target_modal import (
     DispatchTargetPickerModal,
     LOCAL_DISPATCH_TARGET_ID,
 )
-from sase.xprompt._directive_scan import scan_dispatch_directive, set_dispatch_directive
-from sase.xprompt._exceptions import DirectiveError
+from sase.macro._directive_scan import scan_dispatch_directive, set_dispatch_directive
+from sase.macro._exceptions import DirectiveError
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
@@ -132,7 +132,7 @@ class PromptInputBarDispatchMixin(_MixinBase):
             LaunchTabPickerModal,
             LaunchTabPickerResult,
         )
-        from sase.xprompt.directive_edit import scan_tab_directive
+        from sase.macro.directive_edit import scan_tab_directive
 
         current: str | None = None
         try:
@@ -166,7 +166,7 @@ class PromptInputBarDispatchMixin(_MixinBase):
 
     def _apply_launch_tab(self, result: object) -> None:
         """Apply a Launch Tab picker result to the active prompt pane."""
-        from sase.xprompt.directive_edit import set_agent_tab_directive
+        from sase.macro.directive_edit import set_agent_tab_directive
 
         action = getattr(result, "action", None)
         if action == "default":
@@ -457,7 +457,7 @@ class PromptInputBarDispatchMixin(_MixinBase):
             active_machine_tab_alias,
             view_inherited_tab_name,
         )
-        from sase.xprompt.directive_edit import scan_tab_directive
+        from sase.macro.directive_edit import scan_tab_directive
 
         try:
             scan = scan_tab_directive(prompt)

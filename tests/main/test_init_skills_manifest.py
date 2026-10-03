@@ -16,7 +16,7 @@ from sase.main._init_skills_manifest import (
     retired_skill_files_with_drift,
 )
 from sase.main._init_skills_rendering import RenderedSkillDeploymentTarget
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 from tests.main.init_skills_handler_helpers import stub_manifest_git
 
 _OLD_SHA = "1" * 40

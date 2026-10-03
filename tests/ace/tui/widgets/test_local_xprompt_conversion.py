@@ -17,8 +17,8 @@ from sase.ace.tui.widgets._local_xprompt_conversion import (
     normalize_local_xprompt_name,
     validate_local_xprompt_name,
 )
-from sase.xprompt.models import InputType
-from sase.xprompt.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+from sase.macro.models import InputType
+from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
 
 
 def _disable_placeholder_args(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -86,7 +86,7 @@ def test_infer_unknown_variables_become_text_inputs() -> None:
     assert [arg.name for arg in conversion.inputs] == ["details", "topic"]
     assert all(arg.type is InputType.TEXT for arg in conversion.inputs)
     # No default -> required inputs.
-    from sase.xprompt.models import UNSET
+    from sase.macro.models import UNSET
 
     assert all(arg.default is UNSET for arg in conversion.inputs)
 

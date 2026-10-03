@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from sase.integrations.xprompt_lsp import (
+from sase.integrations.macro_lsp import (
     SASE_XPROMPT_LSP_CMD_ENV,
     _XPromptLspLaunchError,
     _build_xprompt_lsp_argv,
@@ -27,7 +27,7 @@ def _point_sys_executable_at_tmp_venv(
     python = tmp_path / "venv" / bin_dir / python_name
     python.parent.mkdir(parents=True)
     python.write_text("", encoding="utf-8")
-    monkeypatch.setattr("sase.integrations.xprompt_lsp.sys.executable", str(python))
+    monkeypatch.setattr("sase.integrations.macro_lsp.sys.executable", str(python))
     return python
 
 

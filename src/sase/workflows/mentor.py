@@ -41,10 +41,10 @@ from sase.artifacts import (
 from sase.content import ensure_str_content
 from sase.workflows.base import BaseWorkflow
 from sase.workflows.utils import get_cl_name_from_branch
-from sase.xprompt import escape_for_xprompt
-from sase.xprompt.output_validation import extract_structured_content
-from sase.xprompt.tags import XPromptTag, get_by_tag, get_by_tag_strict
-from sase.xprompt.workflow_executor_utils import render_template
+from sase.macro import escape_for_xprompt
+from sase.macro.output_validation import extract_structured_content
+from sase.macro.tags import XPromptTag, get_by_tag, get_by_tag_strict
+from sase.macro.workflow_executor_utils import render_template
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ def _build_mentor_prompt(
     if mentor_wf is None:
         raise RuntimeError(
             "No xprompt with tag 'mentor' found. "
-            "Ensure src/sase/xprompts/mentor.yml is installed."
+            "Ensure src/sase/macros/mentor.yml is installed."
         )
 
     # Build input context
@@ -107,7 +107,7 @@ def _build_mentor_prompt(
     if not prompt_part_content:
         raise RuntimeError(
             "The #mentor xprompt has no prompt_part step. "
-            "Check src/sase/xprompts/mentor.yml."
+            "Check src/sase/macros/mentor.yml."
         )
     return render_template(prompt_part_content, context)
 

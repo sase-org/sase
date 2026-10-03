@@ -18,12 +18,12 @@ from sase.content_layout import resolve_project_config_read_path
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.snippet.catalog import load_snippet_catalog
 from sase.snippet.models import SnippetCatalog, SnippetEntry
-from sase.xprompt.glossary_catalog import (
+from sase.macro.glossary_catalog import (
     enabled_project_records,
     glossary_project_record_for_workspace,
 )
-from sase.xprompt.snippet_config_yaml import snippet_config_digest
-from sase.xprompt.snippet_targets import load_snippet_config_locations
+from sase.macro.snippet_config_yaml import snippet_config_digest
+from sase.macro.snippet_targets import load_snippet_config_locations
 
 _MAX_SNAPSHOT_CACHE_PROJECTS = 8
 _MIN_RESTAT_INTERVAL_S = 0.5

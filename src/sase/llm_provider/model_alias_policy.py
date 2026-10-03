@@ -17,7 +17,7 @@ from types import MappingProxyType
 import yaml  # type: ignore[import-untyped]
 
 from sase._yaml_safe import yaml_safe_load
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED, split_model_effort
+from sase.macro.effort import EFFORT_LEVELS_ORDERED, split_model_effort
 
 from .load_balancing import ModelAliasSelectorError, parse_model_alias_selector
 from .model_manifest import get_model_manifest

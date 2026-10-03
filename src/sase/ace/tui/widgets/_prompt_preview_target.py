@@ -17,12 +17,12 @@ from sase.core.source_language_facade import (
     logical_source_filename,
     resolve_source_language,
 )
-from sase.xprompt import xprompt_inspect
-from sase.xprompt._parsing_references import XPromptReference, iter_xprompt_references
-from sase.xprompt.loader import get_xprompt_or_workflow
-from sase.xprompt.models import UNSET, InputArg, XPrompt
-from sase.xprompt.properties import XPromptProperties, xprompt_properties
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro import macro_inspect
+from sase.macro._parsing_references import XPromptReference, iter_xprompt_references
+from sase.macro.loader import get_xprompt_or_workflow
+from sase.macro.models import UNSET, InputArg, XPrompt
+from sase.macro.properties import XPromptProperties, xprompt_properties
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 PreviewKind = Literal["xprompt", "file"]
 PreviewDefaultView = Literal["source", "rendered"]
@@ -101,7 +101,7 @@ def detect_preview_target_at_cursor(
     offset = max(0, min(cursor_offset, len(text)))
 
     if known_skills and "/" in text:
-        for span in xprompt_inspect.tokenize(text, known_skills=known_skills):
+        for span in macro_inspect.tokenize(text, known_skills=known_skills):
             if span.kind == "skill" and span.start <= offset < span.end:
                 raw = text[span.start : span.end]
                 return PreviewToken(
@@ -185,7 +185,7 @@ def is_slash_skill_candidate_at_cursor(text: str, cursor_offset: int) -> bool:
             and span.start == start
             and span.end == end
             and span.start <= offset < span.end
-            for span in xprompt_inspect.tokenize(
+            for span in macro_inspect.tokenize(
                 text,
                 known_skills=frozenset({name}),
             )

@@ -19,7 +19,7 @@ from sase.ace.tui.modals.xprompt_item_modal import (
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.xprompt.models import UNSET, InputArg, InputType, XPrompt
+from sase.macro.models import UNSET, InputArg, InputType, XPrompt
 
 
 class _TestApp(App[object | None]):

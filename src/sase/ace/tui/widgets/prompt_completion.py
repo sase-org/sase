@@ -20,7 +20,7 @@ from sase.ace.tui.widgets.file_completion import (
     is_path_like_token,
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
-from sase.xprompt.jinja_assist import JinjaScope
+from sase.macro.jinja_assist import JinjaScope
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     detect_xprompt_arg_completion_at_cursor,

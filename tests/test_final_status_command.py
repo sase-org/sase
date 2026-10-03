@@ -24,7 +24,7 @@ from sase.finalizers.controller import run_finalizers
 from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.llm_provider.types import InvokeResult
 from sase.main.parser import create_parser
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 
 def _config(command: list[str]) -> FinalizerConfig:

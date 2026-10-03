@@ -133,7 +133,7 @@ def test_rendered_skill_targets_omit_audit_directive_when_disabled(
 
 def test_packaged_skills_respect_log_skill_use_flag() -> None:
     """Packaged unaudited skills omit the directive; other skills keep it."""
-    from sase.xprompt.loader import load_skills_from_package
+    from sase.macro.loader import load_skills_from_package
 
     packaged = load_skills_from_package()
     plan_xp = packaged.get("skill/sase_plan")
@@ -170,7 +170,7 @@ def test_grok_rendered_questions_skill_uses_native_ask_tool_wording(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Grok-rendered skills use Grok's provider context, not Claude wording."""
-    from sase.xprompt.loader import load_skills_from_package
+    from sase.macro.loader import load_skills_from_package
 
     packaged = load_skills_from_package()
     questions_xp = packaged["skill/sase_questions"]
@@ -197,7 +197,7 @@ def test_grok_rendered_git_commit_skill_names_grok_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Provider context renders both the Grok display name and tool name."""
-    from sase.xprompt.loader import load_skills_from_package
+    from sase.macro.loader import load_skills_from_package
 
     packaged = load_skills_from_package()
     git_commit_xp = packaged["skill/sase_git_commit"]
@@ -222,7 +222,7 @@ def test_grok_native_skill_targets_cover_claude_compat_skill_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Every packaged SASE skill deployed for Claude also has a native Grok copy."""
-    from sase.xprompt.loader import load_skills_from_package
+    from sase.macro.loader import load_skills_from_package
 
     packaged_skills = [
         xprompt

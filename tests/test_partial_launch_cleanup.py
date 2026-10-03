@@ -134,10 +134,10 @@ def test_launch_query_warns_on_unresolved_xprompt_and_still_launches(
     warnings: list[tuple[str, str]] = []
     _clear_agent_launch_gate_env(monkeypatch)
     monkeypatch.setattr(
-        "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+        "sase.macro.unresolved.scan_query_for_unresolved_references",
         lambda _query: ("reviewww",),
     )
-    monkeypatch.setattr("sase.xprompt.loader.get_all_prompts", lambda: {})
+    monkeypatch.setattr("sase.macro.loader.get_all_prompts", lambda: {})
     monkeypatch.setattr(
         "sase.output.print_status",
         lambda message, status: warnings.append((message, status)),

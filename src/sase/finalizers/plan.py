@@ -40,7 +40,7 @@ from sase.finalizers.selection import (
     parse_finalizer_selector_ops,
 )
 from sase.memory.locks import locked_file
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 
 FINALIZER_PLAN_FILENAME = "finalizer_plan.json"

@@ -28,7 +28,7 @@ from sase.monitor.host_completion import (
 )
 from sase.monitor.output import OutputCapture
 from sase.turns.followup import FollowupLaunchResult
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 from ..finalizer_declaration_channel_test_helpers import valid_manifest
 from ..finalizers_protocol_harness_test_helpers import (

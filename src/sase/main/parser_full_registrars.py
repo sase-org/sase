@@ -68,7 +68,7 @@ from sase.main.parser_validate import register_validate_parser
 from sase.main.parser_var import register_var_parser
 from sase.main.parser_version import register_version_parser
 from sase.main.parser_workspace import register_workspace_parser
-from sase.main.parser_xprompt import register_xprompt_parser
+from sase.main.parser_macro import register_xprompt_parser
 
 
 # This catalog gives static analysis a real view of each public registrar's

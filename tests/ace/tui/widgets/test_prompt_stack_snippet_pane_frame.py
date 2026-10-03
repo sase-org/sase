@@ -9,7 +9,7 @@ from textual.color import Color
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt.highlight_theme import ACE_THEME_NAME
+from sase.macro.highlight_theme import ACE_THEME_NAME
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import CaptureApp
 from tests.ace.tui.widgets.test_prompt_stack_snippet_pane_lifecycle import (
     _name_result,

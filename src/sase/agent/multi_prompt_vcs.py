@@ -46,8 +46,8 @@ def _resolve_known_project_segment_context(
     )
     from sase.core.paths import sase_projects_dir
     from sase.vcs_provider import VCS_DEFAULT_REVISION
-    from sase.xprompt._parsing import resolve_known_project_ref
-    from sase.xprompt.loader import get_known_project_workspaces
+    from sase.macro._parsing import resolve_known_project_ref
+    from sase.macro.loader import get_known_project_workspaces
 
     known_ref = extract_known_project_vcs_launch_ref(prompt)
     if known_ref is None:

@@ -1,7 +1,7 @@
 """Prompt-bar candidate building for the ``+`` VCS project/PR completion menu.
 
 This is the thin TUI bridge between the headless catalog in
-:mod:`sase.xprompt.vcs_project_completion` and the prompt input bar's
+:mod:`sase.macro.vcs_project_completion` and the prompt input bar's
 :class:`~sase.ace.tui.widgets.file_completion.CompletionCandidate` machinery.
 
 The accept path applies the core target-position binding
@@ -14,7 +14,7 @@ The accept path applies the core target-position binding
 from __future__ import annotations
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.xprompt.vcs_project_completion import (
+from sase.macro.vcs_project_completion import (
     VcsProjectEntry,
     build_vcs_project_completion_entries,
     filter_vcs_project_entries,
@@ -78,7 +78,7 @@ def vcs_project_completion_candidates(
     ``candidates`` is empty and ``catalog_is_empty`` is ``False`` (the caller
     dismisses).
 
-    The catalog build is cached by :mod:`sase.xprompt.vcs_project_completion`, so
+    The catalog build is cached by :mod:`sase.macro.vcs_project_completion`, so
     this stays cheap on the keystroke path once warmed.
 
     Args:

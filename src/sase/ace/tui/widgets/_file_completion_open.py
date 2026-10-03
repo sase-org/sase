@@ -50,7 +50,7 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     build_loading_placeholder,
     vcs_repo_completion_candidates,
 )
-from sase.xprompt.vcs_repo_completion import peek_cached_repo_candidates
+from sase.macro.vcs_repo_completion import peek_cached_repo_candidates
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.file_completion import CompletionCandidate

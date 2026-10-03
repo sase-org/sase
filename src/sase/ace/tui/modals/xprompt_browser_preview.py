@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.xprompt.models import UNSET, InputArg
-from sase.xprompt.workflow_step_display import workflow_step_type_label
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.models import UNSET, InputArg
+from sase.macro.workflow_step_display import workflow_step_type_label
+from sase.macro.workflow_models import Workflow
 
 from .xprompt_browser_helpers import BrowserItem
 

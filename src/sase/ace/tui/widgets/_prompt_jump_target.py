@@ -20,9 +20,9 @@ from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     resolve_file_path,
 )
 from sase.content_layout import skill_reference_name
-from sase.xprompt.loader import get_xprompt_or_workflow
-from sase.xprompt.models import XPrompt
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.loader import get_xprompt_or_workflow
+from sase.macro.models import XPrompt
+from sase.macro.workflow_models import Workflow
 
 JumpKind = Literal["xprompt", "file"]
 
@@ -320,7 +320,7 @@ def _loadable_markdown(
 
     if is_yaml and is_simple and _is_config_source(source_id):
         try:
-            from sase.xprompt.save import load_config_xprompt_markdown
+            from sase.macro.save import load_config_xprompt_markdown
 
             return load_config_xprompt_markdown(source_path, name)
         except Exception:

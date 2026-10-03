@@ -17,7 +17,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
-from sase.xprompt.vcs_project_completion import VcsProjectEntry
+from sase.macro.vcs_project_completion import VcsProjectEntry
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

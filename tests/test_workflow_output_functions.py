@@ -2,7 +2,7 @@
 
 from inline_snapshot import snapshot
 
-from sase.xprompt.workflow_output import _format_value, _get_substep_suffix
+from sase.macro.workflow_output import _format_value, _get_substep_suffix
 
 
 class TestGetSubstepSuffix:

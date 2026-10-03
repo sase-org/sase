@@ -5,7 +5,7 @@ from __future__ import annotations
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.xprompt import jinja_inspect
+from sase.macro import jinja_inspect
 
 from ._completion_helpers import CompletionTestApp
 

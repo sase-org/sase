@@ -17,8 +17,8 @@ from sase.memory.legacy_glossary_read_report import (
     glossary_read_report_path,
     write_glossary_read_report,
 )
-from sase.xprompt._glossary_catalog_projects import EditorGlossaryProject
-from sase.xprompt.glossary_catalog import (
+from sase.macro._glossary_catalog_projects import EditorGlossaryProject
+from sase.macro.glossary_catalog import (
     EDITOR_GLOSSARY_CATALOG_SCHEMA_VERSION,
     EditorGlossaryCatalog,
     EditorGlossaryCatalogResult,
@@ -108,7 +108,7 @@ def test_report_path_is_deterministic_and_project_state_scoped(
 
 def test_build_report_uses_memory_read_reproduction(monkeypatch: Any) -> None:
     monkeypatch.setattr(
-        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        "sase.macro.glossary_catalog.editor_glossary_catalog_for_project",
         lambda _project: _catalog_result("Alpha"),
     )
 
@@ -124,7 +124,7 @@ def test_build_report_uses_memory_read_reproduction(monkeypatch: Any) -> None:
 
 def test_build_report_records_catalog_resolution_failure(monkeypatch: Any) -> None:
     monkeypatch.setattr(
-        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        "sase.macro.glossary_catalog.editor_glossary_catalog_for_project",
         lambda _project: EditorGlossaryCatalogResult(
             project=None,
             catalog=None,
@@ -139,7 +139,7 @@ def test_build_report_records_catalog_resolution_failure(monkeypatch: Any) -> No
 
 def test_build_report_records_unknown_current_term(monkeypatch: Any) -> None:
     monkeypatch.setattr(
-        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        "sase.macro.glossary_catalog.editor_glossary_catalog_for_project",
         lambda _project: _catalog_result("Delta"),
     )
 
@@ -152,7 +152,7 @@ def test_build_report_records_unknown_current_term(monkeypatch: Any) -> None:
 def test_write_report_prunes_old_reports(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr(
-        "sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project",
+        "sase.macro.glossary_catalog.editor_glossary_catalog_for_project",
         lambda _project: _catalog_result("Alpha"),
     )
     event = _event()

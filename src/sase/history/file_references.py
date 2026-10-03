@@ -69,7 +69,7 @@ def extract_recordable_file_refs(text: str) -> list[str]:
         return []
 
     from sase.artifact_refs import scan_artifact_refs
-    from sase.xprompt._literal_zones import literal_zone_ranges
+    from sase.macro._literal_zones import literal_zone_ranges
 
     byte_to_char = _byte_to_character_offsets(text)
     literal_ranges = literal_zone_ranges(text)

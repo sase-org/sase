@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from sase.xprompt import HITLHandler, HITLResult
-from sase.xprompt.models import OutputSpec
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro import HITLHandler, HITLResult
+from sase.macro.models import OutputSpec
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 def _create_test_workflow(

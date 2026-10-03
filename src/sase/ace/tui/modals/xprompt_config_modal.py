@@ -12,7 +12,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, Static
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.xprompt.models import InputType
+from sase.macro.models import InputType
 
 # Valid input type names for xprompt arguments.
 _VALID_TYPES = {t.value for t in InputType}

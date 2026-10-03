@@ -26,7 +26,7 @@ from sase.core.paths import sase_projects_dir
 from sase.current_project import CurrentProject, resolve_current_project
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
-from sase.xprompt.loader import get_known_project_workspaces
+from sase.macro.loader import get_known_project_workspaces
 from sase.main.project_handler import (
     ProjectLifecycleBlockedError,
     delete_project_locked,

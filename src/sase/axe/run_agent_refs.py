@@ -284,7 +284,7 @@ def resolve_agent_refs_in_prompt(prompt: str) -> tuple[str, str | None]:
 
     Returns (resolved_prompt, resolved_vcs_tag).
     """
-    from sase.xprompt._parsing import (
+    from sase.macro._parsing import (
         extract_project_from_vcs_tag,
         extract_vcs_workflow_tag,
         normalize_vcs_underscore_refs,

@@ -98,7 +98,7 @@ class EditorMixin:
 
         import yaml  # type: ignore[import-untyped]
         from sase.core.time import generate_timestamp
-        from sase.xprompt.loader import get_sase_package_xprompts_dir
+        from sase.macro.loader import get_sase_package_xprompts_dir
 
         timestamp = generate_timestamp()
         default_name = f"adhoc_{timestamp}"

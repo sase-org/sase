@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.agent.batch_predecessor import SASE_AGENT_PREDECESSOR_CONTEXT_ENV
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

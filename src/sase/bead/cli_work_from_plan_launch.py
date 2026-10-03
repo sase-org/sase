@@ -38,7 +38,7 @@ from sase.sdd.store import SddStore
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.bead.operation_context import BeadOperationContext
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 _EPIC_CREATION_MAX_ATTEMPTS = 3
 

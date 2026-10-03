@@ -73,7 +73,7 @@ def load_workflow_states_from_snapshot(
     diff_path discovery, and error propagation match the filesystem
     helper.
     """
-    from sase.xprompt import StepState, StepStatus
+    from sase.macro import StepState, StepStatus
 
     entries: list[WorkflowEntry] = []
     for record in snapshot.records:

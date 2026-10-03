@@ -6,7 +6,7 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 import re
 
-from sase.xprompt._literal_zones import code_literal_ranges
+from sase.macro._literal_zones import code_literal_ranges
 
 _MEMORY_LINK_RE = re.compile(r"!?\[\[([^\]\n]+)\]\]")
 

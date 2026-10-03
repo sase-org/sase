@@ -12,7 +12,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Markdown, Static
 
 from sase.ace.tui.actions.clipboard import schedule_copy_delivery
-from sase.xprompt.repo_mention_catalog import (
+from sase.macro.repo_mention_catalog import (
     EditorRepoMentionCatalog,
     RepoMention,
     synthesized_repo_description,

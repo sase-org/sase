@@ -259,7 +259,7 @@ def _draft_tag_raw_ref(text: str) -> str | None:
 def _vcs_tag_ref(text: str) -> tuple[int, str | None]:
     """Return the leading VCS tag's ``(offset, ref)`` (``None`` ref if absent)."""
     try:
-        from sase.xprompt._parsing_vcs_tags import (
+        from sase.macro._parsing_vcs_tags import (
             extract_project_from_vcs_tag,
             find_vcs_workflow_tag_span,
         )
@@ -284,7 +284,7 @@ def _plus_tag_candidate(text: str) -> tuple[int, str | None]:
         return (0, None)
     try:
         from sase.project_tags import is_project_tag_name
-        from sase.xprompt._literal_zones import literal_zone_ranges
+        from sase.macro._literal_zones import literal_zone_ranges
     except Exception:
         return (0, None)
     try:

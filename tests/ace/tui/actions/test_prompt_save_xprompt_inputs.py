@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from sase.xprompt.jinja_assist import JinjaScope
-from sase.xprompt.jinja_inspect import undeclared_variables
+from sase.macro.jinja_assist import JinjaScope
+from sase.macro.jinja_inspect import undeclared_variables
 
 
 def test_save_inference_skips_engine_builtins() -> None:

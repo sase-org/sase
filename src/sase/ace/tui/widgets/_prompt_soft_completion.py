@@ -11,7 +11,7 @@ from sase.ace.tui.widgets.file_completion import (
     extract_token_around_cursor,
 )
 from sase.ace.tui.widgets.jinja_completion import jinja_scope_for_editor
-from sase.xprompt.jinja_assist import JinjaScope
+from sase.macro.jinja_assist import JinjaScope
 from sase.ace.tui.widgets.prompt_completion import (
     DEFAULT_PROMPT_COMPLETION_SETTINGS,
     PromptCompletionSettings,

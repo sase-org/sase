@@ -284,7 +284,7 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda project=None: {},
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_project_local_prompts",
+        "sase.macro.loader.get_all_project_local_prompts",
         lambda: {},
     )
     monkeypatch.setattr(

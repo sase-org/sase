@@ -33,8 +33,8 @@ from sase.ace.tui.modals.xprompt_location_modal import (
     XPromptLocation,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.xprompt.naming import SaveResolution
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.naming import SaveResolution
+from sase.macro.save import SaveTargetFormat
 
 from ._prompt_save_xprompt_helpers import _SaveFlowApp
 

@@ -12,7 +12,7 @@ from sase.agent.pending_handoff import PLAN_PENDING_MARKER
 from sase.finalizers.controller import run_finalizers
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.llm_provider.types import InvokeResult
-from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
+from sase.macro.directives import PromptDirectives, extract_prompt_directives
 
 from .finalizers_protocol_harness_test_helpers import (
     dirty_repo,

@@ -122,7 +122,7 @@ _STALE_PHRASE_ALLOWLIST = {
 
 _STALE_PHRASE_SCOPES = (
     Path("docs"),
-    Path("src/sase/xprompts"),
+    Path("src/sase/macros"),
     Path("sase/memory"),
 )
 
@@ -289,7 +289,7 @@ def test_current_docs_skills_and_memory_avoid_stale_shell_phrases() -> None:
                     findings.append(f"{relative}: {phrase}")
         yml_paths = (
             sorted((_ROOT / scope).rglob("*.yml"))
-            if scope == Path("src/sase/xprompts")
+            if scope == Path("src/sase/macros")
             else []
         )
         for path in yml_paths:

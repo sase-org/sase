@@ -22,7 +22,7 @@ from tests.agent._launch_guard_helpers import (
     pin_cli_available,
     pin_default_codex,
 )
-from tests._xprompt_swarm_helpers import patch_catalog, xp
+from tests._macro_swarm_helpers import patch_catalog, xp
 
 
 def _candidate_prompts(prompt: str) -> list[str]:

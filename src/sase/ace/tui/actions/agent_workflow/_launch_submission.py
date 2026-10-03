@@ -30,8 +30,8 @@ from ._types import (
     current_prompt_session,
     invalidate_prompt_session,
 )
-from sase.xprompt._directive_scan import scan_dispatch_directive
-from sase.xprompt._exceptions import DirectiveError
+from sase.macro._directive_scan import scan_dispatch_directive
+from sase.macro._exceptions import DirectiveError
 
 if TYPE_CHECKING:
     from sase.ace.patch import Patch
@@ -261,7 +261,7 @@ class LaunchSubmissionMixin:
         launches return None and leave the toast unchanged.
         """
         from sase.core.agent_tab import AgentTabKey
-        from sase.xprompt.directive_edit import scan_tab_directive
+        from sase.macro.directive_edit import scan_tab_directive
 
         try:
             scan = scan_tab_directive(prompt)

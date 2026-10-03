@@ -120,11 +120,11 @@ def test_run_execution_loop_publishes_phase_timestamp(
             return_value="/tmp/test_chat.md",
         ),
         patch(
-            "sase.xprompt.models.create_anonymous_workflow",
+            "sase.macro.models.create_anonymous_workflow",
             return_value=anon_workflow,
         ),
         patch(
-            "sase.xprompt.workflow_runner.execute_workflow",
+            "sase.macro.workflow_runner.execute_workflow",
             side_effect=_capture_env,
         ),
         patch("sase.axe.run_agent_exec.was_killed", return_value=False),

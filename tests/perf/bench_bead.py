@@ -424,7 +424,7 @@ def _patched_bead_work_launch() -> Iterator[None]:
     """Patch the launcher/commit/push so ``handle_bead_work`` does no real work."""
     from unittest.mock import patch
 
-    from sase.xprompt.workflow_models import Workflow
+    from sase.macro.workflow_models import Workflow
 
     class _FakeResult:
         pid = 1
@@ -438,13 +438,13 @@ def _patched_bead_work_launch() -> Iterator[None]:
         )
         stack.enter_context(
             patch(
-                "sase.bead.xprompts.resolve_work_phase_xprompt",
+                "sase.bead.macros.resolve_work_phase_xprompt",
                 lambda project=None: work_phase,
             )
         )
         stack.enter_context(
             patch(
-                "sase.bead.xprompts.resolve_land_epic_xprompt",
+                "sase.bead.macros.resolve_land_epic_xprompt",
                 lambda project=None: land_epic,
             )
         )

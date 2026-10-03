@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.history.chat import build_fork_injected_history
-from sase.xprompt._disabled_regions import protect_disabled_regions
+from sase.macro._disabled_regions import protect_disabled_regions
 from tests._fork_history_helpers import write_chat
 
 

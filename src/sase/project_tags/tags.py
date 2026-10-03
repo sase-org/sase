@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from sase.xprompt.vcs_project_completion import VcsProjectTrigger
+    from sase.macro.vcs_project_completion import VcsProjectTrigger
 
 
 class ProjectTagError(RuntimeError):
@@ -114,7 +114,7 @@ def expand_project_tags_report(
 def _vcs_ref_span_ranges(text: str) -> list[tuple[int, int]]:
     """Return ``(start, end)`` ranges of VCS workflow refs in *text*."""
 
-    from sase.xprompt import find_vcs_workflow_tag_span
+    from sase.macro import find_vcs_workflow_tag_span
 
     ranges: list[tuple[int, int]] = []
     masked = text
@@ -131,12 +131,12 @@ def _alt_group_spans(text: str) -> list[tuple[int, int, list[str]]]:
     """Return ``(start, end, branches)`` for each top-level ``%{...}`` group.
 
     Groups come from the core alternation scan (via
-    :func:`sase.xprompt.alt_inspect.groups`), so literal zones are excluded,
+    :func:`sase.macro.alt_inspect.groups`), so literal zones are excluded,
     ``{...}`` brace text no longer closes the group early, and branches split
     at the core-reported top-level separators instead of every ``|``.
     """
 
-    from sase.xprompt.alt_inspect import groups as _alt_groups
+    from sase.macro.alt_inspect import groups as _alt_groups
 
     return [
         (group.start, group.end, list(group.branches)) for group in _alt_groups(text)
@@ -157,8 +157,8 @@ def _unit_ranges(text: str) -> list[tuple[int, int]]:
     """Return ``(start, end)`` ranges of top-level ``---`` launch units."""
 
     try:
-        from sase.xprompt._parsing_vcs_tags import split_frontmatter_block
-        from sase.xprompt._prompt_segments import split_prompt_segments
+        from sase.macro._parsing_vcs_tags import split_frontmatter_block
+        from sase.macro._prompt_segments import split_prompt_segments
     except ImportError:
         return [(0, len(text))]
     try:
@@ -398,7 +398,7 @@ def find_project_tag_trigger(text: str, cursor: int) -> VcsProjectTrigger | None
     Delegates to the core ``project_tag_trigger`` binding, which owns the
     left-boundary rule (start of text, whitespace, ``{``, or ``|``). Offsets
     are Python code-point offsets. Returns the shared
-    :class:`~sase.xprompt.vcs_project_completion.VcsProjectTrigger`, or
+    :class:`~sase.macro.vcs_project_completion.VcsProjectTrigger`, or
     ``None`` when no trigger applies.
     """
 
@@ -407,7 +407,7 @@ def find_project_tag_trigger(text: str, cursor: int) -> VcsProjectTrigger | None
     result = _trigger_binding()(text, cursor)
     if result is None:
         return None
-    from sase.xprompt.vcs_project_completion import VcsProjectTrigger
+    from sase.macro.vcs_project_completion import VcsProjectTrigger
 
     return VcsProjectTrigger(
         start=int(result["start"]),
@@ -457,7 +457,7 @@ def effective_vcs_workflow_tag(prompt: str) -> str | None:
             prompt = expand_project_tags(prompt)
         except Exception:  # noqa: BLE001 - fall back to the raw prompt.
             pass
-    from sase.xprompt import extract_vcs_workflow_tag
+    from sase.macro import extract_vcs_workflow_tag
 
     return extract_vcs_workflow_tag(prompt)
 
@@ -470,7 +470,7 @@ def effective_find_vcs_workflow_tag(prompt: str) -> str | None:
             prompt = expand_project_tags(prompt)
         except Exception:  # noqa: BLE001 - fall back to the raw prompt.
             pass
-    from sase.xprompt import find_vcs_workflow_tag
+    from sase.macro import find_vcs_workflow_tag
 
     return find_vcs_workflow_tag(prompt)
 
@@ -489,7 +489,7 @@ def effective_vcs_workflow_tag_with_catalog(
             prompt = expand_project_tags_with_catalog(prompt, catalog)
         except Exception:  # noqa: BLE001 - fall back to the raw prompt.
             pass
-    from sase.xprompt import extract_vcs_workflow_tag
+    from sase.macro import extract_vcs_workflow_tag
 
     return extract_vcs_workflow_tag(prompt)
 
@@ -504,7 +504,7 @@ def effective_find_vcs_workflow_tag_with_catalog(
             prompt = expand_project_tags_with_catalog(prompt, catalog)
         except Exception:  # noqa: BLE001 - fall back to the raw prompt.
             pass
-    from sase.xprompt import find_vcs_workflow_tag
+    from sase.macro import find_vcs_workflow_tag
 
     return find_vcs_workflow_tag(prompt)
 

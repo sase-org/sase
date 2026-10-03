@@ -20,7 +20,7 @@ from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.xprompt import alt_inspect
+from sase.macro import alt_inspect
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase

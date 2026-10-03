@@ -12,8 +12,8 @@ from sase.main.init_skills_handler import (
     get_skill_target_providers,
     handle_init_skills_command,
 )
-from sase.xprompt.loader import get_sase_package_skills_dir, load_skills_from_package
-from sase.xprompt.loader_parsing import parse_yaml_front_matter
+from sase.macro.loader import get_sase_package_skills_dir, load_skills_from_package
+from sase.macro.loader_parsing import parse_yaml_front_matter
 from tests.main.init_skills_handler_helpers import collapse_whitespace, make_args
 
 

@@ -16,7 +16,7 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     vcs_repo_completion_candidates,
 )
 from sase.workspace_provider import VcsRepoEntry
-from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
+from sase.macro.vcs_repo_completion import VcsRepoFetchResult
 
 from ._completion_helpers import CompletionTestApp
 

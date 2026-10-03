@@ -218,7 +218,7 @@ def _plan_launch_units(
     routing_context: ProviderRoutingContext,
 ) -> tuple[LaunchUnit, ...]:
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
+    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     submitted = canonicalize_project_aliases_in_prompt(prompt)
@@ -241,7 +241,7 @@ def _plan_launch_units_from_inputs(
     units: Sequence[LaunchUnitInput],
     routing_context: ProviderRoutingContext,
 ) -> tuple[LaunchUnit, ...]:
-    from sase.xprompt._parsing import (
+    from sase.macro._parsing import (
         normalize_default_vcs_workflow,
         normalize_default_vcs_workflow_segment,
     )
@@ -294,7 +294,7 @@ def _unit_from_segment(
 
 def _fanout_slots_for_segment(segment: str) -> list[Any]:
     from sase.core.agent_launch_facade import plan_agent_launch_fanout, plan_fake_fanout
-    from sase.xprompt.directives import plan_prompt_fanout_variants
+    from sase.macro.directives import plan_prompt_fanout_variants
 
     repeat_plan = plan_agent_launch_fanout(segment, launch_kind="repeat")
     if repeat_plan.slots:
@@ -302,7 +302,7 @@ def _fanout_slots_for_segment(segment: str) -> list[Any]:
 
     fanout_plan = plan_prompt_fanout_variants(segment)
     if fanout_plan is None and "#" in segment:
-        from sase.xprompt.processor import (
+        from sase.macro.processor import (
             LAUNCH_DEFERRED_XPROMPT_NAMES,
             process_xprompt_references,
             prompt_may_reference_xprompt,
@@ -326,7 +326,7 @@ def _resolve_candidate(
 ) -> tuple[LaunchUnitCandidate, tuple[str, ...]]:
     from sase.llm_provider.launch_selection import resolve_launch_selection
     from sase.llm_provider.registry import provider_routing_available
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     _cleaned, directives = extract_prompt_directives(prompt)
     selection = resolve_launch_selection(
@@ -449,7 +449,7 @@ def _format_provider_clause(
 
 def launch_unit_block_reason(unit: LaunchUnit) -> str:
     from sase.llm_provider.model_alias_resolution import model_alias_selector_details
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     candidate = next(
         (item for item in unit.candidates if item.blocked_by is not None),

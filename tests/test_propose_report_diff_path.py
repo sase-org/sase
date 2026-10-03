@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 
 _PROPOSE_YML = (
-    Path(__file__).resolve().parents[1] / "src" / "sase" / "xprompts" / "propose.yml"
+    Path(__file__).resolve().parents[1] / "src" / "sase" / "macros" / "propose.yml"
 )
 
 

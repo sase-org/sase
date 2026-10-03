@@ -2,13 +2,13 @@
 
 from unittest.mock import patch
 
-from sase.xprompt._trace import (
+from sase.macro._trace import (
     ExpansionTrace,
     format_circular_ref_diagnostic,
     format_trace,
 )
-from sase.xprompt.models import XPrompt
-from sase.xprompt.processor import process_xprompt_references
+from sase.macro.models import XPrompt
+from sase.macro.processor import process_xprompt_references
 
 
 def _make_xprompts(snippets: dict[str, str]) -> dict[str, XPrompt]:
@@ -22,7 +22,7 @@ class TestExpansionTrace:
     def test_trace_records_single_expansion(self) -> None:
         snippets = _make_xprompts({"greet": "Hello world"})
         trace = ExpansionTrace()
-        with patch("sase.xprompt.processor.get_all_xprompts", return_value=snippets):
+        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
             result = process_xprompt_references("#greet", trace=trace)
 
         assert result == "Hello world"
@@ -35,7 +35,7 @@ class TestExpansionTrace:
     def test_trace_records_multiple_expansions_same_iteration(self) -> None:
         snippets = _make_xprompts({"a": "alpha", "b": "beta"})
         trace = ExpansionTrace()
-        with patch("sase.xprompt.processor.get_all_xprompts", return_value=snippets):
+        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
             result = process_xprompt_references("#a and #b", trace=trace)
 
         assert result == "alpha and beta"
@@ -46,7 +46,7 @@ class TestExpansionTrace:
     def test_trace_records_recursive_expansion(self) -> None:
         snippets = _make_xprompts({"outer": "begin #inner end", "inner": "CORE"})
         trace = ExpansionTrace()
-        with patch("sase.xprompt.processor.get_all_xprompts", return_value=snippets):
+        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
             result = process_xprompt_references("#outer", trace=trace)
 
         assert result == "begin CORE end"
@@ -60,7 +60,7 @@ class TestExpansionTrace:
     def test_trace_captures_args(self) -> None:
         snippets = _make_xprompts({"greet": "Hello {1}"})
         trace = ExpansionTrace()
-        with patch("sase.xprompt.processor.get_all_xprompts", return_value=snippets):
+        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
             result = process_xprompt_references("#greet:world", trace=trace)
 
         assert result == "Hello world"
@@ -69,13 +69,13 @@ class TestExpansionTrace:
     def test_trace_none_does_not_error(self) -> None:
         """Passing trace=None (default) should work without errors."""
         snippets = _make_xprompts({"x": "expanded"})
-        with patch("sase.xprompt.processor.get_all_xprompts", return_value=snippets):
+        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
             result = process_xprompt_references("#x")
         assert result == "expanded"
 
     def test_no_expansions_trace(self) -> None:
         trace = ExpansionTrace()
-        with patch("sase.xprompt.processor.get_all_xprompts", return_value={}):
+        with patch("sase.macro.processor.get_all_xprompts", return_value={}):
             process_xprompt_references("no refs here", trace=trace)
         assert len(trace.records) == 0
         assert trace.total_iterations == 0

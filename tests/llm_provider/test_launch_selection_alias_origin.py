@@ -11,7 +11,7 @@ from sase.llm_provider.launch_selection import (
     LaunchSelection,
     resolve_launch_selection,
 )
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 

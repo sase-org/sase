@@ -15,8 +15,8 @@ from sase.core.agent_launch_wire import (
     launch_plan_from_dict,
 )
 from sase.feature_flags import override_flags
-from sase.xprompt.directives import DirectiveError, extract_prompt_directives
-from sase.xprompt.hold_directive import (
+from sase.macro.directives import DirectiveError, extract_prompt_directives
+from sase.macro.hold_directive import (
     collect_hold_fields,
     format_hold_directive,
     hold_fields_to_selectors,

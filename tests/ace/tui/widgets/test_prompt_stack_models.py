@@ -13,8 +13,8 @@ from sase.ace.tui.widgets.prompt_stack import (
     XPromptBinding,
     split_frontmatter,
 )
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.models import InputArg, InputType
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 from tests.ace.tui.widgets._prompt_stack_helpers import (
     mini_xprompt_target as _mini_xprompt_target,
     snippet_target as _snippet_target,
@@ -227,8 +227,8 @@ def test_binding_uses_chezmoi_source_for_fingerprint_and_staleness(
     read_path.write_text("applied\n", encoding="utf-8")
     write_path.write_text("body\n", encoding="utf-8")
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
-    monkeypatch.setattr("sase.xprompt.write_targets.CHEZMOI_HOME", source_root)
-    monkeypatch.setattr("sase.xprompt.write_targets.get_use_chezmoi", lambda: True)
+    monkeypatch.setattr("sase.macro.write_targets.CHEZMOI_HOME", source_root)
+    monkeypatch.setattr("sase.macro.write_targets.get_use_chezmoi", lambda: True)
 
     binding = XPromptBinding.for_file(read_path, reference="#review")
     state = PromptStackState.from_text("body\n")

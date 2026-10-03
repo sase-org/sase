@@ -5,12 +5,12 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-from sase.xprompt._parsing import (
+from sase.macro._parsing import (
     XPromptReference,
     XPromptReferenceArgKind,
     iter_xprompt_references,
 )
-from sase.xprompt._literal_zones import literal_zone_ranges
+from sase.macro._literal_zones import literal_zone_ranges
 
 from ._xprompt_arg_assist_inputs import required_inputs
 from ._xprompt_arg_assist_models import (

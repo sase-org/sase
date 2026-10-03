@@ -31,7 +31,7 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
         return [agent_launch_wire_to_json_dict(item) for item in record]
     if isinstance(record, dict):
         return {str(k): agent_launch_wire_to_json_dict(v) for k, v in record.items()}
-    from sase.xprompt.code_value import CodeValue
+    from sase.macro.code_value import CodeValue
 
     if isinstance(record, CodeValue):
         data: dict[str, Any] = {

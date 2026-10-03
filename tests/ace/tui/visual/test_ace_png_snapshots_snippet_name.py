@@ -11,7 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.save_location_choices import snippet_location_choices
 from sase.ace.tui.modals.save_location_picker_modal import SaveLocationPickerModal
 from sase.ace.tui.modals.snippet_name_modal import SnippetNameModal
-from sase.xprompt.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

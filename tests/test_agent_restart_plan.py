@@ -351,7 +351,7 @@ def test_plan_injects_forced_id_for_plain_prompt(tmp_path: Path) -> None:
     assert "injected" in plan.preview.name_reuse
     assert "%id:!061" in plan.rewritten_prompt
     assert plan.rewritten_prompt.startswith("%id:!061")
-    from sase.xprompt import extract_vcs_workflow_tag
+    from sase.macro import extract_vcs_workflow_tag
 
     tag = extract_vcs_workflow_tag(plan.rewritten_prompt)
     assert tag is not None

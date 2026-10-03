@@ -21,7 +21,7 @@ from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.xprompt._literal_zones import code_literal_ranges
+from sase.macro._literal_zones import code_literal_ranges
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase

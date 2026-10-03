@@ -132,7 +132,7 @@ def format_queue_capacity_badge_value(
         return str(capacity_int) if explicit else None
     if multiplier is None:
         return None
-    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+    from sase.macro.queue_directive import format_queue_capacity_multiplier
 
     return format_queue_capacity_multiplier(multiplier)
 

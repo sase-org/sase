@@ -35,7 +35,7 @@ from sase.bead.work import (
 if TYPE_CHECKING:
     from sase.agent.clan_membership import ClanMembershipPlan
     from sase.agent.agent_session_attach import AgentSessionAttachLaunchPlan
-    from sase.xprompt.directives import PromptDirectives
+    from sase.macro.directives import PromptDirectives
 
 
 EPIC_WORK_ENV_METADATA_NAMES = (

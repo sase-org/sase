@@ -25,7 +25,7 @@ from sase.llm_provider.model_alias_policy import (
     implicit_alias_targets,
 )
 from sase.llm_provider.types import LLMInvocationOptions
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED, split_model_effort
+from sase.macro.effort import EFFORT_LEVELS_ORDERED, split_model_effort
 from tests._model_alias_defaults_fixture import frozen_selector_member
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 

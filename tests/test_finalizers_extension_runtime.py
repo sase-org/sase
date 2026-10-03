@@ -31,7 +31,7 @@ from sase.finalizers.providers import (
 from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.llm_provider.types import InvokeResult
 from sase.main.parser import create_parser, default_list_delegation_notice
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 
 def _config(

@@ -229,7 +229,7 @@ def test_compose_coder_prompt_agent_session() -> None:
 
 def test_compose_coder_prompt_session_directive_parses_without_legacy_syntax() -> None:
     from sase.feature_flags import override_flags
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     placement = CoderPlacement(mode="session", parent="bob", agent_session="bob")
     prompt = compose_coder_prompt(

@@ -32,7 +32,7 @@ def prepare_prompt(
     preserved_metadata: dict[str, Any],
 ) -> PreparedPrompt:
     """Expand xprompts and extract directives with clan membership checks."""
-    from sase.xprompt import (
+    from sase.macro import (
         LAUNCH_DEFERRED_XPROMPT_NAMES,
         process_xprompt_references,
     )
@@ -70,7 +70,7 @@ def prepare_prompt(
         )
         expanded_for_directives = batch_predecessor_binding.prompt
 
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     _, directives = extract_prompt_directives(expanded_for_directives)
     bead_id = directives.bead_id

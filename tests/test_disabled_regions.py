@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from sase.xprompt._disabled_regions import (
+from sase.macro._disabled_regions import (
     _escape_disabled_region_markers,
     ensure_disabled_region_at_line_start,
     protect_disabled_regions,
@@ -169,15 +169,15 @@ class TestStripDisabledRegions:
 class TestProcessXpromptReferencesDisabledRegions:
     """Integration: process_xprompt_references skips disabled region content."""
 
-    @patch("sase.xprompt.processor.get_all_xprompts")
+    @patch("sase.macro.processor.get_all_xprompts")
     def test_expansion_ensures_disabled_marker_at_line_start(
         self,
         mock_get_xprompts: MagicMock,
     ) -> None:
         """When xprompt expands to content starting with %xprompts_enabled:false
         and is mid-line (after an unexpanded ref), a newline is prepended."""
-        from sase.xprompt.models import XPrompt
-        from sase.xprompt.processor import process_xprompt_references
+        from sase.macro.models import XPrompt
+        from sase.macro.processor import process_xprompt_references
 
         mock_get_xprompts.return_value = {
             "fork_test": XPrompt(
@@ -209,7 +209,7 @@ class TestEmbeddedWorkflowExpansionDisabledRegions:
     reference and expanded.
     """
 
-    @patch("sase.xprompt.loader.get_all_workflows")
+    @patch("sase.macro.loader.get_all_workflows")
     def test_prose_mention_inside_disabled_region_is_not_expanded(
         self,
         mock_get_workflows: MagicMock,
@@ -217,7 +217,7 @@ class TestEmbeddedWorkflowExpansionDisabledRegions:
         from sase.main.query_handler._embedded_workflows import (
             expand_embedded_workflows_in_query,
         )
-        from sase.xprompt.workflow_models import Workflow, WorkflowStep
+        from sase.macro.workflow_models import Workflow, WorkflowStep
 
         workflow = Workflow(
             name="fork",
@@ -259,7 +259,7 @@ class TestPreprocessPromptLateDisabledRegions:
         "sase.file_references.strip_html_comments",
         side_effect=lambda x: x,
     )
-    @patch("sase.xprompt.is_jinja2_template", return_value=False)
+    @patch("sase.macro.is_jinja2_template", return_value=False)
     @patch(
         "sase.file_references.validate_file_references",
     )
@@ -303,7 +303,7 @@ class TestPreprocessPromptLateDisabledRegions:
         "sase.file_references.strip_html_comments",
         side_effect=lambda x: x,
     )
-    @patch("sase.xprompt.is_jinja2_template", return_value=False)
+    @patch("sase.macro.is_jinja2_template", return_value=False)
     def test_markers_stripped_when_preceded_by_unexpanded_ref(
         self,
         _mock_jinja: MagicMock,
@@ -344,7 +344,7 @@ class TestPreprocessPromptLateDisabledRegions:
         "sase.file_references.strip_html_comments",
         side_effect=lambda x: x,
     )
-    @patch("sase.xprompt.is_jinja2_template", return_value=False)
+    @patch("sase.macro.is_jinja2_template", return_value=False)
     def test_disabled_region_content_not_command_substituted(
         self,
         _mock_jinja: MagicMock,
@@ -382,7 +382,7 @@ class TestPreprocessPromptLateDisabledRegions:
         "sase.file_references.strip_html_comments",
         side_effect=lambda x: x,
     )
-    @patch("sase.xprompt.is_jinja2_template", return_value=False)
+    @patch("sase.macro.is_jinja2_template", return_value=False)
     def test_early_then_late_preserves_disabled_region_protection(
         self,
         _mock_jinja: MagicMock,

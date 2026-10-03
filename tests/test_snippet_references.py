@@ -2,8 +2,8 @@
 
 from unittest.mock import patch
 
-from sase.xprompt.models import XPrompt
-from sase.xprompt.processor import (
+from sase.macro.models import XPrompt
+from sase.macro.processor import (
     LAUNCH_DEFERRED_XPROMPT_NAMES,
     process_xprompt_references,
     prompt_may_reference_xprompt,
@@ -45,7 +45,7 @@ def test_prompt_may_reference_xprompt_true_for_xprompt_candidate_forms() -> None
 
 
 def test_process_xprompt_references_plain_text_skips_catalog_load() -> None:
-    with patch("sase.xprompt.processor.get_all_xprompts") as get_all:
+    with patch("sase.macro.processor.get_all_xprompts") as get_all:
         result = process_xprompt_references("plain text with no refs")
 
     assert result == "plain text with no refs"
@@ -55,7 +55,7 @@ def test_process_xprompt_references_plain_text_skips_catalog_load() -> None:
 def test_process_xprompt_references_vcs_only_tag_skips_catalog_load() -> None:
     with (
         patch("sase.config.load_merged_config") as load_config,
-        patch("sase.xprompt.processor.get_all_xprompts") as get_all,
+        patch("sase.macro.processor.get_all_xprompts") as get_all,
     ):
         result = process_xprompt_references("#git:master do thing")
 
@@ -66,7 +66,7 @@ def test_process_xprompt_references_vcs_only_tag_skips_catalog_load() -> None:
 
 def test_process_xprompt_references_no_snippets_defined() -> None:
     """Test with # but no snippets defined returns unchanged."""
-    with patch("sase.xprompt.processor.get_all_xprompts", return_value={}):
+    with patch("sase.macro.processor.get_all_xprompts", return_value={}):
         result = process_xprompt_references("Using #foo here")
     assert result == "Using #foo here"
 
@@ -78,7 +78,7 @@ def test_process_xprompt_references_defers_fork_and_expands_other_refs() -> None
         "wrapper": "#fork:builder wrapped",
     }
     with patch(
-        "sase.xprompt.processor.get_all_xprompts",
+        "sase.macro.processor.get_all_xprompts",
         return_value=_make_xprompts(snippets),
     ):
         result = process_xprompt_references(
@@ -93,7 +93,7 @@ def test_process_xprompt_references_with_optional_arg_using_default() -> None:
     """Test snippet with optional arg using default value."""
     snippets = {"opt": "Value is {1:DEFAULT}"}
     with patch(
-        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+        "sase.macro.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#opt()")
     assert result == "Value is DEFAULT"
@@ -109,7 +109,7 @@ def test_process_xprompt_heading_content_gets_newline_before_inline_text() -> No
     """Test that xprompt ending with heading gets newline when followed by inline text."""
     snippets = {"section": "# New Query"}
     with patch(
-        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+        "sase.macro.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#section Fix this bug")
     # The heading should be separated from the following text by a blank line
@@ -121,7 +121,7 @@ def test_process_xprompt_heading_content_no_extra_newline_at_end() -> None:
     """Test that xprompt ending with heading at end of prompt gets no extra newline."""
     snippets = {"section": "# New Query"}
     with patch(
-        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+        "sase.macro.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#section")
     # No trailing newline when nothing follows
@@ -132,7 +132,7 @@ def test_process_xprompt_double_underscore_resolves_as_slash() -> None:
     """Test that #foo__bar expands the xprompt registered as foo/bar."""
     snippets = {"foo/bar": "expanded content"}
     with patch(
-        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+        "sase.macro.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#foo__bar")
     assert result == "expanded content"
@@ -142,7 +142,7 @@ def test_process_xprompt_double_underscore_multi_level() -> None:
     """Test that #a__b__c expands the xprompt registered as a/b/c."""
     snippets = {"a/b/c": "deep content"}
     with patch(
-        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+        "sase.macro.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#a__b__c")
     assert result == "deep content"
@@ -152,7 +152,7 @@ def test_process_xprompt_double_underscore_with_args() -> None:
     """Test that #foo__bar(val) expands with args."""
     snippets = {"foo/bar": "got {1}"}
     with patch(
-        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+        "sase.macro.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#foo__bar(hello)")
     assert result == "got hello"
@@ -162,7 +162,7 @@ def test_process_xprompt_single_underscore_unchanged() -> None:
     """Test that single underscores are NOT converted to slashes."""
     snippets = {"foo_bar": "single underscore content"}
     with patch(
-        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+        "sase.macro.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#foo_bar")
     assert result == "single underscore content"
@@ -172,7 +172,7 @@ def test_process_xprompt_heading_content_no_extra_newline_before_newline() -> No
     """Test that xprompt ending with heading before a newline gets no extra newline."""
     snippets = {"section": "# New Query"}
     with patch(
-        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+        "sase.macro.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#section\nFix this bug")
     # No extra newline added since the next char is already a newline

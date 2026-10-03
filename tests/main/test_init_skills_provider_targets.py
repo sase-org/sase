@@ -12,7 +12,7 @@ from sase.main.init_skills_handler import (
     _get_target_paths,
     handle_init_skills_command,
 )
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args
 
 
@@ -98,7 +98,7 @@ def test_config_defined_skill_is_rejected_with_a_migration_diagnostic(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A config entry can never be a skill: it has no file to generate from."""
-    from sase.xprompt.loader_parsing import parse_xprompt_entries
+    from sase.macro.loader_parsing import parse_xprompt_entries
 
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(

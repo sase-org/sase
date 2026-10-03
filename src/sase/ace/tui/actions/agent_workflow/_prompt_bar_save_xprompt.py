@@ -8,10 +8,10 @@ from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.widgets._local_xprompt_conversion import (
     convert_placeholders_to_inputs,
 )
-from sase.xprompt.jinja_assist import JinjaScope
-from sase.xprompt.jinja_inspect import undeclared_variables
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat, SkillPlacementError
+from sase.macro.jinja_assist import JinjaScope
+from sase.macro.jinja_inspect import undeclared_variables
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import SaveTargetFormat, SkillPlacementError
 
 from . import _prompt_bar_save_xprompt_mini_io as _mini_xprompt_io
 from ._prompt_bar_save_xprompt_git import (
@@ -112,8 +112,8 @@ class PromptBarSaveXpromptMixin(
             load_unified_save_locations,
             load_unified_snippet_locations,
         )
-        from sase.xprompt.save_state import load_last_used_locations
-        from sase.xprompt.snippet_targets import resolve_snippet_save_target
+        from sase.macro.save_state import load_last_used_locations
+        from sase.macro.snippet_targets import resolve_snippet_save_target
 
         project = (
             self._prompt_context.project_name
@@ -246,7 +246,7 @@ class PromptBarSaveXpromptMixin(
 
         from ...widgets import PromptInputBar
         from ...widgets.prompt_stack import SourceFingerprint, XPromptBinding
-        from sase.xprompt.save import save_markdown_document
+        from sase.macro.save import save_markdown_document
 
         if not isinstance(bar, PromptInputBar) or not isinstance(
             binding, XPromptBinding
@@ -292,7 +292,7 @@ class PromptBarSaveXpromptMixin(
         self.notify(f"Wrote xprompt '{binding.name}'")  # type: ignore[attr-defined]
         from pathlib import Path
 
-        from sase.xprompt.write_targets import (
+        from sase.macro.write_targets import (
             XPromptWriteTarget,
             classify_written_file,
         )
@@ -319,7 +319,7 @@ class PromptBarSaveXpromptMixin(
         import asyncio
         from pathlib import Path
 
-        from sase.xprompt.save import load_config_xprompt_markdown
+        from sase.macro.save import load_config_xprompt_markdown
 
         from ...widgets import PromptInputBar
         from ...widgets.prompt_stack import XPromptBinding
@@ -382,8 +382,8 @@ class PromptBarSaveXpromptMixin(
     ) -> None:
         import asyncio
 
-        from sase.xprompt.save import build_markdown_xprompt
-        from sase.xprompt.save_state import save_last_used_location
+        from sase.macro.save import build_markdown_xprompt
+        from sase.macro.save_state import save_last_used_location
 
         source_markdown = (
             build_markdown_xprompt(target.frontmatter, body)
@@ -411,7 +411,7 @@ class PromptBarSaveXpromptMixin(
             f"{verb} xprompt '{target.name}'"
         )
         self._bind_saved_stack(origin_bar, target, source_markdown=source_markdown)
-        from sase.xprompt.write_targets import (
+        from sase.macro.write_targets import (
             classify_written_file,
             write_target_for_written_path,
         )

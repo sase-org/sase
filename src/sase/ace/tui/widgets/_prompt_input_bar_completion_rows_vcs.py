@@ -12,7 +12,7 @@ from sase.ace.tui.widgets.vcs_repo_completion import VcsRepoCompletionPlaceholde
 from sase.project_accents import PROJECT_ACCENTS
 from sase.project_display_names import project_display_name_for
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
-from sase.xprompt.vcs_project_completion import VcsProjectEntry
+from sase.macro.vcs_project_completion import VcsProjectEntry
 
 
 def _project_tag_accent(entry: VcsProjectEntry) -> str | None:

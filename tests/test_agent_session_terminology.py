@@ -47,7 +47,7 @@ _FAMILY_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/main/parser_gate.py"),
     Path("src/sase/notification_gates/model_request.py"),
     Path("src/sase/notification_gates/model_turn.py"),
-    Path("src/sase/xprompt/_directive_edit_identity.py"),
+    Path("src/sase/macro/_directive_edit_identity.py"),
     Path("src/sase/config/sase.schema.json"),
     # Legacy durable-data and pre-contract wire readers.
     Path("src/sase/core/agent_scan_wire_conversion.py"),
@@ -85,8 +85,8 @@ _FAMILY_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/sdd/hosted_links.py"),
     Path("src/sase/agents_sync/rendering.py"),
     # Removed legacy workflow kind: rejected with a migration error.
-    Path("src/sase/xprompt/workflow_loader_definition.py"),
-    Path("src/sase/xprompt/workflow_loader.py"),
+    Path("src/sase/macro/workflow_loader_definition.py"),
+    Path("src/sase/macro/workflow_loader.py"),
 }
 
 _STALE_PHRASES = (
@@ -112,7 +112,7 @@ _STALE_PHRASE_ALLOWLIST = {
 
 _STALE_PHRASE_SCOPES = (
     Path("docs"),
-    Path("src/sase/xprompts"),
+    Path("src/sase/macros"),
     Path("sase/memory"),
 )
 
@@ -154,7 +154,7 @@ def test_current_docs_skills_and_memory_avoid_stale_family_phrases() -> None:
                     findings.append(f"{relative}: {phrase}")
         yml_paths = (
             sorted((_ROOT / scope).rglob("*.yml"))
-            if scope == Path("src/sase/xprompts")
+            if scope == Path("src/sase/macros")
             else []
         )
         for path in yml_paths:

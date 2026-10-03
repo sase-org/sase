@@ -16,7 +16,7 @@ from sase.axe.chop_agents import (
 )
 from sase.detach_scope import _DetachScopeCommand
 from sase.running_field import ClaimResult
-from sase.xprompt.used_xprompts import SASE_LAUNCH_SWARM_XPROMPTS
+from sase.macro.used_macros import SASE_LAUNCH_SWARM_XPROMPTS
 
 from tests._axe_chop_agents_helpers import _spawn_agent_for_env_test
 

@@ -24,7 +24,7 @@ from sase.llm_provider.model_alias_policy import (
     role_alias_descriptions,
     role_alias_fallbacks,
 )
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 from tests._model_alias_defaults_fixture import (
     FROZEN_ALIAS_SHAPE,
     FROZEN_DESCRIPTIONS,

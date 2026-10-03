@@ -14,7 +14,7 @@ from sase.integrations.editor_helpers import handle_editor_helper_bridge
 def _empty_editor_helper_bead_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep helper-bridge tests off the live bead stores unless they opt in."""
     monkeypatch.setattr(
-        "sase.xprompt.project_identity.get_known_project_workspaces",
+        "sase.macro.project_identity.get_known_project_workspaces",
         lambda: {},
     )
 

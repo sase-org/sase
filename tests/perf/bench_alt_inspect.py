@@ -68,7 +68,7 @@ def measure_tokenize_ms(text: str, *, runs: int, warmup: int) -> list[float]:
     Each keystroke produces a new text, so the budget path is a cache miss:
     the memo cache is cleared before every sample.
     """
-    from sase.xprompt import alt_inspect
+    from sase.macro import alt_inspect
 
     cache = getattr(alt_inspect, "_cached_records", None)
 

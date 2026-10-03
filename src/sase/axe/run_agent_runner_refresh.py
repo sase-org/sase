@@ -108,7 +108,7 @@ def refresh_runner_code_after_wait(
     The one-shot guard is removed on the refreshed pass before agent execution,
     preventing nested agents from inheriting runner-internal refresh state.
     """
-    from sase.agent.multi_prompt_xprompts import read_local_macros_path
+    from sase.agent.multi_prompt_macros import read_local_macros_path
 
     already_refreshed = os.environ.pop(RUNNER_CODE_REFRESHED_ENV, None) is not None
     if already_refreshed or not blocking_wait_occurred or killed:
@@ -140,7 +140,7 @@ def refresh_runner_code_after_wait(
     new_local_xprompts_path: str | None = None
     if local_xprompts:
         try:
-            from sase.agent.multi_prompt_xprompts import (
+            from sase.agent.multi_prompt_macros import (
                 serialize_local_xprompts,
                 set_local_macros_path,
             )
@@ -148,7 +148,7 @@ def refresh_runner_code_after_wait(
             new_local_xprompts_path = serialize_local_xprompts(dict(local_xprompts))
             set_local_macros_path(os.environ, new_local_xprompts_path)
         except Exception as exc:
-            from sase.agent.multi_prompt_xprompts import restore_local_macros_path
+            from sase.agent.multi_prompt_macros import restore_local_macros_path
 
             if new_local_xprompts_path is not None:
                 try:
@@ -188,7 +188,7 @@ def refresh_runner_code_after_wait(
             else:
                 os.environ[_PLANNED_AGENT_NAME_ENV] = previous_planned_name
         if new_local_xprompts_path is not None:
-            from sase.agent.multi_prompt_xprompts import restore_local_macros_path
+            from sase.agent.multi_prompt_macros import restore_local_macros_path
 
             restore_local_macros_path(os.environ, previous_local_xprompts)
             try:

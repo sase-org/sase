@@ -11,8 +11,8 @@ from sase.ace.tui.widgets._frontmatter_panel_cell_editing import (
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.xprompt.frontmatter_schema import FrontmatterFieldKind
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.frontmatter_schema import FrontmatterFieldKind
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 _UNDO_LIMIT = 50
 

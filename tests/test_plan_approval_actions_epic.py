@@ -21,7 +21,7 @@ from sase.plan_approval_actions import (
     execute_plan_approval_response,
 )
 from sase.sdd._repository_transaction import SddRepositoryHealthError
-from sase.xprompt.directive_edit import PromptWaitDirective
+from sase.macro.directive_edit import PromptWaitDirective
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
 

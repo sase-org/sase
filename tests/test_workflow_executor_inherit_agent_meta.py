@@ -9,8 +9,8 @@ from typing import Any
 import pytest
 
 from sase.llm_provider.launch_selection import LaunchSelection
-from sase.xprompt.directives import PromptDirectives
-from sase.xprompt.workflow_executor_steps_prompt_launch import (
+from sase.macro.directives import PromptDirectives
+from sase.macro.workflow_executor_steps_prompt_launch import (
     _launch_selection_from_agent_meta,
     resolve_prompt_step_launch_selection,
 )

@@ -360,7 +360,7 @@ def _workspace_launch_tag(metadata: Mapping[str, Any]) -> str | None:
 
 
 def _qualify_prompt_with_workspace(prompt: str, workspace_tag: str) -> str:
-    from sase.xprompt._parsing_vcs_tags import (
+    from sase.macro._parsing_vcs_tags import (
         extract_vcs_workflow_tag,
         find_vcs_workflow_tag_prepend_offset,
         replace_vcs_workflow_tags,
@@ -387,7 +387,7 @@ def _add_named_wait_to_prompt(prompt: str, wait_name: str) -> str:
 
 
 def _after_workspace_line_index(lines: list[str]) -> int:
-    from sase.xprompt._parsing_vcs_tags import extract_vcs_workflow_tag
+    from sase.macro._parsing_vcs_tags import extract_vcs_workflow_tag
 
     for index, line in enumerate(lines):
         if extract_vcs_workflow_tag(line) is not None:

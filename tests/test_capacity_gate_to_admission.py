@@ -17,9 +17,9 @@ from sase.bead.work_plan import _PhaseAssignment as PhaseAssignment
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.service import create_gate
 from sase.plan_gate import build_plan_approval_gate_spec, translate_plan_gate_response
-from sase.xprompt.directives import extract_prompt_directives
-from sase.xprompt.processor import process_xprompt_references
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.directives import extract_prompt_directives
+from sase.macro.processor import process_xprompt_references
+from sase.macro.workflow_models import Workflow
 from tests._plan_gate_fixtures import (
     plan_gate_home,  # noqa: F401 (registers the gate_home fixture)
     write_plan,

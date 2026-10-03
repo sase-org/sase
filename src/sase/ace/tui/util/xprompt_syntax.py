@@ -13,9 +13,9 @@ from rich.style import StyleType
 from rich.syntax import Syntax
 from rich.text import Text
 
-from sase.xprompt import alt_inspect, xprompt_inspect
-from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
-from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog
+from sase.macro import alt_inspect, macro_inspect
+from sase.macro.glossary_catalog import EditorGlossaryCatalog
+from sase.macro.repo_mention_catalog import EditorRepoMentionCatalog
 
 from .artifact_ref_syntax import (
     ArtifactRefStylePalette,
@@ -133,7 +133,7 @@ def xprompt_overlay_spans(
 
     overlays = [
         (XPROMPT_TOKEN_STYLES[span.kind], span.start, span.end)
-        for span in xprompt_inspect.tokenize(source, known_skills=known_skills)
+        for span in macro_inspect.tokenize(source, known_skills=known_skills)
         if span.kind in XPROMPT_TOKEN_STYLES
     ]
     overlays.extend(
@@ -206,7 +206,7 @@ def _project_tag_overlays_for_source(source: str) -> list[tuple[str, int, int]]:
     try:
         tag_spans = [
             span
-            for span in xprompt_inspect.tokenize(source)
+            for span in macro_inspect.tokenize(source)
             if span.kind in ("project_tag", "project_tag_unknown")
         ]
         return [

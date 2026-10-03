@@ -10,14 +10,14 @@ import pytest
 
 from sase.axe.run_agent_runner_setup import expand_deferred_launch_xprompts
 from sase.llm_provider.preprocessing import preprocess_prompt_late
-from sase.xprompt._parsing import inherit_vcs_workflow_tag
-from sase.xprompt.loader import get_sase_package_xprompts_dir
-from sase.xprompt.models import UNSET
-from sase.xprompt.tags import XPromptTag
-from sase.xprompt.workflow_executor import WorkflowExecutor
-from sase.xprompt.workflow_loader import _load_workflow_from_file
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
-from sase.xprompt.workflow_validator import validate_workflow
+from sase.macro._parsing import inherit_vcs_workflow_tag
+from sase.macro.loader import get_sase_package_xprompts_dir
+from sase.macro.models import UNSET
+from sase.macro.tags import XPromptTag
+from sase.macro.workflow_executor import WorkflowExecutor
+from sase.macro.workflow_loader import _load_workflow_from_file
+from sase.macro.workflow_models import Workflow, WorkflowStep
+from sase.macro.workflow_validator import validate_workflow
 from tests._prettier_fakes import fake_prettier_missing
 
 
@@ -94,7 +94,7 @@ def test_embedded_bare_resume_loads_resolved_chat_path(
     executor = WorkflowExecutor(parent_workflow, {}, str(artifacts_dir))
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"fork": fork_workflow},
     ):
         expanded_prompt, embedded_workflows, pre_step_count = (
@@ -148,7 +148,7 @@ def test_embedded_multi_parent_fork_renders_provenance_envelope(
     executor = WorkflowExecutor(parent_workflow, {}, str(artifacts_dir))
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"fork": fork_workflow},
     ):
         expanded_prompt, embedded_workflows, pre_step_count = (
@@ -197,7 +197,7 @@ def test_embedded_single_parent_fork_keeps_legacy_envelope(
     executor = WorkflowExecutor(parent_workflow, {}, str(artifacts_dir))
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"fork": fork_workflow},
     ):
         expanded_prompt, _, _ = executor._expand_embedded_workflows_in_prompt(
@@ -254,7 +254,7 @@ def test_embedded_clan_fork_injects_prompts_without_member_replies(
     executor = WorkflowExecutor(parent_workflow, {}, str(artifacts_dir))
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"fork": fork_workflow},
     ):
         expanded_prompt, _, _ = executor._expand_embedded_workflows_in_prompt(
@@ -298,7 +298,7 @@ def test_completed_clan_fork_expands_during_post_wait_runner_setup(
     artifacts_dir = tmp_path / "runner-artifacts"
     artifacts_dir.mkdir()
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"fork": _load_fork_workflow()},
     ):
         expanded = expand_deferred_launch_xprompts(
@@ -334,10 +334,10 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
     artifacts_dir.mkdir()
     with (
         patch(
-            "sase.xprompt.loader.get_all_workflows",
+            "sase.macro.loader.get_all_workflows",
             return_value={"fork": _load_fork_workflow()},
         ),
-        patch("sase.xprompt.used_xprompts.write_used_xprompts"),
+        patch("sase.macro.used_macros.write_used_xprompts"),
     ):
         expanded_fork = expand_deferred_launch_xprompts(
             "#gh:sase #fork:builder Continue the work",
@@ -358,7 +358,7 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
     )
     executor = WorkflowExecutor(parent_workflow, {}, str(artifacts_dir))
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"gh": workspace_workflow},
     ):
         without_workspace, _, _ = executor._expand_embedded_workflows_in_prompt(
@@ -411,10 +411,10 @@ def test_inherited_vcs_tag_is_not_injected_into_fork_history(
     artifacts_dir.mkdir()
     with (
         patch(
-            "sase.xprompt.loader.get_all_workflows",
+            "sase.macro.loader.get_all_workflows",
             return_value={"fork": _load_fork_workflow()},
         ),
-        patch("sase.xprompt.used_xprompts.write_used_xprompts"),
+        patch("sase.macro.used_macros.write_used_xprompts"),
     ):
         expanded_fork = expand_deferred_launch_xprompts(
             "#gh:sase #fork:builder Continue the work",
@@ -435,7 +435,7 @@ def test_inherited_vcs_tag_is_not_injected_into_fork_history(
     )
     tagged = inherit_vcs_workflow_tag(expanded_fork, executor.inherited_vcs_tag)
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"gh": workspace_workflow},
     ):
         without_workspace, _, _ = executor._expand_embedded_workflows_in_prompt(tagged)
@@ -486,7 +486,7 @@ def test_deferred_launch_ignores_bare_fork_prose_inside_disabled_region(
     )
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"fork": _load_fork_workflow()},
     ):
         expanded = expand_deferred_launch_xprompts(prompt, str(artifacts_dir))
@@ -557,7 +557,7 @@ def test_embedded_agent_session_fork_injects_each_completed_member_reply_once(
     executor = WorkflowExecutor(parent_workflow, {}, str(artifacts_dir))
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"fork": fork_workflow},
     ):
         expanded_prompt, _, _ = executor._expand_embedded_workflows_in_prompt(
@@ -616,7 +616,7 @@ def test_embedded_tribe_fork_dispatches_to_clan_context_builder(
     executor = WorkflowExecutor(parent_workflow, {}, str(executor_artifacts))
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"fork": fork_workflow},
     ):
         expanded_prompt, _, _ = executor._expand_embedded_workflows_in_prompt(

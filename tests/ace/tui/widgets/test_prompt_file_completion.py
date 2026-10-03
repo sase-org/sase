@@ -574,7 +574,7 @@ class TestPromptFileCompletion:
         (other_cwd / "sdd" / "wrong.md").write_text("x", encoding="utf-8")
         monkeypatch.chdir(other_cwd)
         monkeypatch.setattr(
-            "sase.xprompt.loader.get_known_project_workspaces",
+            "sase.macro.loader.get_known_project_workspaces",
             lambda include_states=("enabled",): {"bob-cli": project_root},
         )
 
@@ -617,7 +617,7 @@ class TestPromptFileCompletion:
         (other_cwd / "sdd" / "wrong.md").write_text("x", encoding="utf-8")
         monkeypatch.chdir(other_cwd)
         monkeypatch.setattr(
-            "sase.xprompt.loader.get_known_project_workspaces",
+            "sase.macro.loader.get_known_project_workspaces",
             lambda include_states=("enabled",): {"bob-cli": project_root},
         )
         monkeypatch.setattr(

@@ -7,7 +7,7 @@ from typing import Any
 
 from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
 from sase.ace.tui.widgets.prompt_path_inventory import PromptPathSnapshot
-from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
+from sase.macro.vcs_repo_completion import VcsRepoFetchResult
 
 
 @dataclass(frozen=True)

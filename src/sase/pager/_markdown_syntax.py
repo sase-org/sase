@@ -143,7 +143,7 @@ def _project_tag_spans(
     cold. Never raises (except ``SpanBudgetExceeded``).
     """
     try:
-        from sase.xprompt.xprompt_inspect import tokenize
+        from sase.macro.macro_inspect import tokenize
     except Exception:
         return ()
     try:

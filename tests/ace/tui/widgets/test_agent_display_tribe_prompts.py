@@ -525,7 +525,7 @@ def test_level1_render_with_many_groups_never_tokenizes(monkeypatch: Any) -> Non
         raise AssertionError("render paths must replay spans, never tokenize")
 
     monkeypatch.setattr(
-        "sase.xprompt.xprompt_inspect.tokenize",
+        "sase.macro.macro_inspect.tokenize",
         forbidden,
     )
     rendered = build_tribe_detail_text(

@@ -25,7 +25,7 @@ from sase.history.prompt_store import (
     save_prompt_history,
 )
 from sase.ops.commands._agent_directive import persist_directive_from_payload
-from sase.xprompt.directive_edit import (
+from sase.macro.directive_edit import (
     PromptWaitDirective,
     set_prompt_name,
     set_prompt_wait,

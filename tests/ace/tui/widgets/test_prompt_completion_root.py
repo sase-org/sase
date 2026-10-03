@@ -23,7 +23,7 @@ def test_git_completion_root_uses_known_projects_without_provider_resolution(
     workspace = tmp_path / "bob-cli"
     workspace.mkdir()
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_known_project_workspaces",
+        "sase.macro.loader.get_known_project_workspaces",
         lambda include_states=("enabled",): {"bob-cli": workspace},
     )
 
@@ -44,7 +44,7 @@ def test_tag_completion_root_expands_before_resolution(
     workspace = tmp_path / "bob-cli"
     workspace.mkdir()
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_known_project_workspaces",
+        "sase.macro.loader.get_known_project_workspaces",
         lambda include_states=("enabled",): {"bob-cli": workspace},
     )
     monkeypatch.setattr(
@@ -125,7 +125,7 @@ def test_warm_completion_root_does_not_reread_project_alias_files(
         project_file_signature,
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_known_project_workspaces",
+        "sase.macro.loader.get_known_project_workspaces",
         lambda include_states=("enabled",): {project: workspace},
     )
     monkeypatch.setattr("sase.workspace_provider.peek_ref", lambda _ref, _wf: None)
@@ -189,7 +189,7 @@ def test_registered_completion_root_falls_back_to_known_project_when_peek_is_non
         ),
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_known_project_workspaces",
+        "sase.macro.loader.get_known_project_workspaces",
         lambda include_states=("enabled",): {"repo": workspace},
     )
 

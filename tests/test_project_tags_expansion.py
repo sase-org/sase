@@ -131,7 +131,7 @@ def test_validate_segments_are_separate_units() -> None:
 
 
 def test_validate_tag_plus_ref_errors() -> None:
-    from sase.xprompt import find_vcs_workflow_tag_span
+    from sase.macro import find_vcs_workflow_tag_span
 
     if find_vcs_workflow_tag_span("#git:bob ") is None:
         pytest.skip("git workflow provider is not installed")

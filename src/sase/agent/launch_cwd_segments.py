@@ -10,7 +10,7 @@ from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
 
 if TYPE_CHECKING:
     from sase.agent.launch_guard import LaunchUnitInput
-    from sase.xprompt.models import XPrompt
+    from sase.macro.models import XPrompt
 
 
 @dataclass
@@ -35,7 +35,7 @@ def expand_launch_segments(
         enable_known_project_vcs_refs_for_launch_prompt,
     )
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
+    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
 
     multi = parse_multi_prompt(query)
     enable_known_project_vcs_refs_for_launch_prompt("\n---\n".join(multi.segments))

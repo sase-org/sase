@@ -6,14 +6,14 @@ import pytest
 
 from sase.core.agent_launch_facade import plan_typed_launch_units
 from sase.feature_flags import FeatureFlag, override_flags
-from sase.xprompt.code_value import (
+from sase.macro.code_value import (
     TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
     make_code_value,
     scan_directive_owned_fences,
 )
-from sase.xprompt.directives import DirectiveError, extract_prompt_directives
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.processor import process_xprompt_references_with_catalog
+from sase.macro.directives import DirectiveError, extract_prompt_directives
+from sase.macro.models import InputArg, InputType
+from sase.macro.processor import process_xprompt_references_with_catalog
 
 
 def test_flag_off_rejects_if_and_does_not_leak_to_cleaned_prompt() -> None:

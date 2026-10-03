@@ -18,7 +18,7 @@ from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
 from sase.llm_provider.commit_finalizer_git import normalize_path
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 APP_FINGERPRINTS: dict[str, tuple[str, str]] = {"src/app.py": ("M", "abc123")}
 

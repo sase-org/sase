@@ -101,7 +101,7 @@ def _publish_root_timestamp(ctx: AgentExecContext) -> None:
 
 
 def _build_named_args(ctx: AgentExecContext) -> dict[str, Any]:
-    from sase.xprompt.workflow_runner import _WORKFLOW_INHERITED_VCS_TAG_ARG
+    from sase.macro.workflow_runner import _WORKFLOW_INHERITED_VCS_TAG_ARG
 
     named_args: dict[str, Any] = {
         "patch_name": ctx.cl_name,
@@ -232,7 +232,7 @@ def run_execution_loop(
     prompt: str,
 ) -> _AgentExecResult:
     """Run the agent workflow loop with retry, plan approval, and question handling."""
-    from sase.xprompt.runtime_context import bind_runtime_template_vars
+    from sase.macro.runtime_context import bind_runtime_template_vars
 
     with bind_runtime_template_vars({"wait": _build_wait_namespace(ctx)}):
         return _run_execution_loop_bound(ctx, prompt)
@@ -242,8 +242,8 @@ def _run_execution_loop_bound(
     ctx: AgentExecContext,
     prompt: str,
 ) -> _AgentExecResult:
-    from sase.xprompt.models import create_anonymous_workflow
-    from sase.xprompt.workflow_runner import execute_workflow
+    from sase.macro.models import create_anonymous_workflow
+    from sase.macro.workflow_runner import execute_workflow
 
     _publish_predicted_chat_path(ctx)
     _publish_root_timestamp(ctx)

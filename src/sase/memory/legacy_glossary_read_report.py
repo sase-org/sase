@@ -23,7 +23,7 @@ from sase.memory.web.resolution import (
     GlossaryLookupError,
     resolve_glossary_closure,
 )
-from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
+from sase.macro.glossary_catalog import EditorGlossaryCatalog
 
 _REPORT_SUBDIR = "glossary_read_reports"
 _REPORT_KEEP_COUNT = 50
@@ -166,7 +166,7 @@ class _LegacyGlossaryReportError(ValueError):
 
 
 def _resolve_legacy_report_catalog(project_ref: str) -> EditorGlossaryCatalog:
-    from sase.xprompt.glossary_catalog import editor_glossary_catalog_for_project
+    from sase.macro.glossary_catalog import editor_glossary_catalog_for_project
 
     result = editor_glossary_catalog_for_project(project_ref)
     if result.catalog is not None:

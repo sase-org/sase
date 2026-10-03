@@ -26,7 +26,7 @@ from sase.content_layout import (
     resolve_project_layout,
 )
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
-from sase.xprompt.loader import (
+from sase.macro.loader import (
     detect_project,
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,

@@ -20,7 +20,7 @@ from sase.llm_provider import launch_default_peek
 from sase.llm_provider.launch_selection import resolve_launch_selection
 from sase.llm_provider.load_balancing import rotation_state_path
 from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 from tests._model_alias_defaults_fixture import frozen_selector_provider_model_effort
 
 _POOL_ALIAS = LARGE_MODEL_ALIAS_NAME

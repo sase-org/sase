@@ -24,7 +24,7 @@ from sase.artifacts import (
 from sase.content import ensure_str_content
 from sase.core.shell import run_shell_command
 from sase.workflows.base import BaseWorkflow
-from sase.xprompt import escape_for_xprompt, process_xprompt_references
+from sase.macro import escape_for_xprompt, process_xprompt_references
 
 
 def _create_critique_comments_artifact(
@@ -87,7 +87,7 @@ def _build_crs_prompt_invocation(
     vcs_type: str | None = None,
 ) -> str:
     """Build the generated top-level CRS xprompt invocation."""
-    from sase.xprompt.tags import XPromptTag, get_by_tag
+    from sase.macro.tags import XPromptTag, get_by_tag
 
     crs_wf = get_by_tag(XPromptTag.crs)
     crs_name = crs_wf.name if crs_wf else "crs"

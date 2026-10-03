@@ -21,7 +21,7 @@ from sase.ace.tui.modals.mini_xprompt_target_catalog import (
 )
 from sase.ace.tui.modals.unified_xprompt_save_modal import UnifiedSaveLocation
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.save import SaveTargetFormat
 
 
 class _ModalApp(App[None]):

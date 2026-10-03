@@ -13,8 +13,8 @@ from sase.ace.tui.widgets._prompt_preview_target import (
     detect_shorthand_argument_owner_at_cursor,
     resolve_preview_target,
 )
-from sase.xprompt.models import InputArg, InputType, XPrompt
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 def _detect(text: str, needle: str) -> PreviewToken | None:

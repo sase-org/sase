@@ -11,7 +11,7 @@ from sase.ace.tui.modals.save_location_choices import (
 )
 from sase.ace.tui.modals.unified_xprompt_save_support import UnifiedSaveLocation
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
-from sase.xprompt.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
 
 
 def _xrow(

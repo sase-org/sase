@@ -353,11 +353,11 @@ def _maybe_dispatch_typed_chop_proposals(
         prepare_typed_launch_plan,
     )
     from sase.agent.launch_request_types import LaunchRequestError
-    from sase.xprompt.code_value import (
+    from sase.macro.code_value import (
         TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
         typed_launch_units_enabled,
     )
-    from sase.xprompt.directives import DirectiveError, has_typed_launch_directive
+    from sase.macro.directives import DirectiveError, has_typed_launch_directive
 
     query = _query_for_plans(plans)
     try:

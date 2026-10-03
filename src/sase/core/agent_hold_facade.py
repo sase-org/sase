@@ -357,7 +357,7 @@ def _hold_selectors_wire(
     artifact_dirs: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Build selectors through the shared Rust expansion contract."""
-    from sase.xprompt.hold_directive import HoldFields, hold_fields_to_selectors
+    from sase.macro.hold_directive import HoldFields, hold_fields_to_selectors
 
     return hold_fields_to_selectors(
         HoldFields(

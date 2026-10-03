@@ -17,7 +17,7 @@ from sase.core.agent_scan_wire import AgentMetaWire
 from sase.core.runner_slots._admission_capacity_records import (
     capacity_record_from_scan,
 )
-from sase.xprompt.hold_directive import HoldFields, hold_fields_to_selectors
+from sase.macro.hold_directive import HoldFields, hold_fields_to_selectors
 
 from tests.ace.tui._agent_runner_slots_helpers import _agent
 from tests._runner_slots_helpers import _always_live, _record

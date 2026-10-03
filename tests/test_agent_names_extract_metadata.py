@@ -12,7 +12,7 @@ from sase.agent.batch_predecessor import (
     batch_predecessor_context,
     encode_batch_predecessor_context,
 )
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 from tests._agent_names_extract_fixtures import mock_provider, run_extract
 
 
@@ -459,7 +459,7 @@ class TestExtractDirectivesMetadata:
         with (
             patch.dict(os.environ, {"SASE_AGENT_AUTO_DISMISS": "1"}, clear=False),
             patch(
-                "sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p
+                "sase.macro.process_xprompt_references", side_effect=lambda p, **kw: p
             ),
             patch(
                 "sase.llm_provider.registry.get_default_provider_name",

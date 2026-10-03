@@ -21,7 +21,7 @@ from sase.llm_provider.temporary_override import (
 )
 from sase.llm_provider.provider_priority import ProviderRoutingContext
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 _NO_EFFORT = LLMInvocationOptions(reasoning_effort=None, explicit=False)
 

@@ -32,7 +32,7 @@ def _resolve_known_project_launch_record(
 ) -> ProjectRecordWire | None:
     """Return the known lifecycle record for a launch ref, if any."""
     from sase.project_aliases import resolve_project_alias_ref
-    from sase.xprompt._parsing import resolve_known_project_ref
+    from sase.macro._parsing import resolve_known_project_ref
 
     ref = resolve_project_alias_ref(ref)
     launch_records = records if records is not None else _known_launch_records()
@@ -67,7 +67,7 @@ def enable_known_project_for_launch_ref(ref: str) -> ProjectRecordWire | None:
 def enable_known_project_vcs_refs_for_launch_prompt(prompt: str) -> tuple[str, ...]:
     """Enable every disabled known-project VCS ref in *prompt* once."""
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
-    from sase.xprompt._parsing import (
+    from sase.macro._parsing import (
         iter_known_project_vcs_refs,
         resolve_known_project_ref,
     )
@@ -94,7 +94,7 @@ def enable_known_project_vcs_refs_for_launch_prompt(prompt: str) -> tuple[str, .
 def extract_known_project_vcs_launch_ref(prompt: str) -> tuple[str, str] | None:
     """Return the first known-project VCS ref based on lifecycle records."""
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
-    from sase.xprompt._parsing import (
+    from sase.macro._parsing import (
         extract_known_project_vcs_ref,
         iter_known_project_vcs_refs,
     )

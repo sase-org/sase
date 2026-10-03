@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 import pytest
 
 from sase.core.time import local_now
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import parse_absolute_time, parse_duration
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import parse_absolute_time, parse_duration
 
 
 # --- parse_duration tests ---

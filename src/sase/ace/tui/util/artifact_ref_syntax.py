@@ -15,8 +15,8 @@ from sase.artifact_refs import (
     ArtifactRefSpan,
     scan_artifact_refs,
 )
-from sase.xprompt._literal_zones import literal_zone_ranges
-from sase.xprompt.highlight_theme import derive_argument_color
+from sase.macro._literal_zones import literal_zone_ranges
+from sase.macro.highlight_theme import derive_argument_color
 
 ArtifactRefPartRole = Literal[
     "sigil",

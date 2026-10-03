@@ -14,8 +14,8 @@ from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.plan_documents import PlanDocument
 from sase.vcs_log.render import build_commit_time_chip
-from sase.xprompt.cli_show_model import ShowInput
-from sase.xprompt.properties import XPromptProperties
+from sase.macro.cli_show_model import ShowInput
+from sase.macro.properties import XPromptProperties
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

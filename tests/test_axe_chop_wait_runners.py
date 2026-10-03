@@ -14,7 +14,7 @@ from sase.axe.chop_proposals import (
 )
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig
-from sase.xprompt.directives import (
+from sase.macro.directives import (
     extract_prompt_directives,
     has_deferred_start_directive,
 )

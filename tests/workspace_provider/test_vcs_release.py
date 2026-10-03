@@ -233,7 +233,7 @@ class TestIdentityChecks:
 
 def test_git_yml_release_step_delegates_to_git_release() -> None:
     git_yml = (
-        Path(__file__).resolve().parents[2] / "src" / "sase" / "xprompts" / "git.yml"
+        Path(__file__).resolve().parents[2] / "src" / "sase" / "macros" / "git.yml"
     )
     text = git_yml.read_text(encoding="utf-8")
     assert "from sase.scripts.git_release import main" in text

@@ -45,7 +45,7 @@ from sase.procs.models import (
     Proc,
 )
 from sase.procs.runtime import proc_runtime_dir
-from sase.xprompt.code_value import make_code_value
+from sase.macro.code_value import make_code_value
 
 
 def _plan(*units: LaunchUnitWire, project: str | None = None) -> LaunchPlanWire:
@@ -645,7 +645,7 @@ def test_timeout_settles_without_agent_slots(monkeypatch: Any, tmp_path: Path) -
 def test_prepared_script_mode_is_private(tmp_path: Path) -> None:
     pytest.importorskip("sase_core_rs")
     from sase.core.agent_launch_facade import prepare_proc_script
-    from sase.xprompt.code_value import make_code_value
+    from sase.macro.code_value import make_code_value
 
     work = tmp_path / "work"
     work.mkdir()

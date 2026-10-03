@@ -92,7 +92,7 @@ def _record_queue_capacity(record: AgentArtifactRecordWire) -> int | None:
 
 def _record_queue_capacity_multiplier(record: AgentArtifactRecordWire) -> float | None:
     """Return the marker-preferred multiplier unless an integer shares its source."""
-    from sase.xprompt.queue_directive import resolve_authored_queue_capacity_multiplier
+    from sase.macro.queue_directive import resolve_authored_queue_capacity_multiplier
 
     waiting = record.waiting
     if waiting is not None and (

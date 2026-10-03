@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import (
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import (
     extract_prompt_directives,
     has_alt_directive,
     has_deferred_start_directive,
@@ -451,7 +451,7 @@ def test_has_directive_helpers_still_detect_top_level_directives(
 
 
 def test_alt_directive_re_finds_adjacent_openers() -> None:
-    from sase.xprompt._directive_alt import _ALT_DIRECTIVE_RE
+    from sase.macro._directive_alt import _ALT_DIRECTIVE_RE
 
     matches = list(_ALT_DIRECTIVE_RE.finditer("%{%(a,b) | c}"))
 

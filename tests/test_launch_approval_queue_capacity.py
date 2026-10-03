@@ -20,7 +20,7 @@ from sase.axe.run_agent_wait_markers import (
 from sase.core.agent_launch_facade import agent_unit_dispatch_prompt
 from sase.core.agent_launch_wire import AgentUnitWire, launch_plan_from_dict
 from sase.feature_flags import override_flags
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 from tests._agent_names_extract_fixtures import run_extract
 from tests._launch_admission_helpers import agent_result as _agent_result
 

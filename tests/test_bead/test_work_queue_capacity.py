@@ -21,13 +21,13 @@ from sase.bead.work_queue_capacity import (
     resolve_epic_queue_capacities,
 )
 from sase.feature_flags import override_flags
-from sase.xprompt.directives import extract_prompt_directives
-from sase.xprompt.models import InputArg, InputType, XPrompt
-from sase.xprompt.processor import (
+from sase.macro.directives import extract_prompt_directives
+from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.processor import (
     LAUNCH_DEFERRED_XPROMPT_NAMES,
     process_xprompt_references,
 )
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.workflow_models import Workflow
 
 _PHASE = Workflow(name="bd/work_phase_bead")
 _LAND = Workflow(name="bd/land_epic")

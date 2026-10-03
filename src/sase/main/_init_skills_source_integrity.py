@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sase.version._git import run_git
 from sase.workspace_provider.utils import get_default_branch
-from sase.xprompt.loader import get_sase_package_skills_dir
+from sase.macro.loader import get_sase_package_skills_dir
 
 _LAND_FIRST_INSTRUCTION = (
     "Land the skill source change on the canonical branch first, then rerun. "

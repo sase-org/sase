@@ -18,8 +18,8 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     XPromptInputHint,
 )
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.models import InputArg, InputType
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 from ._completion_helpers import CompletionTestApp
 

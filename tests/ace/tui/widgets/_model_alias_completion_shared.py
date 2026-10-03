@@ -12,7 +12,7 @@ from textual.app import ComposeResult
 
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.xprompt.model_completion import ModelCompletionEntry
+from sase.macro.model_completion import ModelCompletionEntry
 
 from ._completion_helpers import CompletionTestApp
 

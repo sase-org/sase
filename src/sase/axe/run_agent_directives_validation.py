@@ -42,7 +42,7 @@ def validate_agent_tab_directives(
     artifacts_dir: str,
 ) -> Any:
     """Validate ``%tab`` against session-root and clan-generation tabs."""
-    from sase.xprompt._exceptions import DirectiveError
+    from sase.macro._exceptions import DirectiveError
 
     explicit = bool(
         getattr(directives, "agent_tab", None) is not None

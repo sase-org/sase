@@ -67,15 +67,15 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
     monkeypatch: Any,
 ) -> None:
     monkeypatch.setattr(
-        "sase.xprompt.extract_vcs_workflow_tag",
+        "sase.macro.extract_vcs_workflow_tag",
         lambda prompt: "#gh:sase " if prompt.startswith("#gh:sase ") else None,
     )
     monkeypatch.setattr(
-        "sase.xprompt.strip_vcs_workflow_tag",
+        "sase.macro.strip_vcs_workflow_tag",
         lambda prompt: prompt.removeprefix("#gh:sase "),
     )
     monkeypatch.setattr(
-        "sase.xprompt.extract_project_from_vcs_tag",
+        "sase.macro.extract_project_from_vcs_tag",
         lambda tag: "sase" if tag.strip() == "#gh:sase" else None,
     )
     monkeypatch.setattr(
@@ -221,7 +221,7 @@ def test_build_agent_completion_candidates_humanizes_vcs_badge_and_searches_raw(
         lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
     )
     monkeypatch.setattr(
-        "sase.xprompt.extract_vcs_workflow_tag",
+        "sase.macro.extract_vcs_workflow_tag",
         lambda prompt: (
             "#gh:gh_acme__widgets "
             if prompt.startswith("#gh:gh_acme__widgets ")
@@ -229,7 +229,7 @@ def test_build_agent_completion_candidates_humanizes_vcs_badge_and_searches_raw(
         ),
     )
     monkeypatch.setattr(
-        "sase.xprompt.strip_vcs_workflow_tag",
+        "sase.macro.strip_vcs_workflow_tag",
         lambda prompt: prompt.removeprefix("#gh:gh_acme__widgets "),
     )
 

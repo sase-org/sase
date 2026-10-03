@@ -21,8 +21,8 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptInputHint,
 )
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
-from sase.xprompt.vcs_project_completion import VcsProjectEntry
-from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
+from sase.macro.vcs_project_completion import VcsProjectEntry
+from sase.macro.vcs_repo_completion import VcsRepoFetchResult
 
 from ._completion_helpers import CompletionTestApp
 

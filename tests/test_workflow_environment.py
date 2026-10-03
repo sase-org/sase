@@ -7,8 +7,8 @@ Tests parsing, jinja2 rendering, and env var injection for the workflow-level
 import os
 import tempfile
 
-from sase.xprompt.workflow_executor import WorkflowExecutor
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.workflow_executor import WorkflowExecutor
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 class TestEnvironmentParsing:
@@ -33,7 +33,7 @@ class TestEnvironmentParsing:
         """_load_workflow_from_file parses environment field."""
         from pathlib import Path
 
-        from sase.xprompt.workflow_loader import _load_workflow_from_file
+        from sase.macro.workflow_loader import _load_workflow_from_file
 
         wf_path = Path(tmp_path) / "env_test.yml"
         wf_path.write_text(
@@ -56,7 +56,7 @@ steps:
         """_load_workflow_from_file defaults to empty environment."""
         from pathlib import Path
 
-        from sase.xprompt.workflow_loader import _load_workflow_from_file
+        from sase.macro.workflow_loader import _load_workflow_from_file
 
         wf_path = Path(tmp_path) / "no_env.yml"
         wf_path.write_text(
@@ -98,7 +98,7 @@ class TestEnvironmentInjection:
 
     def test_jinja2_env_vars_rendered(self) -> None:
         """Environment values with Jinja2 templates are rendered against args."""
-        from sase.xprompt.models import InputArg, InputType
+        from sase.macro.models import InputArg, InputType
 
         step = WorkflowStep(name="check", bash="echo ok")
         wf = Workflow(
@@ -142,7 +142,7 @@ class TestEnvironmentInjection:
 
     def test_env_vars_available_to_bash_steps(self) -> None:
         """Environment variables are visible to subsequent bash steps."""
-        from sase.xprompt.models import OutputSpec
+        from sase.macro.models import OutputSpec
 
         step = WorkflowStep(
             name="read_env",

@@ -16,7 +16,7 @@ from sase.ace.tui.widgets.typed_input_form import (
     _MultilineInput,
     _PathField,
 )
-from sase.xprompt.models import UNSET, InputArg, InputChoice, InputType
+from sase.macro.models import UNSET, InputArg, InputChoice, InputType
 
 
 class _FormApp(App[None]):

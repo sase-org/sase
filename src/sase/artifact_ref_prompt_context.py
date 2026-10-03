@@ -312,7 +312,7 @@ def _prompt_segments(prompt: str) -> tuple[tuple[tuple[int, int], str], ...]:
     frontmatter block and rejoined segments with the same separator.
     """
 
-    from sase.xprompt._prompt_segments import split_prompt_segments
+    from sase.macro._prompt_segments import split_prompt_segments
 
     pieces, separators = split_prompt_segments(prompt)
 
@@ -341,8 +341,8 @@ def _leading_or_embedded_tag(segment: str) -> str | None:
 
 
 def _tag_identity(tag: str) -> tuple[str | None, str | None]:
-    from sase.xprompt._parsing_vcs_refs import normalize_vcs_underscore_refs
-    from sase.xprompt._parsing_vcs_tags import extract_project_from_vcs_tag
+    from sase.macro._parsing_vcs_refs import normalize_vcs_underscore_refs
+    from sase.macro._parsing_vcs_tags import extract_project_from_vcs_tag
 
     normalized = normalize_vcs_underscore_refs(tag)
     match = _WORKFLOW_TYPE_RE.match(normalized.strip())

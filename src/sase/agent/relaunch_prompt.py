@@ -50,7 +50,7 @@ def rewrite_retry_prompt_name(
     """Rewrite a retry name and demote any existing clan declaration."""
     from sase.agent.multi_prompt_references import extract_static_clan_directive
     from sase.agent.retry_prompt import rewrite_retry_prompt_name as rewrite_name
-    from sase.xprompt.directive_edit import rewrite_prompt_clan_member_name
+    from sase.macro.directive_edit import rewrite_prompt_clan_member_name
 
     if extract_static_clan_directive(raw_prompt) is not None:
         return rewrite_prompt_clan_member_name(
@@ -68,7 +68,7 @@ def force_name_reuse_in_prompt(
     """Force name reuse and demote any existing clan declaration."""
     from sase.agent.multi_prompt_references import extract_static_clan_directive
     from sase.agent.retry_prompt import force_name_reuse_in_prompt as force_reuse
-    from sase.xprompt.directive_edit import (
+    from sase.macro.directive_edit import (
         demote_prompt_clan_declaration,
         rewrite_prompt_clan_member_name,
     )
@@ -92,7 +92,7 @@ def force_name_reuse_in_prompt(
 
 def ensure_forced_name_reuse(prompt: str, agent_name: str) -> str:
     """Return *prompt* with a forced-reuse ``%id`` for *agent_name*."""
-    from sase.xprompt.directive_edit import set_prompt_name
+    from sase.macro.directive_edit import set_prompt_name
 
     named = set_prompt_name(prompt, agent_name)
     return force_name_reuse_in_prompt(named, replacement_name=agent_name)
@@ -226,7 +226,7 @@ def _rewrite_agent_session_member_or_preserve_clan(
     facing_agent: str | None,
     agent_name: str | None,
 ) -> str:
-    from sase.xprompt.directive_edit import rewrite_prompt_agent_session_member_name
+    from sase.macro.directive_edit import rewrite_prompt_agent_session_member_name
 
     if not facing_agent_session:
         raise KillAndEditPromptError(
@@ -319,7 +319,7 @@ def _verify_kill_and_edit_prompt(
     agent_session_name: str | None,
     is_agent_session_root: bool,
 ) -> None:
-    from sase.xprompt.directives import DirectiveError, extract_prompt_directives
+    from sase.macro.directives import DirectiveError, extract_prompt_directives
 
     try:
         _, directives = extract_prompt_directives(rewritten)

@@ -25,8 +25,8 @@ from textual.widgets import Button, Label, TextArea
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.typed_input_form import TypedFormField, TypedInputForm
-from sase.xprompt.raw_placeholders import RawPlaceholderField
-from sase.xprompt.models import InputArg
+from sase.macro.raw_placeholders import RawPlaceholderField
+from sase.macro.models import InputArg
 
 if TYPE_CHECKING:
     from sase.agent.prompt_placeholder_inputs import PromptInputPlan, PromptInputValues

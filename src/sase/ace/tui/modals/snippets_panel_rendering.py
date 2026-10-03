@@ -18,7 +18,7 @@ from sase.ace.tui.keymaps.app_keymaps import SnippetPanelKeymaps
 from sase.ace.tui.keymaps.display import key_display_name
 from sase.core.snippet_catalog_facade import SnippetCall
 from sase.snippet.models import SnippetCatalog, SnippetEntry, SnippetSourceKind
-from sase.xprompt.highlight_theme import derive_argument_color
+from sase.macro.highlight_theme import derive_argument_color
 
 from .glossary_preview_render import build_alias_chips, build_numbered_chip_rows
 from .trail_strip import build_trail_strip

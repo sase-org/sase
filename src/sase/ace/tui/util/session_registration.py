@@ -55,7 +55,7 @@ def _project_context(cwd: str) -> tuple[str | None, int | None]:
         log.debug("checkout marker lookup failed", exc_info=True)
 
     try:
-        from sase.xprompt.loader import detect_project
+        from sase.macro.loader import detect_project
 
         return detect_project(), None
     except Exception:

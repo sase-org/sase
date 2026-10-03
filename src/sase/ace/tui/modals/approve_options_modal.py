@@ -85,7 +85,7 @@ def _canonical_capacity(capacity: int | None) -> int | None:
     """Return a validated capacity budget, or ``None`` for omission."""
     if capacity is None:
         return None
-    from sase.xprompt.queue_directive import validate_queue_capacity
+    from sase.macro.queue_directive import validate_queue_capacity
 
     return validate_queue_capacity(capacity)
 
@@ -280,7 +280,7 @@ class _CapacityInputModal(ModalScreen[_CapacityInputResult | None]):
         if not text:
             self.dismiss(_CapacityInputResult(None))
             return
-        from sase.xprompt.queue_directive import validate_queue_capacity
+        from sase.macro.queue_directive import validate_queue_capacity
 
         try:
             self.dismiss(_CapacityInputResult(validate_queue_capacity(text)))

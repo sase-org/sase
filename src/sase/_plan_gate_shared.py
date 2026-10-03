@@ -40,6 +40,6 @@ def plan_gate_optional_capacity(value: object) -> int | None:
     """Return a validated capacity budget, or ``None`` when omitted."""
     if value is None:
         return None
-    from sase.xprompt.queue_directive import validate_queue_capacity
+    from sase.macro.queue_directive import validate_queue_capacity
 
     return validate_queue_capacity(value)

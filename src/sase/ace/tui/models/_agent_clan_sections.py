@@ -472,7 +472,7 @@ def _authored_multiplier_label(multiplier: object) -> str | None:
     """Return the formatted multiplier when it stands in for absent capacity."""
     if multiplier is None:
         return None
-    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+    from sase.macro.queue_directive import format_queue_capacity_multiplier
 
     return format_queue_capacity_multiplier(multiplier)
 

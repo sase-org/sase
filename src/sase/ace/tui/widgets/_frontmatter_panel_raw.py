@@ -10,8 +10,8 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.xprompt.frontmatter_schema import FrontmatterDiagnostic, validate_frontmatter
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.frontmatter_schema import FrontmatterDiagnostic, validate_frontmatter
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase

@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Protocol
 
-from sase.xprompt.reference_display import (
+from sase.macro.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
 )
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.workflow_models import Workflow
 
 from .xprompt_browser_helpers import BrowserItem
 
@@ -35,7 +35,7 @@ def load_browser_items(
     # Also load project-local xprompts from ALL known projects' sase.yml files.
     # These are not loaded by get_all_prompts() because the TUI disables
     # _include_local_config.
-    from sase.xprompt.loader import get_all_project_local_prompts
+    from sase.macro.loader import get_all_project_local_prompts
 
     project_local = get_all_project_local_prompts()
     prompts = {**project_local, **prompts}

@@ -6,15 +6,15 @@ import re
 
 import pytest
 
-from sase.xprompt.loader import get_sase_package_skills_dir
-from sase.xprompt.loader_parsing import parse_yaml_front_matter
+from sase.macro.loader import get_sase_package_skills_dir
+from sase.macro.loader_parsing import parse_yaml_front_matter
 from tests.main.init_skills_handler_helpers import collapse_whitespace
 
 
 def test_sase_changespecs_skill_source_is_retired() -> None:
     skills_dir = get_sase_package_skills_dir()
     assert not (skills_dir / "sase_changespecs.md").exists()
-    from sase.xprompt.loader import load_skills_from_package
+    from sase.macro.loader import load_skills_from_package
 
     assert "skill/sase_changespecs" not in load_skills_from_package()
 

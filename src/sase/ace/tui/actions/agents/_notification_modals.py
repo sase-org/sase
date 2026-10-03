@@ -57,7 +57,7 @@ if TYPE_CHECKING:
     from ...modals import GateBranchData, PlanApprovalResult
     from ...modals.gate_action_controls import GateActionsData
     from ...modals.gate_action_runner import GateActionRunner
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 
 log = logging.getLogger(__name__)

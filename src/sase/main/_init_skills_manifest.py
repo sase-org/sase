@@ -13,8 +13,8 @@ import subprocess
 from typing import Literal, Protocol
 
 from sase.version._git import run_git
-from sase.xprompt.loader import get_sase_package_skills_dir
-from sase.xprompt.models import XPrompt
+from sase.macro.loader import get_sase_package_skills_dir
+from sase.macro.models import XPrompt
 
 SKILLS_MANIFEST_FILENAME = ".sase-skills-manifest.json"
 ManagedSkillState = Literal["active", "retired"]

@@ -224,7 +224,7 @@ def get_restartable_prompt_content(
     if body is None:
         return None
 
-    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
+    from sase.macro import extract_vcs_workflow_tag, find_vcs_workflow_tag
 
     existing_vcs = extract_vcs_workflow_tag(body) or find_vcs_workflow_tag(body)
     vcs_tag = existing_vcs or _restart_vcs_tag(agent, agents)
@@ -246,7 +246,7 @@ def get_restartable_prompt_content(
 
 def _has_model_directive(prompt: str) -> bool:
     try:
-        from sase.xprompt.directives import has_model_directive
+        from sase.macro.directives import has_model_directive
 
         return has_model_directive(prompt)
     except Exception:
@@ -258,7 +258,7 @@ def _restart_model_directive(agent: Agent) -> str:
     if not model:
         return ""
 
-    from sase.xprompt.effort import split_model_effort
+    from sase.macro.effort import split_model_effort
 
     model, embedded_effort = split_model_effort(model)
     provider = (agent.llm_provider or "").strip()

@@ -25,8 +25,8 @@ from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
     disable_provider,
 )
-from sase.xprompt.models import create_anonymous_workflow
-from sase.xprompt.workflow_executor import WorkflowExecutor
+from sase.macro.models import create_anonymous_workflow
+from sase.macro.workflow_executor import WorkflowExecutor
 from tests._model_alias_defaults_fixture import frozen_selector_provider_model_effort
 
 _POOL_ALIAS = LARGE_MODEL_ALIAS_NAME
@@ -251,7 +251,7 @@ def _shipped_selector_member(alias: str, index: int) -> tuple[str, str, str | No
         parse_model_alias_selector,
     )
     from sase.llm_provider.model_alias_policy import implicit_alias_targets
-    from sase.xprompt.effort import split_model_effort
+    from sase.macro.effort import split_model_effort
 
     selector = parse_model_alias_selector(implicit_alias_targets()[alias])
     assert selector is not None

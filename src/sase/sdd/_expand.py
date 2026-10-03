@@ -27,21 +27,21 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
     Legacy inline standalone references (``#name``) are rejected so prompt
     snapshots do not capture ambiguous syntax.
     """
-    from sase.xprompt._fenced_blocks import (
+    from sase.macro._fenced_blocks import (
         protect_fenced_blocks,
         unprotect_fenced_blocks,
     )
-    from sase.xprompt._parsing import (
+    from sase.macro._parsing import (
         iter_xprompt_references,
         normalize_vcs_underscore_refs,
     )
-    from sase.xprompt.loader import get_all_workflows
-    from sase.xprompt.input_binding import bind_input_args
-    from sase.xprompt.workflow_executor_steps_embedded_types import (
+    from sase.macro.loader import get_all_workflows
+    from sase.macro.input_binding import bind_input_args
+    from sase.macro.workflow_executor_steps_embedded_types import (
         format_inline_workflow_reference_error,
         parse_workflow_reference_args,
     )
-    from sase.xprompt.workflow_executor_utils import render_template
+    from sase.macro.workflow_executor_utils import render_template
 
     workflows = get_all_workflows()
 

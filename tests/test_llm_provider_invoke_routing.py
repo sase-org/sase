@@ -15,7 +15,7 @@ import pytest
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.preprocessing import _PreprocessResult
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 from tests._llm_provider_invoke_helpers import (
     _NO_EFFORT,
     _assert_get_provider_called_once,

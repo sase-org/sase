@@ -55,7 +55,7 @@ def extract_clan_info_and_meta(
         patch("sase.agent.names.claim_agent_name"),
         patch("sase.agent.names.claim_registered_clan_name"),
         patch(
-            "sase.xprompt.process_xprompt_references",
+            "sase.macro.process_xprompt_references",
             side_effect=lambda value, **_: value,
         ),
         patch(

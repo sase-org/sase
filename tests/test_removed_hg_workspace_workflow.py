@@ -9,11 +9,11 @@ import pytest
 from sase.history.prompt_metadata import summarize_prompt_for_list
 from sase.project_aliases import canonicalize_project_aliases_in_prompt
 from sase.workspace_provider import get_ref_patterns, get_workflow_names
-from sase.xprompt._parsing_vcs_refs import (
+from sase.macro._parsing_vcs_refs import (
     iter_known_project_vcs_refs,
     normalize_launch_xprompt_at_refs,
 )
-from sase.xprompt.processor import prompt_may_reference_xprompt
+from sase.macro.processor import prompt_may_reference_xprompt
 from tests._workspace_provider_helpers import (
     patch_no_workspace_metadata,
     patch_spy_metadata,
@@ -37,7 +37,7 @@ def test_retired_workflow_has_no_core_fallback(
         lambda projects_root=None: {"sase": "canonical-sase"},
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_known_project_workspaces",
+        "sase.macro.loader.get_known_project_workspaces",
         lambda: known_projects,
     )
 

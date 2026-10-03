@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from sase.output import provider_timer
 
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.macro.effort import EFFORT_LEVELS_ORDERED
 
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl

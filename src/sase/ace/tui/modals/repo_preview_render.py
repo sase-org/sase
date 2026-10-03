@@ -8,8 +8,8 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
-from sase.xprompt.highlight_theme import derive_argument_color
-from sase.xprompt.repo_mention_catalog import RepoMention
+from sase.macro.highlight_theme import derive_argument_color
+from sase.macro.repo_mention_catalog import RepoMention
 
 _COLOR_MUTED = "dim"
 _COLOR_LABEL = "dim"

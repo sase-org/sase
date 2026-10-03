@@ -25,7 +25,7 @@ from sase.notification_gates.summary import (
 from sase.notifications.models import Notification
 from sase.notifications.store import load_notifications
 from sase.plan_gate import build_plan_approval_gate_spec
-from sase.xprompt.models import InputType
+from sase.macro.models import InputType
 
 from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
 from tests.plan_validation_helpers import VALID_TALE_PLAN

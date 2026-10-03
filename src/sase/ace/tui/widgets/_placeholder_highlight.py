@@ -21,7 +21,7 @@ from sase.ace.tui.widgets.placeholder_completion import (
     editor_range_to_offsets,
 )
 from sase.history.prompt_placeholders import CommonPlaceholderIndex
-from sase.xprompt.placeholder_completion import PlaceholderSpan, placeholder_spans
+from sase.macro.placeholder_completion import PlaceholderSpan, placeholder_spans
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase

@@ -18,7 +18,7 @@ from sase.gate_turn.followup_policy import (
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
 from sase.notification_gates.models import GateSpec
-from sase.xprompt.workflow_hitl_gate import (
+from sase.macro.workflow_hitl_gate import (
     _translate_workflow_hitl_response,
     _workflow_hitl_gate_spec,
     _workflow_hitl_shell_spec,

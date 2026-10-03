@@ -6,23 +6,23 @@ from dataclasses import dataclass
 from functools import cache
 import re
 
-from sase.xprompt import extract_project_from_vcs_tag
-from sase.xprompt._directive_types import (
+from sase.macro import extract_project_from_vcs_tag
+from sase.macro._directive_types import (
     _DEPRECATED_DIRECTIVES,
     _DIRECTIVE_ALIASES,
     _DIRECTIVE_PATTERN,
     _KNOWN_DIRECTIVES,
 )
-from sase.xprompt._exceptions import XPromptError
-from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
-from sase.xprompt._parsing import find_matching_paren_for_args
-from sase.xprompt._parsing_references import XPromptReference, iter_xprompt_references
-from sase.xprompt._parsing_vcs_refs import (
+from sase.macro._exceptions import XPromptError
+from sase.macro._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+from sase.macro._parsing import find_matching_paren_for_args
+from sase.macro._parsing_references import XPromptReference, iter_xprompt_references
+from sase.macro._parsing_vcs_refs import (
     _GENERIC_PROJECT_VCS_REF_PATTERN,
     _KNOWN_FALLBACK_VCS_PREFIXES,
 )
-from sase.xprompt._parsing_vcs_tags import _DIRECTIVE_PREFIX_RE
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro._parsing_vcs_tags import _DIRECTIVE_PREFIX_RE
+from sase.macro.directives import extract_prompt_directives
 
 
 @dataclass(frozen=True)

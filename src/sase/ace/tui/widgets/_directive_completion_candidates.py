@@ -331,7 +331,7 @@ def _catalog_placeholder(
 
 
 def _enabled_feature_flags() -> list[str]:
-    from sase.xprompt.queue_directive import launch_feature_flag_keys
+    from sase.macro.queue_directive import launch_feature_flag_keys
 
     return launch_feature_flag_keys()
 

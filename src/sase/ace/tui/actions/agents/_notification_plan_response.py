@@ -15,7 +15,7 @@ from sase.plan_approval_choices import (
 if TYPE_CHECKING:
     from ...models import Agent
     from ...modals import PlanApprovalResult
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 
 def build_plan_approval_response(

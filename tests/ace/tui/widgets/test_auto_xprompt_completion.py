@@ -14,7 +14,7 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
-from sase.xprompt.vcs_project_completion import VcsProjectEntry
+from sase.macro.vcs_project_completion import VcsProjectEntry
 
 from ._completion_helpers import (
     CatalogCompletionTestApp,

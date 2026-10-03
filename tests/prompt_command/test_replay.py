@@ -37,7 +37,7 @@ def test_run_prefix_replaces_vcs_tags_before_dispatch(history_file: Path) -> Non
     rewritten = "#gh:bob-cli fix the flaky launcher test"
     with (
         patch(
-            "sase.xprompt.replace_vcs_workflow_tags", return_value=rewritten
+            "sase.macro.replace_vcs_workflow_tags", return_value=rewritten
         ) as mock_replace,
         patch("sase.main.query_handler.launch_query") as mock_launch,
     ):

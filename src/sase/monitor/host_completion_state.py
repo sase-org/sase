@@ -37,7 +37,7 @@ from sase.finalizers.providers import BUILTIN_COMMIT_PROVIDER_REF, BUILTIN_PROVI
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.commit_finalizer_git import normalize_path
 from sase.monitor.output import OutputCapture
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 FINALIZING_STATUS = "finalizing"
 RECOVERY_STATUS = "recovery"

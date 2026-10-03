@@ -5,12 +5,12 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt.tags import XPromptTag
-from sase.xprompt.workflow_executor_steps_embedded import (
+from sase.macro.tags import XPromptTag
+from sase.macro.workflow_executor_steps_embedded import (
     EmbeddedWorkflowMixin,
     PendingEmbeddedWorkflow,
 )
-from sase.xprompt.workflow_models import (
+from sase.macro.workflow_models import (
     Workflow,
     WorkflowExecutionError,
     WorkflowStep,
@@ -105,7 +105,7 @@ def test_multiple_wraps_all_raises_error() -> None:
     executor = _FakeExecutor({"git": wf_git, "spy": wf_spy})
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"git": wf_git, "spy": wf_spy},
     ):
         with pytest.raises(WorkflowExecutionError, match="Multiple VCS-tagged"):
@@ -121,7 +121,7 @@ def test_multiple_wraps_all_allowed_across_multi_prompt_segments() -> None:
     executor = _FakeExecutor({"git": wf_git})
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"git": wf_git},
     ):
         prompt, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
@@ -142,7 +142,7 @@ def test_single_wraps_all_does_not_raise() -> None:
     executor = _FakeExecutor({"git": wf_git, "commit": wf_commit})
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"git": wf_git, "commit": wf_commit},
     ):
         # Should not raise
@@ -170,7 +170,7 @@ def test_vcs_refs_inside_disabled_region_not_counted() -> None:
     executor = _FakeExecutor({"git": wf_git, "spy": wf_spy})
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"git": wf_git, "spy": wf_spy},
     ):
         expanded, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
@@ -198,7 +198,7 @@ def test_single_vcs_outside_with_vcs_mentions_inside_disabled_region() -> None:
     executor = _FakeExecutor({"git": wf_git, "spy": wf_spy})
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"git": wf_git, "spy": wf_spy},
     ):
         expanded, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
@@ -232,7 +232,7 @@ def test_segment_separator_inside_disabled_region_not_split() -> None:
     executor = _FakeExecutor({"git": wf_git, "spy": wf_spy})
 
     with patch(
-        "sase.xprompt.loader.get_all_workflows",
+        "sase.macro.loader.get_all_workflows",
         return_value={"git": wf_git, "spy": wf_spy},
     ):
         expanded, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(

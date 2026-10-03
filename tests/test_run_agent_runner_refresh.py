@@ -329,11 +329,11 @@ def test_refreshed_guard_prevents_loop_and_is_not_inherited(
 def test_refresh_rematerializes_local_xprompts_for_exec(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.agent.multi_prompt_xprompts import (
+    from sase.agent.multi_prompt_macros import (
         LOCAL_XPROMPTS_ENV,
         deserialize_local_xprompts,
     )
-    from sase.xprompt.models import XPrompt
+    from sase.macro.models import XPrompt
 
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     monkeypatch.delenv(LOCAL_XPROMPTS_ENV, raising=False)
@@ -374,8 +374,8 @@ def test_refresh_rematerializes_local_xprompts_for_exec(
 def test_refresh_exec_failure_restores_local_xprompts_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.agent.multi_prompt_xprompts import LOCAL_XPROMPTS_ENV
-    from sase.xprompt.models import XPrompt
+    from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
+    from sase.macro.models import XPrompt
 
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     monkeypatch.delenv(LOCAL_XPROMPTS_ENV, raising=False)
@@ -408,8 +408,8 @@ def test_refresh_exec_failure_restores_local_xprompts_env(
 def test_refresh_exec_failure_restores_prior_local_xprompts_value(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.agent.multi_prompt_xprompts import LOCAL_XPROMPTS_ENV
-    from sase.xprompt.models import XPrompt
+    from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
+    from sase.macro.models import XPrompt
 
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     prior = tmp_path / "prior.json"
@@ -420,7 +420,7 @@ def test_refresh_exec_failure_restores_prior_local_xprompts_value(
     created: list[str] = []
     real_serialize = None
 
-    import sase.agent.multi_prompt_xprompts as xprompt_module
+    import sase.agent.multi_prompt_macros as xprompt_module
 
     real_serialize = xprompt_module.serialize_local_xprompts
 
@@ -435,7 +435,7 @@ def test_refresh_exec_failure_restores_prior_local_xprompts_value(
             return_value="b" * 40,
         ),
         patch(
-            "sase.agent.multi_prompt_xprompts.serialize_local_xprompts",
+            "sase.agent.multi_prompt_macros.serialize_local_xprompts",
             side_effect=tracking_serialize,
         ),
         patch(
@@ -462,7 +462,7 @@ def test_refresh_leaves_local_xprompts_env_untouched_when_empty(
     monkeypatch: pytest.MonkeyPatch,
     local_xprompts: object,
 ) -> None:
-    from sase.agent.multi_prompt_xprompts import LOCAL_XPROMPTS_ENV
+    from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
 
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     monkeypatch.delenv(LOCAL_XPROMPTS_ENV, raising=False)
@@ -495,8 +495,8 @@ def test_refresh_serialization_failure_skips_refresh(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from sase.agent.multi_prompt_xprompts import LOCAL_XPROMPTS_ENV
-    from sase.xprompt.models import XPrompt
+    from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
+    from sase.macro.models import XPrompt
 
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     monkeypatch.delenv(LOCAL_XPROMPTS_ENV, raising=False)
@@ -508,7 +508,7 @@ def test_refresh_serialization_failure_skips_refresh(
             return_value="b" * 40,
         ),
         patch(
-            "sase.agent.multi_prompt_xprompts.serialize_local_xprompts",
+            "sase.agent.multi_prompt_macros.serialize_local_xprompts",
             side_effect=RuntimeError("cannot serialize"),
         ),
         patch("sase.axe.run_agent_runner_refresh.os.execv") as execv,
@@ -536,8 +536,8 @@ def test_refresh_local_xprompts_boundary_replay(
 
     from sase.agent.multi_prompt_launcher import _serialize_local_xprompts
     from sase.axe.run_agent_directives import extract_directives_and_write_meta
-    from sase.agent.multi_prompt_xprompts import LOCAL_XPROMPTS_ENV
-    from sase.xprompt.models import XPrompt
+    from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
+    from sase.macro.models import XPrompt
     from tests._agent_names_extract_fixtures import mock_provider
 
     sase_home = tmp_path / ".sase"

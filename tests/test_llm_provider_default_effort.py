@@ -11,7 +11,7 @@ from sase.llm_provider.config import (
     _get_default_effort,
     get_model_alias_history_limit,
 )
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.macro.effort import EFFORT_LEVELS_ORDERED
 
 
 def _mock_config(*, default_effort: Any) -> dict[str, Any]:

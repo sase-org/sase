@@ -27,7 +27,7 @@ from sase.monitor.start import StartMonitorRequest, start_monitor
 import sase.procs.spawn as spawn_module
 from sase.procs.runtime import proc_started_path, write_json_atomic
 from sase.procs.settlement import settle_named_proc
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 
 from tests.fakey._runner_slot_harness import (
     _Agent,

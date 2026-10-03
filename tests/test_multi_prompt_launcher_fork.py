@@ -8,7 +8,7 @@ from sase.agent.multi_prompt_launcher import (
     _rewrite_bare_resume_references,
     launch_multi_prompt_agents,
 )
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -165,7 +165,7 @@ def test_launch_multi_prompt_leaves_first_segment_bare_resume_unrewritten(
     mock_spawn.return_value = MagicMock(pid=1)
 
     with patch(
-        "sase.xprompt.processor.process_xprompt_references",
+        "sase.macro.processor.process_xprompt_references",
         return_value="#fork\nContinue",
     ):
         launch_multi_prompt_agents(

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from sase.xprompt import process_xprompt_references
-from sase.xprompt.models import UNSET
-from sase.xprompt.tags import XPromptTag, get_by_tag_strict
+from sase.macro import process_xprompt_references
+from sase.macro.models import UNSET
+from sase.macro.tags import XPromptTag, get_by_tag_strict
 
 
 @pytest.mark.parametrize(

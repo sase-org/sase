@@ -31,14 +31,14 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     xprompt_assist_entry_from_local_xprompt,
 )
-from sase.xprompt.jinja_assist import JinjaScope
-from sase.xprompt.models import InputArg
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.jinja_assist import JinjaScope
+from sase.macro.models import InputArg
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 
-    from sase.xprompt.models import XPrompt
+    from sase.macro.models import XPrompt
 else:
     _MixinBase = object
 
@@ -236,7 +236,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         :meth:`PromptFrontmatter.parse` and returns its ``xprompts:`` helpers
         keyed by ``_``-prefixed name.  Unlike
         :meth:`local_xprompt_assist_entries` (display-only completion entries),
-        this yields the underlying :class:`~sase.xprompt.models.XPrompt`
+        this yields the underlying :class:`~sase.macro.models.XPrompt`
         objects so the ``#@`` selector can both project them into the catalog
         (via ``xprompt_to_workflow``) and hand them to the ``Ctrl+I``
         inline-expansion helper for recursive resolution.

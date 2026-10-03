@@ -27,7 +27,7 @@ from sase.llm_provider import (
     EffectiveDefaultEffortSnapshot,
     TemporaryEffortOverride,
 )
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.macro.effort import EFFORT_LEVELS_ORDERED
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
     StyledModelsPanelTestApp,

@@ -19,12 +19,12 @@ from sase.content_layout import (
     resolve_project_layout,
 )
 from sase.config import CHEZMOI_HOME
-from sase.xprompt.loader import detect_project
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat
-from sase.xprompt.save_index import IndexKind, names_for_location
-from sase.xprompt.skill_locations import SkillDestination, skill_destinations
-from sase.xprompt.snippet_targets import (
+from sase.macro.loader import detect_project
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import SaveTargetFormat
+from sase.macro.save_index import IndexKind, names_for_location
+from sase.macro.skill_locations import SkillDestination, skill_destinations
+from sase.macro.snippet_targets import (
     SnippetSaveTarget,
     load_snippet_config_locations,
 )

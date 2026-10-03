@@ -16,8 +16,8 @@ from sase.llm_provider.effort_override import (
     set_effort_override,
     set_effort_override_until,
 )
-from sase.xprompt.directives import PromptDirectives
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.macro.directives import PromptDirectives
+from sase.macro.effort import EFFORT_LEVELS_ORDERED
 
 _NOW = 1_800_000_000.0
 

@@ -18,7 +18,7 @@ from sase.notification_gates.model_inputs import (
 from sase.notification_gates.model_validation import first_schema_error
 from sase.notification_gates.models import GateError, GateOption
 from sase.notification_gates.service import create_gate
-from sase.xprompt.models import (
+from sase.macro.models import (
     InputArg,
     InputChoice,
     InputType,

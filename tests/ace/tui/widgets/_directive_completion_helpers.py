@@ -19,7 +19,7 @@ from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.xprompt.model_completion import ModelCompletionEntry
+from sase.macro.model_completion import ModelCompletionEntry
 
 _SPECIAL_KEYWORD_NAMES = {
     "clan_keyword": "clan",

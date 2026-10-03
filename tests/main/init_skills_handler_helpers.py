@@ -12,7 +12,7 @@ import pytest
 
 from sase.main import _init_skills_manifest as manifest_module, init_skills_handler
 from sase.main.init_skills_handler import _get_target_path
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 _OLD_SHA = "1" * 40
 _NEW_SHA = "2" * 40
@@ -137,7 +137,7 @@ def stub_manifest_git(
 ) -> None:
     """Stub git provenance checks used by the skill deploy manifest."""
     source_root = tmp_path / "source"
-    skills_dir = source_root / "src" / "sase" / "xprompts" / "skills"
+    skills_dir = source_root / "src" / "sase" / "macros" / "skills"
     skills_dir.mkdir(parents=True)
 
     def fake_run_git(root: Path, *args: str) -> str:

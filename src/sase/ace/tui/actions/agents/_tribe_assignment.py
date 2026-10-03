@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from sase.xprompt.directive_edit import prompt_declares_clan
+from sase.macro.directive_edit import prompt_declares_clan
 
 from ...models.agent_pin import DEFAULT_PINNED_TRIBE
 from ..proc_actions import TrackedProcCompletion

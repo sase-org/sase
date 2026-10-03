@@ -29,7 +29,7 @@ from sase.core.agent_launch_wire import (
     WaitTargetWire,
     agent_launch_wire_to_json_dict,
 )
-from sase.xprompt.code_value import make_code_value
+from sase.macro.code_value import make_code_value
 
 
 def _agent_result(tmp_path: Path, name: str = "reviewer") -> AgentLaunchResult:

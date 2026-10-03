@@ -15,7 +15,7 @@ from sase.ace.tui.modals.workflow_hitl_modal import (
     WorkflowHITLModal,
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.xprompt.workflow_executor_types import HITLResult
+from sase.macro.workflow_executor_types import HITLResult
 
 
 class _TestApp(App[None]):

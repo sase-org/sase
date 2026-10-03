@@ -1,6 +1,6 @@
 """Tests for the side-effect-free strip_known_directives() helper."""
 
-from sase.xprompt.directives import strip_known_directives
+from sase.macro.directives import strip_known_directives
 
 
 def test_no_directives_passthrough() -> None:

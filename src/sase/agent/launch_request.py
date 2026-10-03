@@ -86,7 +86,7 @@ def create_launch_approval_request(
     prompt = str(normalized["prompt"])
     # Lineage inheritance (R2): the approver reviews the prompt the child
     # will actually run, so stamp the inherited tab before planning.
-    from sase.xprompt.directive_edit import (
+    from sase.macro.directive_edit import (
         apply_inherited_agent_tab,
         inherited_agent_tab,
     )
@@ -260,7 +260,7 @@ def _launch_shell_gate_spec(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def _typed_plan_payload(prompt: str) -> dict[str, Any] | None:
-    from sase.xprompt.code_value import typed_launch_units_enabled
+    from sase.macro.code_value import typed_launch_units_enabled
 
     if not typed_launch_units_enabled():
         return None

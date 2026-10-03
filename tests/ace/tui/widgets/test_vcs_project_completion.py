@@ -20,7 +20,7 @@ from sase.ace.tui.widgets.vcs_project_completion import (
     build_no_active_projects_placeholder,
     vcs_project_completion_candidates,
 )
-from sase.xprompt.vcs_project_completion import VcsProjectEntry, VcsProjectEntryKind
+from sase.macro.vcs_project_completion import VcsProjectEntry, VcsProjectEntryKind
 
 from ._completion_helpers import CompletionTestApp
 

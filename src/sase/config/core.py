@@ -148,7 +148,7 @@ from sase.config.loading import (
     load_yaml_file as _load_yaml_file_path,
     merge_config_sources,
 )
-from sase.config.xprompt_sources import (
+from sase.config.macro_sources import (
     load_xprompts_by_source as _load_xprompts_by_source,
 )
 from sase.content_layout import discover_project_root, resolve_project_layout

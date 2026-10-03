@@ -1,7 +1,7 @@
 """Shared ``-p/--project`` resolution for ``sase memory`` CLI subcommands.
 
 Reuses the project-record resolution already shared by
-:func:`~sase.xprompt.glossary_catalog.editor_glossary_catalog_for_project`
+:func:`~sase.macro.glossary_catalog.editor_glossary_catalog_for_project`
 and the ACE glossary panel's project ring, which resolves a project ref (key,
 name, alias, or CWD inference) to an enabled project's workspace directory
 without requiring that project to have a glossary configured.
@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.xprompt._glossary_catalog_projects import select_project
+from sase.macro._glossary_catalog_projects import select_project
 
 
 class MemoryCliProjectError(RuntimeError):
@@ -42,7 +42,7 @@ def resolve_memory_cli_project(
 
     # Lazy import to avoid a circular dependency: glossary_catalog imports
     # sase.memory.web.catalog, whose package __init__ imports this module.
-    from sase.xprompt.glossary_catalog import enabled_project_records
+    from sase.macro.glossary_catalog import enabled_project_records
 
     records = enabled_project_records(None)
     project = select_project(project_ref, records, launch_workspace=None)

@@ -21,7 +21,7 @@ from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.finalizers.reconciliation import PreparedCommitDirtyState
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 
 def prepare_agent_env(

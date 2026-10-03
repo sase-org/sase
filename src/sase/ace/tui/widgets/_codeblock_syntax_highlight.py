@@ -21,8 +21,8 @@ from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.xprompt._fenced_blocks import fenced_block_details
-from sase.xprompt._literal_zones import inline_literal_ranges
+from sase.macro._fenced_blocks import fenced_block_details
+from sase.macro._literal_zones import inline_literal_ranges
 
 _FENCED_CODE_SURFACE_BLEND = 0.08
 _INLINE_CODE_SURFACE_BLEND = 0.22

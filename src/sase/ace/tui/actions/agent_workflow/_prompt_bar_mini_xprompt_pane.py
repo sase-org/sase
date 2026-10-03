@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.widgets._local_xprompt_conversion import infer_local_xprompt_inputs
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.save import SaveTargetFormat, load_config_xprompt_markdown
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.save import SaveTargetFormat, load_config_xprompt_markdown
 
 from ._types import PromptContext
 
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.modals.unified_xprompt_save_support import UnifiedSaveLocation
     from sase.ace.tui.widgets import PromptInputBar
     from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
-    from sase.xprompt.save_state import SaveKind
+    from sase.macro.save_state import SaveKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -376,7 +376,7 @@ def _build_mini_xprompt_picker_choices(
 
 
 def _load_last_used_locations() -> dict[SaveKind, str]:
-    from sase.xprompt.save_state import load_last_used_locations
+    from sase.macro.save_state import load_last_used_locations
 
     return load_last_used_locations()
 

@@ -22,9 +22,9 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, Static, TextArea
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.xprompt.frontmatter_schema import input_type_schema
-from sase.xprompt.loader_parsing import parse_input_type
-from sase.xprompt.models import (
+from sase.macro.frontmatter_schema import input_type_schema
+from sase.macro.loader_parsing import parse_input_type
+from sase.macro.models import (
     UNSET,
     InputArg,
     InputType,

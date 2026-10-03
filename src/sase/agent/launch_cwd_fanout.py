@@ -18,7 +18,7 @@ from sase.agent.launch_cwd_common import (
 from sase.agent.launch_types import AgentLaunchResult
 
 if TYPE_CHECKING:
-    from sase.xprompt.models import XPrompt
+    from sase.macro.models import XPrompt
 
 
 def launch_multi_prompt_branch(
@@ -39,7 +39,7 @@ def launch_multi_prompt_branch(
     from sase.agent.launch_projects import (
         enable_known_project_vcs_refs_for_launch_prompt,
     )
-    from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
+    from sase.macro._parsing import normalize_default_vcs_workflow_segment
 
     normalized_segments = [
         normalize_default_vcs_workflow_segment(segment) for segment in segments
@@ -201,11 +201,11 @@ def launch_alt_branch_if_applicable(
     recorder: LaunchHistoryRecorder,
 ) -> list[AgentLaunchResult] | None:
     """Launch one agent per ``%{a | b}`` alt-split slot, else ``None``."""
-    from sase.xprompt.directives import plan_prompt_fanout_variants
+    from sase.macro.directives import plan_prompt_fanout_variants
 
     alt_plan = plan_prompt_fanout_variants(query)
     if alt_plan is None and "#" in query:
-        from sase.xprompt.processor import (
+        from sase.macro.processor import (
             LAUNCH_DEFERRED_XPROMPT_NAMES,
             process_xprompt_references,
             prompt_may_reference_xprompt,

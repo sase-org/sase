@@ -18,15 +18,15 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from sase.continuation_capture import ContinuationSegmentCapture
     from sase.artifact_ref_prompt_context import PromptRefContext
-    from sase.xprompt._trace import ExpansionTrace
+    from sase.macro._trace import ExpansionTrace
 
-from sase.xprompt._disabled_regions import (
+from sase.macro._disabled_regions import (
     protect_disabled_regions,
     strip_disabled_region_markers,
     unprotect_disabled_regions,
 )
-from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
-from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
+from sase.macro._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+from sase.macro.directives import PromptDirectives, extract_prompt_directives
 
 # File reference processing mode:
 #   "process" — expand @path refs (copy files, rewrite paths)
@@ -88,18 +88,18 @@ def preprocess_prompt_early(
         A PreprocessResult with the partially processed prompt and extracted
         directives.
     """
-    from sase.xprompt import process_xprompt_references
+    from sase.macro import process_xprompt_references
 
     authored_prompt = prompt
     trace_start_index = len(trace.records) if trace is not None else 0
     if trace is None:
-        from sase.xprompt._trace import ExpansionTrace
+        from sase.macro._trace import ExpansionTrace
 
         trace = ExpansionTrace()
 
     # 1. Optional Jinja2 rendering (workflow variables)
     if context is not None:
-        from sase.xprompt.workflow_executor_utils import render_template
+        from sase.macro.workflow_executor_utils import render_template
 
         fenced_blocks: list[str] = []
         prompt = protect_fenced_blocks(prompt, fenced_blocks)
@@ -191,7 +191,7 @@ def preprocess_prompt_late(
         process_artifact_references,
         validate_artifact_references,
     )
-    from sase.xprompt import is_jinja2_template, render_toplevel_jinja2
+    from sase.macro import is_jinja2_template, render_toplevel_jinja2
 
     # 0. Protect disabled regions (%xprompts_enabled:false/true pairs)
     disabled_regions: list[str] = []

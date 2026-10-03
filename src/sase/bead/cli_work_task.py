@@ -142,7 +142,7 @@ def launch_task_bead_work(
         task_model_directive_value,
         task_work_segment_env,
     )
-    from sase.bead.xprompts import (
+    from sase.bead.macros import (
         BeadXPromptNotFoundError,
         resolve_work_task_xprompt,
     )

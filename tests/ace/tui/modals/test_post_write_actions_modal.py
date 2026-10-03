@@ -6,7 +6,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Static
 
 from sase.ace.tui.modals.post_write_actions_modal import PostWriteActionsModal
-from sase.xprompt.write_targets import PostWriteActionKind, PostWriteActionOffer
+from sase.macro.write_targets import PostWriteActionKind, PostWriteActionOffer
 
 
 class _ModalApp(App[None]):

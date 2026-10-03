@@ -278,7 +278,7 @@ def test_adapter_rejects_fanout_segment(monkeypatch: pytest.MonkeyPatch) -> None
     )
     # Force the fan-out detector to flag the first segment.
     monkeypatch.setattr(
-        "sase.xprompt.directives.plan_prompt_fanout_variants",
+        "sase.macro.directives.plan_prompt_fanout_variants",
         lambda segment, **kwargs: object(),
     )
 
@@ -447,7 +447,7 @@ def test_bead_work_ref_canonicalizes_owner_repo_known_project(
         lambda projects_root=None: {},
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_known_project_workspaces",
+        "sase.macro.loader.get_known_project_workspaces",
         lambda: {"sase": str(workspace)},
     )
 

@@ -5,11 +5,11 @@ import tempfile
 
 import pytest
 import yaml  # type: ignore[import-untyped]
-from sase.xprompt._step_input_loader import (
+from sase.macro._step_input_loader import (
     load_step_input_value,
 )
-from sase.xprompt.models import OutputSpec
-from sase.xprompt.workflow_models import WorkflowValidationError
+from sase.macro.models import OutputSpec
+from sase.macro.workflow_models import WorkflowValidationError
 
 
 def test_load_step_input_file_not_found() -> None:

@@ -1,7 +1,7 @@
 """Pure Rich renderers for the xprompt properties band and full properties view.
 
 Neither function touches Textual: both take an already-projected
-:class:`~sase.xprompt.properties.XPromptProperties` and return a Rich
+:class:`~sase.macro.properties.XPromptProperties` and return a Rich
 renderable, so they are unit-testable without an app.
 """
 
@@ -15,10 +15,10 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.cli_show_palette import SECTION_COLOR
-from sase.xprompt.cli_show_model import ShowInput, ShowLocalXPrompt, ShowStep
-from sase.xprompt.highlight import XPromptHighlightRole
-from sase.xprompt.highlight_theme import highlight_theme
-from sase.xprompt.properties import XPromptProperties, single_line_default
+from sase.macro.cli_show_model import ShowInput, ShowLocalXPrompt, ShowStep
+from sase.macro.highlight import XPromptHighlightRole
+from sase.macro.highlight_theme import highlight_theme
+from sase.macro.properties import XPromptProperties, single_line_default
 
 _DEFAULT_MAX_INPUT_ROWS = 6
 _DESCRIPTION_MAX_LINES = 2

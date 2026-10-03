@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.xprompt._parsing import (
+from sase.macro._parsing import (
     find_vcs_workflow_tag_prepend_offset,
     find_vcs_workflow_tag_span,
     normalize_vcs_underscore_refs,
@@ -99,7 +99,7 @@ def _mru_entry_display_form(entry: str, catalog: Any | None) -> str:
     if catalog is None:
         return entry
     from sase.project_tags import known_project_tag_for
-    from sase.xprompt import extract_project_from_vcs_tag
+    from sase.macro import extract_project_from_vcs_tag
 
     project = extract_project_from_vcs_tag(entry)
     if not project:
@@ -437,7 +437,7 @@ class VcsMruCyclingMixin(_MixinBase):
             except Exception:  # noqa: BLE001 - hint is best-effort.
                 pass
             return None
-        from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru
+        from sase.history.vcs_macro_mru import load_launchable_vcs_xprompt_mru
 
         return load_launchable_vcs_xprompt_mru(prune=False)
 

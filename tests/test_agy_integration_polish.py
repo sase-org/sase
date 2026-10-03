@@ -191,10 +191,10 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
     )
     # The `#agy_flash` preset expands to the `agy_flash` alias token; inject just
     # that xprompt so the test does not depend on the live user config.
-    from sase.xprompt.models import XPrompt
+    from sase.macro.models import XPrompt
 
     monkeypatch.setattr(
-        "sase.xprompt.processor.get_all_xprompts",
+        "sase.macro.processor.get_all_xprompts",
         lambda *_args, **_kwargs: {
             "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
         },

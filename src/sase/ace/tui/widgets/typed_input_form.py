@@ -1,6 +1,6 @@
 """Reusable typed, validated single-page field collection.
 
-Driven entirely by the shared xprompt :class:`~sase.xprompt.models.InputArg`
+Driven entirely by the shared xprompt :class:`~sase.macro.models.InputArg`
 rules, so both the prompt-launch :class:`InputCollectionModal` and the ACE
 gate modals collect typed input through one widget with no per-host
 branching. See ``sase/repos/plans/202608/gate_inputs_ace_1.md`` for the
@@ -19,7 +19,7 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Button, Label, TextArea
 
-from sase.xprompt.models import UNSET, InputArg, InputType, XPromptValidationError
+from sase.macro.models import UNSET, InputArg, InputType, XPromptValidationError
 
 from .secret_vim_text_area import SecretVimTextArea
 from .single_line_vim_text_area import SingleLineVimTextArea
@@ -572,7 +572,7 @@ def _load_type_rules() -> dict[str, str]:
     form still renders (without guidance text) rather than failing to open.
     """
     try:
-        from sase.xprompt.frontmatter_schema import input_type_schema
+        from sase.macro.frontmatter_schema import input_type_schema
 
         rules: dict[str, str] = {}
         for type_schema in input_type_schema():

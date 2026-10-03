@@ -27,7 +27,7 @@ def resolve_vcs_xprompt_mru_head(
     project spelling so history grouping agrees with every other prefill
     surface.
     """
-    from sase.history.vcs_xprompt_mru import mru_prefix_project_name
+    from sase.history.vcs_macro_mru import mru_prefix_project_name
     from sase.project_tags import known_project_tag_for, peek_project_tag_catalog
 
     if not pairs:
@@ -111,7 +111,7 @@ class EntryCustomMixin:
             except Exception:  # noqa: BLE001 - the next tick retries.
                 pass
             return
-        from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru_pairs
+        from sase.history.vcs_macro_mru import load_launchable_vcs_xprompt_mru_pairs
 
         resolved = resolve_vcs_xprompt_mru_head(
             load_launchable_vcs_xprompt_mru_pairs(prune=False)
@@ -139,7 +139,7 @@ class EntryCustomMixin:
             # Cold/error snapshot (or a host without one): the editor
             # opens anyway, so fall back to the synchronous loader without
             # ever writing the MRU file.
-            from sase.history.vcs_xprompt_mru import (
+            from sase.history.vcs_macro_mru import (
                 load_launchable_vcs_xprompt_mru_pairs,
             )
 

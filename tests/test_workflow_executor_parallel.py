@@ -6,9 +6,9 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.workflow_executor import WorkflowExecutor
-from sase.xprompt.workflow_models import (
+from sase.macro.models import InputArg, InputType
+from sase.macro.workflow_executor import WorkflowExecutor
+from sase.macro.workflow_models import (
     ParallelConfig,
     Workflow,
     WorkflowExecutionError,
@@ -194,7 +194,7 @@ def test_pre_expand_parallel_no_embedded_workflows() -> None:
     workflow = _create_workflow("test", [])
     executor = _create_executor(workflow)
 
-    with patch("sase.xprompt.loader.get_all_workflows") as mock_get:
+    with patch("sase.macro.loader.get_all_workflows") as mock_get:
         mock_get.return_value = {}
         modified, collected = executor._pre_expand_parallel_embedded_workflows(
             nested_steps
@@ -240,7 +240,7 @@ def test_pre_expand_parallel_collects_post_steps() -> None:
     workflow = _create_workflow("test", [WorkflowStep(name="root")])
     executor = _create_executor(workflow)
 
-    with patch("sase.xprompt.loader.get_all_workflows") as mock_get:
+    with patch("sase.macro.loader.get_all_workflows") as mock_get:
         mock_get.return_value = {"test_embed": embedded_wf}
         modified, collected = executor._pre_expand_parallel_embedded_workflows(
             nested_steps

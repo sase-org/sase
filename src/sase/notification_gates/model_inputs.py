@@ -24,7 +24,7 @@ from sase.notification_gates.model_validation import (
     json_object,
     reject_unknown_fields,
 )
-from sase.xprompt.models import InputChoice, InputType
+from sase.macro.models import InputChoice, InputType
 
 _GATE_INPUT_FIELD_KEYS = {
     "id",

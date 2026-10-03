@@ -7,7 +7,7 @@ from typing import Any
 
 from rich.style import Style
 
-from sase.xprompt.highlight_theme import derive_argument_color
+from sase.macro.highlight_theme import derive_argument_color
 
 
 @dataclass(frozen=True, slots=True)

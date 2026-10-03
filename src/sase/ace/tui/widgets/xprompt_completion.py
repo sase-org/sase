@@ -13,7 +13,7 @@ from sase.ace.tui.widgets.file_completion import (
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
 )
-from sase.xprompt.naming import (
+from sase.macro.naming import (
     is_inline_reference_name,
     is_inline_reference_name_char,
 )

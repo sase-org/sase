@@ -311,7 +311,7 @@ def _model_value(preview: AgentRestartPreview) -> Text | None:
 
 
 def _json_vcs_tag(plan: AgentRestartPlan) -> str | None:
-    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
+    from sase.macro import extract_vcs_workflow_tag, find_vcs_workflow_tag
 
     return extract_vcs_workflow_tag(plan.original_prompt) or find_vcs_workflow_tag(
         plan.original_prompt

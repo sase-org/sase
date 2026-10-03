@@ -21,8 +21,8 @@ def _mock_vcs_names():
             "sase.workspace_provider._registry.get_workflow_names",
             _MOCK_WORKFLOW_NAMES,
         ),
-        patch("sase.xprompt._parsing._VCS_TAG_PATTERN", None),
-        patch("sase.xprompt._parsing._VCS_UNDERSCORE_NORMALIZER", None),
+        patch("sase.macro._parsing._VCS_TAG_PATTERN", None),
+        patch("sase.macro._parsing._VCS_UNDERSCORE_NORMALIZER", None),
     ):
         yield
 

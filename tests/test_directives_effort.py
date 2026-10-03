@@ -11,13 +11,13 @@ from sase.history.prompt_metadata import (
     clean_prompt_preview,
     summarize_prompt_for_preview,
 )
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import (
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import (
     extract_prompt_directives,
     split_prompt_for_models,
     strip_known_directives,
 )
-from sase.xprompt.effort import (
+from sase.macro.effort import (
     EFFORT_LEVELS,
     EFFORT_LEVELS_ORDERED,
     is_valid_effort,

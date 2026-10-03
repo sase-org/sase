@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt.workflow_loader import (
+from sase.macro.workflow_loader import (
     _load_step_definition,
     _load_workflow_from_file,
     _resolve_step_imports,
@@ -33,7 +33,7 @@ def step_dir(tmp_path: Path) -> Path:
 def _patch_search_dirs(step_dir: Path) -> Generator[None]:
     """Patch _get_step_search_dirs to return the temp steps directory."""
     with patch(
-        "sase.xprompt.workflow_loader._get_step_search_dirs",
+        "sase.macro.workflow_loader._get_step_search_dirs",
         return_value=[step_dir],
     ):
         yield
@@ -73,7 +73,7 @@ class TestLoadStepDefinition:
         yaml_file.write_text("bash: echo hello\n")
 
         with patch(
-            "sase.xprompt.workflow_loader._get_step_search_dirs",
+            "sase.macro.workflow_loader._get_step_search_dirs",
             return_value=[step_dir],
         ):
             result = _load_step_definition("alt/my_step")
@@ -90,7 +90,7 @@ class TestLoadStepDefinition:
         (dir_b / "step.yml").write_text("bash: echo b\n")
 
         with patch(
-            "sase.xprompt.workflow_loader._get_step_search_dirs",
+            "sase.macro.workflow_loader._get_step_search_dirs",
             return_value=[tmp_path / "a" / "steps", tmp_path / "b" / "steps"],
         ):
             result = _load_step_definition("shared/step")

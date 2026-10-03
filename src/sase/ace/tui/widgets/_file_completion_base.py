@@ -5,7 +5,7 @@ from __future__ import annotations
 from sase.ace.tui.widgets._file_completion_base_inventories import (
     FileCompletionBaseInventoriesMixin,
 )
-from sase.xprompt.vcs_project_completion import build_vcs_project_completion_entries
+from sase.macro.vcs_project_completion import build_vcs_project_completion_entries
 
 
 class FileCompletionBaseMixin(FileCompletionBaseInventoriesMixin):
@@ -42,7 +42,7 @@ class FileCompletionBaseMixin(FileCompletionBaseInventoriesMixin):
         detection), so they must never run synchronously inside key handling
         (``sase/memory/tui_perf.md``). Building once in a background thread
         populates the module-level cache in
-        :mod:`sase.xprompt.vcs_project_completion` and the shared
+        :mod:`sase.macro.vcs_project_completion` and the shared
         :mod:`sase.project_tags` snapshot, so the first valid ``+`` opens
         the menu instantly and tag prefills resolve. Gated on the real app's
         completion-settings capability so lightweight test harnesses skip it.
@@ -81,6 +81,6 @@ def _warm_vcs_completion_catalogs() -> None:
     load_project_tag_catalog()
 
     from sase.workspace_provider import get_workflow_names
-    from sase.xprompt.vcs_ref_completion import vcs_ref_namespaces_by_workflow
+    from sase.macro.vcs_ref_completion import vcs_ref_namespaces_by_workflow
 
     vcs_ref_namespaces_by_workflow(get_workflow_names())

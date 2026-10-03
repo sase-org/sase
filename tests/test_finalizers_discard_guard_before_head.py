@@ -46,7 +46,7 @@ from sase.llm_provider.commit_finalizer_git_progress import progress_fingerprint
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 from tests.finalizers_live_e2e_test_helpers import (
     attach_bare_remote,
     init_live_repo,

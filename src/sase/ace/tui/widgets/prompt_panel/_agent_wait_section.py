@@ -266,7 +266,7 @@ def build_wait_lanes(
         multiplier = wait_agent.queue_capacity_multiplier
         threshold = capacity if capacity is not None else 0
         if multiplier is not None and capacity is None:
-            from sase.xprompt.queue_directive import (
+            from sase.macro.queue_directive import (
                 format_queue_capacity_multiplier,
                 resolve_queue_capacity_multiplier,
             )
@@ -368,7 +368,7 @@ def _has_authored_capacity_multiplier(agent: Agent) -> bool:
         return False
     if agent.queue_capacity_multiplier is None:
         return False
-    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+    from sase.macro.queue_directive import format_queue_capacity_multiplier
 
     return format_queue_capacity_multiplier(agent.queue_capacity_multiplier) is not None
 

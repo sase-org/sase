@@ -25,8 +25,8 @@ from sase.ace.tui.launchable_mru import (
     LaunchableMruSnapshot,
     build_launchable_mru_data,
 )
-from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru
-from tests._vcs_xprompt_mru_helpers import patched_mru_file
+from sase.history.vcs_macro_mru import load_launchable_vcs_xprompt_mru
+from tests._vcs_macro_mru_helpers import patched_mru_file
 from tests.ace.tui._prompt_key_io_probes import prompt_key_io_probe
 from tests.conftest import redirect_sase_home
 
@@ -34,8 +34,8 @@ from tests.conftest import redirect_sase_home
 @pytest.fixture(autouse=True)
 def _reset_vcs_tag_pattern_cache() -> object:
     """Rebuild the lazily-cached VCS tag pattern from the real providers."""
-    import sase.xprompt._parsing as parsing
-    import sase.xprompt._parsing_vcs_tags as vcs_tags
+    import sase.macro._parsing as parsing
+    import sase.macro._parsing_vcs_tags as vcs_tags
 
     parsing._VCS_TAG_PATTERN = None
     parsing._VCS_TAG_EMBEDDED_PATTERN = None
@@ -57,7 +57,7 @@ def _seed_mru(
     mru_file = sase_home / "vcs_xprompt_mru.json"
     mru_file.write_text(json.dumps({"entries": entries}))
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_known_project_workspaces",
+        "sase.macro.loader.get_known_project_workspaces",
         lambda *a, **k: {"foo": workspace, "bar": workspace},
     )
     monkeypatch.setattr(
@@ -105,7 +105,7 @@ def test_build_failure_raises_for_error_snapshot(
     """Loader failure raises so the caller publishes ``error``, not stale data."""
     _seed_mru(tmp_path, monkeypatch, ["#git:foo"])
     with patch(
-        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
         side_effect=RuntimeError("boom"),
     ):
         with pytest.raises(RuntimeError):
@@ -350,7 +350,7 @@ async def test_snapshot_cycle_matches_loader_cycle_results(
         ta.load_text("")
         ta.focus()
         with mock_patch(
-            "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
+            "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
             side_effect=AssertionError("snapshot path must not load"),
         ):
             await pilot.press("ctrl+p")

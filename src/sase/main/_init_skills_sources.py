@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from sase.llm_provider.registry import iter_plugins
-from sase.xprompt.models import XPrompt
+from sase.macro.models import XPrompt
 
 
 def all_providers() -> list[str]:

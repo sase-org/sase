@@ -23,7 +23,7 @@ def submitted_vcs_xprompt_prefix(prompt: str) -> str | None:
         effective_vcs_workflow_tag_with_catalog,
         peek_project_tag_catalog,
     )
-    from sase.xprompt._parsing import extract_project_from_vcs_tag
+    from sase.macro._parsing import extract_project_from_vcs_tag
 
     tag = effective_vcs_workflow_tag_with_catalog(
         prompt.strip() + " ", peek_project_tag_catalog()
@@ -67,7 +67,7 @@ def launch_toast_label(prompt: str, fallback: str) -> str:
     baked ``ctx.display_name``. Falls back to *fallback* when the prompt has no
     recognized leading VCS tag.
     """
-    from sase.xprompt._parsing import extract_project_from_vcs_tag
+    from sase.macro._parsing import extract_project_from_vcs_tag
 
     prefix = submitted_vcs_xprompt_prefix(prompt)
     if prefix is None:
@@ -86,7 +86,7 @@ def record_submit_time_vcs_replay(prompt: str) -> None:
     if prefix is None:
         return
     try:
-        from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
+        from sase.history.vcs_macro_mru import record_vcs_xprompt_usage
 
         record_vcs_xprompt_usage(prefix)
     except Exception:

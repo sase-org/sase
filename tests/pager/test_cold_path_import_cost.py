@@ -43,7 +43,7 @@ _COLD_PATH_WATCHED = (
     "textual",
     "sase.ace.tui.widgets.prompt_panel",
     "sase.ace.tui.actions",
-    "sase.xprompt",
+    "sase.macro",
     "sase.notification_gates",
     "sase.finalizers",
     "sase.artifact_cli.doctor",

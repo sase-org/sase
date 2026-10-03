@@ -1,6 +1,6 @@
 """Compatibility imports for xprompt YAML config insertion helpers."""
 
-from sase.xprompt.config_yaml import generate_xprompt_yaml, insert_xprompt_into_config
+from sase.macro.config_yaml import generate_xprompt_yaml, insert_xprompt_into_config
 
 
 def _generate_xprompt_yaml(

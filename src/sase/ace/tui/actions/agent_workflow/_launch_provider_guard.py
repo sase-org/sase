@@ -234,7 +234,7 @@ class LaunchProviderGuardMixin:
         )
 
     def _apply_model_to_current_unit(self, launch_id: str, model: str) -> None:
-        from sase.xprompt.directive_edit import set_prompt_model
+        from sase.macro.directive_edit import set_prompt_model
 
         launch = pending_launch(self, launch_id)
         session = self._provider_guard_session(launch)

@@ -29,7 +29,7 @@ from sase.agent.names import (
     sole_resume_agent_name,
 )
 from sase.core.agent_tribe import parse_tribe_reference
-from sase.xprompt._exceptions import DirectiveError
+from sase.macro._exceptions import DirectiveError
 
 __all__ = [
     "NameCollisionError",
@@ -107,9 +107,9 @@ def _extract_repeat_identity(
 
 def _validate_repeat_prompt_directives(prompt: str) -> None:
     """Surface Python directive migrations before the Rust repeat prepass."""
-    from sase.xprompt._directive_collect import collect_prompt_directive_matches
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+    from sase.macro._directive_collect import collect_prompt_directive_matches
+    from sase.macro._disabled_regions import protect_disabled_regions
+    from sase.macro._fenced_blocks import protect_fenced_blocks
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)

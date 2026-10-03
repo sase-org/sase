@@ -34,7 +34,7 @@ def launch_single_agent(
         resolve_ref_from_prompt,
     )
     from sase.workspace_provider import get_workflow_names
-    from sase.xprompt.directives import has_deferred_start_directive
+    from sase.macro.directives import has_deferred_start_directive
 
     has_wait = has_deferred_start_directive(query)
     vcs_ref: tuple[str, str] | None = None

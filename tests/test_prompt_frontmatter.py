@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from sase.xprompt.loader_parsing import LocalXPromptNameError
-from sase.xprompt.models import UNSET, InputArg, InputChoice, InputType, XPrompt
-from sase.xprompt.prompt_frontmatter import (
+from sase.macro.loader_parsing import LocalXPromptNameError
+from sase.macro.models import UNSET, InputArg, InputChoice, InputType, XPrompt
+from sase.macro.prompt_frontmatter import (
     LOCAL_XPROMPT_SOURCE,
     PromptFrontmatter,
 )
@@ -125,7 +125,7 @@ def test_extra_order_is_stable_and_appended_after_parity_fields() -> None:
 
 
 def test_builtin_markdown_frontmatter_corpus_is_idempotent() -> None:
-    roots = [Path("src/sase/xprompts"), Path("src/sase/default_xprompts")]
+    roots = [Path("src/sase/macros"), Path("src/sase/default_macros")]
     for source in (path for root in roots for path in root.rglob("*.md")):
         text = source.read_text(encoding="utf-8")
         if not text.startswith("---\n"):
@@ -437,7 +437,7 @@ def test_diagnostics_surface_core_errors() -> None:
 
 
 def test_diagnostics_matches_direct_core_validation() -> None:
-    from sase.xprompt.frontmatter_schema import validate_frontmatter
+    from sase.macro.frontmatter_schema import validate_frontmatter
 
     model = PromptFrontmatter.parse("---\nname: x\ninput:\n  svc: word\n---")
     assert model.diagnostics() == validate_frontmatter(model.serialize())

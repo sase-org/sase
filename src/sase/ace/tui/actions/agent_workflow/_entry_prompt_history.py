@@ -24,7 +24,7 @@ class EntryPromptHistoryMixin:
         Documented as "same as Space": both read the VCS xprompt MRU head.
         """
         from sase.core.time import generate_timestamp
-        from sase.history.vcs_xprompt_mru import (
+        from sase.history.vcs_macro_mru import (
             load_launchable_vcs_xprompt_mru_pairs,
             mru_prefix_project_name,
         )
@@ -75,7 +75,7 @@ class EntryPromptHistoryMixin:
 
         def _build_prompt(prompt_text: str) -> str:
             if vcs_prefix:
-                from sase.xprompt import replace_vcs_workflow_tags
+                from sase.macro import replace_vcs_workflow_tags
 
                 return replace_vcs_workflow_tags(prompt_text, vcs_prefix)
             return prompt_text

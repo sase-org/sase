@@ -13,7 +13,7 @@ from sase.notification_gates.input_collection import (
 from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_options import GateCommand, GateOption
 from sase.notification_gates.model_validation import GateError
-from sase.xprompt.models import UNSET, InputChoice, InputType, XPromptValidationError
+from sase.macro.models import UNSET, InputChoice, InputType, XPromptValidationError
 
 
 def _option(option_id: str, *inputs: GateInputField) -> GateOption:

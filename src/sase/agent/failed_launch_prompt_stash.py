@@ -78,7 +78,7 @@ def _split_prompt_for_stash(prompt: str) -> tuple[str, str]:
     manual-stash capture shape so restore treats both identically.
     """
     from sase.agent.multi_prompt import split_segments_protecting_fences
-    from sase.xprompt.loader_parsing import parse_yaml_front_matter
+    from sase.macro.loader_parsing import parse_yaml_front_matter
 
     frontmatter_dict, body = parse_yaml_front_matter(prompt)
     frontmatter = ""

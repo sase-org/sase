@@ -12,7 +12,7 @@ from sase.ace.tui.widgets.vcs_ref_completion import (
     vcs_ref_completion_candidates,
 )
 from sase.workspace_provider import VcsNamespaceEntry
-from sase.xprompt.vcs_project_completion import VcsProjectEntry
+from sase.macro.vcs_project_completion import VcsProjectEntry
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

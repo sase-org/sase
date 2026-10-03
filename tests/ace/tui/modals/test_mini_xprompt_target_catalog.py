@@ -16,8 +16,8 @@ from sase.ace.tui.modals.mini_xprompt_target_catalog import (
 )
 from sase.ace.tui.modals.unified_xprompt_save_modal import UnifiedSaveLocation
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
-from sase.xprompt.models import XPrompt
-from sase.xprompt.save import SaveTargetFormat
+from sase.macro.models import XPrompt
+from sase.macro.save import SaveTargetFormat
 
 
 def _row(

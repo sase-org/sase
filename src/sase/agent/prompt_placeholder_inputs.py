@@ -17,8 +17,8 @@ from sase.agent.prompt_inputs import (
     render_prompt_with_inputs,
 )
 from sase.config.core import load_merged_config
-from sase.xprompt.loader_parsing import parse_yaml_front_matter
-from sase.xprompt.raw_placeholders import (
+from sase.macro.loader_parsing import parse_yaml_front_matter
+from sase.macro.raw_placeholders import (
     RawPlaceholderField,
     raw_placeholder_fields,
     substitute_raw_placeholders,

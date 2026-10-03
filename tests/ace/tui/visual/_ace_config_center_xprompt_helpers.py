@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import InputArg, InputType
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 def _xprompts() -> dict[str, Workflow]:
@@ -39,7 +39,7 @@ def _patch_xprompt_sources(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda project=None: dict(prompts),
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_project_local_prompts",
+        "sase.macro.loader.get_all_project_local_prompts",
         lambda: {},
     )
     monkeypatch.setattr(

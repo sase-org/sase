@@ -74,14 +74,14 @@ async def test_prompt_key_perf_harness_records_space_and_cycle(
     _stub_agent_tab_catalog_compat(monkeypatch)
     _stub_jinja_compat(monkeypatch)
     monkeypatch.setattr(
-        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
         lambda *args, **kwargs: [
             ("#git:foo", "#git:foo"),
             ("#git:bar", "#git:bar"),
         ],
     )
     monkeypatch.setattr(
-        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
         lambda *args, **kwargs: ["#git:foo", "#git:bar"],
     )
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
@@ -143,7 +143,7 @@ async def test_prompt_cycle_key_records_perf_sample(
         ta.move_cursor(ta._location_from_absolute(len("#git:foo ")))
         ta.focus()
         with patch(
-            "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
+            "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
             return_value=["#git:foo", "#git:bar"],
         ):
             await pilot.press("ctrl+p")
@@ -172,7 +172,7 @@ def test_prompt_key_io_probe_counts_main_thread_calls(
     watch_dir = tmp_path / "watched"
     watch_dir.mkdir()
 
-    import sase.history.vcs_xprompt_mru as mru_module
+    import sase.history.vcs_macro_mru as mru_module
     import sase.core.project_lifecycle_facade as facade_module
 
     with prompt_key_io_probe() as probe:

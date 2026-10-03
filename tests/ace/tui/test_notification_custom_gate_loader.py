@@ -21,7 +21,7 @@ from sase.notification_gates.presentation import GateChip
 from sase.notification_gates.service import create_gate
 from sase.bead.task_gate import create_task_triage_gate
 from sase.notifications.store import load_notifications
-from sase.xprompt import HITLResult
+from sase.macro import HITLResult
 
 from ._notification_custom_gate_helpers import _spec, gate_home_fixture
 

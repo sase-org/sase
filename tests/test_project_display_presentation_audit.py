@@ -298,7 +298,7 @@ def test_canonical_exemptions_name_existing_sites_and_rationales() -> None:
 
 def test_patch_completion_catalog_projects_display_fields() -> None:
     """Completion name/tag fields cannot directly consume Patch identity."""
-    path = "src/sase/xprompt/vcs_project_completion.py"
+    path = "src/sase/macro/vcs_project_completion.py"
     tree = _parse(path)
     parents = _parent_map(tree)
     violations: list[str] = []

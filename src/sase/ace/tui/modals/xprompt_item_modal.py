@@ -22,18 +22,18 @@ from textual.widgets import Label, Static, TextArea
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.xprompt.loader_parsing import (
+from sase.macro.loader_parsing import (
     LocalXPromptNameError,
     parse_input_type,
     parse_local_xprompt_entries,
 )
-from sase.xprompt.models import (
+from sase.macro.models import (
     UNSET,
     InputArg,
     XPrompt,
     XPromptValidationError,
 )
-from sase.xprompt.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
 
 from .input_item_modal import default_to_text
 
@@ -42,7 +42,7 @@ _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 def _known_type_names() -> set[str]:
     """All accepted input-type spellings (canonical names + aliases)."""
-    from sase.xprompt.frontmatter_schema import input_type_schema
+    from sase.macro.frontmatter_schema import input_type_schema
 
     names: set[str] = set()
     for descriptor in input_type_schema():

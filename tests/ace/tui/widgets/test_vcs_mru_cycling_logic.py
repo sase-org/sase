@@ -21,14 +21,14 @@ _TEST_EMBEDDED_VCS_PATTERN = re.compile(
 
 @contextmanager
 def _patched_vcs_parsing() -> Iterator[None]:
-    import sase.xprompt._parsing as parsing
-    import sase.xprompt._parsing_vcs_refs as vcs_refs
+    import sase.macro._parsing as parsing
+    import sase.macro._parsing_vcs_refs as vcs_refs
 
     parsing._VCS_UNDERSCORE_NORMALIZER = None
     vcs_refs._VCS_UNDERSCORE_NORMALIZER = None
     with (
         patch(
-            "sase.xprompt._parsing._get_embedded_vcs_tag_pattern",
+            "sase.macro._parsing._get_embedded_vcs_tag_pattern",
             return_value=_TEST_EMBEDDED_VCS_PATTERN,
         ),
         patch(

@@ -53,8 +53,8 @@ def guard_typed_directives_require_admission(
 ) -> None:
     """Fail closed if enabled ``%if`` / ``%proc`` reaches agent-only execution."""
     from sase.agent.launch_request_types import TypedAdmissionRequiredError
-    from sase.xprompt.code_value import typed_launch_units_enabled
-    from sase.xprompt.directives import has_typed_launch_directive
+    from sase.macro.code_value import typed_launch_units_enabled
+    from sase.macro.directives import has_typed_launch_directive
 
     if not typed_launch_units_enabled():
         return

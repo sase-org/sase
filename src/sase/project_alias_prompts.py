@@ -6,7 +6,7 @@ import re
 import threading
 from collections.abc import Callable, Hashable, Mapping, Sequence
 
-from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+from sase.macro._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 
 _PROJECT_LOOKUP_CACHE_LOCK = threading.RLock()
 _WORKFLOW_TYPE_CACHE: dict[tuple[int, str, Hashable], str | None] = {}

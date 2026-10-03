@@ -18,17 +18,15 @@ from sase.agent.multi_prompt import _LocalXPromptNameError, parse_multi_prompt
 # Patch both get_all_xprompts (disk-based xprompts) and
 # resolve_xprompt_aliases (config-based aliases) so tests are isolated
 # from the user's filesystem.
-_PATCH_XPROMPTS = patch(
-    "sase.xprompt.processor.get_all_xprompts", side_effect=lambda: {}
-)
+_PATCH_XPROMPTS = patch("sase.macro.processor.get_all_xprompts", side_effect=lambda: {})
 _PATCH_ALIASES = patch(
-    "sase.xprompt.processor.resolve_xprompt_aliases", side_effect=lambda x: x
+    "sase.macro.processor.resolve_xprompt_aliases", side_effect=lambda x: x
 )
 
 
 def _expand_with_local(text: str) -> str:
     """Parse frontmatter from *text* and expand local xprompts."""
-    from sase.xprompt.processor import process_xprompt_references
+    from sase.macro.processor import process_xprompt_references
 
     multi = parse_multi_prompt(text)
     body = "\n---\n".join(multi.segments)
@@ -76,7 +74,7 @@ def test_local_xprompts_with_arguments(_xp, _al) -> None:
 @_PATCH_XPROMPTS
 def test_local_xprompts_scoped_to_extra(_xp, _al) -> None:
     """Local xprompts only expand when passed as extra_xprompts."""
-    from sase.xprompt.processor import process_xprompt_references
+    from sase.macro.processor import process_xprompt_references
 
     text = '---\nxprompts:\n  _secret: "classified"\n---\nSay #_secret'
     multi = parse_multi_prompt(text)
@@ -156,7 +154,7 @@ def test_extract_directives_handles_frontmatter(_xp, _al, tmp_path) -> None:
 
 def test_anonymous_workflow_gets_local_xprompts() -> None:
     """Anonymous workflow's xprompts field is populated from frontmatter."""
-    from sase.xprompt.models import create_anonymous_workflow
+    from sase.macro.models import create_anonymous_workflow
 
     text = '---\nxprompts:\n  _hint: "think step by step"\n---\nSolve #_hint'
     multi = parse_multi_prompt(text)

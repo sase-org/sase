@@ -16,8 +16,8 @@ from sase.core.agent_launch_facade import (
 )
 from sase.core.agent_launch_wire import AgentUnitWire
 from sase.feature_flags import override_flags
-from sase.xprompt.directives import DirectiveError, extract_prompt_directives
-from sase.xprompt.queue_directive import (
+from sase.macro.directives import DirectiveError, extract_prompt_directives
+from sase.macro.queue_directive import (
     collect_queue_fields,
     format_queue_capacity_multiplier,
     format_queue_directive,

@@ -260,15 +260,15 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("write_text",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/xprompt/workflow_executor.py:_save_state": Review(
+    "src/sase/macro/workflow_executor.py:_save_state": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/xprompt/workflow_executor.py:_save_prompt_step_marker": Review(
+    "src/sase/macro/workflow_executor.py:_save_prompt_step_marker": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/xprompt/workflow_runner.py:_write_failed_workflow_state": Review(
+    "src/sase/macro/workflow_runner.py:_write_failed_workflow_state": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),

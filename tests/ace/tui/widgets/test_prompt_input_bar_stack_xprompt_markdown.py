@@ -9,8 +9,8 @@ from rich.text import Text
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
-from sase.xprompt.models import InputArg, InputType, XPrompt
-from sase.xprompt.prompt_frontmatter import LOCAL_XPROMPT_SOURCE, PromptFrontmatter
+from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE, PromptFrontmatter
 
 from ._prompt_input_bar_stack_helpers import _PromptBarApp, _XPromptMarkdownApp
 

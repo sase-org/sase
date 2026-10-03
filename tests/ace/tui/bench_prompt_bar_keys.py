@@ -236,7 +236,7 @@ def _stub_jinja_compat(monkeypatch: pytest.MonkeyPatch) -> bool:
     else:
         return False
 
-    import sase.xprompt.jinja_assist as jinja_assist
+    import sase.macro.jinja_assist as jinja_assist
 
     def _empty_scope_variables(text: object, scope: object) -> object:
         return jinja_assist._scope_variables_from_dict({})

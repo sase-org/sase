@@ -28,7 +28,7 @@ PLAN_APPROVAL_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
 EpicLaunchMode = Literal["launch", "detached", "skip"]
 
 if TYPE_CHECKING:
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 
 @dataclass(frozen=True)

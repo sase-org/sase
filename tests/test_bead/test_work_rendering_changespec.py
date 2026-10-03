@@ -9,7 +9,7 @@ from sase.bead.work import (
     render_multi_prompt,
 )
 from sase.bead.work_plan import _build_epic_work_plan
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.workflow_models import Workflow
 
 from .work_test_helpers import (
     assert_bare_auto_directives,

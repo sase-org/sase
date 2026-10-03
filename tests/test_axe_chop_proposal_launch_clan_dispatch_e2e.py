@@ -11,8 +11,8 @@ import pytest
 from sase.axe.chop_proposal_launch import launch_chop_proposals
 from sase.axe.chop_proposals import prepare_chop_proposals
 from sase.feature_flags import override_flags
-from sase.xprompt import extract_vcs_workflow_tag
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro import extract_vcs_workflow_tag
+from sase.macro.directives import extract_prompt_directives
 from tests._axe_chop_proposal_launch_helpers import patch_condition_workspace_lease
 
 pytest_plugins = ["tests.axe_chop_runner_fixtures"]

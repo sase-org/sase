@@ -251,7 +251,7 @@ def _run_launch_payload(
         },
     }
     if unresolved_names:
-        from sase.xprompt.unresolved import format_unresolved_references_toast
+        from sase.macro.unresolved import format_unresolved_references_toast
 
         payload["warning_messages"] = [
             format_unresolved_references_toast(tuple(unresolved_names))

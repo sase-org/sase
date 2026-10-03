@@ -2,8 +2,8 @@
 
 import json
 
-from sase.xprompt.output_validation import extract_structured_content
-from sase.xprompt.workflow_runner import execute_workflow
+from sase.macro.output_validation import extract_structured_content
+from sase.macro.workflow_runner import execute_workflow
 
 
 def get_file_summary(

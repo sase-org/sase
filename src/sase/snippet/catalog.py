@@ -34,10 +34,10 @@ from sase.snippet.models import (
     SnippetSourceContribution,
     SnippetSourceKind,
 )
-from sase.xprompt._glossary_catalog_projects import select_project
-from sase.xprompt.glossary_catalog import enabled_project_records
-from sase.xprompt import loader as xprompt_loader
-from sase.xprompt.snippet_bridge import (
+from sase.macro._glossary_catalog_projects import select_project
+from sase.macro.glossary_catalog import enabled_project_records
+from sase.macro import loader as xprompt_loader
+from sase.macro.snippet_bridge import (
     XPromptSnippetEntry,
     build_xprompt_snippet_entries_from_catalog,
 )

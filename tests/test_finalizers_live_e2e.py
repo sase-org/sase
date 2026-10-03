@@ -38,7 +38,7 @@ from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
 from sase.sdd.store import SDD_STORAGE_SIDECAR_REPOS, SddStore
-from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
+from sase.macro.directives import PromptDirectives, extract_prompt_directives
 
 from .finalizers_live_e2e_test_helpers import (
     attach_bare_remote,

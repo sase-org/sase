@@ -155,7 +155,7 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
     local_profile_names = _get_local_profile_names()
     detected_project: str | None = None
     if local_profile_names:
-        from sase.xprompt.loader import detect_project
+        from sase.macro.loader import detect_project
 
         detected_project = detect_project()
 

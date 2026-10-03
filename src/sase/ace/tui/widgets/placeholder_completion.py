@@ -13,7 +13,7 @@ from sase.history.prompt_placeholder_ranking import (
     rank_recent_common_placeholders,
 )
 from sase.history.prompt_placeholders import CommonPlaceholderIndex
-from sase.xprompt.placeholder_completion import (
+from sase.macro.placeholder_completion import (
     PlaceholderCandidateSource,
     PlaceholderPosition,
     PlaceholderRange,

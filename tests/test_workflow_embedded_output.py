@@ -2,13 +2,13 @@
 
 from typing import Any
 
-from sase.xprompt.models import OutputSpec
-from sase.xprompt.workflow_executor_steps_embedded import (
+from sase.macro.models import OutputSpec
+from sase.macro.workflow_executor_steps_embedded import (
     EmbeddedWorkflowInfo,
     EmbeddedWorkflowMixin,
     map_output_by_type,
 )
-from sase.xprompt.workflow_models import StepState, StepStatus, WorkflowStep
+from sase.macro.workflow_models import StepState, StepStatus, WorkflowStep
 
 
 def _make_output_spec(fields: dict[str, str]) -> OutputSpec:

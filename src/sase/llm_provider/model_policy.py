@@ -18,7 +18,7 @@ import difflib
 import sys
 from dataclasses import dataclass
 
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.macro.effort import EFFORT_LEVELS_ORDERED
 
 from .load_balancing import (
     ModelAliasSelector,
@@ -92,7 +92,7 @@ def _split_member(member: str) -> tuple[str, str, str | None, str | None]:
     that is not a canonical level returns as *unknown_effort* so the
     caller can report it instead of silently treating it as model text.
     """
-    from sase.xprompt.effort import EFFORT_LEVELS
+    from sase.macro.effort import EFFORT_LEVELS
 
     base = member.strip()
     at = base.rfind("@")

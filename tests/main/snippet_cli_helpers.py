@@ -10,8 +10,8 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
-from sase.xprompt import glossary_catalog as catalog_mod
-from sase.xprompt.models import XPrompt
+from sase.macro import glossary_catalog as catalog_mod
+from sase.macro.models import XPrompt
 
 _SORTED_SNIPPETS = """# keep this comment
 timezone: UTC
@@ -66,7 +66,7 @@ def install_writable_snippet_project(
         lambda *_a, **_kw: [project_record(workspace, display_name=display_name)],
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_xprompts",
         lambda project=None: dict(xprompts or {}),
     )
     return config_path

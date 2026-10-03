@@ -50,8 +50,8 @@ if TYPE_CHECKING:
         PlaceholderCompletionResult,
     )
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
-    from sase.xprompt.vcs_ref_completion import VcsRefTrigger
-    from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult, VcsRepoTrigger
+    from sase.macro.vcs_ref_completion import VcsRefTrigger
+    from sase.macro.vcs_repo_completion import VcsRepoFetchResult, VcsRepoTrigger
 
 
 class FileCompletionBasePanelMixin(FileCompletionArtifactCandidatesMixin):

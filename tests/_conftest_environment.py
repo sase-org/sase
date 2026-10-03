@@ -279,7 +279,7 @@ def _restore_workflow_metadata_derived_caches() -> Iterator[None]:
     every run.
     """
     from sase.history import prompt_metadata
-    from sase.xprompt import _parsing, _parsing_vcs_refs, _parsing_vcs_tags
+    from sase.macro import _parsing, _parsing_vcs_refs, _parsing_vcs_tags
 
     def snapshot() -> tuple[object, ...]:
         return (

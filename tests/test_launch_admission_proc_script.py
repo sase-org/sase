@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.core.agent_launch_facade import prepare_proc_script, proc_script_argv
-from sase.xprompt.code_value import make_code_value
+from sase.macro.code_value import make_code_value
 
 
 def test_proc_script_argv_is_not_interpolated_from_source(tmp_path: Path) -> None:

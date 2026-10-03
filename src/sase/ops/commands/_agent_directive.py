@@ -449,7 +449,7 @@ def _capacity_pair_from_payload(
     payload: Mapping[str, Any],
 ) -> tuple[int | None, float | None]:
     """Return the mutually exclusive integer/multiplier capacity in *payload*."""
-    from sase.xprompt.queue_directive import (
+    from sase.macro.queue_directive import (
         format_queue_capacity_multiplier,
         parse_queue_capacity_value,
         validate_queue_capacity,
@@ -515,17 +515,17 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
         return None
     kind = spec.get("kind")
     if kind == "set_name":
-        from sase.xprompt.directive_edit import set_prompt_name
+        from sase.macro.directive_edit import set_prompt_name
 
         name = str(spec.get("name") or "")
         return lambda prompt: set_prompt_name(prompt, name)
     if kind == "set_auto_mode":
-        from sase.xprompt.directive_edit import set_prompt_auto_mode
+        from sase.macro.directive_edit import set_prompt_auto_mode
 
         mode = spec.get("mode")
         return lambda prompt: set_prompt_auto_mode(prompt, mode)
     if kind == "set_wait":
-        from sase.xprompt.directive_edit import (
+        from sase.macro.directive_edit import (
             PromptWaitDirective,
             set_prompt_wait_and_queue,
         )
@@ -545,7 +545,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
         )
         return lambda prompt: set_prompt_wait_and_queue(prompt, directive)
     if kind == "set_queue":
-        from sase.xprompt.directive_edit import set_prompt_queue
+        from sase.macro.directive_edit import set_prompt_queue
 
         return lambda prompt: set_prompt_queue(
             prompt,
@@ -555,7 +555,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
             capacity_multiplier=_capacity_multiplier_from_payload(spec),
         )
     if kind == "set_tribe":
-        from sase.xprompt.directive_edit import set_prompt_tribe
+        from sase.macro.directive_edit import set_prompt_tribe
 
         tribe = spec.get("tribe")
 
@@ -564,7 +564,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
 
         return _with_optional_tab_mutator(_set_tribe, spec)
     if kind == "set_clan_tribe":
-        from sase.xprompt.directive_edit import set_prompt_clan_tribe
+        from sase.macro.directive_edit import set_prompt_clan_tribe
 
         tribe = spec.get("tribe")
 
@@ -573,7 +573,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
 
         return _with_optional_tab_mutator(_set_clan_tribe, spec)
     if kind == "set_tab":
-        from sase.xprompt.directive_edit import set_agent_tab_directive
+        from sase.macro.directive_edit import set_agent_tab_directive
 
         tab = spec.get("tab")
         if tab is not None and not isinstance(tab, str):
@@ -592,7 +592,7 @@ def _with_optional_tab_mutator(base: Any, spec: object) -> Any:
     """
     if not isinstance(spec, dict) or "tab" not in spec:
         return base
-    from sase.xprompt.directive_edit import set_agent_tab_directive
+    from sase.macro.directive_edit import set_agent_tab_directive
 
     tab = spec.get("tab")
     if tab is not None and not isinstance(tab, str):

@@ -48,7 +48,7 @@ def _run_launch_query(
         "sase.agent.prompt_inputs.missing_required_input_names", lambda _q: []
     )
     monkeypatch.setattr(
-        "sase.xprompt.unresolved.scan_query_for_unresolved_references", lambda _q: []
+        "sase.macro.unresolved.scan_query_for_unresolved_references", lambda _q: []
     )
     monkeypatch.setattr(launch_mod, "launch_agents_from_cwd", launch_mock)
     monkeypatch.setattr("sase.ops.commands.run.emit_run_launch_result", emit)
@@ -309,7 +309,7 @@ def _dispatch_launch_query(
         "sase.agent.prompt_inputs.missing_required_input_names", lambda _q: []
     )
     monkeypatch.setattr(
-        "sase.xprompt.unresolved.scan_query_for_unresolved_references", lambda _q: []
+        "sase.macro.unresolved.scan_query_for_unresolved_references", lambda _q: []
     )
     monkeypatch.setattr("sase.dispatch.launch.maybe_dispatch_launch", dispatch_mock)
     monkeypatch.setattr("sase.ops.commands.run.emit_run_launch_result", MagicMock())

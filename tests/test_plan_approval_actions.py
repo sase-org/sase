@@ -21,7 +21,7 @@ from sase.plan_approval_actions import (
 )
 from sase.plan_gate import build_plan_approval_gate_spec
 from sase.plan_gate_turn.create import plan_gate_turn_block
-from sase.xprompt.directive_edit import PromptWaitDirective
+from sase.macro.directive_edit import PromptWaitDirective
 from tests._plan_gate_fixtures import (
     plan_gate_home,  # noqa: F401 (registers fixture)
     write_plan,

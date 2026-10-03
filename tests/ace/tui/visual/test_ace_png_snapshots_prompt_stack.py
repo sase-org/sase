@@ -12,7 +12,7 @@ from sase.ace.tui.modals.snippet_name_modal import SnippetNameResult
 from sase.ace.tui.widgets import StashedPromptsIndicator
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
-from sase.xprompt.snippet_targets import SnippetSaveTarget
+from sase.macro.snippet_targets import SnippetSaveTarget
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

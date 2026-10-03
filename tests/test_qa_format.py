@@ -10,7 +10,7 @@ from sase.axe.run_agent_helpers import (
     merge_qa_for_prompt,
 )
 from sase.main.qa_markdown import QARound, build_merged_qa_markdown, build_qa_markdown
-from sase.xprompt._disabled_regions import (
+from sase.macro._disabled_regions import (
     protect_disabled_regions,
     strip_disabled_region_markers,
     unprotect_disabled_regions,
@@ -222,8 +222,8 @@ def test_qa_xprompt_token_in_question_survives_expansion_pipeline() -> None:
     """A `#some_xprompt_name` token inside the Q&A body must survive the
     full protect → expand → unprotect → strip pipeline verbatim, because
     the wrapping markers exempt it from xprompt expansion."""
-    from sase.xprompt.models import XPrompt
-    from sase.xprompt.processor import process_xprompt_references
+    from sase.macro.models import XPrompt
+    from sase.macro.processor import process_xprompt_references
 
     q = _q("see #some_xprompt_name for context", [("A", "alpha")])
     qa_text = prompt_qa_section(
@@ -233,7 +233,7 @@ def test_qa_xprompt_token_in_question_survives_expansion_pipeline() -> None:
 
     # Even with a real expansion pass over the whole prompt, the token
     # inside the protected region must not be expanded.
-    with patch("sase.xprompt.processor.get_all_xprompts") as mock_get:
+    with patch("sase.macro.processor.get_all_xprompts") as mock_get:
         mock_get.return_value = {
             "some_xprompt_name": XPrompt(
                 name="some_xprompt_name",

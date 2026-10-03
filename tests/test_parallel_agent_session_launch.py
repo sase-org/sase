@@ -10,9 +10,9 @@ from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.history.prompt_metadata import summarize_prompt_for_list
-from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import extract_prompt_directives
-from sase.xprompt.models import XPrompt
+from sase.macro._exceptions import DirectiveError
+from sase.macro.directives import extract_prompt_directives
+from sase.macro.models import XPrompt
 
 
 def _launch_with_captured_spawns(

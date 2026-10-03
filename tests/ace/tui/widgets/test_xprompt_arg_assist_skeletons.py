@@ -13,7 +13,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     xprompt_completion_skeleton,
     xprompt_completion_suffix_skeleton,
 )
-from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.macro.models import InputArg, InputType, XPrompt
 
 
 def _input_hint(name: str, type_: str = "word", position: int = 0) -> XPromptInputHint:
@@ -66,9 +66,9 @@ def test_skeletons_use_required_inputs_only() -> None:
         ],
     )
     with (
-        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"mixed": xp}),
-        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
-        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch("sase.macro.catalog.get_all_xprompts", return_value={"mixed": xp}),
+        patch("sase.macro.catalog.get_all_workflows", return_value={}),
+        patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
         entry = build_xprompt_assist_entries()[0]
 

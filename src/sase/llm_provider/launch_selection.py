@@ -18,7 +18,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 from .load_balancing import ModelAliasSelector, ModelAliasSelectorError
 from .model_alias_resolution_types import (

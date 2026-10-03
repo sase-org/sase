@@ -4,9 +4,9 @@ import os
 import tempfile
 from typing import Any
 
-from sase.xprompt.workflow_executor import WorkflowExecutor
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.workflow_models import (
+from sase.macro.workflow_executor import WorkflowExecutor
+from sase.macro.models import InputArg, InputType
+from sase.macro.workflow_models import (
     StepStatus,
     Workflow,
     WorkflowStep,

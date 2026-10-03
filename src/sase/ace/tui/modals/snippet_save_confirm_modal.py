@@ -14,7 +14,7 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Label, Static
 
-from sase.xprompt.snippet_config_yaml import generate_snippet_yaml
+from sase.macro.snippet_config_yaml import generate_snippet_yaml
 
 SnippetSaveConfirmResult = Literal["save", "close", "reload"]
 SnippetSavePreviewTab = Literal["draft", "existing", "diff"]

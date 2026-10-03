@@ -24,9 +24,9 @@ from sase.ace.tui.util.semantic_styles import (
 )
 from sase.ace.tui.util.xprompt_syntax import apply_xprompt_overlays
 from sase.artifact_refs import parsable_artifact_ref_kinds
-from sase.xprompt import extract_project_from_vcs_tag, extract_vcs_workflow_tag
-from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
-from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog
+from sase.macro import extract_project_from_vcs_tag, extract_vcs_workflow_tag
+from sase.macro.glossary_catalog import EditorGlossaryCatalog
+from sase.macro.repo_mention_catalog import EditorRepoMentionCatalog
 
 from ...models.agent import Agent
 

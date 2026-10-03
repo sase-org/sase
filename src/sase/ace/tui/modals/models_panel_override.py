@@ -13,7 +13,7 @@ from sase.llm_provider import (
     TemporaryProviderDisable,
 )
 from sase.llm_provider.registry import format_provider_model_label
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 from .custom_model_input_modal import CustomModelInputModal
 from .duration_choice_modal import DurationChoiceCancelled

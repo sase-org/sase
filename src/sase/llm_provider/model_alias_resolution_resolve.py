@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 from .load_balancing import (
     ModelAliasSelector,

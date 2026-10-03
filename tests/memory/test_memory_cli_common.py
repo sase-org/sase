@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.memory import cli_common
-from sase.xprompt._glossary_catalog_projects import EditorGlossaryProject
+from sase.macro._glossary_catalog_projects import EditorGlossaryProject
 
 
 def _project(name: str = "sase", key: str = "sase") -> EditorGlossaryProject:
@@ -25,7 +25,7 @@ def test_resolve_memory_cli_project_returns_workspace_for_known_ref(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.xprompt.glossary_catalog.enabled_project_records",
+        "sase.macro.glossary_catalog.enabled_project_records",
         lambda *_a, **_kw: (),
     )
     monkeypatch.setattr(
@@ -43,7 +43,7 @@ def test_resolve_memory_cli_project_raises_when_unresolved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.xprompt.glossary_catalog.enabled_project_records",
+        "sase.macro.glossary_catalog.enabled_project_records",
         lambda *_a, **_kw: (),
     )
     monkeypatch.setattr(cli_common, "select_project", lambda *_a, **_kw: None)

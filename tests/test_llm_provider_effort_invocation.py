@@ -26,7 +26,7 @@ from sase.llm_provider.types import (
     LLMInvocationError,
     LLMInvocationOptions,
 )
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 _CLAUDE_USAGE = {
     "input_tokens": 0,

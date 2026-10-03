@@ -27,8 +27,8 @@ from sase.skills.inventory import (
     build_skills_inventory,
 )
 from sase.skills.use_log import read_skill_use_events
-from sase.xprompt.loader_skills import get_sase_package_skills_dir
-from sase.xprompt.models import XPrompt
+from sase.macro.loader_skills import get_sase_package_skills_dir
+from sase.macro.models import XPrompt
 from tests.main.init_skills_handler_helpers import make_args
 
 

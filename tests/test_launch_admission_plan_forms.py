@@ -7,7 +7,7 @@ import pytest
 from sase.core.agent_launch_facade import plan_typed_launch_units
 from sase.core.agent_launch_wire import AgentUnitWire, ProcUnitWire
 from sase.feature_flags import override_flags
-from sase.xprompt.directives import DirectiveError, extract_prompt_directives
+from sase.macro.directives import DirectiveError, extract_prompt_directives
 
 
 def test_repeat_and_alt_produce_stable_mixed_units() -> None:

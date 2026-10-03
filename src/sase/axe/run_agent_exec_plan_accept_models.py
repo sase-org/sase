@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 def resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
     """Resolve a ``%model`` directive value to ``(provider_or_none, model)``."""
     from sase.llm_provider.registry import resolve_model_provider
-    from sase.xprompt.effort import split_model_effort
+    from sase.macro.effort import split_model_effort
 
     clean_model, _ = split_model_effort(model_directive)
     return resolve_model_provider(clean_model)
@@ -32,7 +32,7 @@ def resolve_model_alias_provenance(model_directive: str) -> tuple[tuple[str, ...
         ALIAS_ORIGIN_NONE,
     )
     from sase.llm_provider.model_alias_resolution import resolve_model_alias_with_effort
-    from sase.xprompt.effort import split_model_effort
+    from sase.macro.effort import split_model_effort
 
     clean_model, _ = split_model_effort(model_directive)
     resolved = resolve_model_alias_with_effort(clean_model)
@@ -99,8 +99,8 @@ def custom_coder_prompt_model(
     """Return an explicit custom-prompt model directive, if one is present."""
     if not coder_prompt:
         return None
-    from sase.xprompt._exceptions import DirectiveError
-    from sase.xprompt.directives import extract_prompt_directives, has_model_directive
+    from sase.macro._exceptions import DirectiveError
+    from sase.macro.directives import extract_prompt_directives, has_model_directive
 
     if not has_model_directive(coder_prompt):
         return None

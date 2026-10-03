@@ -19,8 +19,8 @@ from sase.core.agent_launch_wire import (
     launch_plan_from_dict,
 )
 from sase.feature_flags import override_flags
-from sase.xprompt.code_value import make_code_value
-from sase.xprompt.directives import DirectiveError
+from sase.macro.code_value import make_code_value
+from sase.macro.directives import DirectiveError
 
 
 def test_agent_launch_schema_version_pinned() -> None:

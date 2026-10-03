@@ -109,7 +109,7 @@ def test_save_local_creates_loadable_xprompt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.xprompt.loader import load_xprompt_from_file
+    from sase.macro.loader import load_xprompt_from_file
 
     monkeypatch.chdir(tmp_path)
     text = "do the important refactor across the parser"
@@ -131,7 +131,7 @@ def test_save_tag_persists_prompt_tags_and_stays_loadable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.xprompt.loader import load_xprompt_from_file
+    from sase.macro.loader import load_xprompt_from_file
 
     monkeypatch.chdir(tmp_path)
     text = "review the authentication changes carefully"
@@ -206,7 +206,7 @@ def test_save_description_override(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.xprompt.loader import load_xprompt_from_file
+    from sase.macro.loader import load_xprompt_from_file
 
     monkeypatch.chdir(tmp_path)
     text = "prompt whose description is overridden"

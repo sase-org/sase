@@ -9,14 +9,14 @@ from sase.ace.tui.widgets._local_xprompt_conversion import (
     infer_local_xprompt_inputs,
     local_xprompt_invocation_skeleton,
 )
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 
     from sase.ace.tui.widgets.prompt_stack import PromptStackState
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-    from sase.xprompt.models import InputArg, XPrompt
+    from sase.macro.models import InputArg, XPrompt
 else:
     _MixinBase = object
 

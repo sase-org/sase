@@ -172,7 +172,7 @@ def _expand_artifact_references(
         )
     )
 
-    from sase.xprompt._literal_zones import literal_zone_ranges
+    from sase.macro._literal_zones import literal_zone_ranges
 
     literal_ranges = literal_zone_ranges(prompt)
     byte_to_char = _byte_to_character_offsets(prompt)

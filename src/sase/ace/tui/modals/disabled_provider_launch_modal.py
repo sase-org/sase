@@ -116,7 +116,7 @@ def _unavailable_note(
     if candidate is None:
         return None
     from sase.llm_provider.model_alias_resolution import model_alias_selector_details
-    from sase.xprompt.directives import extract_prompt_directives
+    from sase.macro.directives import extract_prompt_directives
 
     _cleaned, directives = extract_prompt_directives(candidate.prompt)
     alias = directives.model_alias

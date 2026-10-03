@@ -115,8 +115,8 @@ def _sync_task(
             return (False, f"checkout failed: {checkout_err}")
 
         # Sync workspace via xprompt workflow
-        from sase.xprompt import execute_workflow
-        from sase.xprompt.workflow_models import WorkflowExecutionError
+        from sase.macro import execute_workflow
+        from sase.macro.workflow_models import WorkflowExecutionError
 
         # Hold the lock for the entire set + execute + restore to prevent
         # concurrent tasks from seeing a stale SASE_SYNC_CWD value.

@@ -390,16 +390,16 @@ def rewrite_force_reuse_name_directives(prompt: str) -> str:
     if "%i" not in prompt:
         return prompt
 
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import (
+    from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.macro._disabled_regions import (
         protect_disabled_regions,
         unprotect_disabled_regions,
     )
-    from sase.xprompt._fenced_blocks import (
+    from sase.macro._fenced_blocks import (
         protect_fenced_blocks,
         unprotect_fenced_blocks,
     )
-    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+    from sase.macro._parsing import find_matching_paren_for_args, parse_args
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -536,10 +536,10 @@ def _iter_explicit_name_directives(
     if _prompt_has_launch_fanout(prompt):
         return []
 
-    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
-    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+    from sase.macro._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.macro._disabled_regions import protect_disabled_regions
+    from sase.macro._fenced_blocks import protect_fenced_blocks
+    from sase.macro._parsing import find_matching_paren_for_args, parse_args
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -646,7 +646,7 @@ def _iter_explicit_name_directives(
 
 def _prompt_has_launch_fanout(prompt: str) -> bool:
     try:
-        from sase.xprompt.directives import plan_prompt_fanout_variants
+        from sase.macro.directives import plan_prompt_fanout_variants
 
         return plan_prompt_fanout_variants(prompt) is not None
     except Exception:

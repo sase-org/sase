@@ -7,7 +7,7 @@ from typing import Literal
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.workspace_provider import VcsRepoEntry
-from sase.xprompt.vcs_repo_completion import (
+from sase.macro.vcs_repo_completion import (
     VcsRepoFetchResult,
     filter_vcs_repo_entries,
 )

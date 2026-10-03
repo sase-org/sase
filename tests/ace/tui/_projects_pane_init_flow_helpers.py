@@ -48,7 +48,7 @@ def _patch_panes(
         lambda project=None: {},
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_project_local_prompts",
+        "sase.macro.loader.get_all_project_local_prompts",
         lambda: {},
     )
     plugins_result = pbp._PluginsLoadResult(

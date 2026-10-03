@@ -1,15 +1,15 @@
 """Tests for output detection, template refs, and cross-step field validation."""
 
 import pytest
-from sase.xprompt.models import OutputSpec, XPrompt
-from sase.xprompt.workflow_models import (
+from sase.macro.models import OutputSpec, XPrompt
+from sase.macro.workflow_models import (
     LoopConfig,
     ParallelConfig,
     Workflow,
     WorkflowStep,
     WorkflowValidationError,
 )
-from sase.xprompt.workflow_validator_checks import (
+from sase.macro.workflow_validator_checks import (
     detect_unused_outputs,
     validate_cross_step_field_refs,
 )
@@ -139,7 +139,7 @@ def test_validate_workflow_raises_on_unused_output() -> None:
         ],
     )
     with pytest.raises(WorkflowValidationError, match="unused_out"):
-        from sase.xprompt.workflow_validator import validate_workflow
+        from sase.macro.workflow_validator import validate_workflow
 
         validate_workflow(workflow)
 

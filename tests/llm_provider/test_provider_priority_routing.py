@@ -30,9 +30,9 @@ from sase.llm_provider.registry import (
     get_configured_default_provider_name,
     resolve_model_provider_with_effort,
 )
-from sase.xprompt.directives import PromptDirectives
-from sase.xprompt.model_completion import build_model_completion_catalog
-from tests._xprompt_model_completion_helpers import metadata_payload
+from sase.macro.directives import PromptDirectives
+from sase.macro.model_completion import build_model_completion_catalog
+from tests._macro_model_completion_helpers import metadata_payload
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
@@ -414,7 +414,7 @@ def _shipped_member(
         parse_model_alias_selector,
     )
     from sase.llm_provider.model_alias_policy import implicit_alias_targets
-    from sase.xprompt.effort import split_model_effort
+    from sase.macro.effort import split_model_effort
 
     selector = parse_model_alias_selector(implicit_alias_targets()[alias])
     assert selector is not None, alias
@@ -535,11 +535,11 @@ def test_completion_catalog_labels_priority_and_backup(
     _pin_providers(monkeypatch)
     payload = metadata_payload()
     monkeypatch.setattr(
-        "sase.xprompt.model_completion.get_llm_metadata_payload",
+        "sase.macro.model_completion.get_llm_metadata_payload",
         lambda: payload,
     )
     monkeypatch.setattr(
-        "sase.xprompt.model_completion.model_picker_hidden_provider_names",
+        "sase.macro.model_completion.model_picker_hidden_provider_names",
         lambda: frozenset(),
     )
     mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})

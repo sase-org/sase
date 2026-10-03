@@ -34,7 +34,7 @@ from sase.core.glossary_facade import (
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
-    from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
+    from sase.macro.glossary_catalog import EditorGlossaryCatalog
 else:
     _MixinBase = object
 

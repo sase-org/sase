@@ -16,7 +16,7 @@ from sase.monitor.delivery import (
     delivery_key,
 )
 from sase.core.runner_slots import inheritable_queue_weight
-from sase.xprompt.queue_directive import (
+from sase.macro.queue_directive import (
     format_queue_directive,
     reauthor_capacity_for_prefix,
     reauthor_capacity_multiplier_for_prefix,

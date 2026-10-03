@@ -83,7 +83,7 @@ def test_swarm_invocation_records_exactly_one_row(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A multi-slot swarm records its trigger, not its members."""
-    from tests._xprompt_swarm_helpers import patch_catalog, xp
+    from tests._macro_swarm_helpers import patch_catalog, xp
 
     history_file = _history_file(tmp_path)
     monkeypatch.delenv("SASE_AGENT", raising=False)
@@ -111,7 +111,7 @@ def test_single_slot_swarm_records_invocation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A swarm that reduces to one slot records the trigger, not the member."""
-    from tests._xprompt_swarm_helpers import patch_catalog, xp
+    from tests._macro_swarm_helpers import patch_catalog, xp
 
     history_file = _history_file(tmp_path)
     monkeypatch.delenv("SASE_AGENT", raising=False)

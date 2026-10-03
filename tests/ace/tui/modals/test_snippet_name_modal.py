@@ -15,7 +15,7 @@ from sase.ace.tui.modals.snippet_name_modal import (
     SnippetNameModal,
     SnippetNameResult,
 )
-from sase.xprompt.snippet_targets import (
+from sase.macro.snippet_targets import (
     SnippetConfigLocation,
     SnippetSaveTarget,
 )

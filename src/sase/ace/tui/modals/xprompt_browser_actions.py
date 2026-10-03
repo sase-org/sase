@@ -11,9 +11,9 @@ from sase.ace.hints import build_editor_args
 from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
     submit_post_write_action_sequence,
 )
-from sase.xprompt.config_yaml import insert_xprompt_into_config
-from sase.xprompt.loader import get_sase_package_xprompts_dir
-from sase.xprompt.write_targets import (
+from sase.macro.config_yaml import insert_xprompt_into_config
+from sase.macro.loader import get_sase_package_xprompts_dir
+from sase.macro.write_targets import (
     PostWriteActionKind,
     PostWriteActionOffer,
     XPromptWriteTarget,

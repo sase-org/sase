@@ -273,7 +273,7 @@ class TestCtrlRPromptWiring:
         (other_cwd / "sdd").mkdir(parents=True)
         monkeypatch.chdir(other_cwd)
         monkeypatch.setattr(
-            "sase.xprompt.loader.get_known_project_workspaces",
+            "sase.macro.loader.get_known_project_workspaces",
             lambda include_states=("enabled",): {"bob-cli": project_root},
         )
 

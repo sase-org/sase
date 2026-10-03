@@ -55,14 +55,14 @@ from sase.ace.tui.widgets.file_completion import (
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.prompt_path_inventory import PromptPathSnapshot
 from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
-from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
+from sase.macro.vcs_repo_completion import VcsRepoFetchResult
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     PendingXPromptCompletionSpacer,
     XPromptAssistEntry,
     build_xprompt_assist_entries,
 )
-from sase.xprompt._parsing import (
+from sase.macro._parsing import (
     extract_project_from_vcs_tag,
     extract_vcs_workflow_tag,
 )

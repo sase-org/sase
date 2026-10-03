@@ -278,10 +278,10 @@ def test_space_mounts_bar_from_mru_head(
     selection-time store. The display half seeds the bar text/label; the
     canonical half seeds ``history_sort_key``.
     """
-    from sase.history import vcs_xprompt_mru
+    from sase.history import vcs_macro_mru
 
     monkeypatch.setattr(
-        vcs_xprompt_mru,
+        vcs_macro_mru,
         "load_launchable_vcs_xprompt_mru_pairs",
         lambda *a, **k: [("#gh:gh_acme__widgets", "#gh:widgets")],
     )
@@ -309,10 +309,10 @@ def test_space_offers_most_recently_launched_ref(
     MRU-head effect: the most recently *launched* ref wins, regardless of
     what an earlier selection or cycle left behind.
     """
-    from sase.history import vcs_xprompt_mru
+    from sase.history import vcs_macro_mru
 
     monkeypatch.setattr(
-        vcs_xprompt_mru,
+        vcs_macro_mru,
         "load_launchable_vcs_xprompt_mru_pairs",
         lambda *a, **k: [("#gh:projB", "#gh:projB"), ("#gh:projA", "#gh:projA")],
     )
@@ -333,10 +333,10 @@ def test_space_offers_most_recently_launched_ref(
 def test_space_opens_blank_home_prompt_when_mru_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.history import vcs_xprompt_mru
+    from sase.history import vcs_macro_mru
 
     monkeypatch.setattr(
-        vcs_xprompt_mru,
+        vcs_macro_mru,
         "load_launchable_vcs_xprompt_mru_pairs",
         lambda *a, **k: [],
     )

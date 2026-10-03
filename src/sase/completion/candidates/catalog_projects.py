@@ -133,7 +133,7 @@ def project_tag_candidates(_project: str | None) -> list[Candidate]:
     non-system projects whose display name is in the tag grammar are
     offered; ``home`` is never offered, matching the TUI menu.
 
-    This stays off provider detection (and the ``sase.xprompt`` /
+    This stays off provider detection (and the ``sase.macro`` /
     ``sase.workspace_provider`` packages) so the ``completion candidates``
     fast path never pays for plugin loads or process spawns; a tag that
     resolves to a provider-less project fails at launch with the usual D3

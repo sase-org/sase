@@ -12,7 +12,7 @@ import pytest
 from sase.axe.chop_proposals import plan_chop_proposals, prepare_chop_proposals
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig
-from sase.xprompt.directives import extract_prompt_directives
+from sase.macro.directives import extract_prompt_directives
 
 from tests.axe_chop_runner_helpers import make_script
 

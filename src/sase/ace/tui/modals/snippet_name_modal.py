@@ -16,8 +16,8 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui.modals.save_location_choices import ChangeSaveLocationRequest
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.xprompt.naming import validate_snippet_trigger
-from sase.xprompt.snippet_targets import (
+from sase.macro.naming import validate_snippet_trigger
+from sase.macro.snippet_targets import (
     SnippetCollision,
     SnippetConfigLocation,
     SnippetSaveTarget,
@@ -615,7 +615,7 @@ def _prefix_matches(
 ) -> tuple[_SnippetMatchPreview, ...]:
     if not trigger:
         return ()
-    from sase.xprompt.save_index import names_for_location
+    from sase.macro.save_index import names_for_location
 
     matches: list[tuple[tuple[object, ...], _SnippetMatchPreview]] = []
     for source_order, location in enumerate(locations):

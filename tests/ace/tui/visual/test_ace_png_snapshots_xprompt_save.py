@@ -11,7 +11,7 @@ from sase.ace.tui.modals.unified_xprompt_save_modal import (
 )
 from sase.ace.tui.modals.unified_xprompt_save_support import UnifiedSaveInput
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.macro.prompt_frontmatter import PromptFrontmatter
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,

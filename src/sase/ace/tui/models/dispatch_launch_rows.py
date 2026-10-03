@@ -185,7 +185,7 @@ def _dispatch_prompt_tab(prompt: str | None) -> str | None:
     if not prompt or "%tab" not in prompt:
         return None
     try:
-        from sase.xprompt.directives import extract_prompt_directives
+        from sase.macro.directives import extract_prompt_directives
 
         _, directives = extract_prompt_directives(prompt)
     except Exception:  # noqa: BLE001 - provisional rows never fail load.

@@ -30,9 +30,9 @@ def preprocess_prompt_xprompts(
     original top-level references.
     """
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
-    from sase.xprompt import resolve_xprompt_aliases
-    from sase.xprompt._parsing import extract_vcs_workflow_tag
-    from sase.xprompt.processor import (
+    from sase.macro import resolve_xprompt_aliases
+    from sase.macro._parsing import extract_vcs_workflow_tag
+    from sase.macro.processor import (
         LAUNCH_DEFERRED_XPROMPT_NAMES,
         process_xprompt_references,
     )
@@ -56,7 +56,7 @@ def preprocess_prompt_xprompts(
     # files (see write_used_xprompts step_only). Best-effort: metadata
     # capture must never take down a detached agent launch.
     try:
-        from sase.xprompt.used_xprompts import (
+        from sase.macro.used_macros import (
             decode_launch_swarm_xprompts,
             write_used_xprompts,
         )
@@ -111,7 +111,7 @@ def expand_deferred_launch_xprompts(
     that ``run_execution_loop()`` takes of that variable before publishing it.
     """
     from sase.main.query_handler import expand_embedded_workflows_in_query
-    from sase.xprompt.processor import (
+    from sase.macro.processor import (
         LAUNCH_DEFERRED_XPROMPT_NAMES,
         process_xprompt_references,
     )

@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 from .load_balancing import (
     MemberAvailability,

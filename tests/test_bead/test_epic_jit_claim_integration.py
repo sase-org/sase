@@ -27,8 +27,8 @@ from sase.bead.work import (
     render_multi_prompt,
 )
 from sase.sdd.store import SddStore
-from sase.xprompt.directives import extract_prompt_directives
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.directives import extract_prompt_directives
+from sase.macro.workflow_models import Workflow
 
 from .claims_test_helpers import install_writable_bead_store
 from .cli_work_helpers import seed_diamond

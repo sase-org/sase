@@ -14,7 +14,7 @@ from sase.ace.tui.widgets._directive_completion_types import (
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 from sase.llm_provider.temporary_override import peek_active_alias_overrides
-from sase.xprompt.model_completion import (
+from sase.macro.model_completion import (
     ModelCompletionEntry,
     filter_explicit_model_shortcut_entries,
     filter_model_alias_shortcut_entries,

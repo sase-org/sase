@@ -85,7 +85,7 @@ def _replay_record(
     """
     text = record.text
     if prefix:
-        from sase.xprompt import replace_vcs_workflow_tags
+        from sase.macro import replace_vcs_workflow_tags
 
         text = replace_vcs_workflow_tags(text, prefix)
 

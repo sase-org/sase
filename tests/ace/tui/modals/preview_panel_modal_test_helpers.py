@@ -11,8 +11,8 @@ from textual.widgets import Static
 from sase.ace.testing import wait_for
 from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
-from sase.xprompt.cli_show_model import ShowInput
-from sase.xprompt.properties import XPromptProperties
+from sase.macro.cli_show_model import ShowInput
+from sase.macro.properties import XPromptProperties
 
 
 class _PreviewModalTestApp(App[None]):

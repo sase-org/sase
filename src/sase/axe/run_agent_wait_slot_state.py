@@ -50,7 +50,7 @@ def marker_queue_capacity_multiplier_state(
     integer_capacity: int | None,
 ) -> float | None:
     """Return marker-preferred authored multiplier when no integer wins."""
-    from sase.xprompt.queue_directive import resolve_authored_queue_capacity_multiplier
+    from sase.macro.queue_directive import resolve_authored_queue_capacity_multiplier
 
     if waiting_data is not None and "slot_requested_at" in waiting_data:
         if integer_capacity is not None:

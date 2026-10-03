@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from sase.xprompt.directive_edit import PromptWaitDirective
+from sase.macro.directive_edit import PromptWaitDirective
 
 _IDENTIFIER_RE = re.compile(r"\S+")
 

@@ -10,7 +10,7 @@ from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
-from sase.xprompt.write_targets import PostWriteActionKind, PostWriteActionOffer
+from sase.macro.write_targets import PostWriteActionKind, PostWriteActionOffer
 
 
 class PostWriteActionsModal(ModalScreen[tuple[PostWriteActionKind, ...]]):

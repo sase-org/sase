@@ -97,7 +97,7 @@ def _find_enclosing_alt_span(text: str, offset: int) -> tuple[int, int] | None:
     """
     if "%{" not in text[:offset]:
         return None
-    from sase.xprompt._literal_zones import literal_zone_ranges
+    from sase.macro._literal_zones import literal_zone_ranges
 
     literal_zones = literal_zone_ranges(text)
     line_end = text.find("\n", offset)

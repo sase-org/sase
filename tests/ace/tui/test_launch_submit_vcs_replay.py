@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from sase.history.vcs_xprompt_mru import _load_vcs_xprompt_mru
-from tests._vcs_xprompt_mru_helpers import patched_mru_file, write_project
+from sase.history.vcs_macro_mru import _load_vcs_xprompt_mru
+from tests._vcs_macro_mru_helpers import patched_mru_file, write_project
 from tests.ace.tui._agent_launch_helpers import _FakeApp
 from tests.conftest import redirect_sase_home
 
@@ -18,7 +18,7 @@ def test_submit_refreshes_replay_from_cycled_vcs_prefix(
 ) -> None:
     recorded: list[str] = []
     monkeypatch.setattr(
-        "sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage",
+        "sase.history.vcs_macro_mru.record_vcs_xprompt_usage",
         recorded.append,
     )
     app = _FakeApp()

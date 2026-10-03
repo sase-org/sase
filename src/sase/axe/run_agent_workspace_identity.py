@@ -11,7 +11,7 @@ from sase.env_contracts import (
     SASE_ACTIVE_PROJECT_DIR_ENV,
     SASE_AGENT_WORKSPACE_NUM_ENV,
 )
-from sase.xprompt.workflow_executor_utils import (
+from sase.macro.workflow_executor_utils import (
     runner_bound_workspace_from_output,
     workspace_num_from_output,
 )

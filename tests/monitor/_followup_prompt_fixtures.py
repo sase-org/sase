@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sase.xprompt._disabled_regions import disabled_region_ranges
+from sase.macro._disabled_regions import disabled_region_ranges
 
 _COMMON = {
     "command": "just check-full",

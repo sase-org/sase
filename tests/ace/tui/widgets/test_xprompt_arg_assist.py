@@ -19,9 +19,9 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     visible_inputs,
     xprompt_assist_entry_from_workflow,
 )
-from sase.xprompt.models import UNSET, InputArg, InputType, OutputSpec, XPrompt
-from sase.xprompt.models import MemoryType
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import UNSET, InputArg, InputType, OutputSpec, XPrompt
+from sase.macro.models import MemoryType
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 def _make_xprompt(
@@ -72,11 +72,11 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
     )
 
     with (
-        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"typed": xp}),
-        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
-        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch("sase.macro.catalog.get_all_xprompts", return_value={"typed": xp}),
+        patch("sase.macro.catalog.get_all_workflows", return_value={}),
+        patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
         patch(
-            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_xprompts_dir",
             return_value=tmp_path / "pkg",
         ),
     ):
@@ -129,11 +129,11 @@ def test_assist_adapter_preserves_memory_identity(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.xprompt.catalog.get_all_xprompts",
+            "sase.macro.catalog.get_all_xprompts",
             return_value={"memory/glossary": xp},
         ),
-        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
-        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch("sase.macro.catalog.get_all_workflows", return_value={}),
+        patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
         entries = build_xprompt_assist_entries()
 
@@ -158,24 +158,24 @@ def test_assist_adapter_filters_project_entries(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.xprompt.catalog.get_all_xprompts",
+            "sase.macro.catalog.get_all_xprompts",
             return_value={"global": global_xp},
         ),
-        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
+        patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch(
-            "sase.xprompt.catalog.get_known_project_workspaces",
+            "sase.macro.catalog.get_known_project_workspaces",
             return_value={"sase": ws, "other": tmp_path / "other"},
         ),
         patch(
-            "sase.xprompt.catalog.load_project_local_xprompts",
+            "sase.macro.catalog.load_project_local_xprompts",
             side_effect=[{"local": project_xp}, {"other": other_xp}],
         ),
         patch(
-            "sase.xprompt.catalog.load_project_file_xprompts",
+            "sase.macro.catalog.load_project_file_xprompts",
             return_value={},
         ),
         patch(
-            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_xprompts_dir",
             return_value=tmp_path / "pkg",
         ),
     ):
@@ -198,9 +198,9 @@ def test_entry_with_only_step_inputs_has_no_user_facing_hints() -> None:
     )
 
     with (
-        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"step_only": xp}),
-        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
-        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch("sase.macro.catalog.get_all_xprompts", return_value={"step_only": xp}),
+        patch("sase.macro.catalog.get_all_workflows", return_value={}),
+        patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
         entry = build_xprompt_assist_entries()[0]
 
@@ -219,9 +219,9 @@ def test_input_label_formatting_and_rich_rendering() -> None:
         ],
     )
     with (
-        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"rendered": xp}),
-        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
-        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch("sase.macro.catalog.get_all_xprompts", return_value={"rendered": xp}),
+        patch("sase.macro.catalog.get_all_workflows", return_value={}),
+        patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
         entry = build_xprompt_assist_entries()[0]
 
@@ -285,11 +285,11 @@ def test_string_default_renders_in_prompt_bar_hints(tmp_path: Path) -> None:
     )
     with (
         patch(
-            "sase.xprompt.catalog.get_all_xprompts",
+            "sase.macro.catalog.get_all_xprompts",
             return_value={"split_epic_like": xp},
         ),
-        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
-        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch("sase.macro.catalog.get_all_workflows", return_value={}),
+        patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
         entry = build_xprompt_assist_entries()[0]
 
@@ -314,11 +314,11 @@ def test_catalog_and_workflow_adapters_agree_on_string_defaults(
         inputs=list(inputs),
     )
     with (
-        patch("sase.xprompt.catalog.get_all_xprompts", return_value={"typed": xp}),
-        patch("sase.xprompt.catalog.get_all_workflows", return_value={}),
-        patch("sase.xprompt.catalog.get_known_project_workspaces", return_value={}),
+        patch("sase.macro.catalog.get_all_xprompts", return_value={"typed": xp}),
+        patch("sase.macro.catalog.get_all_workflows", return_value={}),
+        patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
         patch(
-            "sase.xprompt.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_xprompts_dir",
             return_value=tmp_path / "pkg",
         ),
     ):

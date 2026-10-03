@@ -14,7 +14,7 @@ from sase.doctor.checks_deep_terminal import (
     check_truecolor,
 )
 from sase.doctor.checks_deep_purge_local_state import check_local_import_state
-from sase.doctor.checks_deep_xprompt_lsp import check_xprompt_lsp
+from sase.doctor.checks_deep_macro_lsp import check_xprompt_lsp
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext

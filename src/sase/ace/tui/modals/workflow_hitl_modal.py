@@ -11,7 +11,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
-from sase.xprompt import HITLResult
+from sase.macro import HITLResult
 
 from .base import CopyModeForwardingMixin
 

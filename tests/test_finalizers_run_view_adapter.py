@@ -45,7 +45,7 @@ from sase.finalizers.run_view_inputs import (
 )
 from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.llm_provider.types import InvokeResult
-from sase.xprompt.directives import PromptDirectives
+from sase.macro.directives import PromptDirectives
 
 from .finalizers_live_e2e_test_helpers import (
     attach_bare_remote,

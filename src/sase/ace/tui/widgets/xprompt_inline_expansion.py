@@ -19,14 +19,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from enum import Enum
 
-from sase.xprompt._exceptions import XPromptError
-from sase.xprompt.loader import get_all_xprompts
-from sase.xprompt.models import InputArg, XPrompt, XPromptValidationError
-from sase.xprompt.processor import (
+from sase.macro._exceptions import XPromptError
+from sase.macro.loader import get_all_xprompts
+from sase.macro.models import InputArg, XPrompt, XPromptValidationError
+from sase.macro.processor import (
     expand_single_xprompt,
     process_xprompt_references_with_catalog,
 )
-from sase.xprompt.workflow_models import (
+from sase.macro.workflow_models import (
     Workflow,
     WorkflowKind,
     WorkflowValidationError,
@@ -164,7 +164,7 @@ def _error(reason: _InlineExpansionReason, message: str) -> _InlineExpansionResu
 def _workflow_to_xprompt(name: str, workflow: Workflow) -> XPrompt:
     """Project a simple prompt-part workflow back into an ``XPrompt``.
 
-    The inverse of :func:`sase.xprompt.models.xprompt_to_workflow`, scoped to
+    The inverse of :func:`sase.macro.models.xprompt_to_workflow`, scoped to
     the single prompt-part body so it can be rendered through the same helper
     as a hand-authored xprompt.
     """

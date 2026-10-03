@@ -30,9 +30,9 @@ from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import InputArg, InputType
+from sase.macro.prompt_frontmatter import PromptFrontmatter
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 from tests.ace.tui._plugins_browser_pane_helpers import _core_versions
 
@@ -62,7 +62,7 @@ def _patch_panes(monkeypatch: pytest.MonkeyPatch, prompts: dict[str, Workflow]) 
         lambda project=None: dict(prompts),
     )
     monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_project_local_prompts",
+        "sase.macro.loader.get_all_project_local_prompts",
         lambda: {},
     )
     monkeypatch.setattr(

@@ -25,7 +25,7 @@ from sase.llm_provider import (
 )
 from sase.llm_provider.provider_disable import get_active_provider_disables
 from sase.llm_provider.registry import provider_cli_status_color_map
-from sase.xprompt.effort import split_model_effort
+from sase.macro.effort import split_model_effort
 
 from .models_panel_duration import format_remaining
 from .models_panel_rows import (

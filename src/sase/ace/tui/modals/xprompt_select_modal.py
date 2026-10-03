@@ -16,15 +16,15 @@ from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.hints import build_editor_args
-from sase.xprompt import get_all_prompts
-from sase.xprompt.models import UNSET, InputArg
-from sase.xprompt.reference_display import (
+from sase.macro import get_all_prompts
+from sase.macro.models import UNSET, InputArg
+from sase.macro.reference_display import (
     workflow_reference_insertion,
     workflow_kind_value,
     workflow_reference_prefix,
     workflow_reference_suffix,
 )
-from sase.xprompt.workflow_models import Workflow
+from sase.macro.workflow_models import Workflow
 
 from ..util.frontmatter_syntax import markdown_document_syntax
 from ..widgets.xprompt_arg_assist import (

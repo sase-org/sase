@@ -75,10 +75,10 @@ def xprompt_candidates(_project: str | None) -> list[Candidate]:
     from sase.content_layout import resolve_xprompt_file_sources
 
     roots: list[Path] = []
-    packaged = _package_dir("xprompts")
+    packaged = _package_dir("macros")
     if packaged is not None:
         roots.append(packaged)
-    defaults = _package_dir("default_xprompts")
+    defaults = _package_dir("default_macros")
     if defaults is not None:
         roots.append(defaults)
     try:
@@ -107,7 +107,7 @@ def skill_candidates(_project: str | None) -> list[Candidate]:
     from sase.content_layout import resolve_skill_file_sources
 
     roots: list[Path] = []
-    packaged = _package_dir("xprompts", "skills")
+    packaged = _package_dir("macros", "skills")
     if packaged is not None:
         roots.append(packaged)
     try:

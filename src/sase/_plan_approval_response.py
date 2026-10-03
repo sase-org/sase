@@ -17,7 +17,7 @@ from sase.plan_approval_choices import plan_approval_selection_for_choice
 
 if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin, EpicLaunchSubmission
-    from sase.xprompt.directive_edit import PromptWaitDirective
+    from sase.macro.directive_edit import PromptWaitDirective
 
 
 def execute_neutral_plan_approval_response(

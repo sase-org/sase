@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.modals.snippet_name_modal import SnippetNameResult
     from sase.ace.tui.widgets import PromptInputBar
     from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
-    from sase.xprompt.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
+    from sase.macro.snippet_targets import SnippetConfigLocation, SnippetSaveTarget
 
 
 class PromptBarSnippetPaneMixin:
@@ -452,7 +452,7 @@ def _build_snippet_picker_tables(
         SNIPPET_CONFIGURED_SECTION,
         snippet_location_choices,
     )
-    from sase.xprompt.snippet_targets import snippet_save_target_for_location
+    from sase.macro.snippet_targets import snippet_save_target_for_location
 
     choices, _default_id = snippet_location_choices(
         locations,
@@ -478,13 +478,13 @@ def _build_snippet_picker_tables(
 
 
 def _resolve_snippet_target(configured: str) -> SnippetSaveTarget:
-    from sase.xprompt.snippet_targets import resolve_snippet_save_target
+    from sase.macro.snippet_targets import resolve_snippet_save_target
 
     return resolve_snippet_save_target(configured)
 
 
 def _load_snippet_locations(project: str | None) -> list[SnippetConfigLocation]:
-    from sase.xprompt.snippet_targets import load_snippet_config_locations
+    from sase.macro.snippet_targets import load_snippet_config_locations
 
     return load_snippet_config_locations(project)
 
@@ -492,7 +492,7 @@ def _load_snippet_locations(project: str | None) -> list[SnippetConfigLocation]:
 def _load_derived_snippet_catalog(
     project: str | None,
 ) -> tuple[dict[str, str], dict[str, str]]:
-    from sase.xprompt.snippet_bridge import get_xprompt_snippet_entries
+    from sase.macro.snippet_bridge import get_xprompt_snippet_entries
 
     snippets: dict[str, str] = {}
     sources: dict[str, str] = {}
@@ -503,7 +503,7 @@ def _load_derived_snippet_catalog(
 
 
 def _load_snippet_last_used_path() -> str | None:
-    from sase.xprompt.save_state import load_last_used_locations
+    from sase.macro.save_state import load_last_used_locations
 
     return load_last_used_locations().get("snippet")
 
@@ -512,7 +512,7 @@ def _load_snippet_names_by_path(
     project: str | None,
     configured: str,
 ) -> dict[str, frozenset[str]]:
-    from sase.xprompt.save_index import names_for_location
+    from sase.macro.save_index import names_for_location
 
     locations = _load_snippet_locations(project)
     paths = [location.path for location in locations]
@@ -538,7 +538,7 @@ def _snippet_destination_state(
     trigger: str,
 ) -> tuple[bool, SourceFingerprint | None]:
     from sase.ace.tui.widgets.prompt_stack import SourceFingerprint
-    from sase.xprompt.snippet_targets import load_snippet_template
+    from sase.macro.snippet_targets import load_snippet_template
 
     try:
         load_snippet_template(write_path, trigger)

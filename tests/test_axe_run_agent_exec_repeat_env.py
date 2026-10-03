@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.axe.run_agent_exec import AgentExecContext
-from sase.xprompt.workflow_runner import _WORKFLOW_INHERITED_VCS_TAG_ARG
+from sase.macro.workflow_runner import _WORKFLOW_INHERITED_VCS_TAG_ARG
 
 
 def _mock_exec_ctx(tmp_path: Path, **overrides: Any) -> MagicMock:
@@ -41,8 +41,8 @@ def _mock_exec_ctx(tmp_path: Path, **overrides: Any) -> MagicMock:
 class TestRepeatIterationEnv:
     """Tests for n/N variable injection via SASE_REPEAT_* env vars."""
 
-    @patch("sase.xprompt.workflow_runner.execute_workflow")
-    @patch("sase.xprompt.models.create_anonymous_workflow")
+    @patch("sase.macro.workflow_runner.execute_workflow")
+    @patch("sase.macro.models.create_anonymous_workflow")
     def test_n_injected_when_repeat_env_set(
         self,
         mock_create: MagicMock,
@@ -70,8 +70,8 @@ class TestRepeatIterationEnv:
         assert named_args["n"] == 3
         assert named_args["N"] == 5
 
-    @patch("sase.xprompt.workflow_runner.execute_workflow")
-    @patch("sase.xprompt.models.create_anonymous_workflow")
+    @patch("sase.macro.workflow_runner.execute_workflow")
+    @patch("sase.macro.models.create_anonymous_workflow")
     def test_n_absent_when_env_unset(
         self,
         mock_create: MagicMock,
@@ -103,8 +103,8 @@ class TestRepeatIterationEnv:
 class TestWaitChatsInjection:
     """Tests for wait_chats variable injection from AgentExecContext."""
 
-    @patch("sase.xprompt.workflow_runner.execute_workflow")
-    @patch("sase.xprompt.models.create_anonymous_workflow")
+    @patch("sase.macro.workflow_runner.execute_workflow")
+    @patch("sase.macro.models.create_anonymous_workflow")
     def test_wait_chats_injected_when_ctx_has_paths(
         self,
         mock_create: MagicMock,
@@ -133,8 +133,8 @@ class TestWaitChatsInjection:
             "~/.sase/chats/b.md",
         ]
 
-    @patch("sase.xprompt.workflow_runner.execute_workflow")
-    @patch("sase.xprompt.models.create_anonymous_workflow")
+    @patch("sase.macro.workflow_runner.execute_workflow")
+    @patch("sase.macro.models.create_anonymous_workflow")
     def test_wait_chats_absent_when_ctx_empty(
         self,
         mock_create: MagicMock,
@@ -157,8 +157,8 @@ class TestWaitChatsInjection:
         named_args = mock_execute.call_args[0][2]
         assert "wait_chats" not in named_args
 
-    @patch("sase.xprompt.workflow_runner.execute_workflow")
-    @patch("sase.xprompt.models.create_anonymous_workflow")
+    @patch("sase.macro.workflow_runner.execute_workflow")
+    @patch("sase.macro.models.create_anonymous_workflow")
     def test_wait_namespace_not_persisted_in_workflow_args(
         self,
         mock_create: MagicMock,
@@ -167,7 +167,7 @@ class TestWaitChatsInjection:
     ) -> None:
         """run_execution_loop exposes wait through runtime context, not named_args."""
         from sase.axe.run_agent_exec import run_execution_loop
-        from sase.xprompt._jinja import get_global_template_vars
+        from sase.macro._jinja import get_global_template_vars
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
@@ -193,8 +193,8 @@ class TestWaitChatsInjection:
 class TestInheritedVcsInjection:
     """Tests for inherited VCS workflow tag injection."""
 
-    @patch("sase.xprompt.workflow_runner.execute_workflow")
-    @patch("sase.xprompt.models.create_anonymous_workflow")
+    @patch("sase.macro.workflow_runner.execute_workflow")
+    @patch("sase.macro.models.create_anonymous_workflow")
     def test_vcs_tag_injected_when_ctx_has_tag(
         self,
         mock_create: MagicMock,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from sase.core.time import get_timezone
-from sase.xprompt._directive_time import parse_duration
+from sase.macro._directive_time import parse_duration
 
 from .duration_choice_modal import DurationChoice, DurationChoiceModal
 

@@ -244,7 +244,7 @@ def test_shipped_xlarge_uses_ordered_fallbacks(
 ) -> None:
     """The shipped `@xlarge` sticks to its first member while it is available."""
     from sase.llm_provider.load_balancing import concatenated_selector_members
-    from sase.xprompt.effort import split_model_effort
+    from sase.macro.effort import split_model_effort
 
     selector = parse_model_alias_selector(
         implicit_alias_targets()[XLARGE_MODEL_ALIAS_NAME]

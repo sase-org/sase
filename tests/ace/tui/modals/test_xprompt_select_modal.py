@@ -10,8 +10,8 @@ from textual.widgets import Input, OptionList
 
 from sase.ace.testing.wait import wait_for
 from sase.ace.tui.modals.xprompt_select_modal import XPromptSelectModal
-from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from sase.macro.models import InputArg, InputType
+from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 class _SuspendRecorder:

@@ -14,7 +14,7 @@ from sase.agent.repeat_launcher import (
     extract_repeat_and_name,
     spawn_repeat_batch,
 )
-from sase.xprompt._exceptions import DirectiveError
+from sase.macro._exceptions import DirectiveError
 
 
 class TestExtractRepeatAndName:
