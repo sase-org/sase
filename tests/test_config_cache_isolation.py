@@ -94,10 +94,16 @@ def test_victim_first_reads_use_only_successor_patched_paths(tmp_path: Path) -> 
     assert merged["marker"] == "successor"
     assert owner.owner is not None
     assert owner.owner.username == "successoruser"
-    assert not any(
-        thread.name == CONFIG_TOKEN_REFRESH_THREAD_NAME and thread.is_alive()
+    # The long-lived revalidator is started by the reads above with the
+    # successor paths; the autouse fixture drains it before host paths
+    # return, so it cannot observe the host.
+    workers = [
+        thread
         for thread in threading.enumerate()
-    )
+        if thread.name == CONFIG_TOKEN_REFRESH_THREAD_NAME and thread.is_alive()
+    ]
+    assert len(workers) <= 1
+    assert all(worker.daemon for worker in workers)
 
 
 def test_blocked_refresh_worker_does_not_poison_a_later_config_read(

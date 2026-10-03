@@ -24,7 +24,10 @@ from ._identity_header import (
     find_member_jump_map,
     find_member_roster,
 )
-from ...util.renderable_digest import renderable_content_digest
+from ...util.renderable_digest import (
+    renderable_cheap_token,
+    renderable_content_digest,
+)
 from ..decks.card_part import flatten_card_document
 from ._section_view import SectionViewMixin
 from ._workflow_display import WorkflowDisplayMixin
@@ -47,6 +50,8 @@ class AgentPromptPanel(
     _identity_last_published: IdentityHeader | None = None
     _identity_last_content: Any = ""
     _last_prompt_panel_content: Any = None
+    _last_prompt_panel_token: Any = None
+    _last_prompt_panel_digest: str | None = None
     _member_jump_map_sink: MemberJumpMapSink | None = None
     _jump_map_last_published: Any = None
     _member_roster_last_published: Any = None
@@ -145,6 +150,9 @@ class AgentPromptPanel(
 
     def update(self, content: Any = "", *, layout: bool = True) -> None:
         """Update content while invalidating only the cached rendered anchors."""
+        previous_content = getattr(self, "_last_prompt_panel_content", None)
+        previous_token = getattr(self, "_last_prompt_panel_token", None)
+        previous_digest = getattr(self, "_last_prompt_panel_digest", None)
         self._last_prompt_panel_content = content
         sink = getattr(self, "_identity_header_sink", None)
         if sink is not None:
@@ -160,10 +168,34 @@ class AgentPromptPanel(
                 self._member_roster_last_published,
             )
         digest: str | None
-        try:
-            digest = renderable_content_digest(content)
-        except Exception:
-            digest = None
+        cheap_token: Any = None
+        cheap_ok = False
+        if content is previous_content and previous_digest is not None:
+            digest = previous_digest
+        else:
+            try:
+                cheap_token = renderable_cheap_token(content)
+                cheap_ok = True
+            except Exception:
+                cheap_token = None
+                cheap_ok = False
+            if (
+                cheap_ok
+                and previous_token is not None
+                and cheap_token == previous_token
+                and previous_digest is not None
+            ):
+                digest = previous_digest
+            else:
+                try:
+                    digest = renderable_content_digest(content)
+                except Exception:
+                    digest = None
+                try:
+                    self._last_prompt_panel_token = cheap_token if cheap_ok else None
+                    self._last_prompt_panel_digest = digest
+                except Exception:
+                    pass
         applied = self._apply_section_content(
             flatten_card_document(content), digest, layout=layout
         )

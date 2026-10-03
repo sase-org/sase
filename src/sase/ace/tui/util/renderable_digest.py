@@ -146,4 +146,122 @@ def _style_digest_token(style: object) -> str:
     return f"{token}|meta:{meta}"
 
 
-__all__ = ["renderable_content_digest"]
+def renderable_cheap_token(node: object) -> object:
+    """Return a cheap exact identity/content token for ``node``.
+
+    The token captures the same content facts as
+    :func:`renderable_content_digest` but without hashing: ``CachedRenderable``
+    children contribute their precomputed ``content_digest`` instead of
+    re-hashing their contents, so an unchanged rebuilt document compares
+    equal through tuple equality. Callers compare tokens first and only run
+    the full digest walk when the token changed.
+    """
+    if isinstance(node, CachedRenderable):
+        return ("C", node.content_digest)
+    if isinstance(node, Syntax):
+        lexer = getattr(node, "lexer", None)
+        theme = getattr(node, "theme", "")
+        return ("S", node.code, repr(lexer), str(theme))
+    if isinstance(node, Text):
+        return (
+            "T",
+            node.plain,
+            str(node.end),
+            tuple(
+                (span.start, span.end, _style_digest_token(span.style))
+                for span in node.spans
+            ),
+        )
+    if isinstance(node, Group):
+        return ("G", tuple(renderable_cheap_token(child) for child in node.renderables))
+    if bool(getattr(node, "__sase_card_part__", False)):
+        return (
+            "K",
+            str(getattr(node, "card_id", "")),
+            str(getattr(node, "title", "")),
+            tuple(
+                renderable_cheap_token(child)
+                for child in getattr(node, "renderables", ())
+            ),
+        )
+    if bool(getattr(node, "__sase_block_spread_only__", False)):
+        return (
+            "O",
+            tuple(
+                renderable_cheap_token(child)
+                for child in getattr(node, "renderables", ())
+            ),
+        )
+    if bool(getattr(node, "__sase_card_block__", False)):
+        meta = getattr(node, "meta", None)
+        return (
+            "B",
+            str(getattr(node, "block_id", "")),
+            str(getattr(node, "title", "")),
+            tuple(
+                str(getattr(meta, field, "")) if meta is not None else ""
+                for field in (
+                    "number",
+                    "label",
+                    "glyph",
+                    "accent",
+                    "status_bucket",
+                    "kind",
+                )
+            ),
+            tuple(
+                renderable_cheap_token(child)
+                for child in getattr(node, "renderables", ())
+            ),
+        )
+    if isinstance(node, str):
+        return ("s", node)
+    if isinstance(node, bytes):
+        return ("b", bytes(node))
+    plain = getattr(node, "plain", None)
+    if isinstance(plain, str):
+        spans = getattr(node, "spans", None)
+        span_token: object = None
+        try:
+            span_token = (
+                tuple(
+                    (span.start, span.end, _style_digest_token(span.style))
+                    for span in spans
+                )
+                if spans
+                else ()
+            )
+        except Exception:
+            span_token = repr(spans)[:512]
+        sections = getattr(node, "_sections", None)
+        section_token: object = ()
+        try:
+            if sections:
+                section_token = tuple(
+                    (
+                        start,
+                        end,
+                        type(section).__name__,
+                        renderable_cheap_token(getattr(section, "logical_text", "")),
+                    )
+                    for start, end, section in sections
+                )
+        except Exception:
+            section_token = repr(sections)[:512]
+        return (
+            "H",
+            plain,
+            str(getattr(node, "end", "")),
+            span_token,
+            section_token,
+        )
+    markup = getattr(node, "markup", None)
+    if isinstance(markup, str):
+        return ("M", markup)
+    try:
+        return ("R", type(node).__name__, repr(node)[:2048])
+    except Exception:
+        return ("R", type(node).__name__, "")
+
+
+__all__ = ["renderable_cheap_token", "renderable_content_digest"]

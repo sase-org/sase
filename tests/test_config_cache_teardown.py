@@ -184,11 +184,11 @@ def test_prior_refresh_worker_cannot_publish_after_drain() -> None:
 
             threading.Thread(target=_release, daemon=True).start()
             _drain_config_token_refresh()
+            assert config_core._current_config_token_refresh_thread is None
             assert current_config_token() == ("inline", 3)
-            deadline = time.perf_counter() + 2.0
-            while config_core._current_config_token_refresh_thread is not None:
-                assert time.perf_counter() < deadline
-                time.sleep(min(0.01, max(0.0, deadline - time.perf_counter())))
+            worker = config_core._current_config_token_refresh_thread
+            assert worker is not None
+            assert worker.is_alive()
             assert current_config_token() == ("inline", 3)
         finally:
             release_refresh.set()

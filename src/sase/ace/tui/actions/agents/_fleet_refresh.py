@@ -42,6 +42,21 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _fleet_refresh_selected_identity(app: object) -> Any | None:
+    """Return the current Agents selection identity, or None when unknown."""
+    try:
+        agents = getattr(app, "_agents", [])
+        idx = int(getattr(app, "current_idx", -1))
+    except Exception:
+        return None
+    try:
+        if 0 <= idx < len(agents):
+            return agents[idx].identity
+    except Exception:
+        return None
+    return None
+
+
 class AgentFleetRefreshMixin:
     """Refresh remote fleet rows and apply their projections."""
 
@@ -51,9 +66,7 @@ class AgentFleetRefreshMixin:
         _agents_fleet_focus_rows: list[Agent]
         _agents_fleet_async_tasks: set[asyncio.Task[object]]
         _agents_fleet_refresh_generation: int
-        _agents_fleet_hint_deferred_apply: (
-            tuple[FleetRowsProjection, FederationConfig, int, str] | None
-        )
+        _agents_fleet_hint_deferred_apply: tuple[Any, ...] | None
         _agents_fleet_loading: bool
         _agents_fleet_available: bool
         _agents_fleet_last_error: str | None
@@ -88,6 +101,11 @@ class AgentFleetRefreshMixin:
 
     async def _run_agents_fleet_refresh(self, *, generation: int, source: str) -> None:
         deferred_apply = False
+        # Immutable apply token captured before any await: a stale worker
+        # result must not clobber a newer generation, a changed tab, or a
+        # moved selection.
+        start_tab: str = getattr(self, "current_tab", "agents")
+        start_selected_identity: Any | None = _fleet_refresh_selected_identity(self)
         try:
             load_config = fleet_public_override(
                 "load_federation_config",
@@ -157,13 +175,19 @@ class AgentFleetRefreshMixin:
                     facade,
                     timeout_seconds=timeout,
                 )
-            projection = project_fleet_agents(
+            # Freeze immutable worker inputs before leaving the loop: the
+            # response mappings and follow snapshot are task-local, and the
+            # local count is captured here so the worker never reads live
+            # ``self`` state off-thread.
+            local_agent_count = len(getattr(self, "_agents_local_with_children", []))
+            projection = await asyncio.to_thread(
+                project_fleet_agents,
                 summary_response=summary_response,
                 catalog_response=catalog_response,
                 followed_response=followed_response,
                 attention_response=attention_response,
                 follow_snapshot=follow_snapshot,
-                local_agent_count=len(getattr(self, "_agents_local_with_children", [])),
+                local_agent_count=local_agent_count,
             )
             if config_diagnostics:
                 projection = FleetRowsProjection(
@@ -181,6 +205,9 @@ class AgentFleetRefreshMixin:
                 config=config,
                 generation=generation,
                 source=source,
+                expected_tab=start_tab,
+                expected_selected_identity=start_selected_identity,
+                _selection_checked=True,
             ):
                 deferred_apply = True
             else:
@@ -189,6 +216,9 @@ class AgentFleetRefreshMixin:
                     config=config,
                     generation=generation,
                     source=source,
+                    expected_tab=start_tab,
+                    expected_selected_identity=start_selected_identity,
+                    _selection_checked=True,
                 )
         except (FederationConfigError, FollowStoreError) as exc:
             log.debug("fleet refresh failed", exc_info=True)
@@ -208,6 +238,9 @@ class AgentFleetRefreshMixin:
         config: FederationConfig,
         generation: int,
         source: str,
+        expected_tab: str | None = None,
+        expected_selected_identity: Any = None,
+        _selection_checked: bool = False,
     ) -> bool:
         if getattr(self, "_entry_jump_mode_active", False) or getattr(
             self, "_panel_fold_hint_mode_active", False
@@ -220,6 +253,9 @@ class AgentFleetRefreshMixin:
                     config,
                     generation,
                     source,
+                    expected_tab,
+                    expected_selected_identity,
+                    _selection_checked,
                 )
             except Exception:
                 pass
@@ -235,6 +271,9 @@ class AgentFleetRefreshMixin:
                 config=config,
                 generation=generation,
                 source=source,
+                expected_tab=expected_tab,
+                expected_selected_identity=expected_selected_identity,
+                _selection_checked=_selection_checked,
             ),
         )
         return True
@@ -249,7 +288,16 @@ class AgentFleetRefreshMixin:
         except Exception:
             pass
         try:
-            projection, config, generation, source = pending
+            parts = tuple(pending)
+            projection, config, generation, source = (
+                parts[0],
+                parts[1],
+                parts[2],
+                parts[3],
+            )
+            expected_tab = parts[4] if len(parts) > 4 else None
+            expected_selected_identity = parts[5] if len(parts) > 5 else None
+            selection_checked = bool(parts[6]) if len(parts) > 6 else False
         except Exception:
             return
         self._apply_deferred_fleet_projection(
@@ -257,6 +305,9 @@ class AgentFleetRefreshMixin:
             config=config,
             generation=generation,
             source=source,
+            expected_tab=expected_tab,
+            expected_selected_identity=expected_selected_identity,
+            _selection_checked=selection_checked,
         )
 
     def _apply_deferred_fleet_projection(
@@ -266,6 +317,9 @@ class AgentFleetRefreshMixin:
         config: FederationConfig,
         generation: int,
         source: str,
+        expected_tab: str | None = None,
+        expected_selected_identity: Any = None,
+        _selection_checked: bool = False,
     ) -> None:
         if generation != getattr(self, "_agents_fleet_refresh_generation", 0):
             return
@@ -274,13 +328,20 @@ class AgentFleetRefreshMixin:
             config=config,
             generation=generation,
             source=source,
+            expected_tab=expected_tab,
+            expected_selected_identity=expected_selected_identity,
+            _selection_checked=_selection_checked,
         ):
             return
+        # Deferred applies wait out navigation/hint modes, during which the
+        # selection legitimately moves: revalidate generation and tab here,
+        # but apply regardless of the pre-defer selection.
         self._apply_fleet_projection(
             projection,
             config=config,
             generation=generation,
             source=source,
+            expected_tab=expected_tab,
         )
         if generation == getattr(self, "_agents_fleet_refresh_generation", 0):
             self._agents_fleet_loading = False
@@ -411,9 +472,21 @@ class AgentFleetRefreshMixin:
         config: FederationConfig,
         generation: int,
         source: str = "fleet_refresh",
+        expected_tab: str | None = None,
+        expected_selected_identity: Any = None,
+        _selection_checked: bool = False,
     ) -> None:
         if generation != getattr(self, "_agents_fleet_refresh_generation", 0):
             return
+        current_tab = getattr(self, "current_tab", "agents")
+        if expected_tab is not None:
+            if current_tab != expected_tab:
+                return
+        elif current_tab != "agents":
+            return
+        if _selection_checked:
+            if _fleet_refresh_selected_identity(self) != expected_selected_identity:
+                return
         self._agents_fleet_projection = projection
         self._agents_fleet_rows = list(projection.fleet_rows)
         self._agents_fleet_focus_rows = list(projection.focus_rows)

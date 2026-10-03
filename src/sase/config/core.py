@@ -184,6 +184,10 @@ _agent_owner_config_cache: tuple[tuple[Any, ...], AgentOwnerConfigSnapshot] | No
 # refreshes revalidate cached config on a slower cadence than they repaint.
 _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS = 5.0
 CONFIG_TOKEN_REFRESH_THREAD_NAME = "sase-config-token-refresh"
+# Poll cadence for the long-lived revalidator: it wakes promptly on the
+# getter's signal and otherwise re-checks the deadline on this interval so
+# a changed config is picked up within one refresh cadence.
+_CONFIG_TOKEN_REVALIDATOR_POLL_SECONDS = 0.05
 _config_cache_generation = 0
 _current_config_token_cache_value: tuple[Any, ...] | None = None
 _current_config_token_cache_deadline = 0.0
@@ -192,6 +196,8 @@ _current_config_token_cache_dir: Path | None = None
 _current_config_token_cache_cwd: str | None = None
 _current_config_token_cache_lock = threading.RLock()
 _current_config_token_refresh_thread: threading.Thread | None = None
+_config_token_revalidator_stop: threading.Event | None = None
+_config_token_revalidator_wake: threading.Event | None = None
 
 
 def _reset_current_config_token_cache_locked() -> None:
@@ -268,21 +274,18 @@ def _compute_current_config_token() -> tuple[Any, ...]:
     return tuple(parts)
 
 
-def _refresh_current_config_token(cache_epoch: int, cache_cwd: str | None) -> None:
-    """Recompute and publish a config token from the daemon worker."""
+def _publish_revalidator_token(
+    token: tuple[Any, ...] | None,
+    *,
+    cache_epoch: int,
+    cache_cwd: str | None,
+) -> bool:
+    """Publish one revalidator recompute when its epoch is still current."""
     global _current_config_token_cache_value, _current_config_token_cache_deadline
-    global _current_config_token_refresh_thread
-    try:
-        token = _compute_current_config_token()
-    except Exception:
-        log.debug("Background config-token refresh failed", exc_info=True)
-        token = None
-
     with _current_config_token_cache_lock:
-        # A worker that raced a `chdir` computed its token against a
-        # directory the cache is no longer keyed to. Declining to publish is
-        # safe: the next synchronous read sees the CWD mismatch and
-        # recomputes.
+        # A recompute that raced a `chdir` ran against a directory the cache
+        # is no longer keyed to. Declining to publish is safe: the next
+        # synchronous read sees the CWD mismatch and recomputes.
         if cache_epoch == _current_config_token_cache_epoch and (
             _current_config_token_cache_cwd == cache_cwd
             and _current_config_token_cache_cwd_key() == cache_cwd
@@ -292,19 +295,88 @@ def _refresh_current_config_token(cache_epoch: int, cache_cwd: str | None) -> No
             _current_config_token_cache_deadline = (
                 time.monotonic() + _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
             )
-        # A worker that missed its drain window and finally runs inside a
-        # later generation must only deregister itself, never a live worker
-        # that has since taken the slot.
-        if _current_config_token_refresh_thread is threading.current_thread():
-            _current_config_token_refresh_thread = None
+            return True
+        return False
+
+
+def _config_token_revalidator_loop(
+    stop: threading.Event,
+    wake: threading.Event,
+) -> None:
+    """Refresh an expired config token until ``stop`` is set.
+
+    The loop never reads live ``self`` state: each iteration captures the
+    epoch/cwd under the cache lock, recomputes off-lock, and publishes only
+    when the epoch still matches. A missed drain window therefore cannot
+    install a stale token into a successor generation.
+    """
+    while not stop.is_set():
+        with _current_config_token_cache_lock:
+            cached = _current_config_token_cache_value
+            deadline = _current_config_token_cache_deadline
+            epoch = _current_config_token_cache_epoch
+            cwd = _current_config_token_cache_cwd
+        if cached is None:
+            if stop.wait(_CONFIG_TOKEN_REVALIDATOR_POLL_SECONDS):
+                break
+            continue
+        try:
+            now = time.monotonic()
+        except Exception:
+            now = deadline
+        if now < deadline:
+            remaining = deadline - now
+            nap = min(remaining, _CONFIG_TOKEN_REVALIDATOR_POLL_SECONDS)
+            wake.clear()
+            if stop.wait(nap):
+                break
+            # A getter signal wakes us early; otherwise the poll re-checks
+            # the (possibly faked) clock so tests driving fake time still
+            # observe a refresh within one cadence.
+            continue
+        wake.clear()
+        try:
+            token = _compute_current_config_token()
+        except Exception:
+            log.debug("Background config-token refresh failed", exc_info=True)
+            token = None
+        published = _publish_revalidator_token(token, cache_epoch=epoch, cache_cwd=cwd)
+        if not published:
+            # Stale epoch or raced chdir: back off instead of busy-looping
+            # on an expired deadline the getter will recompute synchronously.
+            if stop.wait(_CONFIG_TOKEN_REVALIDATOR_POLL_SECONDS):
+                break
+
+
+def _ensure_config_token_revalidator_locked() -> threading.Thread | None:
+    """Register the long-lived revalidator; caller starts it outside the lock."""
+    global _current_config_token_refresh_thread
+    global _config_token_revalidator_stop, _config_token_revalidator_wake
+    live = _current_config_token_refresh_thread
+    if live is not None and live.is_alive():
+        return None
+    stop = threading.Event()
+    wake = threading.Event()
+    worker = threading.Thread(
+        target=_config_token_revalidator_loop,
+        args=(stop, wake),
+        name=CONFIG_TOKEN_REFRESH_THREAD_NAME,
+        daemon=True,
+    )
+    _config_token_revalidator_stop = stop
+    _config_token_revalidator_wake = wake
+    _current_config_token_refresh_thread = worker
+    return worker
 
 
 def current_config_token() -> tuple[Any, ...]:
     """Return the cache key for the current merged-config state.
 
     The first lookup after process start or explicit invalidation is
-    synchronous.  An expired cached token is returned stale while a single
-    daemon worker revalidates it off-thread.
+    synchronous.  An expired cached token is returned stale while one
+    long-lived daemon revalidator refreshes it off-thread on its cadence;
+    this getter only peeks at the cached value and never starts a thread
+    once the revalidator is running.
 
     The cached token is bound to the ``CONFIG_DIR`` object it was computed
     against and to the process's current working directory. Rebinding
@@ -316,8 +388,10 @@ def current_config_token() -> tuple[Any, ...]:
     global _current_config_token_cache_value, _current_config_token_cache_deadline
     global _current_config_token_refresh_thread, _current_config_token_cache_dir
     global _current_config_token_cache_cwd
+    global _config_token_revalidator_stop, _config_token_revalidator_wake
 
-    refresh_thread_to_start: threading.Thread | None = None
+    revalidator_to_start: threading.Thread | None = None
+    sync_token: tuple[Any, ...] | None = None
     with _current_config_token_cache_lock:
         cwd_key = _current_config_token_cache_cwd_key()
         cached = _current_config_token_cache_value
@@ -328,35 +402,31 @@ def current_config_token() -> tuple[Any, ...]:
         ):
             if cached is not None:
                 _reset_current_config_token_cache_locked()
-            token = _compute_current_config_token()
-            _current_config_token_cache_value = token
+            sync_token = _compute_current_config_token()
+            _current_config_token_cache_value = sync_token
             _current_config_token_cache_dir = CONFIG_DIR
             _current_config_token_cache_cwd = cwd_key
             _current_config_token_cache_deadline = (
                 time.monotonic() + _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
             )
-            return token
+            revalidator_to_start = _ensure_config_token_revalidator_locked()
+            cached = sync_token
+        else:
+            revalidator_to_start = _ensure_config_token_revalidator_locked()
+            if time.monotonic() >= _current_config_token_cache_deadline:
+                wake = _config_token_revalidator_wake
+                if wake is not None:
+                    wake.set()
 
-        if (
-            time.monotonic() >= _current_config_token_cache_deadline
-            and _current_config_token_refresh_thread is None
-        ):
-            refresh_thread = threading.Thread(
-                target=_refresh_current_config_token,
-                args=(_current_config_token_cache_epoch, cwd_key),
-                name=CONFIG_TOKEN_REFRESH_THREAD_NAME,
-                daemon=True,
-            )
-            _current_config_token_refresh_thread = refresh_thread
-            refresh_thread_to_start = refresh_thread
-
-    if refresh_thread_to_start is not None:
+    if revalidator_to_start is not None:
         try:
-            refresh_thread_to_start.start()
+            revalidator_to_start.start()
         except Exception:
             with _current_config_token_cache_lock:
-                if _current_config_token_refresh_thread is refresh_thread_to_start:
+                if _current_config_token_refresh_thread is revalidator_to_start:
                     _current_config_token_refresh_thread = None
+                    _config_token_revalidator_stop = None
+                    _config_token_revalidator_wake = None
             raise
     return cached
 

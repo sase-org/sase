@@ -141,7 +141,7 @@ def _mock_system_clipboard(request: pytest.FixtureRequest):
 def _drain_config_token_refresh(
     *, timeout: float = _CONFIG_TOKEN_REFRESH_JOIN_TIMEOUT_SECONDS
 ) -> None:
-    """Invalidate the token generation and join a live refresh worker.
+    """Invalidate the token generation and stop the long-lived revalidator.
 
     The module pointer is cleared only when the observed worker has exited.
     A timed-out join leaves a still-live worker registered and raises so a
@@ -152,7 +152,16 @@ def _drain_config_token_refresh(
     with config_core._current_config_token_cache_lock:
         config_core._reset_current_config_token_cache_locked()
         thread = config_core._current_config_token_refresh_thread
+        stop = config_core._config_token_revalidator_stop
+        wake = config_core._config_token_revalidator_wake
     skipped_join = thread is None or thread is threading.current_thread()
+    if stop is not None and thread is not threading.current_thread():
+        stop.set()
+    if wake is not None and thread is not threading.current_thread():
+        try:
+            wake.set()
+        except Exception:
+            pass
     if thread is not None and thread is not threading.current_thread():
         thread.join(timeout=timeout)
     with config_core._current_config_token_cache_lock:
@@ -166,6 +175,8 @@ def _drain_config_token_refresh(
                 f"within {timeout}s; leaving the live worker registered"
             )
         config_core._current_config_token_refresh_thread = None
+        config_core._config_token_revalidator_stop = None
+        config_core._config_token_revalidator_wake = None
 
 
 def _clear_function_cache(cached: object) -> None:

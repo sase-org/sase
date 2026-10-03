@@ -119,20 +119,19 @@ def test_config_token_interval_exceeds_tui_tick_cadence() -> None:
             "sase.config.core._compute_current_config_token",
             return_value=("token", 1),
         ) as compute,
-        patch(
-            "sase.config.core.threading.Thread",
-            side_effect=AssertionError("unexpected refresh worker"),
-        ),
     ):
         _reset_config_token_cache()
         assert config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS > 1.0
         first = current_config_token()
+        worker = config_core._current_config_token_refresh_thread
+        assert worker is not None
 
         for _ in range(4):
             now[0] += 1.0
             assert current_config_token() is first
 
-    assert compute.call_count == 1
+        assert compute.call_count == 1
+        assert config_core._current_config_token_refresh_thread is worker
 
 
 def test_config_token_refresh_thread_starts_after_lock_release() -> None:
@@ -168,23 +167,29 @@ def test_config_token_refresh_thread_starts_after_lock_release() -> None:
         _reset_config_token_cache()
         try:
             first = current_config_token()
+            # The long-lived revalidator starts once at warm-up, outside the lock.
+            assert start_lock_states == [False]
+            worker = config_core._current_config_token_refresh_thread
+            assert worker is not None
             now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() is first
             assert refresh_started.wait(timeout=1.0)
 
-            worker = config_core._current_config_token_refresh_thread
-            assert worker is not None
+            # Expiry wakes the same worker; no additional Thread.start occurs.
+            assert config_core._current_config_token_refresh_thread is worker
+            assert start_lock_states == [False]
             release_refresh.set()
-            worker.join(timeout=2.0)
-            assert not worker.is_alive()
+            _wait_for_config_token(("token", 2))
+            assert worker.is_alive()
+            assert config_core._current_config_token_refresh_thread is worker
         finally:
             release_refresh.set()
 
     assert start_lock_states == [False]
 
 
-def test_first_config_token_read_does_not_start_worker() -> None:
-    """A one-shot CLI lookup computes inline without creating a thread."""
+def test_first_config_token_read_starts_long_lived_revalidator() -> None:
+    """Warm-up computes inline once and starts one long-lived revalidator."""
     with patch(
         "sase.config.core._compute_current_config_token",
         return_value=("token", 1),
@@ -192,7 +197,10 @@ def test_first_config_token_read_does_not_start_worker() -> None:
         _reset_config_token_cache()
         assert current_config_token() == ("token", 1)
 
-    assert config_core._current_config_token_refresh_thread is None
+    worker = config_core._current_config_token_refresh_thread
+    assert worker is not None
+    assert worker.is_alive()
+    assert worker.name == config_core.CONFIG_TOKEN_REFRESH_THREAD_NAME
 
 
 def test_clear_config_cache_resets_config_token_time_gate() -> None:
@@ -210,81 +218,39 @@ def test_clear_config_cache_resets_config_token_time_gate() -> None:
 
 
 def test_refresh_worker_only_deregisters_itself() -> None:
-    """A stale worker publishing late must not clear a newer live registration.
+    """A stale recompute must not overwrite a newer generation.
 
-    ``_refresh_current_config_token`` correctly skips publishing a token when
-    its captured epoch is stale, but must clear the module's worker slot only
-    when that slot still points at itself. A worker that missed its drain
-    window and finally runs inside a later generation must not deregister the
-    live worker that has since taken the slot, or the next expired read would
-    start a second worker and break the single-flight contract.
+    The long-lived revalidator publishes only when its captured epoch still
+    matches, so a recompute that missed its drain window cannot install a
+    stale token into the successor generation, and publishing never clears
+    the live worker registration.
     """
     now = [10.0]
-    stale_started = threading.Event()
-    release_stale = threading.Event()
-    live_started = threading.Event()
-    release_live = threading.Event()
-    calls = 0
-    calls_lock = threading.Lock()
-
-    def compute() -> tuple[str, int]:
-        nonlocal calls
-        with calls_lock:
-            calls += 1
-            call_number = calls
-        if call_number == 2:
-            stale_started.set()
-            assert release_stale.wait(timeout=2.0)
-            return ("stale", call_number)
-        if call_number == 3:
-            live_started.set()
-            assert release_live.wait(timeout=2.0)
-            return ("live", call_number)
-        return ("inline", call_number)
 
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch(
+            "sase.config.core._compute_current_config_token",
+            return_value=("inline", 1),
+        ),
     ):
         _reset_config_token_cache()
-        try:
-            assert current_config_token() == ("inline", 1)
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
-            assert current_config_token() == ("inline", 1)
-            assert stale_started.wait(timeout=1.0)
-            stale_worker = config_core._current_config_token_refresh_thread
-            assert stale_worker is not None
+        first = current_config_token()
+        worker = config_core._current_config_token_refresh_thread
+        assert worker is not None
+        epoch = config_core._current_config_token_cache_epoch
+        cwd = config_core._current_config_token_cache_cwd
 
-            # Simulate a drain that timed out without joining the stale
-            # worker: bump the epoch and forget its registration, but keep
-            # the stale cached token so the next read takes the
-            # stale-while-revalidate path and starts a new, live worker.
-            with config_core._current_config_token_cache_lock:
-                config_core._current_config_token_cache_epoch += 1
-                config_core._current_config_token_refresh_thread = None
-
-            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
-            assert current_config_token() == ("inline", 1)
-            assert live_started.wait(timeout=1.0)
-            live_worker = config_core._current_config_token_refresh_thread
-            assert live_worker is not None
-            assert live_worker is not stale_worker
-
-            release_stale.set()
-            stale_worker.join(timeout=2.0)
-            assert not stale_worker.is_alive()
-            # The stale worker's own publish path ran after the live worker
-            # registered; it must have deregistered only itself.
-            assert config_core._current_config_token_refresh_thread is live_worker
-
-            release_live.set()
-            live_worker.join(timeout=2.0)
-            assert not live_worker.is_alive()
-            assert config_core._current_config_token_refresh_thread is None
-            assert current_config_token() == ("live", 3)
-        finally:
-            release_stale.set()
-            release_live.set()
+        # Simulate a drain advancing the generation: a stale recompute
+        # captured before the bump must decline to publish.
+        with config_core._current_config_token_cache_lock:
+            config_core._current_config_token_cache_epoch += 1
+        config_core._publish_revalidator_token(
+            ("stale", 99), cache_epoch=epoch, cache_cwd=cwd
+        )
+        assert config_core._current_config_token_cache_value is first
+        assert config_core._current_config_token_refresh_thread is worker
+        assert worker.is_alive()
 
 
 def test_current_config_token_recomputes_after_chdir(tmp_path, monkeypatch) -> None:
@@ -351,31 +317,36 @@ def test_config_token_refresh_worker_declines_to_publish_after_chdir(
         _reset_config_token_cache()
         try:
             first = current_config_token()
+            worker = config_core._current_config_token_refresh_thread
+            assert worker is not None
             now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() is first
             assert refresh_started.wait(timeout=1.0)
-            worker = config_core._current_config_token_refresh_thread
-            assert worker is not None
 
-            # chdir while the worker is blocked mid-compute for dir_a.
+            # chdir while the revalidator is blocked mid-compute for dir_a.
             monkeypatch.chdir(dir_b)
             release_refresh.set()
-            worker.join(timeout=2.0)
-            assert not worker.is_alive()
+            time.sleep(  # sase-test-wait: let revalidator decline publish
+                0.2
+            )
+            assert worker.is_alive()
 
-            # The worker computed a token for dir_a; it must not publish
-            # over a cache now keyed to dir_b.
+            # The revalidator computed a token for dir_a; it must not publish
+            # over a cache now keyed to dir_b. The long-lived revalidator
+            # may retry (declining each time) until the synchronous read
+            # below rekeys the cache, so only bound the call count from below.
             assert config_core._current_config_token_cache_value == first
+            assert config_core._current_config_token_refresh_thread is worker
 
             third = current_config_token()
             assert third != first
-            assert calls == 3
+            assert calls >= 3
         finally:
             release_refresh.set()
 
 
 def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
-    """A stale worker cannot overwrite an inline post-clear token swap."""
+    """A stale recompute cannot overwrite an inline post-clear token swap."""
     now = [10.0]
     refresh_started = threading.Event()
     release_refresh = threading.Event()
@@ -399,6 +370,8 @@ def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
         _reset_config_token_cache()
         try:
             assert current_config_token() == ("token", 1)
+            worker = config_core._current_config_token_refresh_thread
+            assert worker is not None
             now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
             assert current_config_token() == ("token", 1)
             assert refresh_started.wait(timeout=1.0)
@@ -407,10 +380,84 @@ def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
             assert current_config_token() == ("token", 3)
 
             release_refresh.set()
+            # The stale recompute declines (epoch moved); the live
+            # revalidator stays registered with the post-clear token.
             deadline = time.perf_counter() + 2.0
-            while config_core._current_config_token_refresh_thread is not None:
+            while config_core._current_config_token_cache_value != ("token", 3):
                 assert time.perf_counter() < deadline
                 time.sleep(min(0.01, max(0.0, deadline - time.perf_counter())))
+            time.sleep(  # sase-test-wait: settle stale-recompute window
+                0.1
+            )
+            assert config_core._current_config_token_cache_value == ("token", 3)
+            assert config_core._current_config_token_refresh_thread is worker
+            assert worker.is_alive()
             assert current_config_token() == ("token", 3)
         finally:
             release_refresh.set()
+
+
+def test_getter_never_starts_thread_after_warmup() -> None:
+    """Expired reads peek; the long-lived revalidator does the refresh."""
+    now = [10.0]
+    real_thread = threading.Thread
+    starts: list[bool] = []
+
+    class CountingThread(real_thread):
+        def start(self) -> None:
+            starts.append(True)
+            super().start()
+
+    def compute() -> tuple[str, int]:
+        return ("token", int(now[0]))
+
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+        patch("sase.config.core.threading.Thread", CountingThread),
+    ):
+        _reset_config_token_cache()
+        first = current_config_token()
+        assert len(starts) == 1
+        worker = config_core._current_config_token_refresh_thread
+        assert worker is not None
+
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        for _ in range(5):
+            assert current_config_token() is first
+        assert len(starts) == 1
+        assert config_core._current_config_token_refresh_thread is worker
+
+        _wait_for_config_token(("token", int(now[0])))
+        assert len(starts) == 1
+        assert config_core._current_config_token_refresh_thread is worker
+
+
+def test_revalidator_picks_up_changed_config_within_one_cadence() -> None:
+    """A changed config publishes via the running revalidator, not a new thread."""
+    now = [10.0]
+    calls = 0
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        calls += 1
+        return ("token", calls)
+
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+    ):
+        _reset_config_token_cache()
+        first = current_config_token()
+        worker = config_core._current_config_token_refresh_thread
+        assert worker is not None
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        assert current_config_token() is first
+        _wait_for_config_token(("token", 2))
+        assert calls == 2
+        assert config_core._current_config_token_refresh_thread is worker
+        assert worker.is_alive()
+
+        clear_config_cache()
+        assert current_config_token() == ("token", 3)
+        assert calls == 3
