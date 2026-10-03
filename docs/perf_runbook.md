@@ -1348,6 +1348,41 @@ with prompt_key_io_probe() as probe:
 probe.assert_quiet()
 ```
 
+### Final results (epic sase-1ex acceptance, bead sase-1ex.12)
+
+Final rerun on 2026-10-03 with every phase landed, against the `sase-1ex.1` baseline
+(shared host, so cross-run timing is noisy; paint_ms / handler_ms):
+
+| case                       | baseline        | final           | verdict                        |
+| -------------------------- | --------------- | --------------- | ------------------------------ |
+| first `<space>` (n=1)      | 321.02 / 280.75 | 101.93 / 74.99  | improved, still above target   |
+| steady `<space>` p50 / p95 | 168.58 / 242.86 | 114.40 / 143.30 | improved, p95 above target     |
+| single `ctrl+p` (n=1)      | 518.44 / 509.89 | 32.16 / 0.99    | handler target met             |
+| burst `ctrl+p` p50 / p95   | 369.54 / 500.79 | 6.55 / 12.17    | paint and handler targets met  |
+| first-visit `ctrl+p` (n=1) | 451.68 / 442.31 | 16.24 / 0.61    | spike gone, handler target met |
+
+Stall-watchdog rows during the final run: 1 (baseline: 0; host noise, not attributed).
+
+Target verdicts: the synchronous handler is at most ~1 ms everywhere (target: at most 5
+ms, met); burst key-to-paint p95 is 12.17 ms (target: at most 16 ms, met); the
+multi-hundred-millisecond first-press and first-visit spikes are gone. `<space>` p95
+stays above the 60 ms target (143.30 ms steady, 101.93 ms first) even with the
+`sase-1ex.11` hidden hot spare landed, so the remaining lever is the overlay-docked
+prompt bar experiment, recorded as a follow-up on the bead. A cold snapshot never blocks
+the first `<space>`: it opens a blank bar at once and late-prefills only an untouched
+session. No budget assertions live in the slow bench by design; the committed regression
+gates are the structural tests below, all cheap enough for `just check`:
+
+- warm `ctrl+p` / `ctrl+n`, first-visit getters, and warm `<space>` perform zero
+  main-thread MRU reads/writes, `list_project_records` calls, `Popen`s, watcher
+  start/stop, and thread joins (`test_launchable_mru.py`, `test_space_prefill.py`,
+  `test_prompt_catalog.py`, `test_prompt_key_perf_smoke.py`);
+- each prompt text-area mount/unmount/worker body runs once, base-first
+  (`test_prompt_mount_dedup.py`);
+- a stale snapshot generation never overwrites text or reorders an in-flight cycle, and
+  a cold `<space>` followed by typing is never clobbered by a late prefill
+  (`test_launchable_mru.py`, `test_space_prefill.py`).
+
 ## Pager bench
 
 The pager benchmark (epic `sase-1es`) measures open, keystroke, search, memory, leak,

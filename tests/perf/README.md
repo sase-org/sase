@@ -284,7 +284,7 @@ pytest -s -m slow tests/ace/tui/bench_prompt_bar_keys.py
 
 `tests/ace/tui/test_prompt_key_perf_smoke.py` is the fast non-slow smoke test that runs
 the smallest case end to end, and `tests/ace/tui/_prompt_key_io_probes.py` is the
-main-thread I/O probe helper later `sase-1ex` phases assert zeros through. See the
-"Prompt keys" recipe in `docs/perf_runbook.md`. Baseline numbers are not committed:
-later `sase-1ex` phases rerun the relevant cases and record before/after numbers in
-their bead notes.
+main-thread I/O probe helper the `sase-1ex` structural tests assert zeros through. See
+the "Prompt keys" recipe in `docs/perf_runbook.md`, including its "Final results" table.
+Baseline numbers are not committed: the final before/after table lives on bead
+`sase-1ex.12` and in the runbook.

@@ -333,6 +333,21 @@ async def test_warm_cycle_performs_zero_main_thread_io() -> None:
         assert ta.text == "#git:aaa "
 
 
+async def test_warm_cycle_ctrl_n_performs_zero_main_thread_io() -> None:
+    """A warm snapshot ``ctrl+n`` reads no MRU, lists nothing, spawns nothing."""
+    from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+
+    app = _SnapshotApp(_ready_snapshot(["#git:aaa", "#git:bbb"]))
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("")
+        ta.focus()
+        with prompt_key_io_probe() as counts:
+            await pilot.press("ctrl+n")
+        counts.assert_quiet()
+        assert ta.text == "#git:bbb "
+
+
 async def test_snapshot_cycle_matches_loader_cycle_results(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
