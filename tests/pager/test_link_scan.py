@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import random
-import time
 
 import pytest
 
@@ -16,11 +15,13 @@ from sase.ace.tui.widgets.prompt_panel._hint_caps import (
     HintContentBudget,
 )
 from sase.artifact_ref_operations import scan_artifact_ref_document
+import sase.pager.link_scan as link_scan_module
 from sase.pager.link_scan import (  # noqa: PLC2701
     LinkSpan,
     LinkSpanKind,
     PagerOrigin,
     _BARE_TOKEN_RECOGNIZERS,
+    _FrozenSpanIndex,
     scan_bounded_links,
     scan_links,
 )
@@ -474,13 +475,41 @@ def test_scan_links_matches_reference_on_random_inputs() -> None:
         ]
 
 
-def test_scan_links_stays_fast_on_link_dense_input() -> None:
-    """8k link-dense lines scan far below the old quadratic cost."""
+def test_scan_links_stays_near_linear_on_link_dense_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """8k link-dense lines never take the quadratic linear-overlap fallback.
+
+    Counts overlap work instead of timing it, so the bound holds on a loaded
+    host: each Rust span is checked in O(1) against the running max end and
+    each bare token costs one bisect query, with zero linear scans.
+    """
+    linear_calls = 0
+    index_queries = 0
+    linear_overlaps = link_scan_module._overlaps  # noqa: SLF001
+    index_overlaps = _FrozenSpanIndex.overlaps
+
+    def counting_linear(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
+        nonlocal linear_calls
+        linear_calls += 1
+        return linear_overlaps(start, end, ranges)
+
+    def counting_index(self: _FrozenSpanIndex, start: int, end: int) -> bool:
+        nonlocal index_queries
+        index_queries += 1
+        return index_overlaps(self, start, end)
+
+    monkeypatch.setattr(link_scan_module, "_overlaps", counting_linear)
+    monkeypatch.setattr(_FrozenSpanIndex, "overlaps", counting_index)
     text = "".join(
-        f"see src/dir/file_{index:05d}.py:{index % 900 + 1}\n" for index in range(8000)
+        f"see src/dir/file_{index:05d}.py:{index % 900 + 1} sase-ab.{index}\n"
+        for index in range(8000)
     )
-    started = time.perf_counter()
-    spans = scan_links(text, PagerOrigin.FILE)
-    elapsed = time.perf_counter() - started
-    assert len(spans) == 8000
-    assert elapsed < 1.5
+
+    file_spans = scan_links(text, PagerOrigin.FILE)
+    bead_spans = scan_links(text, PagerOrigin.BEAD)
+
+    assert len(file_spans) == 8000
+    assert len(bead_spans) == 16000
+    assert linear_calls == 0
+    assert index_queries == 8000

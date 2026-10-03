@@ -23,7 +23,8 @@ from rich.text import Text
 def logical_line_starts(plain: str) -> array:
     """Return the start offset of each logical line of *plain*.
 
-    Mirrors the line split :func:`sase.pager._gutter.apply_gutter` lays out:
+    Mirrors the line split of the retired whole-document gutter composer
+    (frozen as the parity oracle in ``tests/pager/_reference_compose.py``):
     a phantom trailing newline is dropped (``"a\\n"`` is one line) while
     ``""`` has zero lines and ``"\\n"`` has one empty line.
     """
@@ -143,7 +144,7 @@ def slice_styled_line(
 
 
 def make_wrap_console(width: int) -> Console:
-    """Build a wrap console with exactly ``apply_gutter``'s parameters."""
+    """Build a wrap console with exactly the retired composer's parameters."""
     return Console(
         width=max(width, 1),
         color_system=None,
@@ -155,7 +156,7 @@ def make_wrap_console(width: int) -> Console:
 
 
 def wrap_line_pieces(line: Text, width: int, console: Console) -> tuple[Text, ...]:
-    """Wrap one logical line with exactly ``apply_gutter``'s semantics."""
+    """Wrap one logical line with exactly the retired composer's semantics."""
     if not line.plain:
         return (Text(),)
     copied = line.copy()
