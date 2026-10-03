@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.widgets._local_xprompt_conversion import infer_local_xprompt_inputs
 from sase.macro.prompt_frontmatter import PromptFrontmatter
-from sase.macro.save import SaveTargetFormat, load_config_xprompt_markdown
+from sase.macro.save import SaveTargetFormat, load_config_macro_markdown
 
 from ._types import PromptContext
 
@@ -444,7 +444,7 @@ def _load_definition_markdown(definition: MiniXPromptDefinition) -> str:
     if definition.storage_format is SaveTargetFormat.CONFIG:
         if not definition.entry_name:
             raise ValueError("config-backed xprompt is missing an entry name")
-        return load_config_xprompt_markdown(source_path, definition.entry_name)
+        return load_config_macro_markdown(source_path, definition.entry_name)
     return Path(source_path).read_text(encoding="utf-8")
 
 

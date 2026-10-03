@@ -106,7 +106,7 @@ def test_plan_refuses_not_found(tmp_path: Path) -> None:
         spy.assert_not_called()
 
 
-def test_plan_refuses_missing_raw_xprompt(tmp_path: Path) -> None:
+def test_plan_refuses_missing_raw_macro(tmp_path: Path) -> None:
     artifacts = make_restartable_agent(tmp_path, raw_prompt=None)
     agent = named_agent_for(artifacts)
     spies = mutation_spies()
@@ -126,7 +126,7 @@ def test_plan_refuses_missing_raw_xprompt(tmp_path: Path) -> None:
         spy.assert_not_called()
 
 
-def test_plan_refuses_blank_raw_xprompt(tmp_path: Path) -> None:
+def test_plan_refuses_blank_raw_macro(tmp_path: Path) -> None:
     with pytest.raises(AgentRestartError) as caught:
         _plan(tmp_path, raw_prompt="   \n")
     assert caught.value.reason == "no_prompt"

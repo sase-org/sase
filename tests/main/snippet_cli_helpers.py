@@ -11,7 +11,7 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
 )
 from sase.macro import glossary_catalog as catalog_mod
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 _SORTED_SNIPPETS = """# keep this comment
 timezone: UTC
@@ -52,7 +52,7 @@ def install_writable_snippet_project(
     body: str | None = _SORTED_SNIPPETS,
     *,
     display_name: str = "demo",
-    xprompts: dict[str, XPrompt] | None = None,
+    macros: dict[str, Macro] | None = None,
 ) -> Path:
     workspace = tmp_path / "workspace"
     workspace.mkdir(parents=True)
@@ -66,7 +66,7 @@ def install_writable_snippet_project(
         lambda *_a, **_kw: [project_record(workspace, display_name=display_name)],
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
-        lambda project=None: dict(xprompts or {}),
+        "sase.macro.loader.get_all_macros",
+        lambda project=None: dict(macros or {}),
     )
     return config_path

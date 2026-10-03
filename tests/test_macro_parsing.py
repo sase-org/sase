@@ -1,4 +1,4 @@
-"""Tests for xprompt._parsing core parsing helpers."""
+"""Tests for macro._parsing core parsing helpers."""
 
 import pytest
 

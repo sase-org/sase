@@ -19,8 +19,8 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     merge_local_xprompt_entries,
     xprompt_assist_entry_from_local_xprompt,
 )
-from sase.macro.models import InputArg, InputType, XPrompt
-from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+from sase.macro.models import InputArg, InputType, Macro
+from sase.macro.prompt_frontmatter import LOCAL_MACRO_SOURCE
 
 
 class _PromptBarApp(App[None]):
@@ -54,10 +54,10 @@ def _global_entry(name: str, *, description: str | None = None) -> XPromptAssist
 
 def test_local_xprompt_entry_mirrors_global_shape() -> None:
     """A simple local helper becomes a ``#``-prefixed entry with its inputs."""
-    xprompt = XPrompt(
+    xprompt = Macro(
         name="_rules",
         content="Follow the team review checklist",
-        source_path=LOCAL_XPROMPT_SOURCE,
+        source_path=LOCAL_MACRO_SOURCE,
         description="team rules",
         inputs=[
             InputArg(name="service", type=InputType.WORD),
@@ -79,10 +79,10 @@ def test_local_xprompt_entry_mirrors_global_shape() -> None:
 
 def test_local_xprompt_entry_uses_inline_marker_for_segments() -> None:
     """A helper whose body carries ``---`` segments still inserts as ``#``."""
-    xprompt = XPrompt(
+    xprompt = Macro(
         name="_multi",
         content="first agent\n---\nsecond agent",
-        source_path=LOCAL_XPROMPT_SOURCE,
+        source_path=LOCAL_MACRO_SOURCE,
     )
     entry = xprompt_assist_entry_from_local_xprompt("_multi", xprompt)
 

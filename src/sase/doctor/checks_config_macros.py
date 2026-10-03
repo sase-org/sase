@@ -1,4 +1,4 @@
-"""XPrompt configuration checks for ``sase doctor``."""
+"""Macro configuration checks for ``sase doctor``."""
 
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ class _ModelPresetScan:
     errors: tuple[str, ...] = ()
 
 
-def check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
-    """Warn when a model-preset xprompt expands to an unroutable model token.
+def check_config_model_macros(context: DoctorContext) -> DiagnosticCheck:
+    """Warn when a model-preset macro expands to an unroutable model token.
 
     Configured ``%model``/``%m`` presets (e.g. ``#m_agy_flash`` expands to
     ``%model:@#agy_flash``) resolve their final model token to a provider at
@@ -39,15 +39,15 @@ def check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
     resolving.
     """
     from sase.llm_provider.config import model_alias_names
-    from sase.macro.loader import get_all_xprompts
+    from sase.macro.loader import get_all_macros
 
     aliases = model_alias_names()
-    xprompts = get_all_xprompts(context.project)
+    macros = get_all_macros(context.project)
 
     problems: list[dict[str, str]] = []
     scanned = 0
-    for name in sorted(xprompts):
-        scan = _model_preset_tokens(xprompts[name].content)
+    for name in sorted(macros):
+        scan = _model_preset_tokens(macros[name].content)
         if scan is None:
             continue
         scanned += 1
@@ -129,16 +129,16 @@ def check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
-def check_config_xprompt_definitions(context: DoctorContext) -> DiagnosticCheck:
-    """Surface non-fatal xprompt/workflow definition load issues."""
-    from sase.macro.load_issues import XPromptLoadIssue, collect_xprompt_load_issues
+def check_config_macro_definitions(context: DoctorContext) -> DiagnosticCheck:
+    """Surface non-fatal macro/workflow definition load issues."""
+    from sase.macro.load_issues import MacroLoadIssue, collect_macro_load_issues
     from sase.macro.loader import get_all_project_local_prompts, get_all_prompts
 
-    with collect_xprompt_load_issues() as issues:
+    with collect_macro_load_issues() as issues:
         prompts = get_all_prompts(context.project)
         project_local_prompts = get_all_project_local_prompts()
 
-    issue_rows: list[XPromptLoadIssue] = list(issues)
+    issue_rows: list[MacroLoadIssue] = list(issues)
     rows = [
         {
             "source": issue.source,
@@ -179,28 +179,28 @@ def check_config_xprompt_definitions(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
-def check_config_xprompt_directives(context: DoctorContext) -> DiagnosticCheck:
-    """Warn when loaded xprompt/workflow bodies use retired directive syntax."""
+def check_config_macro_directives(context: DoctorContext) -> DiagnosticCheck:
+    """Warn when loaded macro/workflow bodies use retired directive syntax."""
     from sase.macro._catalog_sources import (
         classify,
         classify_workflow,
         source_path_display,
     )
-    from sase.macro.loader import get_all_workflows, get_all_xprompts
+    from sase.macro.loader import get_all_workflows, get_all_macros
 
     rows: list[dict[str, str | int]] = []
-    xprompts = get_all_xprompts(context.project)
+    macros = get_all_macros(context.project)
     workflows = get_all_workflows(context.project)
 
-    for name in sorted(xprompts):
-        xprompt = xprompts[name]
+    for name in sorted(macros):
+        macro_def = macros[name]
         try:
             source = source_path_display(
-                classify(xprompt, project=context.project)
-            ) or (xprompt.source_path or "unknown source")
+                classify(macro_def, project=context.project)
+            ) or (macro_def.source_path or "unknown source")
         except Exception:  # noqa: BLE001 - doctor checks must be best-effort.
-            source = xprompt.source_path or "unknown source"
-        _append_retired_directive_rows(rows, name, source, xprompt.content)
+            source = macro_def.source_path or "unknown source"
+        _append_retired_directive_rows(rows, name, source, macro_def.content)
 
     for name in sorted(workflows):
         workflow = workflows[name]
@@ -242,7 +242,7 @@ def check_config_xprompt_directives(context: DoctorContext) -> DiagnosticCheck:
         summary=summary,
         details=details,
         next_steps=next_steps,
-        data={"scanned": len(xprompts) + len(workflows), "problems": rows},
+        data={"scanned": len(macros) + len(workflows), "problems": rows},
     )
 
 
@@ -269,7 +269,7 @@ def _append_retired_directive_rows(
 
 
 def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
-    """Return the final model token(s) a model-preset xprompt expands to.
+    """Return the final model token(s) a model-preset macro expands to.
 
     Returns ``None`` when *content* does not expand into any ``%model``/``%m``
     directive (so it is not a model preset) or cannot be parsed as a clean
@@ -283,16 +283,16 @@ def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
         has_model_directive,
         split_prompt_for_models,
     )
-    from sase.macro.models import XPrompt
-    from sase.macro.processor import process_xprompt_references
-    from sase.macro.segment_separators import xprompt_has_segment_separators
+    from sase.macro.models import Macro
+    from sase.macro.processor import process_macro_references
+    from sase.macro.segment_separators import macro_has_segment_separators
 
     try:
-        expanded = process_xprompt_references(content)
+        expanded = process_macro_references(content)
     except Exception:  # noqa: BLE001 - a malformed preset must not break doctor.
         return None
 
-    if xprompt_has_segment_separators(XPrompt(name="_doctor_scan", content=expanded)):
+    if macro_has_segment_separators(Macro(name="_doctor_scan", content=expanded)):
         return None
 
     if not has_model_directive(expanded):

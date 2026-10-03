@@ -13,10 +13,10 @@ from sase.macro._directive_types import (
     _DIRECTIVE_PATTERN,
     _KNOWN_DIRECTIVES,
 )
-from sase.macro._exceptions import XPromptError
+from sase.macro._exceptions import MacroError
 from sase.macro._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from sase.macro._parsing import find_matching_paren_for_args
-from sase.macro._parsing_references import XPromptReference, iter_xprompt_references
+from sase.macro._parsing_references import MacroReference, iter_macro_references
 from sase.macro._parsing_vcs_refs import (
     _GENERIC_PROJECT_VCS_REF_PATTERN,
     _KNOWN_FALLBACK_VCS_PREFIXES,
@@ -31,7 +31,7 @@ class PromptListSummary:
 
     project_prefix: str
     project_ref_display: str
-    xprompts: tuple[str, ...]
+    macros: tuple[str, ...]
     directive_token: str
     clean_preview: str
 
@@ -41,7 +41,7 @@ class PromptPreviewSummary:
     """Verbose prompt metadata for the highlighted prompt preview."""
 
     vcs_tag: str | None
-    xprompts: tuple[str, ...]
+    macros: tuple[str, ...]
     directives: tuple[str, ...]
 
 
@@ -49,7 +49,7 @@ class PromptPreviewSummary:
 class _PromptSearchMetadata:
     """Lexical metadata needed by prompt search."""
 
-    xprompts: tuple[str, ...]
+    macros: tuple[str, ...]
     clean_preview: str
 
 
@@ -70,7 +70,7 @@ class _PromptControlScan:
     protected: str
     fenced_blocks: list[str]
     directives: tuple[_DirectiveToken, ...]
-    refs: list[XPromptReference]
+    refs: list[MacroReference]
 
 
 _DIRECTIVE_RE = re.compile(_DIRECTIVE_PATTERN, re.MULTILINE)
@@ -107,7 +107,7 @@ def summarize_prompt_for_list(text: str) -> PromptListSummary:
     return PromptListSummary(
         project_prefix=project_prefix,
         project_ref_display=project_ref_display,
-        xprompts=_embedded_xprompt_chips(scan.refs, workflow_names),
+        macros=_embedded_macro_chips(scan.refs, workflow_names),
         directive_token=_directive_summary_token(scan.directives),
         clean_preview=_clean_preview_from_scan(scan),
     )
@@ -124,12 +124,12 @@ def summarize_prompt_for_preview(text: str) -> PromptPreviewSummary:
     # side-effect-free token scan when extraction rejects them.
     try:
         extract_prompt_directives(text)
-    except XPromptError:
+    except MacroError:
         pass
 
     return PromptPreviewSummary(
         vcs_tag=_extract_vcs_tag(text),
-        xprompts=_embedded_xprompt_refs(scan.refs, workflow_names),
+        macros=_embedded_macro_refs(scan.refs, workflow_names),
         directives=_preview_directive_tokens(scan.directives),
     )
 
@@ -138,17 +138,17 @@ def summarize_prompt_for_search(text: str) -> _PromptSearchMetadata:
     """Return search title/tag metadata from one lexical scan."""
     if not _search_needs_control_scan(text):
         return _PromptSearchMetadata(
-            xprompts=(),
+            macros=(),
             clean_preview=_plain_clean_preview(text),
         )
 
     scan = _scan_prompt_controls(text)
     try:
-        xprompts = _embedded_xprompt_chips(scan.refs, known_workflow_names())
+        macros = _embedded_macro_chips(scan.refs, known_workflow_names())
     except Exception:
-        xprompts = ()
+        macros = ()
     return _PromptSearchMetadata(
-        xprompts=xprompts,
+        macros=macros,
         clean_preview=_clean_preview_from_scan(scan),
     )
 
@@ -163,7 +163,7 @@ def _scan_prompt_controls(text: str) -> _PromptControlScan:
     fenced_blocks: list[str] = []
     protected = protect_fenced_blocks(text, fenced_blocks)
     directives = _scan_known_directives(protected)
-    refs = iter_xprompt_references(protected)
+    refs = iter_macro_references(protected)
     return _PromptControlScan(
         protected=protected,
         fenced_blocks=fenced_blocks,
@@ -174,7 +174,7 @@ def _scan_prompt_controls(text: str) -> _PromptControlScan:
 
 def _search_needs_control_scan(text: str) -> bool:
     """Return whether search metadata may need protected prompt-control parsing."""
-    if "#" in text and iter_xprompt_references(text):
+    if "#" in text and iter_macro_references(text):
         return True
     if "%" in text and _scan_known_directives(text):
         return True
@@ -254,11 +254,11 @@ def _preview_directive_tokens(
     return tuple(f"%{directive.name}{directive.suffix}" for directive in directives)
 
 
-def _embedded_xprompt_chips(
-    refs: list[XPromptReference],
+def _embedded_macro_chips(
+    refs: list[MacroReference],
     workflow_names: frozenset[str],
 ) -> tuple[str, ...]:
-    """Return deduplicated xprompt chips without arguments."""
+    """Return deduplicated macro chips without arguments."""
     chips: list[str] = []
     seen: set[str] = set()
     for ref in refs:
@@ -272,11 +272,11 @@ def _embedded_xprompt_chips(
     return tuple(chips)
 
 
-def _embedded_xprompt_refs(
-    refs: list[XPromptReference],
+def _embedded_macro_refs(
+    refs: list[MacroReference],
     workflow_names: frozenset[str],
 ) -> tuple[str, ...]:
-    """Return deduplicated xprompt references with arguments preserved."""
+    """Return deduplicated macro references with arguments preserved."""
     values: list[str] = []
     seen: set[str] = set()
     for ref in refs:
@@ -291,10 +291,10 @@ def _embedded_xprompt_refs(
 
 
 def _is_vcs_reference(
-    ref: XPromptReference,
+    ref: MacroReference,
     workflow_names: frozenset[str],
 ) -> bool:
-    """Return True when an xprompt reference is actually a VCS workflow ref."""
+    """Return True when a macro reference is actually a VCS workflow ref."""
     if ref.name in workflow_names:
         return True
     return any(ref.name.startswith(f"{workflow}_") for workflow in workflow_names)

@@ -34,11 +34,11 @@ class TestVCSProviderResolution:
     """Verify that all three VCS providers resolve via entry points."""
 
 
-# === Xprompt discovery ===
+# === Macro discovery ===
 
 
-class TestXpromptDiscovery:
-    """Verify xprompts contributed by plugins are discoverable."""
+class TestMacroDiscovery:
+    """Verify macros contributed by plugins are discoverable."""
 
 
 # === Workflow discovery ===

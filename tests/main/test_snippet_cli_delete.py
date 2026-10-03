@@ -13,7 +13,7 @@ import yaml
 
 from sase.main.parser import create_parser
 from sase.snippet import cli_delete
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 from .snippet_cli_helpers import install_writable_snippet_project
 
@@ -47,8 +47,8 @@ def test_delete_json_includes_restore_and_revealed(
     config_path = install_writable_snippet_project(
         tmp_path,
         monkeypatch,
-        xprompts={
-            "greet": XPrompt(
+        macros={
+            "greet": Macro(
                 name="greet",
                 content="from xprompt",
                 snippet=True,
@@ -108,15 +108,15 @@ def test_delete_maps_alias_to_explicit_source(
     assert "greet" not in snippets
 
 
-def test_delete_refuses_xprompt_only_definition(
+def test_delete_refuses_macro_only_definition(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     install_writable_snippet_project(
         tmp_path,
         monkeypatch,
         body="timezone: UTC\n",
-        xprompts={
-            "todo": XPrompt(
+        macros={
+            "todo": Macro(
                 name="todo",
                 content="from xprompt",
                 snippet=True,

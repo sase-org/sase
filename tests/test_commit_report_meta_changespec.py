@@ -1,4 +1,4 @@
-"""Tests for meta_patch and diff_path emission from the commit xprompt report step."""
+"""Tests for meta_patch and diff_path emission from the commit macro report step."""
 
 import json
 import os
@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 
 _COMMIT_YML = (
-    Path(__file__).resolve().parents[1] / "src" / "sase" / "xprompts" / "commit.yml"
+    Path(__file__).resolve().parents[1] / "src" / "sase" / "macros" / "commit.yml"
 )
 
 

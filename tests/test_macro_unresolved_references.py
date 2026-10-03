@@ -1,4 +1,4 @@
-"""Tests for unresolved xprompt-reference diagnostics."""
+"""Tests for unresolved macro-reference diagnostics."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.macro._exceptions import XPromptError
-from sase.macro.models import InputArg, InputType, XPrompt
-from sase.macro.processor import process_xprompt_references
+from sase.macro._exceptions import MacroError
+from sase.macro.models import InputArg, InputType, Macro
+from sase.macro.processor import process_macro_references
 from sase.macro.unresolved import (
     find_unresolved_reference_names,
     scan_query_for_unresolved_references,
@@ -58,18 +58,18 @@ def test_unknown_names_are_deduped_in_first_seen_order(
     )
 
 
-def test_known_global_workflow_and_local_xprompt_are_not_flagged(
+def test_known_global_workflow_and_local_macro_are_not_flagged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         "sase.macro.loader.get_all_prompts",
         lambda: {"review": _workflow("review"), "ship": _workflow("ship")},
     )
-    local = {"_helper": XPrompt(name="_helper", content="local")}
+    local = {"_helper": Macro(name="_helper", content="local")}
 
     assert find_unresolved_reference_names(
         "#review #!ship #_helper #typo",
-        extra_xprompts=local,
+        extra_macros=local,
     ) == ("typo",)
 
 
@@ -111,11 +111,11 @@ def test_fenced_disabled_numeric_and_midword_hashes_are_ignored(
     assert find_unresolved_reference_names(prompt) == ("real",)
 
 
-def test_scan_query_expands_local_xprompts_before_scanning(
+def test_scan_query_expands_local_macros_before_scanning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("sase.macro.loader.get_all_prompts", lambda: {})
-    monkeypatch.setattr("sase.macro.processor.get_all_xprompts", lambda: {})
+    monkeypatch.setattr("sase.macro.processor.get_all_macros", lambda: {})
 
     query = "---\nxprompts:\n  _local: local body\n---\n#_local #missing"
 
@@ -131,8 +131,8 @@ def test_scan_query_is_exception_safe(monkeypatch: pytest.MonkeyPatch) -> None:
     assert scan_query_for_unresolved_references("#missing") == ()
 
 
-def _typed_failing_xprompt() -> XPrompt:
-    return XPrompt(
+def _typed_failing_macro() -> Macro:
+    return Macro(
         name="typed",
         content="{{ prompt }}",
         inputs=[
@@ -146,13 +146,13 @@ def _typed_failing_xprompt() -> XPrompt:
 def test_scan_query_emits_nothing_when_expansion_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    failing = _typed_failing_xprompt()
+    failing = _typed_failing_macro()
     monkeypatch.setattr(
         "sase.macro.loader.get_all_prompts",
         lambda: {"typed": failing},
     )
     monkeypatch.setattr(
-        "sase.macro.processor.get_all_xprompts",
+        "sase.macro.processor.get_all_macros",
         lambda *args, **kwargs: {"typed": failing},
     )
     query = "#typed(hello, has spaces, 1, extra)"
@@ -163,18 +163,18 @@ def test_scan_query_emits_nothing_when_expansion_fails(
     print_status.assert_not_called()
 
 
-def test_process_xprompt_references_raise_on_error_skips_print_and_exit(
+def test_process_macro_references_raise_on_error_skips_print_and_exit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    failing = _typed_failing_xprompt()
+    failing = _typed_failing_macro()
     monkeypatch.setattr(
-        "sase.macro.processor.get_all_xprompts",
+        "sase.macro.processor.get_all_macros",
         lambda *args, **kwargs: {"typed": failing},
     )
 
     with patch("sase.macro.processor.print_status") as print_status:
-        with pytest.raises(XPromptError) as exc_info:
-            process_xprompt_references(
+        with pytest.raises(MacroError) as exc_info:
+            process_macro_references(
                 "#typed(hello, has spaces, 1, extra)",
                 raise_on_error=True,
             )
@@ -186,18 +186,18 @@ def test_process_xprompt_references_raise_on_error_skips_print_and_exit(
     assert "surplus positional 2 bound to 'wait'" in message
 
 
-def test_process_xprompt_references_default_still_prints_and_exits(
+def test_process_macro_references_default_still_prints_and_exits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    failing = _typed_failing_xprompt()
+    failing = _typed_failing_macro()
     monkeypatch.setattr(
-        "sase.macro.processor.get_all_xprompts",
+        "sase.macro.processor.get_all_macros",
         lambda *args, **kwargs: {"typed": failing},
     )
 
     with patch("sase.macro.processor.print_status") as print_status:
         with pytest.raises(SystemExit):
-            process_xprompt_references("#typed(hello, has spaces, 1, extra)")
+            process_macro_references("#typed(hello, has spaces, 1, extra)")
 
     print_status.assert_called_once()
     printed = print_status.call_args.args[0]

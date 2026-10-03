@@ -49,7 +49,7 @@ def test_mobile_helper_bridge_smoke_all_helpers_with_temp_project_and_update(
         lambda _project_file: "gh",
     )
     monkeypatch.setattr(
-        "sase.integrations.mobile_helpers.build_structured_xprompts_catalog",
+        "sase.integrations.mobile_helpers.build_structured_macros_catalog",
         lambda **_kwargs: StructuredCatalogProjection(
             entries=[
                 StructuredCatalogEntry(

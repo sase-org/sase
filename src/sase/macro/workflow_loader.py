@@ -16,11 +16,11 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.content_layout import discover_project_root, resolve_xprompt_file_sources
+from sase.content_layout import discover_project_root, resolve_macro_file_sources
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.macro.discovery_order import (
     RANK_FILESYSTEM_BASE,
-    RANK_PACKAGE_XPROMPTS,
+    RANK_PACKAGE_MACROS,
     RANK_PLUGIN,
     RANK_REGISTERED_PROJECT_BASE,
     merge_by_discovery_order,
@@ -28,14 +28,14 @@ from sase.macro.discovery_order import (
 )
 from sase.macro.loader import (
     detect_project,
-    get_sase_package_xprompts_dir,
-    get_xprompt_search_paths,
+    get_sase_package_macros_dir,
+    get_macro_search_paths,
 )
-from sase.macro.loader_parsing import parse_xprompt_entries
+from sase.macro.loader_parsing import parse_macro_entries
 from sase.macro.load_issues import record_load_issue
-from sase.macro.models import UNSET, InputArg, InputType, XPromptValidationError
+from sase.macro.models import UNSET, InputArg, InputType, MacroValidationError
 from sase.macro.project_identity import (
-    canonical_xprompt_project,
+    canonical_macro_project,
     known_project_namespaces,
 )
 from sase.macro.tags import parse_tags
@@ -80,8 +80,8 @@ def _sync_step_dependencies() -> None:
     """Keep legacy monkeypatch targets on this facade effective."""
     _steps.detect_project = detect_project
     _steps.discover_project_root = discover_project_root
-    _steps.get_sase_package_xprompts_dir = get_sase_package_xprompts_dir
-    _steps.get_xprompt_search_paths = get_xprompt_search_paths
+    _steps.get_sase_package_macros_dir = get_sase_package_macros_dir
+    _steps.get_macro_search_paths = get_macro_search_paths
     _steps.record_load_issue = record_load_issue
     _steps.yaml = yaml
     _steps.log = log
@@ -91,7 +91,7 @@ def _sync_step_dependencies() -> None:
 
 def _sync_definition_dependencies() -> None:
     """Forward parsing dependencies through the compatibility facade."""
-    _definition.parse_xprompt_entries = parse_xprompt_entries
+    _definition.parse_macro_entries = parse_macro_entries
     _definition.record_load_issue = record_load_issue
     _definition.parse_workflow_inputs = parse_workflow_inputs
     _definition.validate_workflow_variables = validate_workflow_variables
@@ -104,16 +104,16 @@ def _sync_definition_dependencies() -> None:
 
 def _sync_source_dependencies() -> None:
     """Forward discovery dependencies through the compatibility facade."""
-    _sources.resolve_xprompt_file_sources = resolve_xprompt_file_sources
+    _sources.resolve_macro_file_sources = resolve_macro_file_sources
     _sources.discover_plugin_resources = discover_plugin_resources
     _sources.is_plugin_disabled = is_plugin_disabled
-    _sources.get_sase_package_xprompts_dir = get_sase_package_xprompts_dir
-    _sources.get_xprompt_search_paths = get_xprompt_search_paths
-    _sources.canonical_xprompt_project = canonical_xprompt_project
+    _sources.get_sase_package_macros_dir = get_sase_package_macros_dir
+    _sources.get_macro_search_paths = get_macro_search_paths
+    _sources.canonical_macro_project = canonical_macro_project
     _sources.known_project_namespaces = known_project_namespaces
     _sources.source_rank = source_rank
     _sources.RANK_FILESYSTEM_BASE = RANK_FILESYSTEM_BASE
-    _sources.RANK_PACKAGE_XPROMPTS = RANK_PACKAGE_XPROMPTS
+    _sources.RANK_PACKAGE_MACROS = RANK_PACKAGE_MACROS
     _sources.RANK_PLUGIN = RANK_PLUGIN
     _sources.RANK_REGISTERED_PROJECT_BASE = RANK_REGISTERED_PROJECT_BASE
     _sources.discover_workflow_files = _discover_workflow_files
@@ -214,13 +214,13 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     """Get workflows from every source in shared discovery order."""
     detected_project = detect_project()
     requested_project = project if project is not None else detected_project
-    effective_project = canonical_xprompt_project(requested_project)
+    effective_project = canonical_macro_project(requested_project)
 
     all_workflows: dict[str, Workflow] = {}
     merge_by_discovery_order(
         all_workflows,
         _load_workflows_from_internal(),
-        fallback_rank=RANK_PACKAGE_XPROMPTS,
+        fallback_rank=RANK_PACKAGE_MACROS,
     )
     merge_by_discovery_order(
         all_workflows,

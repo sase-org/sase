@@ -43,7 +43,7 @@ class RunnerShutdownContext:
     artifacts_timestamp: str
     artifacts_dir: str
     output_path: str
-    submitted_xprompt: str
+    submitted_prompt: str
     prompt: str
     is_home_mode: bool
 
@@ -372,7 +372,7 @@ def finalize_runner_shutdown(
             duration=state.duration,
             error_summary=state.error_summary,
             error_traceback=state.error_traceback_str,
-            submitted_xprompt=context.submitted_xprompt,
+            submitted_prompt=context.submitted_prompt,
             workspace_dir=state.workspace_dir,
             held_workspace_num=state.workspace_num if workspace_held else None,
             output_path=context.output_path,

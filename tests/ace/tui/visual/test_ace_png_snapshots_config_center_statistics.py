@@ -118,7 +118,7 @@ async def test_config_center_statistics_xprompts_focus_png_snapshot(
         await page.wait_for(
             lambda _state: (
                 pane._last_result is not None
-                and pane._last_result.xprompt_focus == "split_file"
+                and pane._last_result.macro_focus == "split_file"
                 and not pane._loading
             )
         )

@@ -1,4 +1,4 @@
-"""Expansion trace for xprompt reference resolution."""
+"""Expansion trace for macro reference resolution."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ExpansionRecord:
-    """Record of a single xprompt expansion."""
+    """Record of a single macro expansion."""
 
     iteration: int
     name: str
@@ -20,7 +20,7 @@ class ExpansionRecord:
 
 @dataclass
 class ExpansionTrace:
-    """Accumulated trace of all xprompt expansions."""
+    """Accumulated trace of all macro expansions."""
 
     records: list[ExpansionRecord] = field(default_factory=list)
     total_iterations: int = 0
@@ -97,7 +97,7 @@ def format_trace(trace: ExpansionTrace) -> str:
 def format_circular_ref_diagnostic(trace: ExpansionTrace, max_iter: int) -> str:
     """Format a diagnostic message for circular reference detection.
 
-    Analyzes the expansion history to identify which xprompt names
+    Analyzes the expansion history to identify which macro names
     recur across iterations, indicating a cycle.
     """
     # Collect expansion names per iteration

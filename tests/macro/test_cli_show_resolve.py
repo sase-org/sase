@@ -1,4 +1,4 @@
-"""Tests for xprompt show definition resolution and its JSON record."""
+"""Tests for macro show definition resolution and its JSON record."""
 
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ from typing import Any
 import pytest
 
 from sase.macro._catalog_sources import classify, source_path_display
-from sase.macro.cli_show_model import SHOW_SCHEMA_VERSION, XPromptShowRecord
+from sase.macro.cli_show_model import SHOW_SCHEMA_VERSION, MacroShowRecord
 from sase.macro.cli_show_resolve import (
     ShowLookupMiss,
     normalize_show_name,
     resolve_show_record,
 )
 from sase.macro.config_yaml import config_entry_line_span
-from sase.macro.models import InputArg, InputType, OutputSpec, XPrompt
+from sase.macro.models import InputArg, InputType, OutputSpec, Macro
 from sase.macro.workflow_models import Workflow, WorkflowStep
 from sase.macro.macro_sources import (
     definition_file_for_source,
@@ -46,7 +46,7 @@ def test_normalize_show_name(
     assert normalize_show_name(raw) == (expected, stripped)
 
 
-def test_workflow_wins_over_shadowed_xprompt(
+def test_workflow_wins_over_shadowed_macro(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -54,26 +54,24 @@ def test_workflow_wins_over_shadowed_xprompt(
 
     workflow_path = tmp_path / "same.yml"
     workflow_path.write_text("steps:\n  - prompt_part: workflow body\n")
-    xprompt_path = tmp_path / "same.md"
-    xprompt_path.write_text("xprompt body\n")
+    macro_path = tmp_path / "same.md"
+    macro_path.write_text("xprompt body\n")
     workflow = Workflow(
         name="same",
         source_path=str(workflow_path),
         steps=[WorkflowStep(name="body", prompt_part="workflow body")],
     )
-    xprompt = XPrompt(
-        name="same", content="xprompt body", source_path=str(xprompt_path)
-    )
+    macro_def = Macro(name="same", content="xprompt body", source_path=str(macro_path))
     _patch_catalog(
         monkeypatch,
         resolve_module,
         workflows={"same": workflow},
-        xprompts={"same": xprompt},
+        macros={"same": macro_def},
     )
 
     record = resolve_show_record("same")
 
-    assert isinstance(record, XPromptShowRecord)
+    assert isinstance(record, MacroShowRecord)
     assert record.body == "workflow body"
     assert record.raw == workflow_path.read_text()
     assert any("shadows xprompt" in warning for warning in record.warnings)
@@ -90,12 +88,12 @@ def test_lookup_miss_suggests_copyable_reference_markers(
             steps=[WorkflowStep(name="run", bash="true")],
         )
     }
-    xprompts = {"reads": XPrompt(name="reads", content="read")}
+    macros = {"reads": Macro(name="reads", content="read")}
     _patch_catalog(
         monkeypatch,
         resolve_module,
         workflows=workflows,
-        xprompts=xprompts,
+        macros=macros,
     )
 
     near = resolve_show_record("syn")
@@ -114,7 +112,7 @@ def test_markdown_raw_and_body_line_are_exact(
     path = tmp_path / "article.md"
     raw = "---\ndescription: Read it\n---\nbody line\n"
     path.write_bytes(raw.encode())
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="article",
         content="body line\n",
         source_path=str(path),
@@ -123,12 +121,12 @@ def test_markdown_raw_and_body_line_are_exact(
     _patch_catalog(
         monkeypatch,
         resolve_module,
-        xprompts={"article": xprompt},
+        macros={"article": macro_def},
     )
 
     record = resolve_show_record("article")
 
-    assert isinstance(record, XPromptShowRecord)
+    assert isinstance(record, MacroShowRecord)
     assert record.raw == raw
     assert record.body_first_line == 4
 
@@ -150,11 +148,11 @@ def test_config_raw_is_exact_entry_span_with_crlf(
         "    neighbor\r\n"
     )
     path.write_bytes(raw.encode())
-    xprompt = XPrompt(name="alpha", content="first\nsecond", source_path="config")
+    macro_def = Macro(name="alpha", content="first\nsecond", source_path="config")
     _patch_catalog(
         monkeypatch,
         resolve_module,
-        xprompts={"alpha": xprompt},
+        macros={"alpha": macro_def},
     )
     monkeypatch.setattr(
         resolve_module,
@@ -164,7 +162,7 @@ def test_config_raw_is_exact_entry_span_with_crlf(
 
     record = resolve_show_record("alpha")
 
-    assert isinstance(record, XPromptShowRecord)
+    assert isinstance(record, MacroShowRecord)
     assert record.raw == "  alpha: |-\r\n    first\r\n    second\r\n"
     assert record.provenance.definition_line == 3
     assert config_entry_line_span(path, "alpha") == (3, 5)
@@ -178,11 +176,11 @@ def test_unreadable_definition_degrades_to_warning(
 
     path = tmp_path / "definition.md"
     path.mkdir()
-    xprompt = XPrompt(name="broken", content="body", source_path=str(path))
+    macro_def = Macro(name="broken", content="body", source_path=str(path))
     _patch_catalog(
         monkeypatch,
         resolve_module,
-        xprompts={"broken": xprompt},
+        macros={"broken": macro_def},
     )
     monkeypatch.setattr(
         resolve_module,
@@ -192,7 +190,7 @@ def test_unreadable_definition_degrades_to_warning(
 
     record = resolve_show_record("broken")
 
-    assert isinstance(record, XPromptShowRecord)
+    assert isinstance(record, MacroShowRecord)
     assert record.raw is None
     assert record.raw_available is False
     assert any("raw definition unavailable" in warning for warning in record.warnings)
@@ -206,11 +204,11 @@ def test_hosted_resolver_failure_is_a_warning(
 
     path = tmp_path / "hosted.md"
     path.write_text("body")
-    xprompt = XPrompt(name="hosted", content="body", source_path=str(path))
+    macro_def = Macro(name="hosted", content="body", source_path=str(path))
     _patch_catalog(
         monkeypatch,
         resolve_module,
-        xprompts={"hosted": xprompt},
+        macros={"hosted": macro_def},
     )
 
     def fail_hosted(**_kwargs: Any) -> str | None:
@@ -220,7 +218,7 @@ def test_hosted_resolver_failure_is_a_warning(
 
     record = resolve_show_record("hosted")
 
-    assert isinstance(record, XPromptShowRecord)
+    assert isinstance(record, MacroShowRecord)
     assert record.provenance.hosted_url is None
     assert "hosted URL unavailable: git exploded" in record.warnings
 
@@ -233,17 +231,17 @@ def test_references_are_resolved_and_deduplicated_in_document_order(
 
     path = tmp_path / "refs.md"
     path.write_text("#_helper #nope #_helper")
-    helper = XPrompt(name="_helper", content="help", source_path=str(path))
-    xprompt = XPrompt(
+    helper = Macro(name="_helper", content="help", source_path=str(path))
+    macro_def = Macro(
         name="refs",
         content="#_helper #nope #_helper",
         source_path=str(path),
-        local_xprompts={"_helper": helper},
+        local_macros={"_helper": helper},
     )
     _patch_catalog(
         monkeypatch,
         resolve_module,
-        xprompts={"refs": xprompt},
+        macros={"refs": macro_def},
     )
     scanned = [
         SimpleNamespace(
@@ -262,13 +260,13 @@ def test_references_are_resolved_and_deduplicated_in_document_order(
     ]
     monkeypatch.setattr(
         resolve_module,
-        "scan_xprompt_references",
+        "scan_macro_references",
         lambda *_args, **_kwargs: scanned,
     )
 
     record = resolve_show_record("refs")
 
-    assert isinstance(record, XPromptShowRecord)
+    assert isinstance(record, MacroShowRecord)
     assert [(ref.raw_ref, ref.resolved) for ref in record.references] == [
         ("#_helper", True),
         ("#nope", False),
@@ -284,7 +282,7 @@ def test_record_json_projection_is_complete_and_serializable(
 
     path = tmp_path / "typed.md"
     path.write_text("body")
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="typed",
         content="body",
         source_path=str(path),
@@ -296,12 +294,12 @@ def test_record_json_projection_is_complete_and_serializable(
     _patch_catalog(
         monkeypatch,
         resolve_module,
-        xprompts={"typed": xprompt},
+        macros={"typed": macro_def},
     )
 
     record = resolve_show_record("typed")
 
-    assert isinstance(record, XPromptShowRecord)
+    assert isinstance(record, MacroShowRecord)
     projection = record.to_json_dict()
     assert projection["schema_version"] == SHOW_SCHEMA_VERSION
     assert projection["raw_available"] is True
@@ -325,7 +323,7 @@ def test_record_json_projection_is_complete_and_serializable(
         "log_skill_use",
         "input_signature",
         "inputs",
-        "local_xprompts",
+        "local_macros",
         "steps",
         "body",
         "body_first_line",
@@ -346,7 +344,7 @@ def test_memory_record_projects_kind_and_type(
 
     path = tmp_path / "glossary.md"
     path.write_text("---\ntype: reference\n---\nbody\n")
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="memory/glossary",
         content="body\n",
         source_path=str(path),
@@ -356,12 +354,12 @@ def test_memory_record_projects_kind_and_type(
     _patch_catalog(
         monkeypatch,
         resolve_module,
-        xprompts={"memory/glossary": xprompt},
+        macros={"memory/glossary": macro_def},
     )
 
     record = resolve_show_record("#memory/glossary")
 
-    assert isinstance(record, XPromptShowRecord)
+    assert isinstance(record, MacroShowRecord)
     assert record.reference == "#memory/glossary"
     assert record.kind == "memory"
     assert record.memory_type == "reference"
@@ -399,7 +397,7 @@ def test_step_record_reuses_shared_type_and_output_schema(
 
     record = resolve_show_record("flow")
 
-    assert isinstance(record, XPromptShowRecord)
+    assert isinstance(record, MacroShowRecord)
     assert record.steps[0].type == "python"
     assert record.steps[0].label == "print('ok')"
     assert record.steps[0].hidden is True
@@ -430,7 +428,7 @@ def test_source_id_classification_and_display(
     bucket: str,
     display: str,
 ) -> None:
-    entry = classify(XPrompt(name="item", content="", source_path=source), None)
+    entry = classify(Macro(name="item", content="", source_path=source), None)
 
     assert entry.bucket == bucket
     assert source_path_display(entry) == display
@@ -443,7 +441,7 @@ def test_explicit_project_classifies_unregistered_definition_as_project(
     path.write_text("body")
 
     entry = classify(
-        XPrompt(name="demo/item", content="body", source_path=str(path)),
+        Macro(name="demo/item", content="body", source_path=str(path)),
         "demo",
     )
 
@@ -456,7 +454,7 @@ def _patch_catalog(
     resolve_module: Any,
     *,
     workflows: dict[str, Workflow] | None = None,
-    xprompts: dict[str, XPrompt] | None = None,
+    macros: dict[str, Macro] | None = None,
 ) -> None:
     monkeypatch.setattr(
         resolve_module,
@@ -465,8 +463,8 @@ def _patch_catalog(
     )
     monkeypatch.setattr(
         resolve_module,
-        "get_all_xprompts",
-        lambda *, project=None: xprompts or {},
+        "get_all_macros",
+        lambda *, project=None: macros or {},
     )
     monkeypatch.setattr(
         resolve_module,
@@ -475,6 +473,6 @@ def _patch_catalog(
     )
     monkeypatch.setattr(
         resolve_module,
-        "scan_xprompt_references",
+        "scan_macro_references",
         lambda *_args, **_kwargs: [],
     )

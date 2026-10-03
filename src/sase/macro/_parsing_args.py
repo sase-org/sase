@@ -1,4 +1,4 @@
-"""Argument parsing helpers for xprompt and workflow references."""
+"""Argument parsing helpers for macro and workflow references."""
 
 from dataclasses import dataclass
 
@@ -26,8 +26,8 @@ def double_colon_text_start(text: str, colon_idx: int) -> int | None:
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptArgSpan:
-    """Raw source locations for one parsed xprompt argument.
+class MacroArgSpan:
+    """Raw source locations for one parsed macro argument.
 
     ``start``/``end`` delimit the stripped token, while
     ``segment_start``/``segment_end`` retain the surrounding whitespace up to
@@ -45,8 +45,8 @@ class XPromptArgSpan:
     value_end: int | None
 
 
-def decode_xprompt_arg_value(value: str) -> str:
-    """Decode prompt-token substitutions in an xprompt argument value.
+def decode_macro_arg_value(value: str) -> str:
+    """Decode prompt-token substitutions in a macro argument value.
 
     Bare colon arguments are whitespace-delimited, so ``+`` is accepted as the
     space substitution for path-like values such as ``Application+Support``.
@@ -59,18 +59,18 @@ def decode_xprompt_arg_value(value: str) -> str:
     return value.replace("+", " ")
 
 
-def decode_xprompt_args(
+def decode_macro_args(
     positional: list[str], named: dict[str, str]
 ) -> tuple[list[str], dict[str, str]]:
-    """Decode all parsed xprompt argument values."""
+    """Decode all parsed macro argument values."""
     return (
-        [decode_xprompt_arg_value(value) for value in positional],
-        {name: decode_xprompt_arg_value(value) for name, value in named.items()},
+        [decode_macro_arg_value(value) for value in positional],
+        {name: decode_macro_arg_value(value) for name, value in named.items()},
     )
 
 
-def escape_for_xprompt(text: str) -> str:
-    """Escape text for use in an xprompt argument string.
+def escape_for_macro(text: str) -> str:
+    """Escape text for use in a macro argument string.
 
     Escapes double quotes and backslashes.
 
@@ -78,7 +78,7 @@ def escape_for_xprompt(text: str) -> str:
         text: The text to escape.
 
     Returns:
-        The escaped text safe for use in xprompt argument.
+        The escaped text safe for use in macro argument.
     """
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
@@ -271,9 +271,9 @@ def parse_arg_spans(
     args_str: str,
     *,
     preserve_empty_args: bool = False,
-) -> list[XPromptArgSpan]:
+) -> list[MacroArgSpan]:
     """Return raw token/value spans using the same grammar as :func:`parse_args`."""
-    spans: list[XPromptArgSpan] = []
+    spans: list[MacroArgSpan] = []
     segment_start = 0
     separators = _top_level_delimiter_positions(args_str, ",")
 
@@ -304,7 +304,7 @@ def parse_arg_spans(
                     value_start += 1
                 value_end = end
             spans.append(
-                XPromptArgSpan(
+                MacroArgSpan(
                     start=start,
                     end=end,
                     segment_start=segment_start,
@@ -420,7 +420,7 @@ def parse_workflow_reference(
             else:
                 rest = workflow_ref[close_paren + 1 :]
                 if rest.startswith(":") and len(rest) > 1:
-                    positional_args.append(decode_xprompt_arg_value(rest[1:]))
+                    positional_args.append(decode_macro_arg_value(rest[1:]))
 
             return workflow_name, positional_args, named_args
         return workflow_name, [], {}
@@ -441,7 +441,7 @@ def parse_workflow_reference(
         if rest.startswith("`"):
             return workflow_name, [rest], {}
         # Bare, unquoted colon argument: the only form that decodes `+`.
-        positional_args, named_args = decode_xprompt_args([rest], {})
+        positional_args, named_args = decode_macro_args([rest], {})
         return workflow_name, positional_args, named_args
 
     # Plain name, no args
@@ -461,7 +461,7 @@ def parse_args(
 
     This is the paren/comma argument grammar, so ``+`` is never decoded to a
     space here: that substitution is reserved for the bare, unquoted colon
-    argument form (see :func:`decode_xprompt_arg_value`).
+    argument form (see :func:`decode_macro_arg_value`).
 
     Args:
         args_str: The argument string (e.g., "arg1, name=value" or 'hello, "world"')

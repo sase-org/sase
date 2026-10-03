@@ -1,4 +1,4 @@
-"""Tests for xprompt template-group launch planning."""
+"""Tests for macro template-group launch planning."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -8,7 +8,7 @@ import pytest
 from tests._agent_names_fixtures import make_agent
 from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -20,7 +20,7 @@ from sase.macro.models import XPrompt
     "sase.main.utils.ensure_project_file_and_get_workspace_num",
     return_value=(None, None, None),
 )
-def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expansion(
+def test_launch_agents_from_cwd_resolves_template_refs_after_multi_macro_expansion(
     mock_project: MagicMock,
     mock_history: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -29,12 +29,12 @@ def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expan
     mock_spawn: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """The cwd launch path resolves template refs after xprompt swarm expansion."""
+    """The cwd launch path resolves template refs after macro swarm expansion."""
     from sase.agent.launcher import launch_agents_from_cwd
 
     mock_spawn.side_effect = spawn_result_with_planned_name
     catalog = {
-        "ix": XPrompt(
+        "ix": Macro(
             name="ix",
             content="%i:flow-@\nBuild\n---\n%w:flow-@\nReview",
         )
@@ -42,7 +42,7 @@ def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expan
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.agent.macro_swarm.get_all_xprompts", return_value=catalog),
+        patch("sase.agent.macro_swarm.get_all_macros", return_value=catalog),
         patch(
             "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
             return_value=None,
@@ -76,7 +76,7 @@ def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expan
     "sase.main.utils.ensure_project_file_and_get_workspace_num",
     return_value=(None, None, None),
 )
-def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
+def test_launch_agents_from_cwd_groups_macro_template_names_by_invocation(
     mock_project: MagicMock,
     mock_history: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -86,7 +86,7 @@ def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Template names from one xprompt swarm invocation share a namespace."""
+    """Template names from one macro swarm invocation share a namespace."""
     from sase.agent.launcher import launch_agents_from_cwd
     from sase.agent.names import reset_name_registry_caches_for_tests
 
@@ -102,7 +102,7 @@ def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
     make_agent(tmp_path, "proj", "existing", "research.0.any", done=True)
     mock_spawn.side_effect = spawn_result_with_planned_name
     catalog = {
-        "swarm": XPrompt(
+        "swarm": Macro(
             name="swarm",
             content=(
                 "%id:research.@.cdx\nCDX\n"
@@ -118,7 +118,7 @@ def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.agent.macro_swarm.get_all_xprompts", return_value=catalog),
+        patch("sase.agent.macro_swarm.get_all_macros", return_value=catalog),
         patch(
             "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
             return_value=None,
@@ -154,17 +154,17 @@ def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
     "sase.main.utils.ensure_project_file_and_get_workspace_num",
     return_value=(None, None, None),
 )
-def test_launch_agents_from_cwd_segment_extra_env_shares_xprompt_group_counter(
+def test_launch_agents_from_cwd_segment_extra_env_shares_macro_group_counter(
     mock_project: MagicMock,
     mock_history: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Per-segment expansion with env still separates xprompt invocations."""
+    """Per-segment expansion with env still separates macro invocations."""
     from sase.agent.launcher import launch_agents_from_cwd
 
     del mock_project, mock_history
     catalog = {
-        "swarm": XPrompt(
+        "swarm": Macro(
             name="swarm",
             content="%id:research.@.cdx\nCDX\n---\n%id:research.@.cld\nCLD",
         )
@@ -172,7 +172,7 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_xprompt_group_counter(
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.agent.macro_swarm.get_all_xprompts", return_value=catalog),
+        patch("sase.agent.macro_swarm.get_all_macros", return_value=catalog),
         patch(
             "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
             return_value=None,
@@ -200,7 +200,7 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_xprompt_group_counter(
         "xprompt:swarm:1",
         "xprompt:swarm:1",
     ]
-    assert kwargs["segment_swarm_xprompts"] == [
+    assert kwargs["segment_swarm_macros"] == [
         ("swarm",),
         ("swarm",),
         ("swarm",),
@@ -220,7 +220,7 @@ def test_launch_agents_from_cwd_force_reuse_marker_applies_to_first_swarm_slot_o
 ) -> None:
     """The one-shot force-reuse bead marker goes to only the first swarm slot.
 
-    Unlike an ordinary segment_extra_env marker (which every xprompt-swarm
+    Unlike an ordinary segment_extra_env marker (which every macro-swarm
     slot of a segment shares), ``SASE_AGENT_FORCE_REUSE_BEAD`` is a one-shot
     authorization tied to exactly one killed agent's name. Copying it to every
     expanded slot would let more than one spawned agent try to consume it.
@@ -230,7 +230,7 @@ def test_launch_agents_from_cwd_force_reuse_marker_applies_to_first_swarm_slot_o
 
     del mock_project, mock_history
     catalog = {
-        "swarm": XPrompt(
+        "swarm": Macro(
             name="swarm",
             content="%id:research.@.cdx\nCDX\n---\n%id:research.@.cld\nCLD",
         )
@@ -239,7 +239,7 @@ def test_launch_agents_from_cwd_force_reuse_marker_applies_to_first_swarm_slot_o
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.agent.macro_swarm.get_all_xprompts", return_value=catalog),
+        patch("sase.agent.macro_swarm.get_all_macros", return_value=catalog),
         patch(
             "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
             return_value=None,
@@ -282,7 +282,7 @@ def test_launch_agents_from_cwd_passes_single_segment_swarm_provenance(
     del mock_project, mock_timestamp
     mock_spawn.side_effect = spawn_result_with_planned_name
     catalog = {
-        "swarm": XPrompt(
+        "swarm": Macro(
             name="swarm",
             content="Only one segment\n---\n",
         )
@@ -290,7 +290,7 @@ def test_launch_agents_from_cwd_passes_single_segment_swarm_provenance(
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.agent.macro_swarm.get_all_xprompts", return_value=catalog),
+        patch("sase.agent.macro_swarm.get_all_macros", return_value=catalog),
         patch(
             "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
             return_value=None,
@@ -329,7 +329,7 @@ def test_launcher_qualifies_research_swarm_per_dispatch(
         encoding="utf-8",
     )
     catalog = {
-        "research_swarm": XPrompt(
+        "research_swarm": Macro(
             name="research_swarm",
             content=(
                 "%clan(research.{@1}, description=Research) "
@@ -352,7 +352,7 @@ def test_launcher_qualifies_research_swarm_per_dispatch(
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.agent.macro_swarm.get_all_xprompts", return_value=catalog),
+        patch("sase.agent.macro_swarm.get_all_macros", return_value=catalog),
         patch(
             "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
             return_value=None,
@@ -398,7 +398,7 @@ def test_launcher_qualifies_research_swarm_per_dispatch(
         ("/ws4", None),
     ],
 )
-def test_launch_multi_prompt_distinguishes_two_xprompt_template_groups(
+def test_launch_multi_prompt_distinguishes_two_macro_template_groups(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -407,7 +407,7 @@ def test_launch_multi_prompt_distinguishes_two_xprompt_template_groups(
     mock_spawn: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Two xprompt invocations in one submitted prompt get distinct namespaces."""
+    """Two macro invocations in one submitted prompt get distinct namespaces."""
     del mock_ws_dir, mock_first_ws, mock_timestamp
     mock_spawn.side_effect = spawn_result_with_planned_name
 
@@ -425,7 +425,7 @@ def test_launch_multi_prompt_distinguishes_two_xprompt_template_groups(
                 "xprompt:swarm:1",
                 "xprompt:swarm:1",
             ],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -472,12 +472,12 @@ def test_launch_multi_prompt_text_alt_model_alt_uses_distinct_generated_template
     """Text and model fan-out axes do not render duplicate template names."""
     del mock_ws_dir, mock_first_ws, mock_timestamp
     mock_spawn.side_effect = spawn_result_with_planned_name
-    local_xprompts = {"codex": XPrompt(name="codex", content="gpt-5.6-sol")}
+    local_macros = {"codex": Macro(name="codex", content="gpt-5.6-sol")}
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=["%{Describe | Explain} repo. %{%m:opus | %m:#codex}"],
-            local_xprompts=local_xprompts,
+            local_macros=local_macros,
             cl_name="test",
             project_file="/test.sase",
             project_name="test",

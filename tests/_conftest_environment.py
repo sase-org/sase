@@ -290,7 +290,7 @@ def _restore_workflow_metadata_derived_caches() -> Iterator[None]:
             _parsing_vcs_tags._VCS_TAG_EMBEDDED_PATTERN,
             _parsing_vcs_tags._VCS_REPLACE_PATTERN,
             _parsing_vcs_refs._VCS_UNDERSCORE_NORMALIZER,
-            _parsing_vcs_refs._LAUNCH_XPROMPT_AT_REF_RE,
+            _parsing_vcs_refs._LAUNCH_MACRO_AT_REF_RE,
         )
 
     before = snapshot()
@@ -306,7 +306,7 @@ def _restore_workflow_metadata_derived_caches() -> Iterator[None]:
         _parsing_vcs_tags._VCS_TAG_EMBEDDED_PATTERN,
         _parsing_vcs_tags._VCS_REPLACE_PATTERN,
         _parsing_vcs_refs._VCS_UNDERSCORE_NORMALIZER,
-        _parsing_vcs_refs._LAUNCH_XPROMPT_AT_REF_RE,
+        _parsing_vcs_refs._LAUNCH_MACRO_AT_REF_RE,
     ) = before
     prompt_metadata.known_workflow_names.cache_clear()
 

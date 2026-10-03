@@ -117,7 +117,7 @@ class EmbeddedWorkflowExpandMixin:
             return rebuilt, all_embedded_workflows, total_pre_steps
 
         from sase.macro._parsing import (
-            iter_xprompt_references,
+            iter_macro_references,
             normalize_vcs_underscore_refs,
         )
         from sase.macro.loader import get_all_workflows
@@ -136,7 +136,7 @@ class EmbeddedWorkflowExpandMixin:
 
         # ── Phase 1: Collection ──────────────────────────────────────────
         # Iterate matches left-to-right, parse args, build pending list.
-        refs = iter_xprompt_references(prompt)
+        refs = iter_macro_references(prompt)
         pending: list[PendingEmbeddedWorkflow] = []
 
         for ref in refs:
@@ -196,9 +196,9 @@ class EmbeddedWorkflowExpandMixin:
             return prompt, [], 0
 
         # ── Phase 2: Validation ──────────────────────────────────────────
-        from sase.macro.tags import XPromptTag
+        from sase.macro.tags import MacroTag
 
-        vcs_entries = [p for p in pending if p.workflow.has_tag(XPromptTag.vcs)]
+        vcs_entries = [p for p in pending if p.workflow.has_tag(MacroTag.vcs)]
         if len(vcs_entries) > 1:
             names = ", ".join(f"#{p.name}" for p in vcs_entries)
             raise WorkflowExecutionError(
@@ -209,9 +209,9 @@ class EmbeddedWorkflowExpandMixin:
         # ── Phase 3: Pre-step execution ──────────────────────────────────
         # Execute in priority order: VCS workflow first, then remaining in
         # reversed (right-to-left) order to preserve current behavior.
-        wraps_all_pending = [p for p in pending if p.workflow.has_tag(XPromptTag.vcs)]
+        wraps_all_pending = [p for p in pending if p.workflow.has_tag(MacroTag.vcs)]
         non_wraps_all_pending = [
-            p for p in pending if not p.workflow.has_tag(XPromptTag.vcs)
+            p for p in pending if not p.workflow.has_tag(MacroTag.vcs)
         ]
         execution_order = wraps_all_pending + list(reversed(non_wraps_all_pending))
 
@@ -293,9 +293,9 @@ class EmbeddedWorkflowExpandMixin:
 
                 append_tag = None
                 if commit_method in ("create_commit", "create_proposal"):
-                    append_tag = XPromptTag.append_to_commit_and_propose
+                    append_tag = MacroTag.append_to_commit_and_propose
                 elif commit_method == "create_pull_request":
-                    append_tag = XPromptTag.append_to_pr
+                    append_tag = MacroTag.append_to_pr
 
                 if append_tag:
                     vcs_hint = wraps_all_pending[0].name if wraps_all_pending else None

@@ -30,8 +30,8 @@ def _make_agent(
         status="DONE",
         start_time=None,
     )
-    # Patch get_raw_xprompt_content to return controlled content
-    agent.get_raw_xprompt_content = lambda: raw_content  # type: ignore[assignment]
+    # Patch get_raw_prompt_content to return controlled content
+    agent.get_raw_prompt_content = lambda: raw_content  # type: ignore[assignment]
     return agent
 
 

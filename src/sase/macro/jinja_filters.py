@@ -1,4 +1,4 @@
-"""Shared Jinja2 filters available to xprompt and workflow prompt bodies."""
+"""Shared Jinja2 filters available to macro and workflow prompt bodies."""
 
 from __future__ import annotations
 

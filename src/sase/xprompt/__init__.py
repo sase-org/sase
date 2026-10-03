@@ -52,6 +52,19 @@ _NAME_TO_SUCCESSOR = {
 }
 
 # TEMP(xprompt->macro shim): removed in audit-deploy.
+_OLD_TO_NEW = {
+    "XPromptValidationError": "MacroValidationError",
+    "extract_xprompt_calls": "extract_macro_calls",
+    "process_xprompt_references": "process_macro_references",
+    "NoXpromptsFound": "NoMacrosFound",
+    "build_xprompts_catalog": "build_macros_catalog",
+    "load_xprompts_from_plugins": "load_macros_from_plugins",
+    "expand_single_xprompt": "expand_single_macro",
+    "expand_xprompt_swarms_with_metadata": "expand_macro_swarms_with_metadata",
+    "list_patch_xprompt_tags": "list_patch_macro_tags",
+}
+
+# TEMP(xprompt->macro shim): removed in audit-deploy.
 _SUBMODULE_NAMES = {
     "models": ("InputType", "XPromptValidationError", "UNSET"),
     "directives": ("extract_prompt_directives", "plan_prompt_fanout_variants"),
@@ -90,7 +103,7 @@ def _build_synthetic_submodule(short: str) -> types.ModuleType:
         short
     ]:  # TEMP(xprompt->macro shim): removed in audit-deploy.
         setattr(
-            synthetic, name, getattr(real, name)
+            synthetic, name, getattr(real, _OLD_TO_NEW.get(name, name))
         )  # TEMP(xprompt->macro shim): removed in audit-deploy.
     return synthetic  # TEMP(xprompt->macro shim): removed in audit-deploy.
 
@@ -183,6 +196,16 @@ class _XpromptSwarmLoader(importlib.abc.Loader):
             setattr(
                 module, key, getattr(real, key)
             )  # TEMP(xprompt->macro shim): removed in audit-deploy.
+        for (
+            old,
+            new,
+        ) in _OLD_TO_NEW.items():  # TEMP(xprompt->macro shim): removed in audit-deploy.
+            if hasattr(
+                real, new
+            ):  # TEMP(xprompt->macro shim): removed in audit-deploy.
+                setattr(
+                    module, old, getattr(real, new)
+                )  # TEMP(xprompt->macro shim): removed in audit-deploy.
 
 
 def __getattr__(
@@ -195,7 +218,7 @@ def __getattr__(
             _NAME_TO_SUCCESSOR[name]
         )  # TEMP(xprompt->macro shim): removed in audit-deploy.
         value = getattr(
-            real, name
+            real, _OLD_TO_NEW.get(name, name)
         )  # TEMP(xprompt->macro shim): removed in audit-deploy.
         globals()[name] = value  # TEMP(xprompt->macro shim): removed in audit-deploy.
         return value  # TEMP(xprompt->macro shim): removed in audit-deploy.
@@ -231,3 +254,7 @@ _install_shim_finders()  # TEMP(xprompt->macro shim): removed in audit-deploy.
 __all__ = sorted(
     _NAME_TO_SUCCESSOR
 )  # TEMP(xprompt->macro shim): removed in audit-deploy.
+
+
+# Symvision cannot see Python's package-level lazy hook lookup. # TEMP(xprompt->macro shim): removed in audit-deploy.
+_PACKAGE_GETATTR = __getattr__  # TEMP(xprompt->macro shim): removed in audit-deploy.

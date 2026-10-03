@@ -154,7 +154,7 @@ def test_dependency_and_reference_commands_accept_shorthand(
 
 def test_work_task_dry_run_uses_canonical_id_for_shorthand(
     project_dir: Path,
-    fake_cli_work_xprompts: None,
+    fake_cli_work_macros: None,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:

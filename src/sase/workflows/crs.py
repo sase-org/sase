@@ -24,7 +24,7 @@ from sase.artifacts import (
 from sase.content import ensure_str_content
 from sase.core.shell import run_shell_command
 from sase.workflows.base import BaseWorkflow
-from sase.macro import escape_for_xprompt, process_xprompt_references
+from sase.macro import escape_for_macro, process_macro_references
 
 
 def _create_critique_comments_artifact(
@@ -66,7 +66,7 @@ def _build_crs_prompt(
     cl_name: str | None = None,
     vcs_type: str | None = None,
 ) -> str:
-    """Build the change request prompt using the crs xprompt.
+    """Build the change request prompt using the crs macro.
 
     Args:
         critique_comments_path: Path to the critique comments JSON file
@@ -76,7 +76,7 @@ def _build_crs_prompt(
     Returns:
         The formatted prompt string
     """
-    return process_xprompt_references(
+    return process_macro_references(
         _build_crs_prompt_invocation(critique_comments_path, cl_name, vcs_type)
     )
 
@@ -86,17 +86,17 @@ def _build_crs_prompt_invocation(
     cl_name: str | None = None,
     vcs_type: str | None = None,
 ) -> str:
-    """Build the generated top-level CRS xprompt invocation."""
-    from sase.macro.tags import XPromptTag, get_by_tag
+    """Build the generated top-level CRS macro invocation."""
+    from sase.macro.tags import MacroTag, get_by_tag
 
-    crs_wf = get_by_tag(XPromptTag.crs)
+    crs_wf = get_by_tag(MacroTag.crs)
     crs_name = crs_wf.name if crs_wf else "crs"
 
-    escaped_path = escape_for_xprompt(critique_comments_path)
+    escaped_path = escape_for_macro(critique_comments_path)
     if cl_name:
         if not vcs_type:
             raise ValueError("vcs_type is required when cl_name is provided")
-        escaped_cl = escape_for_xprompt(cl_name)
+        escaped_cl = escape_for_macro(cl_name)
         return (
             f'#{crs_name}(critique_comments_path="{escaped_path}", '
             f'cl_name="{escaped_cl}", vcs_type="{vcs_type}")'
@@ -136,7 +136,7 @@ class CrsWorkflow(BaseWorkflow):
         self.vcs_type = vcs_type
         self.response_path: str | None = None
         self.last_prompt: str | None = None
-        self.submitted_xprompt: str | None = None
+        self.submitted_prompt: str | None = None
         self.proposal_id: str | None = None
         self.propose_result: dict[str, object] | None = None
 
@@ -175,7 +175,7 @@ class CrsWorkflow(BaseWorkflow):
 
         # Build the prompt
         print_status("Building change request prompt...", "progress")
-        self.submitted_xprompt = _build_crs_prompt_invocation(
+        self.submitted_prompt = _build_crs_prompt_invocation(
             critique_artifact,
             cl_name=self.cl_name,
             vcs_type=self.vcs_type,

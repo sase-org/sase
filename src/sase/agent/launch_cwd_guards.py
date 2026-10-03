@@ -76,7 +76,7 @@ def guard_hard_disabled_launch_units(
     *,
     expanded_segments: Sequence[str],
     template_groups: Sequence[str | None],
-    swarm_xprompts: Sequence[tuple[str, ...]],
+    swarm_macros: Sequence[tuple[str, ...]],
     recorder: LaunchHistoryRecorder,
 ) -> None:
     """Refuse a confirmed hard-disable block; fail open on guard surprises."""
@@ -90,12 +90,12 @@ def guard_hard_disabled_launch_units(
         LaunchUnitInput(
             prompt=segment,
             template_group=group,
-            swarm_xprompts=tuple(swarm),
+            swarm_macros=tuple(swarm),
         )
         for segment, group, swarm in zip(
             expanded_segments,
             template_groups,
-            swarm_xprompts,
+            swarm_macros,
             strict=True,
         )
     )

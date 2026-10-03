@@ -64,7 +64,7 @@ def _agent_key_for_output_variables(
 ) -> str:
     """Return the stable ``agents`` dictionary key for an agent's variables.
 
-    The key is the agent's stable reference so that xprompts stay authorable
+    The key is the agent's stable reference so that macros stay authorable
     and repeatable across runs:
 
     - An agent-name template (``build-@``) yields its base (``build``), not the

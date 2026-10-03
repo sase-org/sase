@@ -86,9 +86,9 @@ def record_submit_time_vcs_replay(prompt: str) -> None:
     if prefix is None:
         return
     try:
-        from sase.history.vcs_macro_mru import record_vcs_xprompt_usage
+        from sase.history.vcs_macro_mru import record_vcs_macro_usage
 
-        record_vcs_xprompt_usage(prefix)
+        record_vcs_macro_usage(prefix)
     except Exception:
         log.debug("Failed to refresh Space replay target", exc_info=True)
 

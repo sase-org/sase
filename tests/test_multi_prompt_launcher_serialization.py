@@ -1,4 +1,4 @@
-"""Tests for multi-prompt local xprompt serialization."""
+"""Tests for multi-prompt local macro serialization."""
 
 import os
 from pathlib import Path
@@ -6,25 +6,25 @@ from pathlib import Path
 import pytest
 
 from sase.agent.multi_prompt_launcher import (
-    _serialize_local_xprompts,
-    deserialize_local_xprompts,
+    _serialize_local_macros,
+    deserialize_local_macros,
 )
 from sase.core.paths import PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
-from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.models import InputArg, InputType, Macro
 
 
 def test_serialize_deserialize_roundtrip_simple() -> None:
-    """Simple xprompt survives serialization round-trip."""
-    xprompts = {
-        "_review": XPrompt(
+    """Simple macro survives serialization round-trip."""
+    macros = {
+        "_review": Macro(
             name="_review",
             content="Focus on correctness",
             source_path="user-prompt",
         ),
     }
-    path = _serialize_local_xprompts(xprompts)
+    path = _serialize_local_macros(macros)
     try:
-        result = deserialize_local_xprompts(path)
+        result = deserialize_local_macros(path)
         assert "_review" in result
         xp = result["_review"]
         assert xp.name == "_review"
@@ -35,11 +35,11 @@ def test_serialize_deserialize_roundtrip_simple() -> None:
         os.unlink(path)
 
 
-def test_serialize_local_xprompts_uses_managed_tmpdir(
+def test_serialize_local_macros_uses_managed_tmpdir(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    xprompts = {
-        "_review": XPrompt(
+    macros = {
+        "_review": Macro(
             name="_review",
             content="Focus on correctness",
             source_path="user-prompt",
@@ -50,13 +50,13 @@ def test_serialize_local_xprompts_uses_managed_tmpdir(
     # developer's $SASE_TMPDIR — the handoff subdirectory is what this asserts.
     developer_root = tmp_path / "developer-root"
     monkeypatch.setenv("SASE_TMPDIR", str(developer_root))
-    path = _serialize_local_xprompts(xprompts)
+    path = _serialize_local_macros(macros)
     try:
         parent = Path(path).parent
         assert parent.name == "handoff"
         assert parent.parent.name == PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
         assert not developer_root.exists()
-        assert deserialize_local_xprompts(path)["_review"].content == (
+        assert deserialize_local_macros(path)["_review"].content == (
             "Focus on correctness"
         )
     finally:
@@ -64,9 +64,9 @@ def test_serialize_local_xprompts_uses_managed_tmpdir(
 
 
 def test_serialize_deserialize_roundtrip_with_inputs() -> None:
-    """Xprompt with typed inputs survives round-trip."""
-    xprompts = {
-        "_greet": XPrompt(
+    """Macro with typed inputs survives round-trip."""
+    macros = {
+        "_greet": Macro(
             name="_greet",
             content="Hello {{ name }}",
             inputs=[
@@ -76,9 +76,9 @@ def test_serialize_deserialize_roundtrip_with_inputs() -> None:
             source_path="/some/path.yml",
         ),
     }
-    path = _serialize_local_xprompts(xprompts)
+    path = _serialize_local_macros(macros)
     try:
-        result = deserialize_local_xprompts(path)
+        result = deserialize_local_macros(path)
         xp = result["_greet"]
         assert xp.name == "_greet"
         assert len(xp.inputs) == 2
@@ -91,34 +91,34 @@ def test_serialize_deserialize_roundtrip_with_inputs() -> None:
         os.unlink(path)
 
 
-def test_serialize_deserialize_multiple_xprompts() -> None:
-    """Multiple xprompts in a single file."""
-    xprompts = {
-        "_a": XPrompt(name="_a", content="A"),
-        "_b": XPrompt(name="_b", content="B"),
+def test_serialize_deserialize_multiple_macros() -> None:
+    """Multiple macros in a single file."""
+    macros = {
+        "_a": Macro(name="_a", content="A"),
+        "_b": Macro(name="_b", content="B"),
     }
-    path = _serialize_local_xprompts(xprompts)
+    path = _serialize_local_macros(macros)
     try:
-        result = deserialize_local_xprompts(path)
+        result = deserialize_local_macros(path)
         assert set(result.keys()) == {"_a", "_b"}
     finally:
         os.unlink(path)
 
 
-def test_serialize_deserialize_nested_local_xprompts() -> None:
-    """An xprompt carrying markdown-local helpers survives round-trip."""
-    xprompts = {
-        "_outer": XPrompt(
+def test_serialize_deserialize_nested_local_macros() -> None:
+    """A macro carrying markdown-local helpers survives round-trip."""
+    macros = {
+        "_outer": Macro(
             name="_outer",
             content="Use #_inner",
-            local_xprompts={"_inner": XPrompt(name="_inner", content="Nested helper")},
+            local_macros={"_inner": Macro(name="_inner", content="Nested helper")},
         )
     }
-    path = _serialize_local_xprompts(xprompts)
+    path = _serialize_local_macros(macros)
     try:
-        result = deserialize_local_xprompts(path)
+        result = deserialize_local_macros(path)
         assert result["_outer"].content == "Use #_inner"
-        assert set(result["_outer"].local_xprompts) == {"_inner"}
-        assert result["_outer"].local_xprompts["_inner"].content == "Nested helper"
+        assert set(result["_outer"].local_macros) == {"_inner"}
+        assert result["_outer"].local_macros["_inner"].content == "Nested helper"
     finally:
         os.unlink(path)

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from sase.history import vcs_macro_mru as mru
-from sase.history.vcs_macro_mru import load_launchable_vcs_xprompt_mru_pairs
+from sase.history.vcs_macro_mru import load_launchable_vcs_macro_mru_pairs
 from tests._vcs_macro_mru_helpers import (
     patch_discovered_workflow_type_as_git,
     patched_mru_file,
@@ -108,9 +108,9 @@ def test_build_lists_project_records_once_for_explicit_root(
 
     list_calls = _count_list_calls(monkeypatch)
     with patched_mru_file(fake):
-        first = load_launchable_vcs_xprompt_mru_pairs(projects_dir, prune=False)
+        first = load_launchable_vcs_macro_mru_pairs(projects_dir, prune=False)
         first_list_calls = len(list_calls)
-        doubled = load_launchable_vcs_xprompt_mru_pairs(projects_dir, prune=False)
+        doubled = load_launchable_vcs_macro_mru_pairs(projects_dir, prune=False)
 
     assert first == doubled
     assert len(first) == 7
@@ -138,7 +138,7 @@ def test_build_detects_each_project_once_for_explicit_root(
 
     detect_calls = _count_detect_calls(monkeypatch)
     with patched_mru_file(fake):
-        pairs = load_launchable_vcs_xprompt_mru_pairs(projects_dir, prune=False)
+        pairs = load_launchable_vcs_macro_mru_pairs(projects_dir, prune=False)
 
     assert [canonical for canonical, _ in pairs] == [
         "#git:dir_0",
@@ -185,7 +185,7 @@ def test_build_bounds_reads_and_detections_for_default_root(
     list_calls = _count_list_calls(monkeypatch)
     detect_calls = _count_detect_calls(monkeypatch)
     # Re-wrap after the constant mocks above so the counters see every call.
-    result = load_launchable_vcs_xprompt_mru_pairs(None, prune=False)
+    result = load_launchable_vcs_macro_mru_pairs(None, prune=False)
 
     # The unresolvable ``#git:gone`` ref is pruned on the default root.
     assert [canonical for canonical, _ in result] == entries[:-1]

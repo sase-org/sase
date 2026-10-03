@@ -1,4 +1,4 @@
-"""Canonical reasoning-effort vocabulary shared across the xprompt layer.
+"""Canonical reasoning-effort vocabulary shared across the macro layer.
 
 Defines the single source of truth for reasoning-effort level spelling plus
 :func:`split_model_effort`, the helper that peels a trailing ``@<level>`` token

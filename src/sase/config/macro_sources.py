@@ -1,4 +1,4 @@
-"""Load config-defined xprompts while preserving source provenance."""
+"""Load config-defined macros while preserving source provenance."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from sase._yaml_safe import yaml_safe_load_cached_text
 log = logging.getLogger(__name__)
 
 
-def load_xprompts_by_source(
+def load_macros_by_source(
     *,
     config_dir: Path,
     default_loader: Callable[[], dict[str, Any]],
@@ -22,7 +22,7 @@ def load_xprompts_by_source(
     local_path: Path | None,
     resource_files: Callable[[Any], Any],
 ) -> list[tuple[str, dict[str, Any]]]:
-    """Load xprompt entries from each config source in priority order."""
+    """Load macro entries from each config source in priority order."""
     from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
     results: list[tuple[str, dict[str, Any]]] = []

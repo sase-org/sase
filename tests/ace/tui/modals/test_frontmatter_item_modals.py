@@ -19,7 +19,7 @@ from sase.ace.tui.modals.xprompt_item_modal import (
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.macro.models import UNSET, InputArg, InputType, XPrompt
+from sase.macro.models import UNSET, InputArg, InputType, Macro
 
 
 class _TestApp(App[object | None]):
@@ -229,7 +229,7 @@ async def test_xprompt_modal_saves_helper_with_inputs() -> None:
     assert isinstance(result, tuple)
     name, xprompt = result
     assert name == "_rules"
-    assert isinstance(xprompt, XPrompt)
+    assert isinstance(xprompt, Macro)
     assert xprompt.content == "Follow the checklist"
     assert xprompt.description == "team rules"
     assert [a.name for a in xprompt.inputs] == ["service"]

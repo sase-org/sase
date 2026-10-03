@@ -32,7 +32,7 @@ def plan_init_skills(
             blockers=(provider_error,),
         )
 
-    skill_xprompts, placement_errors = runtime.load_skill_sources()
+    skill_macros, placement_errors = runtime.load_skill_sources()
     if placement_errors:
         return InitPlan(
             command="skills",
@@ -46,7 +46,7 @@ def plan_init_skills(
     try:
         if use_chezmoi:
             deployment_targets = runtime.render_skill_deployment_targets(
-                skill_xprompts,
+                skill_macros,
                 provider_filter=provider_filter,
                 use_prettier=use_prettier,
             )
@@ -74,7 +74,7 @@ def plan_init_skills(
             )
         else:
             targets = runtime.render_skill_targets(
-                skill_xprompts,
+                skill_macros,
                 provider_filter=provider_filter,
                 use_chezmoi=use_chezmoi,
                 use_prettier=use_prettier,

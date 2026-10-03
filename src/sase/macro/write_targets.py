@@ -1,8 +1,8 @@
-"""Write-target resolution for editable xprompt definitions.
+"""Write-target resolution for editable macro definitions.
 
 This module is intentionally UI-free.  ACE uses it when a definition is loaded
 into the prompt bar, but the same policy applies to any frontend that edits an
-existing xprompt source.
+existing macro source.
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ from sase.macro.skill_locations import is_canonical_skill_directory
 
 
 @dataclass(frozen=True)
-class XPromptWriteTarget:
-    """Concrete file paths for editing an existing xprompt definition."""
+class MacroWriteTarget:
+    """Concrete file paths for editing an existing macro definition."""
 
     read_path: Path
     write_path: Path
@@ -33,9 +33,9 @@ class XPromptWriteTarget:
 
 
 class WrittenFileKind(StrEnum):
-    """Kind of source file written by an xprompt save surface."""
+    """Kind of source file written by a macro save surface."""
 
-    XPROMPT = "xprompt"
+    MACRO = "xprompt"
     MEMORY_NOTE = "memory_note"
     SKILL_SOURCE = "skill_source"
     CONFIG_ENTRY = "config_entry"
@@ -68,7 +68,7 @@ class PostWriteActionOffer:
     command: tuple[str, ...] = ()
 
 
-def resolve_xprompt_write_target(read_path: Path | str) -> XPromptWriteTarget:
+def resolve_macro_write_target(read_path: Path | str) -> MacroWriteTarget:
     """Resolve where edits to *read_path* must be written.
 
     Home-managed paths are redirected to the matching chezmoi source only when
@@ -78,7 +78,7 @@ def resolve_xprompt_write_target(read_path: Path | str) -> XPromptWriteTarget:
     """
 
     read = Path(read_path).expanduser()
-    default = XPromptWriteTarget(
+    default = MacroWriteTarget(
         read_path=read,
         write_path=read,
         apply_target=None,
@@ -104,7 +104,7 @@ def resolve_xprompt_write_target(read_path: Path | str) -> XPromptWriteTarget:
     )
     if not source.exists():
         return default
-    return XPromptWriteTarget(
+    return MacroWriteTarget(
         read_path=read,
         write_path=source,
         apply_target=read,
@@ -112,7 +112,7 @@ def resolve_xprompt_write_target(read_path: Path | str) -> XPromptWriteTarget:
     )
 
 
-def write_target_for_written_path(path: Path | str) -> XPromptWriteTarget:
+def write_target_for_written_path(path: Path | str) -> MacroWriteTarget:
     """Return a write target for a path that is already the write location.
 
     Save-as destinations and external-editor surfaces often operate directly on
@@ -122,7 +122,7 @@ def write_target_for_written_path(path: Path | str) -> XPromptWriteTarget:
 
     write = Path(path).expanduser()
     apply_target = _chezmoi_apply_target_for_source(write)
-    return XPromptWriteTarget(
+    return MacroWriteTarget(
         read_path=apply_target or write,
         write_path=write,
         apply_target=apply_target,
@@ -158,22 +158,22 @@ def classify_written_file(
 
     When a read path is available, it wins for memory/skill detection.  A
     chezmoi source path may sit outside the normal home memory root, while the
-    original read path still describes the user's xprompt reference surface.
+    original read path still describes the user's macro reference surface.
     """
 
     if read_path is not None:
         read_kind = _classify_single_written_path(Path(read_path).expanduser())
-        if read_kind is not WrittenFileKind.XPROMPT:
+        if read_kind is not WrittenFileKind.MACRO:
             return read_kind
     return _classify_single_written_path(Path(path).expanduser())
 
 
 def build_post_write_action_offers(
-    target: XPromptWriteTarget,
+    target: MacroWriteTarget,
     *,
     kind: WrittenFileKind,
     is_new: bool,
-    xprompt_name: str,
+    macro_name: str,
     noun: str = "xprompt",
     commit_type: str = "xprompt",
 ) -> tuple[PostWriteActionOffer, ...]:
@@ -205,7 +205,7 @@ def build_post_write_action_offers(
                     "memory",
                     "init",
                     "--message",
-                    f"{verb} memory note {xprompt_name}",
+                    f"{verb} memory note {macro_name}",
                 ),
             ),
         )
@@ -214,7 +214,7 @@ def build_post_write_action_offers(
         git_offer = _commit_push_offer(
             target,
             is_new=is_new,
-            xprompt_name=xprompt_name,
+            macro_name=macro_name,
             noun=noun,
             commit_type=commit_type,
         )
@@ -239,7 +239,7 @@ def build_post_write_action_offers(
     git_offer = _commit_push_offer(
         target,
         is_new=is_new,
-        xprompt_name=xprompt_name,
+        macro_name=macro_name,
         noun=noun,
         commit_type=commit_type,
     )
@@ -268,9 +268,9 @@ def canonical_reference_for_path(
     entry_name: str | None = None,
     reference: str | None = None,
 ) -> str:
-    """Return the xprompt reference a user would type for a binding.
+    """Return the macro reference a user would type for a binding.
 
-    Explicit references from a caller win for ordinary xprompts, while memory
+    Explicit references from a caller win for ordinary macros, while memory
     notes and skill sources are normalized from the path so a file stem never
     leaks into the target UI as ``#foo`` when the real handle is
     ``#memory/foo`` or ``/foo``.
@@ -298,14 +298,14 @@ def _classify_single_written_path(path: Path) -> WrittenFileKind:
         return WrittenFileKind.MEMORY_NOTE
     if path.suffix in {".yml", ".yaml"}:
         return WrittenFileKind.CONFIG_ENTRY
-    return WrittenFileKind.XPROMPT
+    return WrittenFileKind.MACRO
 
 
 def _commit_push_offer(
-    target: XPromptWriteTarget,
+    target: MacroWriteTarget,
     *,
     is_new: bool,
-    xprompt_name: str,
+    macro_name: str,
     noun: str,
     commit_type: str,
 ) -> PostWriteActionOffer | None:
@@ -314,7 +314,7 @@ def _commit_push_offer(
         return None
     rel_path = os.path.relpath(target.write_path, git_root)
     verb = "Add" if is_new else "Update"
-    subject = f"chore: {verb} {noun} {xprompt_name}"
+    subject = f"chore: {verb} {noun} {macro_name}"
     from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
     return PostWriteActionOffer(
@@ -410,12 +410,12 @@ __all__ = [
     "PostWriteActionKind",
     "PostWriteActionOffer",
     "WrittenFileKind",
-    "XPromptWriteTarget",
+    "MacroWriteTarget",
     "build_post_write_action_offers",
     "canonical_reference_for_path",
     "classify_written_file",
     "get_git_root",
     "has_git_changes",
-    "resolve_xprompt_write_target",
+    "resolve_macro_write_target",
     "write_target_for_written_path",
 ]

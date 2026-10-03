@@ -14,7 +14,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     merge_local_xprompt_entries,
     named_args_skeleton,
 )
-from sase.macro.project_identity import canonical_xprompt_project
+from sase.macro.project_identity import canonical_macro_project
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -291,14 +291,14 @@ class XPromptArgHintMixin(_MixinBase):
         if tag is not None:
             project = prompt_text_area.extract_project_from_vcs_tag(tag)
             if project:
-                return canonical_xprompt_project(project)
+                return canonical_macro_project(project)
 
         ctx = getattr(self.app, "_prompt_context", None)
         if ctx is None or bool(getattr(ctx, "is_home_mode", False)):
             return None
         project_name = getattr(ctx, "project_name", None)
         if isinstance(project_name, str) and project_name:
-            return canonical_xprompt_project(project_name)
+            return canonical_macro_project(project_name)
         return None
 
     def _maybe_show_inserted_xprompt_arg_hint(

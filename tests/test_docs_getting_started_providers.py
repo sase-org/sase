@@ -23,7 +23,7 @@ def test_getting_started_muse_grok_wording_separates_provider_selection() -> Non
     assert "explicit-only and never auto-detected" not in text
 
 
-def test_xprompt_model_comments_avoid_overloaded_explicit_only_wording() -> None:
+def test_macro_model_comments_avoid_overloaded_explicit_only_wording() -> None:
     text = (ROOT / "docs/xprompt.md").read_text(encoding="utf-8")
 
     assert "%model:muse/muse-spark-1.3" in text

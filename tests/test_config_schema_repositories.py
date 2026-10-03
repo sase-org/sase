@@ -183,7 +183,7 @@ def test_config_schema_rejects_invalid_sidecar_ref_controls(
     assert [list(error.absolute_path) for error in errors] == [expected_path]
 
 
-def test_config_schema_rejects_retired_sidecar_ref_xprompt() -> None:
+def test_config_schema_rejects_retired_sidecar_ref_macro() -> None:
     config = {
         "repos": {
             "sidecar": {

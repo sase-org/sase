@@ -19,7 +19,7 @@ from .cli_work_helpers import (
     seed_diamond,
 )
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(

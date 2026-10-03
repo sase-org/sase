@@ -13,7 +13,7 @@ from sase.agent.launch_executor_types import (
     SlotContextCallback,
     SlotEnvCallback,
     SlotExecutedCallback,
-    SlotLocalXpromptsCallback,
+    SlotLocalMacrosCallback,
     SlotNameReservationCallback,
     SpawnCallback,
 )
@@ -46,7 +46,7 @@ def _default_spawn(request: LaunchSpawnRequest) -> AgentLaunchResult:
         is_home_mode=request.is_home_mode,
         vcs_ref=request.vcs_ref,
         deferred_workspace=request.deferred_workspace,
-        local_xprompts_file=request.local_xprompts_file,
+        local_macros_file=request.local_macros_file,
         extra_env=request.extra_env,
         retry_transfer_from_pid=request.transfer_from_pid,
     )
@@ -60,7 +60,7 @@ def execute_launch_plan(
     on_slot_executed: SlotExecutedCallback | None = None,
     slot_context: SlotContextCallback | None = None,
     slot_extra_env: SlotEnvCallback | None = None,
-    slot_local_xprompts_file: SlotLocalXpromptsCallback | None = None,
+    slot_local_macros_file: SlotLocalMacrosCallback | None = None,
     slot_name_reservation: SlotNameReservationCallback | None = None,
     extra_env: dict[str, str] | None = None,
     timestamp_allocator: LaunchTimestampBatchAllocator | None = None,
@@ -135,8 +135,8 @@ def execute_launch_plan(
         )
         env = dict(prepared_env or {})
         agent_session_attach_plan = load_agent_session_attach_plan_from_env(env)
-        local_xprompts_file = (
-            None if slot_local_xprompts_file is None else slot_local_xprompts_file(slot)
+        local_macros_file = (
+            None if slot_local_macros_file is None else slot_local_macros_file(slot)
         )
         name_reservation = name_reservations.get(slot.slot_index)
 
@@ -146,7 +146,7 @@ def execute_launch_plan(
             workflow_name=workflow_name,
             timestamp=timestamp,
             extra_env=env or None,
-            local_xprompts_file=local_xprompts_file,
+            local_macros_file=local_macros_file,
             name_reservation=name_reservation,
             spawn=spawn_fn,
         )

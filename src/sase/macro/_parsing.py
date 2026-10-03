@@ -1,4 +1,4 @@
-"""Compatibility exports for xprompt parsing helpers."""
+"""Compatibility exports for macro parsing helpers."""
 
 import re
 from collections.abc import Mapping, Sequence
@@ -8,11 +8,11 @@ from . import _parsing_shorthand as _shorthand
 from . import _parsing_vcs_refs as _vcs_refs
 from . import _parsing_vcs_tags as _vcs_tags
 from ._parsing_args import (
-    XPromptArgSpan,
-    decode_xprompt_arg_value,
-    decode_xprompt_args,
+    MacroArgSpan,
+    decode_macro_arg_value,
+    decode_macro_args,
     double_colon_text_start,
-    escape_for_xprompt,
+    escape_for_macro,
     find_matching_brace_for_args,
     find_matching_paren_for_args,
     find_text_block_close_for_args,
@@ -22,17 +22,17 @@ from ._parsing_args import (
     strip_hitl_suffix,
 )
 from ._parsing_references import (
-    XPROMPT_REFERENCE_ARGUMENT_FRAGMENT,
-    XPROMPT_REFERENCE_HITL_SUFFIX_FRAGMENT,
-    XPROMPT_REFERENCE_LEADING_CONTEXT,
-    XPROMPT_REFERENCE_MARKER_FRAGMENT,
-    XPROMPT_REFERENCE_NAME_FRAGMENT,
-    XPROMPT_REFERENCE_PATTERN,
-    XPromptReference,
-    XPromptReferenceArgKind,
-    XPromptReferenceMarker,
-    iter_xprompt_references,
-    xprompt_reference_from_match,
+    MACRO_REFERENCE_ARGUMENT_FRAGMENT,
+    MACRO_REFERENCE_HITL_SUFFIX_FRAGMENT,
+    MACRO_REFERENCE_LEADING_CONTEXT,
+    MACRO_REFERENCE_MARKER_FRAGMENT,
+    MACRO_REFERENCE_NAME_FRAGMENT,
+    MACRO_REFERENCE_PATTERN,
+    MacroReference,
+    MacroReferenceArgKind,
+    MacroReferenceMarker,
+    iter_macro_references,
+    macro_reference_from_match,
 )
 from ._parsing_shorthand import (
     DOUBLE_COLON_SHORTHAND_PATTERN,
@@ -63,13 +63,13 @@ def _format_as_text_block(text: str) -> str:
     return _shorthand.format_as_text_block(text)
 
 
-def _preprocess_paren_shorthand(prompt: str, xprompt_names: set[str]) -> str:
+def _preprocess_paren_shorthand(prompt: str, macro_names: set[str]) -> str:
     """Compatibility wrapper for tests that import the old private helper."""
-    return _shorthand._preprocess_paren_shorthand(prompt, xprompt_names)
+    return _shorthand._preprocess_paren_shorthand(prompt, macro_names)
 
 
 _VCS_UNDERSCORE_NORMALIZER = _vcs_refs._VCS_UNDERSCORE_NORMALIZER
-_LAUNCH_XPROMPT_AT_REF_RE = _vcs_refs._LAUNCH_XPROMPT_AT_REF_RE
+_LAUNCH_MACRO_AT_REF_RE = _vcs_refs._LAUNCH_MACRO_AT_REF_RE
 _VCS_TAG_PATTERN = _vcs_tags._VCS_TAG_PATTERN
 _VCS_TAG_EMBEDDED_PATTERN = _vcs_tags._VCS_TAG_EMBEDDED_PATTERN
 _VCS_REPLACE_PATTERN = _vcs_tags._VCS_REPLACE_PATTERN
@@ -79,13 +79,13 @@ _SEGMENT_SEPARATOR_RE = _vcs_tags._SEGMENT_SEPARATOR_RE
 
 def _sync_vcs_ref_caches_to_impl() -> None:
     _vcs_refs._VCS_UNDERSCORE_NORMALIZER = _VCS_UNDERSCORE_NORMALIZER
-    _vcs_refs._LAUNCH_XPROMPT_AT_REF_RE = _LAUNCH_XPROMPT_AT_REF_RE
+    _vcs_refs._LAUNCH_MACRO_AT_REF_RE = _LAUNCH_MACRO_AT_REF_RE
 
 
 def _sync_vcs_ref_caches_from_impl() -> None:
-    global _LAUNCH_XPROMPT_AT_REF_RE, _VCS_UNDERSCORE_NORMALIZER  # noqa: PLW0603
+    global _LAUNCH_MACRO_AT_REF_RE, _VCS_UNDERSCORE_NORMALIZER  # noqa: PLW0603
     _VCS_UNDERSCORE_NORMALIZER = _vcs_refs._VCS_UNDERSCORE_NORMALIZER
-    _LAUNCH_XPROMPT_AT_REF_RE = _vcs_refs._LAUNCH_XPROMPT_AT_REF_RE
+    _LAUNCH_MACRO_AT_REF_RE = _vcs_refs._LAUNCH_MACRO_AT_REF_RE
 
 
 def _sync_vcs_tag_caches_to_impl() -> None:
@@ -109,18 +109,18 @@ def normalize_vcs_underscore_refs(prompt: str) -> str:
     return result
 
 
-def _get_launch_xprompt_at_ref_pattern() -> re.Pattern[str]:
+def _get_launch_macro_at_ref_pattern() -> re.Pattern[str]:
     """Return the scoped ``#workflow@ref`` launch-shorthand normalizer."""
     _sync_vcs_ref_caches_to_impl()
-    pattern = _vcs_refs._get_launch_xprompt_at_ref_pattern()
+    pattern = _vcs_refs._get_launch_macro_at_ref_pattern()
     _sync_vcs_ref_caches_from_impl()
     return pattern
 
 
-def normalize_launch_xprompt_at_refs(prompt: str) -> str:
+def normalize_launch_macro_at_refs(prompt: str) -> str:
     """Normalize mobile/Telegram ``#workflow@ref`` launch shorthand."""
     _sync_vcs_ref_caches_to_impl()
-    result = _vcs_refs.normalize_launch_xprompt_at_refs(prompt)
+    result = _vcs_refs.normalize_launch_macro_at_refs(prompt)
     _sync_vcs_ref_caches_from_impl()
     return result
 
@@ -268,24 +268,24 @@ __all__ = [
     "DEFAULT_VCS_WORKFLOW_PREFIX",
     "DOUBLE_COLON_SHORTHAND_PATTERN",
     "SHORTHAND_PATTERN",
-    "XPROMPT_REFERENCE_ARGUMENT_FRAGMENT",
-    "XPROMPT_REFERENCE_HITL_SUFFIX_FRAGMENT",
-    "XPROMPT_REFERENCE_LEADING_CONTEXT",
-    "XPROMPT_REFERENCE_MARKER_FRAGMENT",
-    "XPROMPT_REFERENCE_NAME_FRAGMENT",
-    "XPROMPT_REFERENCE_PATTERN",
-    "XPromptArgSpan",
-    "XPromptReference",
-    "XPromptReferenceArgKind",
-    "XPromptReferenceMarker",
+    "MACRO_REFERENCE_ARGUMENT_FRAGMENT",
+    "MACRO_REFERENCE_HITL_SUFFIX_FRAGMENT",
+    "MACRO_REFERENCE_LEADING_CONTEXT",
+    "MACRO_REFERENCE_MARKER_FRAGMENT",
+    "MACRO_REFERENCE_NAME_FRAGMENT",
+    "MACRO_REFERENCE_PATTERN",
+    "MacroArgSpan",
+    "MacroReference",
+    "MacroReferenceArgKind",
+    "MacroReferenceMarker",
     "_format_as_text_block",
     "_parse_named_arg",
     "_preprocess_paren_shorthand",
     "_process_text_block",
-    "decode_xprompt_arg_value",
-    "decode_xprompt_args",
+    "decode_macro_arg_value",
+    "decode_macro_args",
     "double_colon_text_start",
-    "escape_for_xprompt",
+    "escape_for_macro",
     "extract_project_from_vcs_tag",
     "extract_known_project_vcs_ref",
     "extract_vcs_workflow_tag",
@@ -299,8 +299,8 @@ __all__ = [
     "find_vcs_workflow_tag_span",
     "inherit_vcs_workflow_tag",
     "iter_known_project_vcs_refs",
-    "iter_xprompt_references",
-    "normalize_launch_xprompt_at_refs",
+    "iter_macro_references",
+    "normalize_launch_macro_at_refs",
     "normalize_vcs_underscore_refs",
     "normalize_default_vcs_workflow",
     "normalize_default_vcs_workflow_segment",
@@ -313,5 +313,5 @@ __all__ = [
     "resolve_known_project_ref",
     "strip_hitl_suffix",
     "strip_vcs_workflow_tag",
-    "xprompt_reference_from_match",
+    "macro_reference_from_match",
 ]

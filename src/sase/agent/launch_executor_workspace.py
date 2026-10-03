@@ -28,7 +28,7 @@ def spawn_slot_with_workspace_retry(
     workflow_name: str,
     timestamp: str,
     extra_env: dict[str, str] | None,
-    local_xprompts_file: str | None,
+    local_macros_file: str | None,
     name_reservation: LaunchNameReservationEvidence | None = None,
     spawn: SpawnCallback,
 ) -> tuple[LaunchSpawnRequest, AgentLaunchResult | None]:
@@ -64,7 +64,7 @@ def spawn_slot_with_workspace_retry(
                 is_home_mode=context.is_home_mode,
                 vcs_ref=context.vcs_ref,
                 deferred_workspace=context.deferred_workspace,
-                local_xprompts_file=local_xprompts_file,
+                local_macros_file=local_macros_file,
                 extra_env=extra_env,
                 transfer_from_pid=transfer_from_pid,
                 name_reservation=name_reservation,

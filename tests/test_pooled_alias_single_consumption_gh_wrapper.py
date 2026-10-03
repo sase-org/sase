@@ -20,7 +20,7 @@ from sase.axe.run_agent_phases import extract_directives_and_write_meta
 from sase.llm_provider.messages import AIMessage
 from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
 from sase.macro.models import InputArg, InputType, create_anonymous_workflow
-from sase.macro.tags import XPromptTag
+from sase.macro.tags import MacroTag
 from sase.macro.workflow_models import Workflow, WorkflowStep
 from tests._model_alias_defaults_fixture import frozen_selector_provider_model_effort
 
@@ -66,7 +66,7 @@ def _gh_workflow_catalog() -> dict[str, Workflow]:
                     prompt_part="Project: {{ project }}",
                 )
             ],
-            tags=frozenset({XPromptTag.vcs}),
+            tags=frozenset({MacroTag.vcs}),
         )
     }
 

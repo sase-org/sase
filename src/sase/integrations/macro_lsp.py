@@ -1,4 +1,4 @@
-"""Launch support for the SASE xprompt language server."""
+"""Launch support for the SASE macro language server."""
 
 from __future__ import annotations
 
@@ -49,20 +49,20 @@ XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 MACRO_LSP_BINARY = "sase-macro-lsp"
 
 
-class XPromptLspLaunchError(RuntimeError):
-    """User-facing xprompt LSP startup error."""
+class MacroLspLaunchError(RuntimeError):
+    """User-facing macro LSP startup error."""
 
 
-_XPromptLspLaunchError = XPromptLspLaunchError
+_MacroLspLaunchError = MacroLspLaunchError
 
 
-def handle_xprompt_lsp_command(args: argparse.Namespace) -> NoReturn:
-    """Exec the Rust xprompt LSP server for clean stdio and signal handling."""
+def handle_macro_lsp_command(args: argparse.Namespace) -> NoReturn:
+    """Exec the Rust macro LSP server for clean stdio and signal handling."""
     try:
-        argv = _build_xprompt_lsp_argv(args)
-        _prepare_xprompt_lsp_environment(os.environ)
+        argv = _build_macro_lsp_argv(args)
+        _prepare_macro_lsp_environment(os.environ)
         os.execvp(argv[0], argv)
-    except XPromptLspLaunchError as exc:
+    except MacroLspLaunchError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     except OSError as exc:
@@ -72,7 +72,7 @@ def handle_xprompt_lsp_command(args: argparse.Namespace) -> NoReturn:
     raise AssertionError("os.execvp unexpectedly returned")
 
 
-def _build_xprompt_lsp_argv(
+def _build_macro_lsp_argv(
     args: argparse.Namespace,
     *,
     environ: Mapping[str, str] | None = None,
@@ -80,7 +80,7 @@ def _build_xprompt_lsp_argv(
     repo_root: Path | None = None,
 ) -> list[str]:
     """Resolve the LSP command and append wrapper/server arguments."""
-    command = _resolve_xprompt_lsp_command(
+    command = _resolve_macro_lsp_command(
         environ=os.environ if environ is None else environ,
         which=which,
         repo_root=repo_root,
@@ -89,21 +89,21 @@ def _build_xprompt_lsp_argv(
     return [*command, *server_args]
 
 
-def resolve_xprompt_lsp_command(
+def resolve_macro_lsp_command(
     *,
     environ: Mapping[str, str],
     which: Callable[[str], str | None] = shutil.which,
     repo_root: Path | None = None,
 ) -> tuple[str, ...]:
-    """Resolve the xprompt LSP server command without launching it."""
-    return _resolve_xprompt_lsp_command(
+    """Resolve the macro LSP server command without launching it."""
+    return _resolve_macro_lsp_command(
         environ=environ,
         which=which,
         repo_root=repo_root,
     )
 
 
-def _resolve_xprompt_lsp_command(
+def _resolve_macro_lsp_command(
     *,
     environ: Mapping[str, str],
     which: Callable[[str], str | None],
@@ -114,7 +114,7 @@ def _resolve_xprompt_lsp_command(
         try:
             command = tuple(shlex.split(override))
         except ValueError as exc:
-            raise XPromptLspLaunchError(
+            raise MacroLspLaunchError(
                 f"{SASE_XPROMPT_LSP_CMD_ENV} is not a valid shell-style command: {exc}"
             ) from exc
         if command:
@@ -125,7 +125,7 @@ def _resolve_xprompt_lsp_command(
             )
             return recovered or command
 
-    venv_binary = _first_existing_xprompt_lsp_binary(Path(sys.executable).parent)
+    venv_binary = _first_existing_macro_lsp_binary(Path(sys.executable).parent)
     if venv_binary is not None:
         return (str(venv_binary),)
 
@@ -135,7 +135,7 @@ def _resolve_xprompt_lsp_command(
 
     root = repo_root or Path(__file__).resolve().parents[3]
     sibling_core = root.parent / "sase-core"
-    target_binary = _newest_existing_xprompt_lsp_binary(
+    target_binary = _newest_existing_macro_lsp_binary(
         (
             sibling_core / "target" / "debug",
             sibling_core / "target" / "release",
@@ -157,7 +157,7 @@ def _resolve_xprompt_lsp_command(
             "--",
         )
 
-    raise XPromptLspLaunchError(
+    raise MacroLspLaunchError(
         "xprompt LSP binary not found; install `sase-macro-lsp` (or legacy "
         f"`sase-xprompt-lsp`) into the current venv, install it on PATH, or set {SASE_XPROMPT_LSP_CMD_ENV}"
     )
@@ -170,20 +170,20 @@ def _lsp_cargo_package(sibling_core: Path) -> str:
     return "sase_xprompt_lsp"
 
 
-def _first_existing_xprompt_lsp_binary(directory: Path) -> Path | None:
-    for candidate in _xprompt_lsp_binary_candidates(directory):
+def _first_existing_macro_lsp_binary(directory: Path) -> Path | None:
+    for candidate in _macro_lsp_binary_candidates(directory):
         if candidate.is_file():
             return candidate
     return None
 
 
-def _newest_existing_xprompt_lsp_binary(
+def _newest_existing_macro_lsp_binary(
     directories: Sequence[Path],
 ) -> Path | None:
     candidates = [
         candidate
         for directory in directories
-        for candidate in _xprompt_lsp_binary_candidates(directory)
+        for candidate in _macro_lsp_binary_candidates(directory)
         if candidate.is_file()
     ]
     if not candidates:
@@ -191,11 +191,11 @@ def _newest_existing_xprompt_lsp_binary(
     return max(candidates, key=_mtime_ns)
 
 
-def _xprompt_lsp_binary_candidates(directory: Path) -> tuple[Path, ...]:
-    return tuple(directory / name for name in _xprompt_lsp_binary_names())
+def _macro_lsp_binary_candidates(directory: Path) -> tuple[Path, ...]:
+    return tuple(directory / name for name in _macro_lsp_binary_names())
 
 
-def _xprompt_lsp_binary_names() -> tuple[str, ...]:
+def _macro_lsp_binary_names() -> tuple[str, ...]:
     if os.name == "nt":
         return (
             f"{MACRO_LSP_BINARY}.exe",
@@ -266,10 +266,10 @@ def _set_catalog_env(
     environ.setdefault(legacy_key, environ[macro_key])
 
 
-def _prepare_xprompt_lsp_environment(
+def _prepare_macro_lsp_environment(
     environ: MutableMapping[str, str], package_dir: Path | None = None
 ) -> None:
-    """Expose package xprompt locations to the Rust LSP catalog loader."""
+    """Expose package macro locations to the Rust LSP catalog loader."""
     root = package_dir or Path(__file__).resolve().parents[1]
     defaults = {
         SASE_SKILL_BUILTIN_DIR_ENV: str(get_sase_package_skills_dir(root)),
@@ -304,7 +304,7 @@ def _prepare_xprompt_lsp_environment(
         ]
     if SASE_MACRO_PLUGIN_DIRS_JSON_ENV not in environ:
         environ[SASE_MACRO_PLUGIN_DIRS_JSON_ENV] = json.dumps(
-            _discover_plugin_xprompt_dirs()
+            _discover_plugin_macro_dirs()
         )
     environ.setdefault(
         SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV, environ[SASE_MACRO_PLUGIN_DIRS_JSON_ENV]
@@ -346,7 +346,7 @@ def _default_vcs_project_catalog_path() -> Path:
 def _materialize_vcs_project_catalog(environ: MutableMapping[str, str]) -> None:
     """Write the enabled project/PR completion catalog and expose its path.
 
-    The Rust xprompt LSP re-reads this JSON file on every ``+`` completion
+    The Rust macro LSP re-reads this JSON file on every ``+`` completion
     request, so project changes are reflected after the file is rewritten.
     Writing is best-effort: an empty or missing catalog only means the ``+``
     menu shows nothing, and must never prevent the LSP from starting. The path
@@ -387,7 +387,7 @@ def _default_machine_catalog_path() -> Path:
 def _materialize_model_catalog(environ: MutableMapping[str, str]) -> None:
     """Write the ``%model`` completion catalog and expose its path.
 
-    The Rust xprompt LSP re-reads this JSON file on every ``%model`` argument
+    The Rust macro LSP re-reads this JSON file on every ``%model`` argument
     completion request. Writing is best-effort so LSP startup is never blocked
     by provider/config metadata issues.
     """
@@ -515,13 +515,13 @@ def _apply_agent_holds_flag(environ: MutableMapping[str, str]) -> None:
     environ[SASE_AGENT_HOLDS_ENV] = "1"
 
 
-def _discover_plugin_xprompt_dirs() -> list[dict[str, str]]:
-    """Return concrete plugin xprompt directories for the Rust LSP loader."""
+def _discover_plugin_macro_dirs() -> list[dict[str, str]]:
+    """Return concrete plugin macro directories for the Rust LSP loader."""
     return _discover_plugin_resource_dirs("xprompts")
 
 
 def _discover_plugin_resource_dirs(resource_dir: str) -> list[dict[str, str]]:
-    """Return concrete plugin xprompt, skill, or ref resource directories."""
+    """Return concrete plugin macro, skill, or ref resource directories."""
     if is_plugin_disabled("XPROMPTS"):
         return []
 

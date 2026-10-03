@@ -1,4 +1,4 @@
-"""Snapshot tests for pure functions in xprompt.workflow_output."""
+"""Snapshot tests for pure functions in macro.workflow_output."""
 
 from inline_snapshot import snapshot
 

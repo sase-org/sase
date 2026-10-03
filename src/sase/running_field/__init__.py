@@ -14,7 +14,7 @@ Where:
 - CL_NAME is the Patch name being worked on (optional, can be empty)
 
 Two WORKFLOW label forms are reserved wrappers around an inner identity:
-``workflow(<name>)`` marks an xprompt workflow claim, and ``lease(<workflow>)``
+``workflow(<name>)`` marks a macro workflow claim, and ``lease(<workflow>)``
 marks a machine-owned operational workspace lease that is not an agent run.
 """
 

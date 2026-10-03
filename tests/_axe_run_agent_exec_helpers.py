@@ -33,7 +33,7 @@ def make_exec_ctx(
         agent_vcs_provider=None,
         agent_hidden=False,
         agent_meta={},
-        local_xprompts={},
+        local_macros={},
     )
 
 

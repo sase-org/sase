@@ -296,7 +296,7 @@ async def test_commit_snapshot_scopes_to_the_prompt_target_project(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._xprompt_arg_hints.canonical_xprompt_project",
+        "sase.ace.tui.widgets._xprompt_arg_hints.canonical_macro_project",
         lambda project: project,
     )
     app = CompletionTestApp()
@@ -333,7 +333,7 @@ async def test_vcs_tag_uses_target_project_catalog_for_dynamic_kind(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._xprompt_arg_hints.canonical_xprompt_project",
+        "sase.ace.tui.widgets._xprompt_arg_hints.canonical_macro_project",
         lambda _project: "proj",
     )
     app = CompletionTestApp()

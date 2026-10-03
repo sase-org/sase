@@ -54,7 +54,7 @@
           {% for entry in entries %}
             <div class="toc-entry">
               <span class="toc-entry-name">
-                <span style="color: var(--accent);">#</span>{{ entry.xprompt.name }}
+                <span style="color: var(--accent);">#</span>{{ entry.macro_def.name }}
               </span>
               <span class="toc-entry-dots"></span>
               {% if project %}
@@ -161,7 +161,7 @@
       {% endif %}
 
       {% for entry in entries %}
-        {% set xp = entry.xprompt %}
+        {% set xp = entry.macro_def %}
         {% set truncated = xp.content | truncate_content(xp.source_path) %}
         {% set signature = xp.inputs | format_inputs %}
         {% set described_inputs = xp.inputs | rejectattr('is_step_input') | selectattr('description') | list %}

@@ -1,51 +1,51 @@
-"""Tests for xprompt swarm expansion."""
+"""Tests for macro swarm expansion."""
 
 from __future__ import annotations
 
 import pytest
 
 from sase.agent.macro_swarm import (
-    _XpromptSwarmUsageError,
-    expand_xprompt_swarms_with_metadata,
+    _MacroSwarmUsageError,
+    expand_macro_swarms_with_metadata,
 )
 from sase.macro.models import InputArg, InputType
 
 from tests._macro_swarm_helpers import (
-    expand_xprompt_swarms,
+    expand_macro_swarms,
     patch_catalog,
     xp,
 )
 
 
 def test_plain_segment_metadata_has_empty_swarm_chain() -> None:
-    out = expand_xprompt_swarms_with_metadata(["plain segment"])
+    out = expand_macro_swarms_with_metadata(["plain segment"])
 
     assert [record.prompt for record in out] == ["plain segment"]
     assert [record.template_group for record in out] == [None]
-    assert [record.swarm_xprompts for record in out] == [()]
+    assert [record.swarm_macros for record in out] == [()]
 
 
-def test_expand_single_segment_xprompt_unchanged() -> None:
-    """Xprompt with no separators in body → segments untouched."""
+def test_expand_single_segment_macro_unchanged() -> None:
+    """Macro with no separators in body → segments untouched."""
     catalog = {"single": xp("single", "just one body")}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#single"])
+        out = expand_macro_swarms(["#single"])
     assert out == ["#single"]
 
 
-def test_bang_single_segment_xprompt_invalid() -> None:
-    """Ordinary xprompts remain embeddable and cannot use the standalone marker."""
+def test_bang_single_segment_macro_invalid() -> None:
+    """Ordinary macros remain embeddable and cannot use the standalone marker."""
     catalog = {"single": xp("single", "just one body")}
     with patch_catalog(catalog):
-        with pytest.raises(_XpromptSwarmUsageError, match=r"Use `#single`"):
-            expand_xprompt_swarms(["#!single"])
+        with pytest.raises(_MacroSwarmUsageError, match=r"Use `#single`"):
+            expand_macro_swarms(["#!single"])
 
 
-def test_expand_three_segment_xprompt() -> None:
-    """Xprompt body with 3 segments → 3 sub-segments after expansion."""
+def test_expand_three_segment_macro() -> None:
+    """Macro body with 3 segments → 3 sub-segments after expansion."""
     catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!three"])
+        out = expand_macro_swarms(["#!three"])
     assert out == ["phase A", "phase B", "phase C"]
 
 
@@ -61,18 +61,18 @@ def test_static_if_false_omits_swarm_segment_before_nested_expansion() -> None:
         "nested": xp("nested", "SHOULD EXPAND\n---\nSHOULD ALSO EXPAND"),
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!outer"])
+        out = expand_macro_swarms(["#!outer"])
     assert out == ["phase A", "phase C"]
 
     with patch_catalog(catalog):
-        included = expand_xprompt_swarms(["#!outer(include_nested=true)"])
+        included = expand_macro_swarms(["#!outer(include_nested=true)"])
     assert included == ["phase A", "SHOULD EXPAND", "SHOULD ALSO EXPAND", "phase C"]
 
 
-def test_expand_three_segment_xprompt_metadata_groups_one_invocation() -> None:
+def test_expand_three_segment_macro_metadata_groups_one_invocation() -> None:
     catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms_with_metadata(["#!three"])
+        out = expand_macro_swarms_with_metadata(["#!three"])
 
     assert [record.prompt for record in out] == ["phase A", "phase B", "phase C"]
     assert [record.template_group for record in out] == [
@@ -80,17 +80,17 @@ def test_expand_three_segment_xprompt_metadata_groups_one_invocation() -> None:
         "xprompt:three:0",
         "xprompt:three:0",
     ]
-    assert [record.swarm_xprompts for record in out] == [
+    assert [record.swarm_macros for record in out] == [
         ("three",),
         ("three",),
         ("three",),
     ]
 
 
-def test_expand_two_xprompt_invocations_get_distinct_metadata_groups() -> None:
+def test_expand_two_macro_invocations_get_distinct_metadata_groups() -> None:
     catalog = {"two": xp("two", "phase A\n---\nphase B")}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms_with_metadata(["#!two", "#!two"])
+        out = expand_macro_swarms_with_metadata(["#!two", "#!two"])
 
     assert [record.prompt for record in out] == [
         "phase A",
@@ -106,18 +106,18 @@ def test_expand_two_xprompt_invocations_get_distinct_metadata_groups() -> None:
     ]
 
 
-def test_bare_xprompt_swarm_expands_as_sole_segment() -> None:
+def test_bare_macro_swarm_expands_as_sole_segment() -> None:
     catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#three"])
+        out = expand_macro_swarms(["#three"])
     assert out == ["phase A", "phase B", "phase C"]
 
 
-def test_bang_xprompt_swarm_remains_accepted_for_compatibility() -> None:
+def test_bang_macro_swarm_remains_accepted_for_compatibility() -> None:
     catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with patch_catalog(catalog):
-        bare = expand_xprompt_swarms(["#three"])
-        bang = expand_xprompt_swarms(["#!three"])
+        bare = expand_macro_swarms(["#three"])
+        bang = expand_macro_swarms(["#!three"])
     assert bang == bare
 
 
@@ -131,7 +131,7 @@ def test_expand_with_positional_args() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!three(login bug fix)"])
+        out = expand_macro_swarms(["#!three(login bug fix)"])
     assert out == [
         "Plan for login bug fix.",
         "Implement login bug fix.",
@@ -148,9 +148,7 @@ def test_expand_with_colon_arg_decodes_plus_space_substitution() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(
-            ["#!two:/Users/me/Library/Application+Support/sase"]
-        )
+        out = expand_macro_swarms(["#!two:/Users/me/Library/Application+Support/sase"])
     assert out == [
         "Plan /Users/me/Library/Application Support/sase.",
         "Use /Users/me/Library/Application Support/sase.",
@@ -169,12 +167,12 @@ def test_expand_with_named_args() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!two(x=A, y=B)"])
+        out = expand_macro_swarms(["#!two(x=A, y=B)"])
     assert out == ["Run with A and B", "A/B done"]
 
 
 def test_expand_jinja_in_body() -> None:
-    """Jinja2 expressions in an xprompt swarm body resolve once across segments."""
+    """Jinja2 expressions in a macro swarm body resolve once across segments."""
     body = (
         "{% if include_plan %}Plan first.{% endif %}\n"
         "---\n"
@@ -193,7 +191,7 @@ def test_expand_jinja_in_body() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!loop(login, include_plan=true)"])
+        out = expand_macro_swarms(["#!loop(login, include_plan=true)"])
     assert len(out) == 3
     assert out[0] == "Plan first."
     assert out[1] == "Implement login."
@@ -201,17 +199,17 @@ def test_expand_jinja_in_body() -> None:
 
 
 def test_expand_mixed_with_prose_embeds_first_segment() -> None:
-    """Xprompt swarm referenced mid-prose embeds its first sub-prompt."""
+    """Macro swarm referenced mid-prose embeds its first sub-prompt."""
     catalog = {"three": xp("three", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms_with_metadata(["Hello #three world"])
+        out = expand_macro_swarms_with_metadata(["Hello #three world"])
     assert [record.prompt for record in out] == ["Hello a world", "b", "c"]
     assert [record.template_group for record in out] == [
         "xprompt:three:0",
         "xprompt:three:0",
         "xprompt:three:0",
     ]
-    assert [record.swarm_xprompts for record in out] == [
+    assert [record.swarm_macros for record in out] == [
         ("three",),
         ("three",),
         ("three",),
@@ -227,7 +225,7 @@ def test_expand_inline_with_shorthand_args() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#three:: login flow"])
+        out = expand_macro_swarms(["#three:: login flow"])
     assert out == ["Plan login flow", "Build login flow", "Test login flow"]
 
 
@@ -240,7 +238,7 @@ def test_expand_inline_with_shorthand_args_preserves_parentheses() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#three:: login flow (oauth)"])
+        out = expand_macro_swarms(["#three:: login flow (oauth)"])
     assert out == [
         "Plan login flow (oauth)",
         "Build login flow (oauth)",
@@ -259,7 +257,7 @@ def test_expand_research_swarm_style_shorthand_preserves_parentheses() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#research_swarm:: find foo (bar)"])
+        out = expand_macro_swarms(["#research_swarm:: find foo (bar)"])
     assert out == [
         "find foo (bar) #research",
         "%w #fork #research/more %m:opus",
@@ -276,6 +274,6 @@ def test_expand_inline_double_colon_eol_matches_same_line() -> None:
         )
     }
     with patch_catalog(catalog):
-        eol = expand_xprompt_swarms(["#three::\nlogin flow"])
-        same = expand_xprompt_swarms(["#three:: login flow"])
+        eol = expand_macro_swarms(["#three::\nlogin flow"])
+        same = expand_macro_swarms(["#three:: login flow"])
     assert eol == same == ["Plan login flow", "Build login flow", "Test login flow"]

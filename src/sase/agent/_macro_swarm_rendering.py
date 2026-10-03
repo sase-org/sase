@@ -1,4 +1,4 @@
-"""Rendered-segment preparation for xprompt swarm expansion."""
+"""Rendered-segment preparation for macro swarm expansion."""
 
 from __future__ import annotations
 
@@ -15,24 +15,24 @@ from sase.macro._fenced_blocks import (
     protect_fenced_blocks_only,
     unprotect_fenced_blocks,
 )
-from sase.macro.models import XPrompt
-from sase.macro.processor import expand_single_xprompt
+from sase.macro.models import Macro
+from sase.macro.processor import expand_single_macro
 
 
-def render_xprompt_swarm(
-    xprompt: XPrompt,
+def render_macro_swarm(
+    macro_def: Macro,
     positional_args: list[str],
     named_args: dict[str, str],
     qualification_counter: Iterator[int],
 ) -> list[str]:
-    substituted = expand_single_xprompt(
-        xprompt,
+    substituted = expand_single_macro(
+        macro_def,
         positional_args,
         named_args,
         preserve_segment_separators=True,
     )
     qualification_prefix = _next_key_qualification_prefix(
-        xprompt.name, qualification_counter
+        macro_def.name, qualification_counter
     )
     return [
         _qualify_agent_name_key_markers(segment, qualification_prefix)
@@ -41,17 +41,17 @@ def render_xprompt_swarm(
 
 
 def _next_key_qualification_prefix(
-    xprompt_name: str, qualification_counter: Iterator[int]
+    macro_name: str, qualification_counter: Iterator[int]
 ) -> str:
     from sase.core.time import generate_timestamp
 
-    name = re.sub(r"[^A-Za-z0-9]+", ".", xprompt_name).strip(".") or "xprompt"
+    name = re.sub(r"[^A-Za-z0-9]+", ".", macro_name).strip(".") or "xprompt"
     timestamp = generate_timestamp().replace("_", ".")
     return f"{name}.{timestamp}.{next(qualification_counter)}"
 
 
 def _qualify_agent_name_key_markers(text: str, prefix: str) -> str:
-    """Namespace unqualified keyed markers for one xprompt invocation."""
+    """Namespace unqualified keyed markers for one macro invocation."""
     if "{@" not in text:
         return text
 

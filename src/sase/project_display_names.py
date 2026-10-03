@@ -316,9 +316,9 @@ def invalidate_project_display_snapshot(
     _HUMANIZE_CACHE_GEN += 1
     _HUMANIZE_CACHE.clear()
 
-    from sase.macro.project_identity import invalidate_xprompt_project_identity
+    from sase.macro.project_identity import invalidate_macro_project_identity
 
-    invalidate_xprompt_project_identity()
+    invalidate_macro_project_identity()
 
 
 def _project_display_name_map_cached(

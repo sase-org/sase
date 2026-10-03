@@ -11,11 +11,11 @@ from pathlib import Path
 import pytest
 
 from sase.history.vcs_macro_mru import (
-    _load_vcs_xprompt_mru,
-    load_launchable_vcs_xprompt_mru,
-    load_launchable_vcs_xprompt_mru_pairs,
+    _load_vcs_macro_mru,
+    load_launchable_vcs_macro_mru,
+    load_launchable_vcs_macro_mru_pairs,
     mru_prefix_project_name,
-    record_vcs_xprompt_usage,
+    record_vcs_macro_usage,
 )
 from tests._vcs_macro_mru_helpers import (
     patch_discovered_workflow_type_as_git,
@@ -58,7 +58,7 @@ def test_load_launchable_humanizes_project_name_and_keeps_disk_canonical(
     patch_discovered_workflow_type_as_git(monkeypatch)
 
     with patched_mru_file(fake):
-        result = load_launchable_vcs_xprompt_mru(projects_dir)
+        result = load_launchable_vcs_macro_mru(projects_dir)
 
     assert result == ["#gh:widgets"]
     assert json.loads(fake.read_text()) == {"entries": ["#gh:gh_acme__widgets"]}
@@ -81,7 +81,7 @@ def test_load_launchable_dedupes_humanized_duplicates_in_order(
     patch_discovered_workflow_type_as_git(monkeypatch)
 
     with patched_mru_file(fake):
-        result = load_launchable_vcs_xprompt_mru(projects_dir)
+        result = load_launchable_vcs_macro_mru(projects_dir)
 
     assert result == ["#gh:widgets", "#gh:other"]
 
@@ -113,7 +113,7 @@ def test_load_launchable_keeps_alias_form_entry_via_alias_aware_pruning(
     )
     patch_discovered_workflow_type_as_git(monkeypatch)
 
-    result = load_launchable_vcs_xprompt_mru()
+    result = load_launchable_vcs_macro_mru()
 
     assert result == ["#git:widgets"]
     assert json.loads(mru_file.read_text()) == {"entries": ["#git:widgets"]}
@@ -133,9 +133,9 @@ def test_record_canonicalizes_alias_form_and_dedupes_against_canonical(
 
     patch_discovered_workflow_type_as_git(monkeypatch)
 
-    record_vcs_xprompt_usage("#gh:widgets")
+    record_vcs_macro_usage("#gh:widgets")
 
-    assert _load_vcs_xprompt_mru() == ["#gh:gh_acme__widgets", "#gh:other"]
+    assert _load_vcs_macro_mru() == ["#gh:gh_acme__widgets", "#gh:other"]
 
 
 @pytest.mark.usefixtures("_reset_display_name_cache")
@@ -153,7 +153,7 @@ def test_load_launchable_pairs_returns_canonical_and_display_halves(
     patch_discovered_workflow_type_as_git(monkeypatch)
 
     with patched_mru_file(fake):
-        result = load_launchable_vcs_xprompt_mru_pairs(projects_dir)
+        result = load_launchable_vcs_macro_mru_pairs(projects_dir)
 
     assert result == [("#gh:gh_acme__widgets", "#gh:widgets")]
 
@@ -180,7 +180,7 @@ def test_load_launchable_pairs_agrees_with_display_only_accessor(
 
     Both are built from the same dedupe step, so the display halves of the
     pairs must exactly match (order and length) what
-    :func:`load_launchable_vcs_xprompt_mru` returns.
+    :func:`load_launchable_vcs_macro_mru` returns.
     """
     fake = tmp_path / "vcs_xprompt_mru.json"
     fake.write_text(
@@ -194,8 +194,8 @@ def test_load_launchable_pairs_agrees_with_display_only_accessor(
     patch_discovered_workflow_type_as_git(monkeypatch)
 
     with patched_mru_file(fake):
-        pairs = load_launchable_vcs_xprompt_mru_pairs(projects_dir)
-        displays = load_launchable_vcs_xprompt_mru(projects_dir)
+        pairs = load_launchable_vcs_macro_mru_pairs(projects_dir)
+        displays = load_launchable_vcs_macro_mru(projects_dir)
 
     assert [display for _, display in pairs] == displays
     assert displays == ["#gh:widgets", "#gh:other"]

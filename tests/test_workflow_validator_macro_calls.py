@@ -1,70 +1,70 @@
-"""Tests for xprompt call extraction and validation in workflow_validator."""
+"""Tests for macro call extraction and validation in workflow_validator."""
 
-from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.models import InputArg, InputType, Macro
 from sase.macro.workflow_models import (
     Workflow,
     WorkflowStep,
 )
 from sase.macro.workflow_validator_checks import (
-    detect_unused_xprompt_inputs,
-    detect_unused_xprompts,
-    validate_xprompt_names,
+    detect_unused_macro_inputs,
+    detect_unused_macros,
+    validate_macro_names,
 )
 from sase.macro.workflow_validator_extract import (
-    _XPromptCall,
-    extract_xprompt_calls,
-    validate_xprompt_call,
+    _MacroCall,
+    extract_macro_calls,
+    validate_macro_call,
 )
 
 
-def testextract_xprompt_calls_with_args() -> None:
-    """Test extracting xprompt with parenthesis args."""
-    calls = extract_xprompt_calls('#bar(arg1, name="value")')
+def testextract_macro_calls_with_args() -> None:
+    """Test extracting macro with parenthesis args."""
+    calls = extract_macro_calls('#bar(arg1, name="value")')
     assert len(calls) == 1
     assert calls[0].name == "bar"
     assert calls[0].positional_args == ["arg1"]
     assert calls[0].named_args == {"name": "value"}
 
 
-def testextract_xprompt_calls_colon_syntax() -> None:
-    """Test extracting xprompt with colon syntax."""
-    calls = extract_xprompt_calls("#foo:myvalue")
+def testextract_macro_calls_colon_syntax() -> None:
+    """Test extracting macro with colon syntax."""
+    calls = extract_macro_calls("#foo:myvalue")
     assert len(calls) == 1
     assert calls[0].name == "foo"
     assert calls[0].positional_args == ["myvalue"]
     assert calls[0].named_args == {}
 
 
-def testextract_xprompt_calls_plus_syntax() -> None:
-    """Test extracting xprompt with plus syntax."""
-    calls = extract_xprompt_calls("#foo+")
+def testextract_macro_calls_plus_syntax() -> None:
+    """Test extracting macro with plus syntax."""
+    calls = extract_macro_calls("#foo+")
     assert len(calls) == 1
     assert calls[0].name == "foo"
     assert calls[0].positional_args == ["true"]
     assert calls[0].named_args == {}
 
 
-def testextract_xprompt_calls_fstring_placeholder() -> None:
+def testextract_macro_calls_fstring_placeholder() -> None:
     """Single-brace `{path}` placeholder counts as one positional arg."""
-    calls = extract_xprompt_calls("#foo:{path}")
+    calls = extract_macro_calls("#foo:{path}")
     assert len(calls) == 1
     assert calls[0].name == "foo"
     assert calls[0].positional_args == ["{path}"]
     assert calls[0].named_args == {}
 
 
-def testextract_xprompt_calls_jinja_still_preferred_over_single_brace() -> None:
+def testextract_macro_calls_jinja_still_preferred_over_single_brace() -> None:
     """`{{ var }}` Jinja form keeps matching ahead of the new single-brace form."""
-    calls = extract_xprompt_calls("#foo:{{ var }}")
+    calls = extract_macro_calls("#foo:{{ var }}")
     assert len(calls) == 1
     assert calls[0].name == "foo"
     assert calls[0].positional_args == ["{{ var }}"]
     assert calls[0].named_args == {}
 
 
-def testextract_xprompt_calls_ignores_disabled_regions() -> None:
-    """Xprompt-looking examples in disabled regions are not validation calls."""
-    calls = extract_xprompt_calls(
+def testextract_macro_calls_ignores_disabled_regions() -> None:
+    """Macro-looking examples in disabled regions are not validation calls."""
+    calls = extract_macro_calls(
         "live #real\n"
         "%xprompts_enabled:false\n"
         "#fake_xprompt\n"
@@ -76,192 +76,192 @@ def testextract_xprompt_calls_ignores_disabled_regions() -> None:
     assert [call.name for call in calls] == ["real"]
 
 
-def testextract_xprompt_calls_preserves_bang_marker() -> None:
+def testextract_macro_calls_preserves_bang_marker() -> None:
     """Validator diagnostics keep the original #! marker."""
-    calls = extract_xprompt_calls("#!foo:{path}")
+    calls = extract_macro_calls("#!foo:{path}")
     assert len(calls) == 1
     assert calls[0].name == "foo"
     assert calls[0].marker == "#!"
     assert calls[0].raw_match == "#!foo:{path}"
 
 
-def testvalidate_xprompt_call_fstring_placeholder_satisfies_required_arg() -> None:
+def testvalidate_macro_call_fstring_placeholder_satisfies_required_arg() -> None:
     """An f-string-style colon arg satisfies a required positional input."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="split_file",
         content="{{ file_path }}",
         inputs=[InputArg(name="file_path", type=InputType.LINE)],
     )
     source = 'f"#split_file:{path}"'
-    calls = extract_xprompt_calls(source)
+    calls = extract_macro_calls(source)
     assert len(calls) == 1
-    errors = validate_xprompt_call(calls[0], xprompt, "step1")
+    errors = validate_macro_call(calls[0], macro_def, "step1")
     assert errors == []
 
 
-def testvalidate_xprompt_call_missing_required_arg() -> None:
+def testvalidate_macro_call_missing_required_arg() -> None:
     """Test validation detects missing required argument."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="test",
         content="{{ required_arg }}",
         inputs=[InputArg(name="required_arg", type=InputType.LINE)],
     )
-    call = _XPromptCall(
+    call = _MacroCall(
         name="test",
         positional_args=[],
         named_args={},
         raw_match="#test",
     )
-    errors = validate_xprompt_call(call, xprompt, "step1")
+    errors = validate_macro_call(call, macro_def, "step1")
     assert len(errors) == 1
     assert "missing required args" in errors[0]
     assert "required_arg" in errors[0]
 
 
-def testvalidate_xprompt_call_unknown_named_arg() -> None:
+def testvalidate_macro_call_unknown_named_arg() -> None:
     """Test validation detects unknown named argument."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="test",
         content="{{ known }}",
         inputs=[InputArg(name="known", type=InputType.LINE, default="default")],
     )
-    call = _XPromptCall(
+    call = _MacroCall(
         name="test",
         positional_args=[],
         named_args={"unknown_arg": "value"},
         raw_match='#test(unknown_arg="value")',
     )
-    errors = validate_xprompt_call(call, xprompt, "step1")
+    errors = validate_macro_call(call, macro_def, "step1")
     assert len(errors) == 1
     assert "has no input named 'unknown_arg'" in errors[0]
     assert "Available:" in errors[0]
 
 
-def testvalidate_xprompt_call_too_many_positional_args() -> None:
+def testvalidate_macro_call_too_many_positional_args() -> None:
     """Test validation detects too many positional arguments."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="test",
         content="{{ one }}",
         inputs=[InputArg(name="one", type=InputType.LINE)],
     )
-    call = _XPromptCall(
+    call = _MacroCall(
         name="test",
         positional_args=["first", "second", "third"],
         named_args={},
         raw_match="#test(first, second, third)",
     )
-    errors = validate_xprompt_call(call, xprompt, "step1")
+    errors = validate_macro_call(call, macro_def, "step1")
     assert len(errors) >= 1
     assert "3 positional args but only 1 inputs defined" in errors[0]
 
 
-def testvalidate_xprompt_call_error_uses_original_marker() -> None:
+def testvalidate_macro_call_error_uses_original_marker() -> None:
     """Argument validation points at #! when that marker was used."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="test",
         content="{{ required_arg }}",
         inputs=[InputArg(name="required_arg", type=InputType.LINE)],
     )
-    call = _XPromptCall(
+    call = _MacroCall(
         name="test",
         positional_args=[],
         named_args={},
         raw_match="#!test",
         marker="#!",
     )
-    errors = validate_xprompt_call(call, xprompt, "step1")
+    errors = validate_macro_call(call, macro_def, "step1")
     assert len(errors) == 1
     assert "Step 'step1': #!test missing required args" in errors[0]
 
 
-def testdetect_unused_xprompts_finds_unused() -> None:
-    """Workflow-local xprompt never referenced → error."""
+def testdetect_unused_macros_finds_unused() -> None:
+    """Workflow-local macro never referenced → error."""
     workflow = Workflow(
         name="test",
         steps=[WorkflowStep(name="step1", bash="echo hi")],
-        xprompts={
-            "_unused": XPrompt(name="_unused", content="some content"),
+        macros={
+            "_unused": Macro(name="_unused", content="some content"),
         },
     )
-    xprompts = dict(workflow.xprompts)
-    errors = detect_unused_xprompts(workflow, xprompts)
+    macros = dict(workflow.macros)
+    errors = detect_unused_macros(workflow, macros)
     assert len(errors) == 1
     assert "_unused" in errors[0]
 
 
-def testdetect_unused_xprompts_used_by_other_xprompt() -> None:
-    """Xprompt referenced by another xprompt → no error."""
+def testdetect_unused_macros_used_by_other_macro() -> None:
+    """Macro referenced by another macro → no error."""
     workflow = Workflow(
         name="test",
         steps=[WorkflowStep(name="step1", agent="Use #_outer here")],
-        xprompts={
-            "_base": XPrompt(name="_base", content="base content"),
-            "_outer": XPrompt(name="_outer", content="wraps #_base"),
+        macros={
+            "_base": Macro(name="_base", content="base content"),
+            "_outer": Macro(name="_outer", content="wraps #_base"),
         },
     )
-    xprompts = dict(workflow.xprompts)
-    errors = detect_unused_xprompts(workflow, xprompts)
+    macros = dict(workflow.macros)
+    errors = detect_unused_macros(workflow, macros)
     assert errors == []
 
 
-def testdetect_unused_xprompt_inputs_finds_unused() -> None:
-    """Xprompt input not in content → error."""
+def testdetect_unused_macro_inputs_finds_unused() -> None:
+    """Macro input not in content → error."""
     workflow = Workflow(
         name="test",
         steps=[],
-        xprompts={
-            "_helper": XPrompt(
+        macros={
+            "_helper": Macro(
                 name="_helper",
                 content="no vars here",
                 inputs=[InputArg(name="unused_arg", type=InputType.LINE)],
             ),
         },
     )
-    errors = detect_unused_xprompt_inputs(workflow)
+    errors = detect_unused_macro_inputs(workflow)
     assert len(errors) == 1
     assert "unused_arg" in errors[0]
     assert "_helper" in errors[0]
 
 
-def testdetect_unused_xprompt_inputs_used() -> None:
-    """Xprompt input referenced in content → no error."""
+def testdetect_unused_macro_inputs_used() -> None:
+    """Macro input referenced in content → no error."""
     workflow = Workflow(
         name="test",
         steps=[],
-        xprompts={
-            "_helper": XPrompt(
+        macros={
+            "_helper": Macro(
                 name="_helper",
                 content="Use {{ my_arg }} here",
                 inputs=[InputArg(name="my_arg", type=InputType.LINE)],
             ),
         },
     )
-    errors = detect_unused_xprompt_inputs(workflow)
+    errors = detect_unused_macro_inputs(workflow)
     assert errors == []
 
 
-def testvalidate_xprompt_names_missing_underscore() -> None:
-    """Xprompt name without '_' prefix → error."""
+def testvalidate_macro_names_missing_underscore() -> None:
+    """Macro name without '_' prefix → error."""
     workflow = Workflow(
         name="test",
         steps=[WorkflowStep(name="step1", bash="echo hi")],
-        xprompts={
-            "foo": XPrompt(name="foo", content="some content"),
+        macros={
+            "foo": Macro(name="foo", content="some content"),
         },
     )
-    errors = validate_xprompt_names(workflow)
+    errors = validate_macro_names(workflow)
     assert len(errors) == 1
     assert "foo" in errors[0]
     assert "must start with '_'" in errors[0]
     assert "'_foo'" in errors[0]
 
 
-def test_workflow_local_xprompt_with_scope_resolves_step_outputs() -> None:
-    """Workflow-local xprompts with Jinja2 refs resolve via scope."""
-    from sase.macro.processor import process_xprompt_references
+def test_workflow_local_macro_with_scope_resolves_step_outputs() -> None:
+    """Workflow-local macros with Jinja2 refs resolve via scope."""
+    from sase.macro.processor import process_macro_references
 
-    xprompts = {
-        "_research_files": XPrompt(
+    macros = {
+        "_research_files": Macro(
             name="_research_files",
             content="Files: {{ research.api_research.file_path }}",
         ),
@@ -271,9 +271,9 @@ def test_workflow_local_xprompt_with_scope_resolves_step_outputs() -> None:
             "api_research": {"file_path": "/tmp/test.py"},
         },
     }
-    result = process_xprompt_references(
+    result = process_macro_references(
         "Analyze #_research_files",
-        extra_xprompts=xprompts,
+        extra_macros=macros,
         scope=scope,
     )
     assert "Files: /tmp/test.py" in result

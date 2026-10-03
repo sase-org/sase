@@ -115,7 +115,7 @@ def test_wait_time_invalid_value_suggests_positional_wait() -> None:
         extract_prompt_directives(prompt)
 
 
-def test_wait_time_xprompt_colon_form() -> None:
+def test_wait_time_macro_colon_form() -> None:
     """#t:4h expands through preprocessing to wait_duration."""
     result = preprocess_prompt_early("#t:4h\nDo work")
     assert result.prompt.strip() == "Do work"
@@ -123,14 +123,14 @@ def test_wait_time_xprompt_colon_form() -> None:
     assert result.directives.wait_duration == 14400.0
 
 
-def test_wait_time_xprompt_paren_form() -> None:
+def test_wait_time_macro_paren_form() -> None:
     """#t(5m) expands through preprocessing to wait_duration."""
     result = preprocess_prompt_early("#t(5m)\nDo work")
     assert result.prompt.strip() == "Do work"
     assert result.directives.wait_duration == 300.0
 
 
-def test_wait_time_xprompt_named_absolute_time() -> None:
+def test_wait_time_macro_named_absolute_time() -> None:
     """#t(time=300415/0900) expands through preprocessing to wait_until."""
     result = preprocess_prompt_early("#t(time=300415/0900)\nDo work")
     assert result.prompt.strip() == "Do work"
@@ -139,7 +139,7 @@ def test_wait_time_xprompt_named_absolute_time() -> None:
 
 
 @pytest.mark.parametrize("reference", ["#tribe:research", "#tribe(research)"])
-def test_tribe_xprompt_assigns_auto_named_agent(reference: str) -> None:
+def test_tribe_macro_assigns_auto_named_agent(reference: str) -> None:
     with patch("sase.agent.names.get_next_auto_name", return_value="auto7"):
         result = preprocess_prompt_early(f"{reference}\nDo work")
 
@@ -149,7 +149,7 @@ def test_tribe_xprompt_assigns_auto_named_agent(reference: str) -> None:
     assert result.directives.tribe == "research"
 
 
-def test_tribe_xprompt_with_explicit_id_has_actionable_duplicate_error() -> None:
+def test_tribe_macro_with_explicit_id_has_actionable_duplicate_error() -> None:
     with pytest.raises(
         DirectiveError,
         match=r"Duplicate directive '%id'.*%id\(<id>, tribe=<tribe>\)",

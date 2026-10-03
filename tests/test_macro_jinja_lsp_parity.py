@@ -1,7 +1,7 @@
 """LSP/binary parity for Jinja completion.
 
 The Rust engine is the single source of truth for Jinja completion: the
-``sase-xprompt-lsp`` binary calls it directly, and the TUI calls it through
+``sase-macro-lsp`` binary calls it directly, and the TUI calls it through
 :mod:`sase.macro.jinja_assist`. For each shared fixture and cursor, this
 suite runs both surfaces and asserts identical ordered names, kinds,
 source/availability labels, and documentation.
@@ -67,7 +67,7 @@ input:
 Write about {{ ▮ }}.
 """
 
-_XPROMPT_SKILL_DOC = """\
+_MACRO_SKILL_DOC = """\
 ---
 skill: true
 input:
@@ -242,9 +242,9 @@ def test_input_declaring_prompt_hides_run_names(tmp_path: Path) -> None:
     assert {"topic", "root"} <= names
 
 
-def test_xprompt_skill_path_matches_lsp(tmp_path: Path) -> None:
+def test_macro_skill_path_matches_lsp(tmp_path: Path) -> None:
     uri = (tmp_path / "xprompts" / "skill.md").as_uri()
-    text, offset = _split_cursor(_XPROMPT_SKILL_DOC)
+    text, offset = _split_cursor(_MACRO_SKILL_DOC)
     adapter = _check_parity(
         tmp_path,
         text,

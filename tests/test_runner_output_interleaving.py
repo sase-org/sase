@@ -44,7 +44,7 @@ _CHILD_SCRIPT = textwrap.dedent("""\
         artifacts_timestamp="20260712120000",
         artifacts_dir=artifacts_dir,
         output_path=output_path,
-        submitted_xprompt="do work",
+        submitted_prompt="do work",
         prompt="do work",
         is_home_mode=True,
     )

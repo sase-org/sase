@@ -62,14 +62,14 @@ def resolve_link(
     from sase.pager._resolve_skills import (
         is_skill_lookup_candidate,
         is_slash_skill_candidate,
-        resolve_xprompt_skill_link,
+        resolve_macro_skill_link,
     )
 
     stripped = ref.strip()
     if not stripped:
         return LinkResolution()
     if is_skill_lookup_candidate(stripped) and not is_slash_skill_candidate(stripped):
-        return resolve_xprompt_skill_link(
+        return resolve_macro_skill_link(
             stripped, context=context, paint_links=paint_links
         )
     split = split_link_location(stripped)
@@ -82,7 +82,7 @@ def resolve_link(
         )
         if file_resolution.target is not None or not is_slash_skill_candidate(base):
             return file_resolution
-        skill_resolution = resolve_xprompt_skill_link(
+        skill_resolution = resolve_macro_skill_link(
             base, context=context, paint_links=paint_links
         )
         if skill_resolution.target is not None:

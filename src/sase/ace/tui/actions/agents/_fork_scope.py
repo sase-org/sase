@@ -210,11 +210,11 @@ def _raw_vcs_tag(
         replace_ref_in_vcs_tag,
     )
 
-    raw_content = agent.get_raw_xprompt_content()
+    raw_content = agent.get_raw_prompt_content()
     if not raw_content and agent.parent_timestamp:
         for parent in agents:
             if parent.raw_suffix == agent.parent_timestamp:
-                raw_content = parent.get_raw_xprompt_content()
+                raw_content = parent.get_raw_prompt_content()
                 break
     if not raw_content:
         return None
@@ -228,9 +228,9 @@ def _raw_vcs_tag(
     if not agent.is_project_agent:
         return replace_ref_in_vcs_tag(vcs_tag, agent.cl_name)
 
-    from sase.macro.workflow_validator_extract import extract_xprompt_calls
+    from sase.macro.workflow_validator_extract import extract_macro_calls
 
-    if any(call.name == "pr" for call in extract_xprompt_calls(raw_content)):
+    if any(call.name == "pr" for call in extract_macro_calls(raw_content)):
         if not prompt_name:
             return None
         return replace_ref_in_vcs_tag(vcs_tag, f"@{prompt_name}")

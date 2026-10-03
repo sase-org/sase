@@ -32,7 +32,7 @@ class _TeardownResetTrigger:
 _teardown_reset_trigger = _TeardownResetTrigger()
 
 
-def _restore_xprompt_vcs_caches_on_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
+def _restore_macro_vcs_caches_on_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
     """Reset the derived VCS caches again once *monkeypatch* undoes."""
     monkeypatch.setattr(_teardown_reset_trigger, "marker", object())
 
@@ -73,7 +73,7 @@ def patch_git_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(registry, "get_all_workflow_metadata", git_metadata)
     monkeypatch.setattr(workspace_provider, "get_all_workflow_metadata", git_metadata)
     reset_workflow_metadata_caches()
-    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
+    _restore_macro_vcs_caches_on_teardown(monkeypatch)
 
 
 def patch_spy_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,7 +83,7 @@ def patch_spy_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(registry, "get_all_workflow_metadata", spy_metadata)
     monkeypatch.setattr(workspace_provider, "get_all_workflow_metadata", spy_metadata)
     reset_workflow_metadata_caches()
-    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
+    _restore_macro_vcs_caches_on_teardown(monkeypatch)
 
 
 def patch_no_workspace_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -97,7 +97,7 @@ def patch_no_workspace_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
         no_workspace_metadata,
     )
     reset_workflow_metadata_caches()
-    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
+    _restore_macro_vcs_caches_on_teardown(monkeypatch)
 
 
 def patch_simple_git_resolver(

@@ -22,7 +22,7 @@ from sase.bead.project import BeadProject
 
 from .cli_work_helpers import seed_diamond, write_bead_agent_meta
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 def _slot(name: str, *, launch: bool = True) -> BeadWorkSlot:

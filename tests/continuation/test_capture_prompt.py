@@ -17,7 +17,7 @@ from sase.continuation_capture import (
 from sase.continuation_capture.rollout import MONITOR_CONTINUATION_CAPTURE_ENV
 from sase.feature_flags import override_flags
 from sase.llm_provider.preprocessing import preprocess_prompt_early
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 from tests._continuation_capture_helpers import (
@@ -144,11 +144,11 @@ def test_agent_delta_capture_uses_wire_validators_and_exact_authored_text(
     assert delta["final_response_ref"]
 
 
-def test_preprocess_prompt_early_captures_xprompt_expansion_provenance() -> None:
+def test_preprocess_prompt_early_captures_macro_expansion_provenance() -> None:
     result = preprocess_prompt_early(
         "Before #local after",
-        extra_xprompts={
-            "local": XPrompt(
+        extra_macros={
+            "local": Macro(
                 name="local",
                 content="expanded body",
                 source_path="/tmp/local.md",

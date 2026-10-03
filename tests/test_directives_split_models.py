@@ -9,7 +9,7 @@ from sase.macro.directives import (
     extract_prompt_directives,
     split_prompt_for_models,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 def test_split_prompt_for_models_rejects_paren_multi_model() -> None:
@@ -152,14 +152,14 @@ def test_split_prompt_for_models_spaces_in_args() -> None:
     assert result[1] == "%id:foo.cld_sonnet\n%model:sonnet\nDo work"
 
 
-def test_split_prompt_for_models_after_xprompt_expansion() -> None:
-    """Xprompt-expanded model branches are split by split_prompt_for_models."""
-    from sase.macro.processor import process_xprompt_references
+def test_split_prompt_for_models_after_macro_expansion() -> None:
+    """Macro-expanded model branches are split by split_prompt_for_models."""
+    from sase.macro.processor import process_macro_references
 
     # Simulate what happens when #swarm expands to %{%model:opus | %model:sonnet}
     with patch(
-        "sase.macro.processor.process_xprompt_references",
-        wraps=process_xprompt_references,
+        "sase.macro.processor.process_macro_references",
+        wraps=process_macro_references,
     ):
         expanded = "%i:foo\n%{%model:opus | %model:sonnet}\nReview this code"
         result = split_prompt_for_models(expanded)
@@ -169,23 +169,23 @@ def test_split_prompt_for_models_after_xprompt_expansion() -> None:
         assert result[1] == "%id:foo.cld_sonnet\n%model:sonnet\nReview this code"
 
 
-def test_split_prompt_for_models_requires_caller_expanded_xprompt_body() -> None:
-    """The planner splits xprompt-injected model branches after caller expansion."""
-    from sase.macro.processor import process_xprompt_references
+def test_split_prompt_for_models_requires_caller_expanded_macro_body() -> None:
+    """The planner splits macro-injected model branches after caller expansion."""
+    from sase.macro.processor import process_macro_references
 
-    xprompts = {
-        "_fanout": XPrompt(
+    macros = {
+        "_fanout": Macro(
             name="_fanout",
             content="%i:foo\n%{%model:opus | %model:sonnet}\nReview this code",
         ),
     }
 
-    assert split_prompt_for_models("#_fanout", extra_xprompts=xprompts) is None
+    assert split_prompt_for_models("#_fanout", extra_macros=macros) is None
 
-    with patch("sase.macro.processor.get_all_xprompts", return_value={}):
-        expanded = process_xprompt_references("#_fanout", extra_xprompts=xprompts)
+    with patch("sase.macro.processor.get_all_macros", return_value={}):
+        expanded = process_macro_references("#_fanout", extra_macros=macros)
 
-    result = split_prompt_for_models(expanded, extra_xprompts=xprompts)
+    result = split_prompt_for_models(expanded, extra_macros=macros)
     assert result is not None
     assert result == [
         "%id:foo.cld_opus\n%model:opus\nReview this code",
@@ -193,23 +193,23 @@ def test_split_prompt_for_models_requires_caller_expanded_xprompt_body() -> None
     ]
 
 
-def test_split_prompt_for_models_xprompt_model_axis_composes_with_alts() -> None:
-    """An expanded xprompt %model axis composes with raw %( alternative axes.
+def test_split_prompt_for_models_macro_model_axis_composes_with_alts() -> None:
+    """An expanded macro %model axis composes with raw %( alternative axes.
 
     Regression for the launch fan-out shape bug: planning the raw prompt sees
-    only the two %( alternative axes — the launch-shaping xprompt
+    only the two %( alternative axes — the launch-shaping macro
     (#m_opus_codex -> %{%model:opus | %model:#codex}) is still an unexpanded reference,
     so the model dimension is missing and the split yields 4 model-less
-    variants. Expanding the xprompt before planning unlocks the model axis,
+    variants. Expanding the macro before planning unlocks the model axis,
     and %{%model:opus | %model:#codex} joins the Cartesian product:
     2 alts x 2 alts x 2 models = 8 variants, split evenly across the raw
     opus/#codex branches.
     """
-    from sase.macro.processor import process_xprompt_references
+    from sase.macro.processor import process_macro_references
 
     catalog = {
-        "codex": XPrompt(name="codex", content="gpt-5.6-sol"),
-        "m_opus_codex": XPrompt(
+        "codex": Macro(name="codex", content="gpt-5.6-sol"),
+        "m_opus_codex": Macro(
             name="m_opus_codex",
             content="%{%model:opus | %model:#codex}",
         ),
@@ -221,15 +221,15 @@ def test_split_prompt_for_models_xprompt_model_axis_composes_with_alts() -> None
 
     # Raw planning sees only the two %( axes; the model dimension is absent
     # because #m_opus_codex is still an unexpanded reference.
-    raw = split_prompt_for_models(prompt, extra_xprompts=catalog)
+    raw = split_prompt_for_models(prompt, extra_macros=catalog)
     assert raw is not None
     assert len(raw) == 4
     assert all("%model" not in variant for variant in raw)
 
-    # Expanding the launch-shaping xprompt first unlocks the model axis.
-    with patch("sase.macro.processor.get_all_xprompts", return_value={}):
-        expanded = process_xprompt_references(prompt, extra_xprompts=catalog)
-    result = split_prompt_for_models(expanded, extra_xprompts=catalog)
+    # Expanding the launch-shaping macro first unlocks the model axis.
+    with patch("sase.macro.processor.get_all_macros", return_value={}):
+        expanded = process_macro_references(prompt, extra_macros=catalog)
+    result = split_prompt_for_models(expanded, extra_macros=catalog)
     assert result is not None
     assert len(result) == 8
     assert sum("%model:opus" in variant for variant in result) == 4

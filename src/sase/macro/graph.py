@@ -213,7 +213,7 @@ def list_workflows(workflows: dict[str, Workflow]) -> str:
     if not workflows:
         return "No workflows found."
 
-    multi = {n: w for n, w in workflows.items() if not w.is_simple_xprompt()}
+    multi = {n: w for n, w in workflows.items() if not w.is_simple_macro()}
     if not multi:
         return "No multi-step workflows found."
 

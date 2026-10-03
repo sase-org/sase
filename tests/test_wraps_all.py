@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.macro.tags import XPromptTag
+from sase.macro.tags import MacroTag
 from sase.macro.workflow_executor_steps_embedded import (
     EmbeddedWorkflowMixin,
     PendingEmbeddedWorkflow,
@@ -43,7 +43,7 @@ def _make_workflow(
         steps.append(WorkflowStep(name="teardown", bash="echo teardown"))
     else:
         steps.append(WorkflowStep(name="run", agent="Do thing"))
-    tags = frozenset({XPromptTag.vcs}) if wraps_all else frozenset()
+    tags = frozenset({MacroTag.vcs}) if wraps_all else frozenset()
     return Workflow(name=name, steps=steps, wraps_all=wraps_all, tags=tags)
 
 

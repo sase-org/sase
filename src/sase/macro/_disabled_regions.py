@@ -1,9 +1,9 @@
-"""Disabled region protection for xprompt processing.
+"""Disabled region protection for macro processing.
 
 Provides utilities to extract regions enclosed by
 ``%macros_enabled:false`` / ``%macros_enabled:true`` marker pairs (or the
-pre-rename ``%xprompts_enabled:…`` spellings, which stay accepted
-permanently) from text before xprompt expansion and restore them afterward,
+pre-rename ``%macros_enabled:…`` spellings, which stay accepted
+permanently) from text before macro expansion and restore them afterward,
 preventing content inside disabled regions from being processed.
 """
 
@@ -31,7 +31,7 @@ def ensure_disabled_region_at_line_start(content: str, is_at_line_start: bool) -
     """Keep a leading disabled-region marker on a line boundary.
 
     Prompt-part references can appear after other content on the same line.
-    When their rendered content begins with ``%xprompts_enabled:false``, the
+    When their rendered content begins with ``%macros_enabled:false``, the
     marker needs its own line so downstream disabled-region processing can
     recognize it.
     """

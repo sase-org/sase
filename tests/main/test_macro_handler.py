@@ -1,4 +1,4 @@
-"""Tests for the ``sase xprompt`` command handler."""
+"""Tests for the ``sase macro`` command handler."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.main.macro_handler import _handle_expand, _handle_explain, _handle_list
-from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.models import InputArg, InputType, Macro
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
@@ -17,7 +17,7 @@ def _simple_workflow(name: str) -> Workflow:
     return Workflow(name=name, steps=[WorkflowStep(name="prompt", prompt_part="body")])
 
 
-def _xprompt_swarm_workflow(name: str) -> Workflow:
+def _macro_swarm_workflow(name: str) -> Workflow:
     return Workflow(
         name=name,
         steps=[WorkflowStep(name="prompt", prompt_part="one\n---\ntwo")],
@@ -38,7 +38,7 @@ def _standalone_workflow(name: str) -> Workflow:
     return Workflow(name=name, steps=[WorkflowStep(name="run", agent="do it")])
 
 
-def test_xprompt_list_includes_kind_and_insertion(
+def test_macro_list_includes_kind_and_insertion(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     prompts = {
@@ -49,13 +49,13 @@ def test_xprompt_list_includes_kind_and_insertion(
             memory_type="reference",
             steps=[WorkflowStep(name="prompt", prompt_part="Glossary body")],
         ),
-        "multi": _xprompt_swarm_workflow("multi"),
+        "multi": _macro_swarm_workflow("multi"),
         "gh": _embeddable_workflow("gh"),
         "sync": _standalone_workflow("sync"),
     }
     with (
         patch("sase.macro.loader.get_all_prompts", return_value=prompts),
-        patch("sase.macro.loader.get_all_xprompts", return_value={}),
+        patch("sase.macro.loader.get_all_macros", return_value={}),
         patch("sase.macro.loader.get_all_workflows", return_value={}),
         pytest.raises(SystemExit) as exc_info,
     ):
@@ -94,7 +94,7 @@ def test_xprompt_list_includes_kind_and_insertion(
     assert rows["sync"]["insertion"] == "#!sync"
 
 
-def test_xprompt_expand_canonicalizes_project_alias(
+def test_macro_expand_canonicalizes_project_alias(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -110,7 +110,7 @@ def test_xprompt_expand_canonicalizes_project_alias(
     )
     with (
         patch("sase.config.load_merged_config", return_value={"xprompt_aliases": {}}),
-        patch("sase.macro.loader.get_all_xprompts", return_value={}),
+        patch("sase.macro.loader.get_all_macros", return_value={}),
         patch(
             "sase.main.query_handler.expand_embedded_workflows_in_query",
             side_effect=lambda prompt: (prompt, []),
@@ -129,12 +129,12 @@ def test_xprompt_expand_canonicalizes_project_alias(
     assert late_kwargs[0].get("materialize_missing_roots", False) is False
 
 
-def test_xprompt_expand_warns_on_unresolved_reference_on_stderr(
+def test_macro_expand_warns_on_unresolved_reference_on_stderr(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with (
         patch("sase.config.load_merged_config", return_value={"xprompt_aliases": {}}),
-        patch("sase.macro.processor.get_all_xprompts", return_value={}),
+        patch("sase.macro.processor.get_all_macros", return_value={}),
         patch("sase.macro.loader.get_all_prompts", return_value={}),
         patch("sase.workspace_provider.get_workflow_names", return_value=set()),
         patch("sase.workspace_provider.get_ref_patterns", return_value={}),
@@ -157,16 +157,16 @@ def test_xprompt_expand_warns_on_unresolved_reference_on_stderr(
     assert "unknown xprompt reference '#reviewww'" in captured.err
 
 
-def test_xprompt_list_marks_only_skill_xprompts(
+def test_macro_list_marks_only_skill_macros(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    skill = XPrompt(
+    skill = Macro(
         name="skill/sase_plan",
         content="Plan",
         skill=True,
         skill_name="sase_plan",
     )
-    regular = XPrompt(name="review", content="Review")
+    regular = Macro(name="review", content="Review")
     prompts = {
         "skill/sase_plan": _simple_workflow("skill/sase_plan"),
         "review": _simple_workflow("review"),
@@ -176,7 +176,7 @@ def test_xprompt_list_marks_only_skill_xprompts(
     with (
         patch("sase.macro.loader.get_all_prompts", return_value=prompts),
         patch(
-            "sase.macro.loader.get_all_xprompts",
+            "sase.macro.loader.get_all_macros",
             return_value={"skill/sase_plan": skill, "review": regular},
         ),
         patch(
@@ -199,7 +199,7 @@ def test_xprompt_list_marks_only_skill_xprompts(
     assert rows["ship"]["skill_name"] is None
 
 
-def test_xprompt_list_prints_load_issues_to_stderr(
+def test_macro_list_prints_load_issues_to_stderr(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     from sase.macro.load_issues import record_load_issue
@@ -212,7 +212,7 @@ def test_xprompt_list_prints_load_issues_to_stderr(
 
     with (
         patch("sase.macro.loader.get_all_prompts", side_effect=get_prompts_with_issue),
-        patch("sase.macro.loader.get_all_xprompts", return_value={}),
+        patch("sase.macro.loader.get_all_macros", return_value={}),
         patch("sase.macro.loader.get_all_workflows", return_value={}),
         pytest.raises(SystemExit) as exc_info,
     ):
@@ -224,7 +224,7 @@ def test_xprompt_list_prints_load_issues_to_stderr(
     assert captured.err == "skipped: /tmp/bad.yml: mapping values are not allowed\n"
 
 
-def test_xprompt_list_includes_prompt_and_input_descriptions(
+def test_macro_list_includes_prompt_and_input_descriptions(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     prompts = {
@@ -244,7 +244,7 @@ def test_xprompt_list_includes_prompt_and_input_descriptions(
 
     with (
         patch("sase.macro.loader.get_all_prompts", return_value=prompts),
-        patch("sase.macro.loader.get_all_xprompts", return_value={}),
+        patch("sase.macro.loader.get_all_macros", return_value={}),
         patch("sase.macro.loader.get_all_workflows", return_value={}),
         pytest.raises(SystemExit) as exc_info,
     ):
@@ -257,7 +257,7 @@ def test_xprompt_list_includes_prompt_and_input_descriptions(
     assert rows["review"]["inputs"][0]["description"] == "Diff file to inspect."
 
 
-def test_builtin_followup_xprompts_registered_and_explainable(
+def test_builtin_followup_macros_registered_and_explainable(
     capsys: pytest.CaptureFixture[str],
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

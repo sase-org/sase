@@ -2,7 +2,7 @@
 
 The admission coordinator calls :func:`dispatch_proc_unit` only after waits
 and `%if` pass. This module reserves a `named-proc` with origin
-`xprompt-proc`, starts the detached supervisor, and lets that supervisor
+`prompt-proc`, starts the detached supervisor, and lets that supervisor
 acquire an operational lease, materialize a private 0600 script, and settle
 the lease. It never allocates an agent, runner, agent session, or finalizer.
 """
@@ -24,7 +24,7 @@ from sase.core.agent_launch_facade import (
     sanitized_proc_env,
     validate_proc_workspace_intent,
     validate_standalone_named_proc_name,
-    xprompt_proc_origin,
+    prompt_proc_origin,
 )
 from sase.core.agent_launch_wire import (
     LaunchUnitWire,
@@ -46,7 +46,6 @@ from sase.procs.runtime import (
 from sase.procs.submission import ProcSubmitError, submit_proc_request
 from sase.procs.store import get_proc, update_proc
 
-XPROMPT_PROC_ORIGIN = "xprompt-proc"
 CANCEL_FILENAME = "cancel"
 _PHASE_ACQUIRING = "acquiring-workspace"
 _PHASE_PREPARING = "preparing-script"
@@ -81,14 +80,14 @@ def dispatch_proc_unit(
     _rebind_launch_hold_to_proc(unit, current, ctx)
     if current.status in TERMINAL_PROC_STATUSES:
         _release_terminal_proc_hold(current.proc_id)
-        prepared = bool((current.xprompt_proc or {}).get("code_digest"))
+        prepared = bool((current.prompt_proc or {}).get("code_digest"))
         if current.status == "success" or prepared:
             return True, current.proc_id, current.message, []
         return False, current.proc_id, current.message or current.status, []
     return True, current.proc_id, None, []
 
 
-def prepare_xprompt_proc_supervisor(
+def prepare_prompt_proc_supervisor(
     proc: Proc,
     *,
     cancelled: Callable[[], bool] | None = None,
@@ -186,7 +185,7 @@ def prepare_xprompt_proc_supervisor(
         "code_language": prepared.get("code_language"),
     }
     write_json_atomic(sidecar_path, sidecar)
-    xprompt_meta = {
+    macro_meta = {
         "logical_id": str(meta.get("logical_id") or ""),
         "label": meta.get("label") or None,
         "proc_name": meta.get("proc_name") or meta.get("shell_name") or None,
@@ -206,12 +205,12 @@ def prepare_xprompt_proc_supervisor(
         proc.proc_id,
         cwd=str(prepared.get("cwd") or proc.cwd),
         phase="running",
-        xprompt_proc=xprompt_meta,
+        prompt_proc=macro_meta,
     )
     return None
 
 
-def cleanup_xprompt_proc_inputs(proc_id: str) -> None:
+def cleanup_prompt_proc_inputs(proc_id: str) -> None:
     """Drop private scripts after settlement while keeping digest metadata."""
 
     from sase.core.agent_launch_facade import cleanup_proc_private_inputs
@@ -255,7 +254,7 @@ def _submit_unit(
     cancel_path = work_dir / CANCEL_FILENAME
     if callable(context.get("cancelled")) and context["cancelled"]():
         raise ProcSubmitError("cancelled")
-    xprompt_meta = {
+    macro_meta = {
         "logical_id": unit.logical_id,
         "label": payload.label or None,
         "proc_name": payload.proc_name or None,
@@ -277,7 +276,7 @@ def _submit_unit(
         command=[language, payload.code.digest],
         label=payload.label or payload.proc_name or unit.logical_id,
         cwd=cwd,
-        origin=xprompt_proc_origin(),
+        origin=prompt_proc_origin(),
         proc_id=proc_id,
         project=selected_project,
         proc_name=payload.proc_name,
@@ -285,7 +284,7 @@ def _submit_unit(
         reserved_by="launch-admission",
         timeout_seconds=timeout_seconds,
         idle_timeout_seconds=idle_timeout_seconds,
-        xprompt_proc=xprompt_meta,
+        prompt_proc=macro_meta,
     )
     return submit_proc_request(
         request,
@@ -422,8 +421,7 @@ def _one_line(value: object) -> str:
 
 __all__ = [
     "CANCEL_FILENAME",
-    "XPROMPT_PROC_ORIGIN",
-    "cleanup_xprompt_proc_inputs",
+    "cleanup_prompt_proc_inputs",
     "dispatch_proc_unit",
-    "prepare_xprompt_proc_supervisor",
+    "prepare_prompt_proc_supervisor",
 ]

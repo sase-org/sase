@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from sase.macro.catalog import build_structured_xprompts_catalog
-from sase.macro.models import XPrompt
+from sase.macro.catalog import build_structured_macros_catalog
+from sase.macro.models import Macro
 from sase.macro.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
@@ -21,7 +21,7 @@ def build_xprompt_assist_entries(
     """Build immutable TUI assist entries from the structured xprompt catalog."""
     # The TUI is a local display; the string-default redaction exists only
     # for the mobile wire.
-    projection = build_structured_xprompts_catalog(
+    projection = build_structured_macros_catalog(
         project=project, include_string_defaults=True
     )
     return [
@@ -73,7 +73,7 @@ def xprompt_assist_entry_from_workflow(
         input_signature=None,
         inputs=tuple(inputs),
         content_preview=(
-            workflow.get_prompt_part_content() if workflow.is_simple_xprompt() else None
+            workflow.get_prompt_part_content() if workflow.is_simple_macro() else None
         ),
         memory_type=workflow.memory_type,
     )
@@ -81,7 +81,7 @@ def xprompt_assist_entry_from_workflow(
 
 def xprompt_assist_entry_from_local_xprompt(
     name: str,
-    xprompt: XPrompt,
+    xprompt: Macro,
 ) -> XPromptAssistEntry:
     """Build a TUI assist entry from a prompt-frontmatter local xprompt.
 
@@ -90,9 +90,9 @@ def xprompt_assist_entry_from_local_xprompt(
     Panel's ``xprompts:`` field completes, soft-completes, and shows argument
     hints in every prompt pane exactly like a global xprompt.
     """
-    from sase.macro.models import xprompt_to_workflow
+    from sase.macro.models import macro_to_workflow
 
-    return xprompt_assist_entry_from_workflow(name, xprompt_to_workflow(xprompt))
+    return xprompt_assist_entry_from_workflow(name, macro_to_workflow(xprompt))
 
 
 def merge_local_xprompt_entries(

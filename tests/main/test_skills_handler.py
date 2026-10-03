@@ -28,7 +28,7 @@ from sase.skills.inventory import (
 )
 from sase.skills.use_log import read_skill_use_events
 from sase.macro.loader_skills import get_sase_package_skills_dir
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from tests.main.init_skills_handler_helpers import make_args
 
 
@@ -71,8 +71,8 @@ def _stub_skill_sources(
             "skill: [claude]\n---\n\nbody\n",
         )
 
-    xprompts = {
-        f"skill/{name}": XPrompt(
+    macros = {
+        f"skill/{name}": Macro(
             name=f"skill/{name}",
             content=f"{name} body\n",
             source_path=str(path),
@@ -84,7 +84,7 @@ def _stub_skill_sources(
     }
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
-        init_skills_handler, "get_all_xprompts", lambda project="": xprompts
+        init_skills_handler, "get_all_macros", lambda project="": macros
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
@@ -392,7 +392,7 @@ def test_applied_skills_inventory_compares_chezmoi_source_to_home_target(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="skill/foo",
         content="body\n",
         source_path=str(tmp_path / "skills" / "foo.md"),
@@ -403,8 +403,8 @@ def test_applied_skills_inventory_compares_chezmoi_source_to_home_target(
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"skill/foo": xprompt},
+        "get_all_macros",
+        lambda project="": {"skill/foo": macro_def},
     )
     monkeypatch.setattr(init_skills_handler, "_all_providers", lambda: ["claude"])
     monkeypatch.setattr(init_skills_handler, "_provider_context", lambda _provider: {})
@@ -578,7 +578,7 @@ def test_skills_inventory_reports_retired_deletion_drift(
     (chezmoi_home / SKILLS_MANIFEST_FILENAME).write_text(
         _SkillDeployManifest(
             source_commit="2" * 40,
-            xprompt_set_sha256="old-hash",
+            macro_set_sha256="old-hash",
             deployed_at="2026-07-28T12:00:00Z",
             managed_files=(
                 ManagedSkillFile(
@@ -593,7 +593,7 @@ def test_skills_inventory_reports_retired_deletion_drift(
         encoding="utf-8",
     )
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
-    monkeypatch.setattr(init_skills_handler, "get_all_xprompts", lambda project="": {})
+    monkeypatch.setattr(init_skills_handler, "get_all_macros", lambda project="": {})
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
     monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
     monkeypatch.setattr(

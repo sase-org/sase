@@ -12,7 +12,7 @@ from sase.main import init_skills_handler
 from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
 from sase.main._init_skills_manifest import SKILLS_MANIFEST_FILENAME
 from sase.main.init_skills_handler import handle_init_skills_command
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from tests.main.init_skills_handler_helpers import (
     make_args,
     stub_manifest_git,
@@ -150,7 +150,7 @@ def test_handler_yes_does_not_imply_force_or_allow_dirty(
     force_values: list[bool] = []
 
     def fake_prepare_skill_manifest(
-        _skill_xprompts: list[XPrompt],
+        _skill_macros: list[Macro],
         *,
         chezmoi_home: Path,
         force: bool,
@@ -321,8 +321,8 @@ def test_handler_zero_written_does_not_deploy(
     """When nothing is written (e.g. no skill field), no deploy."""
     monkeypatch.setattr(
         init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"foo": XPrompt(name="foo", content="body\n")},
+        "get_all_macros",
+        lambda project="": {"foo": Macro(name="foo", content="body\n")},
     )
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)

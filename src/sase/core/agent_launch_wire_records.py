@@ -51,7 +51,7 @@ class AgentLaunchRequestWire:
     vcs_workflow_type: str | None = None
     vcs_ref: str | None = None
     deferred_workspace: bool = False
-    local_xprompts_file: str | None = None
+    local_macros_file: str | None = None
     extra_env: dict[str, str] = field(default_factory=dict)
     retry_transfer_from_pid: int | None = None
 

@@ -6,10 +6,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.macro.models import InputArg, MemoryType, OutputSpec, XPrompt
+from sase.macro.models import InputArg, MemoryType, OutputSpec, Macro
 
 if TYPE_CHECKING:
-    from sase.macro.tags import XPromptTag
+    from sase.macro.tags import MacroTag
 
 
 class StepStatus(Enum):
@@ -24,9 +24,9 @@ class StepStatus(Enum):
 
 
 class WorkflowKind(Enum):
-    """How a workflow participates in xprompt reference syntax."""
+    """How a workflow participates in macro reference syntax."""
 
-    SIMPLE_XPROMPT = "simple_xprompt"
+    SIMPLE_MACRO = "simple_xprompt"
     EMBEDDABLE_WORKFLOW = "embeddable_workflow"
     STANDALONE_WORKFLOW = "standalone_workflow"
 
@@ -63,7 +63,7 @@ class WorkflowStep:
 
     Attributes:
         name: Step identifier (defaults to step_{index} if not specified).
-        agent: Agent prompt template for agent steps (supports Jinja2 and xprompt refs).
+        agent: Agent prompt template for agent steps (supports Jinja2 and macro refs).
             Mutually exclusive with bash/python/parallel/prompt_part.
         bash: Bash command to execute (mutually exclusive with agent/python/parallel/prompt_part).
         python: Python code to execute (mutually exclusive with agent/bash/parallel/prompt_part).
@@ -136,7 +136,7 @@ class Workflow:
         inputs: List of input argument definitions.
         steps: Ordered list of workflow steps to execute.
         source_path: File path where workflow was loaded from.
-        xprompts: Workflow-local xprompt definitions (highest priority within this workflow).
+        macros: Workflow-local macro definitions (highest priority within this workflow).
         wraps_all: If True, this workflow's pre-steps run before all other embedded
             workflows' pre-steps and its post-steps run after all others. Used for
             workspace setup/teardown workflows like #git, #gh, or plugin refs.
@@ -158,10 +158,10 @@ class Workflow:
     inputs: list[InputArg] = field(default_factory=list)
     steps: list[WorkflowStep] = field(default_factory=list)
     source_path: str | None = None
-    xprompts: dict[str, XPrompt] = field(default_factory=dict)
+    macros: dict[str, Macro] = field(default_factory=dict)
     wraps_all: bool = False  # Deprecated: use tags: vcs instead
     hidden: bool = False
-    tags: frozenset[XPromptTag] = field(default_factory=frozenset)
+    tags: frozenset[MacroTag] = field(default_factory=frozenset)
     environment: dict[str, str] = field(default_factory=dict)
     description: str | None = None
     skill_name: str | None = None
@@ -169,7 +169,7 @@ class Workflow:
     discovery_rank: int | None = None
     is_anonymous_workflow: bool = False
 
-    def has_tag(self, tag: XPromptTag) -> bool:
+    def has_tag(self, tag: MacroTag) -> bool:
         """Check if this workflow has the given tag."""
         return tag in self.tags
 
@@ -252,13 +252,13 @@ class Workflow:
         """Check if this is an anonymous (temporary) workflow."""
         return self.name.startswith("tmp_")
 
-    def is_simple_xprompt(self) -> bool:
-        """Check if workflow is a simple xprompt (single prompt_part step only).
+    def is_simple_macro(self) -> bool:
+        """Check if workflow is a simple macro (single prompt_part step only).
 
-        Returns True for converted xprompts that can be expanded inline as pure
+        Returns True for converted macros that can be expanded inline as pure
         text substitution. This is the prompt_part equivalent of appears_as_agent().
 
-        A simple xprompt has:
+        A simple macro has:
         - Exactly one step
         - That step is a prompt_part step (not agent, bash, python, or parallel)
 
@@ -269,9 +269,9 @@ class Workflow:
         return len(self.steps) == 1 and self.has_prompt_part()
 
     def prompt_kind(self) -> WorkflowKind:
-        """Classify this workflow for xprompt reference semantics."""
-        if self.is_simple_xprompt():
-            return WorkflowKind.SIMPLE_XPROMPT
+        """Classify this workflow for macro reference semantics."""
+        if self.is_simple_macro():
+            return WorkflowKind.SIMPLE_MACRO
         if self.has_prompt_part():
             return WorkflowKind.EMBEDDABLE_WORKFLOW
         return WorkflowKind.STANDALONE_WORKFLOW

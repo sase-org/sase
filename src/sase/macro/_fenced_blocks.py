@@ -1,4 +1,4 @@
-"""Code-literal protection for xprompt processing.
+"""Code-literal protection for macro processing.
 
 Fence discovery is owned by the Rust `fenced_block_details` scanner. This
 module converts those UTF-8 byte ranges to Python character offsets and keeps

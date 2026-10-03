@@ -70,7 +70,7 @@ def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
 
     monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fake_launch)
     monkeypatch.setattr(
-        "sase.macro._parsing._LAUNCH_XPROMPT_AT_REF_RE",
+        "sase.macro._parsing._LAUNCH_MACRO_AT_REF_RE",
         None,
     )
     monkeypatch.setattr(

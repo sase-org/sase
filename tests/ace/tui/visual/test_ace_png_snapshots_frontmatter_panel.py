@@ -19,7 +19,7 @@ from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.models import InputArg, InputType, Macro
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -352,7 +352,7 @@ async def test_frontmatter_xprompt_item_modal_png_snapshot(
         modal = XPromptItemModal(
             existing=(
                 "_rules",
-                XPrompt(
+                Macro(
                     name="_rules",
                     content="Follow the team review checklist",
                     inputs=[InputArg(name="service", type=InputType.WORD)],

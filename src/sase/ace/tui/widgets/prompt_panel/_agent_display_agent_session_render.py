@@ -115,7 +115,7 @@ class AgentSessionDisplayMixin:
             traceback_parts = build_traceback_block(error_tb_syntax)
 
         rendered_content_section = False
-        raw_xprompt = agent.get_raw_xprompt_content()
+        raw_xprompt = agent.get_raw_prompt_content()
         highlight_context = agent_prompt_highlight_context(
             self,
             agent,

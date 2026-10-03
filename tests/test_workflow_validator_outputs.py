@@ -1,7 +1,7 @@
 """Tests for output detection, template refs, and cross-step field validation."""
 
 import pytest
-from sase.macro.models import OutputSpec, XPrompt
+from sase.macro.models import OutputSpec, Macro
 from sase.macro.workflow_models import (
     LoopConfig,
     ParallelConfig,
@@ -382,8 +382,8 @@ def test_cross_step_condition_field_ref() -> None:
     assert "redy" in errors[0]
 
 
-def test_cross_step_xprompt_content_validated() -> None:
-    """Field ref in workflow-local xprompt content is validated."""
+def test_cross_step_macro_content_validated() -> None:
+    """Field ref in workflow-local macro content is validated."""
     workflow = Workflow(
         name="test",
         steps=[
@@ -394,8 +394,8 @@ def test_cross_step_xprompt_content_validated() -> None:
             ),
             WorkflowStep(name="run", agent="do stuff #_helper"),
         ],
-        xprompts={
-            "_helper": XPrompt(
+        macros={
+            "_helper": Macro(
                 name="_helper",
                 content="Use file at {{ setup.pth }}",
             ),

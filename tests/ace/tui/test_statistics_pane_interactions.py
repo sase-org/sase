@@ -98,7 +98,7 @@ def test_focused_xprompt_body_renders_every_group_and_not_found() -> None:
     result = _result(
         "xprompts",
         pane._range,
-        xprompt_focus="split_file",
+        macro_focus="split_file",
     )
 
     expected = {
@@ -122,7 +122,7 @@ def test_focused_xprompt_body_renders_every_group_and_not_found() -> None:
     missing = _result(
         "xprompts",
         pane._range,
-        xprompt_focus="missing",
+        macro_focus="missing",
     )
     rendered = _render_plain(pane._xprompts_renderable(missing))
     assert "#missing has no runs in" in rendered
@@ -144,10 +144,10 @@ async def test_pending_perf_load_cannot_restore_stale_rail(
         view: StatisticsView,
         selected_range: StatsRange,
         project_filter: str | None = None,
-        xprompt_focus: str | None = None,
+        macro_focus: str | None = None,
         perf_group_by: str = "subsystem",
     ) -> StatisticsViewData:
-        calls.append((view, selected_range, project_filter, xprompt_focus))
+        calls.append((view, selected_range, project_filter, macro_focus))
         if view == "perf":
             perf_started.set()
             assert perf_release.wait(timeout=5.0)
@@ -155,7 +155,7 @@ async def test_pending_perf_load_cannot_restore_stale_rail(
             view,
             selected_range,
             project_filter=project_filter,
-            xprompt_focus=xprompt_focus,
+            macro_focus=macro_focus,
             perf_group_by=perf_group_by,
         )
 
@@ -201,18 +201,18 @@ async def test_failed_perf_load_keeps_the_active_view_rail(
         view: StatisticsView,
         selected_range: StatsRange,
         project_filter: str | None = None,
-        xprompt_focus: str | None = None,
+        macro_focus: str | None = None,
         perf_group_by: str = "subsystem",
     ) -> StatisticsViewData:
         del perf_group_by
-        calls.append((view, selected_range, project_filter, xprompt_focus))
+        calls.append((view, selected_range, project_filter, macro_focus))
         if view == "perf":
             raise RuntimeError("perf exploded")
         return _result(
             view,
             selected_range,
             project_filter=project_filter,
-            xprompt_focus=xprompt_focus,
+            macro_focus=macro_focus,
         )
 
     monkeypatch.setattr(sp, "load_statistics_view", load)

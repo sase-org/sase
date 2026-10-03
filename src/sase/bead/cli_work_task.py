@@ -143,19 +143,19 @@ def launch_task_bead_work(
         task_work_segment_env,
     )
     from sase.bead.macros import (
-        BeadXPromptNotFoundError,
-        resolve_work_task_xprompt,
+        BeadMacroNotFoundError,
+        resolve_work_task_macro,
     )
 
     with timer.stage("xprompt_lookup"):
         try:
-            xprompt_project = (
+            macro_project = (
                 bead_context.project_key
                 if bead_context is not None and bead_context.project_key
                 else None
             )
-            work_task_xprompt = resolve_work_task_xprompt(project=xprompt_project)
-        except (BeadXPromptNotFoundError, ValueError) as exc:
+            work_task_macro = resolve_work_task_macro(project=macro_project)
+        except (BeadMacroNotFoundError, ValueError) as exc:
             raise TaskBeadWorkError(str(exc)) from exc
     with timer.stage("vcs_context"):
         try:
@@ -172,7 +172,7 @@ def launch_task_bead_work(
                 task_id,
                 model=issue.model,
                 size=issue.size,
-                work_task_xprompt=work_task_xprompt,
+                work_task_macro=work_task_macro,
                 vcs_context=vcs_context,
                 feedback=feedback,
             )

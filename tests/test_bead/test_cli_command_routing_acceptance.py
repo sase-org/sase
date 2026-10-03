@@ -502,9 +502,9 @@ def test_public_dispatch_work_dry_run_routes_foreign_epic_without_mutation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    fake_cli_work_xprompts: None,
+    fake_cli_work_macros: None,
 ) -> None:
-    del fake_cli_work_xprompts
+    del fake_cli_work_macros
     owner = tmp_path / "owner"
     caller = tmp_path / "outside"
     caller.mkdir()

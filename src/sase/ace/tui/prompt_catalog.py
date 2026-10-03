@@ -21,16 +21,16 @@ from sase.content_layout import (
     discover_project_root,
     resolve_memory_file_sources,
     resolve_project_layout,
-    resolve_xprompt_file_sources,
+    resolve_macro_file_sources,
 )
 from sase.core.snippet_catalog_facade import compose_snippet_catalog
 from sase.snippet.catalog import load_snippet_catalog, prompt_catalog_projection
 from sase.macro.loader import (
     detect_project,
-    get_xprompt_search_paths,
+    get_macro_search_paths,
 )
 from sase.macro.project_identity import (
-    canonical_xprompt_project,
+    canonical_macro_project,
     known_project_namespaces,
 )
 
@@ -132,7 +132,7 @@ def _prompt_source_token(projects: Iterable[str | None]) -> tuple[Any, ...]:
     return (
         ("projects", project_tuple),
         ("config", current_config_token()),
-        ("xprompt_files", _prompt_file_tokens(get_xprompt_search_paths())),
+        ("xprompt_files", _prompt_file_tokens(get_macro_search_paths())),
         ("project_files", _project_prompt_file_tokens(project_dirs)),
         ("memory_files", _prompt_file_tokens(memory_dirs)),
     )
@@ -142,7 +142,7 @@ def prompt_source_watch_paths(projects: Iterable[str | None]) -> list[Path]:
     """Return directories to watch for editable prompt/snippet source changes."""
     roots: list[Path] = [
         CONFIG_DIR,
-        *get_xprompt_search_paths(),
+        *get_macro_search_paths(),
         *[
             directory
             for project in _normalize_prompt_catalog_projects(projects)
@@ -217,10 +217,10 @@ def _project_xprompt_dirs(project: str) -> tuple[Path, ...]:
     the canonical user-facing project namespace, so a caller passing a
     ProjectSpec directory key or alias must still watch the same paths.
     """
-    canonical = canonical_xprompt_project(project) or project
+    canonical = canonical_macro_project(project) or project
     resolved = tuple(
         source.path
-        for source in resolve_xprompt_file_sources(project=canonical)
+        for source in resolve_macro_file_sources(project=canonical)
         if source.path is not None and source.scope == "home_project"
     )
     configured_legacy = CONFIG_DIR / "xprompts" / canonical
@@ -229,8 +229,8 @@ def _project_xprompt_dirs(project: str) -> tuple[Path, ...]:
 
 def _memory_source_dirs(project: str | None) -> tuple[Path, ...]:
     """Return flat memory roots that can contribute ``memory/<stem>`` entries."""
-    canonical = canonical_xprompt_project(project) if project is not None else None
-    detected = canonical_xprompt_project(detect_project())
+    canonical = canonical_macro_project(project) if project is not None else None
+    detected = canonical_macro_project(detect_project())
     if canonical is not None and detected != canonical:
         workspace = known_project_namespaces().get(canonical)
         if workspace is not None:

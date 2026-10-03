@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.macro.directives import split_prompt_for_models
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from tests._agent_names_fixtures import make_agent as _make_agent
 
 
@@ -30,13 +30,13 @@ def test_split_prompt_for_models_multi_model_with_user_alt_cartesian() -> None:
 
 def test_split_prompt_for_models_text_alt_then_model_alt_gets_unique_names() -> None:
     """Text-first and model-last axes keep both dimensions in generated names."""
-    xprompts = {
-        "codex": XPrompt(name="codex", content="gpt-5.6-sol"),
+    macros = {
+        "codex": Macro(name="codex", content="gpt-5.6-sol"),
     }
 
     result = split_prompt_for_models(
         "%i:foo %{Describe | Explain} repo. %{%m:opus | %m:#codex}",
-        extra_xprompts=xprompts,
+        extra_macros=macros,
     )
 
     assert result is not None

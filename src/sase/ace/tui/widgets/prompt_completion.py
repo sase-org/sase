@@ -246,7 +246,7 @@ def build_prompt_soft_completion(
     text: str,
     cursor_offset: int,
     settings: PromptCompletionSettings,
-    xprompt_entries: list[XPromptAssistEntry] | None,
+    macro_entries: list[XPromptAssistEntry] | None,
     base_dir: str | None = None,
     jinja_scope: JinjaScope | None = None,
 ) -> PromptSoftCompletion | None:
@@ -282,11 +282,11 @@ def build_prompt_soft_completion(
         # to xprompt-arg, directive, or file surfaces.
         return None
 
-    if xprompt_entries is not None and "#" in text:
+    if macro_entries is not None and "#" in text:
         arg_suggestion = _build_xprompt_arg_suggestion(
             text,
             cursor_offset,
-            xprompt_entries,
+            macro_entries,
             auto_file_paths=settings.auto_file_paths,
             base_dir=base_dir,
         )
@@ -316,10 +316,10 @@ def build_prompt_soft_completion(
             )
 
     xprompt_span = extract_xprompt_token_around_cursor(line, col)
-    if xprompt_span is not None and xprompt_entries is not None:
+    if xprompt_span is not None and macro_entries is not None:
         candidates, _shared = build_xprompt_completion_candidates(
             xprompt_span.token,
-            entries=xprompt_entries,
+            entries=macro_entries,
             inline_reference_only=xprompt_span.clamped,
         )
         candidate = _first_xprompt_soft_candidate(candidates, xprompt_span.token)

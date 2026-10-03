@@ -27,7 +27,7 @@ from sase.integrations.macro_lsp import (
     SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV,
     SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV,
     SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV,
-    _prepare_xprompt_lsp_environment,
+    _prepare_macro_lsp_environment,
 )
 
 
@@ -77,7 +77,7 @@ def test_prepare_lsp_environment_sets_package_catalog_paths(tmp_path: Path) -> N
         SASE_XPROMPT_BUILTIN_DIR_ENV: "/custom/xprompts",
     }
 
-    _prepare_xprompt_lsp_environment(env, package_dir=package_dir)
+    _prepare_macro_lsp_environment(env, package_dir=package_dir)
 
     assert env[SASE_XPROMPT_PACKAGE_DIR_ENV] == str(package_dir)
     assert env[SASE_XPROMPT_BUILTIN_DIR_ENV] == "/custom/xprompts"
@@ -95,7 +95,7 @@ def test_prepare_lsp_environment_adopts_legacy_catalog_override(
         SASE_XPROMPT_BUILTIN_DIR_ENV: "/custom/xprompts",
     }
 
-    _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+    _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_MACRO_BUILTIN_DIR_ENV] == "/custom/xprompts"
 
@@ -129,7 +129,7 @@ def test_prepare_lsp_environment_materializes_vcs_project_catalog(
         "sase.macro.vcs_project_completion.vcs_project_catalog_payload",
         return_value=payload,
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV] == str(catalog_path)
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
@@ -160,7 +160,7 @@ def test_prepare_lsp_environment_materializes_model_catalog(
         "sase.macro.model_completion.model_completion_catalog_payload",
         return_value=payload,
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_XPROMPT_MODEL_CATALOG_ENV] == str(catalog_path)
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
@@ -196,7 +196,7 @@ def test_prepare_lsp_environment_materializes_artifact_ref_catalog(
         "sase.artifact_refs.artifact_ref_lsp_catalog_payload",
         return_value=payload,
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV] == str(catalog_path)
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
@@ -236,7 +236,7 @@ def test_prepare_lsp_environment_materializes_glossary_catalog(
         "sase.macro.glossary_catalog.editor_glossary_lsp_catalog_payload",
         return_value=payload,
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV] == str(catalog_path)
     assert json.loads(catalog_path.read_text(encoding="utf-8")) == payload
@@ -250,7 +250,7 @@ def test_prepare_lsp_environment_defaults_vcs_catalog_path(tmp_path: Path) -> No
         "sase.macro.vcs_project_completion.vcs_project_catalog_payload",
         return_value=payload,
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     catalog_path = Path(env[SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV])
     assert catalog_path.name == "vcs_project_catalog.json"
@@ -266,7 +266,7 @@ def test_prepare_lsp_environment_defaults_model_catalog_path(tmp_path: Path) -> 
         "sase.macro.model_completion.model_completion_catalog_payload",
         return_value=payload,
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     catalog_path = Path(env[SASE_XPROMPT_MODEL_CATALOG_ENV])
     assert catalog_path.name == "model_catalog.json"
@@ -284,7 +284,7 @@ def test_prepare_lsp_environment_defaults_artifact_ref_catalog_path(
         "sase.artifact_refs.artifact_ref_lsp_catalog_payload",
         return_value=payload,
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     catalog_path = Path(env[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV])
     assert catalog_path.name == "artifact_ref_catalog.json"
@@ -300,7 +300,7 @@ def test_prepare_lsp_environment_defaults_glossary_catalog_path(tmp_path: Path) 
         "sase.macro.glossary_catalog.editor_glossary_lsp_catalog_payload",
         return_value=payload,
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     catalog_path = Path(env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV])
     assert catalog_path.name == "glossary_catalog.json"
@@ -321,7 +321,7 @@ def test_prepare_lsp_environment_swallows_vcs_catalog_failure(
         side_effect=RuntimeError("boom"),
     ):
         # A broken catalog build must never propagate out of env preparation.
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     # The path is still exported (a later rewrite is honored), but the failed
     # build leaves no file behind.
@@ -341,7 +341,7 @@ def test_prepare_lsp_environment_swallows_model_catalog_failure(
         "sase.macro.model_completion.model_completion_catalog_payload",
         side_effect=RuntimeError("boom"),
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_XPROMPT_MODEL_CATALOG_ENV] == str(catalog_path)
     assert not catalog_path.exists()
@@ -359,7 +359,7 @@ def test_prepare_lsp_environment_swallows_artifact_ref_catalog_failure(
         "sase.artifact_refs.artifact_ref_lsp_catalog_payload",
         side_effect=RuntimeError("boom"),
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV] == str(catalog_path)
     assert not catalog_path.exists()
@@ -377,7 +377,7 @@ def test_prepare_lsp_environment_swallows_glossary_catalog_failure(
         "sase.macro.glossary_catalog.editor_glossary_lsp_catalog_payload",
         side_effect=RuntimeError("boom"),
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_XPROMPT_GLOSSARY_CATALOG_ENV] == str(catalog_path)
     assert not catalog_path.exists()
@@ -387,17 +387,17 @@ def test_prepare_lsp_environment_emits_plugin_metadata(
     tmp_path: Path,
     real_plugin_config: None,
 ) -> None:
-    xprompt_module = ModuleType("fake_plugin.prompts")
+    macro_module = ModuleType("fake_plugin.prompts")
     config_module = ModuleType("fake_plugin.config")
-    xprompts_dir = tmp_path / "plugin" / "xprompts"
+    macros_dir = tmp_path / "plugin" / "xprompts"
     config_dir = tmp_path / "plugin_config"
-    xprompts_dir.mkdir(parents=True)
+    macros_dir.mkdir(parents=True)
     config_dir.mkdir()
     config_path = config_dir / "default_config.yml"
     config_path.write_text("xprompts: {}\n", encoding="utf-8")
 
     def fake_resources_files(module: ModuleType) -> Path:
-        if module is xprompt_module:
+        if module is macro_module:
             return tmp_path / "plugin"
         if module is config_module:
             return config_dir
@@ -405,7 +405,7 @@ def test_prepare_lsp_environment_emits_plugin_metadata(
 
     def fake_discover(group: str) -> list[ModuleType]:
         if group == "sase_xprompts":
-            return [xprompt_module]
+            return [macro_module]
         if group == "sase_config":
             return [config_module]
         return []
@@ -421,10 +421,10 @@ def test_prepare_lsp_environment_emits_plugin_metadata(
             side_effect=fake_resources_files,
         ),
     ):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert json.loads(env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV]) == [
-        {"module": "fake_plugin.prompts", "path": str(xprompts_dir)}
+        {"module": "fake_plugin.prompts", "path": str(macros_dir)}
     ]
     assert json.loads(env[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV]) == [
         {"module": "fake_plugin.config", "path": str(config_path)}
@@ -439,7 +439,7 @@ def test_prepare_lsp_environment_preserves_plugin_metadata_overrides(
         SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV: '[{"module":"custom","path":"/c"}]',
     }
 
-    _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+    _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV] == (
         '[{"module":"custom","path":"/x"}]'
@@ -475,7 +475,7 @@ def test_prepare_lsp_environment_respects_plugin_disable_env(
         ),
     ):
         env: dict[str, str] = {}
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert json.loads(env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV]) == []
     assert json.loads(env[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV]) == []
@@ -489,7 +489,7 @@ def test_prepare_lsp_environment_pins_typed_launch_units(
 ) -> None:
     env: dict[str, str] = {}
     with override_flags(typed_launch_units=enabled):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_TYPED_LAUNCH_UNITS_ENV] == expected
 
@@ -499,6 +499,6 @@ def test_prepare_lsp_environment_pins_retired_agent_holds_on(
 ) -> None:
     env: dict[str, str] = {}
     with override_flags(agent_holds=False):
-        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+        _prepare_macro_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_AGENT_HOLDS_ENV] == "1"

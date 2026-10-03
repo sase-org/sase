@@ -95,7 +95,7 @@ def test_resolves_project_from_vcs_tag_then_project_file(
     )
     project, workspace = _agent_project_and_workspace(
         agent,
-        agent.get_raw_xprompt_content() or "",
+        agent.get_raw_prompt_content() or "",
     )
     assert project == "sase"
     assert workspace == str(tmp_path / "ws")
@@ -339,12 +339,12 @@ def test_cache_reuses_unchanged_text_and_misses_after_catalog_or_theme(
 
     first = panel._render_xprompt(
         agent,
-        agent.get_raw_xprompt_content() or "",
+        agent.get_raw_prompt_content() or "",
         "#git:sase Ask Agent Clan to inspect sase-core",
     )
     second = panel._render_xprompt(
         agent,
-        agent.get_raw_xprompt_content() or "",
+        agent.get_raw_prompt_content() or "",
         "#git:sase Ask Agent Clan to inspect sase-core",
     )
     assert first is second
@@ -357,7 +357,7 @@ def test_cache_reuses_unchanged_text_and_misses_after_catalog_or_theme(
     )
     third = panel._render_xprompt(
         agent,
-        agent.get_raw_xprompt_content() or "",
+        agent.get_raw_prompt_content() or "",
         "#git:sase Ask Agent Clan to inspect sase-core",
     )
     assert third is not first

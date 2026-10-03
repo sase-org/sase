@@ -34,7 +34,7 @@ from sase.macro.snippet_targets import (
     SnippetConfigLocation,
     SnippetSaveTarget,
 )
-from sase.macro.write_targets import resolve_xprompt_write_target
+from sase.macro.write_targets import resolve_macro_write_target
 
 SaveLocationKind = Literal["directory", "config"]
 
@@ -116,7 +116,7 @@ def _short_label(discovery_label: str) -> str:
 def _write_path_for(path: str) -> str:
     """Return the resolved write path for *path*, falling back to *path*."""
     try:
-        return str(resolve_xprompt_write_target(path).write_path)
+        return str(resolve_macro_write_target(path).write_path)
     except Exception:
         return path
 
@@ -124,7 +124,7 @@ def _write_path_for(path: str) -> str:
 def _via_chezmoi(path: str) -> bool:
     """Return whether edits to *path* redirect through a chezmoi source."""
     try:
-        return resolve_xprompt_write_target(path).via_chezmoi
+        return resolve_macro_write_target(path).via_chezmoi
     except Exception:
         return False
 

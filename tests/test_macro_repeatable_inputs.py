@@ -1,4 +1,4 @@
-"""Repeatable xprompt input contract coverage."""
+"""Repeatable macro input contract coverage."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ from sase.macro.loader_parsing import (
 from sase.macro.models import (
     InputArg,
     InputType,
-    XPrompt,
-    XPromptValidationError,
+    Macro,
+    MacroValidationError,
 )
-from sase.macro.processor import process_xprompt_references
+from sase.macro.processor import process_macro_references
 
 
 def _repeatable(
@@ -54,7 +54,7 @@ def test_shortform_and_longform_load_repeatable_metadata() -> None:
 
 
 def test_repeatable_input_must_be_final() -> None:
-    with pytest.raises(XPromptValidationError, match="final"):
+    with pytest.raises(MacroValidationError, match="final"):
         parse_shortform_inputs(
             {
                 "names": {"type": "agent", "repeatable": True},
@@ -93,20 +93,20 @@ def test_repeatable_bare_call_uses_null_default() -> None:
 
 
 def test_repeatable_agent_rejects_empty_elements_in_both_call_syntaxes() -> None:
-    xprompt = XPrompt(name="merge", content="{{ names }}", inputs=[_repeatable()])
+    macro_def = Macro(name="merge", content="{{ names }}", inputs=[_repeatable()])
     _, paren_values, _ = parse_workflow_reference("merge(planner,,coder)")
 
     assert paren_values == ["planner", "", "coder"]
     with pytest.raises(InputBindingError, match="non-empty word"):
-        bind_input_args(xprompt.inputs, paren_values, {})
+        bind_input_args(macro_def.inputs, paren_values, {})
     with pytest.raises(InputBindingError, match="non-empty word"):
-        bind_input_args(xprompt.inputs, "planner,,coder".split(","), {})
+        bind_input_args(macro_def.inputs, "planner,,coder".split(","), {})
 
     with patch(
-        "sase.macro.processor.get_all_xprompts", return_value={"merge": xprompt}
+        "sase.macro.processor.get_all_macros", return_value={"merge": macro_def}
     ):
         with pytest.raises(SystemExit):
-            process_xprompt_references("#merge:planner,")
+            process_macro_references("#merge:planner,")
 
 
 def test_non_repeatable_inputs_still_reject_surplus_positionals() -> None:
@@ -157,13 +157,13 @@ def test_type_error_without_overflow_is_not_labeled_surplus() -> None:
 
 
 def test_jinja_binding_exposes_repeatable_input_as_ordered_list() -> None:
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="merge",
         content="{{ names | join(' > ') }}",
         inputs=[_repeatable()],
     )
 
-    positional, values = validate_and_convert_args(xprompt, ["planner", "coder"], {})
+    positional, values = validate_and_convert_args(macro_def, ["planner", "coder"], {})
 
     assert positional == ["planner", "coder"]
     assert values["names"] == ["planner", "coder"]

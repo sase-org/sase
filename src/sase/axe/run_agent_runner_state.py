@@ -50,10 +50,10 @@ class RunnerRunState:
     # artifacts directory has been created.
     signal_fallback_artifacts_dir: str | None = None
 
-    # Prompt text. ``submitted_xprompt`` is the launch-boundary snapshot, while
-    # ``prompt`` keeps being rewritten by xprompt and agent-ref resolution.
+    # Prompt text. ``submitted_prompt`` is the launch-boundary snapshot, while
+    # ``prompt`` keeps being rewritten by macro and agent-ref resolution.
     prompt: str = ""
-    submitted_xprompt: str = ""
+    submitted_prompt: str = ""
 
     # Agent identity, populated by directive extraction.
     agent_name: str | None = None
@@ -123,7 +123,7 @@ class RunnerRunState:
             artifacts_timestamp=self.artifacts_timestamp,
             artifacts_dir=self.artifacts_dir,
             output_path=self.output_path,
-            submitted_xprompt=self.submitted_xprompt,
+            submitted_prompt=self.submitted_prompt,
             prompt=self.prompt,
             is_home_mode=self.is_home_mode,
         )

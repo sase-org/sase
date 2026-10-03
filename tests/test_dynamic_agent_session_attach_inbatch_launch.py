@@ -142,7 +142,7 @@ def test_multi_prompt_agent_session_attach_can_reference_earlier_named_segment(
                 "%i:foo\nPlan the change.",
                 "%i(reviewer, session=foo)\nReview foo's plan.",
             ],
-            local_xprompts={},
+            local_macros={},
             cl_name="feature",
             project_file="/tmp/sase.sase",
             project_name="sase",

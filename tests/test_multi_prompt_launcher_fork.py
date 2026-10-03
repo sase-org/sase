@@ -8,7 +8,7 @@ from sase.agent.multi_prompt_launcher import (
     _rewrite_bare_resume_references,
     launch_multi_prompt_agents,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -38,7 +38,7 @@ def test_launch_multi_prompt_rewrites_bare_resume_to_explicit_previous_name(
 
     launch_multi_prompt_agents(
         segments=["%id:builder\nBuild", "#fork\nReview"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -77,7 +77,7 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_resume_predecessor(
 
     launch_multi_prompt_agents(
         segments=["Build", "#fork\nReview"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -113,13 +113,13 @@ def test_launch_multi_prompt_polls_for_unplanned_resume_predecessor(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """Xprompt predecessors are polled before a following bare #fork launches."""
+    """Macro predecessors are polled before a following bare #fork launches."""
     mock_spawn.return_value = MagicMock(pid=1)
     mock_wait.return_value = "polled-builder"
 
     launch_multi_prompt_agents(
         segments=["#_prep\nBuild", "#fork\nReview"],
-        local_xprompts={"_prep": XPrompt(name="_prep", content="Prep")},
+        local_macros={"_prep": Macro(name="_prep", content="Prep")},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -165,12 +165,12 @@ def test_launch_multi_prompt_leaves_first_segment_bare_resume_unrewritten(
     mock_spawn.return_value = MagicMock(pid=1)
 
     with patch(
-        "sase.macro.processor.process_xprompt_references",
+        "sase.macro.processor.process_macro_references",
         return_value="#fork\nContinue",
     ):
         launch_multi_prompt_agents(
             segments=["#fork\nContinue", "%id:next\nNext"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -230,7 +230,7 @@ def test_launch_multi_prompt_resume_uses_last_alt_generated_name(
 
     launch_multi_prompt_agents(
         segments=["%i:ag\n%alt(sec=Build security,perf=Build perf)", "#fork\nReview"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -273,7 +273,7 @@ def test_launch_multi_prompt_bare_wait_and_resume_plan_fork_name(
                 "%w\n#fork\nReview",
                 "#fork\nFollow up",
             ],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",

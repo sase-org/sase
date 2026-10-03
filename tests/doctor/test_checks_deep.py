@@ -22,7 +22,7 @@ from sase.doctor.checks_deep_terminal import (
     check_tmux_version,
     check_truecolor,
 )
-from sase.doctor.checks_deep_macro_lsp import check_xprompt_lsp
+from sase.doctor.checks_deep_macro_lsp import check_macro_lsp
 from sase.doctor.runner import DoctorContext
 from sase.integrations import macro_lsp
 
@@ -394,13 +394,13 @@ def test_axe_state_keeps_historical_errors_as_deep_only_warning(
     assert any("cumulative historical" in detail for detail in check.details)
 
 
-def test_xprompt_lsp_ok_when_env_override_resolves(monkeypatch, tmp_path: Path) -> None:
+def test_macro_lsp_ok_when_env_override_resolves(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep_macro_lsp.xprompt_lsp.resolve_xprompt_lsp_command",
+        "sase.doctor.checks_deep_macro_lsp.macro_lsp.resolve_macro_lsp_command",
         lambda **_kwargs: ("/opt/sase/bin/sase-xprompt-lsp",),
     )
 
-    check = check_xprompt_lsp(
+    check = check_macro_lsp(
         DoctorContext(
             cwd=tmp_path,
             project=None,
@@ -414,16 +414,16 @@ def test_xprompt_lsp_ok_when_env_override_resolves(monkeypatch, tmp_path: Path) 
     assert check.data["command"] == ("/opt/sase/bin/sase-xprompt-lsp",)
 
 
-def test_xprompt_lsp_warns_when_resolver_fails(monkeypatch, tmp_path: Path) -> None:
+def test_macro_lsp_warns_when_resolver_fails(monkeypatch, tmp_path: Path) -> None:
     def fail_resolve(**_kwargs: object) -> tuple[str, ...]:
-        raise macro_lsp.XPromptLspLaunchError("xprompt LSP binary not found")
+        raise macro_lsp.MacroLspLaunchError("xprompt LSP binary not found")
 
     monkeypatch.setattr(
-        "sase.doctor.checks_deep_macro_lsp.xprompt_lsp.resolve_xprompt_lsp_command",
+        "sase.doctor.checks_deep_macro_lsp.macro_lsp.resolve_macro_lsp_command",
         fail_resolve,
     )
 
-    check = check_xprompt_lsp(_context(tmp_path))
+    check = check_macro_lsp(_context(tmp_path))
 
     assert check.status == "WARN"
     assert "does not resolve" in check.summary
@@ -431,9 +431,9 @@ def test_xprompt_lsp_warns_when_resolver_fails(monkeypatch, tmp_path: Path) -> N
     assert "SASE_XPROMPT_LSP_CMD" in check.next_steps[0]
 
 
-def test_xprompt_lsp_warns_on_cargo_fallback(monkeypatch, tmp_path: Path) -> None:
+def test_macro_lsp_warns_on_cargo_fallback(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep_macro_lsp.xprompt_lsp.resolve_xprompt_lsp_command",
+        "sase.doctor.checks_deep_macro_lsp.macro_lsp.resolve_macro_lsp_command",
         lambda **_kwargs: (
             "cargo",
             "run",
@@ -445,7 +445,7 @@ def test_xprompt_lsp_warns_on_cargo_fallback(monkeypatch, tmp_path: Path) -> Non
         ),
     )
 
-    check = check_xprompt_lsp(_context(tmp_path))
+    check = check_macro_lsp(_context(tmp_path))
 
     assert check.status == "WARN"
     assert "slow cargo fallback" in check.summary

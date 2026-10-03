@@ -1,4 +1,4 @@
-"""Tests for diff_path emission from the pr xprompt report step (bash)."""
+"""Tests for diff_path emission from the pr macro report step (bash)."""
 
 import json
 import os
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-_PR_YML = Path(__file__).resolve().parents[1] / "src" / "sase" / "xprompts" / "pr.yml"
+_PR_YML = Path(__file__).resolve().parents[1] / "src" / "sase" / "macros" / "pr.yml"
 
 
 def _report_bash_source() -> str:

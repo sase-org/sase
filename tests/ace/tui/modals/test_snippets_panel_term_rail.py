@@ -27,7 +27,7 @@ async def test_filter_matches_triggers_aliases_and_source_labels(
             "other",
             kind="xprompt",
             path="xprompts/other.md",
-            xprompt_name="other",
+            macro_name="other",
             writable=False,
         ),
         snippet_entry("zebra"),

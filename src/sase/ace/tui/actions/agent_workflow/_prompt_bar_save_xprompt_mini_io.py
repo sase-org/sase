@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 from sase.macro.save import (
     SaveTargetFormat,
-    load_config_xprompt_markdown,
-    save_config_xprompt,
+    load_config_macro_markdown,
+    save_config_macro,
     save_markdown_document,
 )
 
@@ -60,7 +60,7 @@ def _load_existing_mini_xprompt_markdown(
         if not target.entry_name:
             raise ValueError("config-backed mini-xprompt is missing an entry name")
         try:
-            return load_config_xprompt_markdown(path, target.entry_name)
+            return load_config_macro_markdown(path, target.entry_name)
         except KeyError:
             return None
         except ValueError:
@@ -76,12 +76,12 @@ def write_mini_xprompt_sync(
     body: str,
 ) -> _MiniXPromptWriteResult:
     """Write one mini-xprompt through the established xprompt save primitives."""
-    from sase.macro.models import XPrompt
-    from sase.macro.segment_separators import xprompt_has_segment_separators
+    from sase.macro.models import Macro
+    from sase.macro.segment_separators import macro_has_segment_separators
 
     if not body.strip():
         raise ValueError("mini-xprompt body is empty")
-    if xprompt_has_segment_separators(XPrompt(name=target.name, content=body)):
+    if macro_has_segment_separators(Macro(name=target.name, content=body)):
         raise ValueError("mini-xprompt body contains a top-level --- separator")
 
     frontmatter_model = _mini_xprompt_frontmatter_for_save(frontmatter)
@@ -91,7 +91,7 @@ def write_mini_xprompt_sync(
         return _MiniXPromptWriteResult(source_markdown=source_markdown)
     if target.target_format is SaveTargetFormat.CONFIG:
         entry_name = target.entry_name or target.storage_name or target.name
-        if not save_config_xprompt(
+        if not save_config_macro(
             target.write_path,
             entry_name,
             frontmatter_model,

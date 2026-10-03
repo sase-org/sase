@@ -17,7 +17,7 @@ from sase.bead.cli_work_handler import launch_epic_bead_work
 
 from .cli_work_helpers import FakeLaunchResult, make_args, seed_diamond
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 def test_work_invokes_push_when_config_flag_enabled(

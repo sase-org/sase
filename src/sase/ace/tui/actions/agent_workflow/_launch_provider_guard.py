@@ -50,7 +50,7 @@ class _GuardUnitState:
     index: int
     prompt: str
     template_group: str | None
-    swarm_xprompts: tuple[str, ...]
+    swarm_macros: tuple[str, ...]
     aborted: bool = False
     remodeled: bool = False
 
@@ -108,7 +108,7 @@ class LaunchProviderGuardMixin:
                     index=unit.index,
                     prompt=unit.prompt,
                     template_group=unit.template_group,
-                    swarm_xprompts=unit.swarm_xprompts,
+                    swarm_macros=unit.swarm_macros,
                 )
                 for unit in planned
             ],
@@ -337,7 +337,7 @@ class LaunchProviderGuardMixin:
                 LaunchUnitInput(
                     prompt=unit.prompt,
                     template_group=unit.template_group,
-                    swarm_xprompts=unit.swarm_xprompts,
+                    swarm_macros=unit.swarm_macros,
                 )
                 for unit in remaining
             ],
@@ -355,7 +355,7 @@ class LaunchProviderGuardMixin:
                     total=session.original_total,
                     prompt=original.prompt,
                     template_group=original.template_group,
-                    swarm_xprompts=original.swarm_xprompts,
+                    swarm_macros=original.swarm_macros,
                 )
             )
         return tuple(remapped)
@@ -403,7 +403,7 @@ class LaunchProviderGuardMixin:
             {
                 "prompt": unit.prompt,
                 "template_group": unit.template_group,
-                "swarm_xprompts": list(unit.swarm_xprompts),
+                "swarm_xprompts": list(unit.swarm_macros),
             }
             for unit in surviving
         ]

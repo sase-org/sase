@@ -293,11 +293,11 @@ class PromptBarSaveXpromptMixin(
         from pathlib import Path
 
         from sase.macro.write_targets import (
-            XPromptWriteTarget,
+            MacroWriteTarget,
             classify_written_file,
         )
 
-        target = XPromptWriteTarget(
+        target = MacroWriteTarget(
             read_path=Path(binding.path).expanduser(),
             write_path=Path(binding.write_path).expanduser(),
             apply_target=(
@@ -312,14 +312,14 @@ class PromptBarSaveXpromptMixin(
             target,
             kind=kind,
             is_new=False,
-            xprompt_name=binding.name,
+            macro_name=binding.name,
         )
 
     async def _reload_bound_xprompt(self, bar: object, binding: object) -> None:
         import asyncio
         from pathlib import Path
 
-        from sase.macro.save import load_config_xprompt_markdown
+        from sase.macro.save import load_config_macro_markdown
 
         from ...widgets import PromptInputBar
         from ...widgets.prompt_stack import XPromptBinding
@@ -331,7 +331,7 @@ class PromptBarSaveXpromptMixin(
         try:
             if binding.kind == "config" and binding.entry_name:
                 markdown = await asyncio.to_thread(
-                    load_config_xprompt_markdown, binding.path, binding.entry_name
+                    load_config_macro_markdown, binding.path, binding.entry_name
                 )
                 refreshed = XPromptBinding.for_config(
                     binding.path,
@@ -382,11 +382,11 @@ class PromptBarSaveXpromptMixin(
     ) -> None:
         import asyncio
 
-        from sase.macro.save import build_markdown_xprompt
+        from sase.macro.save import build_markdown_macro
         from sase.macro.save_state import save_last_used_location
 
         source_markdown = (
-            build_markdown_xprompt(target.frontmatter, body)
+            build_markdown_macro(target.frontmatter, body)
             if target.target_format is SaveTargetFormat.MARKDOWN
             else None
         )
@@ -425,7 +425,7 @@ class PromptBarSaveXpromptMixin(
             post_write_target,
             kind=kind,
             is_new=not target.exists,
-            xprompt_name=target.name,
+            macro_name=target.name,
         )
 
     @staticmethod

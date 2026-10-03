@@ -62,10 +62,10 @@ class XPromptBinding:
     ) -> XPromptBinding:
         from sase.macro.write_targets import (
             canonical_reference_for_path,
-            resolve_xprompt_write_target,
+            resolve_macro_write_target,
         )
 
-        target = resolve_xprompt_write_target(path)
+        target = resolve_macro_write_target(path)
         return cls(
             kind="file",
             path=str(target.read_path),
@@ -93,10 +93,10 @@ class XPromptBinding:
     ) -> XPromptBinding:
         from sase.macro.write_targets import (
             canonical_reference_for_path,
-            resolve_xprompt_write_target,
+            resolve_macro_write_target,
         )
 
-        target = resolve_xprompt_write_target(path)
+        target = resolve_macro_write_target(path)
         return cls(
             kind="config",
             path=str(target.read_path),

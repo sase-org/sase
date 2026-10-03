@@ -178,7 +178,7 @@ def test_tui_modal_preview_matches_prompt_section_body() -> None:
     for the same inputs (since both delegate to ``build_qa_markdown``).
 
     The prompt-section variant additionally wraps the body in
-    ``%xprompts_enabled`` markers; the TUI preview does not (markers
+    ``%macros_enabled`` markers; the TUI preview does not (markers
     would be visual noise in a user-facing modal).
     """
     from sase.ace.tui.modals.user_question_modal import (
@@ -218,12 +218,12 @@ def test_prompt_qa_section_is_wrapped_in_disabled_region_markers() -> None:
     assert out.endswith("\n%xprompts_enabled:true")
 
 
-def test_qa_xprompt_token_in_question_survives_expansion_pipeline() -> None:
-    """A `#some_xprompt_name` token inside the Q&A body must survive the
+def test_qa_macro_token_in_question_survives_expansion_pipeline() -> None:
+    """A `#some_macro_name` token inside the Q&A body must survive the
     full protect → expand → unprotect → strip pipeline verbatim, because
-    the wrapping markers exempt it from xprompt expansion."""
-    from sase.macro.models import XPrompt
-    from sase.macro.processor import process_xprompt_references
+    the wrapping markers exempt it from macro expansion."""
+    from sase.macro.models import Macro
+    from sase.macro.processor import process_macro_references
 
     q = _q("see #some_xprompt_name for context", [("A", "alpha")])
     qa_text = prompt_qa_section(
@@ -233,14 +233,14 @@ def test_qa_xprompt_token_in_question_survives_expansion_pipeline() -> None:
 
     # Even with a real expansion pass over the whole prompt, the token
     # inside the protected region must not be expanded.
-    with patch("sase.macro.processor.get_all_xprompts") as mock_get:
+    with patch("sase.macro.processor.get_all_macros") as mock_get:
         mock_get.return_value = {
-            "some_xprompt_name": XPrompt(
+            "some_xprompt_name": Macro(
                 name="some_xprompt_name",
                 content="EXPANDED-CONTENT-SHOULD-NOT-APPEAR",
             ),
         }
-        expanded = process_xprompt_references(prompt)
+        expanded = process_macro_references(prompt)
 
     final = strip_disabled_region_markers(expanded)
     assert "#some_xprompt_name" in final

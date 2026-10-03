@@ -1,14 +1,14 @@
 """Per-segment ``--capacity`` resolution for epic ``sase bead work``.
 
 ``sase bead work --capacity N`` stamps a ``%queue(capacity=...)`` budget into
-every phase and land segment. An xprompt that authors a queue weight greater
+every phase and land segment. A macro that authors a queue weight greater
 than ``N`` is raised to ``ceil(weight)`` once ``queue_capacity_budget`` is on,
 so a uniform ``N=1`` stays satisfiable for the default-weight builtin lander.
 
-This module probes only the queue-relevant xprompt text (never ``%id``,
+This module probes only the queue-relevant macro text (never ``%id``,
 ``%clan``, ``%w``, ``%model``, or VCS prefixes), then translates ``N`` into a
 per-agent budget: ``max(N, ceil(authored_weight))`` with the flag on, and
-plain ``N`` with the flag off. A colliding xprompt-authored ``capacity`` is a
+plain ``N`` with the flag off. A colliding macro-authored ``capacity`` is a
 pre-flight error so the runner never sees it.
 """
 
@@ -23,18 +23,18 @@ from typing import TYPE_CHECKING, NamedTuple
 from sase.bead.work import EpicWorkPlan, phase_requires_plan
 from sase.feature_flags.registry import FeatureFlag
 from sase.feature_flags.snapshot import current_flags
-from sase.macro._exceptions import XPromptError
+from sase.macro._exceptions import MacroError
 from sase.macro.directives import extract_prompt_directives
 from sase.macro.processor import (
-    LAUNCH_DEFERRED_XPROMPT_NAMES,
-    process_xprompt_references,
+    LAUNCH_DEFERRED_MACRO_NAMES,
+    process_macro_references,
 )
 from sase.macro.queue_directive import format_queue_directive
 from sase.macro.workflow_models import Workflow
 
 if TYPE_CHECKING:
     from sase.macro._directive_types import PromptDirectives
-    from sase.macro.models import XPrompt
+    from sase.macro.models import Macro
 
 _DEFAULT_QUEUE_WEIGHT = 1.0
 
@@ -68,11 +68,11 @@ class EpicQueueCapacityConflictError(ValueError):
         message: str,
         *,
         agent_name: str,
-        xprompt_name: str,
+        macro_name: str,
     ) -> None:
         super().__init__(message)
         self.agent_name = agent_name
-        self.xprompt_name = xprompt_name
+        self.macro_name = macro_name
 
 
 @dataclass(frozen=True)
@@ -83,8 +83,8 @@ class _AuthoredQueueFields:
 
 def _queue_probe_text(
     *,
-    xprompt_name: str,
-    xprompt_arg: str,
+    macro_name: str,
+    macro_arg: str,
     capacity: int | None = None,
     include_plan: bool = False,
 ) -> str:
@@ -94,7 +94,7 @@ def _queue_probe_text(
         formatted = format_queue_directive(capacity=capacity)
         if formatted:
             lines.append(formatted)
-    lines.append(f"#{xprompt_name}:{xprompt_arg}")
+    lines.append(f"#{macro_name}:{macro_arg}")
     if include_plan:
         lines.append("#plan")
     return "\n".join(lines)
@@ -103,21 +103,21 @@ def _queue_probe_text(
 def _probe_segment_queue_fields(
     probe_text: str,
     *,
-    extra_xprompts: Mapping[str, XPrompt] | None = None,
+    extra_macros: Mapping[str, Macro] | None = None,
     cache: dict[str, PromptDirectives] | None = None,
 ) -> PromptDirectives:
     """Expand *probe_text* and extract its queue directives.
 
     Results are cached by the exact probe input so a many-phase epic expands
-    each distinct xprompt shape once rather than once per phase.
+    each distinct macro shape once rather than once per phase.
     """
     if cache is not None and probe_text in cache:
         return cache[probe_text]
-    extras = dict(extra_xprompts) if extra_xprompts is not None else None
-    expanded = process_xprompt_references(
+    extras = dict(extra_macros) if extra_macros is not None else None
+    expanded = process_macro_references(
         probe_text,
-        extra_xprompts=extras,
-        defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+        extra_macros=extras,
+        defer_macro_names=LAUNCH_DEFERRED_MACRO_NAMES,
         raise_on_error=True,
     )
     _cleaned, directives = extract_prompt_directives(expanded)
@@ -136,17 +136,17 @@ def format_raised_capacity_line(entry: _RaisedQueueCapacity) -> str:
 
 def resolve_epic_queue_capacities(
     plan: EpicWorkPlan,
-    work_phase_xprompt: Workflow,
-    land_epic_xprompt: Workflow,
+    work_phase_macro: Workflow,
+    land_epic_macro: Workflow,
     capacity: int | None,
     *,
-    extra_xprompts: Mapping[str, XPrompt] | None = None,
+    extra_macros: Mapping[str, Macro] | None = None,
 ) -> _EpicQueueCapacityResolution:
     """Probe each segment and return per-agent effective capacities.
 
     When *capacity* is ``None`` this returns an empty mapping and does not
-    expand xprompts. Remaining queue conflicts raise
-    :class:`EpicQueueCapacityConflictError` naming the agent and xprompt.
+    expand macros. Remaining queue conflicts raise
+    :class:`EpicQueueCapacityConflictError` naming the agent and macro.
     """
     if capacity is None:
         return _EpicQueueCapacityResolution(
@@ -161,46 +161,46 @@ def resolve_epic_queue_capacities(
     mapping: dict[str, int] = {}
     raised: list[_RaisedQueueCapacity] = []
 
-    for agent_name, xprompt_name, refs in _segment_specs(
-        plan, work_phase_xprompt, land_epic_xprompt
+    for agent_name, macro_name, refs in _segment_specs(
+        plan, work_phase_macro, land_epic_macro
     ):
         include_plan = "#plan" in refs
-        shape = (xprompt_name, include_plan)
+        shape = (macro_name, include_plan)
         authored = authored_by_shape.get(shape)
         if authored is None:
             authored = _authored_fields(
                 "\n".join(refs),
                 agent_name=agent_name,
-                xprompt_name=xprompt_name,
-                extra_xprompts=extra_xprompts,
+                macro_name=macro_name,
+                extra_macros=extra_macros,
                 cache=probe_cache,
             )
             authored_by_shape[shape] = authored
         if authored.capacity is not None:
             raise EpicQueueCapacityConflictError(
-                f"{agent_name} ({xprompt_name}) authors "
+                f"{agent_name} ({macro_name}) authors "
                 f"%queue(capacity={authored.capacity}) which conflicts "
                 f"with --capacity {capacity}",
                 agent_name=agent_name,
-                xprompt_name=xprompt_name,
+                macro_name=macro_name,
             )
         if budget_enabled:
             effective = max(capacity, math.ceil(authored.weight))
         else:
             effective = capacity
-        composed_key = (xprompt_name, include_plan, effective)
+        composed_key = (macro_name, include_plan, effective)
         if composed_key not in composed_ok:
             composed = _queue_probe_text(
-                xprompt_name=xprompt_name,
-                xprompt_arg=_xprompt_arg(refs[0]),
+                macro_name=macro_name,
+                macro_arg=_macro_arg(refs[0]),
                 capacity=effective,
                 include_plan=include_plan,
             )
             _probe_named(
                 composed,
                 agent_name=agent_name,
-                xprompt_name=xprompt_name,
-                extra_xprompts=extra_xprompts,
+                macro_name=macro_name,
+                extra_macros=extra_macros,
                 cache=probe_cache,
             )
             composed_ok.add(composed_key)
@@ -218,21 +218,21 @@ def resolve_epic_queue_capacities(
 
 def _segment_specs(
     plan: EpicWorkPlan,
-    work_phase_xprompt: Workflow,
-    land_epic_xprompt: Workflow,
+    work_phase_macro: Workflow,
+    land_epic_macro: Workflow,
 ) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
     specs: list[tuple[str, str, tuple[str, ...]]] = []
     for wave in plan.waves:
         for assignment in wave:
-            refs = [f"#{work_phase_xprompt.name}:{assignment.bead_id}"]
+            refs = [f"#{work_phase_macro.name}:{assignment.bead_id}"]
             if phase_requires_plan(assignment.size):
                 refs.append("#plan")
-            specs.append((assignment.agent_name, work_phase_xprompt.name, tuple(refs)))
+            specs.append((assignment.agent_name, work_phase_macro.name, tuple(refs)))
     specs.append(
         (
             plan.land_agent_name,
-            land_epic_xprompt.name,
-            (f"#{land_epic_xprompt.name}:{plan.epic_id}",),
+            land_epic_macro.name,
+            (f"#{land_epic_macro.name}:{plan.epic_id}",),
         )
     )
     return tuple(specs)
@@ -242,15 +242,15 @@ def _authored_fields(
     probe_text: str,
     *,
     agent_name: str,
-    xprompt_name: str,
-    extra_xprompts: Mapping[str, XPrompt] | None,
+    macro_name: str,
+    extra_macros: Mapping[str, Macro] | None,
     cache: dict[str, PromptDirectives],
 ) -> _AuthoredQueueFields:
     directives = _probe_named(
         probe_text,
         agent_name=agent_name,
-        xprompt_name=xprompt_name,
-        extra_xprompts=extra_xprompts,
+        macro_name=macro_name,
+        extra_macros=extra_macros,
         cache=cache,
     )
     weight = (
@@ -265,25 +265,25 @@ def _probe_named(
     probe_text: str,
     *,
     agent_name: str,
-    xprompt_name: str,
-    extra_xprompts: Mapping[str, XPrompt] | None,
+    macro_name: str,
+    extra_macros: Mapping[str, Macro] | None,
     cache: dict[str, PromptDirectives],
 ) -> PromptDirectives:
     try:
         return _probe_segment_queue_fields(
             probe_text,
-            extra_xprompts=extra_xprompts,
+            extra_macros=extra_macros,
             cache=cache,
         )
-    except XPromptError as exc:
+    except MacroError as exc:
         raise EpicQueueCapacityConflictError(
-            f"{agent_name} ({xprompt_name}): {exc}",
+            f"{agent_name} ({macro_name}): {exc}",
             agent_name=agent_name,
-            xprompt_name=xprompt_name,
+            macro_name=macro_name,
         ) from exc
 
 
-def _xprompt_arg(ref_line: str) -> str:
+def _macro_arg(ref_line: str) -> str:
     _name, separator, argument = ref_line.partition(":")
     if separator:
         return argument

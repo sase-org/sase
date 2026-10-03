@@ -52,7 +52,7 @@ def test_line_initial_enabled_true_marker_in_history_is_escaped(
     tmp_path: Path,
 ) -> None:
     """A stored assistant reply can legitimately contain a line-initial
-    ``%xprompts_enabled:true`` (assistant text is never marker-stripped the
+    ``%macros_enabled:true`` (assistant text is never marker-stripped the
     way stored prompts are). It must not be able to close the injected
     region early and re-expose the region's internal ``---`` lines."""
     chat = tmp_path / "chat.md"
@@ -77,7 +77,7 @@ def test_line_initial_enabled_true_marker_in_history_is_escaped(
 def test_line_initial_enabled_false_marker_in_history_is_escaped(
     tmp_path: Path,
 ) -> None:
-    """A stray line-initial ``%xprompts_enabled:false`` in a stored reply
+    """A stray line-initial ``%macros_enabled:false`` in a stored reply
     must not open a second, nested disabled region."""
     chat = tmp_path / "chat.md"
     write_chat(

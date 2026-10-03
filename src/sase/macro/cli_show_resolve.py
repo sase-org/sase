@@ -1,4 +1,4 @@
-"""Resolve one xprompt definition into the stable show record."""
+"""Resolve one macro definition into the stable show record."""
 
 from __future__ import annotations
 
@@ -16,26 +16,26 @@ from sase.macro._catalog_sources import (
     source_path_display,
 )
 from sase.macro._parsing import (
-    XPromptReferenceArgKind,
-    iter_xprompt_references,
+    MacroReferenceArgKind,
+    iter_macro_references,
 )
 from sase.macro.cli_show_model import (
     ShowProvenance,
     ShowReference,
-    XPromptShowRecord,
+    MacroShowRecord,
 )
 from sase.macro.config_yaml import config_entry_line_span
-from sase.macro.load_issues import collect_xprompt_load_issues
-from sase.macro.loader import get_all_workflows, get_all_xprompts
-from sase.macro.models import XPrompt, xprompt_to_workflow
-from sase.macro.properties import show_inputs, show_local_xprompts, show_steps
+from sase.macro.load_issues import collect_macro_load_issues
+from sase.macro.loader import get_all_workflows, get_all_macros
+from sase.macro.models import Macro, macro_to_workflow
+from sase.macro.properties import show_inputs, show_local_macros, show_steps
 from sase.macro.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
     workflow_reference_prefix,
 )
-from sase.macro.segment_separators import xprompt_segment_count
-from sase.macro.used_macros import scan_xprompt_references
+from sase.macro.segment_separators import macro_segment_count
+from sase.macro.used_macros import scan_macro_references
 from sase.macro.workflow_models import Workflow
 from sase.macro.macro_sources import (
     definition_file_for_source,
@@ -58,7 +58,7 @@ class ShowLookupMiss:
 
 
 def normalize_show_name(raw: str) -> tuple[str, bool]:
-    """Normalize a bare or copied xprompt reference for show lookup."""
+    """Normalize a bare or copied macro reference for show lookup."""
     text = raw.strip()
     if text.startswith("#!"):
         text = text[2:]
@@ -68,7 +68,7 @@ def normalize_show_name(raw: str) -> tuple[str, bool]:
         return "", False
 
     lexical = f"#{text}"
-    references = iter_xprompt_references(lexical)
+    references = iter_macro_references(lexical)
     if not references or references[0].start != 0:
         return text, False
     reference = references[0]
@@ -76,7 +76,7 @@ def normalize_show_name(raw: str) -> tuple[str, bool]:
         return text, False
     return (
         reference.name,
-        reference.arg_kind is not XPromptReferenceArgKind.NONE,
+        reference.arg_kind is not MacroReferenceArgKind.NONE,
     )
 
 
@@ -84,40 +84,40 @@ def resolve_show_record(
     raw_name: str,
     *,
     project: str | None = None,
-) -> XPromptShowRecord | ShowLookupMiss:
+) -> MacroShowRecord | ShowLookupMiss:
     """Resolve *raw_name* to its definition record or a lookup miss."""
     name, arguments_were_stripped = normalize_show_name(raw_name)
-    with collect_xprompt_load_issues() as load_issues:
+    with collect_macro_load_issues() as load_issues:
         workflows = get_all_workflows(project=project)
-        xprompts = get_all_xprompts(project=project)
+        macros = get_all_macros(project=project)
 
     warnings = [f"skipped: {issue.source}: {issue.error}" for issue in load_issues]
     if arguments_were_stripped:
         warnings.append(f"arguments ignored: resolved {raw_name!r} as {name!r}")
 
     workflow = workflows.get(name)
-    xprompt = xprompts.get(name)
-    if workflow is None and xprompt is None:
+    macro_def = macros.get(name)
+    if workflow is None and macro_def is None:
         return ShowLookupMiss(
             name=name,
-            suggestions=_suggestions(name, workflows, xprompts),
+            suggestions=_suggestions(name, workflows, macros),
         )
 
     if workflow is not None:
         selected_workflow = workflow
         descriptor = _workflow_descriptor(workflow)
-        selected_xprompt = None
-        if xprompt is not None:
-            shadowed = source_path_display(classify(xprompt, project=project))
+        selected_macro = None
+        if macro_def is not None:
+            shadowed = source_path_display(classify(macro_def, project=project))
             warnings.append(
                 f"workflow {name!r} shadows xprompt from "
-                f"{shadowed or xprompt.source_path or '(unknown source)'}"
+                f"{shadowed or macro_def.source_path or '(unknown source)'}"
             )
     else:
-        assert xprompt is not None
-        selected_workflow = xprompt_to_workflow(xprompt)
-        descriptor = xprompt
-        selected_xprompt = xprompt
+        assert macro_def is not None
+        selected_workflow = macro_to_workflow(macro_def)
+        descriptor = macro_def
+        selected_macro = macro_def
 
     entry = classify(descriptor, project=project)
     provenance, raw = _resolve_provenance(
@@ -132,78 +132,76 @@ def resolve_show_record(
 
     body = (
         descriptor.content
-        if selected_xprompt is not None
+        if selected_macro is not None
         else selected_workflow.get_prompt_part_content()
         if selected_workflow.has_prompt_part()
         else None
     )
     segment_count = (
-        xprompt_segment_count(XPrompt(name=name, content=body))
-        if body is not None
-        else 0
+        macro_segment_count(Macro(name=name, content=body)) if body is not None else 0
     )
-    local_xprompts = (
-        selected_xprompt.local_xprompts
-        if selected_xprompt is not None
-        else selected_workflow.xprompts
+    local_macros = (
+        selected_macro.local_macros
+        if selected_macro is not None
+        else selected_workflow.macros
     )
 
-    return XPromptShowRecord(
+    return MacroShowRecord(
         name=name,
         reference=workflow_reference_insertion(name, selected_workflow),
         prefix=workflow_reference_prefix(selected_workflow),
         kind=workflow_kind_value(selected_workflow),
         memory_type=selected_workflow.memory_type,
-        is_skill=bool(selected_xprompt and selected_xprompt.skill),
-        skill_name=selected_xprompt.skill_name if selected_xprompt else None,
+        is_skill=bool(selected_macro and selected_macro.skill),
+        skill_name=selected_macro.skill_name if selected_macro else None,
         is_swarm=segment_count > 1,
         segment_count=segment_count,
         description=selected_workflow.description,
         project=entry.project,
         provenance=provenance,
         tags=sorted(tag.value for tag in selected_workflow.tags),
-        skill=selected_xprompt.skill if selected_xprompt is not None else None,
-        snippet=selected_xprompt.snippet if selected_xprompt is not None else None,
+        skill=selected_macro.skill if selected_macro is not None else None,
+        snippet=selected_macro.snippet if selected_macro is not None else None,
         log_skill_use=(
-            selected_xprompt.log_skill_use if selected_xprompt is not None else None
+            selected_macro.log_skill_use if selected_macro is not None else None
         ),
         input_signature=format_inputs(selected_workflow.inputs) or None,
         inputs=show_inputs(selected_workflow.inputs),
-        local_xprompts=show_local_xprompts(local_xprompts),
+        local_macros=show_local_macros(local_macros),
         steps=show_steps(selected_workflow),
         body=body,
         body_first_line=_body_first_line(provenance, raw, body),
         raw=raw,
         warnings=warnings,
-        references=_show_references(body, local_xprompts, project=project),
+        references=_show_references(body, local_macros, project=project),
     )
 
 
 def _suggestions(
     name: str,
     workflows: dict[str, Workflow],
-    xprompts: dict[str, XPrompt],
+    macros: dict[str, Macro],
 ) -> list[str]:
-    names = sorted(set(workflows) | set(xprompts))
+    names = sorted(set(workflows) | set(macros))
     matches = get_close_matches(name, names, n=5, cutoff=0.5)
     suggestions: list[str] = []
     for match in matches:
         workflow = workflows.get(match)
         if workflow is None:
-            workflow = xprompt_to_workflow(xprompts[match])
+            workflow = macro_to_workflow(macros[match])
         suggestions.append(workflow_reference_insertion(match, workflow))
     return suggestions
 
 
-def _workflow_descriptor(workflow: Workflow) -> XPrompt:
-    return XPrompt(
+def _workflow_descriptor(workflow: Workflow) -> Macro:
+    return Macro(
         name=workflow.name,
         content=workflow.get_prompt_part_content(),
         inputs=workflow.inputs,
         source_path=workflow.source_path,
         tags=workflow.tags,
         description=workflow.description,
-        local_xprompts=workflow.xprompts,
+        local_macros=workflow.macros,
         memory_type=workflow.memory_type,
     )
 
@@ -213,7 +211,7 @@ def _resolve_provenance(
     name: str,
     reference: str,
     item_kind: str,
-    descriptor: XPrompt,
+    descriptor: Macro,
     entry: CatalogEntry,
     project: str | None,
     warnings: list[str],
@@ -326,7 +324,7 @@ def _body_first_line(
 
 def _show_references(
     body: str | None,
-    local_xprompts: dict[str, XPrompt],
+    local_macros: dict[str, Macro],
     *,
     project: str | None,
 ) -> list[ShowReference]:
@@ -334,9 +332,9 @@ def _show_references(
         return []
     rows: list[ShowReference] = []
     seen: set[str] = set()
-    for scanned in scan_xprompt_references(
+    for scanned in scan_macro_references(
         body,
-        extra_xprompts=local_xprompts,
+        extra_macros=local_macros,
     ):
         if scanned.raw_ref in seen:
             continue
@@ -349,7 +347,7 @@ def _show_references(
                     scanned.name,
                     scanned.kind,
                     scanned.item,
-                    local_xprompts,
+                    local_macros,
                 ),
                 resolved=scanned.item is not None,
                 source_display=_reference_source_display(scanned.item, project),
@@ -361,16 +359,16 @@ def _show_references(
 def _show_reference_kind(
     name: str,
     kind: str | None,
-    item: XPrompt | Workflow | None,
-    local_xprompts: dict[str, XPrompt],
+    item: Macro | Workflow | None,
+    local_macros: dict[str, Macro],
 ) -> str | None:
-    if name in local_xprompts:
+    if name in local_macros:
         return "local helper"
-    if isinstance(item, XPrompt) and item.memory_type is not None:
+    if isinstance(item, Macro) and item.memory_type is not None:
         return "memory"
     if isinstance(item, Workflow) and item.memory_type is not None:
         return "memory"
-    if isinstance(item, XPrompt) and item.skill:
+    if isinstance(item, Macro) and item.skill:
         return "skill"
     if kind == "part":
         return "xprompt"
@@ -378,12 +376,12 @@ def _show_reference_kind(
 
 
 def _reference_source_display(
-    item: XPrompt | Workflow | None,
+    item: Macro | Workflow | None,
     project: str | None,
 ) -> str | None:
     if item is None:
         return None
-    descriptor = item if isinstance(item, XPrompt) else _workflow_descriptor(item)
+    descriptor = item if isinstance(item, Macro) else _workflow_descriptor(item)
     try:
         return source_path_display(classify(descriptor, project=project))
     except Exception:
@@ -397,7 +395,7 @@ def _hosted_url_for_definition(
     name: str,
     item_kind: str,
     definition_line: int | None,
-    descriptor: XPrompt,
+    descriptor: Macro,
     project: str | None,
 ) -> str | None:
     """Best-effort hosted URL resolution through existing provenance APIs."""
@@ -407,12 +405,12 @@ def _hosted_url_for_definition(
     from sase.sdd.hosted_links import HostedLinkResolver
     from sase.sdd.plan_refs import workspace_context_for_plan_resolution
     from sase.sdd.store import resolve_sdd_store
-    from sase.macro.macro_sources import collect_xprompt_sources
-    from sase.macro_links import XpromptSourceRecord, XpromptTargetResolver
+    from sase.macro.macro_sources import collect_macro_sources
+    from sase.macro_links import MacroSourceRecord, MacroTargetResolver
 
-    records = collect_xprompt_sources(
+    records = collect_macro_sources(
         reference,
-        extra_xprompts={name: descriptor},
+        extra_macros={name: descriptor},
     )
     captured = next((record for record in records if record["name"] == name), None)
     if captured is None:
@@ -449,7 +447,7 @@ def _hosted_url_for_definition(
                 )
 
     source_record = cast(
-        XpromptSourceRecord,
+        MacroSourceRecord,
         {
             **captured,
             "kind": item_kind,
@@ -457,7 +455,7 @@ def _hosted_url_for_definition(
             "definition_line": definition_line,
         },
     )
-    resolver = XpromptTargetResolver(
+    resolver = MacroTargetResolver(
         primary_root=primary_root,
         primary_revision=primary_revision,
         hosted=hosted,

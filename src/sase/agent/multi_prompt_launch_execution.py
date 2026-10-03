@@ -31,8 +31,8 @@ from sase.agent.multi_prompt_references import (
 )
 from sase.agent.multi_prompt_vcs import resolve_segment_vcs_context
 from sase.agent.multi_prompt_macros import (
-    local_xprompts_for_segment,
-    serialize_local_xprompts,
+    local_macros_for_segment,
+    serialize_local_macros,
 )
 from sase.agent.output_variable_context import (
     SASE_AGENT_VAR_UPSTREAMS_ENV,
@@ -48,13 +48,13 @@ from sase.history.multi_agent_prompt import (
     MULTI_AGENT_PROMPT_FILE_ENV,
     save_multi_agent_prompt_file,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 def spawn_segments_into(
     *,
     segments: list[str],
-    local_xprompts: dict[str, XPrompt],
+    local_macros: dict[str, Macro],
     cl_name: str,
     project_file: str,
     project_name: str,
@@ -64,7 +64,7 @@ def spawn_segments_into(
     extra_env: dict[str, str] | None,
     segment_extra_env: Sequence[dict[str, str] | None] | None,
     segment_template_groups: Sequence[str | None] | None,
-    segment_swarm_xprompts: Sequence[Sequence[str]] | None,
+    segment_swarm_macros: Sequence[Sequence[str]] | None,
     preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None,
     allow_reserved_agent_session_separator_names: bool,
     default_bare_segments_to_home: bool,
@@ -110,9 +110,7 @@ def spawn_segments_into(
         raise ValueError(
             "segment_template_groups must have one entry per multi-prompt segment"
         )
-    if segment_swarm_xprompts is not None and len(segment_swarm_xprompts) != len(
-        segments
-    ):
+    if segment_swarm_macros is not None and len(segment_swarm_macros) != len(segments):
         raise ValueError(
             "segment_swarm_xprompts must have one entry per multi-prompt segment"
         )
@@ -131,7 +129,7 @@ def spawn_segments_into(
     try:
         clan_prepass = prepare_clan_launches(
             segments=segments,
-            local_xprompts=local_xprompts,
+            local_macros=local_macros,
             cl_name=cl_name,
             project_file=project_file,
             project_name=project_name,
@@ -180,7 +178,7 @@ def spawn_segments_into(
         )
         inherited_predecessor_context = previous_agent_context
         segment_swarm_names = (
-            () if segment_swarm_xprompts is None else segment_swarm_xprompts[i]
+            () if segment_swarm_macros is None else segment_swarm_macros[i]
         )
         upstreams_json = encode_agent_var_upstreams(upstreams) if upstreams else None
         if default_bare_segments_to_home:
@@ -200,7 +198,7 @@ def spawn_segments_into(
         segment_explicit_name = extract_static_name_directive(segment)
         with timer.stage("prompt_parse", segment_index=i):
             has_wait = has_deferred_start_directive(segment)
-            segment_local_xprompts = local_xprompts_for_segment(segment, local_xprompts)
+            segment_local_macros = local_macros_for_segment(segment, local_macros)
         next_segment_needs_name = i < len(segments) - 1 and (
             has_bare_wait_directive(segments[i + 1])
             or has_bare_resume_reference(segments[i + 1])
@@ -209,7 +207,7 @@ def spawn_segments_into(
         # Check for launch fan-out directives (e.g.,
         # %{%m:opus | %m:sonnet}, %alt(a,b), or %{a | b}).
         # Try the raw segment first; if no match and the segment contains
-        # xprompt references, expand them and re-check.
+        # macro references, expand them and re-check.
         preplanned_fanout_plan = (
             None if preplanned_fanout_plans is None else preplanned_fanout_plans[i]
         )
@@ -221,7 +219,7 @@ def spawn_segments_into(
             else:
                 plan, is_fanout = plan_segment_fanout(
                     segment,
-                    segment_local_xprompts=segment_local_xprompts,
+                    segment_local_macros=segment_local_macros,
                     preplanned_fanout_plan=preplanned_fanout_plan,
                 )
         plan = assign_missing_slot_timestamps(plan, timestamp_allocator)
@@ -240,7 +238,7 @@ def spawn_segments_into(
         slot_contexts: dict[int, LaunchExecutionContext] = {}
         slot_artifacts_dirs: dict[int, Path] = {}
         slot_planned_env: dict[int, dict[str, str]] = {}
-        slot_local_xprompts_files: dict[int, str | None] = {}
+        slot_local_macros_files: dict[int, str | None] = {}
         planned_names: dict[int, str | None] = {}
         planned_env_names: dict[int, str | None] = {}
         for slot in plan.slots:
@@ -286,14 +284,14 @@ def spawn_segments_into(
                         timestamp=slot.timestamp,
                     )
 
-                # Each sub-prompt gets its own copy of the local xprompts file
+                # Each sub-prompt gets its own copy of the local macros file
                 # (the agent runner deletes it after reading).
                 with timer.stage(
                     "local_xprompts_serialize", segment_index=i, slot_index=j
                 ):
-                    slot_local_xprompts_files[j] = (
-                        serialize_local_xprompts(segment_local_xprompts)
-                        if segment_local_xprompts
+                    slot_local_macros_files[j] = (
+                        serialize_local_macros(segment_local_macros)
+                        if segment_local_macros
                         else None
                     )
 
@@ -396,9 +394,9 @@ def spawn_segments_into(
                 ) -> dict[str, str]:
                     return env_by_slot[slot.slot_index]  # type: ignore[attr-defined]
 
-                def _slot_local_xprompts_file(
+                def _slot_local_macros_file(
                     slot: object,
-                    files_by_slot: dict[int, str | None] = slot_local_xprompts_files,
+                    files_by_slot: dict[int, str | None] = slot_local_macros_files,
                 ) -> str | None:
                     return files_by_slot[slot.slot_index]  # type: ignore[attr-defined]
 
@@ -442,7 +440,7 @@ def spawn_segments_into(
                     slot_contexts[0],
                     slot_context=_slot_context,
                     slot_extra_env=_slot_extra_env,
-                    slot_local_xprompts_file=_slot_local_xprompts_file,
+                    slot_local_macros_file=_slot_local_macros_file,
                     slot_name_reservation=_slot_name_reservation,
                     extra_env=extra_env,
                     timestamp_allocator=timestamp_allocator,

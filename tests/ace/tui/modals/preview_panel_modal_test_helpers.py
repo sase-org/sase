@@ -12,7 +12,7 @@ from sase.ace.testing import wait_for
 from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 from sase.macro.cli_show_model import ShowInput
-from sase.macro.properties import XPromptProperties
+from sase.macro.properties import MacroProperties
 
 
 class _PreviewModalTestApp(App[None]):
@@ -77,13 +77,13 @@ def _properties_payload(
         lexer="markdown",
         reference="#bd/review_tasks",
         default_view=default_view,
-        properties=XPromptProperties(
+        properties=MacroProperties(
             reference="#bd/review_tasks",
             kind="xprompt",
             description="Review open task beads for a project.",
             input_signature="(project?: line)",
             inputs=[ShowInput("project", "line", False, "sase", None, False, 0)],
-            local_xprompts=[],
+            local_macros=[],
             steps=[],
             tags=["bd"],
             skill=None,

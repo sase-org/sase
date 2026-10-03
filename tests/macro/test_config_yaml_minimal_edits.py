@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.macro.config_yaml import insert_xprompt_into_config
+from sase.macro.config_yaml import insert_macro_into_config
 
 
 _PACKED_SORTED_CONFIG = (
@@ -38,7 +38,7 @@ def _insert(
 ) -> str:
     config = tmp_path / "sase.yml"
     config.write_text(initial_text, encoding="utf-8")
-    assert insert_xprompt_into_config(str(config), name, [], content) is True
+    assert insert_macro_into_config(str(config), name, [], content) is True
     return config.read_text(encoding="utf-8")
 
 
@@ -122,6 +122,6 @@ def test_empty_and_missing_section_fallbacks_insert_without_stray_blanks(
         config = tmp_path / f"sase-{index}.yml"
         config.write_text(initial, encoding="utf-8")
 
-        assert insert_xprompt_into_config(str(config), "foo", [], "Foo") is True
+        assert insert_macro_into_config(str(config), "foo", [], "Foo") is True
 
         assert config.read_text(encoding="utf-8") == expected

@@ -304,7 +304,7 @@ def prompt_ref_contexts_for_segment_vcs_refs(
 def _prompt_segments(prompt: str) -> tuple[tuple[tuple[int, int], str], ...]:
     """Split *prompt* into top-level ``---``-separated segments with spans.
 
-    Uses ``xprompt._prompt_segments``'s shared, disabled-region-aware
+    Uses ``macro._prompt_segments``'s shared, disabled-region-aware
     splitter (protect fenced/inline code and disabled regions before
     splitting on the separator, then restore each piece) without
     frontmatter handling: by the time a prompt reaches late preprocessing,

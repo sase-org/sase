@@ -60,10 +60,10 @@ def test_changed_identity_reexecs_original_argv(
     old = "a" * 40
     new = "b" * 40
     prompt_file = tmp_path / "submitted-prompt.md"
-    submitted_xprompt = "%i(fix)\nKeep this exact prompt\n"
+    submitted_prompt = "%i(fix)\nKeep this exact prompt\n"
 
     def assert_exec_handoff(*_args: object) -> None:
-        assert prompt_file.read_text(encoding="utf-8") == submitted_xprompt
+        assert prompt_file.read_text(encoding="utf-8") == submitted_prompt
         assert os.environ[RUNNER_CODE_REFRESHED_ENV] == "1"
 
     with (
@@ -83,7 +83,7 @@ def test_changed_identity_reexecs_original_argv(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt=submitted_xprompt,
+            submitted_prompt=submitted_prompt,
         )
 
     execv.assert_called_once_with(
@@ -124,7 +124,7 @@ def test_refresh_handoff_preserves_current_agent_name(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="%wait:builder\nDo work",
+            submitted_prompt="%wait:builder\nDo work",
             agent_name="builder.w0",
             artifacts_dir=str(tmp_path / "artifacts"),
         )
@@ -163,7 +163,7 @@ def test_refresh_handoff_drops_stale_planned_name_without_current_ownership(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="%wait:builder\nDo work",
+            submitted_prompt="%wait:builder\nDo work",
             agent_name="foreign.w0",
             artifacts_dir=str(tmp_path / "artifacts"),
         )
@@ -198,7 +198,7 @@ def test_exec_failure_restores_prior_planned_name(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="prompt",
+            submitted_prompt="prompt",
             agent_name="builder.w0",
             artifacts_dir=str(tmp_path / "artifacts"),
         )
@@ -228,7 +228,7 @@ def test_prompt_rewrite_failure_skips_refresh(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="prompt",
+            submitted_prompt="prompt",
         )
 
     execv.assert_not_called()
@@ -258,7 +258,7 @@ def test_exec_failure_continues_without_refresh_guard_or_prompt_file(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="prompt",
+            submitted_prompt="prompt",
         )
 
     assert RUNNER_CODE_REFRESHED_ENV not in os.environ
@@ -296,7 +296,7 @@ def test_refresh_is_inert_without_all_preconditions(
             blocking_wait_occurred=blocked,
             killed=killed,
             prompt_file="/tmp/prompt.md",
-            submitted_xprompt="prompt",
+            submitted_prompt="prompt",
         )
 
     execv.assert_not_called()
@@ -318,7 +318,7 @@ def test_refreshed_guard_prevents_loop_and_is_not_inherited(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file="/tmp/prompt.md",
-            submitted_xprompt="prompt",
+            submitted_prompt="prompt",
         )
 
     current_identity.assert_not_called()
@@ -326,19 +326,19 @@ def test_refreshed_guard_prevents_loop_and_is_not_inherited(
     assert RUNNER_CODE_REFRESHED_ENV not in os.environ
 
 
-def test_refresh_rematerializes_local_xprompts_for_exec(
+def test_refresh_rematerializes_local_macros_for_exec(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.agent.multi_prompt_macros import (
         LOCAL_XPROMPTS_ENV,
-        deserialize_local_xprompts,
+        deserialize_local_macros,
     )
-    from sase.macro.models import XPrompt
+    from sase.macro.models import Macro
 
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     monkeypatch.delenv(LOCAL_XPROMPTS_ENV, raising=False)
     prompt_file = tmp_path / "prompt.md"
-    xprompts = {"_x": XPrompt(name="_x", content="expanded body")}
+    macros = {"_x": Macro(name="_x", content="expanded body")}
     captured: dict[str, str] = {}
 
     def capture_exec(*_args: object) -> None:
@@ -360,27 +360,27 @@ def test_refresh_rematerializes_local_xprompts_for_exec(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="prompt",
-            local_xprompts=xprompts,
+            submitted_prompt="prompt",
+            local_macros=macros,
         )
 
     path = captured[LOCAL_XPROMPTS_ENV]
     assert os.environ[LOCAL_XPROMPTS_ENV] == path
-    round_tripped = deserialize_local_xprompts(path)
+    round_tripped = deserialize_local_macros(path)
     assert set(round_tripped) == {"_x"}
     assert round_tripped["_x"].content == "expanded body"
 
 
-def test_refresh_exec_failure_restores_local_xprompts_env(
+def test_refresh_exec_failure_restores_local_macros_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
-    from sase.macro.models import XPrompt
+    from sase.macro.models import Macro
 
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     monkeypatch.delenv(LOCAL_XPROMPTS_ENV, raising=False)
     prompt_file = tmp_path / "prompt.md"
-    xprompts = {"_x": XPrompt(name="_x", content="body")}
+    macros = {"_x": Macro(name="_x", content="body")}
 
     with (
         patch(
@@ -397,32 +397,32 @@ def test_refresh_exec_failure_restores_local_xprompts_env(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="prompt",
-            local_xprompts=xprompts,
+            submitted_prompt="prompt",
+            local_macros=macros,
         )
 
     assert LOCAL_XPROMPTS_ENV not in os.environ
     assert RUNNER_CODE_REFRESHED_ENV not in os.environ
 
 
-def test_refresh_exec_failure_restores_prior_local_xprompts_value(
+def test_refresh_exec_failure_restores_prior_local_macros_value(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
-    from sase.macro.models import XPrompt
+    from sase.macro.models import Macro
 
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     prior = tmp_path / "prior.json"
     prior.write_text("{}", encoding="utf-8")
     monkeypatch.setenv(LOCAL_XPROMPTS_ENV, str(prior))
     prompt_file = tmp_path / "prompt.md"
-    xprompts = {"_x": XPrompt(name="_x", content="body")}
+    macros = {"_x": Macro(name="_x", content="body")}
     created: list[str] = []
     real_serialize = None
 
-    import sase.agent.multi_prompt_macros as xprompt_module
+    import sase.agent.multi_prompt_macros as macro_module
 
-    real_serialize = xprompt_module.serialize_local_xprompts
+    real_serialize = macro_module.serialize_local_macros
 
     def tracking_serialize(payload: object) -> str:
         path = real_serialize(payload)  # type: ignore[arg-type]
@@ -435,7 +435,7 @@ def test_refresh_exec_failure_restores_prior_local_xprompts_value(
             return_value="b" * 40,
         ),
         patch(
-            "sase.agent.multi_prompt_macros.serialize_local_xprompts",
+            "sase.agent.multi_prompt_macros.serialize_local_macros",
             side_effect=tracking_serialize,
         ),
         patch(
@@ -448,19 +448,19 @@ def test_refresh_exec_failure_restores_prior_local_xprompts_value(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="prompt",
-            local_xprompts=xprompts,
+            submitted_prompt="prompt",
+            local_macros=macros,
         )
 
     assert os.environ[LOCAL_XPROMPTS_ENV] == str(prior)
     assert created and not os.path.exists(created[0])
 
 
-@pytest.mark.parametrize("local_xprompts", [None, {}])
-def test_refresh_leaves_local_xprompts_env_untouched_when_empty(
+@pytest.mark.parametrize("local_macros", [None, {}])
+def test_refresh_leaves_local_macros_env_untouched_when_empty(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    local_xprompts: object,
+    local_macros: object,
 ) -> None:
     from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
 
@@ -483,8 +483,8 @@ def test_refresh_leaves_local_xprompts_env_untouched_when_empty(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="prompt",
-            local_xprompts=local_xprompts,  # type: ignore[arg-type]
+            submitted_prompt="prompt",
+            local_macros=local_macros,  # type: ignore[arg-type]
         )
 
     assert LOCAL_XPROMPTS_ENV not in os.environ
@@ -496,7 +496,7 @@ def test_refresh_serialization_failure_skips_refresh(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
-    from sase.macro.models import XPrompt
+    from sase.macro.models import Macro
 
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     monkeypatch.delenv(LOCAL_XPROMPTS_ENV, raising=False)
@@ -508,7 +508,7 @@ def test_refresh_serialization_failure_skips_refresh(
             return_value="b" * 40,
         ),
         patch(
-            "sase.agent.multi_prompt_macros.serialize_local_xprompts",
+            "sase.agent.multi_prompt_macros.serialize_local_macros",
             side_effect=RuntimeError("cannot serialize"),
         ),
         patch("sase.axe.run_agent_runner_refresh.os.execv") as execv,
@@ -518,8 +518,8 @@ def test_refresh_serialization_failure_skips_refresh(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="prompt",
-            local_xprompts={"_x": XPrompt(name="_x", content="body")},
+            submitted_prompt="prompt",
+            local_macros={"_x": Macro(name="_x", content="body")},
         )
 
     execv.assert_not_called()
@@ -528,16 +528,16 @@ def test_refresh_serialization_failure_skips_refresh(
     assert "local xprompts could not be re-materialized" in capsys.readouterr().err
 
 
-def test_refresh_local_xprompts_boundary_replay(
+def test_refresh_local_macros_boundary_replay(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """First extract -> refresh -> second extract keeps local xprompts."""
+    """First extract -> refresh -> second extract keeps local macros."""
     import json
 
-    from sase.agent.multi_prompt_launcher import _serialize_local_xprompts
+    from sase.agent.multi_prompt_launcher import _serialize_local_macros
     from sase.axe.run_agent_directives import extract_directives_and_write_meta
     from sase.agent.multi_prompt_macros import LOCAL_XPROMPTS_ENV
-    from sase.macro.models import XPrompt
+    from sase.macro.models import Macro
     from tests._agent_names_extract_fixtures import mock_provider
 
     sase_home = tmp_path / ".sase"
@@ -549,8 +549,8 @@ def test_refresh_local_xprompts_boundary_replay(
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     monkeypatch.delenv(LOCAL_XPROMPTS_ENV, raising=False)
 
-    first_path = _serialize_local_xprompts(
-        {"_x": XPrompt(name="_x", content="expanded body")}
+    first_path = _serialize_local_macros(
+        {"_x": Macro(name="_x", content="expanded body")}
     )
     monkeypatch.setenv(LOCAL_XPROMPTS_ENV, first_path)
 
@@ -578,7 +578,7 @@ def test_refresh_local_xprompts_boundary_replay(
             )
 
     first = run_extract("#_x\nplease")
-    assert set(first.local_xprompts) == {"_x"}
+    assert set(first.local_macros) == {"_x"}
     assert LOCAL_XPROMPTS_ENV not in os.environ
 
     captured: dict[str, str] = {}
@@ -602,14 +602,14 @@ def test_refresh_local_xprompts_boundary_replay(
             blocking_wait_occurred=True,
             killed=False,
             prompt_file=str(prompt_file),
-            submitted_xprompt="#_x\nplease",
-            local_xprompts=first.local_xprompts,
+            submitted_prompt="#_x\nplease",
+            local_macros=first.local_macros,
         )
 
     assert LOCAL_XPROMPTS_ENV in captured
     with patch.dict(os.environ, captured, clear=False):
         second = run_extract("#_x\nplease")
 
-    assert set(second.local_xprompts) == {"_x"}
-    assert second.local_xprompts["_x"].content == "expanded body"
+    assert set(second.local_macros) == {"_x"}
+    assert second.local_macros["_x"].content == "expanded body"
     assert json.loads((artifacts / "agent_meta.json").read_text(encoding="utf-8"))

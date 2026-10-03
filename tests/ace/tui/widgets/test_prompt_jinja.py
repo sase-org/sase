@@ -287,7 +287,7 @@ def test_jinja_soft_completion() -> None:
         text="Hello {{ ro }}",
         cursor_offset=len("Hello {{ ro"),
         settings=PromptCompletionSettings(),
-        xprompt_entries=[],
+        macro_entries=[],
     )
 
     assert suggestion is not None
@@ -301,7 +301,7 @@ def test_jinja_soft_completion_includes_runtime_builtins() -> None:
         text="Hello {{ wait_ }}",
         cursor_offset=len("Hello {{ wait_"),
         settings=PromptCompletionSettings(),
-        xprompt_entries=[],
+        macro_entries=[],
     )
 
     assert suggestion is not None
@@ -315,7 +315,7 @@ def test_jinja_soft_completion_includes_wait_namespace_members() -> None:
         text="Hello {{ wait.art }}",
         cursor_offset=len("Hello {{ wait.art"),
         settings=PromptCompletionSettings(),
-        xprompt_entries=[],
+        macro_entries=[],
     )
 
     assert suggestion is not None
@@ -329,7 +329,7 @@ def test_jinja_soft_completion_never_falls_through_to_directive() -> None:
             text=text,
             cursor_offset=len(text),
             settings=PromptCompletionSettings(),
-            xprompt_entries=[],
+            macro_entries=[],
         )
 
         assert suggestion is None, text

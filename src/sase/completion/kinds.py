@@ -22,7 +22,7 @@ class ValueKind(StrEnum):
     ARTIFACT_REF = "artifact_ref"
     ARTIFACT_RELATION = "artifact_relation"
     DIRECTIVE = "directive"
-    XPROMPT = "xprompt"
+    MACRO = "xprompt"
     SKILL = "skill"
     MEMORY = "memory"
     PROC = "proc"
@@ -112,7 +112,7 @@ NAME_TABLE: Final[dict[str, ValueKind]] = {
     "workspace_dir": ValueKind.DIR,
     "workspace_num": ValueKind.WORKSPACE,
     "workspace_nums": ValueKind.WORKSPACE,
-    "workflow_name": ValueKind.XPROMPT,
+    "workflow_name": ValueKind.MACRO,
 }
 
 # Explicit (command_path, dest) overrides for actions whose dest/metavar is
@@ -213,7 +213,7 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("snippet", "delete"), "trigger"): ValueKind.SNIPPET,
         (("snippet", "show"), "trigger"): ValueKind.SNIPPET,
         (("stitch", "list"), "repos"): ValueKind.REPO,
-        (("xprompt", "show"), "name"): ValueKind.XPROMPT,
+        (("xprompt", "show"), "name"): ValueKind.MACRO,
     }
     for slot in _BEAD_ID_SLOTS:
         overrides[slot] = ValueKind.BEAD
@@ -240,7 +240,7 @@ VOLATILE_KIND_TTL_SECONDS: Final[dict[ValueKind, float]] = {
 }
 
 # `sase run`'s PROMPT positional is not a plain kinded slot: it completes as
-# native file paths *plus* stored xprompt names, a combination the ValueKind
+# native file paths *plus* stored macro names, a combination the ValueKind
 # catalog has no single member for. Each emitter special-cases this exact
 # (command_path, dest) pair directly rather than going through
 # ``resolve_value_kind``. Kept here, not duplicated per emitter, so the three

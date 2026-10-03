@@ -54,7 +54,7 @@ def test_document_scan_wrapper_separates_visible_text_from_target() -> None:
     assert scan.links[0].source_span.start == len("é ".encode())
 
 
-def test_document_scan_wrapper_accepts_xprompt_skill_targets() -> None:
+def test_document_scan_wrapper_accepts_macro_skill_targets() -> None:
     scan = artifact_refs.scan_artifact_ref_document(
         "Use #skill/sase_plan and [repo](#skill/sase_repo).",
         known_kinds=("plan",),

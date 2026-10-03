@@ -165,7 +165,7 @@ def extract_artifacts_timestamp(agent: Agent) -> str | None:
     return None
 
 
-def get_raw_xprompt_content(agent: Agent) -> str | None:
+def get_raw_prompt_content(agent: Agent) -> str | None:
     """Get the raw xprompt content (before preprocessing/expansion).
 
     Returns:
@@ -202,7 +202,7 @@ def get_restartable_prompt_content(
     This helper performs filesystem work and must be called off the Textual
     message pump.
     """
-    raw_prompt = agent.get_raw_xprompt_content()
+    raw_prompt = agent.get_raw_prompt_content()
     if raw_prompt is not None:
         return raw_prompt
 

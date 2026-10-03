@@ -1,4 +1,4 @@
-"""A foreground `sase tool run` must not pay for the provider/xprompt stack."""
+"""A foreground `sase tool run` must not pay for the provider/macro stack."""
 
 from __future__ import annotations
 

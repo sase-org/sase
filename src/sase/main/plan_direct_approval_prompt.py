@@ -16,11 +16,11 @@ def compose_coder_prompt(
     placement: CoderPlacement,
 ) -> str:
     """Compose the ``#coder`` prompt used for previews and recovery hints."""
-    from sase.macro._parsing_args import escape_for_xprompt
+    from sase.macro._parsing_args import escape_for_macro
 
     argument = plan_argument.strip()
     if _needs_quoting(argument):
-        argument = f'"{escape_for_xprompt(argument)}"'
+        argument = f'"{escape_for_macro(argument)}"'
     if placement.mode == "session" and placement.parent:
         id_part = f"%id({placement.suffix}, session={placement.parent})"
     elif bead:

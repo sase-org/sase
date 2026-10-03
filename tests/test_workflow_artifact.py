@@ -1,4 +1,4 @@
-"""Tests for artifact passing in xprompt workflows."""
+"""Tests for artifact passing in macro workflows."""
 
 import os
 import tempfile

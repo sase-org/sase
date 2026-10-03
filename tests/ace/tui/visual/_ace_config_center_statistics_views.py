@@ -26,7 +26,7 @@ def _populated_statistics_view(
     view: str = "overview",
     selected_range: StatsRange = _STATISTICS_RANGE,
     project_filter: str | None = None,
-    xprompt_focus: str | None = None,
+    macro_focus: str | None = None,
     perf_group_by: PerfGroupBy = "subsystem",
 ) -> StatisticsViewData:
     runtime_group_by = "tribe"
@@ -287,7 +287,7 @@ def _populated_statistics_view(
             "malformed_rows_skipped": 2,
             "invalid_intervals_skipped": 1,
         },
-        "xprompts": _xprompts_payload(selected_range, xprompt_focus),
+        "xprompts": _xprompts_payload(selected_range, macro_focus),
     }
     activity_payload = {
         "skills": [
@@ -342,7 +342,7 @@ def _populated_statistics_view(
             current_runner_limit=4,
         ),
         project_filter=project_filter,
-        xprompt_focus=xprompt_focus,
+        macro_focus=macro_focus,
         project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
         perf=perf,
     )
@@ -447,7 +447,7 @@ def _degraded_perf_statistics_view(
     view: str = "perf",
     selected_range: StatsRange = _STATISTICS_RANGE,
     project_filter: str | None = None,
-    xprompt_focus: str | None = None,
+    macro_focus: str | None = None,
     perf_group_by: PerfGroupBy = "subsystem",
 ) -> StatisticsViewData:
     perf_view = build_perf_view(
@@ -468,7 +468,7 @@ def _degraded_perf_statistics_view(
             current_runner_limit=4,
         ),
         project_filter=project_filter,
-        xprompt_focus=xprompt_focus,
+        macro_focus=macro_focus,
         project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
         perf=perf_view,
     )

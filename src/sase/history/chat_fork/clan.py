@@ -141,10 +141,10 @@ def _load_fork_member_prompts(
     prompts: list[str] = []
     for prompt, _response in parse_chat_turns(content):
         refs = find_resume_ref_groups(prompt) if find_resume_refs(prompt) else []
-        for full_match, xprompt_name, arguments in refs:
+        for full_match, macro_name, arguments in refs:
             needs_fallback = False
             for argument in arguments:
-                resolved_path = resolve_resume_to_chat_path(xprompt_name, argument)
+                resolved_path = resolve_resume_to_chat_path(macro_name, argument)
                 normalized_path = (
                     os.path.abspath(os.path.expanduser(resolved_path))
                     if resolved_path

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from sase.macro.catalog import _CatalogEntry
-from sase.macro.models import InputArg, InputType, MemoryType, XPrompt
-from sase.macro.tags import XPromptTag
+from sase.macro.models import InputArg, InputType, MemoryType, Macro
+from sase.macro.tags import MacroTag
 
 
-def make_xprompt(
+def make_macro(
     name: str,
     *,
     source_path: str | None = None,
@@ -16,8 +16,8 @@ def make_xprompt(
     content: str = "body",
     snippet: bool | None = None,
     memory_type: MemoryType | None = None,
-) -> XPrompt:
-    return XPrompt(
+) -> Macro:
+    return Macro(
         name=name,
         content=content,
         inputs=inputs or [],
@@ -33,9 +33,9 @@ def make_xprompt(
 def seed_entries() -> list[_CatalogEntry]:
     return [
         _CatalogEntry(
-            make_xprompt(
+            make_macro(
                 "a",
-                tags=frozenset({XPromptTag.vcs}),
+                tags=frozenset({MacroTag.vcs}),
                 description="A",
                 inputs=[InputArg(name="x", type=InputType.LINE)],
                 skill=True,
@@ -44,12 +44,12 @@ def seed_entries() -> list[_CatalogEntry]:
             project=None,
         ),
         _CatalogEntry(
-            make_xprompt("b", tags=frozenset({XPromptTag.vcs, XPromptTag.commit})),
+            make_macro("b", tags=frozenset({MacroTag.vcs, MacroTag.commit})),
             bucket="project",
             project="alpha",
         ),
         _CatalogEntry(
-            make_xprompt("c", memory_type="core"),
+            make_macro("c", memory_type="core"),
             bucket="config",
             project=None,
         ),

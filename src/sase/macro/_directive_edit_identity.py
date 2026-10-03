@@ -200,7 +200,7 @@ def set_prompt_tribe(prompt: str, tribe: str | None) -> str:
         {"g", "group", "tribe"},
         None,
         remove_deprecated=False,
-        remove_time_xprompts=False,
+        remove_time_macros=False,
     )
     directive = _find_prompt_id_directive(protected)
     if directive is None:

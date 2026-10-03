@@ -1,4 +1,4 @@
-"""Tests for VCS-reference inheritance during xprompt swarm expansion."""
+"""Tests for VCS-reference inheritance during macro swarm expansion."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from sase.macro._parsing import normalize_default_vcs_workflow_segment
 from sase.macro.models import InputArg, InputType
 
 from tests._macro_swarm_helpers import (
-    expand_xprompt_swarms,
+    expand_macro_swarms,
     patch_catalog,
     patch_vcs_patterns,
     xp,
@@ -30,7 +30,7 @@ def test_expand_inline_with_vcs_prefix_inherits_followups() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase #three:: login flow"])
+        out = expand_macro_swarms(["#gh:sase #three:: login flow"])
     assert out == [
         "#gh:sase Plan login flow",
         "#gh:sase Build login flow",
@@ -51,7 +51,7 @@ def test_expand_inline_same_line_directive_inherits_vcs_to_followups() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["%i:abq #gh:sase #swarm:: review the changes"])
+        out = expand_macro_swarms(["%i:abq #gh:sase #swarm:: review the changes"])
         normalized = [
             normalize_default_vcs_workflow_segment(segment) for segment in out
         ]
@@ -71,7 +71,7 @@ def test_expand_inline_multiple_same_line_directives_inherit_vcs() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(
+        out = expand_macro_swarms(
             ["%i:abq %model:opus #gh:sase #swarm:: review the changes"]
         )
         normalized = [
@@ -104,7 +104,7 @@ def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref
             return_value={"sase": Path("/work/sase")},
         ),
     ):
-        out = expand_xprompt_swarms(["%i:abq #gh_sase #swarm:: review the changes"])
+        out = expand_macro_swarms(["%i:abq #gh_sase #swarm:: review the changes"])
         normalized = [
             normalize_default_vcs_workflow_segment(segment) for segment in out
         ]
@@ -117,17 +117,17 @@ def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref
 def test_expand_inline_vcs_prefix_does_not_override_generated_vcs_ref() -> None:
     catalog = {"three": xp("three", "Plan\n---\n#git:other Build\n---\nTest")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase #three"])
+        out = expand_macro_swarms(["#gh:sase #three"])
     assert out == ["#gh:sase Plan", "#git:other Build", "#gh:sase Test"]
 
 
-def test_multiple_xprompt_swarm_references_inherit_leading_vcs_ref() -> None:
+def test_multiple_macro_swarm_references_inherit_leading_vcs_ref() -> None:
     catalog = {
         "a": xp("a", "a1\n---\na2"),
         "b": xp("b", "b1\n---\n#git:other b2"),
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase Review #a then #b after"])
+        out = expand_macro_swarms(["#gh:sase Review #a then #b after"])
     assert out == [
         "#gh:sase Review a1",
         "#gh:sase a2",
@@ -136,10 +136,10 @@ def test_multiple_xprompt_swarm_references_inherit_leading_vcs_ref() -> None:
     ]
 
 
-def test_expand_vcs_prefixed_xprompt_swarm_prefixes_every_subsegment() -> None:
+def test_expand_vcs_prefixed_macro_swarm_prefixes_every_subsegment() -> None:
     catalog = {"three": xp("three", "Plan\n---\nImplement\n---\nVerify")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase #!three"])
+        out = expand_macro_swarms(["#gh:sase #!three"])
     assert out == ["#gh:sase Plan", "#gh:sase Implement", "#gh:sase Verify"]
 
 
@@ -153,14 +153,14 @@ def test_expand_known_project_vcs_prefix_without_registered_provider() -> None:
             return_value={"sase": Path("/work/sase")},
         ),
     ):
-        out = expand_xprompt_swarms(["#gh:sase #!three"])
+        out = expand_macro_swarms(["#gh:sase #!three"])
     assert out == ["#gh:sase Plan", "#gh:sase Implement"]
 
 
 def test_expand_vcs_prefix_with_directives_keeps_directives_on_first_segment() -> None:
     catalog = {"three": xp("three", "Plan\n---\nImplement\n---\nVerify")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["%id:custom\n#gh:sase #!three"])
+        out = expand_macro_swarms(["%id:custom\n#gh:sase #!three"])
     assert out == [
         "%id:custom\n#gh:sase Plan",
         "#gh:sase Implement",
@@ -171,28 +171,28 @@ def test_expand_vcs_prefix_with_directives_keeps_directives_on_first_segment() -
 def test_expand_vcs_prefix_preserves_generated_directives() -> None:
     catalog = {"three": xp("three", "%id:plan\nPlan\n---\nImplement")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase #!three"])
+        out = expand_macro_swarms(["#gh:sase #!three"])
     assert out == ["%id:plan\n#gh:sase Plan", "#gh:sase Implement"]
 
 
 def test_expand_vcs_prefix_does_not_override_segment_local_vcs_ref() -> None:
     catalog = {"three": xp("three", "Plan\n---\n#git:other Implement\n---\nVerify")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase #!three"])
+        out = expand_macro_swarms(["#gh:sase #!three"])
     assert out == ["#gh:sase Plan", "#git:other Implement", "#gh:sase Verify"]
 
 
-def test_bare_vcs_prefixed_xprompt_swarm_expands() -> None:
+def test_bare_vcs_prefixed_macro_swarm_expands() -> None:
     catalog = {"three": xp("three", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase #three"])
+        out = expand_macro_swarms(["#gh:sase #three"])
     assert out == ["#gh:sase a", "#gh:sase b", "#gh:sase c"]
 
 
-def test_vcs_prefixed_xprompt_swarm_with_prose_inherits_vcs() -> None:
+def test_vcs_prefixed_macro_swarm_with_prose_inherits_vcs() -> None:
     catalog = {"three": xp("three", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase please #!three"])
+        out = expand_macro_swarms(["#gh:sase please #!three"])
     assert out == ["#gh:sase please a", "#gh:sase b", "#gh:sase c"]
 
 
@@ -211,7 +211,7 @@ def test_inherited_vcs_ref_does_not_split_multiline_clan_directive() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase #swarm:: review the changes"])
+        out = expand_macro_swarms(["#gh:sase #swarm:: review the changes"])
     assert len(out) == 2
     segment = out[0]
     assert ",\n#gh:sase" not in segment
@@ -236,7 +236,7 @@ def test_inherited_vcs_ref_multiline_clan_directive_parses_cleanly() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase #swarm:: review the changes"])
+        out = expand_macro_swarms(["#gh:sase #swarm:: review the changes"])
     directive = extract_static_clan_directive(out[0])
     assert directive is not None
     assert directive.name == "swarm.abc"
@@ -257,7 +257,7 @@ def test_inherited_vcs_ref_multiline_clan_directive_with_unbalanced_paren() -> N
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(
+        out = expand_macro_swarms(
             ["#gh:sase #swarm:: fix (the gates without closing it"]
         )
     assert len(out) == 2
@@ -280,7 +280,7 @@ def test_inherited_vcs_ref_leaves_malformed_clan_directive_malformed() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["#gh:sase #swarm:: review the changes"])
+        out = expand_macro_swarms(["#gh:sase #swarm:: review the changes"])
     assert len(out) == 2
     segment = out[0]
     assert segment.startswith("#gh:sase %clan(")

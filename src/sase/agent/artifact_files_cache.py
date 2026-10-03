@@ -1,7 +1,7 @@
 """Per-process cache for artifact-file reads (Phase 6 of the TUI perf plan).
 
 The agent prompt panel re-globs and re-reads several artifact files (prompt
-selection, raw xprompt, response, chat response, timestamped reply chunks,
+selection, raw macro, response, chat response, timestamped reply chunks,
 live reply) every time the user navigates between agents — even when the
 underlying files haven't changed. This module memoizes those reads keyed by
 ``(path, mtime_ns, size)`` so re-selecting the same agent reuses parsed

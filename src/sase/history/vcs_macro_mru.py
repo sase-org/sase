@@ -1,4 +1,4 @@
-"""MRU tracking for VCS xprompt workflow prefixes."""
+"""MRU tracking for VCS macro workflow prefixes."""
 
 from __future__ import annotations
 
@@ -30,8 +30,8 @@ _MAX_ENTRIES = 100
 class _MruBuildState:
     """Per-call memo state for one launchable-MRU build.
 
-    Owned by a single :func:`load_launchable_vcs_xprompt_mru_pairs` (or
-    :func:`record_vcs_xprompt_usage`) call and never shared across calls:
+    Owned by a single :func:`load_launchable_vcs_macro_mru_pairs` (or
+    :func:`record_vcs_macro_usage`) call and never shared across calls:
     no process-global cache. The project inventory is listed once up front;
     aliases and display labels derive from that list, and provider detection
     memoizes by project-file path for the duration of the call.
@@ -72,7 +72,7 @@ def _mru_build_state(projects_dir: Path | None) -> _MruBuildState:
     return state
 
 
-def vcs_xprompt_mru_path() -> Path:
+def vcs_macro_mru_path() -> Path:
     """Return the on-disk VCS macro MRU path.
 
     Honors the module-level ``_MRU_FILE`` test hook so isolated tests and
@@ -82,7 +82,7 @@ def vcs_xprompt_mru_path() -> Path:
 
 
 def _mru_file() -> Path:
-    return vcs_xprompt_mru_path()
+    return vcs_macro_mru_path()
 
 
 def _legacy_mru_file() -> Path:
@@ -92,7 +92,7 @@ def _legacy_mru_file() -> Path:
     return sase_home() / LEGACY_VCS_XPROMPT_MRU_FILENAME
 
 
-def _load_vcs_xprompt_mru() -> list[str]:
+def _load_vcs_macro_mru() -> list[str]:
     """Load the MRU list from disk.
 
     Reads the canonical file first, falling back to the pre-rename file.
@@ -107,12 +107,12 @@ def _load_vcs_xprompt_mru() -> list[str]:
     return [e for e in entries if isinstance(e, str)][:_MAX_ENTRIES]
 
 
-def load_vcs_xprompt_mru_entries() -> list[str]:
+def load_vcs_macro_mru_entries() -> list[str]:
     """Return the raw on-disk MRU entries without pruning or project reads."""
-    return _load_vcs_xprompt_mru()
+    return _load_vcs_macro_mru()
 
 
-def load_launchable_vcs_xprompt_mru(
+def load_launchable_vcs_macro_mru(
     projects_dir: Path | None = None,
     *,
     prune: bool = True,
@@ -120,20 +120,18 @@ def load_launchable_vcs_xprompt_mru(
     """Load MRU prefixes, dropping entries that would no longer launch.
 
     Display-only convenience wrapper around
-    :func:`load_launchable_vcs_xprompt_mru_pairs`; see that function for the
+    :func:`load_launchable_vcs_macro_mru_pairs`; see that function for the
     pruning rules. Callers that also need the canonical (on-disk) form of
     each entry -- e.g. to build a ``history_sort_key`` -- should call the
     pairs accessor directly instead.
     """
     return [
         display
-        for _, display in load_launchable_vcs_xprompt_mru_pairs(
-            projects_dir, prune=prune
-        )
+        for _, display in load_launchable_vcs_macro_mru_pairs(projects_dir, prune=prune)
     ]
 
 
-def load_launchable_vcs_xprompt_mru_pairs(
+def load_launchable_vcs_macro_mru_pairs(
     projects_dir: Path | None = None,
     *,
     prune: bool = True,
@@ -144,7 +142,7 @@ def load_launchable_vcs_xprompt_mru_pairs(
     cycles to explicit refs that will actually launch (and so the
     unresolved-ref launch guard is never reachable through normal cycling):
 
-    - the implicit default prefix (:func:`_is_default_vcs_xprompt_prefix`),
+    - the implicit default prefix (:func:`_is_default_vcs_macro_prefix`),
       which is normalized data rather than a user MRU choice,
     - prefixes for a known but non-launchable project
       (:func:`_is_stale_known_project_prefix`),
@@ -160,10 +158,10 @@ def load_launchable_vcs_xprompt_mru_pairs(
     ``history_sort_key`` source); ``display_prefix`` is humanized to the
     configured project name (the correct prefill/label source -- users must
     never see a directory key). Deduping is keyed on the display form,
-    first-wins, so this and :func:`load_launchable_vcs_xprompt_mru` can never
+    first-wins, so this and :func:`load_launchable_vcs_macro_mru` can never
     disagree on ordering or length.
     """
-    entries = _load_vcs_xprompt_mru()
+    entries = _load_vcs_macro_mru()
     if not entries:
         return []
 
@@ -195,7 +193,7 @@ def load_launchable_vcs_xprompt_mru_pairs(
     filtered = [
         entry
         for entry in entries
-        if not _is_default_vcs_xprompt_prefix(entry)
+        if not _is_default_vcs_macro_prefix(entry)
         and not _is_stale_known_project_prefix(
             entry, projects_dir, alias_map=alias_map, state=state
         )
@@ -205,14 +203,14 @@ def load_launchable_vcs_xprompt_mru_pairs(
         )
     ]
     if prune and filtered != entries:
-        _save_vcs_xprompt_mru(filtered)
+        _save_vcs_macro_mru(filtered)
     # Disk stays canonical (written above); the returned pairs' display half
     # is humanized to the configured project name and deduped in MRU order so
     # callers that render/cycle them never surface directory keys.
     return _dedupe_mru_pairs(filtered, projects_dir, snapshot=state.display_snapshot)
 
 
-def record_vcs_xprompt_usage(prefix: str) -> None:
+def record_vcs_macro_usage(prefix: str) -> None:
     """Move/add prefix to the front of the MRU list, cap at 100, save to disk.
 
     The implicit default prefix (e.g. ``#git:home``) is never recorded as a
@@ -232,17 +230,17 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     prefix = canonicalize_project_aliases_in_prompt(prefix)
-    entries = _load_vcs_xprompt_mru()
-    if _is_default_vcs_xprompt_prefix(prefix):
-        filtered = [e for e in entries if not _is_default_vcs_xprompt_prefix(e)]
+    entries = _load_vcs_macro_mru()
+    if _is_default_vcs_macro_prefix(prefix):
+        filtered = [e for e in entries if not _is_default_vcs_macro_prefix(e)]
         if filtered != entries:
-            _save_vcs_xprompt_mru(filtered)
+            _save_vcs_macro_mru(filtered)
         return
     state = _mru_build_state(None)
     if _is_stale_known_project_prefix(prefix, state=state):
         filtered = [e for e in entries if e != prefix]
         if filtered != entries:
-            _save_vcs_xprompt_mru(filtered)
+            _save_vcs_macro_mru(filtered)
         return
     if _vcs_prefix_provider_mismatched(
         prefix,
@@ -253,16 +251,16 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
     ):
         filtered = [e for e in entries if e != prefix]
         if filtered != entries:
-            _save_vcs_xprompt_mru(filtered)
+            _save_vcs_macro_mru(filtered)
         return
 
     entries = [e for e in entries if e != prefix]
     entries.insert(0, prefix)
     entries = entries[:_MAX_ENTRIES]
-    _save_vcs_xprompt_mru(entries)
+    _save_vcs_macro_mru(entries)
 
 
-def _save_vcs_xprompt_mru(entries: list[str]) -> None:
+def _save_vcs_macro_mru(entries: list[str]) -> None:
     try:
         mru_file = _mru_file()
         mru_file.parent.mkdir(parents=True, exist_ok=True)
@@ -347,7 +345,7 @@ def mru_prefix_project_name(prefix: str) -> str | None:
         return None
 
 
-def _is_default_vcs_xprompt_prefix(prefix: str) -> bool:
+def _is_default_vcs_macro_prefix(prefix: str) -> bool:
     """Return whether *prefix* is the implicit default workflow prefix.
 
     The bare-prompt default (``#git:home``) is normalized data, not a user

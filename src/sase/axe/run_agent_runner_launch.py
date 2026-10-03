@@ -265,7 +265,7 @@ def _build_exec_context(
         agent_vcs_provider=state.agent_vcs_provider,
         agent_hidden=state.agent_hidden,
         agent_meta=bootstrap.agent_meta,
-        local_xprompts=bootstrap.info.local_xprompts,
+        local_macros=bootstrap.info.local_macros,
         multi_agent_prompt_file=os.environ.get(MULTI_AGENT_PROMPT_FILE_ENV),
         wait_chats=wait_chats,
         wait_context=wait_context,

@@ -14,7 +14,7 @@ from sase.bead import db
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
-from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.models import InputArg, InputType, Macro
 from sase.macro.workflow_models import Workflow
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
@@ -22,22 +22,20 @@ from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolutio
 FIXED_BEAD_NOW = datetime(2026, 8, 1, 12, 0, 0)
 
 
-def cli_work_xprompt_catalog(
-    *, land_content: str = "Land the epic."
-) -> dict[str, XPrompt]:
+def cli_work_macro_catalog(*, land_content: str = "Land the epic.") -> dict[str, Macro]:
     bead_input = [InputArg(name="bead_id", type=InputType.WORD)]
     return {
-        "bd/work_phase_bead": XPrompt(
+        "bd/work_phase_bead": Macro(
             name="bd/work_phase_bead",
             content="Work phase {{ bead_id }}.",
             inputs=bead_input,
         ),
-        "bd/work_task": XPrompt(
+        "bd/work_task": Macro(
             name="bd/work_task",
             content="Work task {{ bead_id }}.",
             inputs=bead_input,
         ),
-        "bd/land_epic": XPrompt(
+        "bd/land_epic": Macro(
             name="bd/land_epic",
             content=land_content,
             inputs=bead_input,
@@ -180,44 +178,44 @@ def nested_store(
 
 
 @pytest.fixture
-def fake_cli_work_xprompts(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stub xprompt resolution for ``sase bead work`` CLI tests."""
+def fake_cli_work_macros(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub macro resolution for ``sase bead work`` CLI tests."""
     work_phase = Workflow(name="bd/work_phase_bead")
     work_task = Workflow(name="bd/work_task")
     land_epic = Workflow(name="bd/land_epic")
-    from sase.macro.processor import process_xprompt_references
+    from sase.macro.processor import process_macro_references
 
-    catalog = cli_work_xprompt_catalog()
+    catalog = cli_work_macro_catalog()
 
     def process_with_cli_work_catalog(
         prompt: str,
         *args: Any,
-        extra_xprompts: dict[str, XPrompt] | None = None,
+        extra_macros: dict[str, Macro] | None = None,
         **kwargs: Any,
     ) -> str:
         extras = dict(catalog)
-        if extra_xprompts:
-            extras.update(extra_xprompts)
-        return process_xprompt_references(
+        if extra_macros:
+            extras.update(extra_macros)
+        return process_macro_references(
             prompt,
             *args,
-            extra_xprompts=extras,
+            extra_macros=extras,
             **kwargs,
         )
 
     monkeypatch.setattr(
-        "sase.bead.macros.resolve_work_phase_xprompt",
+        "sase.bead.macros.resolve_work_phase_macro",
         lambda project=None: work_phase,
     )
     monkeypatch.setattr(
-        "sase.bead.macros.resolve_work_task_xprompt",
+        "sase.bead.macros.resolve_work_task_macro",
         lambda project=None: work_task,
     )
     monkeypatch.setattr(
-        "sase.bead.macros.resolve_land_epic_xprompt",
+        "sase.bead.macros.resolve_land_epic_macro",
         lambda project=None: land_epic,
     )
     monkeypatch.setattr(
-        "sase.bead.work_queue_capacity.process_xprompt_references",
+        "sase.bead.work_queue_capacity.process_macro_references",
         process_with_cli_work_catalog,
     )

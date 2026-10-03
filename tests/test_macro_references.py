@@ -1,16 +1,16 @@
-"""Tests for shared xprompt reference parsing and workflow kind classification."""
+"""Tests for shared macro reference parsing and workflow kind classification."""
 
 from sase.macro._fenced_blocks import protect_fenced_blocks
 from sase.macro._parsing import (
-    XPromptReferenceArgKind,
-    XPromptReferenceMarker,
-    iter_xprompt_references,
+    MacroReferenceArgKind,
+    MacroReferenceMarker,
+    iter_macro_references,
 )
 from sase.macro.workflow_models import Workflow, WorkflowKind, WorkflowStep
 
 
 def _single_ref(prompt: str):
-    refs = iter_xprompt_references(prompt)
+    refs = iter_macro_references(prompt)
     assert len(refs) == 1
     return refs[0]
 
@@ -18,12 +18,12 @@ def _single_ref(prompt: str):
 def test_parse_inline_reference() -> None:
     ref = _single_ref("#commit")
 
-    assert ref.marker is XPromptReferenceMarker.INLINE
+    assert ref.marker is MacroReferenceMarker.INLINE
     assert ref.name == "commit"
     assert ref.raw == "#commit"
     assert ref.start == 0
     assert ref.end == len("#commit")
-    assert ref.arg_kind is XPromptReferenceArgKind.NONE
+    assert ref.arg_kind is MacroReferenceArgKind.NONE
     assert ref.hitl_override is None
     assert ref.parse_arguments() == ([], {})
 
@@ -31,7 +31,7 @@ def test_parse_inline_reference() -> None:
 def test_parse_standalone_reference() -> None:
     ref = _single_ref("#!sync")
 
-    assert ref.marker is XPromptReferenceMarker.STANDALONE
+    assert ref.marker is MacroReferenceMarker.STANDALONE
     assert ref.is_standalone_marker
     assert ref.name == "sync"
     assert ref.raw == "#!sync"
@@ -51,7 +51,7 @@ def test_parse_plus_reference_is_boolean_shorthand() -> None:
     ref = _single_ref("#feature+")
 
     assert ref.name == "feature"
-    assert ref.arg_kind is XPromptReferenceArgKind.PLUS
+    assert ref.arg_kind is MacroReferenceArgKind.PLUS
     assert ref.parse_arguments() == (["true"], {})
 
 
@@ -59,7 +59,7 @@ def test_parse_namespaced_standalone_reference_with_colon_arg() -> None:
     ref = _single_ref("#!sase/nightly_docs:prod")
 
     assert ref.name == "sase/nightly_docs"
-    assert ref.arg_kind is XPromptReferenceArgKind.COLON
+    assert ref.arg_kind is MacroReferenceArgKind.COLON
     assert ref.raw == "#!sase/nightly_docs:prod"
     assert ref.argument_source == ":prod"
     assert ref.parse_arguments() == (["prod"], {})
@@ -81,7 +81,7 @@ def test_parse_colon_shorthand_reference_with_parentheses_in_text() -> None:
     ref = _single_ref("#research: find foo (bar)")
 
     assert ref.name == "research"
-    assert ref.arg_kind is XPromptReferenceArgKind.COLON_SHORTHAND
+    assert ref.arg_kind is MacroReferenceArgKind.COLON_SHORTHAND
     assert ref.argument_source == ": find foo (bar)"
     assert ref.parse_arguments() == (["find foo (bar)"], {})
 
@@ -90,7 +90,7 @@ def test_parse_double_colon_shorthand_reference_with_parentheses_in_text() -> No
     ref = _single_ref("#research_swarm:: find foo (bar)")
 
     assert ref.name == "research_swarm"
-    assert ref.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+    assert ref.arg_kind is MacroReferenceArgKind.DOUBLE_COLON_SHORTHAND
     assert ref.argument_source == ":: find foo (bar)"
     assert ref.parse_arguments() == (["find foo (bar)"], {})
 
@@ -131,7 +131,7 @@ def test_parse_standalone_reference_with_paren_args() -> None:
     ref = _single_ref("#!deploy(arg=value)")
 
     assert ref.name == "deploy"
-    assert ref.arg_kind is XPromptReferenceArgKind.PAREN
+    assert ref.arg_kind is MacroReferenceArgKind.PAREN
     assert ref.raw == "#!deploy(arg=value)"
     assert ref.argument_source == "(arg=value)"
     assert ref.parse_arguments() == ([], {"arg": "value"})
@@ -150,20 +150,20 @@ def test_callers_can_filter_fenced_block_references() -> None:
     fenced_blocks: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced_blocks)
 
-    assert iter_xprompt_references(protected) == []
+    assert iter_macro_references(protected) == []
 
 
 def test_markdown_heading_with_space_is_not_a_reference() -> None:
-    assert iter_xprompt_references("# Heading") == []
+    assert iter_macro_references("# Heading") == []
 
 
-def test_workflow_kind_simple_xprompt() -> None:
+def test_workflow_kind_simple_macro() -> None:
     workflow = Workflow(
         name="commit",
         steps=[WorkflowStep(name="main", prompt_part="commit this")],
     )
 
-    assert workflow.prompt_kind() is WorkflowKind.SIMPLE_XPROMPT
+    assert workflow.prompt_kind() is WorkflowKind.SIMPLE_MACRO
 
 
 def test_workflow_kind_embeddable_workflow() -> None:
@@ -191,29 +191,29 @@ def test_workflow_kind_standalone_workflow() -> None:
 def test_double_colon_eol_binds_next_line_payload() -> None:
     ref = _single_ref("#foo::\none\ntwo")
 
-    assert ref.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+    assert ref.arg_kind is MacroReferenceArgKind.DOUBLE_COLON_SHORTHAND
     assert ref.shorthand_text_start == 7
     assert ref.parse_arguments() == (["one\ntwo"], {})
 
     paren = _single_ref("#foo(a=1)::\none")
 
-    assert paren.arg_kind is XPromptReferenceArgKind.PAREN
+    assert paren.arg_kind is MacroReferenceArgKind.PAREN
     assert paren.shorthand_text_start is not None
     assert paren.parse_arguments() == (["one"], {"a": "1"})
 
     for prompt in ("#foo::  \none", "#foo::\r\none", "#foo::\t\none"):
         eol = _single_ref(prompt)
-        assert eol.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+        assert eol.arg_kind is MacroReferenceArgKind.DOUBLE_COLON_SHORTHAND
         assert eol.parse_arguments() == (["one"], {})
 
     eof = _single_ref("#foo::")
-    assert eof.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+    assert eof.arg_kind is MacroReferenceArgKind.DOUBLE_COLON_SHORTHAND
     assert eof.parse_arguments() == ([""], {})
 
-    refs = iter_xprompt_references("#a:: x\n#b::\ny")
+    refs = iter_macro_references("#a:: x\n#b::\ny")
     assert len(refs) == 2
     assert refs[0].parse_arguments() == (["x"], {})
     assert refs[1].parse_arguments() == (["y"], {})
 
     single = _single_ref("#foo:\nbar")
-    assert single.arg_kind is XPromptReferenceArgKind.NONE
+    assert single.arg_kind is MacroReferenceArgKind.NONE

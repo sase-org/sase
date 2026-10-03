@@ -155,10 +155,10 @@ def registered_project_xprompts(
     projects_root = tmp_path / "projects"
     projects_root.mkdir(parents=True, exist_ok=True)
     workspace = tmp_path / "workspace"
-    xprompt_dir = workspace / "sase" / "xprompts"
-    xprompt_dir.mkdir(parents=True, exist_ok=True)
+    macro_dir = workspace / "sase" / "xprompts"
+    macro_dir.mkdir(parents=True, exist_ok=True)
     for name, body in xprompts.items():
-        (xprompt_dir / f"{name}.md").write_text(body, encoding="utf-8")
+        (macro_dir / f"{name}.md").write_text(body, encoding="utf-8")
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     _write_project(
@@ -179,23 +179,23 @@ def registered_project_xprompts(
         "list_project_records",
         _disk_project_records,
     )
-    project_identity.invalidate_xprompt_project_identity()
+    project_identity.invalidate_macro_project_identity()
 
     try:
         with ExitStack() as stack:
             for target, value in (
-                ("get_all_xprompts", {}),
+                ("get_all_macros", {}),
                 ("get_all_workflows", {}),
                 ("get_known_project_workspaces", {project_key: workspace}),
-                ("get_sase_package_xprompts_dir", tmp_path / "package"),
-                ("get_sase_package_default_xprompts_dir", tmp_path / "defaults"),
+                ("get_sase_package_macros_dir", tmp_path / "package"),
+                ("get_sase_package_default_macros_dir", tmp_path / "defaults"),
             ):
                 stack.enter_context(
                     patch(f"sase.macro.catalog.{target}", return_value=value)
                 )
             yield workspace
     finally:
-        project_identity.invalidate_xprompt_project_identity()
+        project_identity.invalidate_macro_project_identity()
 
 
 def create_entries(root: Path) -> None:

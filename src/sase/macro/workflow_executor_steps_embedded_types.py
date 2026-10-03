@@ -4,8 +4,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from sase.macro._parsing import XPromptReference, XPromptReferenceArgKind
-from sase.macro._parsing_args import decode_xprompt_args
+from sase.macro._parsing import MacroReference, MacroReferenceArgKind
+from sase.macro._parsing_args import decode_macro_args
 from sase.macro.models import OutputSpec
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
@@ -43,20 +43,20 @@ def format_inline_workflow_reference_error(
 
 
 def parse_workflow_reference_args(
-    ref: XPromptReference,
+    ref: MacroReference,
 ) -> tuple[list[str], dict[str, str]]:
-    """Parse an xprompt reference using embedded workflow argument semantics."""
-    if ref.arg_kind is XPromptReferenceArgKind.NONE:
+    """Parse a macro reference using embedded workflow argument semantics."""
+    if ref.arg_kind is MacroReferenceArgKind.NONE:
         return [], {}
-    if ref.arg_kind is XPromptReferenceArgKind.PAREN:
+    if ref.arg_kind is MacroReferenceArgKind.PAREN:
         return ref.parse_arguments()
-    if ref.arg_kind is XPromptReferenceArgKind.PLUS:
+    if ref.arg_kind is MacroReferenceArgKind.PLUS:
         return ["true"], {}
-    if ref.arg_kind is XPromptReferenceArgKind.COLON:
+    if ref.arg_kind is MacroReferenceArgKind.COLON:
         colon_arg = ref.argument_source[1:]
         if colon_arg.startswith("`") and colon_arg.endswith("`"):
             return [colon_arg[1:-1]], {}
-        return decode_xprompt_args(colon_arg.split(","), {})
+        return decode_macro_args(colon_arg.split(","), {})
     return ref.parse_arguments()
 
 

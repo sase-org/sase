@@ -1,4 +1,4 @@
-"""Deep xprompt LSP resolution checks for ``sase doctor``."""
+"""Deep macro LSP resolution checks for ``sase doctor``."""
 
 from __future__ import annotations
 
@@ -15,15 +15,15 @@ if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
 
-def check_xprompt_lsp(context: DoctorContext) -> DiagnosticCheck:
+def check_macro_lsp(context: DoctorContext) -> DiagnosticCheck:
     """Mirror the ``sase lsp`` server-command resolver without launching it."""
     try:
-        command = macro_lsp.resolve_xprompt_lsp_command(
+        command = macro_lsp.resolve_macro_lsp_command(
             environ=context.env,
             which=shutil.which,
             repo_root=None,
         )
-    except macro_lsp.XPromptLspLaunchError as exc:
+    except macro_lsp.MacroLspLaunchError as exc:
         return DiagnosticCheck(
             id="tools.xprompt_lsp",
             group="tools",
@@ -50,8 +50,8 @@ def check_xprompt_lsp(context: DoctorContext) -> DiagnosticCheck:
             },
         )
 
-    source = _xprompt_lsp_command_source(command, context.env)
-    cargo_fallback = _is_xprompt_lsp_cargo_run(command)
+    source = _macro_lsp_command_source(command, context.env)
+    cargo_fallback = _is_macro_lsp_cargo_run(command)
     if cargo_fallback:
         return DiagnosticCheck(
             id="tools.xprompt_lsp",
@@ -98,19 +98,19 @@ def check_xprompt_lsp(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
-def _xprompt_lsp_command_source(
+def _macro_lsp_command_source(
     command: tuple[str, ...],
     env: dict[str, str],
 ) -> str:
     if env.get(macro_lsp.SASE_XPROMPT_LSP_CMD_ENV, "").strip():
         return "SASE_XPROMPT_LSP_CMD"
-    if _is_xprompt_lsp_cargo_run(command):
+    if _is_macro_lsp_cargo_run(command):
         return "cargo fallback"
     if len(command) != 1:
         return "command"
 
     path = Path(command[0])
-    if path.name not in _xprompt_lsp_binary_names():
+    if path.name not in _macro_lsp_binary_names():
         return "command"
 
     python_bin_dir = Path(sys.executable).parent
@@ -125,7 +125,7 @@ def _xprompt_lsp_command_source(
     return "PATH"
 
 
-def _is_xprompt_lsp_cargo_run(command: tuple[str, ...]) -> bool:
+def _is_macro_lsp_cargo_run(command: tuple[str, ...]) -> bool:
     return (
         len(command) >= 2
         and Path(command[0]).name == "cargo"
@@ -134,7 +134,7 @@ def _is_xprompt_lsp_cargo_run(command: tuple[str, ...]) -> bool:
     )
 
 
-def _xprompt_lsp_binary_names() -> tuple[str, ...]:
+def _macro_lsp_binary_names() -> tuple[str, ...]:
     if os.name == "nt":
         return (
             f"{macro_lsp.MACRO_LSP_BINARY}.exe",

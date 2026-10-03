@@ -306,11 +306,11 @@ def _patched_launch_boundary(spawn_times: list[float]) -> Iterator[None]:
 
     with (
         patch(
-            "sase.bead.macros.resolve_work_phase_xprompt",
+            "sase.bead.macros.resolve_work_phase_macro",
             lambda project=None: Workflow(name="bd/work_phase_bead"),
         ),
         patch(
-            "sase.bead.macros.resolve_land_epic_xprompt",
+            "sase.bead.macros.resolve_land_epic_macro",
             lambda project=None: Workflow(name="bd/land_epic"),
         ),
         patch("sase.agent.launcher.launch_agent_from_cwd", launch_agent_from_cwd),

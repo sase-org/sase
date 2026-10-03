@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 # ---------------------------------------------------------------------------
@@ -73,66 +73,66 @@ def test_cli_single_prompt_launches_detached() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Agent runner: local xprompts env var temp file cleanup
+# Agent runner: local macros env var temp file cleanup
 # ---------------------------------------------------------------------------
 
 
-def test_local_xprompts_env_var_temp_file_cleaned_up() -> None:
-    """The temp file for SASE_AGENT_LOCAL_XPROMPTS is deleted after deserialization."""
+def test_local_macros_env_var_temp_file_cleaned_up() -> None:
+    """The temp file for SASE_AGENT_LOCAL_MACROS is deleted after deserialization."""
     from sase.agent.multi_prompt_launcher import (
-        _serialize_local_xprompts,
-        deserialize_local_xprompts,
+        _serialize_local_macros,
+        deserialize_local_macros,
     )
 
-    xprompts = {
-        "_style": XPrompt(name="_style", content="be concise"),
+    macros = {
+        "_style": Macro(name="_style", content="be concise"),
     }
-    xprompts_file = _serialize_local_xprompts(xprompts)
-    assert os.path.exists(xprompts_file)
+    macros_file = _serialize_local_macros(macros)
+    assert os.path.exists(macros_file)
 
     # Simulate the cleanup logic from axe_run_agent_phases.py lines 59-72.
-    env_xprompts_path = xprompts_file
+    env_macros_path = macros_file
     try:
-        env_xprompts = deserialize_local_xprompts(env_xprompts_path)
-        assert "_style" in env_xprompts
-        assert env_xprompts["_style"].content == "be concise"
+        env_macros = deserialize_local_macros(env_macros_path)
+        assert "_style" in env_macros
+        assert env_macros["_style"].content == "be concise"
     finally:
         try:
-            os.unlink(env_xprompts_path)
+            os.unlink(env_macros_path)
         except OSError:
             pass
 
     # The temp file should have been cleaned up.
-    assert not os.path.exists(xprompts_file)
+    assert not os.path.exists(macros_file)
 
 
-def test_local_xprompts_env_var_cleanup_in_extract_directives() -> None:
+def test_local_macros_env_var_cleanup_in_extract_directives() -> None:
     """axe_run_agent_phases pops the env var and cleans up the temp file."""
-    from sase.agent.multi_prompt_launcher import _serialize_local_xprompts
+    from sase.agent.multi_prompt_launcher import _serialize_local_macros
 
-    xprompts = {
-        "_style": XPrompt(name="_style", content="be concise"),
+    macros = {
+        "_style": Macro(name="_style", content="be concise"),
     }
-    xprompts_file = _serialize_local_xprompts(xprompts)
-    assert os.path.exists(xprompts_file)
+    macros_file = _serialize_local_macros(macros)
+    assert os.path.exists(macros_file)
 
     # Verify the code path: set env var, parse multi_prompt, pop env var, cleanup.
-    os.environ["SASE_AGENT_LOCAL_XPROMPTS"] = xprompts_file
-    env_xprompts_path = os.environ.pop("SASE_AGENT_LOCAL_XPROMPTS", None)
-    assert env_xprompts_path is not None
-    assert env_xprompts_path == xprompts_file
+    os.environ["SASE_AGENT_LOCAL_XPROMPTS"] = macros_file
+    env_macros_path = os.environ.pop("SASE_AGENT_LOCAL_XPROMPTS", None)
+    assert env_macros_path is not None
+    assert env_macros_path == macros_file
 
     # Clean up (mirrors the finally block we added in axe_run_agent_phases.py).
     try:
-        os.unlink(env_xprompts_path)
+        os.unlink(env_macros_path)
     except OSError:
         pass
-    assert not os.path.exists(xprompts_file)
+    assert not os.path.exists(macros_file)
 
 
-def test_local_xprompts_env_var_missing_file_no_crash() -> None:
-    """Missing temp file for SASE_AGENT_LOCAL_XPROMPTS doesn't crash on cleanup."""
-    nonexistent = "/tmp/sase_nonexistent_xprompts.json"
+def test_local_macros_env_var_missing_file_no_crash() -> None:
+    """Missing temp file for SASE_AGENT_LOCAL_MACROS doesn't crash on cleanup."""
+    nonexistent = "/tmp/sase_nonexistent_macros.json"
     assert not os.path.exists(nonexistent)
 
     # The finally block should not raise for a missing file.
@@ -143,7 +143,7 @@ def test_local_xprompts_env_var_missing_file_no_crash() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Full flow: parse → local xprompts → multi-prompt launcher
+# Full flow: parse → local macros → multi-prompt launcher
 # ---------------------------------------------------------------------------
 
 
@@ -156,21 +156,21 @@ def test_full_flow_parse_and_launch() -> None:
     multi = parse_multi_prompt(prompt)
 
     assert len(multi.segments) == 2
-    assert "_ctx" in multi.local_xprompts
-    assert multi.local_xprompts["_ctx"].content == "extra context"
+    assert "_ctx" in multi.local_macros
+    assert multi.local_macros["_ctx"].content == "extra context"
     assert multi.segments[0] == "Fix the bug #_ctx"
     assert "%wait" in multi.segments[1]
 
-    # Verify xprompt expansion works for each segment.
+    # Verify macro expansion works for each segment.
     with (
-        patch("sase.macro.processor.get_all_xprompts", return_value={}),
-        patch("sase.macro.processor.resolve_xprompt_aliases", side_effect=lambda x: x),
+        patch("sase.macro.processor.get_all_macros", return_value={}),
+        patch("sase.macro.processor.resolve_macro_aliases", side_effect=lambda x: x),
     ):
-        from sase.macro.processor import process_xprompt_references
+        from sase.macro.processor import process_macro_references
 
         for segment in multi.segments:
-            expanded = process_xprompt_references(
-                segment, extra_xprompts=multi.local_xprompts
+            expanded = process_macro_references(
+                segment, extra_macros=multi.local_macros
             )
             assert "extra context" in expanded
             assert "#_ctx" not in expanded
@@ -183,7 +183,7 @@ def test_full_flow_frontmatter_only_single_agent() -> None:
 
     assert len(multi.segments) == 1
     assert not is_multi_prompt(prompt)
-    assert "_style" in multi.local_xprompts
+    assert "_style" in multi.local_macros
 
 
 # ---------------------------------------------------------------------------

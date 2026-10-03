@@ -68,7 +68,7 @@ def render_agent_prompt_hint_body(
     parts and appends into ``reply_text`` as before.
     """
     # AGENT XPROMPT section (with file path hints)
-    raw_xprompt = agent.get_raw_xprompt_content()
+    raw_xprompt = agent.get_raw_prompt_content()
     highlight_context = agent_prompt_highlight_context(
         panel,
         agent,

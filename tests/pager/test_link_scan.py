@@ -182,14 +182,14 @@ def test_markdown_link_uses_declared_destination_as_target() -> None:
     )
 
 
-def test_explicit_xprompt_skill_refs_are_scanned_as_skill_targets() -> None:
+def test_explicit_macro_skill_refs_are_scanned_as_skill_targets() -> None:
     text = "Use #skill/sase_plan, #sase/skill/demo, and #skill__sase_repo(arg)."
     spans = scan_links(text, PagerOrigin.FILE)
 
     assert [(span.kind, span.text, span.target) for span in spans] == [
-        (LinkSpanKind.XPROMPT_SKILL, "#skill/sase_plan", "skill/sase_plan"),
-        (LinkSpanKind.XPROMPT_SKILL, "#sase/skill/demo", "sase/skill/demo"),
-        (LinkSpanKind.XPROMPT_SKILL, "#skill__sase_repo", "skill/sase_repo"),
+        (LinkSpanKind.MACRO_SKILL, "#skill/sase_plan", "skill/sase_plan"),
+        (LinkSpanKind.MACRO_SKILL, "#sase/skill/demo", "sase/skill/demo"),
+        (LinkSpanKind.MACRO_SKILL, "#skill__sase_repo", "skill/sase_repo"),
     ]
 
 
@@ -199,7 +199,7 @@ def test_markdown_skill_link_uses_destination_not_visible_label() -> None:
 
     assert [(span.kind, span.text, span.target) for span in spans] == [
         (
-            LinkSpanKind.XPROMPT_SKILL,
+            LinkSpanKind.MACRO_SKILL,
             "[plan](#skill/sase_plan)",
             "skill/sase_plan",
         ),

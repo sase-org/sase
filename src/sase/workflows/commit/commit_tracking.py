@@ -365,7 +365,7 @@ def write_result_marker(
     dispatch_error: str | None = None,
     operation_id: str | None = None,
 ) -> bool:
-    """Write commit result to a marker file for xprompt post-steps.
+    """Write commit result to a marker file for macro post-steps.
 
     ``commit_sha``/``commit_tree`` are the run-owned ledger fields: unlike
     ``result`` (which is a PR URL for ``create_pull_request`` and a diff path

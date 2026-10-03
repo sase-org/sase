@@ -1,12 +1,12 @@
-"""Tests for xprompt argument validation, rendering, and command substitution."""
+"""Tests for macro argument validation, rendering, and command substitution."""
 
 from unittest.mock import MagicMock, patch
 
 from sase.macro._jinja import validate_and_convert_args
-from sase.macro.models import UNSET, InputArg, InputType, XPrompt
+from sase.macro.models import UNSET, InputArg, InputType, Macro
 from sase.macro.processor import (
     _resolve_command_substitution_in_args,
-    process_xprompt_references,
+    process_macro_references,
 )
 from sase.macro.workflow_models import Workflow
 
@@ -16,7 +16,7 @@ from sase.macro.workflow_models import Workflow
 
 def testvalidate_and_convert_args_explicit_named_arg_not_overwritten() -> None:
     """Test that explicit named args take precedence over positional mapping."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="test",
         content="{{ prompt }}",
         inputs=[InputArg(name="prompt", type=InputType.TEXT)],
@@ -26,7 +26,7 @@ def testvalidate_and_convert_args_explicit_named_arg_not_overwritten() -> None:
     named_args = {"prompt": "explicit named value"}
 
     conv_positional, conv_named = validate_and_convert_args(
-        xprompt, positional_args, named_args
+        macro_def, positional_args, named_args
     )
 
     # Positional still maps to named, but then named_args processing overwrites
@@ -34,10 +34,10 @@ def testvalidate_and_convert_args_explicit_named_arg_not_overwritten() -> None:
     assert conv_named == {"prompt": "explicit named value"}
 
 
-# --- Simple xprompt positional arg rendering tests ---
+# --- Simple macro positional arg rendering tests ---
 
 
-def _build_simple_xprompt_render_ctx(
+def _build_simple_macro_render_ctx(
     workflow: Workflow,
     positional_args: list[str],
     named_args: dict[str, str],
@@ -57,18 +57,18 @@ def _build_simple_xprompt_render_ctx(
     return render_ctx
 
 
-def test_process_xprompt_colon_arg_decodes_plus_space_substitution() -> None:
-    """Normal xprompt expansion decodes plus substitution before validation."""
-    xprompt = XPrompt(
+def test_process_macro_colon_arg_decodes_plus_space_substitution() -> None:
+    """Normal macro expansion decodes plus substitution before validation."""
+    macro_def = Macro(
         name="path_info",
         content="Path: {{ root }}",
         inputs=[InputArg(name="root", type=InputType.PATH)],
     )
 
     with patch(
-        "sase.macro.processor.get_all_xprompts", return_value={"path_info": xprompt}
+        "sase.macro.processor.get_all_macros", return_value={"path_info": macro_def}
     ):
-        result = process_xprompt_references(
+        result = process_macro_references(
             "#path_info:/Users/me/Library/Application+Support/sase"
         )
 
@@ -97,9 +97,9 @@ def test_resolve_cmd_sub_resolves_dollar_paren(
 # --- Shorthand free-text payload binding (structural, not [[...]] round-trip) ---
 
 
-def test_process_xprompt_double_colon_shorthand_payload_is_not_reparsed() -> None:
+def test_process_macro_double_colon_shorthand_payload_is_not_reparsed() -> None:
     """A ':: text' payload is bound as one positional, never re-lexed as source."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="research_swarm",
         content="{{ prompt }}",
         inputs=[InputArg(name="prompt", type=InputType.TEXT, default=None)],
@@ -110,17 +110,17 @@ def test_process_xprompt_double_colon_shorthand_payload_is_not_reparsed() -> Non
     )
 
     with patch(
-        "sase.macro.processor.get_all_xprompts",
-        return_value={"research_swarm": xprompt},
+        "sase.macro.processor.get_all_macros",
+        return_value={"research_swarm": macro_def},
     ):
-        result = process_xprompt_references(f"#research_swarm:: {payload}")
+        result = process_macro_references(f"#research_swarm:: {payload}")
 
     assert result == payload
 
 
-def test_process_xprompt_shorthand_payload_plus_is_not_decoded() -> None:
+def test_process_macro_shorthand_payload_plus_is_not_decoded() -> None:
     """A ':: text' payload keeps literal `+` (`C++`), it is not space-decoded."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="research_swarm",
         content="{{ prompt }}",
         inputs=[InputArg(name="prompt", type=InputType.TEXT, default=None)],
@@ -128,39 +128,39 @@ def test_process_xprompt_shorthand_payload_plus_is_not_decoded() -> None:
     payload = "Compare C++ and Rust for A+B work."
 
     with patch(
-        "sase.macro.processor.get_all_xprompts",
-        return_value={"research_swarm": xprompt},
+        "sase.macro.processor.get_all_macros",
+        return_value={"research_swarm": macro_def},
     ):
-        result = process_xprompt_references(f"#research_swarm:: {payload}")
+        result = process_macro_references(f"#research_swarm:: {payload}")
 
     assert result == payload
 
 
-def test_process_xprompt_paren_arg_plus_is_not_decoded() -> None:
-    """Paren-form xprompt arguments keep literal `+`, it is not space-decoded."""
-    xprompt = XPrompt(
+def test_process_macro_paren_arg_plus_is_not_decoded() -> None:
+    """Paren-form macro arguments keep literal `+`, it is not space-decoded."""
+    macro_def = Macro(
         name="describe",
         content="{{ prompt }}",
         inputs=[InputArg(name="prompt", type=InputType.TEXT)],
     )
 
     with patch(
-        "sase.macro.processor.get_all_xprompts", return_value={"describe": xprompt}
+        "sase.macro.processor.get_all_macros", return_value={"describe": macro_def}
     ):
-        result = process_xprompt_references("#describe(Compare C++ and Rust)")
+        result = process_macro_references("#describe(Compare C++ and Rust)")
 
     assert result == "Compare C++ and Rust"
 
 
-def test_process_xprompt_double_colon_eol_binds_next_lines() -> None:
+def test_process_macro_double_colon_eol_binds_next_lines() -> None:
     """`#name::` at EOL binds following lines like `:: text`."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="rs",
         content="{{ prompt }}",
         inputs=[InputArg(name="prompt", type=InputType.TEXT)],
     )
 
-    with patch("sase.macro.processor.get_all_xprompts", return_value={"rs": xprompt}):
-        assert process_xprompt_references("#rs::\nhello\nworld") == "hello\nworld"
-        assert process_xprompt_references("#rs(g=yes)::\nhello") == "hello"
-        assert "::" not in process_xprompt_references("#rs::\nhello\nworld")
+    with patch("sase.macro.processor.get_all_macros", return_value={"rs": macro_def}):
+        assert process_macro_references("#rs::\nhello\nworld") == "hello\nworld"
+        assert process_macro_references("#rs(g=yes)::\nhello") == "hello"
+        assert "::" not in process_macro_references("#rs::\nhello\nworld")

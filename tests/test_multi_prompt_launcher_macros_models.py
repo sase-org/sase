@@ -1,4 +1,4 @@
-"""Tests for multi-prompt local xprompt and model expansion behavior."""
+"""Tests for multi-prompt local macro and model expansion behavior."""
 
 import os
 from pathlib import Path
@@ -7,10 +7,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.agent.multi_prompt_launcher import (
-    deserialize_local_xprompts,
+    deserialize_local_macros,
     launch_multi_prompt_agents,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from tests._agent_names_fixtures import make_agent
 from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
 
@@ -24,7 +24,7 @@ from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planne
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
 )
-def test_launch_multi_prompt_passes_segment_local_xprompts_file(
+def test_launch_multi_prompt_passes_segment_local_macros_file(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -32,17 +32,17 @@ def test_launch_multi_prompt_passes_segment_local_xprompts_file(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """Only segments that reference local xprompts get a temp xprompt file."""
+    """Only segments that reference local macros get a temp macro file."""
     mock_spawn.return_value = MagicMock(pid=1)
     mock_wait.return_value = "alpha"
 
-    xprompts = {
-        "_review": XPrompt(name="_review", content="be thorough"),
+    macros = {
+        "_review": Macro(name="_review", content="be thorough"),
     }
 
     launch_multi_prompt_agents(
         segments=["seg1", "seg2 #_review"],
-        local_xprompts=xprompts,
+        local_macros=macros,
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -50,13 +50,13 @@ def test_launch_multi_prompt_passes_segment_local_xprompts_file(
         vcs_ref=None,
     )
 
-    first_path = mock_spawn.call_args_list[0].kwargs["local_xprompts_file"]
-    second_path = mock_spawn.call_args_list[1].kwargs["local_xprompts_file"]
+    first_path = mock_spawn.call_args_list[0].kwargs["local_macros_file"]
+    second_path = mock_spawn.call_args_list[1].kwargs["local_macros_file"]
 
     assert first_path is None
     assert second_path is not None
     try:
-        loaded = deserialize_local_xprompts(second_path)
+        loaded = deserialize_local_macros(second_path)
         assert set(loaded) == {"_review"}
     finally:
         if os.path.exists(second_path):
@@ -72,7 +72,7 @@ def test_launch_multi_prompt_passes_segment_local_xprompts_file(
     "sase.running_field.get_workspace_directory_for_num",
     return_value=("/ws", None),
 )
-def test_launch_multi_prompt_includes_transitive_local_xprompts(
+def test_launch_multi_prompt_includes_transitive_local_macros(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -80,18 +80,18 @@ def test_launch_multi_prompt_includes_transitive_local_xprompts(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """Segment-local xprompts include transitive local-xprompt dependencies."""
+    """Segment-local macros include transitive local-macro dependencies."""
     mock_spawn.return_value = MagicMock(pid=1)
     mock_wait.return_value = "alpha"
 
-    xprompts = {
-        "_inner": XPrompt(name="_inner", content="inner"),
-        "_outer": XPrompt(name="_outer", content="use #_inner"),
+    macros = {
+        "_inner": Macro(name="_inner", content="inner"),
+        "_outer": Macro(name="_outer", content="use #_inner"),
     }
 
     launch_multi_prompt_agents(
         segments=["work #_outer"],
-        local_xprompts=xprompts,
+        local_macros=macros,
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -99,10 +99,10 @@ def test_launch_multi_prompt_includes_transitive_local_xprompts(
         vcs_ref=None,
     )
 
-    path = mock_spawn.call_args.kwargs["local_xprompts_file"]
+    path = mock_spawn.call_args.kwargs["local_macros_file"]
     assert path is not None
     try:
-        loaded = deserialize_local_xprompts(path)
+        loaded = deserialize_local_macros(path)
         assert set(loaded) == {"_inner", "_outer"}
     finally:
         if os.path.exists(path):
@@ -141,7 +141,7 @@ def test_launch_multi_prompt_with_multi_model_segment(
             "%{%model:opus | %model:sonnet} Do the work",
             "Review the output",
         ],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -191,7 +191,7 @@ def test_launch_multi_prompt_waits_on_last_multi_model_generated_name(
 
     launch_multi_prompt_agents(
         segments=["%i:ag\n%{%model:opus | %model:sonnet}\nBuild", "%wait\nReview"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -232,7 +232,7 @@ def test_launch_multi_prompt_generated_model_fanout_allocates_grouped_names(
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=["%{%model:opus | %model:gpt-5.6-sol}\nBuild", "%wait\nReview"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -293,7 +293,7 @@ def test_launch_multi_prompt_generated_model_fanout_skips_colliding_token(
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=["%{%model:opus | %model:gpt-5.6-sol}\nBuild"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -328,7 +328,7 @@ def test_launch_multi_prompt_explicit_template_model_fanout_groups_token(
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=["%id:review-@\n%{%model:opus | %model:gpt-5.6-sol}\nBuild"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -379,7 +379,7 @@ def test_launch_multi_prompt_waits_on_last_alt_generated_name(
 
     launch_multi_prompt_agents(
         segments=["%i:ag\n%alt(sec=Build security,perf=Build perf)", "%wait\nReview"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -406,7 +406,7 @@ def test_launch_multi_prompt_waits_on_last_alt_generated_name(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
 )
-def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
+def test_launch_multi_prompt_model_shorthand_uses_local_macro_for_naming(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -418,13 +418,13 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
     mock_spawn.return_value = MagicMock(pid=1)
     mock_wait.return_value = "alpha"
 
-    xprompts = {
-        "_flash": XPrompt(name="_flash", content="gpt-5.6-sol"),
+    macros = {
+        "_flash": Macro(name="_flash", content="gpt-5.6-sol"),
     }
 
     results = launch_multi_prompt_agents(
         segments=["%i:ag\n%{%model:#_flash | %model:gpt-5.3-codex}\nReview"],
-        local_xprompts=xprompts,
+        local_macros=macros,
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -437,13 +437,13 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
     assert prompts[0] == "%id:ag.cdx_gpt56sol\n%model:#_flash\nReview"
     assert prompts[1] == "%id:ag.cdx_gpt53\n%model:gpt-5.3-codex\nReview"
 
-    local_xprompt_files = [
-        c.kwargs["local_xprompts_file"] for c in mock_spawn.call_args_list
+    local_macro_files = [
+        c.kwargs["local_macros_file"] for c in mock_spawn.call_args_list
     ]
-    assert all(path is not None for path in local_xprompt_files)
-    for path in local_xprompt_files:
+    assert all(path is not None for path in local_macro_files)
+    for path in local_macro_files:
         try:
-            loaded = deserialize_local_xprompts(path)
+            loaded = deserialize_local_macros(path)
             assert set(loaded) == {"_flash"}
         finally:
             if path and os.path.exists(path):

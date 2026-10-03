@@ -1,4 +1,4 @@
-"""Tests for xprompt expansion trace."""
+"""Tests for macro expansion trace."""
 
 from unittest.mock import patch
 
@@ -7,23 +7,23 @@ from sase.macro._trace import (
     format_circular_ref_diagnostic,
     format_trace,
 )
-from sase.macro.models import XPrompt
-from sase.macro.processor import process_xprompt_references
+from sase.macro.models import Macro
+from sase.macro.processor import process_macro_references
 
 
-def _make_xprompts(snippets: dict[str, str]) -> dict[str, XPrompt]:
+def _make_macros(snippets: dict[str, str]) -> dict[str, Macro]:
     return {
-        name: XPrompt(name=name, content=content, source_path=f"xprompts/{name}.md")
+        name: Macro(name=name, content=content, source_path=f"xprompts/{name}.md")
         for name, content in snippets.items()
     }
 
 
 class TestExpansionTrace:
     def test_trace_records_single_expansion(self) -> None:
-        snippets = _make_xprompts({"greet": "Hello world"})
+        snippets = _make_macros({"greet": "Hello world"})
         trace = ExpansionTrace()
-        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
-            result = process_xprompt_references("#greet", trace=trace)
+        with patch("sase.macro.processor.get_all_macros", return_value=snippets):
+            result = process_macro_references("#greet", trace=trace)
 
         assert result == "Hello world"
         assert len(trace.records) == 1
@@ -33,10 +33,10 @@ class TestExpansionTrace:
         assert trace.total_iterations == 1
 
     def test_trace_records_multiple_expansions_same_iteration(self) -> None:
-        snippets = _make_xprompts({"a": "alpha", "b": "beta"})
+        snippets = _make_macros({"a": "alpha", "b": "beta"})
         trace = ExpansionTrace()
-        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
-            result = process_xprompt_references("#a and #b", trace=trace)
+        with patch("sase.macro.processor.get_all_macros", return_value=snippets):
+            result = process_macro_references("#a and #b", trace=trace)
 
         assert result == "alpha and beta"
         assert len(trace.records) == 2
@@ -44,10 +44,10 @@ class TestExpansionTrace:
         assert names == {"a", "b"}
 
     def test_trace_records_recursive_expansion(self) -> None:
-        snippets = _make_xprompts({"outer": "begin #inner end", "inner": "CORE"})
+        snippets = _make_macros({"outer": "begin #inner end", "inner": "CORE"})
         trace = ExpansionTrace()
-        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
-            result = process_xprompt_references("#outer", trace=trace)
+        with patch("sase.macro.processor.get_all_macros", return_value=snippets):
+            result = process_macro_references("#outer", trace=trace)
 
         assert result == "begin CORE end"
         assert len(trace.records) == 2
@@ -58,25 +58,25 @@ class TestExpansionTrace:
         assert trace.total_iterations == 2
 
     def test_trace_captures_args(self) -> None:
-        snippets = _make_xprompts({"greet": "Hello {1}"})
+        snippets = _make_macros({"greet": "Hello {1}"})
         trace = ExpansionTrace()
-        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
-            result = process_xprompt_references("#greet:world", trace=trace)
+        with patch("sase.macro.processor.get_all_macros", return_value=snippets):
+            result = process_macro_references("#greet:world", trace=trace)
 
         assert result == "Hello world"
         assert trace.records[0].positional_args == ["world"]
 
     def test_trace_none_does_not_error(self) -> None:
         """Passing trace=None (default) should work without errors."""
-        snippets = _make_xprompts({"x": "expanded"})
-        with patch("sase.macro.processor.get_all_xprompts", return_value=snippets):
-            result = process_xprompt_references("#x")
+        snippets = _make_macros({"x": "expanded"})
+        with patch("sase.macro.processor.get_all_macros", return_value=snippets):
+            result = process_macro_references("#x")
         assert result == "expanded"
 
     def test_no_expansions_trace(self) -> None:
         trace = ExpansionTrace()
-        with patch("sase.macro.processor.get_all_xprompts", return_value={}):
-            process_xprompt_references("no refs here", trace=trace)
+        with patch("sase.macro.processor.get_all_macros", return_value={}):
+            process_macro_references("no refs here", trace=trace)
         assert len(trace.records) == 0
         assert trace.total_iterations == 0
 

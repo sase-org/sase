@@ -37,7 +37,7 @@ def filter_snippet_entries(
             entry.origin.kind,
             entry.origin.display_path or "",
             entry.origin.path or "",
-            entry.origin.xprompt_name or "",
+            entry.origin.macro_name or "",
         ]
         if include_templates:
             haystacks.extend((entry.raw_template, entry.composed_template))

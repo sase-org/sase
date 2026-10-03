@@ -253,7 +253,7 @@ def undeclared_variables(
 
     Engine-known names (available or conditional) and unavailable names
     are excluded, so builtins such as ``wait``, ``patch_name``, and ``n``
-    never surface here; in ``xprompt`` scope any ``_<digits>`` name is
+    never surface here; in ``macro`` scope any ``_<digits>`` name is
     known as well. Returns ``None`` when *text* has invalid Jinja syntax.
     """
     diagnostics = diagnose(text)

@@ -19,7 +19,7 @@ from sase.bead.work import VCSLaunchContext
 
 from .cli_work_helpers import FakeLaunchResult, make_args, seed_diamond, seed_task
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 _CONCURRENT_MUTATION_WORKERS = 3
 _OLD_HARDCODED_LOCK_TIMEOUT_SECONDS = 2.0

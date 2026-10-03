@@ -492,13 +492,13 @@ def _load_snippet_locations(project: str | None) -> list[SnippetConfigLocation]:
 def _load_derived_snippet_catalog(
     project: str | None,
 ) -> tuple[dict[str, str], dict[str, str]]:
-    from sase.macro.snippet_bridge import get_xprompt_snippet_entries
+    from sase.macro.snippet_bridge import get_macro_snippet_entries
 
     snippets: dict[str, str] = {}
     sources: dict[str, str] = {}
-    for entry in get_xprompt_snippet_entries(project=project):
+    for entry in get_macro_snippet_entries(project=project):
         snippets[entry.trigger] = entry.template
-        sources[entry.trigger] = f"#{entry.xprompt_name}"
+        sources[entry.trigger] = f"#{entry.macro_name}"
     return snippets, sources
 
 

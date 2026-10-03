@@ -47,14 +47,14 @@ class SnippetSourceContribution:
     path: str | None
     display_path: str | None
     writable: bool
-    xprompt_name: str | None = None
+    macro_name: str | None = None
     description: str | None = None
     shadowed_by: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class SnippetLayerDiagnostic:
-    """Actionable diagnostic attached to one config or xprompt source."""
+    """Actionable diagnostic attached to one config or macro source."""
 
     message: str
     path: str | None = None

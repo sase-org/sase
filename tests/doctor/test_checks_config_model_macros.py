@@ -1,4 +1,4 @@
-"""Tests for doctor model xprompt config checks."""
+"""Tests for doctor model macro config checks."""
 
 from __future__ import annotations
 
@@ -6,32 +6,28 @@ from pathlib import Path
 
 import pytest
 
-from sase.doctor.checks_config_macros import check_config_model_xprompts
+from sase.doctor.checks_config_macros import check_config_model_macros
 from sase.doctor.runner import DoctorContext
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 def _doctor_context(tmp_path: Path) -> DoctorContext:
     return DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path)
 
 
-def _patch_model_xprompt_env(
+def _patch_model_macro_env(
     monkeypatch: pytest.MonkeyPatch,
-    xprompts: dict[str, XPrompt],
+    macros: dict[str, Macro],
     config: dict[str, object],
 ) -> None:
-    """Inject the xprompt registry and llm_provider config the guard reads.
+    """Inject the macro registry and llm_provider config the guard reads.
 
-    The guard expands each preset (``loader.get_all_xprompts``), expands any
-    nested ``#`` references during that expansion (``processor.get_all_xprompts``),
+    The guard expands each preset (``loader.get_all_macros``), expands any
+    nested ``#`` references during that expansion (``processor.get_all_macros``),
     and resolves the final token against ``llm_provider`` config.
     """
-    monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts", lambda *_a, **_k: xprompts
-    )
-    monkeypatch.setattr(
-        "sase.macro.processor.get_all_xprompts", lambda *_a, **_k: xprompts
-    )
+    monkeypatch.setattr("sase.macro.loader.get_all_macros", lambda *_a, **_k: macros)
+    monkeypatch.setattr("sase.macro.processor.get_all_macros", lambda *_a, **_k: macros)
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config", lambda: config
     )
@@ -40,19 +36,19 @@ def _patch_model_xprompt_env(
     )
 
 
-def test_model_xprompts_warns_when_prefixed_alias_is_unknown(
+def test_model_macros_warns_when_prefixed_alias_is_unknown(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A migrated ``%model:@#agy_flash`` preset warns if the alias is missing."""
-    xprompts = {
-        "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
-        "m_agy_flash": XPrompt(name="m_agy_flash", content="%model:@#agy_flash"),
+    macros = {
+        "agy_flash": Macro(name="agy_flash", content="agy_flash"),
+        "m_agy_flash": Macro(name="m_agy_flash", content="%model:@#agy_flash"),
     }
-    _patch_model_xprompt_env(
-        monkeypatch, xprompts, {"provider": "codex", "model_aliases": {}}
+    _patch_model_macro_env(
+        monkeypatch, macros, {"provider": "codex", "model_aliases": {}}
     )
 
-    check = check_config_model_xprompts(_doctor_context(tmp_path))
+    check = check_config_model_macros(_doctor_context(tmp_path))
 
     assert check.status == "WARN"
     assert any(
@@ -63,17 +59,17 @@ def test_model_xprompts_warns_when_prefixed_alias_is_unknown(
     assert "'@agy_flash' is not a known model alias" in check.details[0]
 
 
-def test_model_xprompts_ok_when_alias_routes_to_provider(
+def test_model_macros_ok_when_alias_routes_to_provider(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """With the alias restored, the same preset routes cleanly with no warning."""
-    xprompts = {
-        "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
-        "m_agy_flash": XPrompt(name="m_agy_flash", content="%model:@#agy_flash"),
+    macros = {
+        "agy_flash": Macro(name="agy_flash", content="agy_flash"),
+        "m_agy_flash": Macro(name="m_agy_flash", content="%model:@#agy_flash"),
     }
-    _patch_model_xprompt_env(
+    _patch_model_macro_env(
         monkeypatch,
-        xprompts,
+        macros,
         {
             "provider": "codex",
             "model_aliases": {
@@ -87,24 +83,24 @@ def test_model_xprompts_ok_when_alias_routes_to_provider(
         },
     )
 
-    check = check_config_model_xprompts(_doctor_context(tmp_path))
+    check = check_config_model_macros(_doctor_context(tmp_path))
 
     assert check.status == "OK"
     assert not check.data["problems"]
     assert check.data["scanned"] == 1
 
 
-def test_model_xprompts_flags_bare_alias_with_migration_hint(
+def test_model_macros_flags_bare_alias_with_migration_hint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A legacy bare alias preset is surfaced instead of silently skipped."""
-    xprompts = {
-        "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
-        "m_agy_flash": XPrompt(name="m_agy_flash", content="%model:#agy_flash"),
+    macros = {
+        "agy_flash": Macro(name="agy_flash", content="agy_flash"),
+        "m_agy_flash": Macro(name="m_agy_flash", content="%model:#agy_flash"),
     }
-    _patch_model_xprompt_env(
+    _patch_model_macro_env(
         monkeypatch,
-        xprompts,
+        macros,
         {
             "provider": "codex",
             "model_aliases": {
@@ -118,7 +114,7 @@ def test_model_xprompts_flags_bare_alias_with_migration_hint(
         },
     )
 
-    check = check_config_model_xprompts(_doctor_context(tmp_path))
+    check = check_config_model_macros(_doctor_context(tmp_path))
 
     assert check.status == "WARN"
     assert any(
@@ -128,7 +124,7 @@ def test_model_xprompts_flags_bare_alias_with_migration_hint(
     assert "did you mean @agy_flash" in check.details[0]
 
 
-def test_model_xprompts_ignores_explicit_provider_model_token(
+def test_model_macros_ignores_explicit_provider_model_token(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An explicit ``provider/model`` preset never warns, even if uninstalled.
@@ -137,26 +133,26 @@ def test_model_xprompts_ignores_explicit_provider_model_token(
     may be absent on this machine; that is intentional and must not be confused
     with the bare-token fallback bug the guard is for.
     """
-    xprompts = {
-        "m_jet": XPrompt(name="m_jet", content="%model:jetski/jetski-default"),
+    macros = {
+        "m_jet": Macro(name="m_jet", content="%model:jetski/jetski-default"),
     }
-    _patch_model_xprompt_env(
-        monkeypatch, xprompts, {"provider": "codex", "model_aliases": {}}
+    _patch_model_macro_env(
+        monkeypatch, macros, {"provider": "codex", "model_aliases": {}}
     )
 
-    check = check_config_model_xprompts(_doctor_context(tmp_path))
+    check = check_config_model_macros(_doctor_context(tmp_path))
 
     assert check.status == "OK"
     assert not check.data["problems"]
 
 
-def test_model_xprompts_skips_multi_segment_agent_prompts(
+def test_model_macros_skips_multi_segment_agent_prompts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Xprompt swarms are not model presets, even with per-agent models."""
-    xprompts = {
-        "m_codex": XPrompt(name="m_codex", content="%model:codex/gpt-5.6-sol"),
-        "research_swarm": XPrompt(
+    """Macro swarms are not model presets, even with per-agent models."""
+    macros = {
+        "m_codex": Macro(name="m_codex", content="%model:codex/gpt-5.6-sol"),
+        "research_swarm": Macro(
             name="research_swarm",
             content=(
                 "%id:research.cdx %model:codex/gpt-5.6-sol\n"
@@ -165,18 +161,18 @@ def test_model_xprompts_skips_multi_segment_agent_prompts(
             ),
         ),
     }
-    _patch_model_xprompt_env(
-        monkeypatch, xprompts, {"provider": "codex", "model_aliases": {}}
+    _patch_model_macro_env(
+        monkeypatch, macros, {"provider": "codex", "model_aliases": {}}
     )
 
-    check = check_config_model_xprompts(_doctor_context(tmp_path))
+    check = check_config_model_macros(_doctor_context(tmp_path))
 
     assert check.status == "OK"
     assert not check.data["problems"]
     assert check.data["scanned"] == 1
 
 
-def test_model_xprompts_flags_retired_worker_alias(
+def test_model_macros_flags_retired_worker_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A preset still emitting ``%model:@worker`` is surfaced as a broken preset.
@@ -186,14 +182,14 @@ def test_model_xprompts_flags_retired_worker_alias(
     doctor still flags the stale preset (WARN) with the parser's message instead
     of silently routing it to the default provider.
     """
-    xprompts = {
-        "m_worker": XPrompt(name="m_worker", content="%model:@worker"),
+    macros = {
+        "m_worker": Macro(name="m_worker", content="%model:@worker"),
     }
-    _patch_model_xprompt_env(
-        monkeypatch, xprompts, {"provider": "codex", "model_aliases": {}}
+    _patch_model_macro_env(
+        monkeypatch, macros, {"provider": "codex", "model_aliases": {}}
     )
 
-    check = check_config_model_xprompts(_doctor_context(tmp_path))
+    check = check_config_model_macros(_doctor_context(tmp_path))
 
     assert check.status == "WARN"
     assert any(
@@ -204,45 +200,45 @@ def test_model_xprompts_flags_retired_worker_alias(
     )
 
 
-def test_model_xprompts_validate_alias_override_kwargs(
+def test_model_macros_validate_alias_override_kwargs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompts = {
-        "m_bad_override": XPrompt(
+    macros = {
+        "m_bad_override": Macro(
             name="m_bad_override",
             content="%model(opus, unknown=sonnet)",
         ),
     }
-    _patch_model_xprompt_env(
+    _patch_model_macro_env(
         monkeypatch,
-        xprompts,
+        macros,
         {"provider": "codex", "model_aliases": {}},
     )
 
-    check = check_config_model_xprompts(_doctor_context(tmp_path))
+    check = check_config_model_macros(_doctor_context(tmp_path))
 
     assert check.status == "WARN"
     assert "Unknown model alias 'unknown'" in check.details[0]
 
 
-def test_model_xprompts_warn_for_unroutable_alias_override_value(
+def test_model_macros_warn_for_unroutable_alias_override_value(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompts = {
-        "m_bad_target": XPrompt(
+    macros = {
+        "m_bad_target": Macro(
             name="m_bad_target",
             content="%model(opus, medium=not-a-model)",
         ),
     }
-    _patch_model_xprompt_env(
+    _patch_model_macro_env(
         monkeypatch,
-        xprompts,
+        macros,
         {"provider": "codex", "model_aliases": {}},
     )
 
-    check = check_config_model_xprompts(_doctor_context(tmp_path))
+    check = check_config_model_macros(_doctor_context(tmp_path))
 
     assert check.status == "WARN"
     assert "%model(medium=not-a-model)" in check.details[0]

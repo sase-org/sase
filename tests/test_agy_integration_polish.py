@@ -153,13 +153,13 @@ def test_agent_metadata_records_agy_provider_directive(
     assert meta["llm_provider"] == "agy"
 
 
-def test_agent_metadata_routes_model_xprompt_alias_to_agy(
+def test_agent_metadata_routes_model_macro_alias_to_agy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """``%model:@#agy_flash`` records agy + the exact model slug, not the default.
 
-    This pins the full readable surface end to end: the ``#agy_flash`` xprompt
+    This pins the full readable surface end to end: the ``#agy_flash`` macro
     expands to the ``agy_flash`` token, the configured custom alias rewrites
     that token to ``agy/gemini-3.5-flash-high``, and the recorded metadata
     routes to the Antigravity provider even though the configured default
@@ -190,13 +190,13 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
         "sase.llm_provider.registry.get_llm_provider_config", lambda: config
     )
     # The `#agy_flash` preset expands to the `agy_flash` alias token; inject just
-    # that xprompt so the test does not depend on the live user config.
-    from sase.macro.models import XPrompt
+    # that macro so the test does not depend on the live user config.
+    from sase.macro.models import Macro
 
     monkeypatch.setattr(
-        "sase.macro.processor.get_all_xprompts",
+        "sase.macro.processor.get_all_macros",
         lambda *_args, **_kwargs: {
-            "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
+            "agy_flash": Macro(name="agy_flash", content="agy_flash"),
         },
     )
 

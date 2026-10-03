@@ -22,7 +22,7 @@ from sase.bead.work import VCSLaunchContext
 
 from .cli_work_helpers import FakeLaunchResult, make_args, seed_diamond, seed_task
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 LOCK_TIMEOUT_MESSAGE = (
     "lock_timeout: timed out after 600000ms waiting for exclusive lock "

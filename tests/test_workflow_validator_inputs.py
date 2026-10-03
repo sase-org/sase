@@ -80,7 +80,7 @@ def test_validate_workflow_allows_disabled_qa_block_with_empty_jinja(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Regression for agent resumes containing disabled Q&A text with ``{{}}``."""
-    monkeypatch.setattr("sase.macro.workflow_validator.get_all_xprompts", lambda: {})
+    monkeypatch.setattr("sase.macro.workflow_validator.get_all_macros", lambda: {})
     workflow = Workflow(
         name="test",
         steps=[

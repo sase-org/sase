@@ -69,7 +69,7 @@ def test_rendered_skill_targets_include_audit_directive_for_each_provider(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompt = init_skills_handler.XPrompt(
+    macro_def = init_skills_handler.Macro(
         name="skill/foo",
         content="body\n",
         description="a test skill",
@@ -85,7 +85,7 @@ def test_rendered_skill_targets_include_audit_directive_for_each_provider(
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
 
     targets = init_skills_handler.render_skill_targets(
-        [xprompt],
+        [macro_def],
         provider_filter=None,
         use_chezmoi=False,
         use_prettier=False,
@@ -106,7 +106,7 @@ def test_rendered_skill_targets_omit_audit_directive_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A skill with ``log_skill_use=False`` renders without the audit directive."""
-    xprompt = init_skills_handler.XPrompt(
+    macro_def = init_skills_handler.Macro(
         name="skill/foo",
         content="body\n",
         description="a test skill",
@@ -119,7 +119,7 @@ def test_rendered_skill_targets_omit_audit_directive_when_disabled(
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
 
     targets = init_skills_handler.render_skill_targets(
-        [xprompt],
+        [macro_def],
         provider_filter=None,
         use_chezmoi=False,
         use_prettier=False,
@@ -225,9 +225,9 @@ def test_grok_native_skill_targets_cover_claude_compat_skill_names(
     from sase.macro.loader import load_skills_from_package
 
     packaged_skills = [
-        xprompt
-        for xprompt in load_skills_from_package().values()
-        if xprompt.skill is True
+        macro_def
+        for macro_def in load_skills_from_package().values()
+        if macro_def.skill is True
     ]
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
 
@@ -253,8 +253,8 @@ def test_generated_names_and_paths_ignore_the_skill_reference_namespace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The ``skill/`` rename is xprompt-side only; ``/foo`` output is unchanged."""
-    xprompt = init_skills_handler.XPrompt(
+    """The ``skill/`` rename is macro-side only; ``/foo`` output is unchanged."""
+    macro_def = init_skills_handler.Macro(
         name="app/skill/foo",
         content="body\n",
         description="a test skill",
@@ -266,7 +266,7 @@ def test_generated_names_and_paths_ignore_the_skill_reference_namespace(
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
 
     targets = init_skills_handler.render_skill_targets(
-        [xprompt],
+        [macro_def],
         provider_filter=None,
         use_chezmoi=False,
         use_prettier=False,

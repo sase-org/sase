@@ -98,7 +98,7 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 #
 # Re-curated to 53 on 2026-08-22 by keeping `test_core_finalizer_facade.py`,
 # the compact cross-boundary finalizer protocol guard, and displacing
-# `test_xprompt_workflow_schema.py`: changes to the workflow JSON schema or
+# `test_macro_workflow_schema.py`: changes to the workflow JSON schema or
 # checked-in workflow YAML already fire the `src-data-asset` full-suite rule,
 # and the test remains in the exhaustive lane. The timezone-display audit keeps
 # its repo-wide coverage but prefilters files that cannot contain one of the

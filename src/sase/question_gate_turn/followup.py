@@ -28,7 +28,7 @@ def question_next_action(
 
     Uses :func:`build_merged_qa_markdown`, not :func:`merge_qa_for_prompt`:
     ``compose_gate_followup_prompt`` wraps this whole prompt in one disabled
-    region, which escapes nested ``%xprompts_enabled:`` markers -- emitting
+    region, which escapes nested ``%macros_enabled:`` markers -- emitting
     ``merge_qa_for_prompt``'s own marker pair inside it would leave visible
     escaped markers. The SDD archive snapshot below keeps the marker-wrapped
     form, since it is written directly rather than re-composed.

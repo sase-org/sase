@@ -1,4 +1,4 @@
-"""Rich detail renderer for ``sase xprompt show``."""
+"""Rich detail renderer for ``sase macro show``."""
 
 from __future__ import annotations
 
@@ -17,9 +17,9 @@ from sase.macro.cli_show_model import (
     ShowInput,
     ShowReference,
     ShowStep,
-    XPromptShowRecord,
+    MacroShowRecord,
 )
-from sase.macro.highlight import XPromptHighlightRole
+from sase.macro.highlight import MacroHighlightRole
 from sase.macro.highlight_theme import HighlightStyle, highlight_theme
 from sase.macro.properties import single_line_default
 
@@ -27,7 +27,7 @@ _LABEL_WIDTH = 12
 _STEP_BODY_LIMIT = 20
 
 
-def render_show(record: XPromptShowRecord, *, console: Console) -> None:
+def render_show(record: MacroShowRecord, *, console: Console) -> None:
     """Render the complete human-facing view of one show record."""
     styles_enabled = not bool(console.no_color)
     known_skills = frozenset(
@@ -50,11 +50,11 @@ def render_show(record: XPromptShowRecord, *, console: Console) -> None:
             _inputs(record.inputs, styles_enabled=styles_enabled),
             styles_enabled=styles_enabled,
         )
-    if record.local_xprompts:
+    if record.local_macros:
         _print_section(
             console,
             _section_title("LOCAL XPROMPTS", styles_enabled=styles_enabled),
-            _local_xprompts(record, styles_enabled=styles_enabled),
+            _local_macros(record, styles_enabled=styles_enabled),
             styles_enabled=styles_enabled,
         )
     if record.steps:
@@ -99,7 +99,7 @@ def render_show(record: XPromptShowRecord, *, console: Console) -> None:
     console.print(_hint(record, styles_enabled=styles_enabled))
 
 
-def _header(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
+def _header(record: MacroShowRecord, *, styles_enabled: bool) -> Table:
     table = Table.grid(expand=True, padding=0)
     table.add_column(ratio=1, overflow="fold")
     table.add_column(justify="right", no_wrap=True)
@@ -124,7 +124,7 @@ def _header(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
     return table
 
 
-def _properties(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
+def _properties(record: MacroShowRecord, *, styles_enabled: bool) -> Table:
     table = _detail_table(styles_enabled=styles_enabled)
     _add_detail_row(table, "reference", Text(record.reference))
     if record.skill_name:
@@ -193,7 +193,7 @@ def _properties(record: XPromptShowRecord, *, styles_enabled: bool) -> Table:
     return table
 
 
-def _inputs_title(record: XPromptShowRecord, *, styles_enabled: bool) -> Text:
+def _inputs_title(record: MacroShowRecord, *, styles_enabled: bool) -> Text:
     title = _section_title("INPUTS", styles_enabled=styles_enabled)
     title.append("  ")
     title.append(
@@ -251,8 +251,8 @@ def _inputs(
     return Padding(table, (0, 0, 0, 2))
 
 
-def _local_xprompts(
-    record: XPromptShowRecord,
+def _local_macros(
+    record: MacroShowRecord,
     *,
     styles_enabled: bool,
 ) -> RenderableType:
@@ -269,7 +269,7 @@ def _local_xprompts(
         no_wrap=True,
     )
     table.add_column(overflow="fold")
-    for item in record.local_xprompts:
+    for item in record.local_macros:
         reference = item.name if item.name.startswith("#") else f"#{item.name}"
         if item.input_signature:
             reference += item.input_signature
@@ -361,7 +361,7 @@ def _workflow_steps(
     return Group(*rows)
 
 
-def _definition_title(record: XPromptShowRecord, *, styles_enabled: bool) -> Text:
+def _definition_title(record: MacroShowRecord, *, styles_enabled: bool) -> Text:
     title = _section_title("DEFINITION", styles_enabled=styles_enabled)
     if record.provenance.source_display:
         title.append("  ")
@@ -408,7 +408,7 @@ def _references(
     return Padding(table, (0, 0, 0, 2))
 
 
-def _hint(record: XPromptShowRecord, *, styles_enabled: bool) -> Text:
+def _hint(record: MacroShowRecord, *, styles_enabled: bool) -> Text:
     if record.kind in {"xprompt", "memory"}:
         command = f"sase xprompt expand '{record.reference}'"
         explanation = "preview the expansion"
@@ -483,7 +483,7 @@ def _yes_no(value: bool) -> str:
 
 
 def _role_style(
-    role: XPromptHighlightRole,
+    role: MacroHighlightRole,
     *,
     styles_enabled: bool,
 ) -> str:
@@ -494,7 +494,7 @@ def _style(style: str, *, styles_enabled: bool) -> str:
     return style if styles_enabled else ""
 
 
-def _theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
+def _theme() -> Mapping[MacroHighlightRole, HighlightStyle]:
     return highlight_theme()
 
 

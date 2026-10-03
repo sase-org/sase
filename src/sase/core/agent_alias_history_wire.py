@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from sase.core.agent_scan_wire_markers import UsedXPromptWire
+from sase.core.agent_scan_wire_markers import UsedMacroWire
 from sase.core.wire import known_field_kwargs
 
 AGENT_ALIAS_HISTORY_WIRE_SCHEMA_VERSION = 1
@@ -74,7 +74,7 @@ class AgentAliasRunWire:
     cl_name: str | None = None
     workspace_num: int | None = None
     prompt_snippet: str | None = None
-    used_xprompts: list[UsedXPromptWire] = field(default_factory=list)
+    used_macros: list[UsedMacroWire] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -165,8 +165,8 @@ def _run_from_dict(data: dict[str, Any]) -> AgentAliasRunWire:
     kwargs.setdefault("model_alias_trail", [])
     kwargs["model_alias_trail"] = [str(item) for item in kwargs["model_alias_trail"]]
     return AgentAliasRunWire(
-        used_xprompts=[
-            UsedXPromptWire(**known_field_kwargs(UsedXPromptWire, used))
+        used_macros=[
+            UsedMacroWire(**known_field_kwargs(UsedMacroWire, used))
             for used in data.get("used_xprompts") or []
             if isinstance(used, dict)
         ],

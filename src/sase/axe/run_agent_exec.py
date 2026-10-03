@@ -67,7 +67,7 @@ __all__ = [
 
 
 def _resolve_workflow_project(ctx: AgentExecContext) -> str | None:
-    """Return project scope for xprompt/workflow resolution."""
+    """Return project scope for macro/workflow resolution."""
     if ctx.is_home_mode:
         return None
     try:
@@ -302,8 +302,8 @@ def _run_execution_loop_bound(
         reset_killed()
         _publish_phase_env(state.current_artifacts_dir)
         anon_workflow = create_anonymous_workflow(state.current_prompt)
-        if ctx.local_xprompts:
-            anon_workflow.xprompts = ctx.local_xprompts
+        if ctx.local_macros:
+            anon_workflow.macros = ctx.local_macros
 
         try:
             result = execute_workflow(

@@ -14,24 +14,24 @@ from sase.content_layout import (
     skill_placement_issue,
     skill_reference_name,
 )
-from sase.main._init_skills_sources import select_skill_xprompts
-from sase.macro.load_issues import collect_xprompt_load_issues
-from sase.macro.loader_parsing import parse_xprompt_entries
+from sase.main._init_skills_sources import select_skill_macros
+from sase.macro.load_issues import collect_macro_load_issues
+from sase.macro.loader_parsing import parse_macro_entries
 from sase.macro.loader_skills import (
     SKILL_FRAME_TEMPLATE_FILENAME,
     SKILL_PLACEMENT_ISSUE_KIND,
     get_sase_package_skills_dir,
     load_project_skills,
     load_skills_from_files,
-    skill_destination_for_xprompt_dir,
+    skill_destination_for_macro_dir,
 )
-from sase.macro.loader_sources import load_xprompts_from_files
-from sase.macro.models import XPrompt
-from sase.macro.processor import expand_single_xprompt
+from sase.macro.loader_sources import load_macros_from_files
+from sase.macro.models import Macro
+from sase.macro.processor import expand_single_macro
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SKILL_SOURCE_DIR = _REPO_ROOT / "src" / "sase" / "macros" / "skills"
-_XPROMPT_SOURCE_DIR = _REPO_ROOT / "src" / "sase" / "macros"
+_MACRO_SOURCE_DIR = _REPO_ROOT / "src" / "sase" / "macros"
 
 
 def _write(path: Path, content: str) -> None:
@@ -55,7 +55,7 @@ def home_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return home
 
 
-def test_reference_name_splits_provider_name_from_xprompt_reference() -> None:
+def test_reference_name_splits_provider_name_from_macro_reference() -> None:
     assert skill_reference_name("foo") == "skill/foo"
     assert skill_reference_name("foo", "app") == "app/skill/foo"
 
@@ -63,7 +63,7 @@ def test_reference_name_splits_provider_name_from_xprompt_reference() -> None:
 def test_skill_expansion_uses_default_provider_template_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    skill = XPrompt(
+    skill = Macro(
         name="skill/provider_demo",
         content="{{ provider_name }} runs /{{ skill }}",
         skill=True,
@@ -78,13 +78,13 @@ def test_skill_expansion_uses_default_provider_template_context(
         lambda _provider: {"provider_name": "Codex", "skill": "provider_demo"},
     )
 
-    assert expand_single_xprompt(skill, [], {}) == "Codex runs /provider_demo"
+    assert expand_single_macro(skill, [], {}) == "Codex runs /provider_demo"
 
 
 def test_plain_skill_expansion_does_not_require_a_default_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    skill = XPrompt(
+    skill = Macro(
         name="skill/plain_demo",
         content="plain skill body",
         skill=True,
@@ -95,7 +95,7 @@ def test_plain_skill_expansion_does_not_require_a_default_provider(
         lambda: (_ for _ in ()).throw(RuntimeError("no provider")),
     )
 
-    assert expand_single_xprompt(skill, [], {}) == "plain skill body"
+    assert expand_single_macro(skill, [], {}) == "plain skill body"
 
 
 def test_layout_orders_project_before_home_and_omits_legacy_paths(
@@ -168,10 +168,10 @@ def test_skill_declaration_outside_a_skill_source_is_rejected(
         "---\nname: stale\nskill: true\n---\n\nbody\n",
     )
 
-    with collect_xprompt_load_issues() as issues:
-        xprompts = load_xprompts_from_files()
+    with collect_macro_load_issues() as issues:
+        macros = load_macros_from_files()
 
-    assert "stale" not in xprompts
+    assert "stale" not in macros
     placement = [i for i in issues if i.kind == SKILL_PLACEMENT_ISSUE_KIND]
     assert len(placement) == 1
     assert "declares `skill:` outside a canonical skill source" in placement[0].error
@@ -184,7 +184,7 @@ def test_non_skill_in_a_skill_source_is_rejected(home_root: Path) -> None:
         "---\nname: plain\ndescription: not a skill\n---\n\nbody\n",
     )
 
-    with collect_xprompt_load_issues() as issues:
+    with collect_macro_load_issues() as issues:
         skills = load_skills_from_files()
 
     assert skills == {}
@@ -197,7 +197,7 @@ def test_non_skill_in_a_skill_source_is_rejected(home_root: Path) -> None:
 def test_falsey_skill_value_in_a_skill_source_is_rejected(home_root: Path) -> None:
     _skill_file(home_root / "sase" / "skills" / "off.md", "off", skill="false")
 
-    with collect_xprompt_load_issues() as issues:
+    with collect_macro_load_issues() as issues:
         skills = load_skills_from_files()
 
     assert skills == {}
@@ -215,8 +215,8 @@ def test_provider_list_is_a_truthy_skill_value(home_root: Path) -> None:
 
 
 def test_config_defined_skill_is_rejected_with_a_migration_destination() -> None:
-    with collect_xprompt_load_issues() as issues:
-        parsed = parse_xprompt_entries(
+    with collect_macro_load_issues() as issues:
+        parsed = parse_macro_entries(
             {
                 "plain": "just a prompt",
                 "gmail": {"content": "body", "skill": True},
@@ -237,14 +237,14 @@ def test_frame_template_is_not_loaded_as_a_skill(home_root: Path) -> None:
         "{{ frontmatter }}\n\n{{ body }}\n",
     )
 
-    with collect_xprompt_load_issues() as issues:
+    with collect_macro_load_issues() as issues:
         skills = load_skills_from_files()
 
     assert skills == {}
     assert issues == []
 
 
-def test_builtin_skill_source_directory_is_nested_under_xprompts() -> None:
+def test_builtin_skill_source_directory_is_nested_under_macros() -> None:
     skills_dir = get_sase_package_skills_dir()
 
     assert skills_dir.name == "skills"
@@ -277,7 +277,7 @@ def test_sase_final_skill_documents_typed_deferrals_not_refuse_action() -> None:
 def test_commit_rollover_injects_remain_identical() -> None:
     injects: list[str] = []
     for name in ("commit.yml", "pr.yml", "propose.yml"):
-        data = yaml.safe_load((_XPROMPT_SOURCE_DIR / name).read_text(encoding="utf-8"))
+        data = yaml.safe_load((_MACRO_SOURCE_DIR / name).read_text(encoding="utf-8"))
         inject = next(
             step["prompt_part"]
             for step in data["steps"]
@@ -290,15 +290,15 @@ def test_commit_rollover_injects_remain_identical() -> None:
     assert "every repository you changed" in injects[0]
 
 
-def test_builtin_xprompt_skill_migration_points_to_nested_skill_directory(
+def test_builtin_macro_skill_migration_points_to_nested_skill_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.macro import loader_skills
 
     package_root = tmp_path / "package" / "sase"
-    xprompts_dir = package_root / "macros"
-    skills_dir = xprompts_dir / "skills"
+    macros_dir = package_root / "macros"
+    skills_dir = macros_dir / "skills"
     skills_dir.mkdir(parents=True)
 
     def resource_dir(*parts: str) -> Path:
@@ -306,30 +306,30 @@ def test_builtin_xprompt_skill_migration_points_to_nested_skill_directory(
 
     monkeypatch.setattr(loader_skills, "_sase_package_resource_dir", resource_dir)
 
-    assert skill_destination_for_xprompt_dir(xprompts_dir) == skills_dir
+    assert skill_destination_for_macro_dir(macros_dir) == skills_dir
 
 
 def test_selection_uses_the_provider_skill_name_for_ordering() -> None:
     entries = {
-        "skill/zulu": XPrompt(
+        "skill/zulu": Macro(
             name="skill/zulu", content="", skill=True, skill_name="zulu"
         ),
-        "app/skill/alpha": XPrompt(
+        "app/skill/alpha": Macro(
             name="app/skill/alpha", content="", skill=True, skill_name="alpha"
         ),
-        "plain": XPrompt(name="plain", content=""),
+        "plain": Macro(name="plain", content=""),
     }
 
-    selected = select_skill_xprompts(entries)
+    selected = select_skill_macros(entries)
 
     assert [xp.skill_name for xp in selected] == ["alpha", "zulu"]
 
 
 def test_selection_ignores_a_skill_flag_without_a_canonical_source() -> None:
     """Defense in depth: a rejected definition can never reach generation."""
-    entries = {"rogue": XPrompt(name="rogue", content="", skill=True)}
+    entries = {"rogue": Macro(name="rogue", content="", skill=True)}
 
-    assert select_skill_xprompts(entries) == []
+    assert select_skill_macros(entries) == []
 
 
 @pytest.mark.parametrize(

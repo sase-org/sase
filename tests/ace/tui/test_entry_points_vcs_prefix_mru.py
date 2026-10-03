@@ -16,7 +16,7 @@ def test_start_last_vcs_xprompt_editor_opens_mru_prefix_and_launches_edit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("#gh:sase", "#gh:sase"), ("#gh:old", "#gh:old")],
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
@@ -42,7 +42,7 @@ def test_start_last_vcs_xprompt_editor_uses_canonical_history_sort_key(
     the canonical key, matching every other prefill surface.
     """
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("#gh:gh_acme__widgets", "#gh:widgets")],
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("widgets"))
@@ -66,7 +66,7 @@ def test_start_last_vcs_xprompt_editor_labels_tagified_display_prefix(
     ``+sase`` instead of ``sase``.
     """
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("#gh:sase", "+sase ")],
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
@@ -84,7 +84,7 @@ def test_start_last_vcs_xprompt_editor_warns_when_mru_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [],
     )
     app = _App()
@@ -101,7 +101,7 @@ def test_start_last_vcs_xprompt_editor_cancel_records_prefilled_prefix(
 ) -> None:
     cancelled_prompts: list[tuple[str, bool]] = []
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("#gh:sase", "#gh:sase")],
     )
 

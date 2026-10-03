@@ -1,4 +1,4 @@
-"""Release step for the #git xprompt workflow."""
+"""Release step for the #git macro workflow."""
 
 from sase.workspace_provider.vcs_release import VcsReleaseResult, release_vcs_workspace
 

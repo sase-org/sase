@@ -1,7 +1,7 @@
 """Headless foundations for the ``+`` project/patch-completion feature.
 
 This module provides the pure-logic building blocks shared by the TUI prompt
-input widget (consuming the catalog directly) and the Rust xprompt LSP
+input widget (consuming the catalog directly) and the Rust macro LSP
 (consuming a materialized JSON catalog built from
 :func:`build_vcs_project_completion_entries`).
 
@@ -187,9 +187,9 @@ def _mru_freshness_signature() -> tuple[int, int] | None:
     """
 
     try:
-        from sase.history.vcs_macro_mru import vcs_xprompt_mru_path
+        from sase.history.vcs_macro_mru import vcs_macro_mru_path
 
-        stat = vcs_xprompt_mru_path().stat()
+        stat = vcs_macro_mru_path().stat()
     except OSError:
         return None
     return (stat.st_mtime_ns, stat.st_size)
@@ -226,10 +226,10 @@ def _mru_catalog_rank() -> dict[str, int]:
 
     try:
         from sase.history.vcs_macro_mru import (
-            load_launchable_vcs_xprompt_mru_pairs,
+            load_launchable_vcs_macro_mru_pairs,
         )
 
-        pairs = load_launchable_vcs_xprompt_mru_pairs(prune=False)
+        pairs = load_launchable_vcs_macro_mru_pairs(prune=False)
     except Exception:  # noqa: BLE001 - ordering degrades to name.
         return {}
     rank: dict[str, int] = {}
@@ -398,7 +398,7 @@ def vcs_project_catalog_payload(
     out-of-process Rust LSP replace *any*
     existing workflow tag in a prompt (e.g. ``#git:foo``), not just those of
     enabled projects, keeping its expansion byte-identical to the Python/TUI
-    side. This is the on-disk contract consumed by ``sase-xprompt-lsp``,
+    side. This is the on-disk contract consumed by ``sase-macro-lsp``,
     materialized at LSP launch by :mod:`sase.integrations.macro_lsp`.
 
     The v5 shape adds ``accent_palette`` (the Python-owned 18-color palette),

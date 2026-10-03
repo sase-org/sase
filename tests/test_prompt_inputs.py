@@ -20,7 +20,7 @@ from sase.agent.prompt_inputs import (
 from sase.macro.models import InputType
 
 # A representative prompt: two required inputs, one optional (defaulted), local
-# xprompts in frontmatter, and two ``---``-separated segments referencing them.
+# macros in frontmatter, and two ``---``-separated segments referencing them.
 _PROMPT = """\
 ---
 xprompts:
@@ -136,7 +136,7 @@ def test_resolve_coerces_each_type(type_name: str, raw: str, expected: object) -
 
 def test_render_substitutes_all_segments_and_strips_input() -> None:
     out = render_prompt_with_inputs(_PROMPT, {"service": "billing", "retries": "3"})
-    # `input:` is consumed; `xprompts:` is preserved.
+    # `input:` is consumed; `macros:` is preserved.
     assert "input:" not in out
     assert "xprompts:" in out
     assert "_rules: Follow the checklist" in out

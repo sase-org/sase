@@ -209,7 +209,7 @@ def test_plan_launch_units_matches_preview_plan_slot_prompts(
     assert _candidate_prompts(prompt) == _preview_prompts(prompt)
 
 
-def test_plan_launch_units_matches_preview_plan_for_xprompt_swarm(
+def test_plan_launch_units_matches_preview_plan_for_macro_swarm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_cli_available(monkeypatch)
@@ -252,7 +252,7 @@ def test_parse_launch_units_payload_accepts_strict_entries() -> None:
     assert len(units) == 2
     assert units[0].prompt == "kept agent"
     assert units[0].template_group == "xprompt:team:0"
-    assert units[0].swarm_xprompts == ("team",)
+    assert units[0].swarm_macros == ("team",)
     assert units[1].template_group is None
 
 

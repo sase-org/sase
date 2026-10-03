@@ -18,7 +18,7 @@ from sase.macro.loader_skills import (
     SKILL_FRAME_TEMPLATE_FILENAME,
     get_sase_package_skill_resource,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 # Skill planning runs inside ``sase doctor`` (config.init), which promises
@@ -245,7 +245,7 @@ def format_skill_outputs(
 
 
 def render_skill_targets(
-    skill_xprompts: list[XPrompt],
+    skill_macros: list[Macro],
     *,
     provider_filter: str | None,
     use_chezmoi: bool,
@@ -257,12 +257,12 @@ def render_skill_targets(
     """Render every selected skill/provider target without writing files."""
     raw_targets: list[_RawRenderedSkillTarget] = []
 
-    for xprompt in skill_xprompts:
+    for macro_def in skill_macros:
         # Generation is provider-facing, so it uses the provider skill name
-        # (``foo``), never the namespaced xprompt reference (``skill/foo``).
-        name = xprompt.skill_name
-        description = xprompt.description or ""
-        skill_field = xprompt.skill
+        # (``foo``), never the namespaced macro reference (``skill/foo``).
+        name = macro_def.skill_name
+        description = macro_def.description or ""
+        skill_field = macro_def.skill
         if not skill_field or not name:
             continue
 
@@ -273,13 +273,13 @@ def render_skill_targets(
         for provider in target_providers:
             context = get_provider_context(provider)
             rendered_body, rendered_desc = _render_skill(
-                xprompt.content, description, context
+                macro_def.content, description, context
             )
             output = _build_output(
                 name,
                 rendered_desc.strip(),
                 rendered_body,
-                log_skill_use=xprompt.log_skill_use,
+                log_skill_use=macro_def.log_skill_use,
             )
             for target in get_target_paths(provider, name, use_chezmoi):
                 raw_targets.append(
@@ -304,7 +304,7 @@ def render_skill_targets(
 
 
 def render_skill_deployment_targets(
-    skill_xprompts: list[XPrompt],
+    skill_macros: list[Macro],
     *,
     provider_filter: str | None,
     get_target_providers: Callable[[bool | list[str]], list[str]],
@@ -315,10 +315,10 @@ def render_skill_deployment_targets(
     """Render generated targets paired between chezmoi source and live home."""
     raw_targets: list[tuple[Path, Path, _RawRenderedSkillTarget]] = []
 
-    for xprompt in skill_xprompts:
-        name = xprompt.skill_name
-        description = xprompt.description or ""
-        skill_field = xprompt.skill
+    for macro_def in skill_macros:
+        name = macro_def.skill_name
+        description = macro_def.description or ""
+        skill_field = macro_def.skill
         if not skill_field or not name:
             continue
 
@@ -329,13 +329,13 @@ def render_skill_deployment_targets(
         for provider in target_providers:
             context = get_provider_context(provider)
             rendered_body, rendered_desc = _render_skill(
-                xprompt.content, description, context
+                macro_def.content, description, context
             )
             output = _build_output(
                 name,
                 rendered_desc.strip(),
                 rendered_body,
-                log_skill_use=xprompt.log_skill_use,
+                log_skill_use=macro_def.log_skill_use,
             )
             source_paths = get_target_paths(provider, name, True)
             home_paths = get_target_paths(provider, name, False)

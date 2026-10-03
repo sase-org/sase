@@ -13,7 +13,7 @@ from sase.ace.tui.widgets._prompt_preview_target import (
     detect_shorthand_argument_owner_at_cursor,
     resolve_preview_target,
 )
-from sase.macro.models import InputArg, InputType, XPrompt
+from sase.macro.models import InputArg, InputType, Macro
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
@@ -218,8 +218,8 @@ def test_resolves_xprompt_from_source_file(
     source = tmp_path / "review.md"
     source.write_text("---\ndescription: Review\n---\nBody\n", encoding="utf-8")
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(
+        "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(
             name=name,
             content="fallback",
             source_path=str(source),
@@ -241,8 +241,8 @@ def test_resolves_xprompt_from_source_file(
 
 def test_resolves_skill_label_from_xprompt(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(
+        "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(
             name=name,
             content="Skill body",
             source_path="config",
@@ -265,8 +265,8 @@ def test_resolves_slash_skill_with_slash_presentation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(
+        "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(
             name=name,
             content="Skill body",
             source_path="config",
@@ -291,9 +291,9 @@ def test_slash_skill_resolution_looks_up_the_skill_reference_name(
     """``/foo`` resolves through the canonical ``skill/foo`` reference."""
     looked_up: list[str] = []
 
-    def _lookup(name: str, project: str | None = None) -> XPrompt:
+    def _lookup(name: str, project: str | None = None) -> Macro:
         looked_up.append(name)
-        return XPrompt(
+        return Macro(
             name=name,
             content="Skill body",
             source_path="config",
@@ -302,7 +302,7 @@ def test_slash_skill_resolution_looks_up_the_skill_reference_name(
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
+        "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
         _lookup,
     )
 
@@ -319,8 +319,8 @@ def test_slash_skill_resolution_rejects_stale_non_skill(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(name=name, content="Not a skill"),
+        "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(name=name, content="Not a skill"),
     )
 
     with pytest.raises(PreviewError, match="No skill named '/sase_plan' found"):
@@ -342,7 +342,7 @@ def test_resolves_workflow_fallback_preview(monkeypatch: pytest.MonkeyPatch) -> 
         source_path="local_config",
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
+        "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
         lambda name, project=None: workflow,
     )
 
@@ -362,7 +362,7 @@ def test_missing_xprompt_raises_distinct_preview_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
+        "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
         lambda name, project=None: None,
     )
 
@@ -404,8 +404,8 @@ def test_resolved_xprompt_payload_carries_declared_input_properties(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(
+        "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(
             name=name,
             content="Body {{ project }}",
             source_path="config",
@@ -441,8 +441,8 @@ def test_properties_projection_failure_degrades_to_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(
+        "sase.ace.tui.widgets._prompt_preview_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(
             name=name,
             content="Body",
             source_path="config",
@@ -453,7 +453,7 @@ def test_properties_projection_failure_degrades_to_none(
         raise RuntimeError("boom")
 
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_preview_target.xprompt_properties",
+        "sase.ace.tui.widgets._prompt_preview_target.macro_properties",
         _raise,
     )
 

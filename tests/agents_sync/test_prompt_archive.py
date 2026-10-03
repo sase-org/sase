@@ -142,7 +142,7 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
         and f"[3]: https://example.test/blob/{'a' * 40}/src/#plan.py" in document
     )
     assert ", #plan, and " in document
-    assert "sase/xprompts/plan.md" not in document
+    assert "sase/macros/plan.md" not in document
     assert "[@bug:proj#7][4]" in document
     assert "[4]: https://example.test/issues/7" in document
     assert "<!-- sase:section:" not in document
@@ -155,7 +155,7 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
     assert "| 4 |" in index
 
 
-def test_render_prompt_document_keeps_body_xprompt_reference_verbatim() -> None:
+def test_render_prompt_document_keeps_body_macro_reference_verbatim() -> None:
     document = render_prompt_document(
         "Archive body references #plan.\n",
         (),

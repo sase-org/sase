@@ -54,7 +54,7 @@ class LaunchSpawnRequest:
     is_home_mode: bool = False
     vcs_ref: tuple[str, str] | None = None
     deferred_workspace: bool = False
-    local_xprompts_file: str | None = None
+    local_macros_file: str | None = None
     extra_env: dict[str, str] | None = None
     transfer_from_pid: int | None = None
     name_reservation: LaunchNameReservationEvidence | None = None
@@ -75,7 +75,7 @@ class LaunchSpawnRequest:
             "is_home_mode": self.is_home_mode,
             "vcs_ref": self.vcs_ref,
             "deferred_workspace": self.deferred_workspace,
-            "local_xprompts_file": self.local_xprompts_file,
+            "local_xprompts_file": self.local_macros_file,
             "extra_env": self.extra_env,
             "retry_transfer_from_pid": self.transfer_from_pid,
         }
@@ -110,7 +110,7 @@ SlotContextCallback = Callable[
     [LaunchFanoutSlotWire, LaunchExecutionContext], LaunchExecutionContext
 ]
 SlotEnvCallback = Callable[[LaunchFanoutSlotWire], dict[str, str]]
-SlotLocalXpromptsCallback = Callable[[LaunchFanoutSlotWire], str | None]
+SlotLocalMacrosCallback = Callable[[LaunchFanoutSlotWire], str | None]
 SlotNameReservationCallback = Callable[
     [LaunchFanoutSlotWire], LaunchNameReservationEvidence | None
 ]
@@ -126,7 +126,7 @@ __all__ = [
     "SlotContextCallback",
     "SlotEnvCallback",
     "SlotExecutedCallback",
-    "SlotLocalXpromptsCallback",
+    "SlotLocalMacrosCallback",
     "SlotNameReservationCallback",
     "SpawnCallback",
 ]

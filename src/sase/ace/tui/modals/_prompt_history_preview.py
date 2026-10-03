@@ -41,11 +41,11 @@ def build_prompt_history_metadata(
         "Project",
         _preview_project_value(summary),
     )
-    if summary.xprompts:
+    if summary.macros:
         append_metadata_row(
             meta_text,
             "Workflows",
-            ", ".join(summary.xprompts),
+            ", ".join(summary.macros),
             value_style="green",
         )
     if summary.directives:

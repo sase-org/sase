@@ -27,7 +27,7 @@ from .test_cli_work_epic_launch_cleanup_sessions import (
     test_work_reports_every_agent_session_blocker_in_one_run,
 )
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 __all__ = [
     "test_revalidate_raises_when_blocker_appears_after_preview",

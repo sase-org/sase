@@ -1,4 +1,4 @@
-"""Xprompt-memory discovery, validation, and expansion behavior."""
+"""Macro-memory discovery, validation, and expansion behavior."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 
 from sase.memory.read_log import memory_read_log_path
-from sase.macro.load_issues import collect_xprompt_load_issues
+from sase.macro.load_issues import collect_macro_load_issues
 from sase.macro._trace import ExpansionTrace
-from sase.macro.loader import get_all_xprompts, get_xprompt_or_workflow
-from sase.macro.loader_memory import MEMORY_LOAD_ISSUE_KIND, load_memory_xprompts
-from sase.macro.loader_sources import load_xprompt_from_file, load_xprompts_from_files
-from sase.macro.models import XPrompt, xprompt_to_workflow
-from sase.macro.processor import process_xprompt_references_with_catalog
+from sase.macro.loader import get_all_macros, get_macro_or_workflow
+from sase.macro.loader_memory import MEMORY_LOAD_ISSUE_KIND, load_memory_macros
+from sase.macro.loader_sources import load_macro_from_file, load_macros_from_files
+from sase.macro.models import Macro, macro_to_workflow
+from sase.macro.processor import process_macro_references_with_catalog
 from sase.macro.reserved_namespaces import RESERVED_MEMORY_NAMESPACE_ISSUE_KIND
 
 
@@ -47,7 +47,7 @@ def home_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return home
 
 
-def test_memory_loader_creates_namespaced_no_arg_xprompt(
+def test_memory_loader_creates_namespaced_no_arg_macro(
     tmp_path: Path,
     home_root: Path,
 ) -> None:
@@ -59,10 +59,10 @@ def test_memory_loader_creates_namespaced_no_arg_xprompt(
     _write(project / "sase" / "memory" / "README.md", "# Ignored\n")
     _write(project / "sase" / "memory" / "nested" / "ignored.md", "# Ignored\n")
 
-    xprompts = load_memory_xprompts(project_root=project, home_root=home_root)
+    macros = load_memory_macros(project_root=project, home_root=home_root)
 
-    assert set(xprompts) == {"memory/glossary"}
-    glossary = xprompts["memory/glossary"]
+    assert set(macros) == {"memory/glossary"}
+    glossary = macros["memory/glossary"]
     assert glossary.inputs == []
     assert glossary.content == "# Glossary\n"
     assert glossary.description == "Terms."
@@ -91,9 +91,9 @@ def test_memory_loader_collapses_block_description(
         "# Glossary\n",
     )
 
-    xprompts = load_memory_xprompts(project_root=project, home_root=home_root)
+    macros = load_memory_macros(project_root=project, home_root=home_root)
 
-    assert xprompts["memory/glossary"].description == "Lead. - One Trailer."
+    assert macros["memory/glossary"].description == "Lead. - One Trailer."
 
 
 def test_project_memory_shadows_home_memory(
@@ -104,9 +104,9 @@ def test_project_memory_shadows_home_memory(
     _write(project / "sase" / "memory" / "foo.md", _memory_note("project\n"))
     _write(home_root / "sase" / "memory" / "foo.md", _memory_note("home\n"))
 
-    xprompts = load_memory_xprompts(project_root=project, home_root=home_root)
+    macros = load_memory_macros(project_root=project, home_root=home_root)
 
-    assert xprompts["memory/foo"].content == "project\n"
+    assert macros["memory/foo"].content == "project\n"
 
 
 def test_memory_loader_falls_back_to_home(
@@ -116,9 +116,9 @@ def test_memory_loader_falls_back_to_home(
     project = tmp_path / "repo"
     _write(home_root / "sase" / "memory" / "foo.md", _memory_note("home\n"))
 
-    xprompts = load_memory_xprompts(project_root=project, home_root=home_root)
+    macros = load_memory_macros(project_root=project, home_root=home_root)
 
-    assert xprompts["memory/foo"].content == "home\n"
+    assert macros["memory/foo"].content == "home\n"
 
 
 def test_invalid_memory_type_and_stem_record_load_issues(
@@ -135,10 +135,10 @@ def test_invalid_memory_type_and_stem_record_load_issues(
         _memory_note("bad\n"),
     )
 
-    with collect_xprompt_load_issues() as issues:
-        xprompts = load_memory_xprompts(project_root=project, home_root=home_root)
+    with collect_macro_load_issues() as issues:
+        macros = load_memory_macros(project_root=project, home_root=home_root)
 
-    assert xprompts == {}
+    assert macros == {}
     assert [issue.kind for issue in issues] == [
         MEMORY_LOAD_ISSUE_KIND,
         MEMORY_LOAD_ISSUE_KIND,
@@ -150,7 +150,7 @@ def test_invalid_memory_type_and_stem_record_load_issues(
     )
 
 
-def test_ordinary_xprompt_cannot_claim_memory_namespace(
+def test_ordinary_macro_cannot_claim_memory_namespace(
     tmp_path: Path,
     home_root: Path,
 ) -> None:
@@ -159,32 +159,32 @@ def test_ordinary_xprompt_cannot_claim_memory_namespace(
         "---\nname: memory/foo\n---\n\nbody\n",
     )
 
-    with collect_xprompt_load_issues() as issues:
-        xprompts = load_xprompts_from_files()
+    with collect_macro_load_issues() as issues:
+        macros = load_macros_from_files()
 
-    assert "memory/foo" not in xprompts
+    assert "memory/foo" not in macros
     assert [issue.kind for issue in issues] == [RESERVED_MEMORY_NAMESPACE_ISSUE_KIND]
     assert "reserved xprompt-memory reference `#memory/foo`" in issues[0].error
 
 
-def test_direct_markdown_xprompt_cannot_claim_memory_namespace(
+def test_direct_markdown_macro_cannot_claim_memory_namespace(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "rogue.md"
     _write(path, "---\nname: memory/foo\n---\n\nbody\n")
 
-    with collect_xprompt_load_issues() as issues:
-        xprompt = load_xprompt_from_file(path)
+    with collect_macro_load_issues() as issues:
+        macro_def = load_macro_from_file(path)
 
-    assert xprompt is None
+    assert macro_def is None
     assert [issue.kind for issue in issues] == [RESERVED_MEMORY_NAMESPACE_ISSUE_KIND]
 
 
-def test_config_xprompt_cannot_claim_memory_namespace() -> None:
-    from sase.macro.loader_parsing import parse_xprompt_entries
+def test_config_macro_cannot_claim_memory_namespace() -> None:
+    from sase.macro.loader_parsing import parse_macro_entries
 
-    with collect_xprompt_load_issues() as issues:
-        parsed = parse_xprompt_entries({"memory/foo": "body"}, "config")
+    with collect_macro_load_issues() as issues:
+        parsed = parse_macro_entries({"memory/foo": "body"}, "config")
 
     assert parsed == {}
     assert [issue.kind for issue in issues] == [RESERVED_MEMORY_NAMESPACE_ISSUE_KIND]
@@ -197,9 +197,9 @@ def test_expansion_requires_memory_prefix_and_recurses_without_children(
     project = tmp_path / "repo"
     _write(project / "sase" / "memory" / "foo.md", _memory_note("Foo #memory/bar\n"))
     _write(project / "sase" / "memory" / "bar.md", _memory_note("Bar\n"))
-    catalog = load_memory_xprompts(project_root=project, home_root=home_root)
+    catalog = load_memory_macros(project_root=project, home_root=home_root)
 
-    expanded = process_xprompt_references_with_catalog(
+    expanded = process_macro_references_with_catalog(
         "#memory/foo and #foo",
         catalog,
     )
@@ -220,16 +220,16 @@ def test_memory_expansion_does_not_append_audit_events(
     log_path = memory_read_log_path(cwd=project)
     assert not log_path.exists()
 
-    expanded = process_xprompt_references_with_catalog(
+    expanded = process_macro_references_with_catalog(
         "#memory/foo",
-        load_memory_xprompts(project_root=project, home_root=home_root),
+        load_memory_macros(project_root=project, home_root=home_root),
     )
 
     assert expanded == "Foo\n"
     assert not log_path.exists()
 
 
-def test_get_all_xprompts_loads_selected_registered_project_memory(
+def test_get_all_macros_loads_selected_registered_project_memory(
     tmp_path: Path,
     home_root: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -245,9 +245,9 @@ def test_get_all_xprompts_loads_selected_registered_project_memory(
         lambda: {"selected": selected},
     )
 
-    xprompts = get_all_xprompts(project="selected")
+    macros = get_all_macros(project="selected")
 
-    assert xprompts["memory/foo"].content == "selected\n"
+    assert macros["memory/foo"].content == "selected\n"
 
 
 def test_direct_lookup_and_trace_include_memory_metadata(
@@ -260,16 +260,16 @@ def test_direct_lookup_and_trace_include_memory_metadata(
     _write(project / "sase" / "memory" / "foo.md", _memory_note("Foo\n"))
     monkeypatch.chdir(project)
 
-    xprompt = get_xprompt_or_workflow("memory/foo")
+    macro_def = get_macro_or_workflow("memory/foo")
     trace = ExpansionTrace()
-    expanded = process_xprompt_references_with_catalog(
+    expanded = process_macro_references_with_catalog(
         "#memory/foo",
-        get_all_xprompts(),
+        get_all_macros(),
         trace=trace,
     )
 
-    assert xprompt is not None
-    assert getattr(xprompt, "memory_type", None) == "reference"
+    assert macro_def is not None
+    assert getattr(macro_def, "memory_type", None) == "reference"
     assert expanded == "Foo\n"
     assert [(record.name, record.source_path) for record in trace.records] == [
         ("memory/foo", str(project / "sase" / "memory" / "foo.md"))
@@ -277,8 +277,8 @@ def test_direct_lookup_and_trace_include_memory_metadata(
 
 
 def test_memory_type_propagates_to_converted_workflow() -> None:
-    workflow = xprompt_to_workflow(
-        XPrompt(name="memory/foo", content="Foo", memory_type="reference")
+    workflow = macro_to_workflow(
+        Macro(name="memory/foo", content="Foo", memory_type="reference")
     )
 
     assert workflow.memory_type == "reference"

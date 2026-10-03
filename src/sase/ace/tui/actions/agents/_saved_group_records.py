@@ -178,7 +178,7 @@ def _bundle_path_for_agent(
 
 def _prompt_preview_for_agent(agent: Agent) -> str | None:
     try:
-        raw_prompt = agent.get_raw_xprompt_content()
+        raw_prompt = agent.get_raw_prompt_content()
     except Exception:
         return None
     if raw_prompt is None:

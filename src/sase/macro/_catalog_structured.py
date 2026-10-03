@@ -1,4 +1,4 @@
-"""Mobile-safe structured xprompt catalog projection.
+"""Mobile-safe structured macro catalog projection.
 
 By default string defaults are redacted (``default_display`` is ``None``).
 Pass ``include_string_defaults=True`` only for local, non-network consumers
@@ -16,10 +16,10 @@ from ._catalog_models import (
     StructuredCatalogSkipped,
     StructuredCatalogSource,
     StructuredCatalogStats,
-    NoXpromptsFound,
+    NoMacrosFound,
     PdfEngineUnavailable,
 )
-from ._catalog_render import build_xprompts_catalog
+from ._catalog_render import build_macros_catalog
 from ._catalog_sources import (
     definition_path,
     gather_structured_entries,
@@ -28,7 +28,7 @@ from ._catalog_sources import (
     source_path_display,
 )
 from sase.macro.models import UNSET, InputArg
-from sase.macro.project_identity import canonical_xprompt_project
+from sase.macro.project_identity import canonical_macro_project
 from sase.macro.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
@@ -36,7 +36,7 @@ from sase.macro.reference_display import (
 )
 
 
-def build_structured_xprompts_catalog(
+def build_structured_macros_catalog(
     *,
     project: str | None = None,
     source: str | None = None,
@@ -46,9 +46,9 @@ def build_structured_xprompts_catalog(
     limit: int | None = None,
     include_string_defaults: bool = False,
 ) -> StructuredCatalogProjection:
-    """Return a mobile-safe structured xprompt catalog projection.
+    """Return a mobile-safe structured macro catalog projection.
 
-    This path intentionally gathers and filters xprompt metadata without
+    This path intentionally gathers and filters macro metadata without
     requiring an HTML/PDF renderer. PDF generation is best-effort and only runs
     when explicitly requested.
 
@@ -78,8 +78,8 @@ def build_structured_xprompts_catalog(
 
     if include_pdf:
         try:
-            artifact = build_xprompts_catalog()
-        except NoXpromptsFound as exc:
+            artifact = build_macros_catalog()
+        except NoMacrosFound as exc:
             warnings.append("PDF catalog was not generated")
             skipped.append(
                 StructuredCatalogSkipped(target="xprompt-catalog.pdf", reason=str(exc))
@@ -125,7 +125,7 @@ def filter_structured_catalog_entries(
     tag: str | None,
     query: str | None,
 ) -> list[StructuredCatalogSource]:
-    normalized_project = canonical_xprompt_project(project)
+    normalized_project = canonical_macro_project(project)
     normalized_query = query.casefold() if query else None
     filtered: list[StructuredCatalogSource] = []
     for entry in entries:

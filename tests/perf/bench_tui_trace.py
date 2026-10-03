@@ -105,7 +105,7 @@ async def test_baseline_smoke(_trace_env: tuple[Path, Path, Path]) -> None:
     print(json.dumps(result, indent=2), file=sys.stderr)
 
 
-def test_xprompt_tokenizer_guard_limit_benchmark() -> None:
+def test_macro_tokenizer_guard_limit_benchmark() -> None:
     """Print tokenizer p50/p95 at the prompt overlay's 80 KB guard limit."""
     composite = (
         "#gh:sase %auto #pr:my_change %m:opus use /sase_plan "
@@ -133,7 +133,7 @@ def test_xprompt_tokenizer_guard_limit_benchmark() -> None:
     )
 
 
-def test_xprompt_tokenizer_code_heavy_benchmark() -> None:
+def test_macro_tokenizer_code_heavy_benchmark() -> None:
     """Keep literal-zone scanning responsive for a large code-heavy prompt."""
     code_line = (
         "def transform(value): return {'value': value + 1}  # literal #hidden %auto\n"

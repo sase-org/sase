@@ -12,10 +12,10 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.macro.config_yaml import generate_xprompt_yaml
+from sase.macro.config_yaml import generate_macro_yaml
 from sase.macro.naming import markdown_save_plan
 from sase.macro.prompt_frontmatter import PromptFrontmatter
-from sase.macro.save import build_markdown_xprompt
+from sase.macro.save import build_markdown_macro
 from sase.macro.save_index import DefinitionKind
 from sase.macro.snippet_config_yaml import generate_snippet_yaml
 
@@ -160,12 +160,12 @@ class UnifiedXPromptSavePreviewMixin(_MixinBase):
         storage_name = self._storage_name(row, name)
         if row.location.location_type == "directory":
             _, frontmatter = markdown_save_plan(storage_name, frontmatter)
-            return build_markdown_xprompt(frontmatter, self._body)
+            return build_markdown_macro(frontmatter, self._body)
         return (
             "\n".join(
                 [
                     "xprompts:",
-                    *generate_xprompt_yaml(
+                    *generate_macro_yaml(
                         storage_name, [], self._body, frontmatter=frontmatter
                     ),
                 ]

@@ -12,7 +12,7 @@ from sase.main._init_skills_manifest import (
     plan_skill_manifest_ownership,
     retired_skill_files_with_drift,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 SkillTargetStatus = Literal["current", "stale", "missing", "retired"]
 AppliedSkillTargetStatus = Literal[
@@ -34,10 +34,10 @@ class SkillTargetEntry:
 
 @dataclass(frozen=True)
 class SkillSourceEntry:
-    """One installable xprompt skill source.
+    """One installable macro skill source.
 
     ``name`` is the provider-visible skill name (``foo``); ``reference_name``
-    is the canonical xprompt reference that expands it (``skill/foo``).
+    is the canonical macro reference that expands it (``skill/foo``).
     """
 
     name: str
@@ -185,11 +185,11 @@ def build_skills_inventory(
     if use_prettier is None:
         use_prettier = init_skills_handler.prettier_available()
 
-    xprompts, placement_errors = init_skills_handler.load_skill_sources()
+    macros, placement_errors = init_skills_handler.load_skill_sources()
     retired_entries: tuple[ManagedSkillFile, ...] = ()
     if use_chezmoi:
         deployment_targets = init_skills_handler.render_skill_deployment_targets(
-            xprompts,
+            macros,
             provider_filter=provider_filter,
             use_prettier=use_prettier,
         )
@@ -209,7 +209,7 @@ def build_skills_inventory(
             )
     else:
         rendered_targets = init_skills_handler.render_skill_targets(
-            xprompts,
+            macros,
             provider_filter=provider_filter,
             use_chezmoi=use_chezmoi,
             use_prettier=use_prettier,
@@ -238,11 +238,13 @@ def build_skills_inventory(
 
     current_sources = [
         _source_entry(
-            xprompt,
+            macro_def,
             provider_filter=provider_filter,
-            targets=tuple(targets_by_skill.get(xprompt.skill_name or xprompt.name, ())),
+            targets=tuple(
+                targets_by_skill.get(macro_def.skill_name or macro_def.name, ())
+            ),
         )
-        for xprompt in xprompts
+        for macro_def in macros
     ]
     current_names = {source.name for source in current_sources}
     retired_sources_by_name: dict[str, SkillSourceEntry] = {}
@@ -280,9 +282,9 @@ def build_applied_skills_inventory(
     if use_prettier is None:
         use_prettier = init_skills_handler.prettier_available()
 
-    xprompts, _placement_errors = init_skills_handler.load_skill_sources()
+    macros, _placement_errors = init_skills_handler.load_skill_sources()
     deployment_targets = init_skills_handler.render_skill_deployment_targets(
-        xprompts,
+        macros,
         provider_filter=provider_filter,
         use_prettier=use_prettier,
     )
@@ -331,17 +333,17 @@ def build_applied_skills_inventory(
 
 
 def _source_entry(
-    xprompt: XPrompt,
+    macro_def: Macro,
     *,
     provider_filter: str | None,
     targets: tuple[SkillTargetEntry, ...],
 ) -> SkillSourceEntry:
-    providers = _providers_for_source(xprompt, provider_filter=provider_filter)
+    providers = _providers_for_source(macro_def, provider_filter=provider_filter)
     return SkillSourceEntry(
-        name=xprompt.skill_name or xprompt.name,
-        reference_name=xprompt.name,
-        description=xprompt.description or "",
-        source_path=xprompt.source_path or "-",
+        name=macro_def.skill_name or macro_def.name,
+        reference_name=macro_def.name,
+        description=macro_def.description or "",
+        source_path=macro_def.source_path or "-",
         providers=providers,
         targets=targets,
     )
@@ -362,9 +364,9 @@ def _retired_source_entry(
 
 
 def _providers_for_source(
-    xprompt: XPrompt, *, provider_filter: str | None
+    macro_def: Macro, *, provider_filter: str | None
 ) -> tuple[str, ...]:
-    skill_field = xprompt.skill
+    skill_field = macro_def.skill
     if not skill_field:
         return ()
 

@@ -50,7 +50,7 @@ AGENT_INFO = AgentInfo(
     tribe=None,
     clan_summary_resolution=None,
     meta={"pid": 1},
-    local_xprompts={},
+    local_macros={},
 )
 
 
@@ -116,13 +116,13 @@ def base_patches(artifacts_dir: str) -> dict[str, Any]:
         "sase.history.chat.get_chat_file_path": MagicMock(
             return_value="/tmp/test_chat.md"
         ),
-        # xprompt, patched at source.
-        "sase.macro.resolve_xprompt_aliases": MagicMock(side_effect=lambda x: x),
+        # macro, patched at source.
+        "sase.macro.resolve_macro_aliases": MagicMock(side_effect=lambda x: x),
         "sase.macro._parsing.extract_vcs_workflow_tag": MagicMock(return_value=None),
-        "sase.macro.processor.process_xprompt_references": MagicMock(
+        "sase.macro.processor.process_macro_references": MagicMock(
             side_effect=lambda x, **_kwargs: x
         ),
-        f"{RUNNER}.expand_deferred_launch_xprompts": MagicMock(
+        f"{RUNNER}.expand_deferred_launch_macros": MagicMock(
             side_effect=lambda prompt, *_args, **_kwargs: prompt
         ),
         "sase.macro.models.create_anonymous_workflow": MagicMock(),

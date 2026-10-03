@@ -11,7 +11,7 @@ from rich.console import Console
 
 from sase.main.parser import create_parser
 from sase.snippet import cli_show
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 from .snippet_cli_helpers import install_writable_snippet_project
 
@@ -62,8 +62,8 @@ def test_show_markdown_format_marks_authored_versus_derived(
         tmp_path,
         monkeypatch,
         body="timezone: UTC\n",
-        xprompts={
-            "review": XPrompt(
+        macros={
+            "review": Macro(
                 name="review",
                 content="Review $0",
                 snippet=True,

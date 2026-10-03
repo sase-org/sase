@@ -1,4 +1,4 @@
-"""Parser help tests for ``sase xprompt show``."""
+"""Parser help tests for ``sase macro show``."""
 
 from __future__ import annotations
 
@@ -10,18 +10,18 @@ from tests.main.parser_help_helpers import (
 )
 
 
-def test_xprompt_help_renders_show_in_sorted_subcommands() -> None:
-    xprompt_parser = parser_for(("sase", "xprompt"))
+def test_macro_help_renders_show_in_sorted_subcommands() -> None:
+    macro_parser = parser_for(("sase", "xprompt"))
     expected_commands = {"catalog", "expand", "explain", "graph", "list", "show"}
 
-    help_text = xprompt_parser.format_help()
+    help_text = macro_parser.format_help()
     help_commands = help_subcommand_rows(help_text, expected_commands)
 
     assert help_commands == sorted(expected_commands)
     assert "{catalog,expand,explain,graph,list,show}" in help_text
 
 
-def test_xprompt_show_help_documents_flags_and_examples() -> None:
+def test_macro_show_help_documents_flags_and_examples() -> None:
     help_text = flat_help(parser_for(("sase", "xprompt", "show")).format_help())
 
     assert "-c" in help_text
@@ -38,7 +38,7 @@ def test_xprompt_show_help_documents_flags_and_examples() -> None:
     assert "sase xprompt show t --color always | less -R" in help_text
 
 
-def test_bare_xprompt_still_delegates_to_list() -> None:
+def test_bare_macro_still_delegates_to_list() -> None:
     args = create_parser().parse_args(["xprompt"])
 
     assert args.command == "xprompt"

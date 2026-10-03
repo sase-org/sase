@@ -14,7 +14,7 @@ from sase.agent.multi_prompt_reference_allocation import (
     template_candidates,
 )
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
-from sase.agent.multi_prompt_reference_resume import has_non_resume_xprompt_reference
+from sase.agent.multi_prompt_reference_resume import has_non_resume_macro_reference
 from sase.agent.multi_prompt_reference_rewriting import (
     rewrite_template_references,
 )
@@ -83,7 +83,7 @@ class PlannedNameAllocator:
 
         resume_target = sole_resume_agent_name(prompt)
         if resume_target is not None:
-            if has_non_resume_xprompt_reference(prompt):
+            if has_non_resume_macro_reference(prompt):
                 return None, None
             template = resume_agent_name_template(resume_target)
             name = self._allocate_template_name(
@@ -93,7 +93,7 @@ class PlannedNameAllocator:
             )
             return name, name
 
-        if "#" in prompt and has_non_resume_xprompt_reference(prompt):
+        if "#" in prompt and has_non_resume_macro_reference(prompt):
             return None, None
 
         wait_target = single_wait_agent_name(prompt)

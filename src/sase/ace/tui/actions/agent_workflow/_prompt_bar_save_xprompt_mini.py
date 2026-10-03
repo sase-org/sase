@@ -209,7 +209,7 @@ class PromptBarMiniXPromptSaveMixin:
         from ...widgets.prompt_stack import SourceFingerprint
         from sase.macro.save_state import save_last_used_location
         from sase.macro.write_targets import (
-            XPromptWriteTarget,
+            MacroWriteTarget,
             classify_written_file,
             write_target_for_written_path,
         )
@@ -299,7 +299,7 @@ class PromptBarMiniXPromptSaveMixin:
         )
 
         if snapshot.target.via_chezmoi or snapshot.target.apply_target is not None:
-            post_write_target = XPromptWriteTarget(
+            post_write_target = MacroWriteTarget(
                 read_path=Path(snapshot.target.read_path).expanduser(),
                 write_path=Path(snapshot.target.write_path).expanduser(),
                 apply_target=(
@@ -321,7 +321,7 @@ class PromptBarMiniXPromptSaveMixin:
             post_write_target,
             kind=kind,
             is_new=not snapshot.target.exists,
-            xprompt_name=snapshot.target.name,
+            macro_name=snapshot.target.name,
             refresh_config_on_success=True,
         )
 

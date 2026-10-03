@@ -1,4 +1,4 @@
-"""Small per-user state for xprompt save-panel defaults."""
+"""Small per-user state for macro save-panel defaults."""
 
 from __future__ import annotations
 
@@ -42,12 +42,12 @@ def load_last_used_locations() -> dict[SaveKind, str]:
     if not isinstance(payload, dict):
         return {}
     result: dict[SaveKind, str] = {}
-    xprompt = payload.get(MACRO_SAVE_STATE_KEY)
-    if xprompt is None:
-        xprompt = payload.get(LEGACY_XPROMPT_SAVE_STATE_KEY)
+    macro_def = payload.get(MACRO_SAVE_STATE_KEY)
+    if macro_def is None:
+        macro_def = payload.get(LEGACY_XPROMPT_SAVE_STATE_KEY)
     snippet = payload.get("snippet")
-    if isinstance(xprompt, str) and xprompt:
-        result["xprompt"] = xprompt
+    if isinstance(macro_def, str) and macro_def:
+        result["xprompt"] = macro_def
     if isinstance(snippet, str) and snippet:
         result["snippet"] = snippet
     return result

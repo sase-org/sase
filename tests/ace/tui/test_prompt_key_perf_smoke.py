@@ -74,14 +74,14 @@ async def test_prompt_key_perf_harness_records_space_and_cycle(
     _stub_agent_tab_catalog_compat(monkeypatch)
     _stub_jinja_compat(monkeypatch)
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *args, **kwargs: [
             ("#git:foo", "#git:foo"),
             ("#git:bar", "#git:bar"),
         ],
     )
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru",
         lambda *args, **kwargs: ["#git:foo", "#git:bar"],
     )
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
@@ -143,7 +143,7 @@ async def test_prompt_cycle_key_records_perf_sample(
         ta.move_cursor(ta._location_from_absolute(len("#git:foo ")))
         ta.focus()
         with patch(
-            "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
+            "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru",
             return_value=["#git:foo", "#git:bar"],
         ):
             await pilot.press("ctrl+p")
@@ -177,12 +177,12 @@ def test_prompt_key_io_probe_counts_main_thread_calls(
     from sase.legacy_xprompt_names import VCS_MACRO_MRU_FILENAME
 
     with prompt_key_io_probe() as probe:
-        assert mru_module._load_vcs_xprompt_mru() == []
-        mru_module._save_vcs_xprompt_mru(["#git:foo"])
+        assert mru_module._load_vcs_macro_mru() == []
+        mru_module._save_vcs_macro_mru(["#git:foo"])
         assert json.loads((home / VCS_MACRO_MRU_FILENAME).read_text()) == {
             "entries": ["#git:foo"]
         }
-        assert mru_module._load_vcs_xprompt_mru() == ["#git:foo"]
+        assert mru_module._load_vcs_macro_mru() == ["#git:foo"]
         assert facade_module.list_project_records(home / "projects", ["enabled"]) == []
         io_proc = subprocess.Popen(["true"])
         assert io_proc.wait(timeout=30) == 0
@@ -199,7 +199,7 @@ def test_prompt_key_io_probe_counts_main_thread_calls(
         # Off-thread calls never count.
         probe_thread = threading.Thread(
             target=lambda: (
-                mru_module._load_vcs_xprompt_mru(),
+                mru_module._load_vcs_macro_mru(),
                 subprocess.Popen(["true"]).wait(timeout=30),
             )
         )

@@ -163,10 +163,10 @@ def execute_standalone_steps(
         elif step.is_agent_step() and step.agent:
             from sase.content import ensure_str_content
             from sase.llm_provider import LLMInvocationError, invoke_agent
-            from sase.macro import process_xprompt_references
+            from sase.macro import process_macro_references
 
             rendered_prompt = render_template(step.agent, context)
-            expanded_prompt = process_xprompt_references(rendered_prompt)
+            expanded_prompt = process_macro_references(rendered_prompt)
 
             # Create temp artifacts dir if not provided
             step_artifacts_dir = artifacts_dir

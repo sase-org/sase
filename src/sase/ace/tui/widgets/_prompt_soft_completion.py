@@ -43,14 +43,14 @@ def _build_prompt_soft_completion_snapshot(
     text: str,
     cursor_offset: int,
     settings: PromptCompletionSettings,
-    xprompt_entries: list[XPromptAssistEntry] | None,
+    macro_entries: list[XPromptAssistEntry] | None,
     jinja_scope: JinjaScope | None = None,
 ) -> PromptSoftCompletion | None:
     return build_prompt_soft_completion(
         text=text,
         cursor_offset=cursor_offset,
         settings=settings,
-        xprompt_entries=xprompt_entries,
+        macro_entries=macro_entries,
         base_dir=resolve_prompt_completion_base_dir(text),
         jinja_scope=jinja_scope,
     )
@@ -187,7 +187,7 @@ class PromptSoftCompletionMixin(_MixinBase):
         ):
             self._schedule_xprompt_assist_warm(project)
 
-        xprompt_entries = self._soft_completion_xprompt_entries(entries)
+        macro_entries = self._soft_completion_xprompt_entries(entries)
         task = spawn_pump_free_task(
             self,
             self._run_prompt_completion_refresh(
@@ -195,7 +195,7 @@ class PromptSoftCompletionMixin(_MixinBase):
                 text,
                 cursor_offset,
                 settings,
-                xprompt_entries,
+                macro_entries,
             ),
             name="prompt-soft-completion",
             registry_attr="_prompt_completion_async_tasks",
@@ -210,7 +210,7 @@ class PromptSoftCompletionMixin(_MixinBase):
                     text=text,
                     cursor_offset=cursor_offset,
                     settings=settings,
-                    xprompt_entries=xprompt_entries,
+                    macro_entries=macro_entries,
                 ),
             )
 
@@ -220,7 +220,7 @@ class PromptSoftCompletionMixin(_MixinBase):
         text: str,
         cursor_offset: int,
         settings: PromptCompletionSettings,
-        xprompt_entries: list[XPromptAssistEntry] | None,
+        macro_entries: list[XPromptAssistEntry] | None,
     ) -> None:
         try:
             suggestion = await asyncio.to_thread(
@@ -228,7 +228,7 @@ class PromptSoftCompletionMixin(_MixinBase):
                 text=text,
                 cursor_offset=cursor_offset,
                 settings=settings,
-                xprompt_entries=xprompt_entries,
+                macro_entries=macro_entries,
             )
         finally:
             current = asyncio.current_task()
@@ -305,7 +305,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             text=text,
             cursor_offset=cursor_offset,
             settings=settings,
-            xprompt_entries=entries,
+            macro_entries=entries,
             jinja_scope=jinja_scope_for_editor(self),
         )
 

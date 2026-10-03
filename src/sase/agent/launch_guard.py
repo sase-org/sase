@@ -44,7 +44,7 @@ class LaunchUnit:
     total: int
     prompt: str
     template_group: str | None
-    swarm_xprompts: tuple[str, ...]
+    swarm_macros: tuple[str, ...]
     candidates: tuple[LaunchUnitCandidate, ...]
     _blocking_disables: tuple[TemporaryProviderDisable, ...] = ()
 
@@ -95,7 +95,7 @@ class LaunchUnitInput:
 
     prompt: str
     template_group: str | None = None
-    swarm_xprompts: tuple[str, ...] = ()
+    swarm_macros: tuple[str, ...] = ()
 
 
 class DisabledProviderLaunchError(RuntimeError):
@@ -119,7 +119,7 @@ def parse_launch_units_payload(value: object) -> tuple[LaunchUnitInput, ...]:
     """Validate a ``launch_units`` request list into typed unit inputs.
 
     Each entry must be an object with exactly the keys ``prompt``,
-    ``template_group``, and ``swarm_xprompts``. Prompts must be non-empty.
+    ``template_group``, and ``swarm_macros``. Prompts must be non-empty.
     """
     if not isinstance(value, list):
         raise LaunchUnitsPayloadError("launch_units must be a list")
@@ -209,7 +209,7 @@ def _parse_launch_unit_entry(index: int, item: object) -> LaunchUnitInput:
     return LaunchUnitInput(
         prompt=prompt,
         template_group=template_group,
-        swarm_xprompts=tuple(swarm),
+        swarm_macros=tuple(swarm),
     )
 
 
@@ -218,19 +218,19 @@ def _plan_launch_units(
     routing_context: ProviderRoutingContext,
 ) -> tuple[LaunchUnit, ...]:
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
+    from sase.agent.macro_swarm import expand_macro_swarms_with_metadata
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     submitted = canonicalize_project_aliases_in_prompt(prompt)
     multi = parse_multi_prompt(submitted)
-    expanded_records = expand_xprompt_swarms_with_metadata(
-        multi.segments, multi.local_xprompts
+    expanded_records = expand_macro_swarms_with_metadata(
+        multi.segments, multi.local_macros
     )
     inputs = [
         LaunchUnitInput(
             prompt=record.prompt,
             template_group=record.template_group,
-            swarm_xprompts=tuple(record.swarm_xprompts),
+            swarm_macros=tuple(record.swarm_macros),
         )
         for record in expanded_records
     ]
@@ -260,7 +260,7 @@ def _plan_launch_units_from_inputs(
                 total=total,
                 segment=segment,
                 template_group=unit.template_group,
-                swarm_xprompts=tuple(unit.swarm_xprompts),
+                swarm_macros=tuple(unit.swarm_macros),
                 routing_context=routing_context,
             )
         )
@@ -273,7 +273,7 @@ def _unit_from_segment(
     total: int,
     segment: str,
     template_group: str | None,
-    swarm_xprompts: tuple[str, ...],
+    swarm_macros: tuple[str, ...],
     routing_context: ProviderRoutingContext,
 ) -> LaunchUnit:
     resolved: list[tuple[LaunchUnitCandidate, tuple[str, ...]]] = [
@@ -286,7 +286,7 @@ def _unit_from_segment(
         total=total,
         prompt=segment,
         template_group=template_group,
-        swarm_xprompts=swarm_xprompts,
+        swarm_macros=swarm_macros,
         candidates=candidates,
         _blocking_disables=_collect_blocking_disables(resolved, routing_context),
     )
@@ -303,15 +303,15 @@ def _fanout_slots_for_segment(segment: str) -> list[Any]:
     fanout_plan = plan_prompt_fanout_variants(segment)
     if fanout_plan is None and "#" in segment:
         from sase.macro.processor import (
-            LAUNCH_DEFERRED_XPROMPT_NAMES,
-            process_xprompt_references,
-            prompt_may_reference_xprompt,
+            LAUNCH_DEFERRED_MACRO_NAMES,
+            process_macro_references,
+            prompt_may_reference_macro,
         )
 
-        if prompt_may_reference_xprompt(segment):
-            expanded = process_xprompt_references(
+        if prompt_may_reference_macro(segment):
+            expanded = process_macro_references(
                 segment,
-                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+                defer_macro_names=LAUNCH_DEFERRED_MACRO_NAMES,
             )
             fanout_plan = plan_prompt_fanout_variants(expanded)
     if fanout_plan is not None:

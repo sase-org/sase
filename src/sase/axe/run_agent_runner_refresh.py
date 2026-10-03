@@ -7,7 +7,7 @@ refresh re-exec in one of two ways.
   ``preserved_agent_metadata()`` (clan membership, batch predecessor context,
   epic work, model selection).
 - **One-shot file or env resource:** this module re-materializes it before
-  exec (the prompt file, local xprompts, the planned name).
+  exec (the prompt file, local macros, the planned name).
 
 The exec replays ``sys.argv`` verbatim. Any future argv field that names a
 one-shot resource must therefore be re-materialized here before exec, just as
@@ -98,10 +98,10 @@ def refresh_runner_code_after_wait(
     blocking_wait_occurred: bool,
     killed: bool,
     prompt_file: str,
-    submitted_xprompt: str,
+    submitted_prompt: str,
     agent_name: str | None = None,
     artifacts_dir: str | None = None,
-    local_xprompts: Mapping[str, Any] | None = None,
+    local_macros: Mapping[str, Any] | None = None,
 ) -> None:
     """Re-exec the runner when its editable source HEAD moved during a wait.
 
@@ -126,7 +126,7 @@ def refresh_runner_code_after_wait(
         flush=True,
     )
     try:
-        Path(prompt_file).write_text(submitted_xprompt, encoding="utf-8")
+        Path(prompt_file).write_text(submitted_prompt, encoding="utf-8")
     except OSError as exc:
         print(
             "Warning: Skipping sase runner code refresh because the temporary "
@@ -136,26 +136,26 @@ def refresh_runner_code_after_wait(
         )
         return
 
-    previous_local_xprompts = read_local_macros_path(os.environ)
-    new_local_xprompts_path: str | None = None
-    if local_xprompts:
+    previous_local_macros = read_local_macros_path(os.environ)
+    new_local_macros_path: str | None = None
+    if local_macros:
         try:
             from sase.agent.multi_prompt_macros import (
-                serialize_local_xprompts,
+                serialize_local_macros,
                 set_local_macros_path,
             )
 
-            new_local_xprompts_path = serialize_local_xprompts(dict(local_xprompts))
-            set_local_macros_path(os.environ, new_local_xprompts_path)
+            new_local_macros_path = serialize_local_macros(dict(local_macros))
+            set_local_macros_path(os.environ, new_local_macros_path)
         except Exception as exc:
             from sase.agent.multi_prompt_macros import restore_local_macros_path
 
-            if new_local_xprompts_path is not None:
+            if new_local_macros_path is not None:
                 try:
-                    os.unlink(new_local_xprompts_path)
+                    os.unlink(new_local_macros_path)
                 except OSError:
                     pass
-                restore_local_macros_path(os.environ, previous_local_xprompts)
+                restore_local_macros_path(os.environ, previous_local_macros)
             print(
                 "Warning: Skipping sase runner code refresh because local "
                 f"xprompts could not be re-materialized: {exc}",
@@ -187,12 +187,12 @@ def refresh_runner_code_after_wait(
                 os.environ.pop(_PLANNED_AGENT_NAME_ENV, None)
             else:
                 os.environ[_PLANNED_AGENT_NAME_ENV] = previous_planned_name
-        if new_local_xprompts_path is not None:
+        if new_local_macros_path is not None:
             from sase.agent.multi_prompt_macros import restore_local_macros_path
 
-            restore_local_macros_path(os.environ, previous_local_xprompts)
+            restore_local_macros_path(os.environ, previous_local_macros)
             try:
-                os.unlink(new_local_xprompts_path)
+                os.unlink(new_local_macros_path)
             except OSError:
                 pass
         try:

@@ -29,10 +29,10 @@ from sase.stats._view_models import (
     RuntimeRow,
     RuntimeView,
     WorkspaceRow,
-    XPromptCountRow,
-    XPromptFocusView,
-    XPromptRow,
-    XPromptsView,
+    MacroCountRow,
+    MacroFocusView,
+    MacroRow,
+    MacrosView,
 )
 from sase.stats._view_payload import (
     Payload,
@@ -397,22 +397,22 @@ def build_activity_view(
     )
 
 
-def _xprompt_tags(payload: Payload) -> tuple[str, ...]:
+def _macro_tags(payload: Payload) -> tuple[str, ...]:
     value = payload.get("tags")
     if not isinstance(value, (list, tuple)):
         return ()
     return tuple(item for item in value if isinstance(item, str) and item)
 
 
-def _xprompt_count_rows(
+def _macro_count_rows(
     payload: Payload,
     key: str,
     owning_runs: int,
     display_snapshot: ProjectDisplaySnapshot,
     *,
     projects: bool = False,
-) -> tuple[XPromptCountRow, ...]:
-    count_rows_: list[XPromptCountRow] = []
+) -> tuple[MacroCountRow, ...]:
+    count_rows_: list[MacroCountRow] = []
     for row in rows(payload, key):
         row_key = text(row.get("name"), "unknown")
         label = (
@@ -425,7 +425,7 @@ def _xprompt_count_rows(
         )
         count = integer(row.get("count"))
         count_rows_.append(
-            XPromptCountRow(
+            MacroCountRow(
                 key=row_key,
                 label=label,
                 count=count,
@@ -435,20 +435,20 @@ def _xprompt_count_rows(
     return tuple(count_rows_)
 
 
-def build_xprompts_view(
+def build_macros_view(
     run_payload: Payload,
     display_snapshot: ProjectDisplaySnapshot,
     *,
     timezone: tzinfo,
-) -> XPromptsView:
-    """Build launch-boundary xprompt usage from the optional wire section."""
+) -> MacrosView:
+    """Build launch-boundary macro usage from the optional wire section."""
     section_value = run_payload.get("xprompts")
     if not isinstance(section_value, Mapping):
-        return XPromptsView(
+        return MacrosView(
             available=False,
-            runs_with_xprompts=0,
-            runs_without_xprompts=0,
-            distinct_xprompts=0,
+            runs_with_macros=0,
+            runs_without_macros=0,
+            distinct_macros=0,
             total_references=0,
             truncated_rows=0,
             rows=(),
@@ -456,15 +456,15 @@ def build_xprompts_view(
         )
 
     section = mapping(section_value)
-    runs_with_xprompts = integer(section.get("runs_with_xprompts"))
-    xprompt_rows: list[XPromptRow] = []
+    runs_with_macros = integer(section.get("runs_with_xprompts"))
+    macro_rows: list[MacroRow] = []
     for row in rows(section, "rows"):
         row_runs = integer(row.get("runs"))
-        xprompt_rows.append(
-            XPromptRow(
+        macro_rows.append(
+            MacroRow(
                 name=text(row.get("name"), "unknown"),
                 kind=text(row.get("kind"), "unknown"),
-                tags=_xprompt_tags(row),
+                tags=_macro_tags(row),
                 runs=row_runs,
                 references=integer(row.get("references")),
                 distinct_agents=integer(row.get("distinct_agents")),
@@ -475,21 +475,21 @@ def build_xprompts_view(
                 mean_runtime_seconds=optional_number(row.get("mean_runtime_seconds")),
                 first_run_ts=number(row.get("first_run_ts")),
                 last_run_ts=number(row.get("last_run_ts")),
-                share=ratio(row_runs, runs_with_xprompts),
-                models=_xprompt_count_rows(
+                share=ratio(row_runs, runs_with_macros),
+                models=_macro_count_rows(
                     row,
                     "models",
                     row_runs,
                     display_snapshot,
                 ),
-                projects=_xprompt_count_rows(
+                projects=_macro_count_rows(
                     row,
                     "projects",
                     row_runs,
                     display_snapshot,
                     projects=True,
                 ),
-                partners=_xprompt_count_rows(
+                partners=_macro_count_rows(
                     row,
                     "partners",
                     row_runs,
@@ -502,16 +502,16 @@ def build_xprompts_view(
         )
 
     focus_value = section.get("focus")
-    focus: XPromptFocusView | None = None
+    focus: MacroFocusView | None = None
     if isinstance(focus_value, Mapping):
         focus_payload = mapping(focus_value)
         focus_runs = integer(focus_payload.get("runs"))
         bucket_seconds = integer(run_payload.get("bucket_seconds"), 86_400)
-        focus = XPromptFocusView(
+        focus = MacroFocusView(
             name=text(focus_payload.get("name"), "unknown"),
             found=boolean(focus_payload.get("found")),
             kind=text(focus_payload.get("kind"), "unknown"),
-            tags=_xprompt_tags(focus_payload),
+            tags=_macro_tags(focus_payload),
             runs=focus_runs,
             references=integer(focus_payload.get("references")),
             distinct_agents=integer(focus_payload.get("distinct_agents")),
@@ -524,32 +524,32 @@ def build_xprompts_view(
             ),
             first_run_ts=number(focus_payload.get("first_run_ts")),
             last_run_ts=number(focus_payload.get("last_run_ts")),
-            models=_xprompt_count_rows(
+            models=_macro_count_rows(
                 focus_payload,
                 "models",
                 focus_runs,
                 display_snapshot,
             ),
-            projects=_xprompt_count_rows(
+            projects=_macro_count_rows(
                 focus_payload,
                 "projects",
                 focus_runs,
                 display_snapshot,
                 projects=True,
             ),
-            partners=_xprompt_count_rows(
+            partners=_macro_count_rows(
                 focus_payload,
                 "partners",
                 focus_runs,
                 display_snapshot,
             ),
-            providers=_xprompt_count_rows(
+            providers=_macro_count_rows(
                 focus_payload,
                 "providers",
                 focus_runs,
                 display_snapshot,
             ),
-            tribes=_xprompt_count_rows(
+            tribes=_macro_count_rows(
                 focus_payload,
                 "tribes",
                 focus_runs,
@@ -569,14 +569,14 @@ def build_xprompts_view(
             ),
         )
 
-    return XPromptsView(
+    return MacrosView(
         available=True,
-        runs_with_xprompts=runs_with_xprompts,
-        runs_without_xprompts=integer(section.get("runs_without_xprompts")),
-        distinct_xprompts=integer(section.get("distinct_xprompts")),
+        runs_with_macros=runs_with_macros,
+        runs_without_macros=integer(section.get("runs_without_xprompts")),
+        distinct_macros=integer(section.get("distinct_xprompts")),
         total_references=integer(section.get("total_references")),
         truncated_rows=integer(section.get("truncated_rows")),
-        rows=tuple(xprompt_rows),
+        rows=tuple(macro_rows),
         focus=focus,
     )
 

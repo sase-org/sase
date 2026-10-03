@@ -1,6 +1,6 @@
 """Durable-path MRU and unresolved-reference feedback for ``sase run``.
 
-ACE's in-process launch body used to record ``<ctrl+p>`` VCS-xprompt MRU
+ACE's in-process launch body used to record ``<ctrl+p>`` VCS-macro MRU
 entries and surface unknown ``#refs`` as a warning toast. Production now
 runs ``launch_query()`` in the child ``sase run`` process, so both pieces
 of feedback have to travel that path: record after a successful spawn, and
@@ -22,7 +22,7 @@ from sase.workspace_provider import reset_workflow_metadata_caches
 from sase.workspace_provider._hookspec import WorkflowMetadata
 from sase.macro.unresolved import format_unresolved_references_toast
 from tests._workspace_provider_helpers import (
-    _restore_xprompt_vcs_caches_on_teardown,
+    _restore_macro_vcs_caches_on_teardown,
     git_metadata,
 )
 
@@ -61,7 +61,7 @@ def _patch_git_and_gh_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
         workspace_provider, "get_all_workflow_metadata", _git_and_gh_metadata
     )
     reset_workflow_metadata_caches()
-    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
+    _restore_macro_vcs_caches_on_teardown(monkeypatch)
 
 
 def _run_successful_launch_query(
@@ -108,7 +108,7 @@ def _run_successful_launch_query(
         if record_mru is not None:
             stack.enter_context(
                 patch(
-                    "sase.history.vcs_macro_mru.record_vcs_xprompt_usage",
+                    "sase.history.vcs_macro_mru.record_vcs_macro_usage",
                     record_mru,
                 )
             )
@@ -133,14 +133,14 @@ def test_launch_query_does_not_record_default_git_home_prefix(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    from sase.history.vcs_macro_mru import _load_vcs_xprompt_mru
+    from sase.history.vcs_macro_mru import _load_vcs_macro_mru
 
     fake_mru = tmp_path / "vcs_xprompt_mru.json"
     monkeypatch.setattr("sase.history.vcs_macro_mru._MRU_FILE", fake_mru)
 
     _run_successful_launch_query(monkeypatch, "#git:home do work")
 
-    assert _load_vcs_xprompt_mru() == []
+    assert _load_vcs_macro_mru() == []
     assert not fake_mru.exists()
 
 
@@ -174,7 +174,7 @@ def test_launch_query_does_not_record_mru_when_launch_fails(
             side_effect=RuntimeError("boom"),
         ),
         patch(
-            "sase.history.vcs_macro_mru.record_vcs_xprompt_usage",
+            "sase.history.vcs_macro_mru.record_vcs_macro_usage",
             record,
         ),
         pytest.raises(SystemExit) as exc_info,
@@ -267,7 +267,7 @@ def test_launch_query_unexpected_exception_emits_typed_result_and_reraises(
 ) -> None:
     from sase.main.query_handler._launch import launch_query
 
-    class XPromptArgumentError(ValueError):
+    class MacroArgumentError(ValueError):
         pass
 
     monkeypatch.delenv("SASE_AGENT", raising=False)
@@ -282,19 +282,19 @@ def test_launch_query_unexpected_exception_emits_typed_result_and_reraises(
         ),
         patch(
             "sase.main.query_handler._launch.launch_agents_from_cwd",
-            side_effect=XPromptArgumentError("invalid priority: urgent"),
+            side_effect=MacroArgumentError("invalid priority: urgent"),
         ),
         patch(
             "sase.ops.commands.run.emit_run_launch_result",
             side_effect=lambda **kwargs: captured.update(kwargs),
         ),
-        pytest.raises(XPromptArgumentError),
+        pytest.raises(MacroArgumentError),
     ):
         launch_query("do work")
 
     assert captured == {
         "success": False,
-        "message": "XPromptArgumentError: invalid priority: urgent",
+        "message": "MacroArgumentError: invalid priority: urgent",
     }
 
 
@@ -345,7 +345,7 @@ def test_launch_query_omits_warning_messages_when_all_refs_resolve(
         ),
     ],
 )
-def test_launched_vcs_xprompt_prefix_uses_leading_tag_semantics(
+def test_launched_vcs_macro_prefix_uses_leading_tag_semantics(
     monkeypatch: pytest.MonkeyPatch, query: str, expected: str | None
 ) -> None:
     """The recorded prefix always matches what the launcher itself resolves.
@@ -354,9 +354,9 @@ def test_launched_vcs_xprompt_prefix_uses_leading_tag_semantics(
     launch tag, not the first registry-ordered match anywhere in the text.
     """
     _patch_git_and_gh_metadata(monkeypatch)
-    from sase.main.query_handler._launch import _launched_vcs_xprompt_prefix
+    from sase.main.query_handler._launch import _launched_vcs_macro_prefix
 
-    assert _launched_vcs_xprompt_prefix(query) == expected
+    assert _launched_vcs_macro_prefix(query) == expected
 
 
 def test_launch_query_records_last_segment_of_multi_prompt_at_mru_head(
@@ -365,7 +365,7 @@ def test_launch_query_records_last_segment_of_multi_prompt_at_mru_head(
     """Every launched segment records one entry, in launch order.
 
     The last-launched segment ends up at the MRU head because
-    ``record_vcs_xprompt_usage`` moves each recorded prefix to the front.
+    ``record_vcs_macro_usage`` moves each recorded prefix to the front.
     """
     record = MagicMock()
 

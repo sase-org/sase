@@ -13,7 +13,7 @@ from sase.main._init_skills_rendering import (
     RenderedSkillTarget,
 )
 from sase.main.init_plan import InitAction, InitOperation, InitPlan
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 class _SkillManifestWrite(Protocol):
@@ -39,7 +39,7 @@ class InitSkillsRuntime:
     delete_warning: str
     get_use_chezmoi: Callable[[], bool]
     provider_validation_error: Callable[[str | None], str | None]
-    load_skill_sources: Callable[[], tuple[list[XPrompt], tuple[str, ...]]]
+    load_skill_sources: Callable[[], tuple[list[Macro], tuple[str, ...]]]
     prettier_available: Callable[[], bool]
     render_skill_deployment_targets: Callable[..., list[RenderedSkillDeploymentTarget]]
     render_skill_targets: Callable[..., list[RenderedSkillTarget]]

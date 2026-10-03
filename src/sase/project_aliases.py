@@ -108,10 +108,10 @@ def _load_project_changespec_names_cache_signature(
     )
 
 
-def _invalidate_xprompt_project_identity() -> None:
-    from sase.macro.project_identity import invalidate_xprompt_project_identity
+def _invalidate_macro_project_identity() -> None:
+    from sase.macro.project_identity import invalidate_macro_project_identity
 
-    invalidate_xprompt_project_identity()
+    invalidate_macro_project_identity()
 
 
 def _filtered_project_records(
@@ -136,7 +136,7 @@ def set_project_aliases_locked(
         list_project_records=list_project_records,
         apply_project_aliases_update=apply_project_aliases_update,
     )
-    _invalidate_xprompt_project_identity()
+    _invalidate_macro_project_identity()
     return record
 
 
@@ -155,7 +155,7 @@ def add_project_alias_locked(
         list_project_records=list_project_records,
         apply_project_aliases_update=apply_project_aliases_update,
     )
-    _invalidate_xprompt_project_identity()
+    _invalidate_macro_project_identity()
     return record
 
 
@@ -174,7 +174,7 @@ def remove_project_alias_locked(
         list_project_records=list_project_records,
         apply_project_aliases_update=apply_project_aliases_update,
     )
-    _invalidate_xprompt_project_identity()
+    _invalidate_macro_project_identity()
     return record
 
 

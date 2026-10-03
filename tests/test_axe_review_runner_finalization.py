@@ -186,7 +186,7 @@ def test_fix_hook_runner_publishes_env_and_reports_no_proposal(
     )
     monkeypatch.setattr(
         fix_hook_runner,
-        "process_xprompt_references",
+        "process_macro_references",
         lambda _prompt: "expanded fix-hook with #propose",
     )
 

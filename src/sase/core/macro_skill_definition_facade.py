@@ -1,4 +1,4 @@
-"""Resolve xprompt skill source definitions through ``sase_core_rs``."""
+"""Resolve macro skill source definitions through ``sase_core_rs``."""
 
 from __future__ import annotations
 
@@ -12,18 +12,18 @@ from sase.core.rust import require_rust_binding
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.macro.loader_skills import get_sase_package_skills_dir
 
-XPROMPT_SKILL_DEFINITION_WIRE_SCHEMA_VERSION = 1
+MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True, slots=True)
-class _XpromptSkillDefinitionCandidate:
+class _MacroSkillDefinitionCandidate:
     reference: str
     skill_name: str
     project: str | None = None
     definition_path: str | None = None
 
     @classmethod
-    def from_wire(cls, raw: Mapping[str, Any]) -> _XpromptSkillDefinitionCandidate:
+    def from_wire(cls, raw: Mapping[str, Any]) -> _MacroSkillDefinitionCandidate:
         return cls(
             reference=str(raw["reference"]),
             skill_name=str(raw["skill_name"]),
@@ -33,7 +33,7 @@ class _XpromptSkillDefinitionCandidate:
 
 
 @dataclass(frozen=True, slots=True)
-class XpromptSkillDefinitionResolution:
+class MacroSkillDefinitionResolution:
     schema_version: int
     status: str
     authored_reference: str
@@ -41,13 +41,13 @@ class XpromptSkillDefinitionResolution:
     skill_name: str | None = None
     project: str | None = None
     definition_path: str | None = None
-    candidates: tuple[_XpromptSkillDefinitionCandidate, ...] = ()
+    candidates: tuple[_MacroSkillDefinitionCandidate, ...] = ()
     diagnostic: str | None = None
 
     @classmethod
-    def from_wire(cls, raw: Mapping[str, Any]) -> XpromptSkillDefinitionResolution:
+    def from_wire(cls, raw: Mapping[str, Any]) -> MacroSkillDefinitionResolution:
         version = int(raw["schema_version"])
-        if version != XPROMPT_SKILL_DEFINITION_WIRE_SCHEMA_VERSION:
+        if version != MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION:
             raise RuntimeError(
                 f"sase_core_rs xprompt-skill definition wire is stale: {version}"
             )
@@ -60,45 +60,43 @@ class XpromptSkillDefinitionResolution:
             project=_optional_str(raw.get("project")),
             definition_path=_optional_str(raw.get("definition_path")),
             candidates=tuple(
-                _XpromptSkillDefinitionCandidate.from_wire(
-                    cast(Mapping[str, Any], item)
-                )
+                _MacroSkillDefinitionCandidate.from_wire(cast(Mapping[str, Any], item))
                 for item in raw.get("candidates", ())
             ),
             diagnostic=_optional_str(raw.get("diagnostic")),
         )
 
 
-def resolve_xprompt_skill_definition(
+def resolve_macro_skill_definition(
     reference: str,
     *,
     project: str | None = None,
     root_dir: Path | None = None,
-) -> XpromptSkillDefinitionResolution:
+) -> MacroSkillDefinitionResolution:
     """Return the local source definition for a skill reference."""
-    _require_xprompt_skill_definition_schema()
+    _require_macro_skill_definition_schema()
     binding = require_rust_binding("resolve_macro_skill_definition")
     raw = cast(
         Mapping[str, Any],
         binding(
             {
-                "schema_version": XPROMPT_SKILL_DEFINITION_WIRE_SCHEMA_VERSION,
+                "schema_version": MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION,
                 "reference": reference,
                 "project": project,
             },
             _catalog_options(root_dir),
         ),
     )
-    return XpromptSkillDefinitionResolution.from_wire(raw)
+    return MacroSkillDefinitionResolution.from_wire(raw)
 
 
-def _require_xprompt_skill_definition_schema() -> None:
+def _require_macro_skill_definition_schema() -> None:
     binding = require_rust_binding("macro_skill_definition_wire_schema_version")
     version = int(binding())
-    if version != XPROMPT_SKILL_DEFINITION_WIRE_SCHEMA_VERSION:
+    if version != MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION:
         raise RuntimeError(
             "sase_core_rs xprompt-skill definition wire is stale: "
-            f"expected {XPROMPT_SKILL_DEFINITION_WIRE_SCHEMA_VERSION}, got {version}"
+            f"expected {MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION}, got {version}"
         )
 
 
@@ -154,7 +152,7 @@ def _optional_str(value: object) -> str | None:
 
 
 __all__ = [
-    "XPROMPT_SKILL_DEFINITION_WIRE_SCHEMA_VERSION",
-    "XpromptSkillDefinitionResolution",
-    "resolve_xprompt_skill_definition",
+    "MACRO_SKILL_DEFINITION_WIRE_SCHEMA_VERSION",
+    "MacroSkillDefinitionResolution",
+    "resolve_macro_skill_definition",
 ]

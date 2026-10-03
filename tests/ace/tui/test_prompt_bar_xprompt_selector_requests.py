@@ -30,7 +30,7 @@ from sase.ace.tui.widgets.xprompt_inline_expansion import (
 )
 from sase.macro import loader_sources
 from sase.macro.models import InputArg, InputType
-from sase.macro.project_identity import invalidate_xprompt_project_identity
+from sase.macro.project_identity import invalidate_macro_project_identity
 from sase.macro.workflow_models import Workflow, WorkflowStep
 from tests.main.project_handler_helpers import (
     _disk_project_records,
@@ -447,10 +447,10 @@ def test_ctrl_i_passes_frontmatter_locals_as_real_xprompts() -> None:
         name: str,
         workflow: Workflow,
         *,
-        local_xprompts: object = None,
+        local_macros: object = None,
         project: object = None,
     ) -> _InlineExpansionResult:
-        captured["local_xprompts"] = local_xprompts
+        captured["local_xprompts"] = local_macros
         return success
 
     with patch(
@@ -490,9 +490,9 @@ def test_invalid_frontmatter_locals_are_omitted_without_crashing() -> None:
 
 @pytest.fixture
 def _identity_registry_reset() -> Iterator[None]:
-    invalidate_xprompt_project_identity()
+    invalidate_macro_project_identity()
     yield
-    invalidate_xprompt_project_identity()
+    invalidate_macro_project_identity()
 
 
 @pytest.fixture

@@ -86,7 +86,7 @@ def test_adapter_passes_one_slot_preplanned_plans(
     plans = captured["preplanned_fanout_plans"]
     assert len(plans) == len(segments)
     # Every segment is preplanned as a single slot so the generic launcher never
-    # expands the bead xprompts to discover there is no fan-out.
+    # expands the bead macros to discover there is no fan-out.
     assert all(len(plan.slots) == 1 for plan in plans)
     assert captured["project_name"] == "proj"
     assert captured["is_home_mode"] is False
@@ -94,7 +94,7 @@ def test_adapter_passes_one_slot_preplanned_plans(
     # All segments carry the internal-name bypass env, so reserved agent-session names
     # are permitted.
     assert captured["allow_reserved_agent_session_separator_names"] is True
-    assert captured["local_xprompts"] == {}
+    assert captured["local_macros"] == {}
 
 
 def test_adapter_reserves_static_names_and_declared_clan_in_one_batch(
@@ -561,7 +561,7 @@ def test_preplanned_one_slot_plans_spawn_each_segment_verbatim(
 
     results = launch_multi_prompt_agents(
         segments=segments,
-        local_xprompts={},
+        local_macros={},
         cl_name="t",
         project_file="/t.sase",
         project_name="t",

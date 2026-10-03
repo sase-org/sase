@@ -1,7 +1,7 @@
-"""Legacy-input tests for the xprompt-to-macro durable rename.
+"""Legacy-input tests for the macro-to-macro durable rename.
 
 Every fixture below is a realistic pre-rename artifact named
-``*legacy_xprompt*`` (or written under a pre-rename filename): readers must
+``*legacy_macro*`` (or written under a pre-rename filename): readers must
 accept it, and writers must never produce it. Later codemods must skip this
 file's fixtures.
 """
@@ -119,8 +119,8 @@ def test_mru_record_migrates_legacy_file(
 ) -> None:
     from sase.history import vcs_macro_mru
     from sase.history.vcs_macro_mru import (
-        _load_vcs_xprompt_mru,
-        record_vcs_xprompt_usage,
+        _load_vcs_macro_mru,
+        record_vcs_macro_usage,
     )
 
     home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
@@ -128,10 +128,10 @@ def test_mru_record_migrates_legacy_file(
     legacy.write_text(json.dumps({"entries": ["#gh:old"]}), encoding="utf-8")
     monkeypatch.setattr(vcs_macro_mru, "_MRU_FILE", None)
 
-    assert _load_vcs_xprompt_mru() == ["#gh:old"]
-    record_vcs_xprompt_usage("#gh:new")
+    assert _load_vcs_macro_mru() == ["#gh:old"]
+    record_vcs_macro_usage("#gh:new")
 
-    assert _load_vcs_xprompt_mru() == ["#gh:new", "#gh:old"]
+    assert _load_vcs_macro_mru() == ["#gh:new", "#gh:old"]
     assert not legacy.exists()
     assert (home / VCS_MACRO_MRU_FILENAME).is_file()
 
@@ -218,7 +218,7 @@ def test_legacy_manifest_satisfies_provenance_guard(tmp_path: Path) -> None:
 
     assert error is None
     assert recorded is not None
-    assert recorded.xprompt_set_sha256 == "old-hash"
+    assert recorded.macro_set_sha256 == "old-hash"
 
 
 def test_proc_legacy_row_reads_and_writes_canonical() -> None:
@@ -248,15 +248,15 @@ def test_proc_legacy_row_reads_and_writes_canonical() -> None:
     assert prompt_proc_payload({}) is None
 
     proc = Proc.from_dict(legacy_row)
-    assert proc.xprompt_proc is not None
-    assert proc.xprompt_proc["proc_name"] == "inner"
+    assert proc.prompt_proc is not None
+    assert proc.prompt_proc["proc_name"] == "inner"
 
     payload = proc.to_dict()
     assert PROMPT_PROC_FIELD == "prompt_proc"
     assert "xprompt_proc" not in payload
     assert payload["prompt_proc"]["proc_name"] == "inner"
 
-    assert Proc.from_dict(payload).xprompt_proc == proc.xprompt_proc
+    assert Proc.from_dict(payload).prompt_proc == proc.prompt_proc
 
 
 def test_disabled_regions_accept_both_spellings() -> None:
@@ -322,7 +322,7 @@ def test_swarm_env_prefers_macro_spelling() -> None:
     from sase.macro.used_macros import (
         SASE_LAUNCH_SWARM_MACROS,
         SASE_LAUNCH_SWARM_XPROMPTS,
-        decode_launch_swarm_xprompts,
+        decode_launch_swarm_macros,
         launch_swarm_env_entries,
         pop_launch_swarm_env,
     )
@@ -331,11 +331,11 @@ def test_swarm_env_prefers_macro_spelling() -> None:
     assert entries[SASE_LAUNCH_SWARM_MACROS] == '["a"]'
     assert entries[SASE_LAUNCH_SWARM_XPROMPTS] == '["a"]'
 
-    assert decode_launch_swarm_xprompts(
+    assert decode_launch_swarm_macros(
         {SASE_LAUNCH_SWARM_MACROS: '["m"]', SASE_LAUNCH_SWARM_XPROMPTS: '["x"]'}
     ) == ["m"]
-    assert decode_launch_swarm_xprompts({SASE_LAUNCH_SWARM_XPROMPTS: '["x"]'}) == ["x"]
-    assert decode_launch_swarm_xprompts({}) is None
+    assert decode_launch_swarm_macros({SASE_LAUNCH_SWARM_XPROMPTS: '["x"]'}) == ["x"]
+    assert decode_launch_swarm_macros({}) is None
 
     env = {SASE_LAUNCH_SWARM_MACROS: "1", SASE_LAUNCH_SWARM_XPROMPTS: "2"}
     pop_launch_swarm_env(env)

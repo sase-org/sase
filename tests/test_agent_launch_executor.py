@@ -67,7 +67,7 @@ def test_execute_single_launch_plan_uses_preallocated_context_and_timestamp() ->
         "is_home_mode": False,
         "vcs_ref": None,
         "deferred_workspace": False,
-        "local_xprompts_file": None,
+        "local_macros_file": None,
         "extra_env": None,
         "retry_transfer_from_pid": None,
     }

@@ -1,4 +1,4 @@
-"""Tests for xprompt._parsing known-project VCS refs."""
+"""Tests for macro._parsing known-project VCS refs."""
 
 from unittest.mock import patch
 

@@ -14,7 +14,7 @@ from sase.core.project_lifecycle_wire import (
 from sase.snippet.catalog import load_snippet_catalog
 from sase.snippet.lookup import SnippetLookupError, lookup_snippet
 from sase.macro import glossary_catalog as catalog_mod
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 def _record(
@@ -75,7 +75,7 @@ def test_catalog_loads_named_project_without_changing_cwd(
         snippets="    todo: |-\n      TODO($1)$0\n",
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {},
     )
 
@@ -90,7 +90,7 @@ def test_catalog_loads_named_project_without_changing_cwd(
     assert catalog.composed.alias_provenance["Todo"] == "todo"
 
 
-def test_config_overrides_xprompt_and_keeps_shadowed_contribution(
+def test_config_overrides_macro_and_keeps_shadowed_contribution(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _install_project(
@@ -99,9 +99,9 @@ def test_config_overrides_xprompt_and_keeps_shadowed_contribution(
         snippets="    shared: |-\n      from config$0\n",
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {
-            "shared": XPrompt(
+            "shared": Macro(
                 name="shared",
                 content="from xprompt",
                 snippet=True,
@@ -135,7 +135,7 @@ def test_invalid_layer_is_diagnostic_not_fatal(
         lambda *_a, **_k: [_record("gh_demo__app", workspace, display_name="demo")],
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {},
     )
 
@@ -157,7 +157,7 @@ def test_lookup_exact_alias_and_unique_prefix(
         snippets=("    helper: |\n      help$0\n    wrap: |\n      #[helper]$0\n"),
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {},
     )
     catalog = load_snippet_catalog("demo")
@@ -178,7 +178,7 @@ def test_lookup_ambiguous_prefix(
         snippets="    foo: |\n      F$0\n    food: |\n      D$0\n",
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {},
     )
     catalog = load_snippet_catalog("demo")
@@ -198,7 +198,7 @@ def test_relations_and_cycle_diagnostics(
         ),
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {},
     )
     catalog = load_snippet_catalog("demo")

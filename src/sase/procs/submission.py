@@ -128,9 +128,9 @@ def submit_proc_request(
                 reserved_by=reserved_by,
                 timeout_seconds=request.timeout_seconds,
                 idle_timeout_seconds=request.idle_timeout_seconds,
-                xprompt_proc=(
-                    dict(request.xprompt_proc)
-                    if request.xprompt_proc is not None
+                prompt_proc=(
+                    dict(request.prompt_proc)
+                    if request.prompt_proc is not None
                     else None
                 ),
                 service=request.service,

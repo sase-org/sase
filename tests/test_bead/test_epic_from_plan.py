@@ -474,7 +474,7 @@ def test_invalid_plan_creates_nothing_and_does_not_launch(
     )
 
 
-@pytest.mark.usefixtures("fake_cli_work_xprompts")
+@pytest.mark.usefixtures("fake_cli_work_macros")
 def test_valid_plan_runs_real_bead_work_wave_path(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

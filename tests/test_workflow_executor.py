@@ -128,7 +128,7 @@ class TestShouldHitl:
                     _fake_expand,
                 ),
                 patch(
-                    "sase.macro.used_macros.write_used_xprompts",
+                    "sase.macro.used_macros.write_used_macros",
                 ) as mock_write_used,
                 patch("sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent),
             ):
@@ -146,7 +146,7 @@ class TestShouldHitl:
             tmpdir,
             "#gh:sase Fix it",
             "s1",
-            extra_xprompts={},
+            extra_macros={},
             step_only=True,
         )
 

@@ -147,7 +147,7 @@ class XPromptSelectModal(
         self._all_items = {}
         for name, workflow in self._prompts.items():
             kind = workflow_kind_value(workflow)
-            if workflow.is_simple_xprompt():
+            if workflow.is_simple_macro():
                 # Simple xprompt - show prompt_part content directly
                 self._all_items[name] = (self._create_simple_preview(workflow), kind)
             else:
@@ -436,7 +436,7 @@ class XPromptSelectModal(
         if workflow is None:
             self.notify("Could not find selected xprompt", severity="warning")
             return
-        if not workflow.is_simple_xprompt():
+        if not workflow.is_simple_macro():
             self.notify("Workflow graphs use ^e / $EDITOR", severity="warning")
             return
 

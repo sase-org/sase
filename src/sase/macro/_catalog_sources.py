@@ -1,4 +1,4 @@
-"""Collection, classification, and source display helpers for xprompt catalogs."""
+"""Collection, classification, and source display helpers for macro catalogs."""
 
 from __future__ import annotations
 
@@ -14,16 +14,16 @@ from sase.content_layout import (
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.macro.loader import (
     get_all_workflows,
-    get_all_xprompts,
-    get_sase_package_default_xprompts_dir,
+    get_all_macros,
+    get_sase_package_default_macros_dir,
     get_sase_package_skills_dir,
-    get_sase_package_xprompts_dir,
-    load_project_file_xprompts,
-    load_project_local_xprompts,
+    get_sase_package_macros_dir,
+    load_project_file_macros,
+    load_project_local_macros,
 )
-from sase.macro.models import XPrompt, xprompt_to_workflow
+from sase.macro.models import Macro, macro_to_workflow
 from sase.macro.project_identity import (
-    canonical_xprompt_project,
+    canonical_macro_project,
     known_project_namespaces,
 )
 from sase.macro.workflow_models import Workflow
@@ -34,18 +34,18 @@ log = logging.getLogger(__name__)
 
 
 def gather_entries() -> list[CatalogEntry]:
-    """Collect all xprompts from every source, classified and de-duplicated."""
+    """Collect all macros from every source, classified and de-duplicated."""
     seen: dict[tuple[str, str], CatalogEntry] = {}
 
-    for xp in get_all_xprompts().values():
+    for xp in get_all_macros().values():
         entry = classify(xp, project=None)
         seen[(xp.source_path or "", xp.name)] = entry
 
     for project, workspace in known_project_namespaces().items():
         try:
-            project_xprompts = {
-                **load_project_local_xprompts(workspace, project),
-                **load_project_file_xprompts(workspace, project),
+            project_macros = {
+                **load_project_local_macros(workspace, project),
+                **load_project_file_macros(workspace, project),
             }
         except Exception:
             log.debug(
@@ -54,14 +54,14 @@ def gather_entries() -> list[CatalogEntry]:
                 exc_info=True,
             )
             continue
-        for xp in project_xprompts.values():
+        for xp in project_macros.values():
             key = (xp.source_path or "", xp.name)
             if key in seen:
                 continue
             seen[key] = classify(xp, project=project)
 
     return sorted(
-        seen.values(), key=lambda e: (e.bucket, e.project or "", e.xprompt.name)
+        seen.values(), key=lambda e: (e.bucket, e.project or "", e.macro_def.name)
     )
 
 
@@ -75,20 +75,20 @@ def gather_structured_entries() -> list[StructuredCatalogSource]:
         seen[(workflow.source_path or "", name)] = entry
 
     workflow_names = set(workflows)
-    for name, xp in get_all_xprompts().items():
+    for name, xp in get_all_macros().items():
         if name in workflow_names:
             continue
         key = (xp.source_path or "", name)
         if key in seen:
             continue
-        entry = classify_xprompt_for_structured(xp, project=None)
+        entry = classify_macro_for_structured(xp, project=None)
         seen[key] = entry
 
     for project, workspace in known_project_namespaces().items():
         try:
-            project_xprompts = {
-                **load_project_local_xprompts(workspace, project),
-                **load_project_file_xprompts(workspace, project),
+            project_macros = {
+                **load_project_local_macros(workspace, project),
+                **load_project_file_macros(workspace, project),
             }
         except Exception:
             log.debug(
@@ -97,22 +97,22 @@ def gather_structured_entries() -> list[StructuredCatalogSource]:
                 exc_info=True,
             )
             continue
-        for name, xp in project_xprompts.items():
+        for name, xp in project_macros.items():
             key = (xp.source_path or "", name)
             if key in seen:
                 continue
-            seen[key] = classify_xprompt_for_structured(xp, project=project)
+            seen[key] = classify_macro_for_structured(xp, project=project)
 
     return sorted(seen.values(), key=lambda e: (e.bucket, e.project or "", e.name))
 
 
-def classify_xprompt_for_structured(
-    xp: XPrompt, project: str | None
+def classify_macro_for_structured(
+    xp: Macro, project: str | None
 ) -> StructuredCatalogSource:
     catalog_entry = classify(xp, project=project)
     return StructuredCatalogSource(
         name=xp.name,
-        workflow=xprompt_to_workflow(xp),
+        workflow=macro_to_workflow(xp),
         bucket=catalog_entry.bucket,
         project=catalog_entry.project,
         description=xp.description,
@@ -128,7 +128,7 @@ def classify_workflow(
 ) -> StructuredCatalogSource:
     source = workflow.source_path or ""
     catalog_entry = classify(
-        XPrompt(
+        Macro(
             name=name,
             content=workflow.get_prompt_part_content(),
             inputs=workflow.inputs,
@@ -150,8 +150,8 @@ def classify_workflow(
     )
 
 
-def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
-    """Classify an xprompt into a source bucket."""
+def classify(xp: Macro, project: str | None) -> CatalogEntry:
+    """Classify a macro into a source bucket."""
     source = xp.source_path or ""
 
     if not source:
@@ -169,7 +169,7 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
     source_path = Path(source)
 
     if source_path.is_absolute():
-        for package_dir in package_xprompt_dirs():
+        for package_dir in package_macro_dirs():
             try:
                 source_path.resolve().relative_to(package_dir.resolve())
                 return CatalogEntry(xp, bucket="built-in", project=None)
@@ -203,7 +203,7 @@ def classify(xp: XPrompt, project: str | None) -> CatalogEntry:
 
 def entry_source_path(entry: CatalogEntry | StructuredCatalogSource) -> str | None:
     if isinstance(entry, CatalogEntry):
-        return entry.xprompt.source_path
+        return entry.macro_def.source_path
     return entry.workflow.source_path
 
 
@@ -236,7 +236,7 @@ def source_path_display(
         if entry.project is None or project == entry.project:
             return rel.as_posix()
 
-    for package_dir in package_xprompt_dirs():
+    for package_dir in package_macro_dirs():
         try:
             rel = path.resolve().relative_to(package_dir.resolve())
         except (ValueError, OSError):
@@ -280,7 +280,7 @@ def definition_path(entry: CatalogEntry | StructuredCatalogSource) -> str | None
 
 def _source_definition_path(source: str, project: str | None) -> Path | None:
     if source.startswith("plugin:"):
-        return _plugin_xprompt_definition_path(source)
+        return _plugin_macro_definition_path(source)
 
     if source.startswith("plugin_config:"):
         return _plugin_config_definition_path(source)
@@ -298,7 +298,7 @@ def _source_definition_path(source: str, project: str | None) -> Path | None:
 
     if source.startswith("project_local_config:"):
         project_name = source.removeprefix("project_local_config:")
-        namespace = canonical_xprompt_project(project_name) or project_name
+        namespace = canonical_macro_project(project_name) or project_name
         workspace = known_project_namespaces().get(namespace)
         if workspace is None:
             return None
@@ -332,7 +332,7 @@ def _source_definition_path(source: str, project: str | None) -> Path | None:
     return Path.cwd() / path
 
 
-def _plugin_xprompt_definition_path(source: str) -> Path | None:
+def _plugin_macro_definition_path(source: str) -> Path | None:
     if is_plugin_disabled("XPROMPTS"):
         return None
 
@@ -396,11 +396,11 @@ def safe_file_size(path: Path) -> int | None:
         return None
 
 
-def package_xprompt_dirs() -> list[Path]:
+def package_macro_dirs() -> list[Path]:
     package_dirs: list[Path] = []
     for get_package_dir in (
-        get_sase_package_xprompts_dir,
-        get_sase_package_default_xprompts_dir,
+        get_sase_package_macros_dir,
+        get_sase_package_default_macros_dir,
         get_sase_package_skills_dir,
     ):
         try:
@@ -412,7 +412,7 @@ def package_xprompt_dirs() -> list[Path]:
 
 _gather_entries = gather_entries
 _gather_structured_entries = gather_structured_entries
-_classify_xprompt_for_structured = classify_xprompt_for_structured
+_classify_macro_for_structured = classify_macro_for_structured
 _classify_workflow = classify_workflow
 _classify = classify
 _entry_source_path = entry_source_path
@@ -420,4 +420,4 @@ _source_path_display = source_path_display
 _definition_path = definition_path
 _safe_path_display = safe_path_display
 _safe_file_size = safe_file_size
-_package_xprompt_dirs = package_xprompt_dirs
+_package_macro_dirs = package_macro_dirs

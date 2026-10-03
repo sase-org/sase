@@ -1,4 +1,4 @@
-"""Tests for the Rich xprompt show layout."""
+"""Tests for the Rich macro show layout."""
 
 from __future__ import annotations
 
@@ -9,18 +9,18 @@ from rich.console import Console
 
 from sase.macro.cli_show_model import (
     ShowInput,
-    ShowLocalXPrompt,
+    ShowLocalMacro,
     ShowProvenance,
     ShowReference,
     ShowStep,
-    XPromptShowRecord,
+    MacroShowRecord,
 )
 from sase.macro.cli_show_render import render_show
 from sase.macro.highlight_theme import highlight_theme
 
 
-def _record(**overrides: object) -> XPromptShowRecord:
-    base = XPromptShowRecord(
+def _record(**overrides: object) -> MacroShowRecord:
+    base = MacroShowRecord(
         name="demo",
         reference="#demo",
         prefix="#",
@@ -34,8 +34,8 @@ def _record(**overrides: object) -> XPromptShowRecord:
         provenance=ShowProvenance(
             source_id="project:demo",
             source_bucket="project",
-            source_display="sase/xprompts/demo.md",
-            definition_path="/work/sase/xprompts/demo.md",
+            source_display="sase/macros/demo.md",
+            definition_path="/work/sase/macros/demo.md",
             definition_line=1,
             hosted_url=None,
             editable=True,
@@ -46,7 +46,7 @@ def _record(**overrides: object) -> XPromptShowRecord:
         log_skill_use=None,
         input_signature=None,
         inputs=[],
-        local_xprompts=[],
+        local_macros=[],
         steps=[],
         body=None,
         body_first_line=None,
@@ -57,7 +57,7 @@ def _record(**overrides: object) -> XPromptShowRecord:
     return replace(base, **overrides)
 
 
-def _render(record: XPromptShowRecord, *, color: bool, width: int = 100) -> str:
+def _render(record: MacroShowRecord, *, color: bool, width: int = 100) -> str:
     stream = StringIO()
     console = Console(
         file=stream,
@@ -77,7 +77,7 @@ def _rstrip_lines(value: str) -> str:
     return "\n".join(line.rstrip() for line in value.splitlines())
 
 
-def test_plain_layout_covers_every_xprompt_section() -> None:
+def test_plain_layout_covers_every_macro_section() -> None:
     record = _record(
         is_swarm=True,
         segment_count=2,
@@ -98,7 +98,7 @@ def test_plain_layout_covers_every_xprompt_section() -> None:
                 1,
             ),
         ],
-        local_xprompts=[ShowLocalXPrompt("_helper", None, None, 3)],
+        local_macros=[ShowLocalMacro("_helper", None, None, 3)],
         body="%model(test)\n#_helper\n---",
         body_first_line=45,
         warnings=["hosted URL unavailable"],

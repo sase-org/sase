@@ -52,7 +52,7 @@ class ProcSubmitRequest:
     operation_payload: Mapping[str, Any] | None = None
     workspace_claim: Mapping[str, Any] | None = None
     followup: Mapping[str, Any] | None = None
-    xprompt_proc: Mapping[str, Any] | None = None
+    prompt_proc: Mapping[str, Any] | None = None
     service: ProcServiceBlock | None = None
 
     @property
@@ -142,7 +142,7 @@ def request_sidecar_payload(
             else None
         ),
         "prompt_proc": (
-            dict(request.xprompt_proc) if request.xprompt_proc is not None else None
+            dict(request.prompt_proc) if request.prompt_proc is not None else None
         ),
         "service": (request.service.to_dict() if request.service is not None else None),
     }

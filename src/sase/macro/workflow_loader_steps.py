@@ -1,4 +1,4 @@
-"""Step-definition imports used while loading xprompt workflows."""
+"""Step-definition imports used while loading macro workflows."""
 
 import logging
 from pathlib import Path
@@ -9,8 +9,8 @@ import yaml  # type: ignore[import-untyped]
 from sase.content_layout import discover_project_root
 from sase.macro.loader import (
     detect_project,
-    get_sase_package_xprompts_dir,
-    get_xprompt_search_paths,
+    get_sase_package_macros_dir,
+    get_macro_search_paths,
 )
 from sase.macro.load_issues import record_load_issue
 
@@ -22,8 +22,8 @@ def get_step_search_dirs(
 ) -> list[Path]:
     """Get directories to search for step definition files.
 
-    Returns ``steps/`` subdirectories of each xprompt search path, plus the
-    internal package ``steps/`` directory. Order matches the xprompt priority
+    Returns ``steps/`` subdirectories of each macro search path, plus the
+    internal package ``steps/`` directory. Order matches the macro priority
     (CWD dirs first, internal last).
     """
     project = detect_project()
@@ -33,9 +33,9 @@ def get_step_search_dirs(
         else None
     )
     if project is None and source_root is None:
-        paths = get_xprompt_search_paths()
+        paths = get_macro_search_paths()
     else:
-        paths = get_xprompt_search_paths(project, project_root=source_root)
+        paths = get_macro_search_paths(project, project_root=source_root)
     dirs = [path / "steps" for path in paths]
     if workflow_source_path is not None:
         source = Path(workflow_source_path)
@@ -43,7 +43,7 @@ def get_step_search_dirs(
             source_steps = source.parent / "steps"
             if source_steps not in dirs:
                 dirs.append(source_steps)
-    dirs.append(get_sase_package_xprompts_dir() / "steps")
+    dirs.append(get_sase_package_macros_dir() / "steps")
     return dirs
 
 

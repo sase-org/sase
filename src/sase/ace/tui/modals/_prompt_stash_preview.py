@@ -55,11 +55,11 @@ def _build_prompt_stash_metadata(
     if project and project_display_snapshot is not None:
         project = project_display_snapshot.label_for(project)
     append_metadata_row(metadata, "Project", project or _PROJECT_PLACEHOLDER)
-    if summary.xprompts:
+    if summary.macros:
         append_metadata_row(
             metadata,
             "Workflows",
-            ", ".join(summary.xprompts),
+            ", ".join(summary.macros),
             value_style="green",
         )
     if summary.directives:

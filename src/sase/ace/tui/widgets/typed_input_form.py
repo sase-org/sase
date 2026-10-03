@@ -19,7 +19,7 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Button, Label, TextArea
 
-from sase.macro.models import UNSET, InputArg, InputType, XPromptValidationError
+from sase.macro.models import UNSET, InputArg, InputType, MacroValidationError
 
 from .secret_vim_text_area import SecretVimTextArea
 from .single_line_vim_text_area import SingleLineVimTextArea
@@ -375,7 +375,7 @@ class TypedInputForm(Vertical):
             raw = self._raw_value(index)
             if raw == "":
                 if field.required:
-                    raise XPromptValidationError(
+                    raise MacroValidationError(
                         f"Argument '{field.arg.name}' is required"
                     )
                 continue
@@ -397,7 +397,7 @@ class TypedInputForm(Vertical):
             return not field.required
         try:
             self._convert(field, raw)
-        except XPromptValidationError:
+        except MacroValidationError:
             return False
         return True
 
@@ -504,7 +504,7 @@ class TypedInputForm(Vertical):
             return
         try:
             self._convert(field, raw)
-        except XPromptValidationError as exc:
+        except MacroValidationError as exc:
             guidance = self._type_rule_by_name.get(field.arg.type.value) or str(exc)
             error_label.update(f"× {guidance}")
             error_label.display = True

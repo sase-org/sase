@@ -64,7 +64,7 @@ class PromptStepPrepareMixin:
     _expand_embedded_workflows_in_prompt: Any  # (prompt) -> tuple
 
     def _prepare_prompt_step(self, step: WorkflowStep) -> _PreparedPromptStep:
-        """Expand xprompts, embedded workflows, and format instructions."""
+        """Expand macros, embedded workflows, and format instructions."""
         from sase.llm_provider.preprocessing import (
             preprocess_prompt_early,
             preprocess_prompt_late,
@@ -78,25 +78,25 @@ class PromptStepPrepareMixin:
         from sase.macro._parsing import inherit_vcs_workflow_tag
 
         step_prompt = inherit_vcs_workflow_tag(step.agent, self.inherited_vcs_tag)
-        from sase.macro.used_macros import write_used_xprompts
+        from sase.macro.used_macros import write_used_macros
 
-        # Step-only write: per-step usage lands in xprompts_<step>.json for
-        # child rows, while the shared xprompts.json (launch/root metadata
+        # Step-only write: per-step usage lands in macros_<step>.json for
+        # child rows, while the shared macros.json (launch/root metadata
         # written at the launch boundary) is preserved rather than clobbered
         # with step-level data. When no launch boundary captured usage, the
         # first step still seeds the shared file.
-        write_used_xprompts(
+        write_used_macros(
             self.artifacts_dir,
             step_prompt,
             step.name,
-            extra_xprompts=self.workflow.xprompts,
+            extra_macros=self.workflow.macros,
             step_only=True,
         )
 
-        # Early phase: directives, Jinja2 context rendering, xprompt expansion
+        # Early phase: directives, Jinja2 context rendering, macro expansion
         early = preprocess_prompt_early(
             step_prompt,
-            extra_xprompts=self.workflow.xprompts,
+            extra_macros=self.workflow.macros,
             scope=self.context,
             context=self.context,
         )
@@ -123,23 +123,23 @@ class PromptStepPrepareMixin:
         continuation_segments.extend(self._continuation_embedded_segments)
         self._continuation_embedded_segments.clear()
 
-        # Re-expand xprompts after embedded workflow pre-steps.  The pre-steps
+        # Re-expand macros after embedded workflow pre-steps.  The pre-steps
         # may have updated the workspace (e.g. git pull), making CWD-relative
-        # xprompts (like local sase.yml entries) available that weren't
+        # macros (like local sase.yml entries) available that weren't
         # present during the early phase.
         if embedded_workflows:
-            from sase.macro import process_xprompt_references
+            from sase.macro import process_macro_references
             from sase.macro._trace import ExpansionTrace
-            from sase.continuation_capture import xprompt_trace_segments
+            from sase.continuation_capture import macro_trace_segments
 
             embedded_trace = ExpansionTrace()
-            expanded_prompt = process_xprompt_references(
+            expanded_prompt = process_macro_references(
                 expanded_prompt,
-                extra_xprompts=self.workflow.xprompts,
+                extra_macros=self.workflow.macros,
                 scope=self.context,
                 trace=embedded_trace,
             )
-            continuation_segments.extend(xprompt_trace_segments(embedded_trace))
+            continuation_segments.extend(macro_trace_segments(embedded_trace))
 
         # Late phase: command sub, file refs, Jinja2, prettier, HTML stripping
         from sase.artifact_ref_prompt_context import (

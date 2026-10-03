@@ -265,7 +265,7 @@ def test_space_warm_prefill_comes_from_snapshot_without_loader(
         raise AssertionError("warm <space> must not load")
 
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs", _boom
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs", _boom
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("widgets"))
     app = _SpaceApp(_ready([("#gh:gh_acme__widgets", "#gh:widgets")]))
@@ -290,7 +290,7 @@ def test_space_warm_empty_snapshot_opens_blank_bar(
         raise AssertionError("warm <space> must not load")
 
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs", _boom
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs", _boom
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
     app = _SpaceApp(_ready([]))
@@ -352,7 +352,7 @@ def test_space_without_snapshot_host_falls_back_to_loader(
     from ._entry_points_vcs_prefix_helpers import _App
 
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("#gh:sase", "#gh:sase")],
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
@@ -539,7 +539,7 @@ def test_editor_uses_snapshot_when_ready(
         raise AssertionError("warm editor entry must not load")
 
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs", _boom
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs", _boom
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
     app = _SpaceApp(_ready([("#gh:sase", "#gh:sase")]))
@@ -555,7 +555,7 @@ def test_editor_falls_back_to_loader_when_cold(
     from sase.ace.tui.launchable_mru import COLD_LAUNCHABLE_MRU_SNAPSHOT
 
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("#gh:sase", "#gh:sase")],
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
@@ -573,7 +573,7 @@ def test_editor_cold_never_writes_mru(
     from tests.ace.tui._prompt_key_io_probes import prompt_key_io_probe
 
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [],
     )
     app = _SpaceApp(COLD_LAUNCHABLE_MRU_SNAPSHOT)
@@ -620,7 +620,7 @@ def test_dot_history_uses_snapshot_when_ready(
         raise AssertionError("warm `,.` must not load")
 
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs", _boom
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs", _boom
     )
     app = _HistoryApp(_ready([("#gh:gh_acme__widgets", "#gh:widgets")]))
 
@@ -640,7 +640,7 @@ def test_dot_history_falls_back_to_loader_when_cold(
     from sase.ace.tui.launchable_mru import COLD_LAUNCHABLE_MRU_SNAPSHOT
 
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("#gh:sase", "#gh:sase")],
     )
     app = _HistoryApp(COLD_LAUNCHABLE_MRU_SNAPSHOT)

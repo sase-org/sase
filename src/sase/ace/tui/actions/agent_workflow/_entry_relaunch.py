@@ -201,7 +201,7 @@ class EntryRelaunchMixin:
             self.notify(_restart_block_message(agent), severity="warning")  # type: ignore[attr-defined]
             return
 
-        raw_prompt = agent.get_raw_xprompt_content()
+        raw_prompt = agent.get_raw_prompt_content()
 
         if raw_prompt is None:
             self.notify("No prompt found for this agent", severity="warning")  # type: ignore[attr-defined]

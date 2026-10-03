@@ -397,7 +397,7 @@ tests/pager/test_app_actions.py::test_y_then_label_copies_the_links_resolved_pat
 # focused on this tree; the phase recorded a proposed follow-up for the land
 # agent because phase workers cannot file flake tasks directly.
 tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_batch_predecessor_context_binds_bare_wait
-tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_batch_predecessor_context_binds_local_xprompt_wait
+tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_batch_predecessor_context_binds_local_macro_wait
 tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_preserved_batch_predecessor_context_rebinds_refreshed_wait
 tests/test_macro_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract
 #

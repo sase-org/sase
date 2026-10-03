@@ -1,4 +1,4 @@
-"""Tests for xprompt/graph.py - workflow DAG visualization."""
+"""Tests for macro/graph.py - workflow DAG visualization."""
 
 from sase.macro.graph import (
     _escape_label,

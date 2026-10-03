@@ -26,30 +26,30 @@ from sase.agent.multi_prompt_vcs import (
     extract_vcs_ref as _extract_vcs_ref,
 )
 from sase.agent.multi_prompt_macros import (
-    deserialize_local_xprompts as deserialize_local_xprompts,
-    extract_called_xprompt_names as _extract_called_xprompt_names,
-    local_xprompts_for_segment as _local_xprompts_for_segment,
-    serialize_local_xprompts as _serialize_local_xprompts,
+    deserialize_local_macros as deserialize_local_macros,
+    extract_called_macro_names as _extract_called_macro_names,
+    local_macros_for_segment as _local_macros_for_segment,
+    serialize_local_macros as _serialize_local_macros,
 )
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.core.agent_launch_wire import LaunchFanoutPlanWire
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 __all__ = [
     "MultiPromptPartialLaunchError",
     "_MultiPromptPartialLaunchError",
     "_SegmentVcsContext",
-    "_extract_called_xprompt_names",
+    "_extract_called_macro_names",
     "_extract_static_name_directive",
     "_extract_vcs_ref",
     "_has_bare_resume_reference",
     "_has_bare_wait_directive",
-    "_local_xprompts_for_segment",
+    "_local_macros_for_segment",
     "_rewrite_bare_resume_references",
     "_rewrite_bare_wait_directives",
-    "_serialize_local_xprompts",
+    "_serialize_local_macros",
     "_wait_for_agent_naming",
-    "deserialize_local_xprompts",
+    "deserialize_local_macros",
     "launch_multi_prompt_agents",
 ]
 
@@ -69,7 +69,7 @@ MultiPromptPartialLaunchError = _MultiPromptPartialLaunchError
 def launch_multi_prompt_agents(
     *,
     segments: list[str],
-    local_xprompts: dict[str, XPrompt],
+    local_macros: dict[str, Macro],
     cl_name: str,
     project_file: str,
     project_name: str,
@@ -79,7 +79,7 @@ def launch_multi_prompt_agents(
     extra_env: dict[str, str] | None = None,
     segment_extra_env: Sequence[dict[str, str] | None] | None = None,
     segment_template_groups: Sequence[str | None] | None = None,
-    segment_swarm_xprompts: Sequence[Sequence[str]] | None = None,
+    segment_swarm_macros: Sequence[Sequence[str]] | None = None,
     preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None = None,
     allow_reserved_agent_session_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
@@ -105,7 +105,7 @@ def launch_multi_prompt_agents(
     try:
         spawn_segments_into(
             segments=segments,
-            local_xprompts=local_xprompts,
+            local_macros=local_macros,
             cl_name=cl_name,
             project_file=project_file,
             project_name=project_name,
@@ -115,7 +115,7 @@ def launch_multi_prompt_agents(
             extra_env=extra_env,
             segment_extra_env=segment_extra_env,
             segment_template_groups=segment_template_groups,
-            segment_swarm_xprompts=segment_swarm_xprompts,
+            segment_swarm_macros=segment_swarm_macros,
             preplanned_fanout_plans=preplanned_fanout_plans,
             allow_reserved_agent_session_separator_names=(
                 allow_reserved_agent_session_separator_names

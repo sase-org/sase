@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sase.ace.tui.modals.xprompt_config_yaml import (
     _generate_xprompt_yaml,
-    insert_xprompt_into_config,
+    insert_macro_into_config,
 )
 
 
@@ -84,7 +84,7 @@ class TestInsertXpromptIntoConfig:
             "  charlie: |\n"
             "    Charlie content\n"
         )
-        result = insert_xprompt_into_config(str(config), "bravo", [], "Bravo content")
+        result = insert_macro_into_config(str(config), "bravo", [], "Bravo content")
         assert result is True
         text = config.read_text()
         # All three should appear in alphabetical order
@@ -96,7 +96,7 @@ class TestInsertXpromptIntoConfig:
     def test_insert_first_alphabetically(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
         config.write_text("xprompts:\n  bravo: |\n    Bravo content\n")
-        result = insert_xprompt_into_config(str(config), "alpha", [], "Alpha content")
+        result = insert_macro_into_config(str(config), "alpha", [], "Alpha content")
         assert result is True
         text = config.read_text()
         assert text.index("alpha:") < text.index("bravo:")
@@ -104,7 +104,7 @@ class TestInsertXpromptIntoConfig:
     def test_insert_last_alphabetically(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
         config.write_text("xprompts:\n  alpha: |\n    Alpha content\n")
-        result = insert_xprompt_into_config(str(config), "zulu", [], "Zulu content")
+        result = insert_macro_into_config(str(config), "zulu", [], "Zulu content")
         assert result is True
         text = config.read_text()
         assert text.index("alpha:") < text.index("zulu:")
@@ -112,7 +112,7 @@ class TestInsertXpromptIntoConfig:
     def test_insert_into_empty_section(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
         config.write_text("xprompts: {}\n")
-        result = insert_xprompt_into_config(str(config), "foo", [], "Foo content")
+        result = insert_macro_into_config(str(config), "foo", [], "Foo content")
         assert result is True
         text = config.read_text()
         assert "  foo: |-" in text
@@ -121,7 +121,7 @@ class TestInsertXpromptIntoConfig:
     def test_insert_no_xprompts_section(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
         config.write_text("other_key: value\n")
-        result = insert_xprompt_into_config(str(config), "foo", [], "Foo content")
+        result = insert_macro_into_config(str(config), "foo", [], "Foo content")
         assert result is True
         text = config.read_text()
         assert "xprompts:" in text
@@ -130,7 +130,7 @@ class TestInsertXpromptIntoConfig:
     def test_insert_with_inputs(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
         config.write_text("xprompts:\n  existing: |\n    Hello\n")
-        result = insert_xprompt_into_config(
+        result = insert_macro_into_config(
             str(config), "greet", [("name", "word")], "Hello {{ name }}!"
         )
         assert result is True
@@ -151,7 +151,7 @@ class TestInsertXpromptIntoConfig:
             "  alpha: |\n"
             "    Alpha content\n"
         )
-        result = insert_xprompt_into_config(str(config), "bravo", [], "Bravo content")
+        result = insert_macro_into_config(str(config), "bravo", [], "Bravo content")
         assert result is True
         text = config.read_text()
         charlie_pos = text.index("charlie:")
@@ -172,7 +172,7 @@ class TestInsertXpromptIntoConfig:
             "other:\n"
             "  foo: bar\n"
         )
-        result = insert_xprompt_into_config(str(config), "new_one", [], "New content")
+        result = insert_macro_into_config(str(config), "new_one", [], "New content")
         assert result is True
         text = config.read_text()
         assert "ace:" in text
@@ -183,7 +183,7 @@ class TestInsertXpromptIntoConfig:
     def test_insert_with_slash_name(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
         config.write_text("xprompts:\n  aaa: |\n    Content\n")
-        result = insert_xprompt_into_config(
+        result = insert_macro_into_config(
             str(config), "bd/next", [("prompt", "text")], "Do the thing {{ prompt }}"
         )
         assert result is True
@@ -202,7 +202,7 @@ class TestInsertXpromptIntoConfig:
             "    content: |\n"
             "      Hello {{ bar }}\n"
         )
-        result = insert_xprompt_into_config(str(config), "aaa", [], "Simple content")
+        result = insert_macro_into_config(str(config), "aaa", [], "Simple content")
         assert result is True
         text = config.read_text()
         # aaa should come first

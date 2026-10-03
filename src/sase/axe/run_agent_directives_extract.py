@@ -1,6 +1,6 @@
 """Directive extraction orchestration for the run agent runner.
 
-Expands xprompt references, extracts directives (model, name, waits, clan),
+Expands macro references, extracts directives (model, name, waits, clan),
 resolves LLM/VCS providers, writes metadata, and claims the agent name.
 Phase implementations live in the sibling ``run_agent_directives_*``
 modules; this module only sequences them.
@@ -56,7 +56,7 @@ def extract_directives_and_write_meta(
 ) -> AgentInfo:
     """Extract prompt directives and write agent_meta.json.
 
-    Expands xprompt references, extracts directives (model, name, etc.),
+    Expands macro references, extracts directives (model, name, etc.),
     resolves LLM/VCS providers, writes metadata, and claims agent name.
 
     Returns AgentInfo with all extracted info.
@@ -67,7 +67,7 @@ def extract_directives_and_write_meta(
     launch_environment.pop(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV, None)
     epic_work_metadata = epic_work_metadata_from_env()
 
-    # Parse user-prompt frontmatter to extract local xprompts.
+    # Parse user-prompt frontmatter to extract local macros.
     from sase.agent.multi_prompt import parse_multi_prompt
     from sase.agent.names import ensure_historical_auto_name_migration
 
@@ -76,28 +76,28 @@ def extract_directives_and_write_meta(
     multi = parse_multi_prompt(prompt)
     prompt_body = "\n---\n".join(multi.segments)
 
-    # Merge env-var-delivered local xprompts (from multi-prompt launcher)
+    # Merge env-var-delivered local macros (from multi-prompt launcher)
     # with frontmatter-defined ones. Frontmatter takes precedence.
     from sase.agent.multi_prompt_macros import take_local_macros_path
 
-    env_xprompts_path = take_local_macros_path(os.environ)
-    if env_xprompts_path:
+    env_macros_path = take_local_macros_path(os.environ)
+    if env_macros_path:
         try:
-            from sase.agent.multi_prompt_launcher import deserialize_local_xprompts
+            from sase.agent.multi_prompt_launcher import deserialize_local_macros
 
-            env_xprompts = deserialize_local_xprompts(env_xprompts_path)
-            multi.local_xprompts = {**env_xprompts, **multi.local_xprompts}
+            env_macros = deserialize_local_macros(env_macros_path)
+            multi.local_macros = {**env_macros, **multi.local_macros}
         except (FileNotFoundError, json.JSONDecodeError, KeyError):
             pass
         finally:
             try:
-                os.unlink(env_xprompts_path)
+                os.unlink(env_macros_path)
             except OSError:
                 pass
 
     prepared: PreparedPrompt = prepare_prompt(
         prompt_body,
-        dict(multi.local_xprompts or {}),
+        dict(multi.local_macros or {}),
         raw_resolved_prompt=raw_resolved_prompt,
         preserved_metadata=preserved_metadata,
     )
@@ -287,7 +287,7 @@ def extract_directives_and_write_meta(
         tribe=agent_tribe,
         clan_summary_resolution=clan_summary_resolution,
         meta=agent_meta,
-        local_xprompts=multi.local_xprompts,
+        local_macros=multi.local_macros,
         hold=HoldFields.from_mapping(directives.hold),
     )
 

@@ -99,18 +99,18 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
 
     # Handle #workflow_name syntax (e.g., sase run "#split" or sase run "#explain")
     # and explicit standalone workflow syntax (e.g., sase run "#!sync").
-    # All xprompts and workflows launch through the same detached path.
+    # All macros and workflows launch through the same detached path.
     if args_after_run:
         potential_query = args_after_run[0]
         if potential_query.startswith("#"):
             from sase.macro import (
                 get_all_prompts,
-                iter_xprompt_references,
+                iter_macro_references,
                 parse_workflow_reference,
                 strip_hitl_suffix,
             )
 
-            refs = iter_xprompt_references(potential_query)
+            refs = iter_macro_references(potential_query)
             leading_ref = refs[0] if refs and refs[0].start == 0 else None
             exact_ref = (
                 leading_ref
@@ -133,7 +133,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
             if "/" in workflow_name:
                 project = workflow_name.split("/")[0]
 
-            # get_all_prompts() returns both workflows and converted xprompts
+            # get_all_prompts() returns both workflows and converted macros
             prompts = get_all_prompts(project=project)
             if workflow_name in prompts:
                 workflow = prompts[workflow_name]
@@ -144,7 +144,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                 # Multi-step prompt_part workspace workflows (like #gh) need to go
                 # through the detached launch path so their embedded pre/post
                 # steps and prompt_part expansion work correctly.
-                if workflow.has_prompt_part() and not workflow.is_simple_xprompt():
+                if workflow.has_prompt_part() and not workflow.is_simple_macro():
                     launch_query(potential_query)
                     sys.exit(0)
 
@@ -168,7 +168,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
     # parse into argparse's `run` namespace and never dispatch.
     if args_after_run:
         potential_query = args_after_run[0]
-        # Get known prompts dynamically (includes both xprompts and workflows)
+        # Get known prompts dynamically (includes both macros and workflows)
         from sase.macro import get_all_prompts
 
         known_prompts = set(get_all_prompts().keys())
@@ -189,7 +189,7 @@ def run_parsed_prompt(args: object) -> None:
     """Dispatch a `sase run` invocation that fell through to argparse.
 
     :func:`handle_run_special_cases` declines a few shapes (e.g. a sole
-    PROMPT token that matches a known xprompt/workflow name); route them
+    PROMPT token that matches a known macro/workflow name); route them
     through the standard query path so the documented PROMPT positional
     always dispatches instead of dead-ending on "Unknown command: run".
     """

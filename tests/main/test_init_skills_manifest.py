@@ -11,12 +11,12 @@ from sase.main._init_skills_manifest import (
     ManagedSkillFile,
     SKILLS_MANIFEST_FILENAME,
     _SkillDeployManifest,
-    _skill_xprompt_set_sha256,
+    _skill_macro_set_sha256,
     prepare_skill_manifest,
     retired_skill_files_with_drift,
 )
 from sase.main._init_skills_rendering import RenderedSkillDeploymentTarget
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from tests.main.init_skills_handler_helpers import stub_manifest_git
 
 _OLD_SHA = "1" * 40
@@ -24,9 +24,9 @@ _NEW_SHA = "2" * 40
 _OTHER_SHA = "3" * 40
 
 
-def _xprompts() -> list[XPrompt]:
+def _macros() -> list[Macro]:
     return [
-        XPrompt(
+        Macro(
             name="foo",
             content="body\n",
             description="A skill",
@@ -39,14 +39,14 @@ def _write_manifest(
     chezmoi_home: Path,
     *,
     source_commit: str,
-    xprompt_hash: str = "old-hash",
+    macro_hash: str = "old-hash",
 ) -> Path:
     path = chezmoi_home / SKILLS_MANIFEST_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         _SkillDeployManifest(
             source_commit=source_commit,
-            xprompt_set_sha256=xprompt_hash,
+            macro_set_sha256=macro_hash,
             deployed_at="2026-07-28T12:00:00Z",
         ).to_json(),
         encoding="utf-8",
@@ -68,7 +68,7 @@ def test_fast_forward_source_is_allowed_and_records_new_provenance(
     )
 
     write, error = prepare_skill_manifest(
-        _xprompts(), chezmoi_home=chezmoi_home, force=False
+        _macros(), chezmoi_home=chezmoi_home, force=False
     )
 
     assert error is None
@@ -80,7 +80,7 @@ def test_fast_forward_source_is_allowed_and_records_new_provenance(
         "deployed_at": "2026-07-28T13:00:00Z",
         "managed_files": [],
         "source_commit": _NEW_SHA,
-        "macro_set_sha256": _skill_xprompt_set_sha256(_xprompts()),
+        "macro_set_sha256": _skill_macro_set_sha256(_macros()),
     }
 
 
@@ -99,7 +99,7 @@ def test_backwards_source_is_refused_with_both_subjects(
     )
 
     write, error = prepare_skill_manifest(
-        _xprompts(), chezmoi_home=chezmoi_home, force=False
+        _macros(), chezmoi_home=chezmoi_home, force=False
     )
 
     assert write is None
@@ -120,7 +120,7 @@ def test_divergent_source_is_refused(
     stub_manifest_git(monkeypatch, tmp_path, incoming=_NEW_SHA, ancestors=set())
 
     write, error = prepare_skill_manifest(
-        _xprompts(), chezmoi_home=chezmoi_home, force=False
+        _macros(), chezmoi_home=chezmoi_home, force=False
     )
 
     assert write is None
@@ -134,17 +134,17 @@ def test_identical_provenance_preserves_deploy_time_for_a_no_op(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompts = _xprompts()
+    macros = _macros()
     chezmoi_home = tmp_path / "chezmoi" / "home"
     _write_manifest(
         chezmoi_home,
         source_commit=_NEW_SHA,
-        xprompt_hash=_skill_xprompt_set_sha256(xprompts),
+        macro_hash=_skill_macro_set_sha256(macros),
     )
     stub_manifest_git(monkeypatch, tmp_path, incoming=_NEW_SHA, ancestors=set())
 
     write, error = prepare_skill_manifest(
-        xprompts, chezmoi_home=chezmoi_home, force=False
+        macros, chezmoi_home=chezmoi_home, force=False
     )
 
     assert error is None
@@ -152,7 +152,7 @@ def test_identical_provenance_preserves_deploy_time_for_a_no_op(
     assert write.content is None
 
 
-def test_identical_source_with_changed_xprompt_set_updates_manifest(
+def test_identical_source_with_changed_macro_set_updates_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -160,12 +160,12 @@ def test_identical_source_with_changed_xprompt_set_updates_manifest(
     _write_manifest(
         chezmoi_home,
         source_commit=_NEW_SHA,
-        xprompt_hash="different-content",
+        macro_hash="different-content",
     )
     stub_manifest_git(monkeypatch, tmp_path, incoming=_NEW_SHA, ancestors=set())
 
     write, error = prepare_skill_manifest(
-        _xprompts(), chezmoi_home=chezmoi_home, force=False
+        _macros(), chezmoi_home=chezmoi_home, force=False
     )
 
     assert error is None
@@ -173,7 +173,7 @@ def test_identical_source_with_changed_xprompt_set_updates_manifest(
     assert write.content is not None
     payload = json.loads(write.content)
     assert payload["source_commit"] == _NEW_SHA
-    assert payload["macro_set_sha256"] == _skill_xprompt_set_sha256(_xprompts())
+    assert payload["macro_set_sha256"] == _skill_macro_set_sha256(_macros())
     assert "xprompt_set_sha256" not in payload
 
 
@@ -191,7 +191,7 @@ def test_missing_or_unparsable_manifest_bootstraps(
     stub_manifest_git(monkeypatch, tmp_path, incoming=_NEW_SHA, ancestors=set())
 
     write, error = prepare_skill_manifest(
-        _xprompts(), chezmoi_home=chezmoi_home, force=False
+        _macros(), chezmoi_home=chezmoi_home, force=False
     )
 
     assert error is None
@@ -214,7 +214,7 @@ def test_force_overrides_backwards_guard_and_records_incoming_source(
     )
 
     write, error = prepare_skill_manifest(
-        _xprompts(), chezmoi_home=chezmoi_home, force=True
+        _macros(), chezmoi_home=chezmoi_home, force=True
     )
 
     assert error is None
@@ -257,7 +257,7 @@ def test_manifest_migration_backfills_current_and_tombstones_legacy_sase_files(
     stub_manifest_git(monkeypatch, tmp_path, incoming=_NEW_SHA, ancestors=set())
 
     write, error = prepare_skill_manifest(
-        _xprompts(),
+        _macros(),
         chezmoi_home=chezmoi_home,
         force=False,
         current_targets=(current,),
@@ -303,7 +303,7 @@ def test_manifest_retires_missing_current_target_and_reactivates_if_current_agai
     manifest_path.write_text(
         _SkillDeployManifest(
             source_commit=_NEW_SHA,
-            xprompt_set_sha256="old-hash",
+            macro_set_sha256="old-hash",
             deployed_at="2026-07-28T12:00:00Z",
             managed_files=(entry,),
         ).to_json(),
@@ -328,7 +328,7 @@ def test_manifest_retires_missing_current_target_and_reactivates_if_current_agai
     manifest_path.write_text(retired_write.content, encoding="utf-8")
     current = _deployment_target(chezmoi_home, home_root)
     active_write, error = prepare_skill_manifest(
-        _xprompts(),
+        _macros(),
         chezmoi_home=chezmoi_home,
         force=False,
         current_targets=(current,),
@@ -371,7 +371,7 @@ def test_manifest_rejects_path_escape_in_managed_files(
     stub_manifest_git(monkeypatch, tmp_path, incoming=_NEW_SHA, ancestors=set())
 
     write, error = prepare_skill_manifest(
-        _xprompts(),
+        _macros(),
         chezmoi_home=chezmoi_home,
         force=False,
         current_targets=(),

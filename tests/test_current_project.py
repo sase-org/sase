@@ -1,4 +1,4 @@
-"""Current-project resolver over the isolated VCS xprompt MRU store."""
+"""Current-project resolver over the isolated VCS macro MRU store."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from sase.current_project import (
     peek_current_project_change_token,
     resolve_current_project,
 )
-from sase.history.vcs_macro_mru import record_vcs_xprompt_usage, vcs_xprompt_mru_path
+from sase.history.vcs_macro_mru import record_vcs_macro_usage, vcs_macro_mru_path
 from sase import current_project as current_project_mod
 
 
@@ -57,7 +57,7 @@ def _record(
 
 
 def _write_mru(prefixes: list[str]) -> Path:
-    path = vcs_xprompt_mru_path()
+    path = vcs_macro_mru_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"entries": prefixes}), encoding="utf-8")
     return path
@@ -232,13 +232,13 @@ def test_peek_token_is_stable_across_repeated_calls() -> None:
 def test_peek_token_changes_after_record_rewrites_the_file() -> None:
     before = peek_current_project_change_token()
 
-    record_vcs_xprompt_usage("#gh:sase")
+    record_vcs_macro_usage("#gh:sase")
     current_project_mod._token_cache_deadline = 0.0
 
     after = peek_current_project_change_token()
 
     assert after != before
-    assert vcs_xprompt_mru_path().is_file()
+    assert vcs_macro_mru_path().is_file()
 
 
 def test_peek_stat_error_degrades_to_sentinel(

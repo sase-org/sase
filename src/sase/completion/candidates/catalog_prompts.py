@@ -1,6 +1,6 @@
-"""Catalog fetchers for prompt assets: xprompts, skills, and xprompt tags.
+"""Catalog fetchers for prompt assets: macros, skills, and macro tags.
 
-Xprompts and skills are discovered by walking the packaged and configured
+Macros and skills are discovered by walking the packaged and configured
 file source roots; see :mod:`sase.completion.candidates.catalog` for the
 import contract.
 """
@@ -16,11 +16,11 @@ from sase.completion.candidates.catalog_support import dedupe
 from sase.completion.candidates.protocol import Candidate
 
 _PROMPT_SUFFIXES = frozenset({".md", ".yml", ".yaml"})
-_SKIP_XPROMPT_DIR_NAMES = frozenset({"skills"})
+_SKIP_MACRO_DIR_NAMES = frozenset({"skills"})
 _SKIP_PROMPT_NAMES = frozenset(
     {"skill.frame.template.md", "workflow.schema.json", "readme.md"}
 )
-_XPROMPT_TAGS: tuple[str, ...] = (
+_MACRO_TAGS: tuple[str, ...] = (
     "vcs",
     "crs",
     "fix_hook",
@@ -65,14 +65,14 @@ def _iter_named_files(
                 yield path
 
 
-def xprompt_source_path(_project: str | None) -> Path | None:
-    """Return no cache-invalidation path: xprompt roots are multi-rooted."""
+def macro_source_path(_project: str | None) -> Path | None:
+    """Return no cache-invalidation path: macro roots are multi-rooted."""
     return None
 
 
-def xprompt_candidates(_project: str | None) -> list[Candidate]:
-    """Return every xprompt name across the packaged and configured roots."""
-    from sase.content_layout import resolve_xprompt_file_sources
+def macro_candidates(_project: str | None) -> list[Candidate]:
+    """Return every macro name across the packaged and configured roots."""
+    from sase.content_layout import resolve_macro_file_sources
 
     roots: list[Path] = []
     packaged = _package_dir("macros")
@@ -84,14 +84,14 @@ def xprompt_candidates(_project: str | None) -> list[Candidate]:
     try:
         roots.extend(
             source.path
-            for source in resolve_xprompt_file_sources()
+            for source in resolve_macro_file_sources()
             if source.path is not None
         )
     except OSError:
         pass
     candidates: list[Candidate] = []
     for root in roots:
-        for path in _iter_named_files(root, skip_dirs=_SKIP_XPROMPT_DIR_NAMES):
+        for path in _iter_named_files(root, skip_dirs=_SKIP_MACRO_DIR_NAMES):
             relative = path.relative_to(root).with_suffix("")
             candidates.append(Candidate(relative.as_posix(), root.name))
     return dedupe(candidates)
@@ -126,13 +126,13 @@ def skill_candidates(_project: str | None) -> list[Candidate]:
 
 
 def tag_source_path(_project: str | None) -> Path | None:
-    """Return no cache-invalidation path: xprompt tags are compiled in."""
+    """Return no cache-invalidation path: macro tags are compiled in."""
     return None
 
 
 def tag_candidates(_project: str | None) -> list[Candidate]:
-    """Return the built-in xprompt tags."""
-    return [Candidate(tag, "xprompt tag") for tag in _XPROMPT_TAGS]
+    """Return the built-in macro tags."""
+    return [Candidate(tag, "xprompt tag") for tag in _MACRO_TAGS]
 
 
 __all__ = [
@@ -140,6 +140,6 @@ __all__ = [
     "skill_source_path",
     "tag_candidates",
     "tag_source_path",
-    "xprompt_candidates",
-    "xprompt_source_path",
+    "macro_candidates",
+    "macro_source_path",
 ]

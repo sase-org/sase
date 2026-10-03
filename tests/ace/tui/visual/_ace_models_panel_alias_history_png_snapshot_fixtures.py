@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from sase.core.agent_scan_wire_markers import UsedXPromptWire
+from sase.core.agent_scan_wire_markers import UsedMacroWire
 from sase.llm_provider.alias_history import (
     AliasHistoryGroup,
     _AliasHistoryProvenance,
@@ -231,7 +231,7 @@ def usage_pool_history_view() -> AliasHistoryView:
                         bead_id=None,
                         cl_name=None,
                         workspace_num=None,
-                        used_xprompts=(),
+                        used_macros=(),
                     ),
                     _direct_run(
                         alias="pool",
@@ -245,7 +245,7 @@ def usage_pool_history_view() -> AliasHistoryView:
                         bead_id=None,
                         cl_name=None,
                         workspace_num=None,
-                        used_xprompts=(),
+                        used_macros=(),
                     ),
                     _default_run(
                         alias="pool",
@@ -281,8 +281,8 @@ def _direct_run(
     bead_id: str | None = "sase-n7.6",
     cl_name: str | None = "sase-n7",
     workspace_num: int | None = 15,
-    used_xprompts: tuple[UsedXPromptWire, ...] = (
-        UsedXPromptWire(name="work_phase_bead", kind="workflow"),
+    used_macros: tuple[UsedMacroWire, ...] = (
+        UsedMacroWire(name="work_phase_bead", kind="workflow"),
     ),
 ) -> AliasHistoryRun:
     return _run(
@@ -309,7 +309,7 @@ def _direct_run(
         bead_id=bead_id,
         cl_name=cl_name,
         workspace_num=workspace_num,
-        used_xprompts=used_xprompts,
+        used_macros=used_macros,
         duration_seconds=38 * 60 + 12,
     )
 
@@ -452,7 +452,7 @@ def _run(
     cl_name: str | None = None,
     workspace_num: int | None = None,
     prompt_snippet: str | None = None,
-    used_xprompts: tuple[UsedXPromptWire, ...] = (),
+    used_macros: tuple[UsedMacroWire, ...] = (),
     duration_seconds: float | None = None,
 ) -> AliasHistoryRun:
     return AliasHistoryRun(
@@ -483,7 +483,7 @@ def _run(
         cl_name=cl_name,
         workspace_num=workspace_num,
         prompt_snippet=prompt_snippet,
-        used_xprompts=used_xprompts,
+        used_macros=used_macros,
     )
 
 

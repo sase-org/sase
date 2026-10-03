@@ -1,4 +1,4 @@
-"""Rich body renderables for ``sase xprompt show``."""
+"""Rich body renderables for ``sase macro show``."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def highlighted_body(
     known_skills: frozenset[str] = frozenset(),
     styles_enabled: bool = True,
 ) -> Text:
-    """Return *text* with semantic xprompt and fenced-code styles applied."""
+    """Return *text* with semantic macro and fenced-code styles applied."""
     rendered = Text(text, overflow="fold", no_wrap=False)
     if not styles_enabled:
         return rendered

@@ -6,7 +6,7 @@ objects so later phases (the prompt frontmatter panel, the input collection
 modal) never touch binding dict shapes directly.
 
 All field/value validation rules and guidance text live in ``sase-core`` (the
-same engine that backs the xprompt LSP), so the TUI panel and the editor never
+same engine that backs the macro LSP), so the TUI panel and the editor never
 drift. Nothing here reimplements a validation rule; this module only rehydrates
 the binding output into dataclasses.
 """
@@ -97,13 +97,13 @@ class _EditorRange:
 
 @dataclass(frozen=True)
 class FrontmatterDiagnostic:
-    """A single validation diagnostic, matching the xprompt LSP output.
+    """A single validation diagnostic, matching the macro LSP output.
 
     Attributes:
         range: The span the diagnostic applies to.
         severity: How severe the issue is.
         code: A stable machine code (e.g.
-            ``invalid_xprompt_frontmatter_input_type``).
+            ``invalid_macro_frontmatter_input_type``).
         message: The human-readable diagnostic message.
     """
 
@@ -182,7 +182,7 @@ def validate_frontmatter(text: str) -> list[FrontmatterDiagnostic]:
             form the panel serializes) or a bare YAML body without delimiters.
 
     Returns:
-        Diagnostics matching the xprompt LSP output (same engine).
+        Diagnostics matching the macro LSP output (same engine).
     """
     binding = require_rust_binding("validate_frontmatter")
     return [_diagnostic_from_dict(item) for item in binding(text)]

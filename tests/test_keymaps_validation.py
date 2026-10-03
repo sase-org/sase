@@ -369,7 +369,7 @@ def test_reverse_statistics_project_key_collision_reverts_override() -> None:
     assert reg.statistics.cycle_project_filter_reverse == "P"
 
 
-def test_clear_xprompt_focus_key_collision_reverts_override() -> None:
+def test_clear_macro_focus_key_collision_reverts_override() -> None:
     reg = load_keymap_registry(
         {"keymaps": {"statistics": {"clear_xprompt_focus": "x"}}}
     )

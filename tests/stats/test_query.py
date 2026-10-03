@@ -52,7 +52,7 @@ def test_query_run_stats_passes_paths_and_request_to_rust(
     ]
 
 
-def test_query_run_stats_passes_xprompt_request_controls(
+def test_query_run_stats_passes_macro_request_controls(
     monkeypatch: MonkeyPatch, tmp_path: Path
 ) -> None:
     requests: list[dict[str, object]] = []
@@ -66,9 +66,9 @@ def test_query_run_stats_passes_xprompt_request_controls(
     query_run_stats(
         start_ts=10,
         end_ts=20,
-        xprompt_top_n=21,
-        xprompt_breakdown_top_n=8,
-        xprompt_focus="split_file",
+        macro_top_n=21,
+        macro_breakdown_top_n=8,
+        macro_focus="split_file",
         index_path=tmp_path / "index.sqlite",
     )
 

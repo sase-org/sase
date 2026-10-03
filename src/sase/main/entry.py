@@ -370,9 +370,9 @@ def main() -> NoReturn:
 
     # --- lsp ---
     if args.command == "lsp":
-        from sase.integrations.macro_lsp import handle_xprompt_lsp_command
+        from sase.integrations.macro_lsp import handle_macro_lsp_command
 
-        handle_xprompt_lsp_command(args)
+        handle_macro_lsp_command(args)
 
     # --- machine ---
     if args.command == "machine":
@@ -429,15 +429,15 @@ def main() -> NoReturn:
                 sys.exit(1)
             sys.exit(0)
 
-        from sase.macro.loader import get_sase_package_xprompts_dir
+        from sase.macro.loader import get_sase_package_macros_dir
 
-        xprompts_dir = get_sase_package_xprompts_dir()
+        macros_dir = get_sase_package_macros_dir()
         if args.name == "xprompts-dir":
-            print(xprompts_dir)
+            print(macros_dir)
         elif args.name == "xprompts-schema":
-            print(xprompts_dir / "workflow.schema.json")
+            print(macros_dir / "workflow.schema.json")
         elif args.name == "xprompts-collection-schema":
-            print(xprompts_dir / "xprompts.schema.json")
+            print(macros_dir / "xprompts.schema.json")
         sys.exit(0)
 
     # --- plan ---
@@ -616,11 +616,11 @@ def main() -> NoReturn:
 
         handle_workspace_command(args)
 
-    # --- xprompt ---
+    # --- macro ---
     if args.command == "xprompt":
-        from .macro_handler import handle_xprompt_command
+        from .macro_handler import handle_macro_command
 
-        handle_xprompt_command(args)
+        handle_macro_command(args)
 
     print(f"Unknown command: {args.command}")
     sys.exit(1)

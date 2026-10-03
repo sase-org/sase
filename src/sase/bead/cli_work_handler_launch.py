@@ -107,21 +107,21 @@ def launch_epic_bead_work(
         render_multi_prompt,
     )
     from sase.bead.macros import (
-        BeadXPromptNotFoundError,
-        resolve_land_epic_xprompt,
-        resolve_work_phase_xprompt,
+        BeadMacroNotFoundError,
+        resolve_land_epic_macro,
+        resolve_work_phase_macro,
     )
 
     with timer.stage("xprompt_lookup"):
         try:
-            xprompt_project = (
+            macro_project = (
                 bead_context.project_key
                 if bead_context is not None and bead_context.project_key
                 else None
             )
-            work_phase_xprompt = resolve_work_phase_xprompt(project=xprompt_project)
-            land_epic_xprompt = resolve_land_epic_xprompt(project=xprompt_project)
-        except (BeadXPromptNotFoundError, ValueError) as e:
+            work_phase_macro = resolve_work_phase_macro(project=macro_project)
+            land_epic_macro = resolve_land_epic_macro(project=macro_project)
+        except (BeadMacroNotFoundError, ValueError) as e:
             raise BeadWorkError(str(e)) from e
 
     timer.add_fields(resolved_epic_id=epic_id)
@@ -167,8 +167,8 @@ def launch_epic_bead_work(
         try:
             queue_capacities = resolve_epic_queue_capacities(
                 plan,
-                work_phase_xprompt,
-                land_epic_xprompt,
+                work_phase_macro,
+                land_epic_macro,
                 capacity,
             )
         except EpicQueueCapacityConflictError as e:
@@ -193,8 +193,8 @@ def launch_epic_bead_work(
         return apply_inherited_agent_tab(
             render_multi_prompt(
                 plan,
-                work_phase_xprompt=work_phase_xprompt,
-                land_epic_xprompt=land_epic_xprompt,
+                work_phase_macro=work_phase_macro,
+                land_epic_macro=land_epic_macro,
                 vcs_context=vcs_context,
                 patch_context=patch_context,
                 declare_clan=declare_clan,

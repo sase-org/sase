@@ -92,7 +92,7 @@ def plan_single_agent_name(
     name is safely knowable in the parent (explicit ``%id:`` or
     unambiguous auto-allocation). Leaves *extra_env* unchanged when the
     caller already chose a name, or when the prompt's name depends on
-    xprompt expansion that only the child can perform.
+    macro expansion that only the child can perform.
     """
     if extra_env and _PLANNED_AGENT_NAME_ENV in extra_env:
         return extra_env, None

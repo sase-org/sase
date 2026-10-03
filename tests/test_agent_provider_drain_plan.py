@@ -256,6 +256,6 @@ def _fake_unit(*, blocked: bool, provider: str, model: str):
         total=1,
         prompt="Do the work",
         template_group=None,
-        swarm_xprompts=(),
+        swarm_macros=(),
         candidates=(candidate,),
     )

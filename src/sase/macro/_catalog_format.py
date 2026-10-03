@@ -1,4 +1,4 @@
-"""Formatting helpers shared by xprompt catalog renderers."""
+"""Formatting helpers shared by macro catalog renderers."""
 
 from __future__ import annotations
 

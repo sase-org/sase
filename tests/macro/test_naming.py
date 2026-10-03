@@ -1,4 +1,4 @@
-"""Xprompt save naming and post-save resolution rules."""
+"""Macro save naming and post-save resolution rules."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.macro.loader_sources import load_xprompt_from_file
+from sase.macro.loader_sources import load_macro_from_file
 from sase.macro.naming import (
     ResolutionSource,
     is_inline_reference_name,
@@ -14,10 +14,10 @@ from sase.macro.naming import (
     markdown_save_plan,
     resolution_after_save,
     validate_snippet_trigger,
-    validate_xprompt_name,
+    validate_macro_name,
 )
 from sase.macro.prompt_frontmatter import PromptFrontmatter
-from sase.macro.save import save_markdown_xprompt
+from sase.macro.save import save_markdown_macro
 
 
 @pytest.mark.parametrize(
@@ -34,15 +34,15 @@ from sase.macro.save import save_markdown_xprompt
         ("review@fast", "Use only"),
     ],
 )
-def test_validate_xprompt_name_rejects_specific_invalid_forms(
+def test_validate_macro_name_rejects_specific_invalid_forms(
     name: str, error: str
 ) -> None:
-    assert error in (validate_xprompt_name(name) or "")
+    assert error in (validate_macro_name(name) or "")
 
 
 @pytest.mark.parametrize("name", ["review", "review-fast", "review.v2", "ns/foo"])
-def test_validate_xprompt_name_accepts_supported_names(name: str) -> None:
-    assert validate_xprompt_name(name) is None
+def test_validate_macro_name_accepts_supported_names(name: str) -> None:
+    assert validate_macro_name(name) is None
 
 
 @pytest.mark.parametrize(
@@ -95,8 +95,8 @@ def test_markdown_save_plan_stamps_namespaced_name_and_round_trips(
     assert frontmatter.name == "ns/foo"
 
     path = tmp_path / filename
-    save_markdown_xprompt(path, frontmatter, "body")
-    loaded = load_xprompt_from_file(path)
+    save_markdown_macro(path, frontmatter, "body")
+    loaded = load_macro_from_file(path)
     assert loaded is not None
     assert loaded.name == "ns/foo"
 

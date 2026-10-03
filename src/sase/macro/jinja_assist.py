@@ -1,7 +1,7 @@
 """Typed facade over the Rust Jinja completion engine.
 
 The tag detection, catalog, scope analysis, ranking, and documentation live
-in ``sase-core`` and are shared with the xprompt LSP. This module only
+in ``sase-core`` and are shared with the macro LSP. This module only
 rehydrates the binding's JSON-shaped values so callers do not depend on
 untyped dictionaries, converting Python character offsets to the LSP
 UTF-16 positions the engine expects (the same way the placeholder
@@ -33,7 +33,7 @@ JinjaAvailabilityState = Literal["available", "conditional"]
 class JinjaScope:
     """Document scope a Jinja assist request runs in.
 
-    ``prompt`` is a top-level agent prompt; ``xprompt`` is an xprompt
+    ``prompt`` is a top-level agent prompt; ``macro`` is a macro
     definition body. ``frontmatter`` carries the pane's lifted (stack)
     frontmatter YAML; the engine also reads the in-text leading
     frontmatter block itself.

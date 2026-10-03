@@ -3,7 +3,7 @@
 Telegram, ACE, and the CLI all have to answer the same three questions for one
 gate selection: which fields does it ask for, how does a typed text answer
 become a JSON value, and which option gets which value. This module answers
-each once so no surface reimplements the shared xprompt ``InputArg``
+each once so no surface reimplements the shared macro ``InputArg``
 conversion rules on its own.
 """
 
@@ -58,7 +58,7 @@ def collected_input_fields(options: Sequence[GateOption]) -> tuple[GateInputFiel
 
 
 def input_arg_for_field(field: GateInputField) -> InputArg:
-    """Project a declared field onto the shared xprompt ``InputArg`` rules."""
+    """Project a declared field onto the shared macro ``InputArg`` rules."""
     return InputArg(
         name=field.id,
         type=field.type,
@@ -74,12 +74,12 @@ def coerce_field_text(field: GateInputField, text: str) -> Any:
 
     A ``repeatable`` field splits ``text`` on newlines, drops blank lines,
     and converts each remaining line independently -- ``InputArg`` has no
-    repeatable conversion rule of its own because xprompt repeatability
+    repeatable conversion rule of its own because macro repeatability
     consumes positional arguments, which a chat transport has no equivalent
     of.
 
     Raises:
-        XPromptValidationError: If a value cannot be converted.
+        MacroValidationError: If a value cannot be converted.
     """
     input_arg = input_arg_for_field(field)
     if field.repeatable:

@@ -13,7 +13,7 @@ from sase.bead.project import BeadProject
 
 from .cli_work_helpers import seed_diamond, write_bead_agent_meta
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 def test_all_active_retry_skips_cleanup_reservations_and_publication(

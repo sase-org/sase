@@ -11,9 +11,9 @@ from sase.project_aliases import canonicalize_project_aliases_in_prompt
 from sase.workspace_provider import get_ref_patterns, get_workflow_names
 from sase.macro._parsing_vcs_refs import (
     iter_known_project_vcs_refs,
-    normalize_launch_xprompt_at_refs,
+    normalize_launch_macro_at_refs,
 )
-from sase.macro.processor import prompt_may_reference_xprompt
+from sase.macro.processor import prompt_may_reference_macro
 from tests._workspace_provider_helpers import (
     patch_no_workspace_metadata,
     patch_spy_metadata,
@@ -44,9 +44,9 @@ def test_retired_workflow_has_no_core_fallback(
     assert workflow not in get_workflow_names()
     assert workflow not in get_ref_patterns()
     assert iter_known_project_vcs_refs(prompt, known_projects) == []
-    assert normalize_launch_xprompt_at_refs(f"#{workflow}@sase") == f"#{workflow}@sase"
+    assert normalize_launch_macro_at_refs(f"#{workflow}@sase") == f"#{workflow}@sase"
     assert canonicalize_project_aliases_in_prompt(prompt) == prompt
-    assert prompt_may_reference_xprompt(prompt) is True
+    assert prompt_may_reference_macro(prompt) is True
 
     summary = summarize_prompt_for_list(prompt)
     assert summary.project_prefix == ""
@@ -67,7 +67,7 @@ def test_registered_fake_provider_uses_generic_paths(
     assert "spy" in get_workflow_names()
     assert "spy" in get_ref_patterns()
     assert iter_known_project_vcs_refs(prompt, known_projects) == [("spy", "sase")]
-    assert normalize_launch_xprompt_at_refs("#spy@sase") == "#spy:sase"
+    assert normalize_launch_macro_at_refs("#spy@sase") == "#spy:sase"
     assert (
         canonicalize_project_aliases_in_prompt(prompt) == "#spy:canonical-sase Fix it"
     )

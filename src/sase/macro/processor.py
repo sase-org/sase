@@ -1,4 +1,4 @@
-"""XPrompt reference processing for prompts."""
+"""Macro reference processing for prompts."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from sase.content import (
     content_ends_with_markdown_heading,
 )
 
-from ._exceptions import XPromptError
+from ._exceptions import MacroError
 from ._jinja import (
     is_jinja2_template,
     render_toplevel_jinja2,
@@ -33,30 +33,30 @@ from ._jinja import (
     validate_and_convert_args,
 )
 from ._parsing import (
-    decode_xprompt_args,
+    decode_macro_args,
     double_colon_text_start,
     find_double_colon_text_end,
     find_shorthand_text_end,
     find_matching_paren_for_args,
-    iter_xprompt_references,
+    iter_macro_references,
     parse_args,
 )
 from ._trace import ExpansionTrace, format_circular_ref_diagnostic
-from .loader import get_all_xprompts
-from .models import XPrompt
+from .loader import get_all_macros
+from .models import Macro
 from .project_identity import (
-    canonical_xprompt_project,
+    canonical_macro_project,
     known_project_namespaces,
 )
 
 # Maximum number of expansion iterations to prevent infinite loops
 _MAX_EXPANSION_ITERATIONS = 100
 
-# Pattern to match xprompt references: #name, #name(, #name:arg, or #name+
+# Pattern to match macro references: #name, #name(, #name:arg, or #name+
 # Must be at start of string, after whitespace, or after certain punctuation
 # Note: No space allowed after # (to avoid matching markdown headings)
 # Supports:
-#   - #name - simple xprompt (no args)
+#   - #name - simple macro (no args)
 #   - #name( - parenthesis syntax start (matching ) found programmatically)
 #   - #name:arg - colon syntax for args (word-like chars, comma-separated for multiple)
 #   - #name:`arg` - colon syntax with backtick-delimited arg (any content)
@@ -64,59 +64,59 @@ _MAX_EXPANSION_ITERATIONS = 100
 #   - #name+ - plus syntax, equivalent to #name:true
 # The colon arg also admits a keyed `{@<id>}` agent-name marker as an
 # indivisible unit, so #fork:research.{@1!}.final survives lexing.
-_XPROMPT_PATTERN = (
+_MACRO_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
-    r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: xprompt name with optional namespace
+    r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: macro name with optional namespace
     r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word)
     rf"(?:{KEY_MARKER_PATTERN}|[a-zA-Z0-9_.~,+/@-])*"  # arg body
     rf"(?:{KEY_MARKER_PATTERN}|[a-zA-Z0-9_~,+/@-])"  # arg must not end in .
     r")|(\+))?"  # Group 4: plus
 )
 
-_COMMON_VCS_XPROMPT_NAMES = frozenset({"gh", "git", "p4"})
+_COMMON_VCS_MACRO_NAMES = frozenset({"gh", "git", "p4"})
 
-# Launch analysis must discover metadata contributed by ordinary xprompts without
+# Launch analysis must discover metadata contributed by ordinary macros without
 # executing workflows whose expansion reads mutable agent state.  Callers retain
 # these references until the runner has admitted their dependency barrier.
-LAUNCH_DEFERRED_XPROMPT_NAMES: frozenset[str] = frozenset({"fork"})
+LAUNCH_DEFERRED_MACRO_NAMES: frozenset[str] = frozenset({"fork"})
 
 
 def _candidate_name(match: re.Match[str]) -> str:
-    """Return the xprompt name represented by a regex match."""
+    """Return the macro name represented by a regex match."""
     return match.group(1).replace("__", "/")
 
 
 def _is_obvious_vcs_only_reference(match: re.Match[str], prompt: str) -> bool:
-    """Return True for common leading VCS tags that are not xprompt refs."""
+    """Return True for common leading VCS tags that are not macro refs."""
     prefix = prompt[: match.start()].strip()
     if prefix and not all(part.startswith("%") for part in prefix.split()):
         return False
 
     raw_name = match.group(1)
-    if raw_name in _COMMON_VCS_XPROMPT_NAMES:
+    if raw_name in _COMMON_VCS_MACRO_NAMES:
         return (
             match.group(2) is not None
             or match.group(3) is not None
             or match.group(4) is not None
         )
-    return any(raw_name.startswith(f"{name}_") for name in _COMMON_VCS_XPROMPT_NAMES)
+    return any(raw_name.startswith(f"{name}_") for name in _COMMON_VCS_MACRO_NAMES)
 
 
-def prompt_may_reference_xprompt(
-    prompt: str, extra_xprompts: dict[str, XPrompt] | None = None
+def prompt_may_reference_macro(
+    prompt: str, extra_macros: dict[str, Macro] | None = None
 ) -> bool:
-    """Cheaply detect whether *prompt* might contain an xprompt reference.
+    """Cheaply detect whether *prompt* might contain a macro reference.
 
     This is intentionally lexical and conservative.  It avoids loading the
-    full xprompt catalog for prompts that clearly cannot expand, while still
+    full macro catalog for prompts that clearly cannot expand, while still
     returning True for ambiguous ``#name`` forms so the normal processor can
     decide using the real catalog.
     """
     if "#" not in prompt:
         return False
 
-    extra_names = set(extra_xprompts or {})
-    for match in re.finditer(_XPROMPT_PATTERN, prompt, re.MULTILINE):
+    extra_names = set(extra_macros or {})
+    for match in re.finditer(_MACRO_PATTERN, prompt, re.MULTILINE):
         name = _candidate_name(match)
         if name in extra_names:
             return True
@@ -126,11 +126,11 @@ def prompt_may_reference_xprompt(
     return False
 
 
-def resolve_xprompt_aliases(prompt: str) -> str:
-    """Resolve project aliases and xprompt aliases via raw text substitution.
+def resolve_macro_aliases(prompt: str) -> str:
+    """Resolve project aliases and macro aliases via raw text substitution.
 
-    Aliases are defined in the ``xprompt_aliases`` config field and are
-    substituted *before* any other xprompt processing.  This allows aliases
+    Aliases are defined in the ``macro_aliases`` config field and are
+    substituted *before* any other macro processing.  This allows aliases
     like ``#c`` → ``#commit`` where the expanded syntax must be present
     in the raw text for later resolution logic.
     """
@@ -163,87 +163,91 @@ def _registered_project_namespace_from_prompt(prompt: str) -> str | None:
     if not known_projects:
         return None
 
-    for reference in iter_xprompt_references(prompt):
+    for reference in iter_macro_references(prompt):
         namespace, separator, _name = reference.name.partition("/")
         if not separator:
             continue
-        canonical = canonical_xprompt_project(namespace)
+        canonical = canonical_macro_project(namespace)
         if canonical in known_projects:
             return canonical
     return None
 
 
-def expand_single_xprompt(
-    xprompt: XPrompt,
+def expand_single_macro(
+    macro_def: Macro,
     positional_args: list[str],
     named_args: dict[str, str],
     scope: dict[str, Any] | None = None,
     *,
     preserve_segment_separators: bool = False,
-    defer_xprompt_names: Collection[str] = frozenset(),
+    defer_macro_names: Collection[str] = frozenset(),
     raise_on_error: bool = False,
 ) -> str:
-    """Expand a single xprompt with its arguments.
+    """Expand a single macro with its arguments.
 
     Args:
-        xprompt: The XPrompt to expand.
+        macro: The Macro to expand.
         positional_args: List of positional argument values.
         named_args: Dictionary of named argument values.
         scope: Optional base context (e.g., workflow execution context).
-            Xprompt-specific args take priority over scope values.
+            Macro-specific args take priority over scope values.
         preserve_segment_separators: When True, return a rendered multi-prompt
-            xprompt body intact. Normal prompt-part expansion keeps only the
+            macro body intact. Normal prompt-part expansion keeps only the
             first rendered segment.
         raise_on_error: When True, nested local-helper expansion raises
-            ``XPromptError`` instead of printing and exiting.
+            ``MacroError`` instead of printing and exiting.
 
     Returns:
-        The expanded xprompt content.
+        The expanded macro content.
 
     Raises:
-        XPromptArgumentError: If arguments don't match placeholders.
-        XPromptError: If nested local-helper expansion fails and
+        MacroArgumentError: If arguments don't match placeholders.
+        MacroError: If nested local-helper expansion fails and
             ``raise_on_error`` is True.
     """
-    # Validate and convert args if xprompt has typed inputs
+    # Validate and convert args if macro has typed inputs
     conv_positional, conv_named = validate_and_convert_args(
-        xprompt, positional_args, named_args
+        macro_def, positional_args, named_args
     )
 
-    render_scope = _skill_render_scope(xprompt, scope)
+    render_scope = _skill_render_scope(macro_def, scope)
     rendered = substitute_placeholders(
-        xprompt.content, conv_positional, conv_named, xprompt.name, scope=render_scope
+        macro_def.content,
+        conv_positional,
+        conv_named,
+        macro_def.name,
+        scope=render_scope,
     )
-    rendered = _filter_conditional_xprompt_segments(rendered)
+    rendered = _filter_conditional_macro_segments(rendered)
     if not rendered.strip():
         return ""
-    rendered = _expand_local_xprompt_references(
-        xprompt,
+    rendered = _expand_local_macro_references(
+        macro_def,
         rendered,
         conv_positional,
         conv_named,
         render_scope,
         preserve_segment_separators=preserve_segment_separators,
-        defer_xprompt_names=defer_xprompt_names,
+        defer_macro_names=defer_macro_names,
         raise_on_error=raise_on_error,
     )
-    rendered = _filter_conditional_xprompt_segments(rendered)
+    rendered = _filter_conditional_macro_segments(rendered)
     if not rendered.strip():
         return ""
     if preserve_segment_separators:
         return rendered
 
     from sase.agent.multi_prompt import split_segments_protecting_fences
-    from sase.macro.segment_separators import xprompt_has_segment_separators
+    from sase.macro.segment_separators import macro_has_segment_separators
 
-    if not xprompt_has_segment_separators(xprompt):
+    if not macro_has_segment_separators(macro_def):
         return rendered
 
     segments = split_segments_protecting_fences(rendered)
     return segments[0] if segments else ""
 
 
-def _filter_conditional_xprompt_segments(rendered: str) -> str:
+def _filter_conditional_macro_segments(rendered: str) -> str:
     if "%if(" not in rendered:
         return rendered
     from sase.core.agent_launch_facade import filter_conditional_prompt_text
@@ -252,11 +256,11 @@ def _filter_conditional_xprompt_segments(rendered: str) -> str:
 
 
 def _skill_render_scope(
-    xprompt: XPrompt,
+    macro_def: Macro,
     scope: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     """Add provider template variables when expanding provider-backed skills."""
-    if not xprompt.skill_name:
+    if not macro_def.skill_name:
         return scope
 
     from sase.llm_provider.registry import get_default_provider_name
@@ -277,7 +281,7 @@ def _resolve_command_substitution_in_args(
     positional_args: list[str],
     named_args: dict[str, str],
 ) -> tuple[list[str], dict[str, str]]:
-    """Resolve $(cmd) command substitutions in xprompt arguments.
+    """Resolve $(cmd) command substitutions in macro arguments.
 
     Args:
         positional_args: Positional argument values.
@@ -331,12 +335,12 @@ def _consume_trailing_shorthand_text(prompt: str, end: int) -> tuple[list[str], 
     return [shorthand_text], text_end
 
 
-def _scope_for_local_xprompts(
+def _scope_for_local_macros(
     scope: dict[str, Any] | None,
     positional_args: list[Any],
     named_args: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build the context inherited by local helpers from their owning xprompt."""
+    """Build the context inherited by local helpers from their owning macro."""
     local_scope = dict(scope or {})
     for i, arg in enumerate(positional_args, 1):
         local_scope[f"_{i}"] = arg
@@ -345,198 +349,196 @@ def _scope_for_local_xprompts(
     return local_scope
 
 
-def _expand_local_xprompt_references(
-    xprompt: XPrompt,
+def _expand_local_macro_references(
+    macro_def: Macro,
     rendered: str,
     positional_args: list[Any],
     named_args: dict[str, Any],
     scope: dict[str, Any] | None,
     *,
     preserve_segment_separators: bool,
-    defer_xprompt_names: Collection[str],
+    defer_macro_names: Collection[str],
     raise_on_error: bool = False,
 ) -> str:
-    """Expand helpers scoped to *xprompt* without consulting the global catalog."""
-    if not xprompt.local_xprompts or "#" not in rendered:
+    """Expand helpers scoped to *macro* without consulting the global catalog."""
+    if not macro_def.local_macros or "#" not in rendered:
         return rendered
 
-    return process_xprompt_references_with_catalog(
+    return process_macro_references_with_catalog(
         rendered,
-        dict(xprompt.local_xprompts),
-        extra_xprompts=xprompt.local_xprompts,
-        scope=_scope_for_local_xprompts(scope, positional_args, named_args),
+        dict(macro_def.local_macros),
+        extra_macros=macro_def.local_macros,
+        scope=_scope_for_local_macros(scope, positional_args, named_args),
         aliases_resolved=True,
         preserve_segment_separators=preserve_segment_separators,
-        defer_xprompt_names=defer_xprompt_names,
+        defer_macro_names=defer_macro_names,
         raise_on_error=raise_on_error,
     )
 
 
-def process_xprompt_references(
+def process_macro_references(
     prompt: str,
-    extra_xprompts: dict[str, XPrompt] | None = None,
+    extra_macros: dict[str, Macro] | None = None,
     scope: dict[str, Any] | None = None,
     *,
     trace: ExpansionTrace | None = None,
-    defer_xprompt_names: Collection[str] = frozenset(),
+    defer_macro_names: Collection[str] = frozenset(),
     raise_on_error: bool = False,
 ) -> str:
-    """Process xprompt references in the prompt.
+    """Process macro references in the prompt.
 
-    Expands all #xprompt_name and #xprompt_name(arg1, arg2) patterns
+    Expands all #macro_name and #macro_name(arg1, arg2) patterns
     with their corresponding content from files or config.
 
     Supports:
-    - Simple xprompts: #foo
-    - XPrompts with positional args: #bar(arg1, arg2)
-    - XPrompts with named args: #bar(name=value, other="text")
+    - Simple macros: #foo
+    - Macros with positional args: #bar(arg1, arg2)
+    - Macros with named args: #bar(name=value, other="text")
     - Mixed args: #bar(pos1, name=value)
     - Text block args: #bar([[multi-line content]])
     - Colon syntax for single arg: #foo:arg
     - Plus syntax (equivalent to :true): #foo+
     - Legacy placeholders: {1}, {2}, {1:default}
     - Jinja2 templates: {{ name }}, {% if %}, etc.
-    - Recursive expansion (xprompts can reference other xprompts)
+    - Recursive expansion (macros can reference other macros)
 
     Args:
         prompt: The prompt text to process
-        extra_xprompts: Optional additional xprompts that take highest priority
-            (e.g., workflow-local xprompts).
+        extra_macros: Optional additional macros that take highest priority
+            (e.g., workflow-local macros).
         scope: Optional base context (e.g., workflow execution context) passed
-            through to Jinja2 template rendering. Xprompt-specific args take
+            through to Jinja2 template rendering. Macro-specific args take
             priority over scope values.
         trace: Optional ExpansionTrace to collect expansion records into.
-            When provided, each xprompt expansion is recorded with its
+            When provided, each macro expansion is recorded with its
             iteration, source, arguments, and result.
-        defer_xprompt_names: Xprompt names to leave verbatim while expanding all
+        defer_macro_names: Macro names to leave verbatim while expanding all
             other references, including references introduced recursively.
-        raise_on_error: When True, raise ``XPromptError`` instead of printing
+        raise_on_error: When True, raise ``MacroError`` instead of printing
             the failure and exiting. The default print-and-exit path is
             unchanged so existing callers keep their current behavior.
 
     Returns:
-        The transformed prompt with xprompts expanded
+        The transformed prompt with macros expanded
 
     Raises:
-        SystemExit: If any xprompt processing error occurs and
+        SystemExit: If any macro processing error occurs and
             ``raise_on_error`` is False
-        XPromptError: If any xprompt processing error occurs and
+        MacroError: If any macro processing error occurs and
             ``raise_on_error`` is True
     """
     if "#" not in prompt:
         return prompt
-    if not prompt_may_reference_xprompt(prompt, extra_xprompts):
+    if not prompt_may_reference_macro(prompt, extra_macros):
         return prompt
 
-    prompt = resolve_xprompt_aliases(prompt)
+    prompt = resolve_macro_aliases(prompt)
     if "#" not in prompt:
         return prompt
-    if not prompt_may_reference_xprompt(prompt, extra_xprompts):
+    if not prompt_may_reference_macro(prompt, extra_macros):
         return prompt
 
     project = _registered_project_namespace_from_prompt(prompt)
-    xprompts = (
-        get_all_xprompts() if project is None else get_all_xprompts(project=project)
-    )
-    if extra_xprompts:
-        xprompts.update(extra_xprompts)
+    macros = get_all_macros() if project is None else get_all_macros(project=project)
+    if extra_macros:
+        macros.update(extra_macros)
 
-    return process_xprompt_references_with_catalog(
+    return process_macro_references_with_catalog(
         prompt,
-        xprompts,
-        extra_xprompts=extra_xprompts,
+        macros,
+        extra_macros=extra_macros,
         scope=scope,
         trace=trace,
         aliases_resolved=True,
-        defer_xprompt_names=defer_xprompt_names,
+        defer_macro_names=defer_macro_names,
         raise_on_error=raise_on_error,
     )
 
 
-def process_xprompt_references_with_catalog(
+def process_macro_references_with_catalog(
     prompt: str,
-    xprompts: dict[str, XPrompt],
-    extra_xprompts: dict[str, XPrompt] | None = None,
+    macros: dict[str, Macro],
+    extra_macros: dict[str, Macro] | None = None,
     scope: dict[str, Any] | None = None,
     *,
     trace: ExpansionTrace | None = None,
     aliases_resolved: bool = False,
     preserve_segment_separators: bool = False,
-    defer_xprompt_names: Collection[str] = frozenset(),
+    defer_macro_names: Collection[str] = frozenset(),
     raise_on_error: bool = False,
 ) -> str:
-    """Process xprompt references using an already-loaded xprompt catalog."""
+    """Process macro references using an already-loaded macro catalog."""
     if "#" not in prompt:
         return prompt
-    if not prompt_may_reference_xprompt(prompt, extra_xprompts):
+    if not prompt_may_reference_macro(prompt, extra_macros):
         return prompt
 
     if not aliases_resolved:
-        prompt = resolve_xprompt_aliases(prompt)
+        prompt = resolve_macro_aliases(prompt)
         if "#" not in prompt:
             return prompt
-        if not prompt_may_reference_xprompt(prompt, extra_xprompts):
+        if not prompt_may_reference_macro(prompt, extra_macros):
             return prompt
 
-    if extra_xprompts:
-        xprompts = {**xprompts, **extra_xprompts}
-    if not xprompts:
-        return prompt  # No xprompts defined
+    if extra_macros:
+        macros = {**macros, **extra_macros}
+    if not macros:
+        return prompt  # No macros defined
 
-    expandable_names = set(xprompts).difference(defer_xprompt_names)
+    expandable_names = set(macros).difference(defer_macro_names)
     if not expandable_names:
         return prompt
 
-    # Check if there are any potential xprompt references
+    # Check if there are any potential macro references
     if "#" not in prompt:
         return prompt
 
     # Protect directive-owned `%if::` / `%proc::` fences before ordinary
-    # literal-zone protection so later xprompt/Jinja scans cannot see the body.
+    # literal-zone protection so later macro/Jinja scans cannot see the body.
     owned_blocks: list[str] = []
     prompt = protect_owned_code_directives(prompt, owned_blocks)
 
     # Protect fenced code blocks from expansion.  Content inside
     # triple-backtick blocks is replaced with null-byte placeholders so
-    # that neither shorthand preprocessing nor the xprompt regex treats
+    # that neither shorthand preprocessing nor the macro regex treats
     # anything inside them as a reference.  After the loop completes we
     # restore the original code block content.
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
 
-    # Protect disabled regions (%xprompts_enabled:false/true pairs).
+    # Protect disabled regions (%macros_enabled:false/true pairs).
     disabled_regions: list[str] = []
     prompt = protect_disabled_regions(prompt, disabled_regions)
 
     iteration = 0
     while iteration < _MAX_EXPANSION_ITERATIONS:
-        # Find all xprompt references
-        matches = list(re.finditer(_XPROMPT_PATTERN, prompt, re.MULTILINE))
+        # Find all macro references
+        matches = list(re.finditer(_MACRO_PATTERN, prompt, re.MULTILINE))
 
         if not matches:
-            break  # No more xprompts to expand
+            break  # No more macros to expand
 
-        # Check if any matches are actual xprompts we know about
-        has_known_xprompt = False
+        # Check if any matches are actual macros we know about
+        has_known_macro = False
         for match in matches:
             name = match.group(1).replace("__", "/")
             if name in expandable_names:
-                has_known_xprompt = True
+                has_known_macro = True
                 break
 
-        if not has_known_xprompt:
-            break  # No known xprompts to expand
+        if not has_known_macro:
+            break  # No known macros to expand
 
         # Expand from last to first to preserve positions
         try:
             for match in reversed(matches):
                 name = match.group(1).replace("__", "/")
 
-                # Skip if this isn't a known xprompt
+                # Skip if this isn't a known macro
                 if name not in expandable_names:
                     continue
 
-                xprompt = xprompts[name]
+                macro_def = macros[name]
 
                 # Extract arguments from parenthesis, colon, or plus syntax
                 # Group 2: open paren marker, Group 3: colon arg, Group 4: plus
@@ -581,7 +583,7 @@ def process_xprompt_references_with_catalog(
                         colon_arg = colon_arg[1:-1]
                         positional_args, named_args = [colon_arg], {}
                     else:
-                        positional_args, named_args = decode_xprompt_args(
+                        positional_args, named_args = decode_macro_args(
                             colon_arg.split(","), {}
                         )
                 elif plus_suffix is not None:
@@ -601,13 +603,13 @@ def process_xprompt_references_with_catalog(
                     positional_args, named_args
                 )
 
-                expanded = expand_single_xprompt(
-                    xprompt,
+                expanded = expand_single_macro(
+                    macro_def,
                     positional_args,
                     named_args,
                     scope=scope,
                     preserve_segment_separators=preserve_segment_separators,
-                    defer_xprompt_names=defer_xprompt_names,
+                    defer_macro_names=defer_macro_names,
                     raise_on_error=raise_on_error,
                 )
 
@@ -615,7 +617,7 @@ def process_xprompt_references_with_catalog(
                     trace.add(
                         iteration=iteration,
                         name=name,
-                        source_path=xprompt.source_path,
+                        source_path=macro_def.source_path,
                         positional_args=list(positional_args),
                         named_args=dict(named_args),
                         expanded_text=expanded,
@@ -645,7 +647,7 @@ def process_xprompt_references_with_catalog(
                 )
 
                 prompt = prompt[: match.start()] + expanded + prompt[match_end:]
-        except XPromptError as e:
+        except MacroError as e:
             _abort_expansion(e, raise_on_error=raise_on_error)
 
         # Protect any new owned fences, then ordinary fences, from expansion.
@@ -665,7 +667,7 @@ def process_xprompt_references_with_catalog(
                 f"Maximum xprompt expansion depth ({_MAX_EXPANSION_ITERATIONS}) "
                 "exceeded. Check for circular references."
             )
-        _abort_expansion(XPromptError(msg), raise_on_error=raise_on_error)
+        _abort_expansion(MacroError(msg), raise_on_error=raise_on_error)
 
     # Restore disabled regions (markers preserved for downstream stages)
     prompt = unprotect_disabled_regions(prompt, disabled_regions)
@@ -677,7 +679,7 @@ def process_xprompt_references_with_catalog(
     return prompt
 
 
-def _abort_expansion(error: XPromptError, *, raise_on_error: bool) -> NoReturn:
+def _abort_expansion(error: MacroError, *, raise_on_error: bool) -> NoReturn:
     """Raise *error* or print it and exit, depending on the caller opt-in."""
     if raise_on_error:
         raise error
@@ -686,11 +688,11 @@ def _abort_expansion(error: XPromptError, *, raise_on_error: bool) -> NoReturn:
 
 
 __all__ = [
-    "LAUNCH_DEFERRED_XPROMPT_NAMES",
+    "LAUNCH_DEFERRED_MACRO_NAMES",
     "is_jinja2_template",
-    "prompt_may_reference_xprompt",
-    "process_xprompt_references",
-    "process_xprompt_references_with_catalog",
+    "prompt_may_reference_macro",
+    "process_macro_references",
+    "process_macro_references_with_catalog",
     "render_toplevel_jinja2",
-    "resolve_xprompt_aliases",
+    "resolve_macro_aliases",
 ]

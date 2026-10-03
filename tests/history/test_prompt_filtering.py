@@ -29,7 +29,7 @@ def test_is_recordable_prompt_allows_short_override() -> None:
 
 
 def test_single_word_prompt_not_written(tmp_path: Path) -> None:
-    """Test that a single-word prompt (e.g. bare xprompt trigger) is dropped."""
+    """Test that a single-word prompt (e.g. bare macro trigger) is dropped."""
     test_file = tmp_path / "prompt_history.json"
     with (
         patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),

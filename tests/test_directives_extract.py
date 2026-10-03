@@ -116,9 +116,9 @@ def test_model_directive_alias_kwargs_do_not_count_as_positional_models() -> Non
         extract_prompt_directives("%m(opus, sonnet, medium=haiku)\nReview")
 
 
-def test_model_directive_alias_override_expands_xprompt_reference() -> None:
+def test_model_directive_alias_override_expands_macro_reference() -> None:
     with patch(
-        "sase.macro.directives.process_xprompt_references",
+        "sase.macro.directives.process_macro_references",
         return_value="sonnet",
     ) as process:
         _, directives = extract_prompt_directives("%m(opus, medium=#fast)\nReview")
@@ -192,15 +192,15 @@ def test_final_directive_rejects_keyword_arguments() -> None:
         extract_prompt_directives("%final(commit, timeout=10)\nDo work")
 
 
-# --- Xprompt expansion in directive args ---
+# --- Macro expansion in directive args ---
 
 
-def test_xprompt_ref_in_directive_arg() -> None:
-    """Test that #xprompt references in directive args are expanded."""
+def test_macro_ref_in_directive_arg() -> None:
+    """Test that #macro references in directive args are expanded."""
     prompt = "%model:#gemini_small_model\nReview this code"
 
     with patch(
-        "sase.macro.directives.process_xprompt_references",
+        "sase.macro.directives.process_macro_references",
     ) as mock_process:
         mock_process.return_value = "gemini-2.5-flash"
         cleaned, directives = extract_prompt_directives(prompt)
@@ -363,7 +363,7 @@ def test_model_literal_bypasses_alias_prefix_rule(
     assert directives.model_alias is None
 
 
-def test_model_alias_prefix_strips_before_xprompt_expansion(
+def test_model_alias_prefix_strips_before_macro_expansion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -380,7 +380,7 @@ def test_model_alias_prefix_strips_before_xprompt_expansion(
         },
     )
 
-    with patch("sase.macro.directives.process_xprompt_references") as mock_process:
+    with patch("sase.macro.directives.process_macro_references") as mock_process:
         mock_process.return_value = "agy_flash"
         _, directives = extract_prompt_directives("%m:@#agy\nReview")
 

@@ -1,4 +1,4 @@
-"""Pure text helpers for rewriting launch-property xprompt directives."""
+"""Pure text helpers for rewriting launch-property macro directives."""
 
 from __future__ import annotations
 

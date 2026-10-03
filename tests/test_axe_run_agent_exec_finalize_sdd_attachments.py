@@ -126,7 +126,7 @@ def test_finalize_loop_discovers_committed_separate_sdd_artifacts(
         agent_vcs_provider="git",
         agent_hidden=False,
         agent_meta={"sdd_base_sha": base_sha},
-        local_xprompts={},
+        local_macros={},
     )
     state = LoopState(
         current_prompt="create SDD attachments",

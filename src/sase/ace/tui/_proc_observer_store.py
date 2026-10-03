@@ -91,7 +91,7 @@ def store_proc_row(
         settling_started_at=_local_datetime(proc.settling_started_at),
         settled_by=proc.settled_by,
         settled_at=_local_datetime(proc.settled_at),
-        xprompt_proc=proc.xprompt_proc,
+        prompt_proc=proc.prompt_proc,
         service=proc.service,
         tags=tuple(proc.tags),
     )

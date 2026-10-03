@@ -77,7 +77,7 @@ def reset_workflow_metadata_caches() -> None:
     _parsing_vcs_tags._VCS_TAG_EMBEDDED_PATTERN = None
     _parsing_vcs_tags._VCS_REPLACE_PATTERN = None
     _parsing_vcs_refs._VCS_UNDERSCORE_NORMALIZER = None
-    _parsing_vcs_refs._LAUNCH_XPROMPT_AT_REF_RE = None
+    _parsing_vcs_refs._LAUNCH_MACRO_AT_REF_RE = None
     prompt_metadata.known_workflow_names.cache_clear()
 
 

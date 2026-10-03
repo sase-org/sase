@@ -9,8 +9,8 @@ from rich.text import Text
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding, XPromptReadonlyTarget
-from sase.macro.models import InputArg, InputType, XPrompt
-from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE, PromptFrontmatter
+from sase.macro.models import InputArg, InputType, Macro
+from sase.macro.prompt_frontmatter import LOCAL_MACRO_SOURCE, PromptFrontmatter
 
 from ._prompt_input_bar_stack_helpers import _PromptBarApp, _XPromptMarkdownApp
 
@@ -30,11 +30,11 @@ async def test_all_editor_markdown_serializes_canonical_frontmatter() -> None:
             description="do the thing",
             tags=["x", "y"],
             inputs=[InputArg(name="topic", type=InputType.LINE)],
-            xprompts={
-                "_helper": XPrompt(
+            macros={
+                "_helper": Macro(
                     name="_helper",
                     content="reusable body",
-                    source_path=LOCAL_XPROMPT_SOURCE,
+                    source_path=LOCAL_MACRO_SOURCE,
                 )
             },
             skill=True,
@@ -204,7 +204,7 @@ async def test_prompt_bar_readonly_target_state_is_persistent() -> None:
             "body\n",
             read_only_target=XPromptReadonlyTarget(
                 reference="#builtin/review",
-                path="/opt/sase/xprompts/review.md",
+                path="/opt/sase/macros/review.md",
             ),
         )
         await pilot.pause()
@@ -307,7 +307,7 @@ async def test_initial_xprompt_markdown_lifts_frontmatter_and_splits() -> None:
         assert not panel.has_class("hidden")
         model = bar._stack.frontmatter_model
         assert model.description == "Review auth and API separately"
-        assert "_shared" in model.xprompts
+        assert "_shared" in model.macros
 
 
 async def test_initial_xprompt_markdown_protects_fenced_separator() -> None:

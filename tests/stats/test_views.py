@@ -80,7 +80,7 @@ def test_models_are_frozen() -> None:
     with pytest.raises(FrozenInstanceError):
         views.overview.agents_run = 99  # type: ignore[misc]
     with pytest.raises(FrozenInstanceError):
-        views.xprompts.available = True  # type: ignore[misc]
+        views.macros.available = True  # type: ignore[misc]
 
 
 def test_plans_questions_ignore_inaccurate_index_derived_totals() -> None:
@@ -165,7 +165,7 @@ def test_empty_and_partial_payloads_are_safe() -> None:
     assert views.providers.rows == ()
     assert views.runtime.group_by == "agent"
     assert views.activity.skills == ()
-    assert views.xprompts.available is False
+    assert views.macros.available is False
     assert views.plans_questions.questions == 0
     assert views.runners.available is False
     assert views.runners.current_limit is None

@@ -6,9 +6,9 @@ import re
 from typing import Literal
 
 from sase.macro._parsing import (
-    XPromptReference,
-    XPromptReferenceArgKind,
-    iter_xprompt_references,
+    MacroReference,
+    MacroReferenceArgKind,
+    iter_macro_references,
 )
 from sase.macro._literal_zones import literal_zone_ranges
 
@@ -45,10 +45,10 @@ def detect_xprompt_arg_hint_at_cursor(
         return None
 
     entry_by_name = _entry_by_name(entries)
-    for ref in iter_xprompt_references(text):
+    for ref in iter_macro_references(text):
         if ref.start >= cursor_offset:
             continue
-        if ref.arg_kind is XPromptReferenceArgKind.PLUS:
+        if ref.arg_kind is MacroReferenceArgKind.PLUS:
             continue
 
         base_end = _reference_base_end(text, ref.start, cursor_offset)
@@ -121,12 +121,12 @@ def detect_xprompt_arg_completion_at_cursor(
     literal_ranges = literal_zone_ranges(text)
 
     entry_by_name = _entry_by_name(entries)
-    for ref in iter_xprompt_references(text):
+    for ref in iter_macro_references(text):
         if ref.start >= cursor_offset:
             continue
         if any(start <= ref.start < end for start, end in literal_ranges):
             continue
-        if ref.arg_kind is XPromptReferenceArgKind.PLUS:
+        if ref.arg_kind is MacroReferenceArgKind.PLUS:
             continue
         # Double-colon shorthand consumes free-form text through the rest of its
         # parsed span. A nested ``#...`` inside that body is free text, not an
@@ -134,7 +134,7 @@ def detect_xprompt_arg_completion_at_cursor(
         # or at the end of the span (``#ask:: after #fork:`` must not open the
         # fork-agent menu).
         if (
-            ref.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+            ref.arg_kind is MacroReferenceArgKind.DOUBLE_COLON_SHORTHAND
             and ref.start < cursor_offset <= ref.end
         ):
             return None
@@ -197,13 +197,13 @@ def _reference_base_end(
     return reference_start + match.end()
 
 
-def _cursor_is_inside_open_paren(text: str, ref: XPromptReference) -> bool:
+def _cursor_is_inside_open_paren(text: str, ref: MacroReference) -> bool:
     return ref.end <= len(text) and text[ref.end - 1 : ref.end] == "("
 
 
 def _cursor_is_inside_reference_args(
     text: str,
-    ref: XPromptReference,
+    ref: MacroReference,
     base_end: int,
     cursor_offset: int,
 ) -> bool:
@@ -211,7 +211,7 @@ def _cursor_is_inside_reference_args(
         return True
     if text[base_end : base_end + 1] == "(":
         return cursor_offset <= ref.end
-    if ref.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND:
+    if ref.arg_kind is MacroReferenceArgKind.DOUBLE_COLON_SHORTHAND:
         return False
     return text[base_end : base_end + 1] == ":" and cursor_offset <= ref.end
 

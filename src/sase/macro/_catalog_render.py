@@ -1,4 +1,4 @@
-"""Statistics, HTML rendering, and PDF rendering for xprompt catalogs."""
+"""Statistics, HTML rendering, and PDF rendering for macro catalogs."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from ._catalog_models import (
     CatalogDocument,
     CatalogEntry,
     CatalogStats,
-    NoXpromptsFound,
+    NoMacrosFound,
     PdfEngineUnavailable,
 )
 from ._catalog_sources import gather_entries
@@ -34,20 +34,20 @@ from ._catalog_sources import gather_entries
 log = logging.getLogger(__name__)
 
 
-def build_xprompts_catalog(output_dir: Path | None = None) -> CatalogArtifact:
-    """Gather every xprompt, compute stats, render a PDF.
+def build_macros_catalog(output_dir: Path | None = None) -> CatalogArtifact:
+    """Gather every macro, compute stats, render a PDF.
 
     The PDF path is ``<output_dir>/macros_catalog_<YYYY-MM-DD>.pdf``. Falls
     back to a tempdir when *output_dir* is ``None``.
 
     Raises:
-        NoXpromptsFound: When the catalog would contain zero xprompts.
+        NoMacrosFound: When the catalog would contain zero macros.
         PdfEngineUnavailable: When neither ``wkhtmltopdf`` nor ``pandoc`` is
             available on ``PATH``.
     """
     entries = gather_entries()
     if not entries:
-        raise NoXpromptsFound("no xprompts visible to the sase runtime")
+        raise NoMacrosFound("no xprompts visible to the sase runtime")
 
     stats = compute_stats(entries)
     document = build_document(entries, stats)
@@ -89,15 +89,15 @@ def compute_stats(entries: list[CatalogEntry]) -> CatalogStats:
         by_source[entry.bucket] = by_source.get(entry.bucket, 0) + 1
         if entry.project:
             by_project[entry.project] = by_project.get(entry.project, 0) + 1
-        for tag in entry.xprompt.tags:
+        for tag in entry.macro_def.tags:
             by_tag[tag.value] = by_tag.get(tag.value, 0) + 1
-        if entry.xprompt.description:
+        if entry.macro_def.description:
             with_description += 1
-        if entry.xprompt.inputs:
+        if entry.macro_def.inputs:
             with_inputs += 1
-        if entry.xprompt.skill:
+        if entry.macro_def.skill:
             skills += 1
-        if entry.xprompt.memory_type is not None:
+        if entry.macro_def.memory_type is not None:
             memory += 1
 
     sorted_tags = dict(sorted(by_tag.items(), key=lambda kv: (-kv[1], kv[0])))
@@ -132,7 +132,7 @@ def build_document(entries: list[CatalogEntry], stats: CatalogStats) -> CatalogD
             groups.setdefault(entry.project, []).append(entry)
 
         for key in groups:
-            groups[key].sort(key=lambda e: e.xprompt.name.lower())
+            groups[key].sort(key=lambda e: e.macro_def.name.lower())
 
         sorted_groups = sorted(groups.items(), key=lambda kv: kv[0] or "")
         sections.append((bucket, sorted_groups))

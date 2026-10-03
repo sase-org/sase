@@ -175,7 +175,7 @@ def test_swarm_rows_and_focus_header_label_the_swarm_kind() -> None:
     )
     views = build_statistics_views(payload, _activity_payload())
 
-    rendered = _render_plain(pane._xprompts_usage_renderable(views.xprompts))
+    rendered = _render_plain(pane._xprompts_usage_renderable(views.macros))
 
     assert "#research_swarm  swarm" in rendered
 
@@ -223,7 +223,7 @@ def test_xprompt_focus_header_labels_the_swarm_kind() -> None:
         "buckets": [],
     }
     views = build_statistics_views(payload, _activity_payload())
-    focus = views.xprompts.focus
+    focus = views.macros.focus
     assert focus is not None
 
     rendered = _render_plain(pane._xprompt_focus_header(focus))
@@ -270,7 +270,7 @@ def test_xprompts_drilldown_discloses_per_row_truncation() -> None:
     views = build_statistics_views(payload, _activity_payload())
 
     rendered = _render_plain(
-        pane._xprompts_drilldown_renderable(views.xprompts, dimension="model")
+        pane._xprompts_drilldown_renderable(views.macros, dimension="model")
     )
 
     assert "+4 more not shown" in rendered
@@ -296,7 +296,7 @@ def test_xprompts_truncation_is_explicit() -> None:
     payload["xprompts"]["truncated_rows"] = 7
     views = build_statistics_views(payload, _activity_payload())
 
-    rendered = _render_plain(pane._xprompts_usage_renderable(views.xprompts))
+    rendered = _render_plain(pane._xprompts_usage_renderable(views.macros))
 
     assert "7 more xprompts not shown." in rendered
 

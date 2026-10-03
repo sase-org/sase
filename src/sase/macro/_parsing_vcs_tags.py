@@ -1,4 +1,4 @@
-"""VCS workflow tag parsing and segment normalization for xprompts."""
+"""VCS workflow tag parsing and segment normalization for macros."""
 
 from __future__ import annotations
 

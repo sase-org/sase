@@ -37,7 +37,7 @@ def test_launch_multi_prompt_resolves_template_wait_to_planned_predecessor(
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=["%i:build-@\nBuild", "%w:build-@\nReview"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -82,7 +82,7 @@ def test_launch_multi_prompt_allocates_distinct_template_names_per_segment(
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=["%i:build-@\nFirst", "%i:build-@\nSecond"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -126,7 +126,7 @@ def test_launch_multi_prompt_allocates_distinct_suffix_shape_template_names(
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=["%i:@.cld\nFirst", "%i:@.cld\nSecond"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -175,7 +175,7 @@ def test_launch_multi_prompt_resolves_template_resume_to_planned_predecessor(
                 "%i:build-@\nBuild",
                 "#fork:build-@\n#resume:build-@\nReview",
             ],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -226,7 +226,7 @@ def test_launch_multi_prompt_resolves_middle_template_wait_to_planned_name(
                 "%i:research.@.final\nFinal",
                 "%w:research.@.final\nReview",
             ],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -275,7 +275,7 @@ def test_launch_multi_prompt_template_refs_prefer_planned_over_existing_latest(
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
             segments=["%i:build-@\nBuild", "%w:build-@\nReview"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -311,7 +311,7 @@ def test_launch_multi_prompt_same_segment_template_wait_uses_existing_latest(
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=["%w:build-@\n%i:build-@\nDo work"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",

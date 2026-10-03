@@ -11,10 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from sase.macro.loader_parsing import LocalXPromptNameError
-from sase.macro.models import UNSET, InputArg, InputChoice, InputType, XPrompt
+from sase.macro.loader_parsing import LocalMacroNameError
+from sase.macro.models import UNSET, InputArg, InputChoice, InputType, Macro
 from sase.macro.prompt_frontmatter import (
-    LOCAL_XPROMPT_SOURCE,
+    LOCAL_MACRO_SOURCE,
     PromptFrontmatter,
 )
 
@@ -196,7 +196,7 @@ def test_tags_round_trip() -> None:
 
 
 def test_tags_are_free_form() -> None:
-    # Ad-hoc prompt tags are not constrained to the xprompt tag enum.
+    # Ad-hoc prompt tags are not constrained to the macro tag enum.
     model = PromptFrontmatter.parse("---\ntags: not_a_real_tag\n---")
     assert model.tags == ["not_a_real_tag"]
 
@@ -304,19 +304,19 @@ def test_enum_input_labeled_choices_round_trip() -> None:
     )
 
 
-# --- xprompts --------------------------------------------------------------
+# --- macros --------------------------------------------------------------
 
 
-def test_simple_xprompt_serializes_as_bare_string() -> None:
+def test_simple_macro_serializes_as_bare_string() -> None:
     model = PromptFrontmatter.parse('---\nxprompts:\n  _rules: "be concise"\n---')
     serialized = model.serialize()
     assert "_rules: be concise" in serialized
     _, reparsed = _round_trip('---\nxprompts:\n  _rules: "be concise"\n---')
-    assert reparsed.xprompts["_rules"].content == "be concise"
-    assert reparsed.xprompts["_rules"].source_path == LOCAL_XPROMPT_SOURCE
+    assert reparsed.macros["_rules"].content == "be concise"
+    assert reparsed.macros["_rules"].source_path == LOCAL_MACRO_SOURCE
 
 
-def test_structured_xprompt_round_trips() -> None:
+def test_structured_macro_round_trips() -> None:
     raw = (
         "---\n"
         "xprompts:\n"
@@ -328,25 +328,25 @@ def test_structured_xprompt_round_trips() -> None:
     )
     model, reparsed = _round_trip(raw)
     assert model == reparsed
-    greet = reparsed.xprompts["_greet"]
+    greet = reparsed.macros["_greet"]
     assert greet.content == "Hello {{ who }}"
     assert greet.description == "greet someone"
     assert [arg.name for arg in greet.inputs] == ["who"]
 
 
-def test_xprompt_multiline_content_round_trips() -> None:
-    xprompt = XPrompt(
+def test_macro_multiline_content_round_trips() -> None:
+    macro_def = Macro(
         name="_multi",
         content="line one\nline two\nline three",
-        source_path=LOCAL_XPROMPT_SOURCE,
+        source_path=LOCAL_MACRO_SOURCE,
     )
-    model = PromptFrontmatter(xprompts={"_multi": xprompt})
+    model = PromptFrontmatter(macros={"_multi": macro_def})
     reparsed = PromptFrontmatter.parse(model.serialize())
-    assert reparsed.xprompts["_multi"].content == "line one\nline two\nline three"
+    assert reparsed.macros["_multi"].content == "line one\nline two\nline three"
 
 
-def test_xprompt_name_must_be_underscore_prefixed() -> None:
-    with pytest.raises(LocalXPromptNameError):
+def test_macro_name_must_be_underscore_prefixed() -> None:
+    with pytest.raises(LocalMacroNameError):
         PromptFrontmatter.parse('---\nxprompts:\n  rules: "no underscore"\n---')
 
 
@@ -370,13 +370,13 @@ def test_remove_input_reports_presence() -> None:
     assert model.get_input("svc") is None
 
 
-def test_set_and_remove_xprompt() -> None:
+def test_set_and_remove_macro() -> None:
     model = PromptFrontmatter()
-    model.set_xprompt(XPrompt(name="_a", content="x"))
-    assert model.get_xprompt("_a") is not None
-    assert model.remove_xprompt("_a") is True
-    assert model.remove_xprompt("_a") is False
-    assert model.get_xprompt("_a") is None
+    model.set_macro(Macro(name="_a", content="x"))
+    assert model.get_macro("_a") is not None
+    assert model.remove_macro("_a") is True
+    assert model.remove_macro("_a") is False
+    assert model.get_macro("_a") is None
 
 
 def test_present_fields_in_canonical_order() -> None:

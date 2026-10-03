@@ -88,7 +88,7 @@ def main() -> int:
     exit_code = 1
     error_summary: str | None = None
     error_traceback_str: str | None = None
-    submitted_xprompt: str | None = None
+    submitted_prompt: str | None = None
     workflow: CrsWorkflow | None = None
     start_time = time.time()
 
@@ -138,7 +138,7 @@ def main() -> int:
             vcs_type=vcs_type,
         )
         workflow_succeeded = workflow.run()
-        submitted_xprompt = workflow.submitted_xprompt
+        submitted_prompt = workflow.submitted_prompt
 
         if not workflow_succeeded:
             print("CRS workflow failed")
@@ -154,8 +154,8 @@ def main() -> int:
         exit_code = 1
         error_summary = f"{type(e).__qualname__}: {e}"
         error_traceback_str = tb_mod.format_exc()
-        if workflow is not None and submitted_xprompt is None:
-            submitted_xprompt = workflow.submitted_xprompt
+        if workflow is not None and submitted_prompt is None:
+            submitted_prompt = workflow.submitted_prompt
 
     finally:
         elapsed = time.time() - start_time
@@ -202,7 +202,7 @@ def main() -> int:
                 duration=duration,
                 error_summary=error_summary,
                 error_traceback=error_traceback_str,
-                submitted_xprompt=submitted_xprompt,
+                submitted_prompt=submitted_prompt,
                 output_path=output_log_path,
             )
 

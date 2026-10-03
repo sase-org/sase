@@ -24,7 +24,7 @@ from ._parsing import (
 
 @dataclass(frozen=True, slots=True)
 class RetiredDirectiveUsage:
-    """One retired directive syntax occurrence in an xprompt definition."""
+    """One retired directive syntax occurrence in a macro definition."""
 
     line: int
     source: str

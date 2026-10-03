@@ -32,11 +32,11 @@ from sase.config.core import load_merged_config
 from sase.macro.jinja_assist import JinjaScope
 from sase.macro.jinja_inspect import undeclared_variables
 from sase.macro.loader_parsing import (
-    LocalXPromptNameError,
-    parse_local_xprompt_entries,
+    LocalMacroNameError,
+    parse_local_macro_entries,
 )
-from sase.macro.models import InputArg, InputType, XPrompt
-from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+from sase.macro.models import InputArg, InputType, Macro
+from sase.macro.prompt_frontmatter import LOCAL_MACRO_SOURCE
 from sase.macro.raw_placeholders import (
     placeholder_input_names,
     raw_placeholder_fields,
@@ -148,8 +148,8 @@ def validate_local_xprompt_name(name: str, used_names: set[str]) -> str:
     if not name:
         return "name is required"
     try:
-        parse_local_xprompt_entries({name: ""}, source_path=LOCAL_XPROMPT_SOURCE)
-    except LocalXPromptNameError as exc:
+        parse_local_macro_entries({name: ""}, source_path=LOCAL_MACRO_SOURCE)
+    except LocalMacroNameError as exc:
         return str(exc)
     if not _NAME_RE.fullmatch(name):
         return "name must be a valid identifier"
@@ -192,21 +192,21 @@ def infer_local_xprompt_inputs(body: str) -> _PlaceholderArgConversion | None:
     )
 
 
-def build_local_xprompt(name: str, body: str, inputs: list[InputArg]) -> XPrompt:
+def build_local_xprompt(name: str, body: str, inputs: list[InputArg]) -> Macro:
     """Build the local :class:`XPrompt` stored under the prompt's ``xprompts:``.
 
     Stamps :data:`LOCAL_XPROMPT_SOURCE` so the result compares equal to a helper
     the launch path would parse out of the same frontmatter.
     """
-    return XPrompt(
+    return Macro(
         name=name,
         content=body,
         inputs=list(inputs),
-        source_path=LOCAL_XPROMPT_SOURCE,
+        source_path=LOCAL_MACRO_SOURCE,
     )
 
 
-def local_xprompt_invocation_skeleton(xprompt: XPrompt) -> str:
+def local_xprompt_invocation_skeleton(xprompt: Macro) -> str:
     """Return the snippet skeleton that invokes *xprompt* in a prompt pane.
 
     With no inputs this is the bare ``#_name`` reference; with inputs it is a

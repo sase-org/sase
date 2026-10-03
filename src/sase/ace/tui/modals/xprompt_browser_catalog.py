@@ -44,7 +44,7 @@ def load_browser_items(
     for name, workflow in prompts.items():
         source_path = workflow.source_path
         category, display_path, is_editable = source_classifier(source_path)
-        item_type = "xprompt" if workflow.is_simple_xprompt() else "workflow"
+        item_type = "xprompt" if workflow.is_simple_macro() else "workflow"
         kind = workflow_kind_value(workflow)
         items.append(
             BrowserItem(

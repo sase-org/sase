@@ -1,4 +1,4 @@
-"""Tests for composing, nesting, and qualifying xprompt swarms."""
+"""Tests for composing, nesting, and qualifying macro swarms."""
 
 from __future__ import annotations
 
@@ -7,27 +7,27 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
+from sase.agent.macro_swarm import expand_macro_swarms_with_metadata
 from sase.macro.models import InputArg, InputType
 
 from tests._macro_swarm_helpers import (
-    expand_xprompt_swarms,
+    expand_macro_swarms,
     patch_catalog,
     xp,
 )
 
 
-def test_multiple_xprompt_swarm_references_expand_in_document_order() -> None:
+def test_multiple_macro_swarm_references_expand_in_document_order() -> None:
     catalog = {
         "a": xp("a", "a1\n---\na2"),
         "b": xp("b", "b1\n---\nb2"),
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["Use #a then #b after"])
+        out = expand_macro_swarms(["Use #a then #b after"])
     assert out == ["Use a1", "a2", "b1", "b2"]
 
 
-def test_multiple_xprompt_swarm_references_keep_distinct_args_and_groups() -> None:
+def test_multiple_macro_swarm_references_keep_distinct_args_and_groups() -> None:
     catalog = {
         "a": xp(
             "a",
@@ -41,7 +41,7 @@ def test_multiple_xprompt_swarm_references_keep_distinct_args_and_groups() -> No
         ),
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms_with_metadata(
+        out = expand_macro_swarms_with_metadata(
             ["Start #a(foo) then #b(mode=bar) done"]
         )
 
@@ -57,7 +57,7 @@ def test_multiple_xprompt_swarm_references_keep_distinct_args_and_groups() -> No
         "xprompt:b:1",
         "xprompt:b:1",
     ]
-    assert [record.swarm_xprompts for record in out] == [
+    assert [record.swarm_macros for record in out] == [
         ("a",),
         ("a",),
         ("b",),
@@ -65,31 +65,31 @@ def test_multiple_xprompt_swarm_references_keep_distinct_args_and_groups() -> No
     ]
 
 
-def test_three_xprompt_swarm_references_expand_sequentially() -> None:
+def test_three_macro_swarm_references_expand_sequentially() -> None:
     catalog = {
         "a": xp("a", "a1\n---\n"),
         "b": xp("b", "b1\n---\n"),
         "c": xp("c", "c1\n---\n"),
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["Lead #a between #b and #c tail"])
+        out = expand_macro_swarms(["Lead #a between #b and #c tail"])
     assert out == ["Lead a1", "b1", "c1"]
 
 
-def test_multiple_xprompt_swarm_references_obey_depth_cap() -> None:
+def test_multiple_macro_swarm_references_obey_depth_cap() -> None:
     catalog = {
         "a": xp("a", "#a\n---\na2"),
         "b": xp("b", "b1\n---\nb2"),
     }
     with patch_catalog(catalog):
         with pytest.raises(ValueError, match="exceeded max depth"):
-            expand_xprompt_swarms(["#a then #b"], max_depth=1)
+            expand_macro_swarms(["#a then #b"], max_depth=1)
 
 
-def test_expand_inline_ordinary_xprompt_inside_other_xprompt_body_no_resplit() -> None:
+def test_expand_inline_ordinary_macro_inside_other_macro_body_no_resplit() -> None:
     """If ordinary #b appears inline inside #a's body, no re-split.
 
-    The inner xprompt reference survives as text in one of the outer's segments
+    The inner macro reference survives as text in one of the outer's segments
     and gets passed through unchanged — the agent runner expands it later.
     """
     catalog = {
@@ -97,32 +97,32 @@ def test_expand_inline_ordinary_xprompt_inside_other_xprompt_body_no_resplit() -
         "inner": xp("inner", "x"),
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!outer"])
+        out = expand_macro_swarms(["#!outer"])
     assert len(out) == 3
     assert out[0] == "first"
     assert "#inner" in out[1]
     assert out[2] == "third"
 
 
-def test_expand_inline_multi_agent_inside_other_xprompt_body_embeds() -> None:
-    """A real inline reference to an xprompt swarm is expanded recursively."""
+def test_expand_inline_multi_agent_inside_other_macro_body_embeds() -> None:
+    """A real inline reference to a macro swarm is expanded recursively."""
     catalog = {
         "outer": xp("outer", "first\n---\nprose with #inner here\n---\nthird"),
         "inner": xp("inner", "x\n---\ny"),
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!outer"])
+        out = expand_macro_swarms(["#!outer"])
     assert out == ["first", "prose with x here", "y", "third"]
 
 
 def test_expand_recursive_standalone_reference() -> None:
-    """Xprompt swarm that references another xprompt swarm as a sole segment."""
+    """Macro swarm that references another macro swarm as a sole segment."""
     catalog = {
         "outer": xp("outer", "before\n---\n#!inner\n---\nafter"),
         "inner": xp("inner", "x1\n---\nx2"),
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!outer"])
+        out = expand_macro_swarms(["#!outer"])
     assert out == ["before", "x1", "x2", "after"]
 
 
@@ -132,17 +132,17 @@ def test_expand_recursive_bare_reference() -> None:
         "inner": xp("inner", "x1\n---\nx2"),
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!outer"])
+        out = expand_macro_swarms(["#!outer"])
     assert out == ["before", "x1", "x2", "after"]
 
 
-def test_nested_xprompt_swarm_metadata_records_outer_to_inner_chain() -> None:
+def test_nested_macro_swarm_metadata_records_outer_to_inner_chain() -> None:
     catalog = {
         "outer": xp("outer", "outer first\n---\n#!inner"),
         "inner": xp("inner", "inner first\n---\ninner second"),
     }
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms_with_metadata(["#!outer"])
+        out = expand_macro_swarms_with_metadata(["#!outer"])
 
     assert [record.prompt for record in out] == [
         "outer first",
@@ -154,7 +154,7 @@ def test_nested_xprompt_swarm_metadata_records_outer_to_inner_chain() -> None:
         "xprompt:outer:0",
         "xprompt:outer:0",
     ]
-    assert [record.swarm_xprompts for record in out] == [
+    assert [record.swarm_macros for record in out] == [
         ("outer",),
         ("outer", "inner"),
         ("outer", "inner"),
@@ -162,11 +162,11 @@ def test_nested_xprompt_swarm_metadata_records_outer_to_inner_chain() -> None:
 
 
 def test_expand_separator_inside_fenced_block_in_body() -> None:
-    """--- inside fenced code blocks inside the xprompt body is not a separator."""
+    """--- inside fenced code blocks inside the macro body is not a separator."""
     body = "intro\n```\ncode\n---\ndata\n```\n---\nreal split"
     catalog = {"x": xp("x", body)}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["#!x"])
+        out = expand_macro_swarms(["#!x"])
     assert len(out) == 2
     assert "```" in out[0]
     assert out[1] == "real split"
@@ -175,7 +175,7 @@ def test_expand_separator_inside_fenced_block_in_body() -> None:
 def test_expand_leading_directives_attach_to_first_subsegment() -> None:
     catalog = {"x": xp("x", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["%id:custom\n#!x"])
+        out = expand_macro_swarms(["%id:custom\n#!x"])
     assert out[0] == "%id:custom\na"
     assert out[1] == "b"
     assert out[2] == "c"
@@ -186,19 +186,19 @@ def test_shared_group_counter_keeps_invocations_distinct_across_calls() -> None:
 
     Regression test for the ``segment_extra_env`` launch path, which expands
     one segment per call: without a shared counter the per-call counter reset
-    to 0 and two invocations of the same xprompt merged into one template
+    to 0 and two invocations of the same macro merged into one template
     group (and thus one shared name namespace).
     """
     catalog = {"two": xp("two", "phase A\n---\nphase B")}
     shared_counter = count()
     shared_qualification_counter = count()
     with patch_catalog(catalog):
-        first = expand_xprompt_swarms_with_metadata(
+        first = expand_macro_swarms_with_metadata(
             ["#!two"],
             group_counter=shared_counter,
             qualification_counter=shared_qualification_counter,
         )
-        second = expand_xprompt_swarms_with_metadata(
+        second = expand_macro_swarms_with_metadata(
             ["#!two"],
             group_counter=shared_counter,
             qualification_counter=shared_qualification_counter,
@@ -232,7 +232,7 @@ def test_swarm_qualifies_one_key_consistently_across_segments() -> None:
         patch_catalog(catalog),
         patch("sase.core.time.generate_timestamp", return_value="260729_093000"),
     ):
-        out = expand_xprompt_swarms(["#!swarm"])
+        out = expand_macro_swarms(["#!swarm"])
 
     marker = "{@swarm.260729.093000.0.1!}"
     assert out == [
@@ -248,7 +248,7 @@ def test_two_swarm_invocations_get_distinct_qualified_keys() -> None:
         patch_catalog(catalog),
         patch("sase.core.time.generate_timestamp", return_value="260729_093000"),
     ):
-        out = expand_xprompt_swarms(["#!swarm", "#!swarm"])
+        out = expand_macro_swarms(["#!swarm", "#!swarm"])
 
     assert out == [
         "%id:r.{@swarm.260729.093000.0.1!}.a",
@@ -281,7 +281,7 @@ def test_swarm_leaves_qualified_bare_and_protected_markers_untouched() -> None:
         patch_catalog(catalog),
         patch("sase.core.time.generate_timestamp", return_value="260729_093000"),
     ):
-        out = expand_xprompt_swarms(["#!swarm"])
+        out = expand_macro_swarms(["#!swarm"])
 
     assert out == [
         ("%id:r.{@x!}.a\nBare r.@.a\n```\n%id:r.{@fenced}.a\n```"),
@@ -310,7 +310,7 @@ def test_nested_swarms_use_distinct_keys_unless_already_qualified() -> None:
         patch_catalog(catalog),
         patch("sase.core.time.generate_timestamp", return_value="260729_093000"),
     ):
-        out = expand_xprompt_swarms(["#!outer"])
+        out = expand_macro_swarms(["#!outer"])
 
     outer = "{@outer.260729.093000.0.1!}"
     inner = "{@inner.260729.093000.1.1!}"

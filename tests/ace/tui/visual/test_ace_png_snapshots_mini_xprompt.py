@@ -439,7 +439,7 @@ async def test_mini_xprompt_save_diff_png_snapshot(
     patch_startup_loaders(monkeypatch)
     state = MiniXPromptSaveConfirmState(
         name="review",
-        display_path="~/sase/xprompts/review.md",
+        display_path="~/sase/macros/review.md",
         body="Review the changed files.\n\n- correctness\n- tests\n- risks",
         frontmatter="---\ndescription: Updated focused review\n---",
         target_format=SaveTargetFormat.MARKDOWN,

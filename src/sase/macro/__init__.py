@@ -1,4 +1,4 @@
-"""XPrompt system for typed prompt templates with argument validation.
+"""Macro system for typed prompt templates with argument validation.
 
 This module provides a replacement for the legacy snippet system, adding:
 - Markdown files with YAML front matter for defining input arguments
@@ -10,25 +10,25 @@ This module provides a replacement for the legacy snippet system, adding:
 
 from ._parsing import (
     DEFAULT_VCS_WORKFLOW_PREFIX,
-    XPromptReference,
-    XPromptReferenceArgKind,
-    XPromptReferenceMarker,
-    escape_for_xprompt,
+    MacroReference,
+    MacroReferenceArgKind,
+    MacroReferenceMarker,
+    escape_for_macro,
     extract_project_from_vcs_tag,
     extract_vcs_workflow_tag,
     find_vcs_workflow_tag,
     find_vcs_workflow_tag_prepend_offset,
     find_vcs_workflow_tag_span,
-    iter_xprompt_references,
+    iter_macro_references,
     normalize_default_vcs_workflow,
     normalize_default_vcs_workflow_segment,
-    normalize_launch_xprompt_at_refs,
+    normalize_launch_macro_at_refs,
     parse_workflow_reference,
     replace_ref_in_vcs_tag,
     replace_vcs_workflow_tags,
     strip_hitl_suffix,
     strip_vcs_workflow_tag,
-    xprompt_reference_from_match,
+    macro_reference_from_match,
 )
 from .alt_inspect import AltSpan
 from .directives import PromptDirectives, extract_prompt_directives
@@ -66,19 +66,19 @@ from .loader import (
     get_all_project_local_prompts,
     get_all_prompts,
     get_all_workflows,
-    get_all_xprompts,
+    get_all_macros,
     get_known_project_workspaces,
-    get_xprompt_or_workflow,
-    load_project_local_xprompts,
+    get_macro_or_workflow,
+    load_project_local_macros,
 )
 from .models import (
     InputArg,
     InputType,
     OutputSpec,
-    XPrompt,
-    XPromptValidationError,
+    Macro,
+    MacroValidationError,
     create_anonymous_workflow,
-    xprompt_to_workflow,
+    macro_to_workflow,
 )
 from .output_validation import (
     OutputValidationError,
@@ -90,15 +90,15 @@ from .output_validation import (
 )
 from ._trace import ExpansionRecord, ExpansionTrace, format_trace, print_trace
 from .processor import (
-    LAUNCH_DEFERRED_XPROMPT_NAMES,
+    LAUNCH_DEFERRED_MACRO_NAMES,
     is_jinja2_template,
-    prompt_may_reference_xprompt,
-    process_xprompt_references,
-    process_xprompt_references_with_catalog,
+    prompt_may_reference_macro,
+    process_macro_references,
+    process_macro_references_with_catalog,
     render_toplevel_jinja2,
-    resolve_xprompt_aliases,
+    resolve_macro_aliases,
 )
-from .used_macros import collect_used_xprompts, write_used_xprompts
+from .used_macros import collect_used_macros, write_used_macros
 from .workflow_runner import (
     WorkflowResult,
     execute_workflow,
@@ -125,13 +125,13 @@ __all__ = [
     "InputArg",
     "InputType",
     "OutputSpec",
-    "XPromptReference",
-    "XPromptReferenceArgKind",
-    "XPromptReferenceMarker",
-    "XPrompt",
-    "XPromptValidationError",
+    "MacroReference",
+    "MacroReferenceArgKind",
+    "MacroReferenceMarker",
+    "Macro",
+    "MacroValidationError",
     "create_anonymous_workflow",
-    "xprompt_to_workflow",
+    "macro_to_workflow",
     # Alt inspection
     "AltSpan",
     # Jinja inspection
@@ -145,7 +145,7 @@ __all__ = [
     "tokenize",
     "undeclared_variables",
     "unknown_variables",
-    # Jinja engine adapter (single source of truth with the xprompt LSP)
+    # Jinja engine adapter (single source of truth with the macro LSP)
     "JinjaAvailability",
     "JinjaCatalog",
     "JinjaCatalogFilter",
@@ -173,28 +173,28 @@ __all__ = [
     "get_all_project_local_prompts",
     "get_all_prompts",
     "get_all_workflows",
-    "get_all_xprompts",
+    "get_all_macros",
     "get_known_project_workspaces",
-    "get_xprompt_or_workflow",
-    "load_project_local_xprompts",
+    "get_macro_or_workflow",
+    "load_project_local_macros",
     # Parsing
     "DEFAULT_VCS_WORKFLOW_PREFIX",
-    "escape_for_xprompt",
+    "escape_for_macro",
     "extract_project_from_vcs_tag",
     "extract_vcs_workflow_tag",
     "find_vcs_workflow_tag",
     "find_vcs_workflow_tag_prepend_offset",
     "find_vcs_workflow_tag_span",
-    "iter_xprompt_references",
+    "iter_macro_references",
     "normalize_default_vcs_workflow",
     "normalize_default_vcs_workflow_segment",
-    "normalize_launch_xprompt_at_refs",
+    "normalize_launch_macro_at_refs",
     "parse_workflow_reference",
     "replace_ref_in_vcs_tag",
     "replace_vcs_workflow_tags",
     "strip_hitl_suffix",
     "strip_vcs_workflow_tag",
-    "xprompt_reference_from_match",
+    "macro_reference_from_match",
     # Directives
     "PromptDirectives",
     "extract_prompt_directives",
@@ -204,19 +204,19 @@ __all__ = [
     "format_trace",
     "print_trace",
     # Processor
-    "LAUNCH_DEFERRED_XPROMPT_NAMES",
+    "LAUNCH_DEFERRED_MACRO_NAMES",
     "WorkflowResult",
     "execute_workflow",
     "expand_workflow_for_embedding",
     "is_jinja2_template",
     "is_workflow_reference",
-    "prompt_may_reference_xprompt",
-    "process_xprompt_references",
-    "process_xprompt_references_with_catalog",
+    "prompt_may_reference_macro",
+    "process_macro_references",
+    "process_macro_references_with_catalog",
     "render_toplevel_jinja2",
-    "resolve_xprompt_aliases",
-    "collect_used_xprompts",
-    "write_used_xprompts",
+    "resolve_macro_aliases",
+    "collect_used_macros",
+    "write_used_macros",
     # Workflow models
     "StepState",
     "StepStatus",

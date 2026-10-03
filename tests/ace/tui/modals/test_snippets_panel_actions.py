@@ -156,7 +156,7 @@ def test_delete_subject_lists_backlinks_and_reveal() -> None:
         kind="xprompt",
         path="/tmp/xprompt.md",
         writable=False,
-        xprompt_name="todo",
+        macro_name="todo",
     )
     winning = snippet_entry(
         "todo",
@@ -241,7 +241,7 @@ async def test_edit_on_xprompt_opens_source(
         kind="xprompt",
         path="/tmp/helper.md",
         writable=False,
-        xprompt_name="helper",
+        macro_name="helper",
     )
     install_fixed_load(
         monkeypatch, (ref,), {"sase": _snapshot_with_dest(ref, (entry,))}

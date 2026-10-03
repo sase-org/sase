@@ -402,7 +402,7 @@ def _compact_display_path(plan: PlanShowPlan) -> str:
 
 
 def print_miss(miss: PlanShowMiss, *, file: TextIO | None = None) -> None:
-    """Print the ``sase xprompt show``-shaped miss to stderr (or *file*)."""
+    """Print the ``sase macro show``-shaped miss to stderr (or *file*)."""
     out = file or sys.stderr
     header = miss.reason if miss.reason is not None else f"unknown plan: {miss.target}"
     print(header, file=out)

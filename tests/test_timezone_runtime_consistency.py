@@ -261,7 +261,7 @@ def test_provider_disable_expiry_uses_configured_tz(tz_divergence: None) -> None
     assert "2026-07-03 10:24:49 UTC" not in rendered
 
 
-def test_xprompt_catalog_generated_at_uses_configured_tz(tz_divergence: None) -> None:
+def test_macro_catalog_generated_at_uses_configured_tz(tz_divergence: None) -> None:
     from sase.macro._catalog_render import compute_stats
 
     stats = compute_stats([])

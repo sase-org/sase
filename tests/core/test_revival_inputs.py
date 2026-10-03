@@ -17,13 +17,13 @@ def _write_inputs(
     *,
     raw: str = "raw prompt\n",
     submitted: str | None = "submitted prompt\n",
-    xprompts: str | None = '[{"name": "plan"}]\n',
+    macros: str | None = '[{"name": "plan"}]\n',
 ) -> None:
     (artifacts_dir / "raw_xprompt.md").write_text(raw, encoding="utf-8")
     if submitted is not None:
         (artifacts_dir / "submitted_xprompt.md").write_text(submitted, encoding="utf-8")
-    if xprompts is not None:
-        (artifacts_dir / "xprompts.json").write_text(xprompts, encoding="utf-8")
+    if macros is not None:
+        (artifacts_dir / "xprompts.json").write_text(macros, encoding="utf-8")
 
 
 def test_capture_copies_all_launch_boundary_files(
@@ -55,7 +55,7 @@ def test_capture_skips_optional_files_that_are_absent(
     artifacts = Path(
         create_artifacts_directory("ace-run", "proj", timestamp="260903_120100")
     )
-    _write_inputs(artifacts, submitted=None, xprompts=None)
+    _write_inputs(artifacts, submitted=None, macros=None)
 
     archive = capture_revival_inputs(artifacts)
 
@@ -97,7 +97,7 @@ def test_unparsed_artifacts_dir_uses_stable_digest_fallback(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     artifacts = tmp_path / "scratch-run"
     artifacts.mkdir()
-    _write_inputs(artifacts, submitted=None, xprompts=None)
+    _write_inputs(artifacts, submitted=None, macros=None)
 
     first = capture_revival_inputs(artifacts)
     archived = revival_input_file(artifacts, "raw_xprompt.md")
@@ -116,7 +116,7 @@ def test_dismissed_bundle_without_artifacts_dir_uses_timestamp(
     artifacts = Path(
         create_artifacts_directory("ace-run", "proj", timestamp="260903_120300")
     )
-    _write_inputs(artifacts, submitted=None, xprompts=None)
+    _write_inputs(artifacts, submitted=None, macros=None)
     capture_revival_inputs(artifacts)
 
     found = revival_input_file_for_dismissed(

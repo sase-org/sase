@@ -16,12 +16,12 @@ from textual.widgets import Label, Static
 import yaml  # type: ignore[import-untyped]
 
 from sase.ace.tui.widgets.prompt_stack import split_frontmatter
-from sase.macro.config_yaml import generate_xprompt_yaml
+from sase.macro.config_yaml import generate_macro_yaml
 from sase.macro.loader_parsing import parse_yaml_front_matter
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from sase.macro.prompt_frontmatter import PromptFrontmatter
-from sase.macro.save import SaveTargetFormat, build_markdown_xprompt
-from sase.macro.segment_separators import xprompt_has_segment_separators
+from sase.macro.save import SaveTargetFormat, build_markdown_macro
+from sase.macro.segment_separators import macro_has_segment_separators
 
 MiniXPromptSaveConfirmResult = Literal[
     "save",
@@ -277,7 +277,7 @@ def _save_blocker(state: MiniXPromptSaveConfirmState) -> str | None:
         return str(exc)
     if state.target_format is SaveTargetFormat.CONFIG and frontmatter.skill:
         return "Config-backed xprompts cannot declare skill:"
-    if xprompt_has_segment_separators(XPrompt(name=state.name, content=state.body)):
+    if macro_has_segment_separators(Macro(name=state.name, content=state.body)):
         return "Mini-xprompt body contains a top-level --- swarm separator"
     return None
 
@@ -336,7 +336,7 @@ def _existing_preview(state: MiniXPromptSaveConfirmState, markdown: str) -> str:
 def _markdown_preview(frontmatter: str, body: str) -> str:
     if frontmatter.strip():
         return _raw_markdown_xprompt(frontmatter, body)
-    return build_markdown_xprompt(PromptFrontmatter(), body)
+    return build_markdown_macro(PromptFrontmatter(), body)
 
 
 def _raw_markdown_xprompt(frontmatter: str, body: str) -> str:
@@ -356,7 +356,7 @@ def _config_entry_preview(
 ) -> str:
     lines = [
         "xprompts:",
-        *generate_xprompt_yaml(name, [], body, frontmatter=frontmatter),
+        *generate_macro_yaml(name, [], body, frontmatter=frontmatter),
     ]
     return "\n".join(lines) + "\n"
 

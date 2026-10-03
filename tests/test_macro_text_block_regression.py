@@ -10,11 +10,11 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.multi_prompt_reference_directives import extract_static_clan_directive
-from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
-from sase.macro._parsing import iter_xprompt_references, parse_args
+from sase.agent.macro_swarm import expand_macro_swarms_with_metadata
+from sase.macro._parsing import iter_macro_references, parse_args
 from sase.macro.directives import extract_prompt_directives
-from sase.macro.models import InputArg, InputType, XPrompt
-from sase.macro.processor import process_xprompt_references
+from sase.macro.models import InputArg, InputType, Macro
+from sase.macro.processor import process_macro_references
 from sase.macro.unresolved import scan_query_for_unresolved_references
 
 from tests._macro_swarm_helpers import patch_catalog, xp
@@ -50,7 +50,7 @@ def _core_corpus_candidates() -> list[Path]:
     ]
 
 
-def _fixture_xprompt() -> XPrompt:
+def _fixture_macro() -> Macro:
     return xp(
         _FIXTURE_NAME,
         "%clan(research.fixture, tribe=research,\n"
@@ -96,7 +96,7 @@ def test_double_colon_swarm_prose_binds_one_positional_without_text_block_leak()
 ):
     """The failing `#name:: prose with ]] and commas` shape binds as one value."""
     query = _query()
-    refs = iter_xprompt_references(query)
+    refs = iter_macro_references(query)
 
     assert len(refs) == 1
     positional, named = refs[0].parse_arguments()
@@ -108,11 +108,11 @@ def test_double_colon_swarm_prose_binds_one_positional_without_text_block_leak()
 
 def test_double_colon_swarm_clan_summary_survives_inner_marker() -> None:
     """Launch expansion interpolates the payload into `%clan(..., summary=[[...]])`."""
-    catalog = {_FIXTURE_NAME: _fixture_xprompt()}
+    catalog = {_FIXTURE_NAME: _fixture_macro()}
     query = _query()
 
     with patch_catalog(catalog):
-        records = expand_xprompt_swarms_with_metadata([query])
+        records = expand_macro_swarms_with_metadata([query])
 
     assert len(records) == 2
     first = records[0].prompt
@@ -134,10 +134,10 @@ def test_launch_pre_scan_emits_nothing_for_inner_marker_prose(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The launch unresolved-reference pre-scan stays silent on the failing shape."""
-    fixture = _fixture_xprompt()
+    fixture = _fixture_macro()
     catalog = {_FIXTURE_NAME: fixture}
     monkeypatch.setattr(
-        "sase.macro.processor.get_all_xprompts",
+        "sase.macro.processor.get_all_macros",
         lambda *args, **kwargs: catalog,
     )
     monkeypatch.setattr(
@@ -146,7 +146,7 @@ def test_launch_pre_scan_emits_nothing_for_inner_marker_prose(
     )
 
     query = _query()
-    expanded = process_xprompt_references(query, raise_on_error=True)
+    expanded = process_macro_references(query, raise_on_error=True)
     assert _PROSE in expanded
     assert "]]" in expanded
 

@@ -74,8 +74,8 @@ from sase.completion.candidates.catalog_prompts import (
     skill_source_path,
     tag_candidates,
     tag_source_path,
-    xprompt_candidates,
-    xprompt_source_path,
+    macro_candidates,
+    macro_source_path,
 )
 from sase.completion.candidates.catalog_sdd import (
     bead_candidates,
@@ -102,7 +102,7 @@ PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
     ValueKind.PLAN: (plan_candidates, plan_source_path),
     ValueKind.PATCH: (patch_candidates, patch_source_path),
     ValueKind.MEMORY: (memory_candidates, memory_source_path),
-    ValueKind.XPROMPT: (xprompt_candidates, xprompt_source_path),
+    ValueKind.MACRO: (macro_candidates, macro_source_path),
     ValueKind.SKILL: (skill_candidates, skill_source_path),
     ValueKind.PROC: (proc_candidates, proc_source_path),
     ValueKind.MONITOR: (monitor_candidates, monitor_source_path),

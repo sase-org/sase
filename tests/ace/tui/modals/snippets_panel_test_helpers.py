@@ -103,7 +103,7 @@ def snippet_entry(
     outbound: tuple[str, ...] = (),
     inbound: tuple[str, ...] = (),
     calls: tuple[SnippetCall, ...] = (),
-    xprompt_name: str | None = None,
+    macro_name: str | None = None,
     contributions: tuple[SnippetSourceContribution, ...] | None = None,
 ) -> SnippetEntry:
     template = raw if raw is not None else f"{trigger}$0"
@@ -114,7 +114,7 @@ def snippet_entry(
         path=path,
         display_path=path,
         writable=writable,
-        xprompt_name=xprompt_name,
+        macro_name=macro_name,
     )
     return SnippetEntry(
         trigger=trigger,

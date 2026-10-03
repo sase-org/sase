@@ -15,10 +15,10 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.cli_show_palette import SECTION_COLOR
-from sase.macro.cli_show_model import ShowInput, ShowLocalXPrompt, ShowStep
-from sase.macro.highlight import XPromptHighlightRole
+from sase.macro.cli_show_model import ShowInput, ShowLocalMacro, ShowStep
+from sase.macro.highlight import MacroHighlightRole
 from sase.macro.highlight_theme import highlight_theme
-from sase.macro.properties import XPromptProperties, single_line_default
+from sase.macro.properties import MacroProperties, single_line_default
 
 _DEFAULT_MAX_INPUT_ROWS = 6
 _DESCRIPTION_MAX_LINES = 2
@@ -27,7 +27,7 @@ _ENUM_CHOICE_LIMIT = 3
 
 
 def build_properties_band(
-    properties: XPromptProperties,
+    properties: MacroProperties,
     *,
     max_input_rows: int = _DEFAULT_MAX_INPUT_ROWS,
 ) -> RenderableType | None:
@@ -50,7 +50,7 @@ def build_properties_band(
     return Group(*parts)
 
 
-def build_properties_view(properties: XPromptProperties) -> RenderableType:
+def build_properties_view(properties: MacroProperties) -> RenderableType:
     """Render the complete, scrollable properties view: every row, no cap."""
     sections: list[RenderableType] = [_properties_summary(properties)]
     if properties.inputs:
@@ -59,10 +59,10 @@ def build_properties_view(properties: XPromptProperties) -> RenderableType:
         sections.append(
             _inputs_table(properties.inputs, max_input_rows=len(properties.inputs))
         )
-    if properties.local_xprompts:
+    if properties.local_macros:
         sections.append(Rule(style="dim"))
         sections.append(_section_title("LOCAL XPROMPTS"))
-        sections.append(_local_xprompts_table(properties.local_xprompts))
+        sections.append(_local_xprompts_table(properties.local_macros))
     if properties.steps:
         sections.append(Rule(style="dim"))
         sections.append(_section_title("WORKFLOW STEPS"))
@@ -132,7 +132,7 @@ def _enum_marker(choices: tuple[str, ...]) -> str:
     return "one of: " + ", ".join(shown) + suffix
 
 
-def _chips(properties: XPromptProperties) -> str:
+def _chips(properties: MacroProperties) -> str:
     chips: list[str] = []
     if properties.source_bucket:
         chips.append(properties.source_bucket)
@@ -151,8 +151,8 @@ def _chips(properties: XPromptProperties) -> str:
         chips.append("snippet")
     if properties.memory_type:
         chips.append(f"memory · {properties.memory_type}")
-    if properties.local_xprompts:
-        count = len(properties.local_xprompts)
+    if properties.local_macros:
+        count = len(properties.local_macros)
         chips.append(f"{count} local xprompt{'' if count == 1 else 's'}")
     if properties.steps:
         count = len(properties.steps)
@@ -164,7 +164,7 @@ def _chips(properties: XPromptProperties) -> str:
     return " · ".join(chips)
 
 
-def _properties_summary(properties: XPromptProperties) -> RenderableType:
+def _properties_summary(properties: MacroProperties) -> RenderableType:
     table = Table.grid(padding=(0, 2))
     table.add_column(width=2)
     table.add_column(width=12, style="dim", no_wrap=True)
@@ -224,7 +224,7 @@ def _properties_summary(properties: XPromptProperties) -> RenderableType:
     return table
 
 
-def _local_xprompts_table(items: list[ShowLocalXPrompt]) -> RenderableType:
+def _local_xprompts_table(items: list[ShowLocalMacro]) -> RenderableType:
     table = Table.grid(padding=(0, 2))
     table.add_column(style=_role_style("xprompt.invocation_arg"), no_wrap=True)
     table.add_column(style="dim", no_wrap=True)
@@ -263,7 +263,7 @@ def _yes_no(value: bool) -> str:
     return "yes" if value else "no"
 
 
-def _role_style(role: XPromptHighlightRole) -> str:
+def _role_style(role: MacroHighlightRole) -> str:
     return highlight_theme()[role].rich_style
 
 

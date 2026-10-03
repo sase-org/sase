@@ -1,4 +1,4 @@
-"""Command orchestration for ``sase xprompt show``."""
+"""Command orchestration for ``sase macro show``."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from sase.macro.cli_show_resolve import (
 
 
 def handle_show(args: argparse.Namespace) -> int:
-    """Resolve and render one xprompt definition."""
+    """Resolve and render one macro definition."""
     from sase.project_tags import ensure_project_tag_catalog
 
     ensure_project_tag_catalog()

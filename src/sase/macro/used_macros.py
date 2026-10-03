@@ -1,4 +1,4 @@
-"""Capture xprompt references used by an agent prompt."""
+"""Capture macro references used by an agent prompt."""
 
 from __future__ import annotations
 
@@ -12,13 +12,13 @@ from typing import Any, Literal, TypedDict
 from sase.legacy_xprompt_names import MACROS_FILENAME, macros_step_filename
 from sase.macro._literal_zones import literal_zone_ranges
 from sase.macro._parsing import (
-    XPromptReference,
-    iter_xprompt_references,
+    MacroReference,
+    iter_macro_references,
     normalize_vcs_underscore_refs,
 )
-from sase.macro.loader import get_all_workflows, get_all_xprompts
-from sase.macro.models import XPrompt
-from sase.macro.processor import resolve_xprompt_aliases
+from sase.macro.loader import get_all_workflows, get_all_macros
+from sase.macro.models import Macro
+from sase.macro.processor import resolve_macro_aliases
 from sase.macro.workflow_executor_steps_embedded_types import (
     parse_workflow_reference_args,
 )
@@ -28,7 +28,7 @@ SASE_LAUNCH_SWARM_XPROMPTS = "SASE_LAUNCH_SWARM_XPROMPTS"
 SASE_LAUNCH_SWARM_MACROS = "SASE_LAUNCH_SWARM_MACROS"
 
 
-class _UsedXPromptRecord(TypedDict):
+class _UsedMacroRecord(TypedDict):
     name: str
     kind: Literal["workflow", "part", "swarm"]
     positional: list[str]
@@ -37,17 +37,17 @@ class _UsedXPromptRecord(TypedDict):
 
 
 @dataclass(frozen=True)
-class _ScannedXPromptReference:
-    """One launch reference produced by the shared xprompt scan."""
+class _ScannedMacroReference:
+    """One launch reference produced by the shared macro scan."""
 
     raw_ref: str
     name: str
     kind: Literal["workflow", "part", "swarm"] | None
-    item: XPrompt | Workflow | None
-    reference: XPromptReference | None
+    item: Macro | Workflow | None
+    reference: MacroReference | None
 
 
-def _encode_launch_swarm_xprompts(names: Sequence[str]) -> str:
+def _encode_launch_swarm_macros(names: Sequence[str]) -> str:
     """Encode launch-boundary swarm provenance for a child process."""
     return json.dumps(list(names), separators=(",", ":"))
 
@@ -58,14 +58,14 @@ def launch_swarm_env_entries(names: Sequence[str]) -> dict[str, str]:
     Both spellings carry the same value while callers migrate; readers prefer
     the macro spelling.
     """
-    encoded = _encode_launch_swarm_xprompts(names)
+    encoded = _encode_launch_swarm_macros(names)
     return {
         SASE_LAUNCH_SWARM_MACROS: encoded,
         SASE_LAUNCH_SWARM_XPROMPTS: encoded,
     }
 
 
-def decode_launch_swarm_xprompts(
+def decode_launch_swarm_macros(
     environ: Mapping[str, str],
 ) -> list[str] | None:
     """Decode launch-boundary swarm provenance, preferring the macro spelling."""
@@ -88,24 +88,24 @@ def pop_launch_swarm_env(environ: MutableMapping[str, str]) -> None:
     environ.pop(SASE_LAUNCH_SWARM_XPROMPTS, None)
 
 
-def scan_xprompt_references(
+def scan_macro_references(
     raw_prompt: str,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
-    swarm_xprompts: Sequence[str] | None = None,
-) -> list[_ScannedXPromptReference]:
+    extra_macros: dict[str, Macro] | None = None,
+    swarm_macros: Sequence[str] | None = None,
+) -> list[_ScannedMacroReference]:
     """Return known and unknown references using the launch lexical contract.
 
     This is the single scan shared by usage metadata and definition provenance.
     ``raw_ref`` is sliced from the alias-resolved prompt that survives as
-    ``raw_xprompt.md``; VCS underscore normalization is applied only to the
+    ``raw_macro.md``; VCS underscore normalization is applied only to the
     parsing copy so tokens such as ``#gh_sase`` retain their exact spelling.
     """
-    swarm_names = tuple(dict.fromkeys(swarm_xprompts or ()))
+    swarm_names = tuple(dict.fromkeys(swarm_macros or ()))
     if "#" not in raw_prompt and not swarm_names:
         return []
 
-    prompt = resolve_xprompt_aliases(raw_prompt)
+    prompt = resolve_macro_aliases(raw_prompt)
     if "#" not in prompt and not swarm_names:
         return []
 
@@ -113,15 +113,15 @@ def scan_xprompt_references(
     ignored_ranges = literal_zone_ranges(normalized_prompt)
 
     workflows = get_all_workflows()
-    xprompts = get_all_xprompts()
-    if extra_xprompts:
-        xprompts = {**xprompts, **extra_xprompts}
+    macros = get_all_macros()
+    if extra_macros:
+        macros = {**macros, **extra_macros}
 
-    scanned: list[_ScannedXPromptReference] = []
-    for ref in iter_xprompt_references(normalized_prompt):
+    scanned: list[_ScannedMacroReference] = []
+    for ref in iter_macro_references(normalized_prompt):
         if _in_ignored_range(ref.start, ignored_ranges):
             continue
-        resolved = _resolve_reference(ref.name, workflows, xprompts)
+        resolved = _resolve_reference(ref.name, workflows, macros)
         kind, item = resolved if resolved is not None else (None, None)
         raw_ref = prompt[ref.start : ref.end]
         if len(raw_ref) != len(ref.raw):
@@ -130,7 +130,7 @@ def scan_xprompt_references(
             # ever changes.
             raw_ref = ref.raw
         scanned.append(
-            _ScannedXPromptReference(
+            _ScannedMacroReference(
                 raw_ref=raw_ref,
                 name=ref.name,
                 kind=kind,
@@ -140,11 +140,11 @@ def scan_xprompt_references(
         )
 
     swarm_records = [
-        _ScannedXPromptReference(
+        _ScannedMacroReference(
             raw_ref=f"#{name}",
             name=name,
             kind="swarm",
-            item=xprompts.get(name),
+            item=macros.get(name),
             reference=None,
         )
         for name in swarm_names
@@ -158,26 +158,26 @@ def scan_xprompt_references(
     ]
 
 
-def collect_used_xprompts(
+def collect_used_macros(
     raw_prompt: str,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
-    swarm_xprompts: Sequence[str] | None = None,
-) -> list[_UsedXPromptRecord]:
-    """Return known top-level xprompt references from *raw_prompt*.
+    extra_macros: dict[str, Macro] | None = None,
+    swarm_macros: Sequence[str] | None = None,
+) -> list[_UsedMacroRecord]:
+    """Return known top-level macro references from *raw_prompt*.
 
-    The scan uses the shared lexical xprompt reference parser, after applying
+    The scan uses the shared lexical macro reference parser, after applying
     the same alias and VCS-underscore normalization used by expansion. Fenced
-    code blocks and disabled xprompt regions are protected before scanning.
+    code blocks and disabled macro regions are protected before scanning.
     Launch-boundary swarm provenance is prepended and supersedes any lexical
     records with the same name.
     """
-    records: list[_UsedXPromptRecord] = []
+    records: list[_UsedMacroRecord] = []
     seen: set[tuple[str, str, tuple[str, ...], tuple[tuple[str, str], ...]]] = set()
-    for scanned in scan_xprompt_references(
+    for scanned in scan_macro_references(
         raw_prompt,
-        extra_xprompts=extra_xprompts,
-        swarm_xprompts=swarm_xprompts,
+        extra_macros=extra_macros,
+        swarm_macros=swarm_macros,
     ):
         if scanned.kind is None or (scanned.item is None and scanned.kind != "swarm"):
             continue
@@ -217,22 +217,22 @@ def collect_used_xprompts(
     return records
 
 
-def write_used_xprompts(
+def write_used_macros(
     artifacts_dir: str | os.PathLike[str] | None,
     raw_prompt: str,
     step_name: str | None = None,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
-    swarm_xprompts: Sequence[str] | None = None,
+    extra_macros: dict[str, Macro] | None = None,
+    swarm_macros: Sequence[str] | None = None,
     step_only: bool = False,
-) -> list[_UsedXPromptRecord]:
-    """Collect and write xprompt metadata artifacts for *raw_prompt*.
+) -> list[_UsedMacroRecord]:
+    """Collect and write macro metadata artifacts for *raw_prompt*.
 
     The shared ``macros.json`` holds launch/root metadata read by non-step
     agent rows; ``macros_<step>.json`` holds per-step metadata read by
     workflow-child rows. Only the canonical names are written; readers accept
-    the pre-rename ``xprompts.json`` spellings through
-    ``sase.legacy_xprompt_names``.
+    the pre-rename ``macros.json`` spellings through
+    ``sase.legacy_macro_names``.
 
     By default both files are written (the shared file, plus a step file when
     *step_name* is given), overwriting any existing copies. Pass
@@ -242,10 +242,10 @@ def write_used_xprompts(
     file exists yet, a ``step_only`` write still seeds it so launch paths that
     do not capture usage at their own boundary keep populating root rows.
     """
-    records = collect_used_xprompts(
+    records = collect_used_macros(
         raw_prompt,
-        extra_xprompts=extra_xprompts,
-        swarm_xprompts=swarm_xprompts,
+        extra_macros=extra_macros,
+        swarm_macros=swarm_macros,
     )
     if not records or artifacts_dir is None:
         return records
@@ -256,8 +256,8 @@ def write_used_xprompts(
 
     if step_name:
         step_records = (
-            collect_used_xprompts(raw_prompt, extra_xprompts=extra_xprompts)
-            if swarm_xprompts
+            collect_used_macros(raw_prompt, extra_macros=extra_macros)
+            if swarm_macros
             else records
         )
         if step_records:
@@ -273,14 +273,14 @@ def write_used_xprompts(
 def _resolve_reference(
     name: str,
     workflows: dict[str, Workflow],
-    xprompts: dict[str, XPrompt],
-) -> tuple[Literal["workflow"], Workflow] | tuple[Literal["part"], XPrompt] | None:
+    macros: dict[str, Macro],
+) -> tuple[Literal["workflow"], Workflow] | tuple[Literal["part"], Macro] | None:
     # Workflows intentionally win on collision, matching the embedded workflow
     # expansion contract for names present in both catalogs.
     if name in workflows:
         return "workflow", workflows[name]
-    if name in xprompts:
-        return "part", xprompts[name]
+    if name in macros:
+        return "part", macros[name]
     return None
 
 
@@ -288,6 +288,6 @@ def _in_ignored_range(position: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start <= position < end for start, end in ranges)
 
 
-def _write_json(path: Path, records: list[_UsedXPromptRecord]) -> None:
+def _write_json(path: Path, records: list[_UsedMacroRecord]) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(records, f, indent=2)

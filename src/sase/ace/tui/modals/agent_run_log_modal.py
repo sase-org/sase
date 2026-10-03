@@ -437,7 +437,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append(f"{agent.error_message}\n", style="red")
 
         # AGENT XPROMPT section
-        xprompt_content = agent.get_raw_xprompt_content()
+        xprompt_content = agent.get_raw_prompt_content()
         if xprompt_content:
             text.append("\n")
             text.append("\u2500" * 40 + "\n", style="dim")

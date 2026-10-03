@@ -14,10 +14,10 @@ from sase.macro.catalog import (
     StructuredCatalogProjection,
     StructuredCatalogStats,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
-def test_parser_accepts_editor_helper_bridge_xprompt_catalog() -> None:
+def test_parser_accepts_editor_helper_bridge_macro_catalog() -> None:
     args = create_parser().parse_args(["editor", "helper-bridge", "xprompt-catalog"])
 
     assert args.command == "editor"
@@ -25,11 +25,11 @@ def test_parser_accepts_editor_helper_bridge_xprompt_catalog() -> None:
     assert args.editor_helper_bridge_subcommand == "xprompt-catalog"
 
 
-def test_editor_helper_bridge_aliases_xprompt_catalog(
+def test_editor_helper_bridge_aliases_macro_catalog(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.integrations.mobile_helpers.build_structured_xprompts_catalog",
+        "sase.integrations.mobile_helpers.build_structured_macros_catalog",
         lambda **_kwargs: StructuredCatalogProjection(
             entries=[
                 StructuredCatalogEntry(
@@ -85,7 +85,7 @@ def test_editor_helper_bridge_carries_the_provider_skill_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.integrations.mobile_helpers.build_structured_xprompts_catalog",
+        "sase.integrations.mobile_helpers.build_structured_macros_catalog",
         lambda **_kwargs: StructuredCatalogProjection(
             entries=[
                 StructuredCatalogEntry(
@@ -103,7 +103,7 @@ def test_editor_helper_bridge_carries_the_provider_skill_name(
                     inputs=[],
                     is_skill=True,
                     content_preview="Plan preview",
-                    source_path_display="xprompts/skills/sase_plan.md",
+                    source_path_display="macros/skills/sase_plan.md",
                     skill_name="sase_plan",
                 )
             ],
@@ -145,27 +145,27 @@ def test_editor_helper_bridge_outputs_definition_path_for_real_catalog_file(
     source = tmp_path / "workspace" / ".xprompts" / "jump.md"
     source.parent.mkdir(parents=True)
     source.write_text("Jump target", encoding="utf-8")
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="jump",
         content="Jump target",
         source_path=str(source),
     )
 
     monkeypatch.setattr(
-        "sase.macro.catalog.get_all_xprompts", lambda: {"jump": xprompt}
+        "sase.macro.catalog.get_all_macros", lambda: {"jump": macro_def}
     )
     monkeypatch.setattr("sase.macro.catalog.get_all_workflows", lambda: {})
     monkeypatch.setattr("sase.macro.catalog.get_known_project_workspaces", lambda: {})
     monkeypatch.setattr(
-        "sase.macro.catalog.load_project_local_xprompts",
+        "sase.macro.catalog.load_project_local_macros",
         lambda _workspace, _project: {},
     )
     monkeypatch.setattr(
-        "sase.macro.catalog.get_sase_package_xprompts_dir",
+        "sase.macro.catalog.get_sase_package_macros_dir",
         lambda: tmp_path / "package_xprompts",
     )
     monkeypatch.setattr(
-        "sase.macro.catalog.get_sase_package_default_xprompts_dir",
+        "sase.macro.catalog.get_sase_package_default_macros_dir",
         lambda: tmp_path / "default_xprompts",
     )
 

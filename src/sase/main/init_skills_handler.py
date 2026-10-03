@@ -36,16 +36,16 @@ from sase.main._init_skills_runtime import InitSkillsRuntime
 from sase.main._init_skills_sources import (
     all_providers as _all_providers_impl,
     provider_context as _provider_context_impl,
-    select_skill_xprompts as _select_skill_xprompts,
+    select_skill_macros as _select_skill_macros,
     skill_deploy_subpaths as _skill_deploy_subpaths_impl,
     target_path_for_subpath as _target_path_for_subpath_impl,
 )
 from sase.main._init_skills_source_integrity import skill_source_integrity_error
 from sase.main.init_plan import InitAction, InitOperation, InitPlan
-from sase.macro.load_issues import collect_xprompt_load_issues
-from sase.macro.loader import get_all_xprompts, load_skills_from_package
+from sase.macro.load_issues import collect_macro_load_issues
+from sase.macro.loader import get_all_macros, load_skills_from_package
 from sase.macro.loader_skills import SKILL_PLACEMENT_ISSUE_KIND
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 _COMMAND_LABEL = "skill init"
 _PRETTIER_WARNING = (
@@ -140,12 +140,12 @@ def _get_target_paths(provider: str, skill_name: str, use_chezmoi: bool) -> list
     return [primary, *extras]
 
 
-def _load_skill_sources() -> tuple[list[XPrompt], tuple[str, ...]]:
+def _load_skill_sources() -> tuple[list[Macro], tuple[str, ...]]:
     """Return installable skill sources and placement rule violations."""
-    with collect_xprompt_load_issues() as issues:
-        selected = _select_skill_xprompts(
+    with collect_macro_load_issues() as issues:
+        selected = _select_skill_macros(
             dict(load_skills_from_package()),
-            get_all_xprompts(project=""),
+            get_all_macros(project=""),
         )
     placement_errors = tuple(
         dict.fromkeys(
@@ -160,7 +160,7 @@ def prettier_available() -> bool:
     return _prettier_available()
 
 
-def load_skill_sources() -> tuple[list[XPrompt], tuple[str, ...]]:
+def load_skill_sources() -> tuple[list[Macro], tuple[str, ...]]:
     """Return installable skill sources plus placement rule violations."""
     return _load_skill_sources()
 
@@ -196,7 +196,7 @@ def _format_skill_outputs(outputs: Sequence[str], *, use_prettier: bool) -> list
 
 
 def _render_skill_targets(
-    skill_xprompts: list[XPrompt],
+    skill_macros: list[Macro],
     *,
     provider_filter: str | None,
     use_chezmoi: bool,
@@ -204,7 +204,7 @@ def _render_skill_targets(
 ) -> list[RenderedSkillTarget]:
     """Render every selected skill/provider target without writing files."""
     return _render_skill_targets_impl(
-        skill_xprompts,
+        skill_macros,
         provider_filter=provider_filter,
         use_chezmoi=use_chezmoi,
         get_target_providers=_get_target_providers,
@@ -217,14 +217,14 @@ def _render_skill_targets(
 
 
 def _render_skill_deployment_targets(
-    skill_xprompts: list[XPrompt],
+    skill_macros: list[Macro],
     *,
     provider_filter: str | None,
     use_prettier: bool,
 ) -> list[RenderedSkillDeploymentTarget]:
     """Render selected generated skill targets paired for source/home deploy."""
     return _render_skill_deployment_targets_impl(
-        skill_xprompts,
+        skill_macros,
         provider_filter=provider_filter,
         get_target_providers=_get_target_providers,
         get_provider_context=_provider_context,
@@ -236,7 +236,7 @@ def _render_skill_deployment_targets(
 
 
 def render_skill_targets(
-    skill_xprompts: list[XPrompt],
+    skill_macros: list[Macro],
     *,
     provider_filter: str | None,
     use_chezmoi: bool,
@@ -244,7 +244,7 @@ def render_skill_targets(
 ) -> list[RenderedSkillTarget]:
     """Render every selected skill/provider target without writing files."""
     return _render_skill_targets(
-        skill_xprompts,
+        skill_macros,
         provider_filter=provider_filter,
         use_chezmoi=use_chezmoi,
         use_prettier=use_prettier,
@@ -252,14 +252,14 @@ def render_skill_targets(
 
 
 def render_skill_deployment_targets(
-    skill_xprompts: list[XPrompt],
+    skill_macros: list[Macro],
     *,
     provider_filter: str | None,
     use_prettier: bool,
 ) -> list[RenderedSkillDeploymentTarget]:
     """Render selected generated skill targets paired for source/home deploy."""
     return _render_skill_deployment_targets(
-        skill_xprompts,
+        skill_macros,
         provider_filter=provider_filter,
         use_prettier=use_prettier,
     )

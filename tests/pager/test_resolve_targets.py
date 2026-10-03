@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.core.macro_skill_definition_facade import (
-    XpromptSkillDefinitionResolution,
+    MacroSkillDefinitionResolution,
 )
 from sase.pager import _resolve_skills
 from sase.pager.link_scan import LinkSpanKind
@@ -117,7 +117,7 @@ def test_copy_text_for_target_returns_artifact_refs_unchanged() -> None:
     )
 
 
-def test_resolve_ref_opens_explicit_xprompt_skill_source(
+def test_resolve_ref_opens_explicit_macro_skill_source(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source = _write(tmp_path / "skills" / "sase_plan.md", "skill source\n")
@@ -128,9 +128,9 @@ def test_resolve_ref_opens_explicit_xprompt_skill_source(
         *,
         project: str | None = None,
         root_dir: Path | None = None,
-    ) -> XpromptSkillDefinitionResolution:
+    ) -> MacroSkillDefinitionResolution:
         calls.append((reference, project, root_dir))
-        return XpromptSkillDefinitionResolution(
+        return MacroSkillDefinitionResolution(
             schema_version=1,
             status="success",
             authored_reference=reference,
@@ -141,7 +141,7 @@ def test_resolve_ref_opens_explicit_xprompt_skill_source(
 
     monkeypatch.setattr(
         _resolve_skills,
-        "resolve_xprompt_skill_definition",
+        "resolve_macro_skill_definition",
         fake_resolve,
     )
 
@@ -164,9 +164,9 @@ def test_resolve_ref_uses_skill_fallback_only_after_missing_slash_path(
         *,
         project: str | None = None,
         root_dir: Path | None = None,
-    ) -> XpromptSkillDefinitionResolution:
+    ) -> MacroSkillDefinitionResolution:
         assert reference == "/sase_plan"
-        return XpromptSkillDefinitionResolution(
+        return MacroSkillDefinitionResolution(
             schema_version=1,
             status="success",
             authored_reference=reference,
@@ -177,7 +177,7 @@ def test_resolve_ref_uses_skill_fallback_only_after_missing_slash_path(
 
     monkeypatch.setattr(
         _resolve_skills,
-        "resolve_xprompt_skill_definition",
+        "resolve_macro_skill_definition",
         fake_resolve,
     )
 
@@ -198,7 +198,7 @@ def test_existing_absolute_path_wins_over_same_named_skill(
 
     monkeypatch.setattr(
         _resolve_skills,
-        "resolve_xprompt_skill_definition",
+        "resolve_macro_skill_definition",
         fail_resolve,
     )
 
@@ -218,7 +218,7 @@ def test_explicit_at_slash_path_does_not_enter_skill_lookup(
 
     monkeypatch.setattr(
         _resolve_skills,
-        "resolve_xprompt_skill_definition",
+        "resolve_macro_skill_definition",
         fail_resolve,
     )
 

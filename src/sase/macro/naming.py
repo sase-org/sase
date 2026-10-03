@@ -1,4 +1,4 @@
-"""Pure naming and resolution helpers for saving xprompts."""
+"""Pure naming and resolution helpers for saving macros."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 from collections.abc import Sequence
 
-from ._parsing_references import XPROMPT_REFERENCE_NAME_FRAGMENT
+from ._parsing_references import MACRO_REFERENCE_NAME_FRAGMENT
 from .prompt_frontmatter import PromptFrontmatter
 from .snippet_bridge import is_valid_snippet_trigger
 
@@ -26,11 +26,11 @@ def is_inline_reference_name_char(character: str) -> bool:
 
 
 def is_inline_reference_name(name: str) -> bool:
-    """Return whether *name* matches the inline xprompt reference grammar."""
-    return re.fullmatch(XPROMPT_REFERENCE_NAME_FRAGMENT, name) is not None
+    """Return whether *name* matches the inline macro reference grammar."""
+    return re.fullmatch(MACRO_REFERENCE_NAME_FRAGMENT, name) is not None
 
 
-def validate_xprompt_name(name: str) -> str | None:
+def validate_macro_name(name: str) -> str | None:
     """Return a specific validation error for *name*, or ``None``."""
     if not name:
         return "Name is required"
@@ -70,7 +70,7 @@ def markdown_save_plan(
 ) -> tuple[str, PromptFrontmatter]:
     """Return a filename/frontmatter pair that loads as exactly *name*.
 
-    Markdown xprompts remain flat files. Namespaces therefore use an underscore
+    Markdown macros remain flat files. Namespaces therefore use an underscore
     in the filename and carry their authoritative callable name in frontmatter.
     A mismatching pre-existing ``name:`` is also replaced rather than silently
     winning over what the user typed.
@@ -132,5 +132,5 @@ __all__ = [
     "markdown_save_plan",
     "resolution_after_save",
     "validate_snippet_trigger",
-    "validate_xprompt_name",
+    "validate_macro_name",
 ]

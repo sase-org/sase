@@ -5,10 +5,10 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.macro.loader_parsing import parse_xprompt_entries
+from sase.macro.loader_parsing import parse_macro_entries
 from sase.macro.load_issues import record_load_issue
-from sase.macro.models import UNSET, InputArg, InputType, XPromptValidationError
-from sase.macro.tags import XPromptTag, parse_tags
+from sase.macro.models import UNSET, InputArg, InputType, MacroValidationError
+from sase.macro.tags import MacroTag, parse_tags
 from sase.macro.workflow_loader_parse import (
     parse_workflow_step as _parse_workflow_step,
     parse_workflow_inputs,
@@ -36,7 +36,7 @@ def namespace_workflow(project: str, workflow: Workflow) -> Workflow:
         inputs=workflow.inputs,
         steps=workflow.steps,
         source_path=workflow.source_path,
-        xprompts=workflow.xprompts,
+        macros=workflow.macros,
         wraps_all=workflow.wraps_all,
         hidden=workflow.hidden,
         tags=workflow.tags,
@@ -58,21 +58,21 @@ def load_workflow_from_mapping(
     description = None if description_value is None else str(description_value)
 
     tags = parse_tags(data.get("tags"))
-    if wraps_all and XPromptTag.vcs not in tags:
-        tags = tags | frozenset({XPromptTag.vcs})
-    if XPromptTag.vcs in tags:
+    if wraps_all and MacroTag.vcs not in tags:
+        tags = tags | frozenset({MacroTag.vcs})
+    if MacroTag.vcs in tags:
         wraps_all = True
 
     try:
         inputs = parse_workflow_inputs(data.get("input"))
-    except XPromptValidationError as exc:
+    except MacroValidationError as exc:
         record_load_issue(source_path, exc, kind="workflow")
         return None
 
-    xprompts_data = data.get("xprompts")
-    parsed_xprompts = (
-        parse_xprompt_entries(xprompts_data, source_path)
-        if isinstance(xprompts_data, dict)
+    macros_data = data.get("xprompts")
+    parsed_macros = (
+        parse_macro_entries(macros_data, source_path)
+        if isinstance(macros_data, dict)
         else {}
     )
 
@@ -137,7 +137,7 @@ def load_workflow_from_mapping(
         inputs=inputs,
         steps=steps,
         source_path=source_path,
-        xprompts=parsed_xprompts,
+        macros=parsed_macros,
         wraps_all=wraps_all,
         hidden=hidden,
         tags=tags,

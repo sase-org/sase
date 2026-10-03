@@ -10,7 +10,7 @@ from sase.config.core import (
     get_machine_name,
     load_config_layers,
     load_merged_config,
-    load_xprompts_by_source,
+    load_macros_by_source,
     require_agent_owner_identity,
     require_machine_name,
 )
@@ -51,7 +51,7 @@ def test_machine_overlays_require_matching_selector_and_keep_ordinary_overlays(
     assert selected["common"] is True
 
 
-def test_machine_overlay_selection_is_shared_by_layers_and_xprompt_sources(
+def test_machine_overlay_selection_is_shared_by_layers_and_macro_sources(
     tmp_path: Path,
 ) -> None:
     (tmp_path / "sase_common.yml").write_text(
@@ -73,7 +73,7 @@ def test_machine_overlay_selection_is_shared_by_layers_and_xprompt_sources(
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
     ):
         layer_names = {layer.name for layer in load_config_layers()}
-        sources = dict(load_xprompts_by_source())
+        sources = dict(load_macros_by_source())
 
     assert "overlay:sase_common.yml" in layer_names
     assert "overlay:sase_athena.yml" in layer_names

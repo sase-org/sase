@@ -1,4 +1,4 @@
-"""Tests for doctor xprompt definition config checks."""
+"""Tests for doctor macro definition config checks."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.doctor.checks_config_macros import check_config_xprompt_definitions
+from sase.doctor.checks_config_macros import check_config_macro_definitions
 from sase.doctor.runner import DoctorContext
 
 
@@ -14,7 +14,7 @@ def _doctor_context(tmp_path: Path) -> DoctorContext:
     return DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path)
 
 
-def test_xprompt_definitions_ok_when_no_load_issues(
+def test_macro_definitions_ok_when_no_load_issues(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
@@ -26,14 +26,14 @@ def test_xprompt_definitions_ok_when_no_load_issues(
         lambda: {},
     )
 
-    check = check_config_xprompt_definitions(_doctor_context(tmp_path))
+    check = check_config_macro_definitions(_doctor_context(tmp_path))
 
     assert check.status == "OK"
     assert "1 xprompt/workflow definition(s) loaded cleanly" == check.summary
     assert check.data["issues"] == ()
 
 
-def test_xprompt_definitions_warns_with_skipped_detail(
+def test_macro_definitions_warns_with_skipped_detail(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.macro.load_issues import record_load_issue
@@ -50,7 +50,7 @@ def test_xprompt_definitions_warns_with_skipped_detail(
         lambda: {},
     )
 
-    check = check_config_xprompt_definitions(_doctor_context(tmp_path))
+    check = check_config_macro_definitions(_doctor_context(tmp_path))
 
     assert check.status == "WARN"
     assert check.summary == "1 xprompt definition file(s) skipped or degraded"

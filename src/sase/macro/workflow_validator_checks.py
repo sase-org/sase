@@ -5,12 +5,12 @@ and returns a list of error messages (empty if valid).
 """
 
 from sase.macro._parsing import preprocess_shorthand_syntax
-from sase.macro.models import OutputSpec, XPrompt
+from sase.macro.models import OutputSpec, Macro
 from sase.macro.workflow_models import Workflow
 from sase.macro.workflow_validator_extract import (
     collect_step_content,
     extract_template_refs,
-    extract_xprompt_calls,
+    extract_macro_calls,
 )
 
 
@@ -165,9 +165,9 @@ def detect_unused_outputs(workflow: Workflow) -> list[str]:
         for content in collect_step_content(step):
             _mark_output_refs(content, output_usage)
 
-    # Scan workflow-local xprompt content
-    for xprompt in workflow.xprompts.values():
-        _mark_output_refs(xprompt.content, output_usage)
+    # Scan workflow-local macro content
+    for macro_def in workflow.macros.values():
+        _mark_output_refs(macro_def.content, output_usage)
 
     # Determine exempt steps (last step)
     exempt_keys: set[str] = set()
@@ -301,8 +301,8 @@ def validate_cross_step_field_refs(workflow: Workflow) -> list[str]:
         for content in collect_step_content(step):
             _check_refs(extract_template_refs(content), label, for_vars)
 
-    # Scan workflow-local xprompt content
-    for xp_name, xp in workflow.xprompts.items():
+    # Scan workflow-local macro content
+    for xp_name, xp in workflow.macros.items():
         _check_refs(
             extract_template_refs(xp.content),
             f"Xprompt '{xp_name}'",
@@ -312,44 +312,42 @@ def validate_cross_step_field_refs(workflow: Workflow) -> list[str]:
     return errors
 
 
-def detect_unused_xprompts(
-    workflow: Workflow, xprompts: dict[str, XPrompt]
-) -> list[str]:
-    """Find workflow-local xprompts that are never referenced.
+def detect_unused_macros(workflow: Workflow, macros: dict[str, Macro]) -> list[str]:
+    """Find workflow-local macros that are never referenced.
 
-    Scans step content and other workflow-local xprompt content for #name
-    references. Any workflow-local xprompt not referenced anywhere is reported.
+    Scans step content and other workflow-local macro content for #name
+    references. Any workflow-local macro not referenced anywhere is reported.
 
     Args:
         workflow: The workflow to check.
-        xprompts: Merged xprompt dict (global + workflow-local).
+        macros: Merged macro dict (global + workflow-local).
 
     Returns:
-        List of error messages for unused workflow-local xprompts.
+        List of error messages for unused workflow-local macros.
     """
-    if not workflow.xprompts:
+    if not workflow.macros:
         return []
 
-    xprompt_usage: dict[str, bool] = dict.fromkeys(workflow.xprompts, False)
-    xprompt_names = set(xprompts.keys())
+    macro_usage: dict[str, bool] = dict.fromkeys(workflow.macros, False)
+    macro_names = set(macros.keys())
 
     # Scan step content
     for step in workflow.steps:
         for content in collect_step_content(step):
-            preprocessed = preprocess_shorthand_syntax(content, xprompt_names)
-            for call in extract_xprompt_calls(preprocessed):
-                if call.name in xprompt_usage:
-                    xprompt_usage[call.name] = True
+            preprocessed = preprocess_shorthand_syntax(content, macro_names)
+            for call in extract_macro_calls(preprocessed):
+                if call.name in macro_usage:
+                    macro_usage[call.name] = True
 
-    # Scan other workflow-local xprompt content (xprompts can reference each other)
-    for xp in workflow.xprompts.values():
-        preprocessed = preprocess_shorthand_syntax(xp.content, xprompt_names)
-        for call in extract_xprompt_calls(preprocessed):
-            if call.name in xprompt_usage:
-                xprompt_usage[call.name] = True
+    # Scan other workflow-local macro content (macros can reference each other)
+    for xp in workflow.macros.values():
+        preprocessed = preprocess_shorthand_syntax(xp.content, macro_names)
+        for call in extract_macro_calls(preprocessed):
+            if call.name in macro_usage:
+                macro_usage[call.name] = True
 
     errors: list[str] = []
-    for name, used in xprompt_usage.items():
+    for name, used in macro_usage.items():
         if not used:
             errors.append(
                 f"Workflow-local xprompt '{name}' is defined but never referenced"
@@ -357,25 +355,25 @@ def detect_unused_xprompts(
     return errors
 
 
-def detect_unused_xprompt_inputs(workflow: Workflow) -> list[str]:
-    """Find inputs on workflow-local xprompts that are never used in content.
+def detect_unused_macro_inputs(workflow: Workflow) -> list[str]:
+    """Find inputs on workflow-local macros that are never used in content.
 
-    For each workflow-local xprompt that has inputs, checks whether each input
-    name appears as a {{ variable }} reference in the xprompt's content.
+    For each workflow-local macro that has inputs, checks whether each input
+    name appears as a {{ variable }} reference in the macro's content.
 
     Args:
         workflow: The workflow to check.
 
     Returns:
-        List of error messages for unused xprompt inputs.
+        List of error messages for unused macro inputs.
     """
     errors: list[str] = []
 
-    for name, xp in workflow.xprompts.items():
+    for name, xp in workflow.macros.items():
         if not xp.inputs:
             continue
 
-        # Collect variable names used in this xprompt's content
+        # Collect variable names used in this macro's content
         used_vars: set[str] = set()
         for ref in extract_template_refs(xp.content):
             used_vars.add(ref.split(".")[0])
@@ -390,17 +388,17 @@ def detect_unused_xprompt_inputs(workflow: Workflow) -> list[str]:
     return errors
 
 
-def validate_xprompt_names(workflow: Workflow) -> list[str]:
-    """Validate that all workflow-local xprompt names start with '_'.
+def validate_macro_names(workflow: Workflow) -> list[str]:
+    """Validate that all workflow-local macro names start with '_'.
 
     Args:
         workflow: The workflow to check.
 
     Returns:
-        List of error messages for invalid xprompt names.
+        List of error messages for invalid macro names.
     """
     errors: list[str] = []
-    for name in workflow.xprompts:
+    for name in workflow.macros:
         if not name.startswith("_"):
             errors.append(
                 f"Workflow-local xprompt '{name}' must start with '_' (e.g. '_{name}')"

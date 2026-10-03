@@ -75,7 +75,7 @@ def scan_dispatch_directive(prompt: str) -> DispatchDirectiveScan | None:
     """Return active dispatch routing, stripping only ``%dispatch``.
 
     This is intentionally cheaper and narrower than full directive extraction:
-    it does not allocate auto names, resolve xprompt references, or strip other
+    it does not allocate auto names, resolve macro references, or strip other
     launch directives that the remote target must receive.
     """
     if "%dispatch" not in prompt:
@@ -196,7 +196,7 @@ def has_deferred_start_directive(prompt: str) -> bool:
     if (
         _has_wait_directive(prompt)
         or _has_queue_admission_directive(prompt)
-        or _has_t_time_xprompt_reference(prompt)
+        or _has_t_time_macro_reference(prompt)
     ):
         return True
     if "#fork" not in prompt:
@@ -233,7 +233,7 @@ def has_typed_launch_directive(prompt: str) -> bool:
     """Return whether *prompt* has an active ``%if`` or ``%proc`` directive.
 
     Uses the shared directive/fence contract: fenced code, inline literals, and
-    ``%xprompts_enabled:false`` regions are inert. Parenthesized and ``::``
+    ``%macros_enabled:false`` regions are inert. Parenthesized and ``::``
     fenced forms in live text count as active.
     """
     if "%if" not in prompt and "%proc" not in prompt:
@@ -280,7 +280,7 @@ def _has_protected_directive_match(prompt: str, pattern: str) -> bool:
     return _has_protected_pattern_match(prompt, pattern, required_substring="%")
 
 
-def _has_t_time_xprompt_reference(prompt: str) -> bool:
+def _has_t_time_macro_reference(prompt: str) -> bool:
     """Quick check whether a prompt contains an explicit ``#t`` time wait."""
     return _has_protected_pattern_match(
         prompt,

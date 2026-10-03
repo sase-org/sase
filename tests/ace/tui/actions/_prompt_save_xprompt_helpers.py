@@ -36,12 +36,12 @@ class _SaveHarness(PromptBarSaveXpromptMixin):
         file_path: str,
         *,
         is_new: bool,
-        xprompt_name: str,
+        macro_name: str,
         noun: str = "xprompt",
         commit_type: str = "xprompt",
     ) -> None:
         del commit_type
-        self.git_offers.append((file_path, is_new, xprompt_name, noun))
+        self.git_offers.append((file_path, is_new, macro_name, noun))
 
     async def _offer_post_write_actions(
         self,
@@ -49,7 +49,7 @@ class _SaveHarness(PromptBarSaveXpromptMixin):
         *,
         kind: object,
         is_new: bool,
-        xprompt_name: str,
+        macro_name: str,
         noun: str = "xprompt",
         commit_type: str = "xprompt",
         refresh_config_on_success: bool = False,
@@ -57,7 +57,7 @@ class _SaveHarness(PromptBarSaveXpromptMixin):
         del kind, commit_type, refresh_config_on_success
         self.post_write_targets.append(target)
         file_path = str(target.write_path)
-        self.git_offers.append((file_path, is_new, xprompt_name, noun))
+        self.git_offers.append((file_path, is_new, macro_name, noun))
 
 
 class _CommitHarness(PromptBarSaveXpromptMixin):

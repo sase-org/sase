@@ -46,8 +46,8 @@ class TestRenderEdgeCases:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
         )
 
@@ -67,14 +67,14 @@ class TestRenderEdgeCases:
 
         vcs_rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
         )
         patch_rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 vcs_workflow="git",
@@ -86,7 +86,7 @@ class TestRenderEdgeCases:
         assert _bead_wait_lines(vcs_rendered) == expected
         assert _bead_wait_lines(patch_rendered) == expected
 
-    def test_user_override_xprompt_names_propagate(
+    def test_user_override_macro_names_propagate(
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1")])
@@ -94,8 +94,8 @@ class TestRenderEdgeCases:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="custom/work_phase"),
-            land_epic_xprompt=Workflow(name="custom/land"),
+            work_phase_macro=Workflow(name="custom/work_phase"),
+            land_epic_macro=Workflow(name="custom/land"),
         )
 
         assert "#custom/work_phase:p1" in rendered
@@ -136,8 +136,8 @@ class TestRenderEdgeCases:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
@@ -185,8 +185,8 @@ class TestRenderEdgeCases:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             declare_clan=False,
         )
 
@@ -290,8 +290,8 @@ def _render(
 ) -> str:
     return render_multi_prompt(
         plan,
-        work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-        land_epic_xprompt=Workflow(name="bd/land_epic"),
+        work_phase_macro=Workflow(name="bd/work_phase_bead"),
+        land_epic_macro=Workflow(name="bd/land_epic"),
         extra_waits=extra_waits,
         capacity=capacity,
     )
@@ -337,8 +337,8 @@ class TestCapacityDirective:
 
         subset = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             launch_names=frozenset({"sase-42.2", "sase-42.land"}),
             capacity=3,
         )
@@ -350,8 +350,8 @@ class TestCapacityDirective:
 
         land_only = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             launch_names=frozenset({"sase-42.land"}),
             capacity=1,
         )
@@ -360,8 +360,8 @@ class TestCapacityDirective:
 
         mapped = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             segment_capacity={
                 "sase-42.1": 1,
                 "sase-42.2": 1,
@@ -374,8 +374,8 @@ class TestCapacityDirective:
         assert mapped_land.count("%queue(capacity=2)") == 1
         assert "%queue(" not in render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             segment_capacity={},
         )
 

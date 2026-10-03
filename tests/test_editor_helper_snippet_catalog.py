@@ -9,17 +9,17 @@ import pytest
 from sase.integrations.editor_helpers import handle_editor_helper_bridge
 from sase.main.parser import create_parser
 from sase.snippet.models import SnippetSourceContribution
-from sase.macro.models import UNSET, InputArg, XPrompt
+from sase.macro.models import UNSET, InputArg, Macro
 
 
 def _install_snippet_sources(
     monkeypatch: pytest.MonkeyPatch,
-    xprompts: dict[str, XPrompt],
+    macros: dict[str, Macro],
     snippets: dict[str, str],
 ) -> None:
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
-        lambda project=None: xprompts,
+        "sase.macro.loader.get_all_macros",
+        lambda project=None: macros,
     )
     contributions = tuple(
         SnippetSourceContribution(
@@ -46,11 +46,11 @@ def test_parser_accepts_editor_helper_bridge_snippet_catalog() -> None:
     assert args.editor_helper_bridge_subcommand == "snippet-catalog"
 
 
-def test_editor_helper_bridge_snippet_catalog_merges_xprompt_and_user_config(
+def test_editor_helper_bridge_snippet_catalog_merges_macro_and_user_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompts = {
-        "helper": XPrompt(
+    macros = {
+        "helper": Macro(
             name="helper",
             content="Help with {{ topic }}",
             inputs=[InputArg(name="topic", default=UNSET)],
@@ -59,7 +59,7 @@ def test_editor_helper_bridge_snippet_catalog_merges_xprompt_and_user_config(
             description="Helper prompt",
         )
     }
-    _install_snippet_sources(monkeypatch, xprompts, {"user_snip": "User $1$0"})
+    _install_snippet_sources(monkeypatch, macros, {"user_snip": "User $1$0"})
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -111,11 +111,11 @@ def test_editor_helper_bridge_snippet_catalog_merges_xprompt_and_user_config(
     }
 
 
-def test_editor_helper_bridge_snippet_catalog_user_overrides_xprompt(
+def test_editor_helper_bridge_snippet_catalog_user_overrides_macro(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompts = {
-        "shared": XPrompt(
+    macros = {
+        "shared": Macro(
             name="shared",
             content="from xprompt",
             source_path="xprompts/shared.md",
@@ -124,7 +124,7 @@ def test_editor_helper_bridge_snippet_catalog_user_overrides_xprompt(
     }
     _install_snippet_sources(
         monkeypatch,
-        xprompts,
+        macros,
         {
             "shared": "from user",
             "Shared": "authored capital",
@@ -153,14 +153,14 @@ def test_editor_helper_bridge_snippet_catalog_user_overrides_xprompt(
     assert entries["shared"]["source"] == "user_config"
 
 
-def test_editor_helper_bridge_snippet_catalog_composes_nested_xprompts(
+def test_editor_helper_bridge_snippet_catalog_composes_nested_macros(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompts = {
-        "leaf": XPrompt(name="leaf", content="leaf text", snippet=None),
-        "outer": XPrompt(name="outer", content="outer #leaf", snippet=True),
+    macros = {
+        "leaf": Macro(name="leaf", content="leaf text", snippet=None),
+        "outer": Macro(name="outer", content="outer #leaf", snippet=True),
     }
-    _install_snippet_sources(monkeypatch, xprompts, {})
+    _install_snippet_sources(monkeypatch, macros, {})
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -197,14 +197,14 @@ def test_editor_helper_bridge_snippet_catalog_composes_nested_xprompts(
 def test_editor_helper_bridge_snippet_catalog_resolves_snippet_references(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompts = {
-        "helper": XPrompt(
+    macros = {
+        "helper": Macro(
             name="helper",
             content="Help {{ topic }}",
             inputs=[InputArg(name="topic", default=UNSET)],
             snippet=True,
         ),
-        "outer": XPrompt(
+        "outer": Macro(
             name="outer",
             content="#[user_snip] {{ topic }}",
             inputs=[InputArg(name="topic", default=UNSET)],
@@ -213,7 +213,7 @@ def test_editor_helper_bridge_snippet_catalog_resolves_snippet_references(
     }
     _install_snippet_sources(
         monkeypatch,
-        xprompts,
+        macros,
         {"user_snip": "User $1$0", "wrap": "#[helper(World)] $1$0"},
     )
 
@@ -237,8 +237,8 @@ def test_editor_helper_bridge_snippet_catalog_resolves_snippet_references(
 def test_editor_helper_bridge_snippet_aliases_keep_provenance_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompts = {
-        "foo": XPrompt(
+    macros = {
+        "foo": Macro(
             name="foo",
             content="foo {{ topic }}",
             inputs=[InputArg(name="topic", default=UNSET)],
@@ -249,7 +249,7 @@ def test_editor_helper_bridge_snippet_aliases_keep_provenance_metadata(
     }
     _install_snippet_sources(
         monkeypatch,
-        xprompts,
+        macros,
         {
             "wrap": "#[Foo] tail $1$0",
             "bad-trigger": "filtered before composition",

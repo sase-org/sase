@@ -1,7 +1,7 @@
 """Hand a parked runner's bootstrap peak back to the operating system.
 
 A runner finishes its whole bootstrap -- directive extraction, prompt
-assembly, xprompt expansion -- before it learns whether it has to wait at all.
+assembly, macro expansion -- before it learns whether it has to wait at all.
 That work allocates heavily and then drops nearly all of it, but neither
 CPython's arena allocator nor glibc's returns the freed pages on its own: a
 runner that peaks near half a gigabyte keeps that resident for as long as it

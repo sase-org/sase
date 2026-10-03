@@ -1,4 +1,4 @@
-"""Output validation utilities for XPrompt responses."""
+"""Output validation utilities for Macro responses."""
 
 import copy
 import json
@@ -448,7 +448,7 @@ def generate_format_instructions(output_spec: OutputSpec) -> str:
     """Generate prompt instructions for the required output format.
 
     Args:
-        output_spec: The output specification from the xprompt.
+        output_spec: The output specification from the macro.
 
     Returns:
         A string with formatting instructions to append to the prompt.

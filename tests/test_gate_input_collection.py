@@ -13,7 +13,7 @@ from sase.notification_gates.input_collection import (
 from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_options import GateCommand, GateOption
 from sase.notification_gates.model_validation import GateError
-from sase.macro.models import UNSET, InputChoice, InputType, XPromptValidationError
+from sase.macro.models import UNSET, InputChoice, InputType, MacroValidationError
 
 
 def _option(option_id: str, *inputs: GateInputField) -> GateOption:
@@ -107,7 +107,7 @@ def test_coerce_field_text_enum_rejection_lists_allowed_values() -> None:
         choices=(InputChoice(value="fast"), InputChoice(value="slow")),
     )
 
-    with pytest.raises(XPromptValidationError) as excinfo:
+    with pytest.raises(MacroValidationError) as excinfo:
         coerce_field_text(field, "turbo")
 
     assert "fast" in str(excinfo.value)

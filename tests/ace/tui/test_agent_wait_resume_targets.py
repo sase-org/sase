@@ -126,7 +126,7 @@ def test_clan_fork_inherits_only_unanimous_vcs_context() -> None:
     container, first, second = make_clan_fixture()
     for agent in (first, second):
         agent.cl_name = "myproj"
-        agent.get_raw_xprompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
+        agent.get_raw_prompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
     app = FakeResumeActionApp([container, first, second])
 
     app.action_fork_agent()
@@ -155,7 +155,7 @@ def test_wait_for_clan_inherits_only_unanimous_vcs_context() -> None:
     container, first, second = make_clan_fixture()
     for agent in (first, second):
         agent.cl_name = "myproj"
-        agent.get_raw_xprompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
+        agent.get_raw_prompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
     app = FakeResumeActionApp([container, first, second])
 
     app.action_wait_for_agent()
@@ -165,8 +165,8 @@ def test_wait_for_clan_inherits_only_unanimous_vcs_context() -> None:
 
 def test_wait_for_clan_omits_mixed_vcs_context() -> None:
     container, first, second = make_clan_fixture()
-    first.get_raw_xprompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
-    second.get_raw_xprompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
+    first.get_raw_prompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
+    second.get_raw_prompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
     app = FakeResumeActionApp([container, first, second])
 
     app.action_wait_for_agent()

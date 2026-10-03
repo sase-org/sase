@@ -12,17 +12,17 @@ from sase.ace.tui.modals.preview_properties_render import (
     build_properties_view,
 )
 from sase.macro.cli_show_model import ShowInput, ShowStep
-from sase.macro.properties import XPromptProperties
+from sase.macro.properties import MacroProperties
 
 
-def _properties(**overrides: object) -> XPromptProperties:
-    base = XPromptProperties(
+def _properties(**overrides: object) -> MacroProperties:
+    base = MacroProperties(
         reference="#demo",
         kind="xprompt",
         description=None,
         input_signature=None,
         inputs=[],
-        local_xprompts=[],
+        local_macros=[],
         steps=[],
         tags=[],
         skill=None,

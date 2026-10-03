@@ -11,7 +11,7 @@ from rich.console import Console
 
 from sase.main.parser import create_parser
 from sase.snippet import cli_list
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 from .snippet_cli_helpers import install_writable_snippet_project
 
@@ -147,15 +147,15 @@ def test_list_unknown_project_exits_with_context_code(
     assert "sase snippet list: no such project: missing" in capsys.readouterr().err
 
 
-def test_list_includes_xprompt_origin(
+def test_list_includes_macro_origin(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     install_writable_snippet_project(
         tmp_path,
         monkeypatch,
         body="timezone: UTC\n",
-        xprompts={
-            "review": XPrompt(
+        macros={
+            "review": Macro(
                 name="review",
                 content="Review $0",
                 snippet=True,

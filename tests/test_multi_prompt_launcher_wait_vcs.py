@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.agent.batch_predecessor import SASE_AGENT_PREDECESSOR_CONTEXT_ENV
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -34,7 +34,7 @@ def test_launch_multi_prompt_rewrites_bare_wait_to_explicit_previous_name(
 
     launch_multi_prompt_agents(
         segments=["%id:builder\nBuild", "%wait\nReview"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -73,7 +73,7 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_wait_predecessor(
 
     launch_multi_prompt_agents(
         segments=["Build", "%wait\nReview"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -100,7 +100,7 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_wait_predecessor(
     "sase.running_field.get_workspace_directory_for_num",
     side_effect=[("/ws1", None), ("/ws2", None)],
 )
-def test_launch_multi_prompt_passes_predecessor_context_for_xprompt_wait(
+def test_launch_multi_prompt_passes_predecessor_context_for_macro_wait(
     mock_ws_dir: MagicMock,
     mock_wait_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
@@ -109,13 +109,13 @@ def test_launch_multi_prompt_passes_predecessor_context_for_xprompt_wait(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """Xprompt-introduced waits bind in the runner via predecessor context."""
+    """Macro-introduced waits bind in the runner via predecessor context."""
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
         segments=["%id:builder\nBuild", "#_review"],
-        local_xprompts={
-            "_review": XPrompt(name="_review", content="%wait( )\nReview"),
+        local_macros={
+            "_review": Macro(name="_review", content="%wait( )\nReview"),
         },
         cl_name="test",
         project_file="/test.sase",
@@ -162,8 +162,8 @@ def test_launch_multi_prompt_preserves_timeout_predecessor_identity(
 
     launch_multi_prompt_agents(
         segments=["#_build", "%wait\nReview"],
-        local_xprompts={
-            "_build": XPrompt(name="_build", content="Build"),
+        local_macros={
+            "_build": Macro(name="_build", content="Build"),
         },
         cl_name="test",
         project_file="/test.sase",
@@ -232,7 +232,7 @@ def test_launch_multi_prompt_derives_vcs_metadata_per_segment(
                 "#git:sase_feature\ncontinue the work",
                 "%wait\n#git:sase_feature\nland the epic",
             ],
-            local_xprompts={},
+            local_macros={},
             cl_name="sase",
             project_file="/projects/sase/sase.sase",
             project_name="sase",
@@ -329,7 +329,7 @@ def test_launch_multi_prompt_naming_wait_uses_previous_segment_project(
                 "%wait\n#git:beta second",
                 "%wait\n#git:gamma third",
             ],
-            local_xprompts={},
+            local_macros={},
             cl_name="base",
             project_file="/projects/base/base.sase",
             project_name="base",

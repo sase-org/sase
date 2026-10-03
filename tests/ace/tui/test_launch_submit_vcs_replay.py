@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.history.vcs_macro_mru import _load_vcs_xprompt_mru
+from sase.history.vcs_macro_mru import _load_vcs_macro_mru
 from tests._vcs_macro_mru_helpers import patched_mru_file, write_project
 from tests.ace.tui._agent_launch_helpers import _FakeApp
 from tests.conftest import redirect_sase_home
@@ -18,7 +18,7 @@ def test_submit_refreshes_replay_from_cycled_vcs_prefix(
 ) -> None:
     recorded: list[str] = []
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.record_vcs_xprompt_usage",
+        "sase.history.vcs_macro_mru.record_vcs_macro_usage",
         recorded.append,
     )
     app = _FakeApp()
@@ -36,7 +36,7 @@ def test_submit_does_not_save_implicit_home_as_replay_target(tmp_path: Path) -> 
     with patched_mru_file(fake):
         app = _FakeApp()
         app._launch_resolved_prompt("#git:home do the work")
-        assert _load_vcs_xprompt_mru() == ["#gh:sase"]
+        assert _load_vcs_macro_mru() == ["#gh:sase"]
 
 
 def test_submit_does_not_save_non_launchable_project(
@@ -54,4 +54,4 @@ def test_submit_does_not_save_non_launchable_project(
     with patched_mru_file(fake):
         app = _FakeApp()
         app._launch_resolved_prompt("#gh:deadproj do the work")
-        assert _load_vcs_xprompt_mru() == ["#gh:sase"]
+        assert _load_vcs_macro_mru() == ["#gh:sase"]

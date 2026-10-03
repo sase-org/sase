@@ -116,7 +116,7 @@ class ParallelMixin:
             Tuple of (possibly-modified nested steps, collected
             EmbeddedWorkflowInfo list).
         """
-        from sase.macro import process_xprompt_references
+        from sase.macro import process_macro_references
         from sase.macro.workflow_executor_utils import render_template
 
         modified_steps: list[WorkflowStep] = []
@@ -130,8 +130,8 @@ class ParallelMixin:
 
             # Full prompt expansion pipeline (same as _execute_prompt_step)
             rendered = render_template(ns.agent, self.context)
-            expanded = process_xprompt_references(
-                rendered, extra_xprompts=self.workflow.xprompts
+            expanded = process_macro_references(
+                rendered, extra_macros=self.workflow.macros
             )
             expanded, embedded_wfs, pre_step_count = (
                 self._expand_embedded_workflows_in_prompt(

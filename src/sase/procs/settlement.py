@@ -99,9 +99,9 @@ def settle_named_proc(
     from sase.legacy_xprompt_names import prompt_proc_origin_matches
 
     if prompt_proc_origin_matches(current.origin):
-        from sase.agent.launch_proc_runtime import cleanup_xprompt_proc_inputs
+        from sase.agent.launch_proc_runtime import cleanup_prompt_proc_inputs
 
-        cleanup_xprompt_proc_inputs(proc_id)
+        cleanup_prompt_proc_inputs(proc_id)
 
     _settle_artifacts(state)
     maybe_crash("artifacts_settled")

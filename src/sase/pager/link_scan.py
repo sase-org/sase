@@ -59,7 +59,7 @@ class LinkSpanKind(StrEnum):
     ARTIFACT_REF = "artifact_ref"
     URL = "url"
     FILE_PATH = "file_path"
-    XPROMPT_SKILL = "xprompt_skill"
+    MACRO_SKILL = "xprompt_skill"
     BARE_TOKEN = "bare_token"
 
 

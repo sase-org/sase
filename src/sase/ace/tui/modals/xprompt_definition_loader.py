@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 from sase.macro.prompt_frontmatter import PromptFrontmatter
-from sase.macro.save import load_config_xprompt_markdown
+from sase.macro.save import load_config_macro_markdown
 
 from .xprompt_browser_helpers import (
     is_yaml_backed_source,
@@ -42,9 +42,7 @@ async def load_xprompt_definition_for_prompt_bar(
 
     config_backed = is_yaml_backed_source(source_path)
     if config_backed:
-        markdown = await asyncio.to_thread(
-            load_config_xprompt_markdown, file_path, name
-        )
+        markdown = await asyncio.to_thread(load_config_macro_markdown, file_path, name)
         binding = (
             XPromptBinding.for_config(file_path, name, reference=reference)
             if editable

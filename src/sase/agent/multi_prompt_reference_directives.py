@@ -6,7 +6,7 @@ import re
 
 @dataclass(frozen=True)
 class StaticClanDirective:
-    """Top-level clan membership visible before xprompt expansion."""
+    """Top-level clan membership visible before macro expansion."""
 
     name: str
     tribe: str | None = None

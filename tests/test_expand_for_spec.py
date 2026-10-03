@@ -226,8 +226,8 @@ def test_dry_expand_no_pre_post_steps_executed() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_expand_prompt_for_spec_xprompt_expanded() -> None:
-    """Simple xprompt references are expanded via preprocess_prompt_early."""
+def test_expand_prompt_for_spec_macro_expanded() -> None:
+    """Simple macro references are expanded via preprocess_prompt_early."""
     with (
         patch(
             "sase.llm_provider.preprocessing.preprocess_prompt_early",

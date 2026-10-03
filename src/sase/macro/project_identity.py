@@ -1,4 +1,4 @@
-"""Canonical project namespace helpers for xprompt lookup."""
+"""Canonical project namespace helpers for macro lookup."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def project_display_name_for_ref(
 
 
 def get_known_project_workspaces() -> dict[str, Path]:
-    """Load known project workspaces lazily to keep xprompt imports acyclic."""
+    """Load known project workspaces lazily to keep macro imports acyclic."""
     from sase.macro.loader_sources import (
         get_known_project_workspaces as _get_known_project_workspaces,
     )
@@ -58,7 +58,7 @@ def _identity_registry() -> tuple[dict[str, str], ProjectDisplaySnapshot] | None
 
 
 @lru_cache(maxsize=512)
-def _canonical_xprompt_project(ref: str) -> str:
+def _canonical_macro_project(ref: str) -> str:
     registry = _identity_registry()
     if registry is None:
         return ref
@@ -67,8 +67,8 @@ def _canonical_xprompt_project(ref: str) -> str:
     return project_display_name_for_ref(ref, display_snapshot, alias_map) or ref
 
 
-def canonical_xprompt_project(ref: str | None) -> str | None:
-    """Return the canonical user-facing xprompt namespace for *ref*.
+def canonical_macro_project(ref: str | None) -> str | None:
+    """Return the canonical user-facing macro namespace for *ref*.
 
     Accepts a ProjectSpec directory key, configured ``PROJECT_NAME``, or alias.
     Unknown refs are returned unchanged so ad-hoc namespaces continue to work.
@@ -79,17 +79,17 @@ def canonical_xprompt_project(ref: str | None) -> str | None:
     value = ref.strip()
     if not value:
         return None
-    return _canonical_xprompt_project(value)
+    return _canonical_macro_project(value)
 
 
-def invalidate_xprompt_project_identity() -> None:
-    """Clear process-lifetime xprompt project identity projections."""
+def invalidate_macro_project_identity() -> None:
+    """Clear process-lifetime macro project identity projections."""
     _identity_registry.cache_clear()
-    _canonical_xprompt_project.cache_clear()
+    _canonical_macro_project.cache_clear()
 
 
 def known_project_namespaces() -> dict[str, Path]:
-    """Return enabled project workspaces keyed by canonical xprompt namespace."""
+    """Return enabled project workspaces keyed by canonical macro namespace."""
     try:
         workspaces = get_known_project_workspaces()
     except Exception:
@@ -107,7 +107,7 @@ def known_project_namespaces() -> dict[str, Path]:
 
 
 __all__ = [
-    "canonical_xprompt_project",
-    "invalidate_xprompt_project_identity",
+    "canonical_macro_project",
+    "invalidate_macro_project_identity",
     "known_project_namespaces",
 ]

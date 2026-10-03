@@ -136,7 +136,7 @@ def test_resume_dispatch_real_preprocess_adopt_budget_and_provider_invoke_combin
     call. A hostile heading/directive/jinja payload in the captured monitor
     output must reach the provider inertly: frozen_context's literal-content
     guarantee must survive protected_budget's projection and the generic
-    xprompt/Jinja2 preprocessing pipeline when driven together.
+    macro/Jinja2 preprocessing pipeline when driven together.
     """
     from sase.llm_provider._invoke import invoke_agent
 

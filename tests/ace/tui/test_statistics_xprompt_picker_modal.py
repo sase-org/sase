@@ -25,7 +25,7 @@ async def test_picker_filters_cached_rows_highlights_focus_and_selects() -> None
 
     async with AcePage() as page:
         modal = StatisticsXPromptPickerModal(
-            result.views.xprompts.rows,
+            result.views.macros.rows,
             current_focus="gh",
         )
         page.app.push_screen(modal, choices.append)
@@ -53,7 +53,7 @@ async def test_picker_cancel_is_distinct_from_all_xprompts() -> None:
 
     async with AcePage() as page:
         page.app.push_screen(
-            StatisticsXPromptPickerModal(result.views.xprompts.rows),
+            StatisticsXPromptPickerModal(result.views.macros.rows),
             choices.append,
         )
         await page.expect_modal("StatisticsXPromptPickerModal")
@@ -74,7 +74,7 @@ def test_picker_rows_share_the_statistics_kind_labels() -> None:
     payload["xprompts"]["rows"][0].update(
         {"name": "research_swarm", "kind": "swarm", "tags": []}
     )
-    rows = build_statistics_views(payload, _activity_payload()).xprompts.rows
+    rows = build_statistics_views(payload, _activity_payload()).macros.rows
 
     labels = [StatisticsXPromptPickerModal._row_label(row).plain for row in rows]
 

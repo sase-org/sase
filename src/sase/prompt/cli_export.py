@@ -2,7 +2,7 @@
 
 ``export`` is a full-text escape hatch (like ``show``/``copy``): it prints a
 prompt to stdout or writes it to a chosen file. ``save`` writes an ordinary
-markdown xprompt file that the existing loader can resolve via ``#name``. The
+markdown macro file that the existing loader can resolve via ``#name``. The
 retired ``--sdd`` spelling remains parseable only to explain the canonical
 agents-sidecar archive and direct users to safe replacements.
 
@@ -31,8 +31,8 @@ from sase.prompt.render import prompt_preview
 _SOURCE_LABEL = "sase prompt history"
 
 # Frontmatter key for free-form user tags. The reserved ``tags`` key is limited
-# to the semantic ``XPromptTag`` enum, so writing arbitrary ``--tag`` values
-# there would make the xprompt loader raise; ``prompt_tags`` is ignored by the
+# to the semantic ``MacroTag`` enum, so writing arbitrary ``--tag`` values
+# there would make the macro loader raise; ``prompt_tags`` is ignored by the
 # loader and therefore safe to round-trip.
 _USER_TAGS_KEY = "prompt_tags"
 
@@ -165,7 +165,7 @@ def _build_export_content(record: PromptHistoryRecord, *, metadata: bool) -> str
 
 
 def handle_prompt_save(args: argparse.Namespace) -> None:
-    """Save a prompt as a reusable markdown xprompt file."""
+    """Save a prompt as a reusable markdown macro file."""
     prog = "sase prompt save"
     selector: str = getattr(args, "id", "")
     name: str | None = getattr(args, "name", None)
@@ -229,7 +229,7 @@ def _build_save_content(
     front: dict[str, object] = {
         "name": name,
         # Default description is the cleaned one-line preview so the saved
-        # xprompt is self-describing in catalogs; --description overrides it.
+        # macro is self-describing in catalogs; --description overrides it.
         "description": description
         if description is not None
         else prompt_preview(record.text),

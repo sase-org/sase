@@ -30,12 +30,12 @@ def test_classify_source_default_xprompts_builtin(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.ace.tui.modals.xprompt_browser_helpers.get_sase_package_xprompts_dir",
+            "sase.ace.tui.modals.xprompt_browser_helpers.get_sase_package_macros_dir",
             return_value=pkg_dir,
         ),
         patch(
             "sase.ace.tui.modals.xprompt_browser_helpers."
-            "get_sase_package_default_xprompts_dir",
+            "get_sase_package_default_macros_dir",
             return_value=default_dir,
         ),
     ):

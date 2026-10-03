@@ -92,7 +92,7 @@ def _snippet_contribution_json(item: SnippetSourceContribution) -> dict[str, obj
         "template": item.template,
         "trigger": item.trigger,
         "writable": item.writable,
-        "xprompt_name": item.xprompt_name,
+        "xprompt_name": item.macro_name,
     }
 
 
@@ -125,7 +125,7 @@ def _snippet_diagnostic_json(item: SnippetDiagnostic) -> dict[str, object]:
 def snippet_layer_diagnostic_json(
     item: SnippetLayerDiagnostic,
 ) -> dict[str, object]:
-    """Return the stable JSON object for one config/xprompt layer diagnostic."""
+    """Return the stable JSON object for one config/macro layer diagnostic."""
     return {
         "layer": item.layer,
         "message": item.message,

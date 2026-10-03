@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.macro.directives import split_prompt_for_models
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 def test_split_prompt_for_models_multi_model_distinct_runtimes() -> None:
@@ -263,10 +263,10 @@ def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
 
 def test_split_prompt_for_models_global_shorthand_name_uses_resolved_alias() -> None:
     """A model shorthand keeps its raw directive but names with the resolved alias."""
-    xprompts = {
-        "flash": XPrompt(name="flash", content="gpt-5.6-sol"),
+    macros = {
+        "flash": Macro(name="flash", content="gpt-5.6-sol"),
     }
-    with patch("sase.macro.processor.get_all_xprompts", return_value=xprompts):
+    with patch("sase.macro.processor.get_all_macros", return_value=macros):
         result = split_prompt_for_models(
             "%i:o\n%{%model:#flash | %model:gpt-5.3-codex}\nReview"
         )
@@ -279,11 +279,11 @@ def test_split_prompt_for_models_global_shorthand_name_uses_resolved_alias() -> 
 
 def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() -> None:
     """Same-runtime shorthand variants disambiguate with resolved model aliases."""
-    xprompts = {
-        "flash": XPrompt(name="flash", content="gpt-5.6-sol"),
-        "pro": XPrompt(name="pro", content="gpt-4.1"),
+    macros = {
+        "flash": Macro(name="flash", content="gpt-5.6-sol"),
+        "pro": Macro(name="pro", content="gpt-4.1"),
     }
-    with patch("sase.macro.processor.get_all_xprompts", return_value=xprompts):
+    with patch("sase.macro.processor.get_all_macros", return_value=macros):
         result = split_prompt_for_models(
             "%i:ag\n%{%model:#flash | %model:#pro}\nReview"
         )
@@ -312,15 +312,15 @@ def test_split_prompt_for_models_alias_shorthand_strips_at_before_expansion(
             }
         }
     }
-    xprompts = {
-        "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
-        "agy_pro": XPrompt(name="agy_pro", content="agy_pro"),
+    macros = {
+        "agy_flash": Macro(name="agy_flash", content="agy_flash"),
+        "agy_pro": Macro(name="agy_pro", content="agy_pro"),
     }
     monkeypatch.setattr("sase.llm_provider.config.get_llm_provider_config", lambda: cfg)
     monkeypatch.setattr(
         "sase.llm_provider.registry.get_llm_provider_config", lambda: cfg
     )
-    monkeypatch.setattr("sase.macro.processor.get_all_xprompts", lambda *_: xprompts)
+    monkeypatch.setattr("sase.macro.processor.get_all_macros", lambda *_: macros)
 
     result = split_prompt_for_models("%i:ag\n%{%m:@#agy_pro | %m:@#agy_flash}\nReview")
 
@@ -333,10 +333,10 @@ def test_split_prompt_for_models_alias_shorthand_strips_at_before_expansion(
 
 def test_split_prompt_for_models_keeps_raw_and_shorthand_alt_branches() -> None:
     """Raw and shorthand branches stay distinct even if they resolve alike."""
-    xprompts = {
-        "flash": XPrompt(name="flash", content="gemini-3-flash-preview"),
+    macros = {
+        "flash": Macro(name="flash", content="gemini-3-flash-preview"),
     }
-    with patch("sase.macro.processor.get_all_xprompts", return_value=xprompts):
+    with patch("sase.macro.processor.get_all_macros", return_value=macros):
         result = split_prompt_for_models(
             "%{%model:#flash | %model:gemini-3-flash-preview}\nReview"
         )

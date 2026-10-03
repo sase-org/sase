@@ -55,7 +55,7 @@ def _single_unit() -> tuple[LaunchUnit, dict[str, TemporaryProviderDisable]]:
         total=1,
         prompt=_SINGLE_PROMPT,
         template_group=None,
-        swarm_xprompts=(),
+        swarm_macros=(),
         candidates=(
             _candidate(_SINGLE_PROMPT, provider="claude", model="opus", blocked=record),
         ),
@@ -75,7 +75,7 @@ def _swarm_unit() -> tuple[LaunchUnit, dict[str, TemporaryProviderDisable]]:
         total=4,
         prompt=prompt,
         template_group=None,
-        swarm_xprompts=(),
+        swarm_macros=(),
         candidates=(
             _candidate(prompt, provider="claude", model="opus", blocked=claude),
         ),

@@ -19,10 +19,10 @@ def _write_report(tmp_path: Path, **kwargs: object) -> str:
     return Path(report_path).read_text(encoding="utf-8")
 
 
-def test_write_error_report_includes_submitted_xprompt(tmp_path: Path) -> None:
+def test_write_error_report_includes_submitted_prompt(tmp_path: Path) -> None:
     prompt = '  #fix_hook(hook_command="just test")\n\nkeep trailing spaces  '
 
-    text = _write_report(tmp_path, submitted_xprompt=prompt)
+    text = _write_report(tmp_path, submitted_prompt=prompt)
 
     assert "## Submitted XPrompt" in text
     assert prompt in text
@@ -32,7 +32,7 @@ def test_write_error_report_includes_submitted_xprompt(tmp_path: Path) -> None:
 def test_write_error_report_fence_survives_backticks(tmp_path: Path) -> None:
     prompt = "Please inspect:\n```python\nprint('boom')\n```"
 
-    text = _write_report(tmp_path, submitted_xprompt=prompt)
+    text = _write_report(tmp_path, submitted_prompt=prompt)
 
     assert "````markdown" in text
     assert prompt in text
@@ -51,7 +51,7 @@ def test_write_error_report_falls_back_to_submitted_artifact(
     assert "#raw\n" not in text
 
 
-def test_write_error_report_falls_back_to_raw_xprompt(tmp_path: Path) -> None:
+def test_write_error_report_falls_back_to_raw_macro(tmp_path: Path) -> None:
     (tmp_path / "raw_xprompt.md").write_text("#raw\n", encoding="utf-8")
 
     text = _write_report(tmp_path)

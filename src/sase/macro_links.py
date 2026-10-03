@@ -1,4 +1,4 @@
-"""Resolve a hosted URL for one xprompt definition record."""
+"""Resolve a hosted URL for one macro definition record."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from sase.agents_sync.git import GitRunner
 from sase.sdd.hosted_links import HostedLinkResolver
 
 
-class XpromptSourceRecord(TypedDict):
-    """Python projection of one record from ``collect_xprompt_sources()``."""
+class MacroSourceRecord(TypedDict):
+    """Python projection of one record from ``collect_macro_sources()``."""
 
     schema_version: int
     raw_ref: str
@@ -26,8 +26,8 @@ class XpromptSourceRecord(TypedDict):
     skipped_reason: str | None
 
 
-class XpromptTargetResolver:
-    """Resolve one xprompt definition record to a hosted blob URL.
+class MacroTargetResolver:
+    """Resolve one macro definition record to a hosted blob URL.
 
     Shaped like ``_ArtifactTargetResolver``: a reference is linkified only
     when a hosted URL can be resolved for its definition, and any failure
@@ -49,7 +49,7 @@ class XpromptTargetResolver:
         self._git_runner = git_runner
         self._repository_roots = repository_roots
 
-    def __call__(self, record: XpromptSourceRecord) -> str | None:
+    def __call__(self, record: MacroSourceRecord) -> str | None:
         repo_name = record.get("repo")
         repo_relpath = record.get("repo_relpath")
         if not repo_name or not repo_relpath or self._hosted is None:
@@ -97,6 +97,6 @@ def _git_revision(root: Path, git_runner: GitRunner) -> str | None:
 
 
 __all__ = [
-    "XpromptSourceRecord",
-    "XpromptTargetResolver",
+    "MacroSourceRecord",
+    "MacroTargetResolver",
 ]

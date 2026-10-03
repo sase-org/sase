@@ -19,10 +19,10 @@ from sase.agent.multi_prompt_vcs import (
     SegmentVcsContext,
     resolve_segment_vcs_context,
 )
-from sase.agent.multi_prompt_macros import local_xprompts_for_segment
+from sase.agent.multi_prompt_macros import local_macros_for_segment
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.core.agent_launch_wire import LaunchFanoutPlanWire
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 def future_agent_artifacts_dir(*, project_name: str, timestamp: str) -> Path:
@@ -58,7 +58,7 @@ def assign_missing_slot_timestamps(
 def plan_segment_fanout(
     segment: str,
     *,
-    segment_local_xprompts: dict[str, XPrompt],
+    segment_local_macros: dict[str, Macro],
     preplanned_fanout_plan: LaunchFanoutPlanWire | None,
 ) -> tuple[LaunchFanoutPlanWire, bool]:
     """Return one segment's launch plan and whether it is a real fan-out."""
@@ -70,23 +70,23 @@ def plan_segment_fanout(
         if preplanned_fanout_plan is not None
         else plan_prompt_fanout_variants(
             segment,
-            extra_xprompts=segment_local_xprompts or None,
+            extra_macros=segment_local_macros or None,
         )
     )
     if fanout_plan is None and preplanned_fanout_plan is None and "#" in segment:
         from sase.macro.processor import (
-            LAUNCH_DEFERRED_XPROMPT_NAMES,
-            process_xprompt_references,
+            LAUNCH_DEFERRED_MACRO_NAMES,
+            process_macro_references,
         )
 
-        expanded = process_xprompt_references(
+        expanded = process_macro_references(
             segment,
-            extra_xprompts=segment_local_xprompts or None,
-            defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+            extra_macros=segment_local_macros or None,
+            defer_macro_names=LAUNCH_DEFERRED_MACRO_NAMES,
         )
         fanout_plan = plan_prompt_fanout_variants(
             expanded,
-            extra_xprompts=segment_local_xprompts or None,
+            extra_macros=segment_local_macros or None,
         )
     if fanout_plan is not None:
         return fanout_plan, True
@@ -124,7 +124,7 @@ def empty_clan_prepass() -> _ClanPrepass:
 def prepare_clan_launches(
     *,
     segments: list[str],
-    local_xprompts: dict[str, XPrompt],
+    local_macros: dict[str, Macro],
     cl_name: str,
     project_file: str,
     project_name: str,
@@ -143,23 +143,23 @@ def prepare_clan_launches(
     from sase.macro._parsing import normalize_default_vcs_workflow_segment
     from sase.macro.directives import has_deferred_start_directive
 
-    # Resolve xprompts before the static clan scan so a declaration or conflict
-    # introduced by an xprompt fails the whole batch before timestamp/workspace
+    # Resolve macros before the static clan scan so a declaration or conflict
+    # introduced by a macro fails the whole batch before timestamp/workspace
     # allocation. Literal fenced/disabled regions remain protected by the
     # shared directive collector used by ``extract_static_clan_directive``.
     from sase.macro import (
-        LAUNCH_DEFERRED_XPROMPT_NAMES,
-        process_xprompt_references,
+        LAUNCH_DEFERRED_MACRO_NAMES,
+        process_macro_references,
     )
 
     effective_segments: list[str] = []
     for segment in segments:
-        segment_xprompts = local_xprompts_for_segment(segment, local_xprompts)
+        segment_macros = local_macros_for_segment(segment, local_macros)
         effective_segments.append(
-            process_xprompt_references(
+            process_macro_references(
                 segment,
-                extra_xprompts=segment_xprompts or None,
-                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+                extra_macros=segment_macros or None,
+                defer_macro_names=LAUNCH_DEFERRED_MACRO_NAMES,
             )
             if "#" in segment
             else segment
@@ -192,16 +192,16 @@ def prepare_clan_launches(
         prepared_segment = canonicalize_project_aliases_in_prompt(segments[index])
         if default_bare_segments_to_home:
             prepared_segment = normalize_default_vcs_workflow_segment(prepared_segment)
-        segment_local_xprompts = local_xprompts_for_segment(
+        segment_local_macros = local_macros_for_segment(
             prepared_segment,
-            local_xprompts,
+            local_macros,
         )
         preplanned = (
             None if preplanned_fanout_plans is None else preplanned_fanout_plans[index]
         )
         plan, _ = plan_segment_fanout(
             prepared_segment,
-            segment_local_xprompts=segment_local_xprompts,
+            segment_local_macros=segment_local_macros,
             preplanned_fanout_plan=preplanned,
         )
         plan = assign_missing_slot_timestamps(plan, timestamp_allocator)

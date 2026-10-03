@@ -1,10 +1,10 @@
-"""XPrompt parsing utilities for inputs, outputs, and front matter."""
+"""Macro parsing utilities for inputs, outputs, and front matter."""
 
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .tags import XPromptTag
+    from .tags import MacroTag
 
 import yaml  # type: ignore[import-untyped]
 
@@ -14,14 +14,14 @@ from .models import (
     InputChoice,
     InputType,
     OutputSpec,
-    XPrompt,
-    XPromptValidationError,
+    Macro,
+    MacroValidationError,
 )
 from .tags import parse_tags
 
 
-class LocalXPromptNameError(ValueError):
-    """Raised when a local xprompt name does not start with ``_``."""
+class LocalMacroNameError(ValueError):
+    """Raised when a local macro name does not start with ``_``."""
 
 
 def parse_yaml_front_matter_with_error(
@@ -118,18 +118,18 @@ def _parse_input_choices(raw: Any, name: str) -> tuple[InputChoice, ...]:
         Tuple of :class:`InputChoice` objects, in declared order.
 
     Raises:
-        XPromptValidationError: If ``raw`` is not a non-empty list of scalars
+        MacroValidationError: If ``raw`` is not a non-empty list of scalars
             or ``{value, label}`` mappings.
     """
     if not isinstance(raw, list) or not raw:
-        raise XPromptValidationError(
+        raise MacroValidationError(
             f"Argument '{name}' choices must be a non-empty list"
         )
     choices: list[InputChoice] = []
     for item in raw:
         if isinstance(item, Mapping):
             if "value" not in item:
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{name}' choice must have a 'value' key"
                 )
             label_value = item.get("label")
@@ -142,7 +142,7 @@ def _parse_input_choices(raw: Any, name: str) -> tuple[InputChoice, ...]:
         elif isinstance(item, (str, int, float, bool)):
             choices.append(InputChoice(value=str(item)))
         else:
-            raise XPromptValidationError(
+            raise MacroValidationError(
                 f"Argument '{name}' choice must be a scalar value or "
                 "a {value, label} mapping"
             )
@@ -452,10 +452,8 @@ def parse_output_from_front_matter(
     return _parse_shortform_output(output_data)
 
 
-def parse_xprompt_entries(
-    entries: dict[str, Any], source_path: str
-) -> dict[str, XPrompt]:
-    """Parse a dict of xprompt entries into XPrompt objects.
+def parse_macro_entries(entries: dict[str, Any], source_path: str) -> dict[str, Macro]:
+    """Parse a dict of macro entries into Macro objects.
 
     Supports both simple string format and structured dict format:
 
@@ -468,14 +466,14 @@ def parse_xprompt_entries(
             content: "Hello {{ name }}, count is {{ count }}"
 
     Args:
-        entries: Dictionary mapping xprompt names to string content or
+        entries: Dictionary mapping macro names to string content or
             structured dicts with input/content keys.
-        source_path: Source identifier for the xprompts (e.g., file path or "config").
+        source_path: Source identifier for the macros (e.g., file path or "config").
 
     Returns:
-        Dictionary mapping xprompt name to XPrompt object.
+        Dictionary mapping macro name to Macro object.
     """
-    xprompts: dict[str, XPrompt] = {}
+    macros: dict[str, Macro] = {}
 
     for name, value in entries.items():
         if not isinstance(name, str):
@@ -492,14 +490,14 @@ def parse_xprompt_entries(
             # Simple string content (no arguments)
             content = value
             inputs: list[InputArg] = []
-            tags: frozenset[XPromptTag] = frozenset()
+            tags: frozenset[MacroTag] = frozenset()
             snippet: str | bool | None = None
             description: str | None = None
             skill: bool | list[str] | None = None
             log_skill_use = True
-            local_xprompts: dict[str, XPrompt] = {}
+            local_macros: dict[str, Macro] = {}
         elif isinstance(value, dict):
-            # Structured xprompt with input/content
+            # Structured macro with input/content
             content = value.get("content", "")
             if not isinstance(content, str):
                 from .load_issues import record_load_issue
@@ -517,8 +515,8 @@ def parse_xprompt_entries(
             skill = value.get("skill")
             log_skill_use = value.get("log_skill_use", True)
             local_entries = value.get("xprompts")
-            local_xprompts = (
-                parse_local_xprompt_entries(local_entries, source_path)
+            local_macros = (
+                parse_local_macro_entries(local_entries, source_path)
                 if isinstance(local_entries, dict)
                 else {}
             )
@@ -532,7 +530,7 @@ def parse_xprompt_entries(
             )
             continue
 
-        xprompt = XPrompt(
+        macro_def = Macro(
             name=name,
             content=content,
             inputs=inputs,
@@ -542,56 +540,56 @@ def parse_xprompt_entries(
             description=description,
             skill=skill,
             log_skill_use=log_skill_use,
-            local_xprompts=local_xprompts,
+            local_macros=local_macros,
         )
-        if _reject_reserved_memory_namespace(xprompt, source_path):
+        if _reject_reserved_memory_namespace(macro_def, source_path):
             continue
         # A skill needs a Markdown file in a canonical skill directory for
         # generation to render from, so a config entry can never be one.
-        if _reject_config_skill(xprompt, source_path):
+        if _reject_config_skill(macro_def, source_path):
             continue
-        xprompts[name] = xprompt
+        macros[name] = macro_def
 
-    return xprompts
+    return macros
 
 
-def _reject_config_skill(xprompt: XPrompt, source_path: str) -> bool:
+def _reject_config_skill(macro_def: Macro, source_path: str) -> bool:
     """Drop a config-defined entry that declares ``skill:``."""
-    if not xprompt.skill:
+    if not macro_def.skill:
         return False
 
     from .loader_skills import config_skill_destination, reject_misplaced_skill
 
     return reject_misplaced_skill(
-        xprompt,
-        source=f"{source_path}:{xprompt.name}",
+        macro_def,
+        source=f"{source_path}:{macro_def.name}",
         migrate_to=config_skill_destination(),
     )
 
 
-def _reject_reserved_memory_namespace(xprompt: XPrompt, source_path: str) -> bool:
-    """Drop a config-defined entry that claims the xprompt-memory namespace."""
+def _reject_reserved_memory_namespace(macro_def: Macro, source_path: str) -> bool:
+    """Drop a config-defined entry that claims the macro-memory namespace."""
     from .reserved_namespaces import reject_reserved_memory_namespace
 
     return reject_reserved_memory_namespace(
-        xprompt.name,
-        source=f"{source_path}:{xprompt.name}",
+        macro_def.name,
+        source=f"{source_path}:{macro_def.name}",
     )
 
 
-def _validate_local_xprompt_names(xprompts: dict[str, XPrompt]) -> None:
-    """Raise if any local xprompt name does not start with ``_``."""
-    for name in xprompts:
+def _validate_local_macro_names(macros: dict[str, Macro]) -> None:
+    """Raise if any local macro name does not start with ``_``."""
+    for name in macros:
         if not name.startswith("_"):
-            raise LocalXPromptNameError(
-                f"Local xprompt '{name}' must start with '_' (e.g. '_{name}')"
+            raise LocalMacroNameError(
+                f"Local macro_def '{name}' must start with '_' (e.g. '_{name}')"
             )
 
 
-def parse_local_xprompt_entries(
+def parse_local_macro_entries(
     entries: dict[str, Any], source_path: str
-) -> dict[str, XPrompt]:
-    """Parse local xprompt entries and enforce local-name scoping rules."""
-    xprompts = parse_xprompt_entries(entries, source_path)
-    _validate_local_xprompt_names(xprompts)
-    return xprompts
+) -> dict[str, Macro]:
+    """Parse local macro entries and enforce local-name scoping rules."""
+    macros = parse_macro_entries(entries, source_path)
+    _validate_local_macro_names(macros)
+    return macros

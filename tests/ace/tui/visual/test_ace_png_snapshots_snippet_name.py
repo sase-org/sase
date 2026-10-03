@@ -65,7 +65,7 @@ async def test_snippet_name_collision_png_snapshot(
         _target(dest, "~/.config/sase/sase.yml"),
         [
             _location(dest, "~/.config/sase/sase.yml"),
-            _location(other, "~/sase/xprompts/todo_helpers.md"),
+            _location(other, "~/sase/macros/todo_helpers.md"),
         ],
         initial_trigger="todo",
     )

@@ -1,4 +1,4 @@
-"""Shared xprompt namespace reservation checks."""
+"""Shared macro namespace reservation checks."""
 
 from __future__ import annotations
 

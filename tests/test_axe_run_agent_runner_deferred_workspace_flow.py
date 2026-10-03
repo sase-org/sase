@@ -293,7 +293,7 @@ class TestDeferredWorkspaceFlow:
             return exec_result(artifacts_dir)
 
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_deps
-        patches[f"{RUNNER}.expand_deferred_launch_xprompts"] = expand_fork
+        patches[f"{RUNNER}.expand_deferred_launch_macros"] = expand_fork
         patches[f"{RUNNER}.wait_for_runner_slot"] = wait_for_slot
         patches[f"{LAUNCH}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
         patches[f"{LAUNCH}.claim_deferred_workspace"] = claim_deferred

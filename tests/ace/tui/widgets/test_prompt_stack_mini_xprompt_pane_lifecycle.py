@@ -381,7 +381,7 @@ async def test_mini_frontmatter_scope_isolated_from_agent_stack(
         await pilot.pause()
         panel = app.query_one(FrontmatterPanel)
         assert "#review" in str(panel.border_title)
-        assert "_mini" in panel.model.xprompts
+        assert "_mini" in panel.model.macros
 
         model = PromptFrontmatter.parse(mini_frontmatter)
         model.description = "mini only"

@@ -18,7 +18,7 @@ def _patch_mru_pairs(
     monkeypatch: pytest.MonkeyPatch, pairs: list[tuple[str, str]]
 ) -> None:
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: pairs,
     )
 

@@ -321,7 +321,7 @@ def test_bootstrap_arms_launch_hold_before_dependency_wait_claim(
 
     def load_prompt(current: object) -> None:
         current.prompt = "Do work"
-        current.submitted_xprompt = "Do work"
+        current.submitted_prompt = "Do work"
 
     with (
         patch.object(
@@ -340,7 +340,7 @@ def test_bootstrap_arms_launch_hold_before_dependency_wait_claim(
         patch.object(run_agent_runner_bootstrap, "print_agent_start_banner"),
         patch.object(
             run_agent_runner_bootstrap,
-            "preprocess_prompt_xprompts",
+            "preprocess_prompt_macros",
             return_value=("Do work", None, "Do work"),
         ),
         patch.object(
@@ -433,7 +433,7 @@ def test_bootstrap_real_hold_exists_before_dependency_wait_claim(
 
     def load_prompt(current: object) -> None:
         current.prompt = "%wait:dependency %hold(pending)\nDo work"
-        current.submitted_xprompt = current.prompt
+        current.submitted_prompt = current.prompt
 
     def extract_directives(*args: object, **kwargs: object) -> object:
         del args, kwargs
@@ -474,7 +474,7 @@ def test_bootstrap_real_hold_exists_before_dependency_wait_claim(
         patch.object(run_agent_runner_bootstrap, "print_agent_start_banner"),
         patch.object(
             run_agent_runner_bootstrap,
-            "preprocess_prompt_xprompts",
+            "preprocess_prompt_macros",
             return_value=("%wait:dependency %hold(pending)\nDo work", None, "Do work"),
         ),
         patch.object(

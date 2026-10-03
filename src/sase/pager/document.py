@@ -179,7 +179,7 @@ def target_resolution_ref(target: PagerTargetSpan, origin: PagerOrigin) -> str |
         if origin is PagerOrigin.DIFF:
             return f"commit:{token}"
         return None
-    if target.kind == LinkSpanKind.XPROMPT_SKILL.value:
+    if target.kind == LinkSpanKind.MACRO_SKILL.value:
         if target.semantic_target is not None:
             return f"#{target.semantic_target.target}"
         token = target.target if isinstance(target.target, str) else target.text
@@ -216,7 +216,7 @@ def target_action_destination(
         if semantic.markdown_destination is None and semantic.text.startswith("@"):
             return semantic.text
         return semantic.markdown_destination or semantic.target or ref
-    if target.kind == LinkSpanKind.XPROMPT_SKILL.value:
+    if target.kind == LinkSpanKind.MACRO_SKILL.value:
         return semantic.markdown_destination or semantic.text or ref
     if target.kind == LinkSpanKind.ARTIFACT_REF.value:
         preserved = _location_preserving_artifact_destination(semantic)

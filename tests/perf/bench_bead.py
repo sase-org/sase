@@ -438,13 +438,13 @@ def _patched_bead_work_launch() -> Iterator[None]:
         )
         stack.enter_context(
             patch(
-                "sase.bead.macros.resolve_work_phase_xprompt",
+                "sase.bead.macros.resolve_work_phase_macro",
                 lambda project=None: work_phase,
             )
         )
         stack.enter_context(
             patch(
-                "sase.bead.macros.resolve_land_epic_xprompt",
+                "sase.bead.macros.resolve_land_epic_macro",
                 lambda project=None: land_epic,
             )
         )

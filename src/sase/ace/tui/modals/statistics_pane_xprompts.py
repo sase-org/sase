@@ -47,14 +47,14 @@ class StatisticsXPromptsRenderingMixin:
         raise NotImplementedError
 
     def _xprompts_renderable(self, result: StatisticsViewData) -> Any:
-        xprompts = result.views.xprompts
+        xprompts = result.views.macros
         if not xprompts.available:
             return self._xprompts_unavailable_renderable()
         if self._xprompt_focus is not None:
             if xprompts.focus is None:
                 return self._xprompt_focus_missing_renderable(result)
             return self._xprompt_focus_renderable(result, xprompts.focus)
-        if xprompts.runs_with_xprompts == 0:
+        if xprompts.runs_with_macros == 0:
             return self._xprompts_empty_renderable(result)
 
         if self._xprompts_group_by == "model":
@@ -451,15 +451,13 @@ class StatisticsXPromptsRenderingMixin:
         return text
 
     def _xprompts_summary(self, xprompts: Any) -> Text:
-        total_runs = xprompts.runs_with_xprompts + xprompts.runs_without_xprompts
-        without_share = (
-            xprompts.runs_without_xprompts / total_runs if total_runs else 0.0
-        )
+        total_runs = xprompts.runs_with_macros + xprompts.runs_without_macros
+        without_share = xprompts.runs_without_macros / total_runs if total_runs else 0.0
         summary = Text(
-            f"{xprompts.distinct_xprompts} xprompts · "
-            f"{xprompts.runs_with_xprompts} runs referenced · "
+            f"{xprompts.distinct_macros} xprompts · "
+            f"{xprompts.runs_with_macros} runs referenced · "
             f"{xprompts.total_references} references · "
-            f"{xprompts.runs_without_xprompts} runs without xprompts "
+            f"{xprompts.runs_without_macros} runs without xprompts "
             f"({self._percent(without_share)})",
             style="dim",
         )

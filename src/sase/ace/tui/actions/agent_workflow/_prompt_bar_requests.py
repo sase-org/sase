@@ -10,7 +10,7 @@ from ._types import PromptContext, invalidate_prompt_session
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets import PromptInputBar
-    from sase.macro.models import XPrompt
+    from sase.macro.models import Macro
     from sase.macro.workflow_models import Workflow
 
 log = logging.getLogger(__name__)
@@ -363,10 +363,10 @@ class PromptBarRequestsMixin:
         # (``local_xprompts``) so the ``Ctrl+I`` expansion helper can resolve a
         # selected local helper -- or a global xprompt that references one --
         # the same way the launch path would.
-        from sase.macro.models import xprompt_to_workflow
+        from sase.macro.models import macro_to_workflow
 
         extra_prompts: dict[str, Workflow] = {}
-        local_xprompts: dict[str, XPrompt] = {}
+        local_macros: dict[str, Macro] = {}
 
         # 1. Project-local xprompts from a VCS tag in the originating pane's
         #    text (e.g. #gh:sase → load sase's sase.yml xprompts). Read from the
@@ -386,9 +386,9 @@ class PromptBarRequestsMixin:
                     extract_project_from_vcs_tag,
                     extract_vcs_workflow_tag,
                 )
-                from sase.macro.loader import load_project_local_xprompts
+                from sase.macro.loader import load_project_local_macros
                 from sase.macro.project_identity import (
-                    canonical_xprompt_project,
+                    canonical_macro_project,
                     known_project_namespaces,
                 )
 
@@ -408,15 +408,15 @@ class PromptBarRequestsMixin:
                     # canonicalize before the namespace lookup: the namespace map
                     # is keyed by the user-facing ``PROJECT_NAME``, which differs
                     # from the ProjectSpec directory key for ``#gh:`` projects.
-                    vcs_project = canonical_xprompt_project(
+                    vcs_project = canonical_macro_project(
                         extract_project_from_vcs_tag(vcs_tag)
                     )
                     if vcs_project:
                         ws_dir = known_project_namespaces().get(vcs_project)
                         if ws_dir:
-                            xprompts = load_project_local_xprompts(ws_dir, vcs_project)
+                            xprompts = load_project_local_macros(ws_dir, vcs_project)
                             for name, xp in xprompts.items():
-                                extra_prompts[name] = xprompt_to_workflow(xp)
+                                extra_prompts[name] = macro_to_workflow(xp)
         except Exception:
             # The selector still opens without project-local entries, but a
             # silent swallow here is indistinguishable from "the project has no
@@ -429,11 +429,11 @@ class PromptBarRequestsMixin:
         #    rather than crashing the selector.
         if origin_bar is not None:
             try:
-                local_xprompts = origin_bar.local_xprompts(origin_text_area)
-                for name, xp in local_xprompts.items():
-                    extra_prompts[name] = xprompt_to_workflow(xp)
+                local_macros = origin_bar.local_macros(origin_text_area)
+                for name, xp in local_macros.items():
+                    extra_prompts[name] = macro_to_workflow(xp)
             except Exception:
-                local_xprompts = {}
+                local_macros = {}
 
         def on_xprompt_expand(name: str, workflow: object) -> str | None:
             """Inline-expand *name* into the originating pane (modal ``Ctrl+I``).
@@ -456,7 +456,7 @@ class PromptBarRequestsMixin:
             # global xprompt that references one) resolves recursively the same
             # way it would at launch (Phase 5 catalog parity).
             result = expand_inline_xprompt(
-                name, workflow, local_xprompts=local_xprompts, project=project
+                name, workflow, local_macros=local_macros, project=project
             )
             if result.error is not None:
                 return result.error

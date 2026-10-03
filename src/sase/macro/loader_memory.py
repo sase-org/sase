@@ -1,4 +1,4 @@
-"""XPrompt loader for flat SASE memory notes."""
+"""Macro loader for flat SASE memory notes."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from sase.memory.notes import collapse_description, normalize_memory_note_type
 
 from .discovery_order import RANK_MEMORY_BASE, merge_by_discovery_order, source_rank
 from .load_issues import record_load_issue
-from .models import MemoryType, XPrompt
+from .models import MemoryType, Macro
 
 if TYPE_CHECKING:
     from sase.memory.notes import MemoryNote
@@ -24,15 +24,15 @@ if TYPE_CHECKING:
 MEMORY_LOAD_ISSUE_KIND = "memory"
 
 
-def load_memory_xprompts(
+def load_memory_macros(
     project: str | None = None,
     *,
     project_root: Path | str | None = None,
     home_root: Path | str | None = None,
     include_discovered_project: bool = True,
-) -> dict[str, XPrompt]:
-    """Load contextual ``memory/<stem>`` xprompts from project and home memory."""
-    xprompts: dict[str, XPrompt] = {}
+) -> dict[str, Macro]:
+    """Load contextual ``memory/<stem>`` macros from project and home memory."""
+    macros: dict[str, Macro] = {}
     sources = resolve_memory_file_sources(
         project_root=project_root,
         home_root=home_root,
@@ -48,25 +48,25 @@ def load_memory_xprompts(
     }
     for source in reversed(sources):
         merge_by_discovery_order(
-            xprompts,
+            macros,
             {
-                xprompt.name: xprompt
-                for xprompt in _load_memory_xprompts_from_source(source)
+                macro_def.name: macro_def
+                for macro_def in _load_memory_macros_from_source(source)
             },
             fallback_rank=rank_by_id[source.id],
         )
-    return xprompts
+    return macros
 
 
-def load_project_memory_xprompts(
+def load_project_memory_macros(
     workspace_dir: Path,
     project: str,
-) -> dict[str, XPrompt]:
-    """Load memory xprompts for one registered project workspace."""
-    return load_memory_xprompts(project=project, project_root=workspace_dir)
+) -> dict[str, Macro]:
+    """Load memory macros for one registered project workspace."""
+    return load_memory_macros(project=project, project_root=workspace_dir)
 
 
-def _load_memory_xprompts_from_source(source: MemoryFileSource) -> tuple[XPrompt, ...]:
+def _load_memory_macros_from_source(source: MemoryFileSource) -> tuple[Macro, ...]:
     from sase.memory.notes import discover_memory_notes
 
     try:
@@ -84,18 +84,18 @@ def _load_memory_xprompts_from_source(source: MemoryFileSource) -> tuple[XPrompt
         record_load_issue(memory_root, exc, kind=MEMORY_LOAD_ISSUE_KIND)
         return ()
 
-    loaded: list[XPrompt] = []
+    loaded: list[Macro] = []
     for note in notes:
-        xprompt = _memory_note_to_xprompt(note, source)
-        if xprompt is not None:
-            loaded.append(xprompt)
+        macro_def = _memory_note_to_macro(note, source)
+        if macro_def is not None:
+            loaded.append(macro_def)
     return tuple(loaded)
 
 
-def _memory_note_to_xprompt(
+def _memory_note_to_macro(
     note: MemoryNote,
     source: MemoryFileSource,
-) -> XPrompt | None:
+) -> Macro | None:
     note_source = note.source_relative_path.as_posix()
     note_type = note.type or ""
     issue = memory_note_issue(note_source, stem=note.path.stem, note_type=note_type)
@@ -114,7 +114,7 @@ def _memory_note_to_xprompt(
         return None
 
     source_path = source.root / note.source_relative_path
-    return XPrompt(
+    return Macro(
         name=memory_reference_name(note.path.stem),
         content=note.body,
         inputs=[],
@@ -135,6 +135,6 @@ def _memory_type(value: str | None) -> MemoryType | None:
 
 __all__ = [
     "MEMORY_LOAD_ISSUE_KIND",
-    "load_memory_xprompts",
-    "load_project_memory_xprompts",
+    "load_memory_macros",
+    "load_project_memory_macros",
 ]

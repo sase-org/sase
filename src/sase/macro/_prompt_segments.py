@@ -1,7 +1,7 @@
 """Disabled-region-aware top-level ``---`` segment splitting for prompts.
 
 ``---`` on its own line is the multi-prompt segment separator, but a prompt
-can also contain a ``%xprompts_enabled:false`` ... ``%xprompts_enabled:true``
+can also contain a ``%macros_enabled:false`` ... ``%macros_enabled:true``
 disabled region (e.g. injected fork history) whose body carries ``---`` lines
 as inert content, not segment boundaries. This module protects both fenced
 code and disabled regions before splitting, so callers never mistake an

@@ -1,21 +1,21 @@
-"""Helpers for classifying xprompt content with prompt segment separators."""
+"""Helpers for classifying macro content with prompt segment separators."""
 
 from __future__ import annotations
 
 import re
 
 from sase.macro._fenced_blocks import protect_fenced_blocks
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 _SEGMENT_SEPARATOR_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
 
-def xprompt_has_segment_separators(xp: XPrompt) -> bool:
+def macro_has_segment_separators(xp: Macro) -> bool:
     """Return True iff *xp*'s body contains a ``---`` line outside fenced blocks."""
-    return xprompt_segment_count(xp) > 1
+    return macro_segment_count(xp) > 1
 
 
-def xprompt_segment_count(xp: XPrompt) -> int:
+def macro_segment_count(xp: Macro) -> int:
     """Return the number of top-level prompt segments in *xp*."""
     blocks: list[str] = []
     protected = protect_fenced_blocks(xp.content, blocks)
@@ -23,6 +23,6 @@ def xprompt_segment_count(xp: XPrompt) -> int:
 
 
 __all__ = [
-    "xprompt_has_segment_separators",
-    "xprompt_segment_count",
+    "macro_has_segment_separators",
+    "macro_segment_count",
 ]

@@ -107,7 +107,7 @@ def _unit(
         total=total,
         prompt=prompt,
         template_group=None,
-        swarm_xprompts=(),
+        swarm_macros=(),
         candidates=candidates,
         _blocking_disables=blocking,
     )

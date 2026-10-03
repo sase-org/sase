@@ -12,23 +12,23 @@ import yaml  # type: ignore[import-untyped]
 from sase.macro.loader import (
     detect_project,
     get_all_workflows,
-    get_all_xprompts,
+    get_all_macros,
 )
-from sase.macro.loader_parsing import parse_xprompt_entries
-from sase.macro.loader_sources import load_xprompt_from_file
+from sase.macro.loader_parsing import parse_macro_entries
+from sase.macro.loader_sources import load_macro_from_file
 from sase.macro.naming import (
     ResolutionSource,
     SaveResolution,
     markdown_save_plan,
     resolution_after_save,
-    validate_xprompt_name,
+    validate_macro_name,
 )
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 from sase.macro.save import SaveTargetFormat
-from sase.macro.segment_separators import xprompt_has_segment_separators
+from sase.macro.segment_separators import macro_has_segment_separators
 from sase.macro.write_targets import (
-    XPromptWriteTarget,
-    resolve_xprompt_write_target,
+    MacroWriteTarget,
+    resolve_macro_write_target,
     write_target_for_written_path,
 )
 
@@ -253,14 +253,14 @@ def validate_name_for_destination(
 ) -> str | None:
     """Validate *name* globally and against a namespaced destination."""
 
-    error = validate_xprompt_name(name)
+    error = validate_macro_name(name)
     if error is not None:
         return error
     if destination is not None and destination.namespace:
         prefix = f"{destination.namespace}/"
         if not name.startswith(prefix):
             return f"Names saved here must start with {prefix}"
-        return validate_xprompt_name(name.removeprefix(prefix))
+        return validate_macro_name(name.removeprefix(prefix))
     return None
 
 
@@ -354,12 +354,12 @@ def _load_directory_definitions(
     for path in sorted(directory.glob("*.md")):
         if not path.is_file():
             continue
-        xprompt = load_xprompt_from_file(path)
+        xprompt = load_macro_from_file(path)
         if xprompt is None:
             continue
         name = _callable_name(row, xprompt.name)
         compatibility, reason = _mini_compatibility(
-            xprompt_has_segment_separators(xprompt),
+            macro_has_segment_separators(xprompt),
             workflow_kind="xprompt",
             selectable=row.is_selectable and not row.builtin,
         )
@@ -394,11 +394,11 @@ def _load_config_definitions(
         return
     if not isinstance(payload, dict) or not isinstance(payload.get("xprompts"), dict):
         return
-    parsed = parse_xprompt_entries(payload["xprompts"], row.location.path)
+    parsed = parse_macro_entries(payload["xprompts"], row.location.path)
     for storage_name, xprompt in parsed.items():
         name = _callable_name(row, storage_name)
         compatibility, reason = _mini_compatibility(
-            xprompt_has_segment_separators(xprompt),
+            macro_has_segment_separators(xprompt),
             workflow_kind="xprompt",
             selectable=row.is_selectable and not row.builtin,
         )
@@ -429,7 +429,7 @@ def _load_catalog_only_definitions(
         (definition.name, definition.source_path, definition.workflow_kind)
         for definition in existing
     }
-    for name, xprompt in get_all_xprompts(project=project).items():
+    for name, xprompt in get_all_macros(project=project).items():
         workflow_kind: MiniXPromptWorkflowKind | None = None
         reason: str | None = None
         if xprompt.skill_name is not None:
@@ -552,11 +552,11 @@ def _callable_name(row: UnifiedSaveLocation, storage_name: str) -> str:
     return storage_name
 
 
-def _existing_write_target(path: str | Path) -> XPromptWriteTarget:
-    return resolve_xprompt_write_target(path)
+def _existing_write_target(path: str | Path) -> MacroWriteTarget:
+    return resolve_macro_write_target(path)
 
 
-def _path_attr(target: XPromptWriteTarget | None, attr: str) -> str | None:
+def _path_attr(target: MacroWriteTarget | None, attr: str) -> str | None:
     if target is None:
         return None
     value = getattr(target, attr)

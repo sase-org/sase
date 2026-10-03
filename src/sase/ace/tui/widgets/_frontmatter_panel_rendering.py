@@ -13,7 +13,7 @@ from sase.macro.frontmatter_schema import (
     FrontmatterDiagnostic,
     FrontmatterFieldKind,
 )
-from sase.macro.models import UNSET, InputArg, XPrompt
+from sase.macro.models import UNSET, InputArg, Macro
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -197,7 +197,7 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
             if item_kind == "input":
                 rows.extend(("input", arg.name) for arg in self._model.inputs)
             else:
-                rows.extend(("xprompt", name) for name in self._model.xprompts)
+                rows.extend(("xprompt", name) for name in self._model.macros)
             if (
                 self._cell_edit is not None
                 and self._cell_edit.field == field
@@ -300,7 +300,7 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
                         )
                     )
         else:
-            for name, xprompt in self._model.xprompts.items():
+            for name, xprompt in self._model.macros.items():
                 if (
                     self._cell_edit is not None
                     and self._cell_edit.original_name == name
@@ -349,7 +349,7 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
 
     @staticmethod
     def _xprompt_item_line(
-        name: str, xprompt: XPrompt, *, selected: bool = False
+        name: str, xprompt: Macro, *, selected: bool = False
     ) -> Text:
         """One ``xprompts`` sub-item: name and a content/description preview."""
         line = Text("    • ")

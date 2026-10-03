@@ -1,8 +1,8 @@
-"""Build PDF and structured catalogs of visible xprompts.
+"""Build PDF and structured catalogs of visible macros.
 
 Public surface:
-- :func:`build_xprompts_catalog`
-- :func:`build_structured_xprompts_catalog`
+- :func:`build_macros_catalog`
+- :func:`build_structured_macros_catalog`
 """
 
 from __future__ import annotations
@@ -12,15 +12,15 @@ from pathlib import Path
 
 from sase.macro.loader import (
     get_all_workflows,
-    get_all_xprompts,
+    get_all_macros,
     get_known_project_workspaces,
-    get_sase_package_default_xprompts_dir,
-    get_sase_package_xprompts_dir,
-    load_project_file_xprompts,
-    load_project_local_xprompts,
+    get_sase_package_default_macros_dir,
+    get_sase_package_macros_dir,
+    load_project_file_macros,
+    load_project_local_macros,
 )
-from sase.macro.models import XPrompt
-from sase.macro.project_identity import canonical_xprompt_project
+from sase.macro.models import Macro
+from sase.macro.project_identity import canonical_macro_project
 from sase.macro.workflow_models import Workflow
 
 from . import _catalog_sources as _sources
@@ -39,7 +39,7 @@ from ._catalog_models import (
     CatalogDocument,
     CatalogEntry,
     CatalogStats,
-    NoXpromptsFound,
+    NoMacrosFound,
     PdfEngineUnavailable,
     StructuredCatalogAttachment,
     StructuredCatalogEntry,
@@ -61,10 +61,10 @@ from ._catalog_render import (
 from ._catalog_sources import (
     classify as _classify_impl,
     classify_workflow as _classify_workflow_impl,
-    classify_xprompt_for_structured as _classify_xprompt_for_structured_impl,
+    classify_macro_for_structured as _classify_macro_for_structured_impl,
     definition_path as _definition_path_impl,
     entry_source_path as _entry_source_path_impl,
-    package_xprompt_dirs as _package_xprompt_dirs_impl,
+    package_macro_dirs as _package_macro_dirs_impl,
 )
 from ._catalog_structured import (
     content_preview as _content_preview,
@@ -78,24 +78,24 @@ from ._catalog_structured import (
 
 _CATALOG_SOURCE_DEPENDENCIES = (
     get_all_workflows,
-    get_all_xprompts,
+    get_all_macros,
     get_known_project_workspaces,
-    get_sase_package_default_xprompts_dir,
-    get_sase_package_xprompts_dir,
-    load_project_file_xprompts,
-    load_project_local_xprompts,
+    get_sase_package_default_macros_dir,
+    get_sase_package_macros_dir,
+    load_project_file_macros,
+    load_project_local_macros,
 )
 
 
-def build_xprompts_catalog(output_dir: Path | None = None) -> CatalogArtifact:
-    """Gather every xprompt, compute stats, and render a PDF catalog."""
+def build_macros_catalog(output_dir: Path | None = None) -> CatalogArtifact:
+    """Gather every macro, compute stats, and render a PDF catalog."""
     _sync_catalog_source_dependencies()
-    from ._catalog_render import build_xprompts_catalog as _build
+    from ._catalog_render import build_macros_catalog as _build
 
     return _build(output_dir=output_dir)
 
 
-def build_structured_xprompts_catalog(
+def build_structured_macros_catalog(
     *,
     project: str | None = None,
     source: str | None = None,
@@ -105,14 +105,14 @@ def build_structured_xprompts_catalog(
     limit: int | None = None,
     include_string_defaults: bool = False,
 ) -> StructuredCatalogProjection:
-    """Return a mobile-safe structured xprompt catalog projection.
+    """Return a mobile-safe structured macro catalog projection.
 
     The projection is mobile-safe by default. Pass
     ``include_string_defaults=True`` only for local, non-network consumers
     (the TUI); the mobile helper must never pass it.
     """
     _sync_catalog_source_dependencies()
-    from ._catalog_structured import build_structured_xprompts_catalog as _build
+    from ._catalog_structured import build_structured_macros_catalog as _build
 
     return _build(
         project=project,
@@ -135,16 +135,16 @@ def _gather_structured_entries() -> list[StructuredCatalogSource]:
     return _sources.gather_structured_entries()
 
 
-def _classify(xp: XPrompt, project: str | None) -> CatalogEntry:
+def _classify(xp: Macro, project: str | None) -> CatalogEntry:
     _sync_catalog_source_dependencies()
     return _classify_impl(xp, project)
 
 
-def _classify_xprompt_for_structured(
-    xp: XPrompt, project: str | None
+def _classify_macro_for_structured(
+    xp: Macro, project: str | None
 ) -> StructuredCatalogSource:
     _sync_catalog_source_dependencies()
-    return _classify_xprompt_for_structured_impl(xp, project)
+    return _classify_macro_for_structured_impl(xp, project)
 
 
 def _classify_workflow(
@@ -178,22 +178,20 @@ def _safe_file_size(path: Path) -> int | None:
     return _sources.safe_file_size(path)
 
 
-def _package_xprompt_dirs() -> list[Path]:
+def _package_macro_dirs() -> list[Path]:
     _sync_catalog_source_dependencies()
-    return _package_xprompt_dirs_impl()
+    return _package_macro_dirs_impl()
 
 
 def _sync_catalog_source_dependencies() -> None:
     """Keep legacy monkeypatch targets on this facade effective."""
     _sources.get_all_workflows = get_all_workflows
-    _sources.get_all_xprompts = get_all_xprompts
+    _sources.get_all_macros = get_all_macros
     _sources.known_project_namespaces = _known_project_namespaces_from_facade
-    _sources.get_sase_package_default_xprompts_dir = (
-        get_sase_package_default_xprompts_dir
-    )
-    _sources.get_sase_package_xprompts_dir = get_sase_package_xprompts_dir
-    _sources.load_project_file_xprompts = load_project_file_xprompts
-    _sources.load_project_local_xprompts = load_project_local_xprompts
+    _sources.get_sase_package_default_macros_dir = get_sase_package_default_macros_dir
+    _sources.get_sase_package_macros_dir = get_sase_package_macros_dir
+    _sources.load_project_file_macros = load_project_file_macros
+    _sources.load_project_local_macros = load_project_local_macros
 
 
 def _known_project_namespaces_from_facade() -> dict[str, Path]:
@@ -203,7 +201,7 @@ def _known_project_namespaces_from_facade() -> dict[str, Path]:
     except Exception:
         return {}
     return {
-        canonical_xprompt_project(project) or project: workspace
+        canonical_macro_project(project) or project: workspace
         for project, workspace in workspaces.items()
     }
 
@@ -217,7 +215,7 @@ __all__ = [
     "CatalogDocument",
     "CatalogEntry",
     "CatalogStats",
-    "NoXpromptsFound",
+    "NoMacrosFound",
     "PdfEngineUnavailable",
     "StructuredCatalogAttachment",
     "StructuredCatalogEntry",
@@ -233,7 +231,7 @@ __all__ = [
     "_build_document",
     "_classify",
     "_classify_workflow",
-    "_classify_xprompt_for_structured",
+    "_classify_macro_for_structured",
     "_compute_stats",
     "_content_preview",
     "_default_display",
@@ -244,7 +242,7 @@ __all__ = [
     "_format_inputs",
     "_gather_entries",
     "_gather_structured_entries",
-    "_package_xprompt_dirs",
+    "_package_macro_dirs",
     "_render_html",
     "_render_pdf",
     "_safe_file_size",
@@ -255,13 +253,13 @@ __all__ = [
     "_structured_inputs",
     "_tag_color_class",
     "_truncate_content",
-    "build_structured_xprompts_catalog",
-    "build_xprompts_catalog",
+    "build_structured_macros_catalog",
+    "build_macros_catalog",
     "get_all_workflows",
-    "get_all_xprompts",
+    "get_all_macros",
     "get_known_project_workspaces",
-    "get_sase_package_default_xprompts_dir",
-    "get_sase_package_xprompts_dir",
-    "load_project_local_xprompts",
+    "get_sase_package_default_macros_dir",
+    "get_sase_package_macros_dir",
+    "load_project_local_macros",
     "shutil",
 ]

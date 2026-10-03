@@ -64,7 +64,7 @@ def set_prompt_wait(
         {"wait"},
         replacement,
         remove_deprecated=True,
-        remove_time_xprompts=True,
+        remove_time_macros=True,
     )
 
 
@@ -102,7 +102,7 @@ def set_prompt_wait_and_queue(
         {"wait", "queue"},
         replacement,
         remove_deprecated=True,
-        remove_time_xprompts=True,
+        remove_time_macros=True,
     )
 
 
@@ -130,7 +130,7 @@ def set_prompt_queue(
             weight=resolved_weight,
         ),
         remove_deprecated=False,
-        remove_time_xprompts=False,
+        remove_time_macros=False,
     )
 
 

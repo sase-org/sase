@@ -253,7 +253,7 @@ def test_static_choices_and_kind_calls() -> None:
     assert ":dir:_files -/" in script
 
 
-def test_run_prompt_positional_combines_files_and_xprompts() -> None:
+def test_run_prompt_positional_combines_files_and_macros() -> None:
     prompt = _positional(
         metavar="PROMPT",
         dest="prompt",
@@ -309,6 +309,6 @@ def test_live_script_plus_one_command_is_present(live_script: str) -> None:
     assert "(+1)" in live_script
 
 
-def test_live_script_run_prompt_combines_files_and_xprompts(live_script: str) -> None:
+def test_live_script_run_prompt_combines_files_and_macros(live_script: str) -> None:
     assert "'1::PROMPT:__sase_run_prompt'" in live_script
     assert "__sase_run_prompt_embedded" in live_script

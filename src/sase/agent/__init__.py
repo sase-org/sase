@@ -11,9 +11,9 @@ from typing import Any
 _LAZY_EXPORTS = {
     "AgentLaunchResult": (".launcher", "AgentLaunchResult"),
     "claim_agent_name": (".names", "claim_agent_name"),
-    "deserialize_local_xprompts": (
+    "deserialize_local_macros": (
         ".multi_prompt_launcher",
-        "deserialize_local_xprompts",
+        "deserialize_local_macros",
     ),
     "find_named_agent": (".names", "find_named_agent"),
     "get_global_cache": (".artifact_files_cache", "get_global_cache"),
@@ -36,7 +36,7 @@ _LAZY_EXPORTS = {
 __all__ = [
     "AgentLaunchResult",
     "claim_agent_name",
-    "deserialize_local_xprompts",
+    "deserialize_local_macros",
     "find_named_agent",
     "get_global_cache",
     "get_most_recent_agent_name",

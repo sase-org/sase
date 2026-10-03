@@ -13,7 +13,7 @@ from sase.macro.catalog import (
 from tests._mobile_helper_bridge_helpers import run_bridge
 
 
-def test_xprompt_catalog_bridge_returns_structured_projection(
+def test_macro_catalog_bridge_returns_structured_projection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_catalog(**kwargs: object) -> StructuredCatalogProjection:
@@ -51,8 +51,8 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
                     ],
                     is_skill=False,
                     content_preview="Repair this failure",
-                    source_path_display=".sase/xprompts/fix_hook.md",
-                    definition_path="/workspace/.sase/xprompts/fix_hook.md",
+                    source_path_display=".sase/macros/fix_hook.md",
+                    definition_path="/workspace/.sase/macros/fix_hook.md",
                 )
             ],
             stats=StructuredCatalogStats(
@@ -73,7 +73,7 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
         )
 
     monkeypatch.setattr(
-        "sase.integrations.mobile_helpers.build_structured_xprompts_catalog",
+        "sase.integrations.mobile_helpers.build_structured_macros_catalog",
         fake_catalog,
     )
 
@@ -129,17 +129,17 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
             "is_skill": False,
             "skill_name": None,
             "content_preview": "Repair this failure",
-            "source_path_display": ".sase/xprompts/fix_hook.md",
-            "definition_path": "/workspace/.sase/xprompts/fix_hook.md",
+            "source_path_display": ".sase/macros/fix_hook.md",
+            "definition_path": "/workspace/.sase/macros/fix_hook.md",
         }
     ]
 
 
-def test_xprompt_catalog_bridge_returns_attachment_metadata(
+def test_macro_catalog_bridge_returns_attachment_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.integrations.mobile_helpers.build_structured_xprompts_catalog",
+        "sase.integrations.mobile_helpers.build_structured_macros_catalog",
         lambda **_kwargs: StructuredCatalogProjection(
             entries=[],
             stats=StructuredCatalogStats(
@@ -178,7 +178,7 @@ def test_xprompt_catalog_bridge_returns_attachment_metadata(
     }
 
 
-def test_xprompt_catalog_bridge_rejects_invalid_include_pdf() -> None:
+def test_macro_catalog_bridge_rejects_invalid_include_pdf() -> None:
     code, data, stderr = run_bridge(
         {"schema_version": 1, "include_pdf": "yes"},
         operation="xprompt-catalog",

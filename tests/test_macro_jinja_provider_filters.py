@@ -9,7 +9,7 @@ import pytest
 from sase.llm_provider.provider_disable import disable_provider
 from sase.macro._jinja import get_jinja_env
 from sase.macro.jinja_filters import _provider_disabled, _provider_enabled
-from sase.macro.processor import _filter_conditional_xprompt_segments
+from sase.macro.processor import _filter_conditional_macro_segments
 
 
 def test_no_disable_state_means_enabled(
@@ -102,7 +102,7 @@ def test_gated_segment_survives_when_provider_enabled(
         '%if(should_run={{ "grok" | provider_enabled }})\n'
         "Grok segment.\n"
     )
-    filtered = _filter_conditional_xprompt_segments(_render(body))
+    filtered = _filter_conditional_macro_segments(_render(body))
     assert "First segment." in filtered
     assert "Grok segment." in filtered
 
@@ -117,7 +117,7 @@ def test_gated_segment_drops_when_provider_disabled(
         '%if(should_run={{ "grok" | provider_enabled }})\n'
         "Grok segment.\n"
     )
-    filtered = _filter_conditional_xprompt_segments(_render(body))
+    filtered = _filter_conditional_macro_segments(_render(body))
     assert "First segment." in filtered
     assert "Grok segment." not in filtered
 
@@ -134,7 +134,7 @@ def test_hard_gated_segment_survives_without_disable(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
-    filtered = _filter_conditional_xprompt_segments(_render(_hard_gated_body()))
+    filtered = _filter_conditional_macro_segments(_render(_hard_gated_body()))
     assert "First segment." in filtered
     assert "Grok segment." in filtered
 
@@ -144,7 +144,7 @@ def test_hard_gated_segment_survives_soft_disable(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     disable_provider("grok", 900.0, source="test", mode="soft")
-    filtered = _filter_conditional_xprompt_segments(_render(_hard_gated_body()))
+    filtered = _filter_conditional_macro_segments(_render(_hard_gated_body()))
     assert "First segment." in filtered
     assert "Grok segment." in filtered
 
@@ -154,7 +154,7 @@ def test_hard_gated_segment_drops_on_hard_disable(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     disable_provider("grok", 900.0, source="test")
-    filtered = _filter_conditional_xprompt_segments(_render(_hard_gated_body()))
+    filtered = _filter_conditional_macro_segments(_render(_hard_gated_body()))
     assert "First segment." in filtered
     assert "Grok segment." not in filtered
 

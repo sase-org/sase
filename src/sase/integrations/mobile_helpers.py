@@ -22,9 +22,9 @@ from ._mobile_helper_beads import (
     beads_show_response,
 )
 from ._mobile_helper_catalog import (
-    build_structured_xprompts_catalog,
+    build_structured_macros_catalog,
     patch_tags_response,
-    xprompt_catalog_response,
+    macro_catalog_response,
 )
 from ._mobile_helper_common import (
     GATEWAY_WIRE_SCHEMA_VERSION,
@@ -62,7 +62,7 @@ def handle_mobile_helper_bridge(
         if operation == "changespec-tags":
             response = patch_tags_response(request)
         elif operation == "xprompt-catalog":
-            response = xprompt_catalog_response(request)
+            response = macro_catalog_response(request)
         elif operation == "beads-list":
             response = beads_list_response(request)
         elif operation == "beads-show":
@@ -91,7 +91,7 @@ def handle_mobile_helper_bridge(
 
 def _sync_mobile_helper_dependency_overrides() -> None:
     """Preserve legacy monkeypatch targets on this facade module."""
-    _catalog.build_structured_xprompts_catalog = build_structured_xprompts_catalog
+    _catalog.build_structured_macros_catalog = build_structured_macros_catalog
     _bead_store_locator.get_project_beads_dirs_for_project = (
         get_project_beads_dirs_for_project
     )

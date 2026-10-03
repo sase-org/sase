@@ -68,7 +68,7 @@ from .segments import (
     embedded_workflow_prompt_segment,
     local_authored_prompt_segment,
     local_materialized_prompt_segment,
-    xprompt_trace_segments,
+    macro_trace_segments,
 )
 from .workspace import persist_workspace_facts, persist_workspace_facts_best_effort
 
@@ -111,5 +111,5 @@ __all__ = [
     "record_prepared_prompt_capture",
     "record_prepared_prompt_capture_best_effort",
     "repair_missing_starter_parent_disposition",
-    "xprompt_trace_segments",
+    "macro_trace_segments",
 ]

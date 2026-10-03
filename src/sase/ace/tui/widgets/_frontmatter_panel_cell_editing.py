@@ -15,11 +15,11 @@ from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.macro.frontmatter_schema import FrontmatterFieldKind, input_type_schema
 from sase.macro.loader_parsing import parse_input_type
-from sase.macro.models import UNSET, InputArg, XPrompt, XPromptValidationError
+from sase.macro.models import UNSET, InputArg, Macro, MacroValidationError
 from sase.macro.prompt_frontmatter import (
     FrontmatterStateValue,
     FrontmatterValueState,
-    LOCAL_XPROMPT_SOURCE,
+    LOCAL_MACRO_SOURCE,
     PromptFrontmatter,
 )
 
@@ -40,7 +40,7 @@ class _CellEdit:
     original_name: str | None = None
     index: int = 0
     ghost: bool = False
-    on_commit: Callable[[XPrompt], None] | None = None
+    on_commit: Callable[[Macro], None] | None = None
 
     @property
     def active_cell(self) -> str:
@@ -102,8 +102,8 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
         *,
         item_name: str | None = None,
         ghost: bool = False,
-        prefill: XPrompt | None = None,
-        on_commit: Callable[[XPrompt], None] | None = None,
+        prefill: Macro | None = None,
+        on_commit: Callable[[Macro], None] | None = None,
     ) -> None:
         item_kind = self._structured_item_kind(field)
         if item_kind == "input":
@@ -116,7 +116,7 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             }
             cells = ("name", "type", "default", "description")
         else:
-            xprompt = prefill or self._model.get_xprompt(item_name or "")
+            xprompt = prefill or self._model.get_macro(item_name or "")
             values = {
                 "name": xprompt.name if xprompt else "_",
                 "description": xprompt.description or "" if xprompt else "",
@@ -144,9 +144,9 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
     def begin_prefilled_xprompt(
         self,
         field: str,
-        xprompt: XPrompt,
+        xprompt: Macro,
         *,
-        on_commit: Callable[[XPrompt], None] | None = None,
+        on_commit: Callable[[Macro], None] | None = None,
     ) -> None:
         """Public bridge used by ``gL`` to enter the same ghost-row flow."""
         self._begin_cell_edit(field, ghost=True, prefill=xprompt, on_commit=on_commit)
@@ -273,17 +273,17 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             self._model.set_input(result)
             selected = ("input", result.name)
         elif cell.item_kind == "xprompt":
-            assert isinstance(result, XPrompt)
+            assert isinstance(result, Macro)
             if cell.original_name and cell.original_name != result.name:
-                self._model.remove_xprompt(cell.original_name)
-            self._model.set_xprompt(result)
+                self._model.remove_macro(cell.original_name)
+            self._model.set_macro(result)
             selected = ("xprompt", result.name)
         else:
             assert isinstance(result, FrontmatterStateValue)
             self._model.set_value_state(cell.field, result)
             selected = ("field", cell.field)
         callback = cell.on_commit
-        xprompt_result = result if isinstance(result, XPrompt) else None
+        xprompt_result = result if isinstance(result, Macro) else None
         self._cell_edit = None
         self._adding_field = None
         self._edit_mode = "rows"
@@ -300,7 +300,7 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
 
     def _build_cell_result(
         self,
-    ) -> tuple[InputArg | XPrompt | FrontmatterStateValue | None, str]:
+    ) -> tuple[InputArg | Macro | FrontmatterStateValue | None, str]:
         cell = self._cell_edit
         if cell is None:
             return None, "no active edit"
@@ -343,7 +343,7 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
                     default = InputArg(name=name, type=input_type).validate_and_convert(
                         default_text
                     )
-                except XPromptValidationError as exc:
+                except MacroValidationError as exc:
                     return None, str(exc)
             return InputArg(
                 name=name,
@@ -353,7 +353,7 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             ), ""
 
         name = normalize_local_xprompt_name(name)
-        used = set(self._model.xprompts) - (
+        used = set(self._model.macros) - (
             {cell.original_name} if cell.original_name else set()
         )
         error = validate_local_xprompt_name(name, used)
@@ -366,11 +366,11 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
             inputs = self._parse_compact_inputs(cell.values["inputs"])
         except ValueError as exc:
             return None, str(exc)
-        return XPrompt(
+        return Macro(
             name=name,
             content=content,
             inputs=inputs,
-            source_path=LOCAL_XPROMPT_SOURCE,
+            source_path=LOCAL_MACRO_SOURCE,
             description=cell.values["description"].strip() or None,
         ), ""
 
@@ -413,7 +413,7 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
                     default = InputArg(name=name, type=input_type).validate_and_convert(
                         default_text.strip()
                     )
-                except XPromptValidationError as exc:
+                except MacroValidationError as exc:
                     raise ValueError(str(exc)) from None
             seen.add(name)
             inputs.append(InputArg(name=name, type=input_type, default=default))

@@ -1,19 +1,19 @@
-"""Argument parser definition for the 'xprompt' CLI subcommand."""
+"""Argument parser definition for the 'macro' CLI subcommand."""
 
 import argparse
 import textwrap
 
 
-def register_xprompt_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'xprompt' subcommand parser."""
-    xprompt_parser = subparsers.add_parser(
+def register_macro_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'macro' subcommand parser."""
+    macro_parser = subparsers.add_parser(
         "xprompt",
         help="Expand and visualize xprompt workflows",
     )
-    xprompt_subparsers = xprompt_parser.add_subparsers(dest="xprompt_subcommand")
+    macro_subparsers = macro_parser.add_subparsers(dest="xprompt_subcommand")
 
-    # xprompt catalog
-    catalog_parser = xprompt_subparsers.add_parser(
+    # macro catalog
+    catalog_parser = macro_subparsers.add_parser(
         "catalog",
         help="Render every visible xprompt to a beautifully-formatted PDF",
     )
@@ -25,8 +25,8 @@ def register_xprompt_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Directory to write the PDF (defaults to a tempdir).",
     )
 
-    # xprompt expand
-    expand_parser = xprompt_subparsers.add_parser(
+    # macro expand
+    expand_parser = macro_subparsers.add_parser(
         "expand",
         help="Expand sase references (snippets, file refs) in a prompt",
     )
@@ -42,8 +42,8 @@ def register_xprompt_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Print expansion trace to stderr showing each resolved reference.",
     )
 
-    # xprompt explain
-    explain_parser = xprompt_subparsers.add_parser(
+    # macro explain
+    explain_parser = macro_subparsers.add_parser(
         "explain",
         help="Dry-run: show execution plan without running anything",
     )
@@ -65,8 +65,8 @@ def register_xprompt_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Named argument (can be repeated).",
     )
 
-    # xprompt graph
-    graph_parser = xprompt_subparsers.add_parser(
+    # macro graph
+    graph_parser = macro_subparsers.add_parser(
         "graph",
         help="Generate a DAG visualization of a workflow",
     )
@@ -83,14 +83,14 @@ def register_xprompt_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Output format (default: mermaid)",
     )
 
-    # xprompt list
-    xprompt_subparsers.add_parser(
+    # macro list
+    macro_subparsers.add_parser(
         "list",
         help="List all available xprompts and workflows as JSON",
     )
 
-    # xprompt show
-    show_parser = xprompt_subparsers.add_parser(
+    # macro show
+    show_parser = macro_subparsers.add_parser(
         "show",
         help="Show one xprompt definition with syntax highlighting",
         description=(

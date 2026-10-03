@@ -16,7 +16,7 @@ from sase.ace.tui.modals.mini_xprompt_target_catalog import (
 )
 from sase.ace.tui.modals.unified_xprompt_save_modal import UnifiedSaveLocation
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from sase.macro.save import SaveTargetFormat
 
 
@@ -58,7 +58,7 @@ def _write_config(path: Path, entries: dict[str, object]) -> None:
 
 
 def _empty_catalog_only(monkeypatch) -> None:
-    monkeypatch.setattr(catalog_mod, "get_all_xprompts", lambda project=None: {})
+    monkeypatch.setattr(catalog_mod, "get_all_macros", lambda project=None: {})
     monkeypatch.setattr(catalog_mod, "get_all_workflows", lambda project=None: {})
 
 
@@ -163,15 +163,15 @@ def test_catalog_only_workflows_skills_and_memory_are_incompatible(
     row = _row(tmp_path / "xprompts")
     monkeypatch.setattr(
         catalog_mod,
-        "get_all_xprompts",
+        "get_all_macros",
         lambda project=None: {
-            "skill/review": XPrompt(
+            "skill/review": Macro(
                 name="skill/review",
                 content="skill",
                 source_path="skills/review.md",
                 skill_name="review",
             ),
-            "memory/obsidian": XPrompt(
+            "memory/obsidian": Macro(
                 name="memory/obsidian",
                 content="memory",
                 source_path="memory/obsidian.md",

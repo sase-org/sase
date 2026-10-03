@@ -1,7 +1,7 @@
 """Completion catalog for ``%model`` directive values.
 
 The Python LLM registry owns model/provider metadata. This module builds the
-JSON-serializable catalog shared by the ACE prompt input and the Rust xprompt
+JSON-serializable catalog shared by the ACE prompt input and the Rust macro
 LSP launcher materialization. The static catalog deliberately excludes
 temporary alias overrides: ACE can apply a cheap live overlay, while the LSP
 payload remains a launch-time configuration snapshot.

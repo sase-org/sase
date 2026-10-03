@@ -54,8 +54,8 @@ def _stub_claude_skill_targets(
     monkeypatch: pytest.MonkeyPatch,
     names: tuple[str, ...],
 ) -> dict[str, Path]:
-    xprompts = {
-        f"skills/{name}": init_skills_handler.XPrompt(
+    macros = {
+        f"skills/{name}": init_skills_handler.Macro(
             name=f"skills/{name}",
             content=f"{name} body\n",
             description=f"{name} description",
@@ -66,7 +66,7 @@ def _stub_claude_skill_targets(
     }
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
-        init_skills_handler, "get_all_xprompts", lambda project="": xprompts
+        init_skills_handler, "get_all_macros", lambda project="": macros
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -256,7 +256,7 @@ def _write_retired_manifest_fixture(
     manifest.write_text(
         _SkillDeployManifest(
             source_commit="2" * 40,
-            xprompt_set_sha256="old-hash",
+            macro_set_sha256="old-hash",
             deployed_at="2026-07-28T12:00:00Z",
             managed_files=(
                 ManagedSkillFile(
@@ -274,7 +274,7 @@ def _write_retired_manifest_fixture(
     monkeypatch.setattr(
         init_skills_handler, "skill_source_integrity_error", lambda: None
     )
-    monkeypatch.setattr(init_skills_handler, "get_all_xprompts", lambda project="": {})
+    monkeypatch.setattr(init_skills_handler, "get_all_macros", lambda project="": {})
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
     monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
     monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)

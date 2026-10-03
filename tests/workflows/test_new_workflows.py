@@ -24,8 +24,8 @@ class TestCrsWorkflow:
     def test_build_crs_prompt_basic(self) -> None:
         """Test building a CRS prompt.
 
-        The crs xprompt may be provided by a plugin. When the plugin is not
-        installed, process_xprompt_references returns the raw reference string.
+        The crs macro may be provided by a plugin. When the plugin is not
+        installed, process_macro_references returns the raw reference string.
         """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write('{"comments": []}\n')

@@ -13,7 +13,7 @@ import yaml
 
 from sase.main.parser import create_parser
 from sase.snippet import cli_add
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from sase.macro.snippet_config_yaml import snippet_config_digest
 
 from .snippet_cli_helpers import install_writable_snippet_project
@@ -173,14 +173,14 @@ def test_add_force_replaces_and_reports_action(
     assert loaded["ace"]["snippets"]["greet"] == "NEW$0"
 
 
-def test_add_force_shadows_xprompt_and_reports_action(
+def test_add_force_shadows_macro_and_reports_action(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     config_path = install_writable_snippet_project(
         tmp_path,
         monkeypatch,
         body="timezone: UTC\n",
-        xprompts={"todo": XPrompt(name="todo", content="from xprompt", snippet=True)},
+        macros={"todo": Macro(name="todo", content="from xprompt", snippet=True)},
     )
     args = create_parser().parse_args(
         [
@@ -237,7 +237,7 @@ def test_add_restore_command_round_trips_multiline_and_spaced_path(
     workspace = tmp_path / "work space"
     workspace.mkdir()
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {},
     )
     from sase.macro import glossary_catalog as catalog_mod

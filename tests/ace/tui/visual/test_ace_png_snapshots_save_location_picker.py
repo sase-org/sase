@@ -50,7 +50,7 @@ def _choice(
 def _xprompt_choices() -> tuple[SaveLocationChoice, ...]:
     return (
         _choice(
-            "./sase/xprompts/",
+            "./sase/macros/",
             "p",
             "Project · sase",
             kind="directory",

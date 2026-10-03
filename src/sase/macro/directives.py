@@ -2,7 +2,7 @@
 
 Directives are in-prompt tags with a ``%`` prefix that modify runner behavior.
 They are extracted and stripped from the prompt before further preprocessing.
-Directive arguments use the same syntax as xprompts (colon, paren, backtick, plus).
+Directive arguments use the same syntax as macros (colon, paren, backtick, plus).
 
 Example::
 
@@ -55,7 +55,7 @@ from .hold_directive import (
     format_hold_directive,
     hold_fields_to_selectors,
 )
-from .processor import process_xprompt_references
+from .processor import process_macro_references
 
 __all__ = [
     "DirectiveError",
@@ -87,13 +87,13 @@ def extract_prompt_directives(
     """Extract ``%id`` directives from a prompt.
 
     Finds all ``%id`` patterns in the prompt. Known directives are parsed,
-    their xprompt references expanded, and they are stripped from the prompt.
+    their macro references expanded, and they are stripped from the prompt.
     Unknown ``%id`` patterns are left in the prompt unchanged.
 
     Args:
         prompt: The raw prompt text.
         strip_disabled_markers: If True (default), strip
-            ``%xprompts_enabled:false``/``%xprompts_enabled:true`` markers from
+            ``%macros_enabled:false``/``%macros_enabled:true`` markers from
             the returned prompt. Set to False when this function is called as
             part of a multi-phase pipeline that needs to preserve the markers
             for a later phase (e.g. :func:`preprocess_prompt_early`).
@@ -114,5 +114,5 @@ def extract_prompt_directives(
     return _extract_prompt_directives(
         prompt,
         strip_disabled_markers=strip_disabled_markers,
-        process_references=process_xprompt_references,
+        process_references=process_macro_references,
     )

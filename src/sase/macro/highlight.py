@@ -1,4 +1,4 @@
-"""Frontend-agnostic xprompt syntax highlight spans."""
+"""Frontend-agnostic macro syntax highlight spans."""
 
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from ._literal_zones import inline_literal_ranges
 from .placeholder_completion import PlaceholderPosition, placeholder_spans
 
 if TYPE_CHECKING:
-    from .macro_inspect import XPromptSpan
+    from .macro_inspect import MacroSpan
 
 MAX_HIGHLIGHT_BYTES = 80_000
 MAX_HIGHLIGHT_LINES = 1_200
 
-XPromptHighlightRole = Literal[
+MacroHighlightRole = Literal[
     "xprompt.invocation",
     "xprompt.invocation_arg",
     "xprompt.directive",
@@ -54,7 +54,7 @@ XPromptHighlightRole = Literal[
     "xprompt.project_tag.unknown",
 ]
 
-XPromptArgumentSpanValidity = Literal[
+MacroArgumentSpanValidity = Literal[
     "ok",
     "unknown_key",
     "type_mismatch",
@@ -62,7 +62,7 @@ XPromptArgumentSpanValidity = Literal[
     "unresolvable",
 ]
 
-XPromptArgumentSource = Literal["xprompt", "directive"]
+MacroArgumentSource = Literal["xprompt", "directive"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,15 +70,15 @@ class HighlightSpan:
     """A half-open character range carrying one semantic highlight role.
 
     ``accent`` carries the project accent hex for
-    ``xprompt.project_tag`` roles; ``None`` renders the neutral style
+    ``macro.project_tag`` roles; ``None`` renders the neutral style
     (disabled projects and ``home``).
     """
 
     start: int
     end: int
-    role: XPromptHighlightRole
-    validity: XPromptArgumentSpanValidity = "ok"
-    source: XPromptArgumentSource | None = None
+    role: MacroHighlightRole
+    validity: MacroArgumentSpanValidity = "ok"
+    source: MacroArgumentSource | None = None
     accent: str | None = None
 
 
@@ -87,15 +87,15 @@ class _Candidate:
     candidate_id: int
     start: int
     end: int
-    role: XPromptHighlightRole
-    validity: XPromptArgumentSpanValidity
-    source: XPromptArgumentSource | None
+    role: MacroHighlightRole
+    validity: MacroArgumentSpanValidity
+    source: MacroArgumentSource | None
     accent: str | None
 
 
 # Lower numbers win. Keeping every role explicit makes precedence additions
 # deliberate and gives same-family overlaps a deterministic result.
-_ROLE_PRECEDENCE: dict[XPromptHighlightRole, int] = {
+_ROLE_PRECEDENCE: dict[MacroHighlightRole, int] = {
     "code.fence": 0,
     "code.inline": 1,
     "xprompt.invocation": 10,
@@ -129,7 +129,7 @@ _ROLE_PRECEDENCE: dict[XPromptHighlightRole, int] = {
     "xprompt.directive_arg": 91,
 }
 
-_ARGUMENT_ROLE_BY_CORE_ROLE: dict[str, XPromptHighlightRole] = {
+_ARGUMENT_ROLE_BY_CORE_ROLE: dict[str, MacroHighlightRole] = {
     "arg_delimiter": "xprompt.arg_delimiter",
     "arg_key": "xprompt.arg_key",
     "arg_assign": "xprompt.arg_assign",
@@ -145,25 +145,23 @@ _VALIDITIES: frozenset[str] = frozenset(
 
 _SOURCES: frozenset[str] = frozenset({"xprompt", "directive"})
 _MISSING_BINDING = object()
-_xprompt_argument_spans_binding: Callable[..., object] | object | None = None
+_macro_argument_spans_binding: Callable[..., object] | object | None = None
 
 
-def _get_xprompt_argument_spans_binding() -> Callable[..., object] | None:
-    global _xprompt_argument_spans_binding
+def _get_macro_argument_spans_binding() -> Callable[..., object] | None:
+    global _macro_argument_spans_binding
 
-    if _xprompt_argument_spans_binding is _MISSING_BINDING:
+    if _macro_argument_spans_binding is _MISSING_BINDING:
         return None
-    if _xprompt_argument_spans_binding is None:
+    if _macro_argument_spans_binding is None:
         try:
             from sase.core.rust import require_rust_binding
 
-            _xprompt_argument_spans_binding = require_rust_binding(
-                "macro_argument_spans"
-            )
+            _macro_argument_spans_binding = require_rust_binding("macro_argument_spans")
         except Exception:
-            _xprompt_argument_spans_binding = _MISSING_BINDING
+            _macro_argument_spans_binding = _MISSING_BINDING
             return None
-    return cast(Callable[..., object], _xprompt_argument_spans_binding)
+    return cast(Callable[..., object], _macro_argument_spans_binding)
 
 
 def highlight_spans(
@@ -171,8 +169,8 @@ def highlight_spans(
     *,
     known_skills: frozenset[str] = frozenset(),
     include_artifact_refs: bool = True,
-    xprompt_arg_assist_entries: Sequence[object] | None = None,
-    xprompt_arg_assist_entries_wire: Sequence[Mapping[str, object]] | None = None,
+    macro_arg_assist_entries: Sequence[object] | None = None,
+    macro_arg_assist_entries_wire: Sequence[Mapping[str, object]] | None = None,
 ) -> list[HighlightSpan]:
     """Return a flat, ordered, non-overlapping role partition of *text*."""
     if (
@@ -184,13 +182,13 @@ def highlight_spans(
     collected: list[HighlightSpan] = []
 
     try:
-        xprompt_tokens: list[XPromptSpan] = macro_inspect.tokenize(
+        macro_tokens: list[MacroSpan] = macro_inspect.tokenize(
             text,
             known_skills=known_skills,
         )
     except Exception:
-        xprompt_tokens = []
-    for token in xprompt_tokens:
+        macro_tokens = []
+    for token in macro_tokens:
         if token.kind == "project_tag":
             collected.extend(_project_tag_highlight_spans(token))
         elif token.kind == "project_tag_unknown":
@@ -202,15 +200,15 @@ def highlight_spans(
                 HighlightSpan(
                     token.start,
                     token.end,
-                    cast(XPromptHighlightRole, f"xprompt.{token.kind}"),
+                    cast(MacroHighlightRole, f"xprompt.{token.kind}"),
                 )
             )
 
     collected.extend(
-        _xprompt_argument_highlight_spans(
+        _macro_argument_highlight_spans(
             text,
-            xprompt_arg_assist_entries=xprompt_arg_assist_entries,
-            xprompt_arg_assist_entries_wire=xprompt_arg_assist_entries_wire,
+            macro_arg_assist_entries=macro_arg_assist_entries,
+            macro_arg_assist_entries_wire=macro_arg_assist_entries_wire,
         )
     )
 
@@ -222,7 +220,7 @@ def highlight_spans(
         HighlightSpan(
             span.start,
             span.end,
-            cast(XPromptHighlightRole, f"jinja.{span.kind}"),
+            cast(MacroHighlightRole, f"jinja.{span.kind}"),
         )
         for span in jinja_tokens
     )
@@ -235,7 +233,7 @@ def highlight_spans(
         HighlightSpan(
             span.start,
             span.end,
-            cast(XPromptHighlightRole, f"alt.{span.kind}"),
+            cast(MacroHighlightRole, f"alt.{span.kind}"),
         )
         for span in alt_tokens
     )
@@ -284,7 +282,7 @@ def highlight_spans(
     return _flatten_spans(collected, text_length=len(text))
 
 
-def _project_tag_highlight_spans(span: XPromptSpan) -> list[HighlightSpan]:
+def _project_tag_highlight_spans(span: MacroSpan) -> list[HighlightSpan]:
     """Split a resolved tag token into sigil and name spans (D6).
 
     The ``+`` renders dim in the accent and the name bold in the accent,
@@ -375,25 +373,25 @@ def _flatten_spans(
     ]
 
 
-def _xprompt_argument_highlight_spans(
+def _macro_argument_highlight_spans(
     text: str,
     *,
-    xprompt_arg_assist_entries: Sequence[object] | None,
-    xprompt_arg_assist_entries_wire: Sequence[Mapping[str, object]] | None,
+    macro_arg_assist_entries: Sequence[object] | None,
+    macro_arg_assist_entries_wire: Sequence[Mapping[str, object]] | None,
 ) -> list[HighlightSpan]:
-    binding = _get_xprompt_argument_spans_binding()
+    binding = _get_macro_argument_spans_binding()
     if binding is None:
         return []
 
     try:
-        if xprompt_arg_assist_entries_wire is not None:
-            raw_spans = binding(text, xprompt_arg_assist_entries_wire)
-        elif xprompt_arg_assist_entries is None:
+        if macro_arg_assist_entries_wire is not None:
+            raw_spans = binding(text, macro_arg_assist_entries_wire)
+        elif macro_arg_assist_entries is None:
             raw_spans = binding(text)
         else:
             raw_spans = binding(
                 text,
-                xprompt_arg_assist_entries_to_wire(xprompt_arg_assist_entries),
+                macro_arg_assist_entries_to_wire(macro_arg_assist_entries),
             )
     except Exception:
         return []
@@ -428,13 +426,13 @@ def _xprompt_argument_highlight_spans(
     return spans
 
 
-def xprompt_arg_assist_entries_to_wire(
+def macro_arg_assist_entries_to_wire(
     entries: Sequence[object],
 ) -> list[dict[str, object]]:
-    return [_xprompt_arg_assist_entry_to_wire(entry) for entry in entries]
+    return [_macro_arg_assist_entry_to_wire(entry) for entry in entries]
 
 
-def _xprompt_arg_assist_entry_to_wire(entry: object) -> dict[str, object]:
+def _macro_arg_assist_entry_to_wire(entry: object) -> dict[str, object]:
     name = str(_field(entry, "name", ""))
     return {
         "name": name,
@@ -447,7 +445,7 @@ def _xprompt_arg_assist_entry_to_wire(entry: object) -> dict[str, object]:
         "tags": list(cast(Sequence[object], _field(entry, "tags", ()) or ())),
         "input_signature": _field(entry, "input_signature", None),
         "inputs": [
-            _xprompt_input_hint_to_wire(input_hint)
+            _macro_input_hint_to_wire(input_hint)
             for input_hint in cast(Sequence[object], _field(entry, "inputs", ()) or ())
         ],
         "content_preview": _field(entry, "content_preview", None),
@@ -461,7 +459,7 @@ def _xprompt_arg_assist_entry_to_wire(entry: object) -> dict[str, object]:
     }
 
 
-def _xprompt_input_hint_to_wire(input_hint: object) -> dict[str, object]:
+def _macro_input_hint_to_wire(input_hint: object) -> dict[str, object]:
     return {
         "name": _field(input_hint, "name", ""),
         "type": _field(input_hint, "type", ""),
@@ -500,15 +498,15 @@ def _position_value(value: object) -> int:
     return 0
 
 
-def _validity_value(value: object) -> XPromptArgumentSpanValidity:
+def _validity_value(value: object) -> MacroArgumentSpanValidity:
     if isinstance(value, str) and value in _VALIDITIES:
-        return cast(XPromptArgumentSpanValidity, value)
+        return cast(MacroArgumentSpanValidity, value)
     return "ok"
 
 
-def _source_value(value: object) -> XPromptArgumentSource | None:
+def _source_value(value: object) -> MacroArgumentSource | None:
     if isinstance(value, str) and value in _SOURCES:
-        return cast(XPromptArgumentSource, value)
+        return cast(MacroArgumentSource, value)
     return None
 
 
@@ -548,8 +546,8 @@ __all__ = [
     "MAX_HIGHLIGHT_BYTES",
     "MAX_HIGHLIGHT_LINES",
     "HighlightSpan",
-    "XPromptArgumentSource",
-    "XPromptArgumentSpanValidity",
-    "XPromptHighlightRole",
+    "MacroArgumentSource",
+    "MacroArgumentSpanValidity",
+    "MacroHighlightRole",
     "highlight_spans",
 ]

@@ -89,7 +89,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "vcs": ("sase.main.parser_stitch", "register_stitch_parser"),
     "version": ("sase.main.parser_version", "register_version_parser"),
     "workspace": ("sase.main.parser_workspace", "register_workspace_parser"),
-    "xprompt": ("sase.main.parser_macro", "register_xprompt_parser"),
+    "xprompt": ("sase.main.parser_macro", "register_macro_parser"),
 }
 
 

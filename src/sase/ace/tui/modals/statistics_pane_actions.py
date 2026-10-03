@@ -171,7 +171,7 @@ class StatisticsPaneActionsMixin(StatisticsPaneLayoutMixin):
             XPromptFocusChoice,
         )
 
-        rows = self._last_result.views.xprompts.rows
+        rows = self._last_result.views.macros.rows
         if self._xprompt_focus_options:
             by_name = {row.name: row for row in rows}
             rows = tuple(

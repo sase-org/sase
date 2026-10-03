@@ -1,4 +1,4 @@
-"""Resolve xprompt definition provenance for ``sase xprompt show``."""
+"""Resolve macro definition provenance for ``sase macro show``."""
 
 from __future__ import annotations
 
@@ -17,15 +17,15 @@ from sase.content_layout import (
     resolve_project_layout,
 )
 from sase.repo_inventory import collect_repo_inventory
-from sase.macro.models import XPrompt
-from sase.macro.used_macros import scan_xprompt_references
+from sase.macro.models import Macro
+from sase.macro.used_macros import scan_macro_references
 
 _SCHEMA_VERSION = 1
 _YAML_SUFFIXES = {".yaml", ".yml"}
 
 
-class _XPromptSourceRecord(TypedDict):
-    """One resolved xprompt definition's provenance."""
+class _MacroSourceRecord(TypedDict):
+    """One resolved macro definition's provenance."""
 
     schema_version: int
     raw_ref: str
@@ -51,19 +51,19 @@ class _DefinitionRepo:
     chezmoi: bool
 
 
-def collect_xprompt_sources(
+def collect_macro_sources(
     raw_prompt: str,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
-    swarm_xprompts: Sequence[str] | None = None,
-) -> list[_XPromptSourceRecord]:
-    """Return definition-provenance rows for the given xprompt references."""
-    records: list[_XPromptSourceRecord] = []
+    extra_macros: dict[str, Macro] | None = None,
+    swarm_macros: Sequence[str] | None = None,
+) -> list[_MacroSourceRecord]:
+    """Return definition-provenance rows for the given macro references."""
+    records: list[_MacroSourceRecord] = []
     seen_raw_refs: set[str] = set()
-    scanned_references = scan_xprompt_references(
+    scanned_references = scan_macro_references(
         raw_prompt,
-        extra_xprompts=extra_xprompts,
-        swarm_xprompts=swarm_xprompts,
+        extra_macros=extra_macros,
+        swarm_macros=swarm_macros,
     )
     for scanned in scanned_references:
         if scanned.raw_ref in seen_raw_refs:
@@ -220,9 +220,9 @@ def _plugin_source(module_name: str, *, filename: str, capability: str) -> Path 
 
 def _project_config_source(project: str) -> Path | None:
     from sase.macro.loader import get_known_project_workspaces
-    from sase.macro.project_identity import canonical_xprompt_project
+    from sase.macro.project_identity import canonical_macro_project
 
-    namespace = canonical_xprompt_project(project) or project
+    namespace = canonical_macro_project(project) or project
     workspace = get_known_project_workspaces().get(namespace)
     if workspace is None:
         return None
@@ -339,7 +339,7 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 
 
 __all__ = [
-    "collect_xprompt_sources",
+    "collect_macro_sources",
     "definition_file_for_source",
     "definition_line_for",
 ]

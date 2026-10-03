@@ -34,7 +34,7 @@ def local_authored_prompt_segment(text: str) -> ContinuationSegmentCapture:
 
 
 def local_materialized_prompt_segment(text: str) -> ContinuationSegmentCapture:
-    """Return a segment for materialized local xprompt/artifact/gate text."""
+    """Return a segment for materialized local macro/artifact/gate text."""
 
     return ContinuationSegmentCapture(
         text=text,
@@ -44,12 +44,12 @@ def local_materialized_prompt_segment(text: str) -> ContinuationSegmentCapture:
     )
 
 
-def xprompt_trace_segments(
+def macro_trace_segments(
     trace: ExpansionTrace,
     *,
     start_index: int = 0,
 ) -> tuple[ContinuationSegmentCapture, ...]:
-    """Convert new xprompt expansion trace records into capture segments."""
+    """Convert new macro expansion trace records into capture segments."""
 
     segments: list[ContinuationSegmentCapture] = []
     for index, record in enumerate(trace.records[start_index:], start=start_index):
@@ -183,5 +183,5 @@ __all__ = [
     "embedded_workflow_prompt_segment",
     "local_authored_prompt_segment",
     "local_materialized_prompt_segment",
-    "xprompt_trace_segments",
+    "macro_trace_segments",
 ]

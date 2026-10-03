@@ -47,7 +47,7 @@ async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.macro.highlight._get_xprompt_argument_spans_binding",
+        "sase.macro.highlight._get_macro_argument_spans_binding",
         lambda: None,
     )
     app = CompletionTestApp()
@@ -127,7 +127,7 @@ async def test_xprompt_highlight_overlay_marks_core_argument_roles(
         ]
 
     monkeypatch.setattr(
-        "sase.macro.highlight._get_xprompt_argument_spans_binding",
+        "sase.macro.highlight._get_macro_argument_spans_binding",
         lambda: fake_binding,
     )
 
@@ -380,7 +380,7 @@ async def test_xprompt_overlay_tokenizer_failure_is_fail_open(monkeypatch) -> No
             raise RuntimeError("boom")
 
         monkeypatch.setattr(
-            "sase.macro.highlight.xprompt_inspect.tokenize",
+            "sase.macro.highlight.macro_inspect.tokenize",
             _raise,
         )
         ta._build_highlight_map()

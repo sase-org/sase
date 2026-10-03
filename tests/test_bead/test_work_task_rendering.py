@@ -19,7 +19,7 @@ from sase.macro.workflow_models import Workflow
 def test_task_prompt_has_exact_single_segment_order_and_feedback_tail() -> None:
     rendered = render_task_prompt(
         "sase-42",
-        work_task_xprompt=Workflow(name="custom/work_task"),
+        work_task_macro=Workflow(name="custom/work_task"),
         vcs_context=VCSLaunchContext(vcs_workflow="gh", project_name="sase"),
         feedback="Please preserve the compatibility shim.",
     )
@@ -34,10 +34,10 @@ def test_task_prompt_has_exact_single_segment_order_and_feedback_tail() -> None:
     assert "\n---\n" not in rendered
 
 
-def test_task_prompt_omits_commit_rollover_xprompt() -> None:
+def test_task_prompt_omits_commit_rollover_macro() -> None:
     rendered = render_task_prompt(
         "sase-42",
-        work_task_xprompt=Workflow(name="bd/work_task"),
+        work_task_macro=Workflow(name="bd/work_task"),
         vcs_context=VCSLaunchContext(vcs_workflow="gh", project_name="sase"),
     )
 
@@ -87,7 +87,7 @@ def test_task_prompt_reuses_phase_plan_first_routing(
     rendered = render_task_prompt(
         "sase-42",
         size=size,
-        work_task_xprompt=Workflow(name="bd/work_task"),
+        work_task_macro=Workflow(name="bd/work_task"),
         vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
     )
 
@@ -99,7 +99,7 @@ def test_task_feedback_rejects_top_level_segment_separator() -> None:
     with pytest.raises(ValueError, match="top-level '---'"):
         render_task_prompt(
             "sase-42",
-            work_task_xprompt=Workflow(name="bd/work_task"),
+            work_task_macro=Workflow(name="bd/work_task"),
             vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
             feedback="First instruction\n---\nSecond agent",
         )
@@ -108,7 +108,7 @@ def test_task_feedback_rejects_top_level_segment_separator() -> None:
 def test_task_feedback_allows_fenced_segment_separator() -> None:
     rendered = render_task_prompt(
         "sase-42",
-        work_task_xprompt=Workflow(name="bd/work_task"),
+        work_task_macro=Workflow(name="bd/work_task"),
         vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
         feedback="Use this fixture:\n```\n---\n```",
     )

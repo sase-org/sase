@@ -49,7 +49,7 @@ def _terminal_build_counter() -> tuple[Any, list[int]]:
 
 def _patched_mru(mru: list[str]) -> Any:
     return patch(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru",
         return_value=mru,
     )
 
@@ -242,8 +242,8 @@ async def test_cycle_highlight_reuses_wire_memo() -> None:
             ),
             patch.object(
                 xprompt_highlight,
-                "xprompt_arg_assist_entries_to_wire",
-                wraps=xprompt_highlight.xprompt_arg_assist_entries_to_wire,
+                "macro_arg_assist_entries_to_wire",
+                wraps=xprompt_highlight.macro_arg_assist_entries_to_wire,
             ) as to_wire,
         ):
             ta._build_highlight_map()

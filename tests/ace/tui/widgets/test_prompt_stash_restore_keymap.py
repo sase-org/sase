@@ -202,12 +202,12 @@ async def test_restore_adopted_xprompts_sync_to_frontmatter_panel() -> None:
         await pilot.pause()
 
         assert bar._stack.frontmatter == frontmatter
-        assert bar._stack.frontmatter_model.xprompts["_stash_helper"].content == (
+        assert bar._stack.frontmatter_model.macros["_stash_helper"].content == (
             "Use restored helper"
         )
         panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
         assert not panel.has_class("hidden")
-        assert panel.model.xprompts["_stash_helper"].content == "Use restored helper"
+        assert panel.model.macros["_stash_helper"].content == "Use restored helper"
         assert bar.all_prompt_texts() == ["alpha"]
 
 

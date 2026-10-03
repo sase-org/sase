@@ -29,7 +29,7 @@ from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     query_agent_alias_history,
 )
-from sase.core.agent_scan_wire_markers import UsedXPromptWire
+from sase.core.agent_scan_wire_markers import UsedMacroWire
 from sase.core.time import parse_local
 from sase.project_display_names import ProjectDisplaySnapshot, project_display_name_for
 
@@ -106,7 +106,7 @@ class AliasHistoryRun:
     cl_name: str | None = None
     workspace_num: int | None = None
     prompt_snippet: str | None = None
-    used_xprompts: tuple[UsedXPromptWire, ...] = ()
+    used_macros: tuple[UsedMacroWire, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -349,7 +349,7 @@ def _run_from_wire(
         cl_name=run.cl_name,
         workspace_num=run.workspace_num,
         prompt_snippet=run.prompt_snippet,
-        used_xprompts=tuple(run.used_xprompts),
+        used_macros=tuple(run.used_macros),
     )
 
 

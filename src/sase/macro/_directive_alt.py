@@ -38,7 +38,7 @@ from ._parsing import (
 if TYPE_CHECKING:
     from sase.core.agent_launch_wire import LaunchFanoutPlanWire
 
-    from .models import XPrompt
+    from .models import Macro
 
 # Pattern to match ``%{`` anywhere plus ``%alt(`` / ``%(`` at a
 # directive-valid position, including directive value fan-out after a colon.
@@ -104,7 +104,7 @@ def split_prompt_for_alternatives(prompt: str) -> list[str] | None:
 
     Each argument becomes a separate prompt with the directive span replaced
     by that argument's text.  Arguments can be arbitrary text — directives,
-    xprompt references, plain instructions, or ``[[text blocks]]``.
+    macro references, plain instructions, or ``[[text blocks]]``.
 
     ``%{...}`` (top-level ``|``-separated branches) is the preferred shorthand
     for ``%alt(...)``; ``%(...)`` (comma-separated) is the legacy shorthand.
@@ -141,7 +141,7 @@ def split_prompt_for_alternatives(prompt: str) -> list[str] | None:
 def split_prompt_for_models(
     prompt: str,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
+    extra_macros: dict[str, Macro] | None = None,
 ) -> list[str] | None:
     """Split a prompt with model-bearing ``%alt``/``%(``/``%{`` directives.
 
@@ -160,7 +160,7 @@ def split_prompt_for_models(
     single top-level model directive is present and no alt directives produce
     slots.
     """
-    plan = plan_prompt_fanout_variants(prompt, extra_xprompts=extra_xprompts)
+    plan = plan_prompt_fanout_variants(prompt, extra_macros=extra_macros)
     if plan is None:
         return None
     return [slot.prompt for slot in plan.slots]
@@ -169,16 +169,16 @@ def split_prompt_for_models(
 def plan_prompt_fanout_variants(
     prompt: str,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
+    extra_macros: dict[str, Macro] | None = None,
 ) -> LaunchFanoutPlanWire | None:
     """Return a launch fan-out plan whose slots carry planned child names."""
-    plan = _plan_prompt_fanout(prompt, extra_xprompts=extra_xprompts)
+    plan = _plan_prompt_fanout(prompt, extra_macros=extra_macros)
     if plan is None:
         return None
 
     named_prompts = apply_fanout_naming_with_metadata(
         plan,
-        extra_xprompts=extra_xprompts,
+        extra_macros=extra_macros,
     )
     slots = [
         replace(
@@ -201,9 +201,9 @@ def plan_prompt_fanout_variants(
 def _plan_prompt_fanout(
     prompt: str,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
+    extra_macros: dict[str, Macro] | None = None,
 ) -> LaunchFanoutPlanWire | None:
-    if extra_xprompts is None and "#" not in prompt:
+    if extra_macros is None and "#" not in prompt:
         # The Rust fan-out grammar intentionally remains single-positional for
         # ``%model(...)``. Keyword arguments are launch metadata, not a model
         # fan-out axis, so keep a scalar kwarg-bearing directive on the normal

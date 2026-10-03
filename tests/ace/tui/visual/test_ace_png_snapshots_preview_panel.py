@@ -15,7 +15,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpe
 from sase.plan_documents import PlanDocument
 from sase.vcs_log.render import build_commit_time_chip
 from sase.macro.cli_show_model import ShowInput
-from sase.macro.properties import XPromptProperties
+from sase.macro.properties import MacroProperties
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -39,7 +39,7 @@ async def test_preview_panel_xprompt_png_snapshot(
         kind_label="xprompt",
         icon="#",
         title="#review",
-        source_path="/workspace/sase/.xprompts/review.md",
+        source_path="/workspace/sase/.macros/review.md",
         lexer="markdown",
         content=(
             "---\n"
@@ -120,8 +120,8 @@ async def test_preview_panel_file_png_snapshot(
         )
 
 
-def _review_tasks_properties() -> XPromptProperties:
-    return XPromptProperties(
+def _review_tasks_properties() -> MacroProperties:
+    return MacroProperties(
         reference="#bd/review_tasks",
         kind="xprompt",
         description="Review open task beads for a project and triage them down.",
@@ -146,7 +146,7 @@ def _review_tasks_properties() -> XPromptProperties:
                 1,
             ),
         ],
-        local_xprompts=[],
+        local_macros=[],
         steps=[],
         tags=["bd"],
         skill=None,
@@ -488,7 +488,7 @@ async def test_preview_panel_long_markdown_png_snapshot(
         kind_label="xprompt",
         icon="#",
         title="#research_swarm",
-        source_path="/workspace/sase/.xprompts/research_swarm.md",
+        source_path="/workspace/sase/.macros/research_swarm.md",
         reference="#research_swarm",
         lexer="markdown",
         default_view="rendered",

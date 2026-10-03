@@ -1,4 +1,4 @@
-"""Workflow-level coverage for the built-in ``#fork`` xprompt."""
+"""Workflow-level coverage for the built-in ``#fork`` macro."""
 
 from __future__ import annotations
 
@@ -8,12 +8,12 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.run_agent_runner_setup import expand_deferred_launch_xprompts
+from sase.axe.run_agent_runner_setup import expand_deferred_launch_macros
 from sase.llm_provider.preprocessing import preprocess_prompt_late
 from sase.macro._parsing import inherit_vcs_workflow_tag
-from sase.macro.loader import get_sase_package_xprompts_dir
+from sase.macro.loader import get_sase_package_macros_dir
 from sase.macro.models import UNSET
-from sase.macro.tags import XPromptTag
+from sase.macro.tags import MacroTag
 from sase.macro.workflow_executor import WorkflowExecutor
 from sase.macro.workflow_loader import _load_workflow_from_file
 from sase.macro.workflow_models import Workflow, WorkflowStep
@@ -22,7 +22,7 @@ from tests._prettier_fakes import fake_prettier_missing
 
 
 def _load_fork_workflow() -> Workflow:
-    workflow = _load_workflow_from_file(get_sase_package_xprompts_dir() / "fork.yml")
+    workflow = _load_workflow_from_file(get_sase_package_macros_dir() / "fork.yml")
     assert workflow is not None
     return workflow
 
@@ -301,7 +301,7 @@ def test_completed_clan_fork_expands_during_post_wait_runner_setup(
         "sase.macro.loader.get_all_workflows",
         return_value={"fork": _load_fork_workflow()},
     ):
-        expanded = expand_deferred_launch_xprompts(
+        expanded = expand_deferred_launch_macros(
             "#fork:review\nContinue",
             str(artifacts_dir),
         )
@@ -337,9 +337,9 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
             "sase.macro.loader.get_all_workflows",
             return_value={"fork": _load_fork_workflow()},
         ),
-        patch("sase.macro.used_macros.write_used_xprompts"),
+        patch("sase.macro.used_macros.write_used_macros"),
     ):
-        expanded_fork = expand_deferred_launch_xprompts(
+        expanded_fork = expand_deferred_launch_macros(
             "#gh:sase #fork:builder Continue the work",
             str(artifacts_dir),
         )
@@ -350,7 +350,7 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
     workspace_workflow = Workflow(
         name="gh",
         steps=[WorkflowStep(name="inject", prompt_part="")],
-        tags=frozenset({XPromptTag.vcs}),
+        tags=frozenset({MacroTag.vcs}),
     )
     parent_workflow = Workflow(
         name="parent",
@@ -414,9 +414,9 @@ def test_inherited_vcs_tag_is_not_injected_into_fork_history(
             "sase.macro.loader.get_all_workflows",
             return_value={"fork": _load_fork_workflow()},
         ),
-        patch("sase.macro.used_macros.write_used_xprompts"),
+        patch("sase.macro.used_macros.write_used_macros"),
     ):
-        expanded_fork = expand_deferred_launch_xprompts(
+        expanded_fork = expand_deferred_launch_macros(
             "#gh:sase #fork:builder Continue the work",
             str(artifacts_dir),
         )
@@ -424,7 +424,7 @@ def test_inherited_vcs_tag_is_not_injected_into_fork_history(
     workspace_workflow = Workflow(
         name="gh",
         steps=[WorkflowStep(name="inject", prompt_part="")],
-        tags=frozenset({XPromptTag.vcs}),
+        tags=frozenset({MacroTag.vcs}),
     )
     parent_workflow = Workflow(
         name="parent",
@@ -489,7 +489,7 @@ def test_deferred_launch_ignores_bare_fork_prose_inside_disabled_region(
         "sase.macro.loader.get_all_workflows",
         return_value={"fork": _load_fork_workflow()},
     ):
-        expanded = expand_deferred_launch_xprompts(prompt, str(artifacts_dir))
+        expanded = expand_deferred_launch_macros(prompt, str(artifacts_dir))
 
     # Exactly one parent resolved -- the named one -- not a second envelope
     # for the inert prose mention.

@@ -1,12 +1,12 @@
-"""Mobile helper bridge operations for Patch tags and xprompt catalog."""
+"""Mobile helper bridge operations for Patch tags and macro catalog."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from sase.integrations.changespec_tags import list_patch_xprompt_tags
+from sase.integrations.changespec_tags import list_patch_macro_tags
 from sase.macro.loader import inactive_project_message_for_ref
-from sase.macro.catalog import build_structured_xprompts_catalog
+from sase.macro.catalog import build_structured_macros_catalog
 from sase.project_display_names import project_display_name_for
 
 from ._mobile_helper_common import (
@@ -20,7 +20,7 @@ from ._mobile_helper_common import (
 def patch_tags_response(request: dict[str, Any]) -> dict[str, Any]:
     project = optional_string(request.get("project"), "project")
     limit = optional_limit(request.get("limit"))
-    listing = list_patch_xprompt_tags(project)
+    listing = list_patch_macro_tags(project)
     entries = listing.entries
     total_count = len(entries)
     if limit is not None:
@@ -63,14 +63,14 @@ def patch_tags_response(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
+def macro_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
     project = optional_string(request.get("project"), "project")
     source = optional_string(request.get("source"), "source")
     tag = optional_string(request.get("tag"), "tag")
     query = optional_string(request.get("query"), "query")
     include_pdf = optional_bool(request.get("include_pdf"), "include_pdf")
     limit = optional_limit(request.get("limit"))
-    projection = build_structured_xprompts_catalog(
+    projection = build_structured_macros_catalog(
         project=project,
         source=source,
         tag=tag,
@@ -93,7 +93,7 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
         "schema_version": GATEWAY_WIRE_SCHEMA_VERSION,
         "result": {
             "status": status,
-            "message": _xprompt_catalog_message(len(projection.entries), len(skipped)),
+            "message": _macro_catalog_message(len(projection.entries), len(skipped)),
             "warnings": warnings,
             "skipped": skipped,
             "partial_failure_count": len(skipped) if skipped else None,
@@ -167,7 +167,7 @@ def _patch_tags_message(count: int, skipped_count: int) -> str:
     return f"loaded {count} Patch tag(s)"
 
 
-def _xprompt_catalog_message(count: int, skipped_count: int) -> str:
+def _macro_catalog_message(count: int, skipped_count: int) -> str:
     if skipped_count:
         return f"loaded {count} xprompt(s), skipped {skipped_count}"
     return f"loaded {count} xprompt(s)"

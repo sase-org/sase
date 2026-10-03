@@ -11,14 +11,14 @@ from sase.macro import project_identity
 from sase.macro.catalog import (
     MAX_MOBILE_CONTENT_PREVIEW_CHARS,
     _gather_entries,
-    build_structured_xprompts_catalog,
+    build_structured_macros_catalog,
 )
 from sase.macro.loader import load_skills_from_package
 from sase.macro.models import UNSET, InputArg, InputType, OutputSpec
-from sase.macro.tags import XPromptTag
+from sase.macro.tags import MacroTag
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
-from tests._macro_catalog_helpers import make_xprompt
+from tests._macro_catalog_helpers import make_macro
 from tests.main.project_handler_helpers import _disk_project_records, _write_project
 
 
@@ -31,48 +31,46 @@ def test_structured_catalog_projects_filters_and_caps_preview(
     local_source.parent.mkdir(parents=True)
     local_source.write_text("local")
     long_body = "a" * (MAX_MOBILE_CONTENT_PREVIEW_CHARS + 25)
-    global_xp = make_xprompt(
+    global_xp = make_macro(
         "review",
         source_path="config",
-        tags=frozenset({XPromptTag.mentor}),
+        tags=frozenset({MacroTag.mentor}),
         description="Review code",
     )
-    local_xp = make_xprompt(
+    local_xp = make_macro(
         "local_fix",
         source_path=str(local_source),
-        tags=frozenset({XPromptTag.fix_hook}),
+        tags=frozenset({MacroTag.fix_hook}),
         inputs=[InputArg(name="path", type=InputType.PATH)],
         skill=True,
         content=long_body,
     )
-    other_xp = make_xprompt("other", source_path=str(tmp_path / "other.md"))
+    other_xp = make_macro("other", source_path=str(tmp_path / "other.md"))
 
     with (
-        patch(
-            "sase.macro.catalog.get_all_xprompts", return_value={"review": global_xp}
-        ),
+        patch("sase.macro.catalog.get_all_macros", return_value={"review": global_xp}),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch(
             "sase.macro.catalog.get_known_project_workspaces",
             return_value={"sase": ws, "other": tmp_path / "other"},
         ),
         patch(
-            "sase.macro.catalog.load_project_local_xprompts",
+            "sase.macro.catalog.load_project_local_macros",
             side_effect=[
                 {"local_fix": local_xp},
                 {"other": other_xp},
             ],
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=tmp_path / "pkg",
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_default_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_default_macros_dir",
             return_value=tmp_path / "default",
         ),
     ):
-        projection = build_structured_xprompts_catalog(
+        projection = build_structured_macros_catalog(
             project="sase",
             tag="fix_hook",
             query="local",
@@ -129,14 +127,14 @@ def test_project_catalog_uses_one_canonical_namespace_for_all_project_refs(
         "list_project_records",
         _disk_project_records,
     )
-    project_identity.invalidate_xprompt_project_identity()
+    project_identity.invalidate_macro_project_identity()
 
-    cwd_copy = make_xprompt("proj/thing", source_path=str(source))
-    unrelated = make_xprompt("bd/next", source_path="config")
+    cwd_copy = make_macro("proj/thing", source_path=str(source))
+    unrelated = make_macro("bd/next", source_path="config")
     try:
         with (
             patch(
-                "sase.macro.catalog.get_all_xprompts",
+                "sase.macro.catalog.get_all_macros",
                 return_value={"proj/thing": cwd_copy, "bd/next": unrelated},
             ),
             patch("sase.macro.catalog.get_all_workflows", return_value={}),
@@ -145,27 +143,27 @@ def test_project_catalog_uses_one_canonical_namespace_for_all_project_refs(
                 return_value={"gh_org__proj": workspace},
             ),
             patch(
-                "sase.macro.catalog.get_sase_package_xprompts_dir",
+                "sase.macro.catalog.get_sase_package_macros_dir",
                 return_value=tmp_path / "package",
             ),
             patch(
-                "sase.macro.catalog.get_sase_package_default_xprompts_dir",
+                "sase.macro.catalog.get_sase_package_default_macros_dir",
                 return_value=tmp_path / "defaults",
             ),
         ):
             gathered = _gather_entries()
             projections = {
-                ref: build_structured_xprompts_catalog(project=ref)
+                ref: build_structured_macros_catalog(project=ref)
                 for ref in ("proj", "gh_org__proj", "short")
             }
     finally:
-        project_identity.invalidate_xprompt_project_identity()
+        project_identity.invalidate_macro_project_identity()
 
     gathered_project_entries = [
         entry for entry in gathered if entry.bucket == "project"
     ]
     assert [
-        (entry.xprompt.name, entry.project) for entry in gathered_project_entries
+        (entry.macro_def.name, entry.project) for entry in gathered_project_entries
     ] == [("proj/thing", "proj")]
     assert all(
         [entry.name for entry in projection.entries] == ["bd/next", "proj/thing"]
@@ -184,34 +182,32 @@ def test_project_catalog_uses_one_canonical_namespace_for_all_project_refs(
 def test_structured_catalog_source_filter_keeps_global_entries(
     tmp_path: Path,
 ) -> None:
-    config_xp = make_xprompt("global", source_path="config")
-    project_xp = make_xprompt("project", source_path=str(tmp_path / "p.md"))
+    config_xp = make_macro("global", source_path="config")
+    project_xp = make_macro("project", source_path=str(tmp_path / "p.md"))
 
     with (
-        patch(
-            "sase.macro.catalog.get_all_xprompts", return_value={"global": config_xp}
-        ),
+        patch("sase.macro.catalog.get_all_macros", return_value={"global": config_xp}),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch(
             "sase.macro.catalog.get_known_project_workspaces",
             return_value={"sase": tmp_path},
         ),
         patch(
-            "sase.macro.catalog.load_project_local_xprompts",
+            "sase.macro.catalog.load_project_local_macros",
             return_value={"project": project_xp},
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=tmp_path / "pkg",
         ),
     ):
-        projection = build_structured_xprompts_catalog(project="sase", source="config")
+        projection = build_structured_macros_catalog(project="sase", source="config")
 
     assert [entry.name for entry in projection.entries] == ["global"]
     assert projection.entries[0].source_bucket == "config"
 
 
-def test_structured_catalog_keeps_default_config_xprompts_for_other_projects(
+def test_structured_catalog_keeps_default_config_macros_for_other_projects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     sase_ws = tmp_path / "sase"
@@ -219,11 +215,11 @@ def test_structured_catalog_keeps_default_config_xprompts_for_other_projects(
     sase_ws.mkdir()
     bob_ws.mkdir()
     monkeypatch.chdir(sase_ws)
-    plan_xp = make_xprompt("plan", source_path="default_config")
+    plan_xp = make_macro("plan", source_path="default_config")
 
     with (
         patch(
-            "sase.macro.catalog.get_all_xprompts",
+            "sase.macro.catalog.get_all_macros",
             return_value={"plan": plan_xp},
         ),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
@@ -231,18 +227,18 @@ def test_structured_catalog_keeps_default_config_xprompts_for_other_projects(
             "sase.macro.catalog.get_known_project_workspaces",
             return_value={"sase": sase_ws, "bob-cli": bob_ws},
         ),
-        patch("sase.macro.catalog.load_project_local_xprompts", return_value={}),
+        patch("sase.macro.catalog.load_project_local_macros", return_value={}),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=tmp_path / "pkg",
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_default_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_default_macros_dir",
             return_value=tmp_path / "default_xprompts",
         ),
     ):
-        bob_projection = build_structured_xprompts_catalog(project="bob-cli")
-        sase_projection = build_structured_xprompts_catalog(project="sase")
+        bob_projection = build_structured_macros_catalog(project="bob-cli")
+        sase_projection = build_structured_macros_catalog(project="sase")
 
     assert [entry.name for entry in bob_projection.entries] == ["plan"]
     assert bob_projection.entries[0].project is None
@@ -259,34 +255,34 @@ def test_structured_catalog_preserves_workflow_description() -> None:
     )
 
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value={}),
+        patch("sase.macro.catalog.get_all_macros", return_value={}),
         patch("sase.macro.catalog.get_all_workflows", return_value={"ship": workflow}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        projection = build_structured_xprompts_catalog()
+        projection = build_structured_macros_catalog()
 
     assert projection.entries[0].name == "ship"
     assert projection.entries[0].description == "Ship the selected target."
 
 
-def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
+def test_structured_catalog_marks_packaged_skill_macros() -> None:
     packaged_skills = load_skills_from_package()
 
     with (
         patch(
-            "sase.macro.catalog.get_all_xprompts",
+            "sase.macro.catalog.get_all_macros",
             return_value=packaged_skills,
         ),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        projection = build_structured_xprompts_catalog(
+        projection = build_structured_macros_catalog(
             source="built-in",
             query="sase_plan",
         )
 
     by_name = {entry.name: entry for entry in projection.entries}
-    # The catalog is keyed by the xprompt reference name; the provider skill
+    # The catalog is keyed by the macro reference name; the provider skill
     # name rides alongside it.
     assert "skill/sase_plan" in by_name
     assert by_name["skill/sase_plan"].is_skill is True
@@ -297,11 +293,11 @@ def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
     assert projection.stats.skill_count >= 1
 
 
-def test_structured_catalog_marks_memory_xprompts(tmp_path: Path) -> None:
+def test_structured_catalog_marks_memory_macros(tmp_path: Path) -> None:
     source = tmp_path / "sase" / "memory" / "glossary.md"
     source.parent.mkdir(parents=True)
     source.write_text("---\ntype: reference\n---\nGlossary body\n")
-    memory_xp = make_xprompt(
+    memory_xp = make_macro(
         "memory/glossary",
         source_path=str(source),
         description="Glossary terms.",
@@ -311,13 +307,13 @@ def test_structured_catalog_marks_memory_xprompts(tmp_path: Path) -> None:
 
     with (
         patch(
-            "sase.macro.catalog.get_all_xprompts",
+            "sase.macro.catalog.get_all_macros",
             return_value={"memory/glossary": memory_xp},
         ),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        projection = build_structured_xprompts_catalog(query="glossary")
+        projection = build_structured_macros_catalog(query="glossary")
 
     entry = projection.entries[0]
     assert entry.name == "memory/glossary"
@@ -355,36 +351,36 @@ def test_structured_catalog_definition_paths_for_real_sources(
         path.write_text("body")
 
     monkeypatch.setenv("HOME", str(home))
-    xprompts = {
-        "builtin": make_xprompt("builtin", source_path=str(package_source)),
-        "defaulted": make_xprompt("defaulted", source_path=str(default_source)),
-        "cfg": make_xprompt("cfg", source_path="config"),
-        "plugin": make_xprompt("plugin", source_path="plugin:module/plugin.md"),
-        "runtime": make_xprompt("runtime", source_path="config:runtime"),
+    macros = {
+        "builtin": make_macro("builtin", source_path=str(package_source)),
+        "defaulted": make_macro("defaulted", source_path=str(default_source)),
+        "cfg": make_macro("cfg", source_path="config"),
+        "plugin": make_macro("plugin", source_path="plugin:module/plugin.md"),
+        "runtime": make_macro("runtime", source_path="config:runtime"),
     }
-    local_xp = make_xprompt("sase/local", source_path=str(local_source))
+    local_xp = make_macro("sase/local", source_path=str(local_source))
 
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value=xprompts),
+        patch("sase.macro.catalog.get_all_macros", return_value=macros),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch(
             "sase.macro.catalog.get_known_project_workspaces",
             return_value={"sase": ws},
         ),
         patch(
-            "sase.macro.catalog.load_project_local_xprompts",
+            "sase.macro.catalog.load_project_local_macros",
             return_value={"sase/local": local_xp},
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=pkg_dir,
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_default_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_default_macros_dir",
             return_value=default_dir,
         ),
     ):
-        projection = build_structured_xprompts_catalog(project="sase")
+        projection = build_structured_macros_catalog(project="sase")
 
     by_name = {entry.name: entry for entry in projection.entries}
     assert by_name["builtin"].definition_path == str(package_source.resolve())
@@ -398,18 +394,18 @@ def test_structured_catalog_definition_paths_for_real_sources(
 def test_structured_catalog_definition_paths_for_plugin_real_sources(
     tmp_path: Path,
 ) -> None:
-    plugin_xprompts_dir = tmp_path / "fake_xprompts" / "xprompts"
+    plugin_macros_dir = tmp_path / "fake_xprompts" / "xprompts"
     plugin_config_dir = tmp_path / "fake_config"
-    plugin_xprompts_dir.mkdir(parents=True)
+    plugin_macros_dir.mkdir(parents=True)
     plugin_config_dir.mkdir()
-    plugin_md = plugin_xprompts_dir / "plug.md"
-    plugin_flow = plugin_xprompts_dir / "flow.yml"
+    plugin_md = plugin_macros_dir / "plug.md"
+    plugin_flow = plugin_macros_dir / "flow.yml"
     plugin_config = plugin_config_dir / "default_config.yml"
     plugin_md.write_text("Plugin prompt body")
     plugin_flow.write_text("steps:\n  - name: main\n    prompt_part: body\n")
     plugin_config.write_text("xprompts:\n  cfg:\n    content: Config body\n")
 
-    xprompt_module = ModuleType("fake_plugin.prompts")
+    macro_module = ModuleType("fake_plugin.prompts")
     config_module = ModuleType("fake_plugin.config")
 
     def files(module: ModuleType) -> Path:
@@ -419,11 +415,11 @@ def test_structured_catalog_definition_paths_for_plugin_real_sources(
             return plugin_config_dir
         raise AssertionError(module.__name__)
 
-    plugin_xp = make_xprompt(
+    plugin_xp = make_macro(
         "plug",
         source_path="plugin:fake_plugin.prompts/plug.md",
     )
-    plugin_cfg = make_xprompt(
+    plugin_cfg = make_macro(
         "cfg",
         source_path="plugin_config:fake_plugin.config",
     )
@@ -435,7 +431,7 @@ def test_structured_catalog_definition_paths_for_plugin_real_sources(
 
     with (
         patch(
-            "sase.macro.catalog.get_all_xprompts",
+            "sase.macro.catalog.get_all_macros",
             return_value={"plug": plugin_xp, "cfg": plugin_cfg},
         ),
         patch(
@@ -446,13 +442,13 @@ def test_structured_catalog_definition_paths_for_plugin_real_sources(
         patch(
             "sase.macro._catalog_sources.discover_plugin_resources",
             side_effect=lambda group: (
-                [xprompt_module] if group == "sase_xprompts" else [config_module]
+                [macro_module] if group == "sase_xprompts" else [config_module]
             ),
         ),
         patch("sase.macro._catalog_sources.is_plugin_disabled", return_value=False),
         patch("sase.macro._catalog_sources.importlib.resources.files", files),
     ):
-        projection = build_structured_xprompts_catalog()
+        projection = build_structured_macros_catalog()
 
     by_name = {entry.name: entry for entry in projection.entries}
     assert by_name["plug"].definition_path == str(plugin_md.resolve())
@@ -461,7 +457,7 @@ def test_structured_catalog_definition_paths_for_plugin_real_sources(
 
 
 def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
-    xp = make_xprompt(
+    xp = make_macro(
         "typed",
         source_path="config",
         inputs=[
@@ -486,11 +482,11 @@ def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
     )
 
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value={"typed": xp}),
+        patch("sase.macro.catalog.get_all_macros", return_value={"typed": xp}),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        projection = build_structured_xprompts_catalog()
+        projection = build_structured_macros_catalog()
 
     entry = projection.entries[0]
     assert entry.input_signature == (
@@ -511,7 +507,7 @@ def test_structured_catalog_input_metadata_filters_step_inputs() -> None:
 
 
 def test_structured_catalog_query_matches_input_descriptions() -> None:
-    xp = make_xprompt(
+    xp = make_macro(
         "repair",
         source_path="config",
         inputs=[
@@ -524,11 +520,11 @@ def test_structured_catalog_query_matches_input_descriptions() -> None:
     )
 
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value={"repair": xp}),
+        patch("sase.macro.catalog.get_all_macros", return_value={"repair": xp}),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        projection = build_structured_xprompts_catalog(query="failure transcript")
+        projection = build_structured_macros_catalog(query="failure transcript")
 
     assert [entry.name for entry in projection.entries] == ["repair"]
     assert projection.entries[0].inputs[0].description == (
@@ -537,7 +533,7 @@ def test_structured_catalog_query_matches_input_descriptions() -> None:
 
 
 def test_structured_catalog_all_step_inputs_has_no_signature() -> None:
-    xp = make_xprompt(
+    xp = make_macro(
         "step_only",
         source_path="config",
         inputs=[
@@ -551,11 +547,11 @@ def test_structured_catalog_all_step_inputs_has_no_signature() -> None:
     )
 
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value={"step_only": xp}),
+        patch("sase.macro.catalog.get_all_macros", return_value={"step_only": xp}),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        projection = build_structured_xprompts_catalog()
+        projection = build_structured_macros_catalog()
 
     assert projection.entries[0].input_signature is None
     assert projection.entries[0].inputs == []
@@ -568,7 +564,7 @@ def test_structured_catalog_uses_canonical_standalone_insertion() -> None:
         steps=[WorkflowStep(name="run", agent="Ship {{ target }}")],
         source_path="config",
     )
-    multi_agent_xp = make_xprompt(
+    multi_agent_xp = make_macro(
         "swarm",
         source_path="config",
         content="first\n---\nsecond",
@@ -576,7 +572,7 @@ def test_structured_catalog_uses_canonical_standalone_insertion() -> None:
 
     with (
         patch(
-            "sase.macro.catalog.get_all_xprompts",
+            "sase.macro.catalog.get_all_macros",
             return_value={"swarm": multi_agent_xp},
         ),
         patch(
@@ -584,7 +580,7 @@ def test_structured_catalog_uses_canonical_standalone_insertion() -> None:
         ),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        projection = build_structured_xprompts_catalog()
+        projection = build_structured_macros_catalog()
 
     by_name = {entry.name: entry for entry in projection.entries}
     assert by_name["ship"].kind == "standalone_workflow"
@@ -598,14 +594,14 @@ def test_structured_catalog_uses_canonical_standalone_insertion() -> None:
 def test_structured_catalog_pdf_engine_warning_does_not_block_records(
     tmp_path: Path,
 ) -> None:
-    xp = make_xprompt("hello", source_path="config")
+    xp = make_macro("hello", source_path="config")
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value={"hello": xp}),
+        patch("sase.macro.catalog.get_all_macros", return_value={"hello": xp}),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
         patch("sase.macro.catalog.shutil.which", return_value=None),
     ):
-        projection = build_structured_xprompts_catalog(include_pdf=True)
+        projection = build_structured_macros_catalog(include_pdf=True)
 
     assert [entry.name for entry in projection.entries] == ["hello"]
     assert projection.stats.pdf_requested is True
@@ -615,7 +611,7 @@ def test_structured_catalog_pdf_engine_warning_does_not_block_records(
 
 
 def test_structured_catalog_include_string_defaults_opts_in() -> None:
-    xp = make_xprompt(
+    xp = make_macro(
         "typed",
         source_path="config",
         inputs=[
@@ -631,13 +627,13 @@ def test_structured_catalog_include_string_defaults_opts_in() -> None:
         return {inp.name: inp.default_display for inp in projection.entries[0].inputs}
 
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value={"typed": xp}),
+        patch("sase.macro.catalog.get_all_macros", return_value={"typed": xp}),
         patch("sase.macro.catalog.get_all_workflows", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        redacted = _by_name(build_structured_xprompts_catalog())
+        redacted = _by_name(build_structured_macros_catalog())
         opted_in = _by_name(
-            build_structured_xprompts_catalog(include_string_defaults=True)
+            build_structured_macros_catalog(include_string_defaults=True)
         )
 
     assert redacted["string_default"] is None

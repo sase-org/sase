@@ -44,7 +44,7 @@ def _extract(
         patch("sase.agent.names.claim_agent_name"),
         patch("sase.agent.names.claim_registered_clan_name"),
         patch(
-            "sase.macro.process_xprompt_references",
+            "sase.macro.process_macro_references",
             side_effect=lambda value, **_: value,
         ),
         patch(

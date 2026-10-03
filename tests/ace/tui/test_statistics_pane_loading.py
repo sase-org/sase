@@ -94,7 +94,7 @@ def test_stale_xprompt_focus_result_is_discarded_and_rescheduled(
     result = _result(
         pane._view,
         pane._range,
-        xprompt_focus="gh",
+        macro_focus="gh",
     )
     worker = SimpleNamespace(result=result, error=None)
     pane._worker = worker  # type: ignore[assignment]
@@ -224,7 +224,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
                 int(kwargs["end_ts"]),  # type: ignore[arg-type]
                 kwargs.get("runtime_group_by"),  # type: ignore[arg-type]
                 kwargs.get("project"),  # type: ignore[arg-type]
-                kwargs.get("xprompt_focus"),  # type: ignore[arg-type]
+                kwargs.get("macro_focus"),  # type: ignore[arg-type]
             )
         )
         return _run_payload(selected_range, "tribe")
@@ -237,7 +237,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
                 int(kwargs["end_ts"]),  # type: ignore[arg-type]
                 kwargs.get("runtime_group_by"),  # type: ignore[arg-type]
                 kwargs.get("project"),  # type: ignore[arg-type]
-                kwargs.get("xprompt_focus"),  # type: ignore[arg-type]
+                kwargs.get("macro_focus"),  # type: ignore[arg-type]
             )
         )
         return _activity_payload()
@@ -269,7 +269,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
     ]
     assert result.views.overview.agents_run == 6
     assert result.project_filter == "sase"
-    assert result.xprompt_focus == "split_file"
+    assert result.macro_focus == "split_file"
     assert snapshot_loads == 1
     assert result.project_display_snapshot is display_snapshot
     assert result.views.projects.projects[0].project_label == "SASE Display"

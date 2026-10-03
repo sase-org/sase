@@ -434,8 +434,8 @@ def _property_grid(
     source = entry.origin.display_path or entry.origin.path
     if source:
         rows.append(("Source", source))
-    if entry.origin.xprompt_name:
-        rows.append(("Xprompt", entry.origin.xprompt_name))
+    if entry.origin.macro_name:
+        rows.append(("Xprompt", entry.origin.macro_name))
     rows.append(("Writable", "yes" if entry.origin.writable else "no"))
     shadowed = tuple(
         item.kind for item in entry.contributions if item.shadowed_by is not None

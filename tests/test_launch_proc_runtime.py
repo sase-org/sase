@@ -26,7 +26,7 @@ from sase.core.agent_launch_facade import (
     sanitized_proc_env,
     validate_proc_workspace_intent,
     validate_standalone_named_proc_name,
-    xprompt_proc_origin,
+    prompt_proc_origin,
 )
 from sase.core.agent_launch_wire import (
     AgentUnitWire,
@@ -38,10 +38,10 @@ from sase.core.agent_launch_wire import (
     agent_launch_wire_to_json_dict,
 )
 from sase.procs import wait_for_proc
+from sase.legacy_xprompt_names import PROMPT_PROC_ORIGIN
 from sase.procs.models import (
     DETACHED_PROC_KIND,
     PROC_LIFECYCLE_NAMED_PROC,
-    XPROMPT_PROC_ORIGIN,
     Proc,
 )
 from sase.procs.runtime import proc_runtime_dir
@@ -129,7 +129,7 @@ def _proc_row(
     status: str = "running",
     proc_name: str = "checks",
     project: str | None = "sase",
-    xprompt_proc: dict[str, Any] | None = None,
+    prompt_proc: dict[str, Any] | None = None,
 ) -> Proc:
     return Proc(
         proc_id=proc_id,
@@ -138,13 +138,13 @@ def _proc_row(
         status=status,
         command=["bash", "script.sh"],
         cwd="/tmp",
-        origin=XPROMPT_PROC_ORIGIN,
+        origin=PROMPT_PROC_ORIGIN,
         created_at="2026-09-17T00:00:00+00:00",
         log_path="/tmp/proc.log",
         lifecycle=PROC_LIFECYCLE_NAMED_PROC,
         project=project,
         proc_name=proc_name,
-        xprompt_proc=xprompt_proc or {"code_digest": "digest"},
+        prompt_proc=prompt_proc or {"code_digest": "digest"},
     )
 
 
@@ -186,7 +186,7 @@ def test_rust_helpers_cover_workspace_cwd_and_env_contracts(tmp_path: Path) -> N
     assert "SASE_AGENT" not in env
     assert "HOME" not in env
     assert env["PATH"].endswith("/home/user/.cargo/bin:/usr/bin:/bin")
-    assert xprompt_proc_origin() == "xprompt-proc"
+    assert prompt_proc_origin() == "xprompt-proc"
 
 
 def test_bash_proc_runs_without_agent_artifacts(
@@ -215,8 +215,8 @@ def test_bash_proc_runs_without_agent_artifacts(
     assert finished.origin == "xprompt-proc"
     assert finished.lifecycle == "named-proc"
     assert finished.proc_name == "checks"
-    assert finished.xprompt_proc is not None
-    assert finished.xprompt_proc["code_language"] == "bash"
+    assert finished.prompt_proc is not None
+    assert finished.prompt_proc["code_language"] == "bash"
     assert marker.read_text(encoding="utf-8") == "ready"
     assert not (proc_runtime_dir(finished.proc_id) / "script.sh").exists()
     artifacts = tmp_path / "home" / "projects"
@@ -400,7 +400,7 @@ def test_standalone_proc_resolves_user_installed_command_and_preserves_host_env(
 ) -> None:
     """A stand-alone `%proc` must run tools from the caller's PATH.
 
-    Regression test: the xprompt-proc branch used to build the child
+    Regression test: the prompt-proc branch used to build the child
     environment purely from a hermetic Rust overlay, so `just`, `uv`, and
     Cargo were invisible even though the launching shell had them on PATH.
     """
@@ -513,16 +513,16 @@ def test_proc_metadata_preserves_label_provenance_through_prepare(
 
     submitted = get_proc(identity)
     assert submitted is not None
-    assert submitted.xprompt_proc is not None
-    assert submitted.xprompt_proc["label"] == "Verify docs"
-    assert submitted.xprompt_proc["proc_name"] == "checks"
+    assert submitted.prompt_proc is not None
+    assert submitted.prompt_proc["label"] == "Verify docs"
+    assert submitted.prompt_proc["proc_name"] == "checks"
 
     finished = wait_for_proc(identity, timeout=10)
     assert finished.status == "success"
-    assert finished.xprompt_proc is not None
-    assert finished.xprompt_proc["label"] == "Verify docs"
-    assert finished.xprompt_proc["proc_name"] == "checks"
-    assert finished.xprompt_proc["code_digest"]
+    assert finished.prompt_proc is not None
+    assert finished.prompt_proc["label"] == "Verify docs"
+    assert finished.prompt_proc["proc_name"] == "checks"
+    assert finished.prompt_proc["code_digest"]
 
 
 def test_python_proc_uses_sase_interpreter(monkeypatch: Any, tmp_path: Path) -> None:

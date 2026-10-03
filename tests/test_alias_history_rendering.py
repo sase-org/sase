@@ -11,7 +11,7 @@ from sase.ace.tui.modals.alias_history_rendering import (
     alias_history_title_text,
     build_alias_history_rows,
 )
-from sase.core.agent_scan_wire_markers import UsedXPromptWire
+from sase.core.agent_scan_wire_markers import UsedMacroWire
 from sase.llm_provider.alias_history import _AliasHistoryProvenance
 
 from ._alias_history_helpers import make_entry as _entry
@@ -237,8 +237,8 @@ def test_detail_renders_prompt_snippet_when_present() -> None:
     assert "Implement the alias history panel." in text.plain
 
 
-def test_detail_renders_xprompt_context() -> None:
-    run = _run(used_xprompts=(UsedXPromptWire(name="research", kind="workflow"),))
+def test_detail_renders_macro_context() -> None:
+    run = _run(used_macros=(UsedMacroWire(name="research", kind="workflow"),))
     text = alias_history_detail_text(run, entry=_entry())
     assert "#research" in text.plain
 

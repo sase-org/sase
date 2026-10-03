@@ -19,7 +19,7 @@ SCHEMA_VERSION = 1
 DEFAULT_PROFILE = "dev-update"
 PROFILE_ENV = "SASE_RUST_DEV_PROFILE"
 EXTENSION_FILENAME = "sase_core_rs.abi3.so"
-LSP_BINARY_NAME = "sase-xprompt-lsp.exe" if os.name == "nt" else "sase-xprompt-lsp"
+LSP_BINARY_NAME = "sase-macro-lsp.exe" if os.name == "nt" else "sase-xprompt-lsp"
 MACRO_LSP_BINARY_NAME = "sase-macro-lsp.exe" if os.name == "nt" else "sase-macro-lsp"
 
 

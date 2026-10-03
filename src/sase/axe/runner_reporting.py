@@ -148,9 +148,9 @@ def format_markdown_fenced_block(content: str, info: str = "") -> str:
     return f"{fence}{info_suffix}\n{content}\n{fence}"
 
 
-def _read_submitted_xprompt_fallback(
+def _read_submitted_prompt_fallback(
     artifacts_dir: str,
-    submitted_xprompt_path: str | None,
+    submitted_prompt_path: str | None,
 ) -> str | None:
     from sase.legacy_xprompt_names import (
         LEGACY_RAW_XPROMPT_FILENAME,
@@ -162,8 +162,8 @@ def _read_submitted_xprompt_fallback(
 
     directory = Path(artifacts_dir)
     paths = []
-    if submitted_xprompt_path:
-        paths.append(submitted_xprompt_path)
+    if submitted_prompt_path:
+        paths.append(submitted_prompt_path)
     paths.extend(
         str(path)
         for path in (
@@ -200,8 +200,8 @@ def write_error_report(
     duration: str,
     error_summary: str,
     error_traceback: str | None,
-    submitted_xprompt: str | None = None,
-    submitted_xprompt_path: str | None = None,
+    submitted_prompt: str | None = None,
+    submitted_prompt_path: str | None = None,
     workspace_dir: str | None = None,
     held_workspace_num: int | None = None,
     output_path: str | None = None,
@@ -244,18 +244,18 @@ def write_error_report(
             if table_value is not None:
                 lines.append(f"| {field} | {table_value} |")
 
-        if submitted_xprompt is None:
-            submitted_xprompt = _read_submitted_xprompt_fallback(
-                artifacts_dir, submitted_xprompt_path
+        if submitted_prompt is None:
+            submitted_prompt = _read_submitted_prompt_fallback(
+                artifacts_dir, submitted_prompt_path
             )
 
-        if submitted_xprompt is not None:
+        if submitted_prompt is not None:
             lines.extend(
                 [
                     "",
                     "## Submitted XPrompt",
                     "",
-                    format_markdown_fenced_block(submitted_xprompt, "markdown"),
+                    format_markdown_fenced_block(submitted_prompt, "markdown"),
                 ]
             )
 

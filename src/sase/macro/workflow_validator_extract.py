@@ -1,6 +1,6 @@
 """Extraction utilities for workflow validation.
 
-Extracts template references, xprompt calls, and step content
+Extracts template references, macro calls, and step content
 for use by validation checks.
 """
 
@@ -8,10 +8,10 @@ import re
 from dataclasses import dataclass
 
 from sase.macro._disabled_regions import strip_disabled_regions
-from sase.macro._parsing import iter_xprompt_references
-from sase.macro._parsing_args import decode_xprompt_args
+from sase.macro._parsing import iter_macro_references
+from sase.macro._parsing_args import decode_macro_args
 from sase.macro.input_binding import input_for_position
-from sase.macro.models import UNSET, XPrompt
+from sase.macro.models import UNSET, Macro
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
 # Pattern to find {{ ... }} and {% ... %} blocks (variable references)
@@ -78,8 +78,8 @@ def extract_template_refs(content: str) -> list[str]:
 
 
 @dataclass
-class _XPromptCall:
-    """Parsed xprompt call from a template."""
+class _MacroCall:
+    """Parsed macro call from a template."""
 
     name: str
     positional_args: list[str]
@@ -96,37 +96,37 @@ class _XPromptCall:
 _FENCED_CODE_BLOCK_PATTERN = re.compile(r"(`{3,})[^\n]*\n[\s\S]*?\1")
 
 
-def extract_xprompt_calls(content: str) -> list[_XPromptCall]:
-    """Extract all xprompt references from template string.
+def extract_macro_calls(content: str) -> list[_MacroCall]:
+    """Extract all macro references from template string.
 
     Fenced code blocks are stripped before scanning so that hashtag
-    references inside triple-backtick blocks are not treated as xprompt
+    references inside triple-backtick blocks are not treated as macro
     calls.
 
     Args:
         content: The template content to scan.
 
     Returns:
-        List of parsed xprompt calls.
+        List of parsed macro calls.
     """
     # Strip fenced code blocks so their content is never matched
     content = _FENCED_CODE_BLOCK_PATTERN.sub("", content)
     content = strip_disabled_regions(content)
 
-    calls: list[_XPromptCall] = []
-    for ref in iter_xprompt_references(content):
+    calls: list[_MacroCall] = []
+    for ref in iter_macro_references(content):
         positional_args, named_args = ref.parse_arguments()
         if (
             ref.arg_kind.value == "colon"
             and len(positional_args) == 1
             and "," in positional_args[0]
         ):
-            positional_args, named_args = decode_xprompt_args(
+            positional_args, named_args = decode_macro_args(
                 positional_args[0].split(","), named_args
             )
 
         calls.append(
-            _XPromptCall(
+            _MacroCall(
                 name=ref.name,
                 positional_args=positional_args,
                 named_args=named_args,
@@ -138,16 +138,16 @@ def extract_xprompt_calls(content: str) -> list[_XPromptCall]:
     return calls
 
 
-def validate_xprompt_call(
-    call: _XPromptCall,
-    xprompt: XPrompt,
+def validate_macro_call(
+    call: _MacroCall,
+    macro_def: Macro,
     step_name: str,
 ) -> list[str]:
-    """Validate call arguments against xprompt definition.
+    """Validate call arguments against macro definition.
 
     Args:
-        call: The parsed xprompt call.
-        xprompt: The xprompt definition to validate against.
+        call: The parsed macro call.
+        macro: The macro definition to validate against.
         step_name: Name of the step containing the call (for error messages).
 
     Returns:
@@ -156,15 +156,15 @@ def validate_xprompt_call(
     errors: list[str] = []
 
     # Check positional arg count
-    repeatable_tail = bool(xprompt.inputs and xprompt.inputs[-1].repeatable)
-    if len(call.positional_args) > len(xprompt.inputs) and not repeatable_tail:
+    repeatable_tail = bool(macro_def.inputs and macro_def.inputs[-1].repeatable)
+    if len(call.positional_args) > len(macro_def.inputs) and not repeatable_tail:
         errors.append(
             f"Step '{step_name}': {call.display_name} has {len(call.positional_args)} "
-            f"positional args but only {len(xprompt.inputs)} inputs defined"
+            f"positional args but only {len(macro_def.inputs)} inputs defined"
         )
 
     # Check named args match defined input names
-    defined_names = {inp.name for inp in xprompt.inputs}
+    defined_names = {inp.name for inp in macro_def.inputs}
     for arg_name in call.named_args:
         if arg_name not in defined_names:
             available = sorted(defined_names)
@@ -179,7 +179,7 @@ def validate_xprompt_call(
 
     # Positional args map to inputs by position
     for i, value in enumerate(call.positional_args):
-        input_arg = input_for_position(xprompt.inputs, i)
+        input_arg = input_for_position(macro_def.inputs, i)
         if input_arg is not None:
             provided_names.add(input_arg.name)
             if input_arg.repeatable and not value:
@@ -190,7 +190,7 @@ def validate_xprompt_call(
 
     # Find missing required args (those without defaults)
     missing_required: list[str] = []
-    for inp in xprompt.inputs:
+    for inp in macro_def.inputs:
         if inp.default is UNSET and inp.name not in provided_names:
             # Skip check if a template variable could provide it at runtime
             # (but we still report it since we can't be sure)

@@ -48,7 +48,7 @@ from sase.axe.run_agent_runner_refresh import (
 )
 from sase.axe.run_agent_runner_setup import (
     bump_spawn_telemetry,
-    expand_deferred_launch_xprompts,
+    expand_deferred_launch_macros,
 )
 from sase.axe.run_agent_runner_signals import is_user_kill_exit, system_exit_code
 from sase.axe.run_agent_runner_scratch import cleanup_launch_scratch
@@ -178,10 +178,10 @@ def _admit_and_launch(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None
     # Fork resolution reads mutable parent transcripts. Keep it behind
     # dependency admission, but run it before runner-slot admission or any real
     # workspace claim/preparation.
-    state.prompt = expand_deferred_launch_xprompts(
+    state.prompt = expand_deferred_launch_macros(
         state.prompt,
         state.artifacts_dir,
-        extra_xprompts=bootstrap.info.local_xprompts or None,
+        extra_macros=bootstrap.info.local_macros or None,
     )
 
     hold = getattr(bootstrap.info, "hold", None)
@@ -215,16 +215,16 @@ def _run_agent(state: RunnerRunState) -> None:
 
     # Re-exec before repeat-stop detection, runner-slot claiming, or any
     # workspace mutation. The refreshed main pass intentionally resolves
-    # xprompts again so post-wait work uses the current definitions.
+    # macros again so post-wait work uses the current definitions.
     refresh_runner_code_after_wait(
         _STARTUP_CODE_IDENTITY,
         blocking_wait_occurred=blocking_wait_occurred,
         killed=was_killed(),
         prompt_file=state.prompt_file,
-        submitted_xprompt=state.submitted_xprompt,
+        submitted_prompt=state.submitted_prompt,
         agent_name=state.agent_name,
         artifacts_dir=state.artifacts_dir,
-        local_xprompts=bootstrap.info.local_xprompts,
+        local_macros=bootstrap.info.local_macros,
     )
 
     repeat_stop: RepeatStopDecision | None = None

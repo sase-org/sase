@@ -111,10 +111,10 @@ class EntryCustomMixin:
             except Exception:  # noqa: BLE001 - the next tick retries.
                 pass
             return
-        from sase.history.vcs_macro_mru import load_launchable_vcs_xprompt_mru_pairs
+        from sase.history.vcs_macro_mru import load_launchable_vcs_macro_mru_pairs
 
         resolved = resolve_vcs_xprompt_mru_head(
-            load_launchable_vcs_xprompt_mru_pairs(prune=False)
+            load_launchable_vcs_macro_mru_pairs(prune=False)
         )
         if resolved is None:
             self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
@@ -140,10 +140,10 @@ class EntryCustomMixin:
             # opens anyway, so fall back to the synchronous loader without
             # ever writing the MRU file.
             from sase.history.vcs_macro_mru import (
-                load_launchable_vcs_xprompt_mru_pairs,
+                load_launchable_vcs_macro_mru_pairs,
             )
 
-            pairs = list(load_launchable_vcs_xprompt_mru_pairs(prune=False))
+            pairs = list(load_launchable_vcs_macro_mru_pairs(prune=False))
         resolved = resolve_vcs_xprompt_mru_head(pairs)
         if resolved is None:
             self.notify("No previous VCS xprompt", severity="warning")  # type: ignore[attr-defined]

@@ -25,7 +25,7 @@ from sase.macro.write_targets import (
     PostWriteActionKind,
     PostWriteActionOffer,
     WrittenFileKind,
-    XPromptWriteTarget,
+    MacroWriteTarget,
     build_post_write_action_offers,
     classify_written_file,
     write_target_for_written_path,
@@ -37,11 +37,11 @@ class PromptBarSaveXpromptGitMixin:
 
     async def _offer_post_write_actions(
         self,
-        target: XPromptWriteTarget,
+        target: MacroWriteTarget,
         *,
         kind: WrittenFileKind,
         is_new: bool,
-        xprompt_name: str,
+        macro_name: str,
         noun: str = "xprompt",
         commit_type: str = "xprompt",
         refresh_config_on_success: bool = False,
@@ -54,7 +54,7 @@ class PromptBarSaveXpromptGitMixin:
             target,
             kind=kind,
             is_new=is_new,
-            xprompt_name=xprompt_name,
+            macro_name=macro_name,
             noun=noun,
             commit_type=commit_type,
         )
@@ -70,7 +70,7 @@ class PromptBarSaveXpromptGitMixin:
         file_path: str,
         *,
         is_new: bool,
-        xprompt_name: str,
+        macro_name: str,
         noun: str = "xprompt",
         commit_type: str = "xprompt",
     ) -> None:
@@ -81,7 +81,7 @@ class PromptBarSaveXpromptGitMixin:
             target,
             kind=kind,
             is_new=is_new,
-            xprompt_name=xprompt_name,
+            macro_name=macro_name,
             noun=noun,
             commit_type=commit_type,
         )
@@ -96,7 +96,7 @@ class PromptBarSaveXpromptGitMixin:
         self,
         offers: tuple[PostWriteActionOffer, ...],
         *,
-        target: XPromptWriteTarget,
+        target: MacroWriteTarget,
         noun: str,
         refresh_config_on_success: bool = False,
     ) -> None:
@@ -371,7 +371,7 @@ def _post_write_request_payload(offer: PostWriteActionOffer) -> dict[str, object
 
 
 def _post_write_subject(
-    target: XPromptWriteTarget,
+    target: MacroWriteTarget,
     offers: tuple[PostWriteActionOffer, ...],
 ) -> str:
     rel_path = offers[0].rel_path if offers else str(target.write_path)

@@ -38,7 +38,7 @@ def test_prepare_agent_launch_rust_writes_prompt_and_returns_process_shape(
         history_sort_key="feature/test",
         vcs_workflow_type="gh",
         vcs_ref="feature/test",
-        local_xprompts_file="/tmp/xprompts.json",
+        local_macros_file="/tmp/xprompts.json",
         extra_env={"SASE_AGENT": "caller", "SASE_REPEAT_NAME": "task.1"},
         retry_transfer_from_pid=99,
     )

@@ -66,7 +66,7 @@ def _agent_info(*, bead_id: str | None = None) -> SimpleNamespace:
         approve=False,
         clan_summary_resolution=None,
         meta={"name": "foo--reviewer"},
-        local_xprompts={},
+        local_macros={},
     )
 
 
@@ -170,12 +170,12 @@ def _run_runner_with_wait_result(
             )
         )
         stack.enter_context(
-            patch.object(run_agent_runner_bootstrap, "write_submitted_xprompt_artifact")
+            patch.object(run_agent_runner_bootstrap, "write_submitted_prompt_artifact")
         )
         stack.enter_context(
             patch.object(
                 run_agent_runner_bootstrap,
-                "preprocess_prompt_xprompts",
+                "preprocess_prompt_macros",
                 return_value=(
                     "%i(reviewer, session=foo)\nDo work",
                     None,
@@ -368,10 +368,10 @@ def test_runner_forwards_blocking_wait_result_to_code_refresh(tmp_path: Path) ->
         blocking_wait_occurred=True,
         killed=False,
         prompt_file=str(tmp_path / "prompt.md"),
-        submitted_xprompt="%i(reviewer, session=foo)\nDo work",
+        submitted_prompt="%i(reviewer, session=foo)\nDo work",
         agent_name="foo--reviewer",
         artifacts_dir=str(tmp_path / "artifacts"),
-        local_xprompts={},
+        local_macros={},
     )
 
 

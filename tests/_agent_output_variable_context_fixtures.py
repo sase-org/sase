@@ -32,7 +32,7 @@ def make_consumer_context(
         agent_vcs_provider=None,
         agent_hidden=False,
         agent_meta={},
-        local_xprompts={},
+        local_macros={},
         output_variable_namespaces=output_variable_namespaces,
     )
 

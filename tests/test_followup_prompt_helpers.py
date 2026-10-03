@@ -241,7 +241,7 @@ def test_read_feedback_parent_prompt_prefers_followup_prompt(tmp_path: Path) -> 
     assert _read_feedback_parent_prompt(artifacts_dir) == "follow-up prompt"
 
 
-def test_with_q_and_a_xprompt_expands_to_shared_helper(
+def test_with_q_and_a_macro_expands_to_shared_helper(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -290,7 +290,7 @@ def test_with_q_and_a_xprompt_expands_to_shared_helper(
     assert "#literal" in expanded
 
 
-def test_with_q_and_a_xprompt_missing_qa_file_errors(
+def test_with_q_and_a_macro_missing_qa_file_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -303,7 +303,7 @@ def test_with_q_and_a_xprompt_missing_qa_file_errors(
         )
 
 
-def test_with_feedback_xprompt_expands_from_parent_artifacts(
+def test_with_feedback_macro_expands_from_parent_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -337,7 +337,7 @@ def test_with_feedback_xprompt_expands_from_parent_artifacts(
     assert workflows[0].workflow_name == "with_feedback"
 
 
-def test_with_feedback_xprompt_defaults_parent_from_agent_session_attach(
+def test_with_feedback_macro_defaults_parent_from_agent_session_attach(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -411,7 +411,7 @@ def test_with_feedback_parent_default_is_multi_prompt_segment_local(
     assert workflows[0].context["parent"] == "parent_two"
 
 
-def test_with_q_and_a_xprompt_composes_with_agent_session_attach_directive(
+def test_with_q_and_a_macro_composes_with_agent_session_attach_directive(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -28,7 +28,7 @@ def chezmoi_source_path(target: Path) -> Path:
     ``dot_`` prefix, rooted at ``~/.local/share/chezmoi/home``. For example
     ``~/.config/sase/sase.yml`` maps to
     ``~/.local/share/chezmoi/home/dot_config/sase/sase.yml`` (the same scheme
-    used by the xprompt location modal). A path that is not under ``$HOME`` is
+    used by the macro location modal). A path that is not under ``$HOME`` is
     not chezmoi-managed and is returned unchanged.
     """
     return _layout_chezmoi_source_path(

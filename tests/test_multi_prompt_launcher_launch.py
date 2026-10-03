@@ -32,7 +32,7 @@ def test_launch_multi_prompt_sequential_calls(
 
     results = launch_multi_prompt_agents(
         segments=["seg1", "seg2", "seg3"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -74,7 +74,7 @@ def test_launch_multi_prompt_allocates_unique_timestamps_without_sleep(
 
     launch_multi_prompt_agents(
         segments=["seg1", "seg2", "seg3"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -118,7 +118,7 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
 
     launch_multi_prompt_agents(
         segments=["%wait first", "%wait second", "%wait land"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -185,7 +185,7 @@ def test_launch_multi_prompt_fork_reference_defers_workspace(
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
             segments=[prompt],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -228,7 +228,7 @@ def test_launch_multi_prompt_each_gets_own_timestamp(
 
     launch_multi_prompt_agents(
         segments=["seg1", "seg2"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",

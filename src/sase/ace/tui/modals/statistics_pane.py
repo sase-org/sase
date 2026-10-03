@@ -169,7 +169,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
         view = self._view
         selected_range = self._range
         project_filter = self._project_filter
-        xprompt_focus = self._xprompt_focus
+        macro_focus = self._xprompt_focus
         perf_group_by = self._perf_group_by
         self._loading = True
         self._last_error = ""
@@ -182,7 +182,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
                 view,
                 selected_range,
                 project_filter,
-                xprompt_focus,
+                macro_focus,
                 perf_group_by=perf_group_by,
             )
 
@@ -248,7 +248,7 @@ class StatisticsPane(StatisticsPaneActionsMixin):
                 result.view != self._view
                 or result.selected_range != self._range
                 or result.project_filter != self._project_filter
-                or result.xprompt_focus != self._xprompt_focus
+                or result.macro_focus != self._xprompt_focus
                 or (
                     self._view == "perf"
                     and (
@@ -266,9 +266,9 @@ class StatisticsPane(StatisticsPaneActionsMixin):
                 )
                 self._project_filter_options_ready = True
                 self._maybe_seed_project_filter()
-            if result.xprompt_focus is None:
+            if result.macro_focus is None:
                 self._xprompt_focus_options = tuple(
-                    row.name for row in result.views.xprompts.rows
+                    row.name for row in result.views.macros.rows
                 )
             self._paint_current_view()
             # A newly lazy-mounted pane can finish a fast worker before its

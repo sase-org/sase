@@ -4,7 +4,7 @@ The helper preserves a submitted prompt whose launch failed into the existing
 prompt-stash store so it stays recoverable through ``gp`` / ``gP``. It must:
 
 - stash a long prompt with ``source="failed_launch"``,
-- lift a leading xprompt/frontmatter block into ``frontmatter`` and store the
+- lift a leading macro/frontmatter block into ``frontmatter`` and store the
   body as ``text``,
 - keep multi-prompt bodies as one canonical bundle row,
 - skip blank prompts, and

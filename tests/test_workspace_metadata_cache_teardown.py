@@ -1,4 +1,4 @@
-"""Regression test for the confirmed xprompt VCS-tag cache leak (sase-j7.1).
+"""Regression test for the confirmed macro VCS-tag cache leak (sase-j7.1).
 
 ``patch_spy_metadata``/``patch_no_workspace_metadata`` (tests/_workspace_
 provider_helpers.py) fake workspace-provider metadata and used to reset the

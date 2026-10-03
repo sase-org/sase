@@ -238,9 +238,9 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
 
     from sase.agent.launch_request_planning import expand_prompt_for_typed_launch
     from sase.core.agent_launch_facade import plan_typed_launch_units
-    from sase.macro.loader import get_all_xprompts
+    from sase.macro.loader import get_all_macros
 
-    catalog = get_all_xprompts()
+    catalog = get_all_macros()
     research_swarm = catalog["research_swarm"]
     assert (
         research_swarm.source_path == "plugin:sase_research_artifacts/research_swarm.md"

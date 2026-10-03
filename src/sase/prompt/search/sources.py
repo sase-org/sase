@@ -158,7 +158,7 @@ def _derive_metadata(text: str, fallback: str) -> _SearchTextMetadata:
     try:
         summary = summarize_prompt_for_search(text)
         title = summary.clean_preview
-        tags = _dedup_tags(summary.xprompts)
+        tags = _dedup_tags(summary.macros)
     except Exception:
         title = " ".join(text.split())
         tags = ()

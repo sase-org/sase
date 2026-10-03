@@ -18,9 +18,9 @@ from sase.macro._literal_zones import (
     literal_zone_ranges,
 )
 from sase.macro.directives import extract_prompt_directives
-from sase.macro.loader import load_xprompts_from_internal
-from sase.macro.models import InputArg, InputType, XPrompt
-from sase.macro.processor import process_xprompt_references
+from sase.macro.loader import load_macros_from_internal
+from sase.macro.models import InputArg, InputType, Macro
+from sase.macro.processor import process_macro_references
 
 
 def _sources(text: str, spans: list[tuple[int, int]]) -> list[str]:
@@ -146,12 +146,12 @@ def test_legacy_protection_api_round_trips_inline_and_fenced_code() -> None:
     assert unprotect_fenced_blocks(protected, blocks) == text
 
 
-def test_xprompt_reference_inside_inline_code_survives_launch_expansion() -> None:
-    xprompt = XPrompt(name="foo", content="expanded")
+def test_macro_reference_inside_inline_code_survives_launch_expansion() -> None:
+    macro_def = Macro(name="foo", content="expanded")
 
-    result = process_xprompt_references(
+    result = process_macro_references(
         "keep:`#foo`/`#foo` but expand #foo",
-        extra_xprompts={"foo": xprompt},
+        extra_macros={"foo": macro_def},
     )
 
     assert result == "keep:`#foo`/`#foo` but expand expanded"
@@ -169,57 +169,57 @@ def test_directive_and_alt_inside_inline_code_survive_verbatim() -> None:
 
 
 def test_backtick_colon_argument_still_expands_normally() -> None:
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="echo",
         content="Value: {{ value }}",
         inputs=[InputArg(name="value", type=InputType.LINE)],
     )
 
-    result = process_xprompt_references(
+    result = process_macro_references(
         "#echo:`two words`",
-        extra_xprompts={"echo": xprompt},
+        extra_macros={"echo": macro_def},
     )
 
     assert result == "Value: two words"
 
 
-def test_typed_xprompt_input_renders_inside_inline_code() -> None:
-    xprompt = XPrompt(
+def test_typed_macro_input_renders_inside_inline_code() -> None:
+    macro_def = Macro(
         name="show_path",
         content="Open `{{ file_path }}`.",
         inputs=[InputArg(name="file_path", type=InputType.PATH)],
     )
 
-    result = process_xprompt_references(
+    result = process_macro_references(
         "#show_path:src/example.py",
-        extra_xprompts={"show_path": xprompt},
+        extra_macros={"show_path": macro_def},
     )
 
     assert result == "Open `src/example.py`."
 
 
-def test_rendered_value_does_not_activate_neighboring_inline_xprompt() -> None:
-    wrapper = XPrompt(
+def test_rendered_value_does_not_activate_neighboring_inline_macro() -> None:
+    wrapper = Macro(
         name="wrapper",
         content="Keep `{{ value }} #child` literal.",
         inputs=[InputArg(name="value", type=InputType.WORD)],
     )
-    child = XPrompt(name="child", content="expanded")
+    child = Macro(name="child", content="expanded")
 
-    result = process_xprompt_references(
+    result = process_macro_references(
         "#wrapper:rendered",
-        extra_xprompts={"wrapper": wrapper, "child": child},
+        extra_macros={"wrapper": wrapper, "child": child},
     )
 
     assert result == "Keep `rendered #child` literal."
 
 
 def test_packaged_split_file_renders_colon_path_inside_inline_code() -> None:
-    split_file = load_xprompts_from_internal()["split_file"]
+    split_file = load_macros_from_internal()["split_file"]
 
-    result = process_xprompt_references(
+    result = process_macro_references(
         "#split_file:src/sase/ace/tui/modals/projects_pane.py",
-        extra_xprompts={"split_file": split_file},
+        extra_macros={"split_file": split_file},
     )
 
     assert "`src/sase/ace/tui/modals/projects_pane.py`" in result
@@ -227,7 +227,7 @@ def test_packaged_split_file_renders_colon_path_inside_inline_code() -> None:
 
 
 def test_packaged_split_file_requires_import_safe_verification() -> None:
-    content = load_xprompts_from_internal()["split_file"].content
+    content = load_macros_from_internal()["split_file"].content
     # The packaged file is wrapped to the Markdown prose width, so match
     # wrap-sensitive phrases against whitespace-normalized content.
     flat = " ".join(content.split())

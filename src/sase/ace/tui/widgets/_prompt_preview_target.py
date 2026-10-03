@@ -18,10 +18,10 @@ from sase.core.source_language_facade import (
     resolve_source_language,
 )
 from sase.macro import macro_inspect
-from sase.macro._parsing_references import XPromptReference, iter_xprompt_references
-from sase.macro.loader import get_xprompt_or_workflow
-from sase.macro.models import UNSET, InputArg, XPrompt
-from sase.macro.properties import XPromptProperties, xprompt_properties
+from sase.macro._parsing_references import MacroReference, iter_macro_references
+from sase.macro.loader import get_macro_or_workflow
+from sase.macro.models import UNSET, InputArg, Macro
+from sase.macro.properties import MacroProperties, macro_properties
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
 PreviewKind = Literal["xprompt", "file"]
@@ -68,7 +68,7 @@ class PreviewPayload:
     lexer: str
     reference: str | None = None
     default_view: PreviewDefaultView = "source"
-    properties: XPromptProperties | None = None
+    properties: MacroProperties | None = None
     media: PreviewMedia = "text"
 
 
@@ -76,12 +76,12 @@ class PreviewError(Exception):
     """User-facing preview failure."""
 
 
-def _cursor_in_shorthand_argument_text(ref: XPromptReference, offset: int) -> bool:
+def _cursor_in_shorthand_argument_text(ref: MacroReference, offset: int) -> bool:
     start = ref.shorthand_text_start
     return start is not None and start <= offset < ref.end
 
 
-def _preview_token_from_xprompt_reference(ref: XPromptReference) -> PreviewToken:
+def _preview_token_from_xprompt_reference(ref: MacroReference) -> PreviewToken:
     return PreviewToken(
         kind="xprompt",
         raw=ref.raw,
@@ -113,7 +113,7 @@ def detect_preview_target_at_cursor(
                     reference_prefix="/",
                 )
 
-    for ref in iter_xprompt_references(text):
+    for ref in iter_macro_references(text):
         if ref.start <= offset < ref.end:
             if _cursor_in_shorthand_argument_text(ref, offset):
                 continue
@@ -149,8 +149,8 @@ def detect_shorthand_argument_owner_at_cursor(
 ) -> PreviewToken | None:
     """Return the xprompt whose ``: ``/``:: `` argument text holds the cursor."""
     offset = max(0, min(cursor_offset, len(text)))
-    owner: XPromptReference | None = None
-    for ref in iter_xprompt_references(text):
+    owner: MacroReference | None = None
+    for ref in iter_macro_references(text):
         if not _cursor_in_shorthand_argument_text(ref, offset):
             continue
         if owner is None or ref.start > owner.start:
@@ -215,16 +215,16 @@ def _resolve_xprompt_preview(
     # ``/foo`` is the provider skill name; its definition lives under the
     # canonical ``skill/foo`` xprompt reference.
     lookup = skill_reference_name(token.target) if slash_skill else token.target
-    obj = get_xprompt_or_workflow(lookup, project=project)
+    obj = get_macro_or_workflow(lookup, project=project)
     if obj is None:
         if slash_skill:
             raise PreviewError(f"No skill named '{reference}' found")
         raise PreviewError(f"No xprompt or skill named '{reference}' found")
 
-    if slash_skill and (not isinstance(obj, XPrompt) or not obj.skill):
+    if slash_skill and (not isinstance(obj, Macro) or not obj.skill):
         raise PreviewError(f"No skill named '{reference}' found")
 
-    if isinstance(obj, XPrompt):
+    if isinstance(obj, Macro):
         kind_label = "skill" if obj.skill else "xprompt"
         fallback_content = _xprompt_fallback_preview(obj)
         fallback_lexer = "markdown"
@@ -264,14 +264,14 @@ def _resolve_xprompt_preview(
 
 
 def _resolve_xprompt_properties(
-    obj: XPrompt | Workflow,
+    obj: Macro | Workflow,
     *,
     reference: str,
     kind: str,
     project: str | None,
     source_id: str | None,
     definition_path: str | None,
-) -> XPromptProperties | None:
+) -> MacroProperties | None:
     source_bucket: str | None = None
     if source_id is not None:
         try:
@@ -281,7 +281,7 @@ def _resolve_xprompt_properties(
         except Exception:
             source_bucket = None
     try:
-        return xprompt_properties(
+        return macro_properties(
             obj,
             reference=reference,
             kind=kind,
@@ -431,7 +431,7 @@ def _lexer_for_path(
     return result.language or "text"
 
 
-def _xprompt_fallback_preview(xprompt: XPrompt) -> str:
+def _xprompt_fallback_preview(xprompt: Macro) -> str:
     inputs = [inp for inp in xprompt.inputs if not inp.is_step_input]
     has_input_descriptions = any(inp.description for inp in inputs)
     if not xprompt.description and not has_input_descriptions:
@@ -449,7 +449,7 @@ def _xprompt_fallback_preview(xprompt: XPrompt) -> str:
 
 
 def _workflow_fallback_preview(workflow: Workflow) -> str:
-    if workflow.is_simple_xprompt():
+    if workflow.is_simple_macro():
         content = workflow.get_prompt_part_content()
         inputs = [inp for inp in workflow.inputs if not inp.is_step_input]
         has_input_descriptions = any(inp.description for inp in inputs)

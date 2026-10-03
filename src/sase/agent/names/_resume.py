@@ -81,7 +81,7 @@ def sole_resume_agent_name(prompt: str | None) -> str | None:
 
     ``#fork_by_chat`` and legacy ``#resume_by_chat`` are intentionally ignored
     because their arguments are chat paths, not agent names. Fenced code blocks
-    and disabled xprompt regions are protected before lexical matching. A fork
+    and disabled macro regions are protected before lexical matching. A fork
     with two or more parents deliberately returns ``None`` so merged children
     use neutral auto-naming. Legacy ``#resume`` remains single-parent.
     """
@@ -114,7 +114,7 @@ def first_fork_agent_name(prompt: str | None) -> str | None:
     only ``#fork`` should imply a wait. ``#fork_by_chat`` (chat-path argument)
     and bare ``#fork`` (target resolved dynamically by the fork workflow) carry
     no explicit agent name and are intentionally excluded. Fenced code blocks
-    and disabled xprompt regions are protected before lexical matching.
+    and disabled macro regions are protected before lexical matching.
     """
     parents = fork_agent_names(prompt)
     return parents[0] if parents else None

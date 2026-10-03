@@ -12,11 +12,11 @@ from rich.cells import cell_len
 from sase.procs import (
     ACTIVE_PROC_STATUSES,
     PROC_LIFECYCLE_NAMED_PROC,
-    XPROMPT_PROC_ORIGIN,
     short_proc_id,
 )
 from sase.procs.text_bounding import bound_and_redact_text
 from sase.project_display_names import project_display_name_for
+from sase.legacy_xprompt_names import prompt_proc_origin_matches
 
 from .._proc_observer_models import ObservedProc
 from .agent import Agent
@@ -94,14 +94,14 @@ def named_proc_agent_signature(
 
 
 def _is_standalone_xprompt_row(row: ObservedProc) -> bool:
-    return (
-        row.lifecycle == PROC_LIFECYCLE_NAMED_PROC and row.origin == XPROMPT_PROC_ORIGIN
+    return row.lifecycle == PROC_LIFECYCLE_NAMED_PROC and prompt_proc_origin_matches(
+        row.origin
     )
 
 
 def _observed_proc_to_agent(row: ObservedProc) -> Agent:
     project_key = row.project or row.cl_name or "proc"
-    meta = row.xprompt_proc or {}
+    meta = row.prompt_proc or {}
     label = _explicit_proc_label(row, meta)
     proc_name = row.proc_name or short_proc_id(row.proc_id)
     agent = Agent(

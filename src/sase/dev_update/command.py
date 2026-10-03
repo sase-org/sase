@@ -24,7 +24,7 @@ DEV_UPDATE_COMMAND_TIMEOUT_SECONDS = 300.0
 
 # Reconcile steps that shell out to cargo are minutes-scale, not seconds-scale:
 # a prebuild-cache miss makes `just rust-dev-install-uv-tool` build sase_core_py
-# and the xprompt LSP from scratch, which routinely outruns the generic command
+# and the macro LSP from scratch, which routinely outruns the generic command
 # timeout above. Bound those steps with the same ceiling the prebuild producer
 # uses so a wedged build still cannot hang an update forever.
 DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS = 3600.0

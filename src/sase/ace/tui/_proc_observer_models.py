@@ -84,7 +84,7 @@ class ObservedProc:
     settling_started_at: datetime | None = None
     settled_by: str | None = None
     settled_at: datetime | None = None
-    xprompt_proc: Mapping[str, Any] | None = None
+    prompt_proc: Mapping[str, Any] | None = None
     service: ProcServiceBlock | None = None
     tags: tuple[str, ...] = ()
 

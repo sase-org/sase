@@ -125,7 +125,7 @@ def test_launch_query_prints_each_launched_agent_pid(
     ]
 
 
-def test_launch_query_warns_on_unresolved_xprompt_and_still_launches(
+def test_launch_query_warns_on_unresolved_macro_and_still_launches(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -147,13 +147,13 @@ class MentorReviewMixin:
         from sase.main.query_handler import execute_standalone_steps
         from sase.core.time import generate_timestamp
         from sase.workspace_provider import detect_workflow_type
-        from sase.macro.tags import XPromptTag, get_by_tag, get_by_tag_strict
+        from sase.macro.tags import MacroTag, get_by_tag, get_by_tag_strict
         from sase.macro.workflow_executor_utils import render_template
 
         vcs_type = detect_workflow_type(project_file)
 
         # Resolve the make_mentor_changes xprompt via tag
-        changes_wf = get_by_tag_strict(XPromptTag.make_mentor_changes)
+        changes_wf = get_by_tag_strict(MacroTag.make_mentor_changes)
         if changes_wf is None:
             raise RuntimeError(
                 "No xprompt with tag 'make_mentor_changes' found. "
@@ -185,9 +185,9 @@ class MentorReviewMixin:
 
         # Append the post-apply xprompt (propose or commit) if one exists
         if mode == "propose":
-            post_wf = get_by_tag(XPromptTag.propose)
+            post_wf = get_by_tag(MacroTag.propose)
         else:
-            post_wf = get_by_tag(XPromptTag.commit)
+            post_wf = get_by_tag(MacroTag.commit)
         if post_wf is not None:
             prompt += f"\n\n#{post_wf.name}(who=mentor)"
 

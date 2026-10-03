@@ -1,4 +1,4 @@
-"""End-to-end handler tests for ``sase xprompt show``."""
+"""End-to-end handler tests for ``sase macro show``."""
 
 from __future__ import annotations
 
@@ -8,17 +8,17 @@ import json
 import pytest
 
 from sase.main.parser import create_parser
-from sase.main.macro_handler import handle_xprompt_command
+from sase.main.macro_handler import handle_macro_command
 from sase.macro.cli_show_model import (
     SHOW_SCHEMA_VERSION,
     ShowProvenance,
-    XPromptShowRecord,
+    MacroShowRecord,
 )
 from sase.macro.cli_show_resolve import ShowLookupMiss
 
 
-def _record(**overrides: object) -> XPromptShowRecord:
-    base = XPromptShowRecord(
+def _record(**overrides: object) -> MacroShowRecord:
+    base = MacroShowRecord(
         name="demo",
         reference="#demo",
         prefix="#",
@@ -32,8 +32,8 @@ def _record(**overrides: object) -> XPromptShowRecord:
         provenance=ShowProvenance(
             source_id="project:demo",
             source_bucket="project",
-            source_display="sase/xprompts/demo.md",
-            definition_path="/work/sase/xprompts/demo.md",
+            source_display="sase/macros/demo.md",
+            definition_path="/work/sase/macros/demo.md",
             definition_line=1,
             hosted_url=None,
             editable=True,
@@ -44,7 +44,7 @@ def _record(**overrides: object) -> XPromptShowRecord:
         log_skill_use=None,
         input_signature=None,
         inputs=[],
-        local_xprompts=[],
+        local_macros=[],
         steps=[],
         body="#demo body",
         body_first_line=1,
@@ -58,7 +58,7 @@ def _record(**overrides: object) -> XPromptShowRecord:
 def _dispatch(argv: list[str]) -> int:
     args = create_parser().parse_args(["xprompt", *argv])
     with pytest.raises(SystemExit) as exc_info:
-        handle_xprompt_command(args)
+        handle_macro_command(args)
     return int(exc_info.value.code)
 
 

@@ -1,4 +1,4 @@
-"""Parity checks for xprompt argument span consumers."""
+"""Parity checks for macro argument span consumers."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 from sase.core.rust import require_rust_binding
 from sase.macro import highlight
 from sase.macro.highlight import HighlightSpan
-from sase.macro.highlight_theme import xprompt_argument_palette
+from sase.macro.highlight_theme import macro_argument_palette
 
 _LSP_TOKEN_TYPE_BY_CORE_ROLE = {
     "arg_delimiter": "operator",
@@ -91,7 +91,7 @@ def test_tui_and_real_lsp_argument_roles_match_core_spans(
         "context=plain, owner=again, extra=nope)"
     )
     binding = require_rust_binding("xprompt_argument_spans")
-    entry_wire = highlight._xprompt_arg_assist_entry_to_wire(_entry())
+    entry_wire = highlight._macro_arg_assist_entry_to_wire(_entry())
     entries = [entry_wire]
     core_spans = binding(text, entries)
 
@@ -131,7 +131,7 @@ def test_tui_and_real_lsp_argument_roles_match_core_spans(
         else:
             assert lsp_modifiers == frozenset()
 
-    with LspSession(tmp_path, xprompt_catalog=entries) as session:
+    with LspSession(tmp_path, macro_catalog=entries) as session:
         session.complete("#vis")
         diagnostics = session.published_diagnostics(
             text,
@@ -164,14 +164,14 @@ def test_real_lsp_keeps_open_calls_structural_without_validity(
     tmp_path: Path,
 ) -> None:
     text = "#visual_batch(owner=alice, count="
-    entry_wire = highlight._xprompt_arg_assist_entry_to_wire(_entry())
+    entry_wire = highlight._macro_arg_assist_entry_to_wire(_entry())
     binding = require_rust_binding("xprompt_argument_spans")
     core_spans = binding(text, [entry_wire])
 
     assert core_spans
     assert {span["validity"] for span in core_spans} == {"ok"}
 
-    with LspSession(tmp_path, xprompt_catalog=[entry_wire]) as session:
+    with LspSession(tmp_path, macro_catalog=[entry_wire]) as session:
         session.complete("#vis")
         tokens = session.semantic_tokens(text)
 
@@ -235,11 +235,11 @@ def test_real_lsp_preserves_artifact_tokens_inside_argument_values(
     tmp_path: Path,
 ) -> None:
     text = "#visual_batch(context=pre @file:plans/launch.md post)"
-    entry_wire = highlight._xprompt_arg_assist_entry_to_wire(_entry())
+    entry_wire = highlight._macro_arg_assist_entry_to_wire(_entry())
 
     with LspSession(
         tmp_path,
-        xprompt_catalog=[entry_wire],
+        macro_catalog=[entry_wire],
         artifact_ref_catalog=_artifact_ref_catalog(tmp_path),
     ) as session:
         session.complete("#vis")
@@ -438,7 +438,7 @@ def test_text_area_reuses_warm_catalog_wire_for_same_entries(
 
     monkeypatch.setattr(
         highlight,
-        "xprompt_arg_assist_entries_to_wire",
+        "macro_arg_assist_entries_to_wire",
         fake_to_wire,
     )
 
@@ -464,7 +464,7 @@ def test_text_area_registers_source_aware_argument_styles(theme_name: str) -> No
     assert widget.registered_theme is not None
     styles = widget.registered_theme.syntax_styles
     background = app_theme.background or "#000000"
-    xprompt_colors = xprompt_argument_palette(
+    macro_colors = macro_argument_palette(
         app_theme.success,
         foreground=app_theme.foreground,
         background=background,
@@ -472,7 +472,7 @@ def test_text_area_registers_source_aware_argument_styles(theme_name: str) -> No
         accent=app_theme.accent,
         primary=app_theme.primary,
     )
-    directive_colors = xprompt_argument_palette(
+    directive_colors = macro_argument_palette(
         app_theme.warning,
         foreground=app_theme.foreground,
         background=background,
@@ -481,7 +481,7 @@ def test_text_area_registers_source_aware_argument_styles(theme_name: str) -> No
         primary=app_theme.primary,
     )
 
-    assert styles["xprompt.arg_key"] == Style(color=xprompt_colors["xprompt.arg_key"])
+    assert styles["xprompt.arg_key"] == Style(color=macro_colors["xprompt.arg_key"])
     assert styles["xprompt.directive.arg_key"] == Style(
         color=directive_colors["xprompt.arg_key"]
     )

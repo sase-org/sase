@@ -7,19 +7,19 @@ from sase.stats.views import build_statistics_views
 from tests.stats._views_payloads import activity_payload, run_payload
 
 
-def test_xprompts_absent_section_is_explicitly_unavailable() -> None:
+def test_macros_absent_section_is_explicitly_unavailable() -> None:
     views = build_statistics_views(
         run_payload(),
         activity_payload(),
         timezone=ZoneInfo("UTC"),
     )
 
-    assert views.xprompts.available is False
-    assert views.xprompts.rows == ()
-    assert views.xprompts.focus is None
+    assert views.macros.available is False
+    assert views.macros.rows == ()
+    assert views.macros.focus is None
 
 
-def test_xprompts_present_empty_section_is_available() -> None:
+def test_macros_present_empty_section_is_available() -> None:
     payload = run_payload()
     payload["xprompts"] = {
         "runs_with_xprompts": 0,
@@ -31,20 +31,20 @@ def test_xprompts_present_empty_section_is_available() -> None:
         "focus": None,
     }
 
-    xprompts = build_statistics_views(
+    macros = build_statistics_views(
         payload,
         activity_payload(),
         timezone=ZoneInfo("UTC"),
-    ).xprompts
+    ).macros
 
-    assert xprompts.available is True
-    assert xprompts.runs_with_xprompts == 0
-    assert xprompts.runs_without_xprompts == 6
-    assert xprompts.rows == ()
-    assert xprompts.focus is None
+    assert macros.available is True
+    assert macros.runs_with_macros == 0
+    assert macros.runs_without_macros == 6
+    assert macros.rows == ()
+    assert macros.focus is None
 
 
-def test_xprompts_populated_rows_build_shares_tags_and_project_labels() -> None:
+def test_macros_populated_rows_build_shares_tags_and_project_labels() -> None:
     payload = run_payload()
     payload["xprompts"] = {
         "runs_with_xprompts": 4,
@@ -103,18 +103,18 @@ def test_xprompts_populated_rows_build_shares_tags_and_project_labels() -> None:
     }
     snapshot = ProjectDisplaySnapshot({"gh_acme__widgets": "widgets"})
 
-    xprompts = build_statistics_views(
+    macros = build_statistics_views(
         payload,
         activity_payload(),
         timezone=ZoneInfo("UTC"),
         project_display_snapshot=snapshot,
-    ).xprompts
+    ).macros
 
-    assert xprompts.available is True
-    assert xprompts.distinct_xprompts == 2
-    assert xprompts.total_references == 7
-    assert [row.name for row in xprompts.rows] == ["split_file", "gh"]
-    row = xprompts.rows[0]
+    assert macros.available is True
+    assert macros.distinct_macros == 2
+    assert macros.total_references == 7
+    assert [row.name for row in macros.rows] == ["split_file", "gh"]
+    row = macros.rows[0]
     assert row.tags == ("files", "vcs")
     assert row.share == pytest.approx(3 / 4)
     assert row.mean_runtime_seconds is None
@@ -131,13 +131,13 @@ def test_xprompts_populated_rows_build_shares_tags_and_project_labels() -> None:
         2,
     )
     assert (
-        xprompts.rows[1].models_truncated,
-        xprompts.rows[1].projects_truncated,
-        xprompts.rows[1].partners_truncated,
+        macros.rows[1].models_truncated,
+        macros.rows[1].projects_truncated,
+        macros.rows[1].partners_truncated,
     ) == (0, 0, 0)
 
 
-def test_xprompt_focus_builds_full_breakdowns_and_bucket_labels() -> None:
+def test_macro_focus_builds_full_breakdowns_and_bucket_labels() -> None:
     payload = run_payload()
     payload["xprompts"] = {
         "runs_with_xprompts": 2,
@@ -180,7 +180,7 @@ def test_xprompt_focus_builds_full_breakdowns_and_bucket_labels() -> None:
         project_display_snapshot=ProjectDisplaySnapshot(
             {"gh_acme__widgets": "widgets"}
         ),
-    ).xprompts.focus
+    ).macros.focus
 
     assert focus is not None
     assert focus.found is True
@@ -197,7 +197,7 @@ def test_xprompt_focus_builds_full_breakdowns_and_bucket_labels() -> None:
     ]
 
 
-def test_xprompt_focus_preserves_not_found_state() -> None:
+def test_macro_focus_preserves_not_found_state() -> None:
     payload = run_payload()
     payload["xprompts"] = {
         "runs_with_xprompts": 0,
@@ -213,7 +213,7 @@ def test_xprompt_focus_preserves_not_found_state() -> None:
         payload,
         activity_payload(),
         timezone=ZoneInfo("UTC"),
-    ).xprompts.focus
+    ).macros.focus
 
     assert focus is not None
     assert focus.name == "missing"

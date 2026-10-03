@@ -74,7 +74,7 @@ def _remove_inherited_multi_agent_prompt_env(env: dict[str, str]) -> None:
     env.pop(MULTI_AGENT_PROMPT_FILE_ENV, None)
 
 
-def _remove_inherited_swarm_xprompts_env(env: dict[str, str]) -> None:
+def _remove_inherited_swarm_macros_env(env: dict[str, str]) -> None:
     """Drop stale swarm provenance inherited from a parent agent."""
     from sase.macro.used_macros import pop_launch_swarm_env
 
@@ -225,7 +225,7 @@ def spawn_agent_subprocess(
     is_home_mode: bool = False,
     vcs_ref: tuple[str, str] | None = None,
     deferred_workspace: bool = False,
-    local_xprompts_file: str | None = None,
+    local_macros_file: str | None = None,
     extra_env: dict[str, str] | None = None,
     retry_transfer_from_pid: int | None = None,
 ) -> AgentLaunchResult:
@@ -325,7 +325,7 @@ def spawn_agent_subprocess(
         vcs_workflow_type=None if vcs_ref is None else vcs_ref[0],
         vcs_ref=None if vcs_ref is None else vcs_ref[1],
         deferred_workspace=deferred_workspace,
-        local_xprompts_file=local_xprompts_file,
+        local_macros_file=local_macros_file,
         extra_env=extra_env or {},
         retry_transfer_from_pid=retry_transfer_from_pid,
     )
@@ -373,7 +373,7 @@ def spawn_agent_subprocess(
         _remove_inherited_proc_operation_env(subprocess_env)
         _remove_inherited_executor_ownership_env(subprocess_env)
         _remove_inherited_multi_agent_prompt_env(subprocess_env)
-        _remove_inherited_swarm_xprompts_env(subprocess_env)
+        _remove_inherited_swarm_macros_env(subprocess_env)
         _remove_inherited_sase_plan_env(subprocess_env)
         _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)

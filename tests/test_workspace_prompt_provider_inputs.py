@@ -1,23 +1,23 @@
-"""Provider-input boundaries for workspace-bearing review xprompts."""
+"""Provider-input boundaries for workspace-bearing review macros."""
 
 from __future__ import annotations
 
 import pytest
 
-from sase.macro import process_xprompt_references
+from sase.macro import process_macro_references
 from sase.macro.models import UNSET
-from sase.macro.tags import XPromptTag, get_by_tag_strict
+from sase.macro.tags import MacroTag, get_by_tag_strict
 
 
 @pytest.mark.parametrize(
     "tag",
     [
-        XPromptTag.mentor,
-        XPromptTag.make_mentor_changes,
-        XPromptTag.fix_hook,
+        MacroTag.mentor,
+        MacroTag.make_mentor_changes,
+        MacroTag.fix_hook,
     ],
 )
-def test_workspace_review_xprompts_have_no_provider_default(tag: XPromptTag) -> None:
+def test_workspace_review_macros_have_no_provider_default(tag: MacroTag) -> None:
     workflow = get_by_tag_strict(tag)
     assert workflow is not None
 
@@ -27,7 +27,7 @@ def test_workspace_review_xprompts_have_no_provider_default(tag: XPromptTag) -> 
 
 
 def test_fix_hook_ref_free_invocation_remains_ref_free() -> None:
-    expanded = process_xprompt_references(
+    expanded = process_macro_references(
         '#fix_hook(hook_command="just test", output_file="/tmp/hook-output")'
     )
 
@@ -36,7 +36,7 @@ def test_fix_hook_ref_free_invocation_remains_ref_free() -> None:
 
 def test_fix_hook_patch_requires_provider() -> None:
     with pytest.raises(SystemExit):
-        process_xprompt_references(
+        process_macro_references(
             '#fix_hook(hook_command="just test", output_file="/tmp/hook-output", '
             'cl_name="feature")'
         )

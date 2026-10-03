@@ -1,9 +1,9 @@
-"""Tests for frontend-agnostic xprompt syntax span inspection."""
+"""Tests for frontend-agnostic macro syntax span inspection."""
 
 from __future__ import annotations
 
 from sase.macro import macro_inspect
-from sase.macro.macro_inspect import XPromptSpan
+from sase.macro.macro_inspect import MacroSpan
 
 
 def _source_by_kind(
@@ -125,7 +125,7 @@ def test_tokenize_uses_character_offsets_for_multibyte_text() -> None:
     text = "café #foo:value %m:opus"
     spans = macro_inspect.tokenize(text)
 
-    assert spans[0] == XPromptSpan(5, 9, "invocation")
+    assert spans[0] == MacroSpan(5, 9, "invocation")
     assert text[spans[1].start : spans[1].end] == ":value"
     assert text[spans[2].start : spans[2].end] == "%m"
 
@@ -231,7 +231,7 @@ def test_tokenize_project_tag_carries_accent_state_and_sigil_split(
     )
 
     assert macro_inspect.tokenize("+sase run") == [
-        XPromptSpan(
+        MacroSpan(
             0,
             5,
             "project_tag",
@@ -246,7 +246,7 @@ def test_tokenize_project_tag_unknown_only_when_anchored(monkeypatch) -> None:
     _warm_tag_catalog(monkeypatch, [_tag_target("sase", "gh")])
 
     assert macro_inspect.tokenize("+ssae run") == [
-        XPromptSpan(0, 5, "project_tag_unknown", name_start=1)
+        MacroSpan(0, 5, "project_tag_unknown", name_start=1)
     ]
     assert macro_inspect.tokenize("run +ssae") == []
 

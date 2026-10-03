@@ -32,7 +32,7 @@ def filter_model_alias_shortcut_entries(
     """Return alias-only catalog rows a ``=query`` shortcut may expand to.
 
     Reuses the shared Rust ``filter_model_alias_shortcut_entries`` binding so
-    ACE and the xprompt LSP never diverge on alias-kind filtering, prefix
+    ACE and the macro LSP never diverge on alias-kind filtering, prefix
     matching, or canonical catalog order.
     """
     binding = require_rust_binding("filter_model_alias_shortcut_entries")
@@ -52,7 +52,7 @@ def filter_explicit_model_shortcut_entries(
 
     The Rust helper sees the full model catalog before filtering out provider
     and alias rows, so provider-scoped queries such as ``codex/gpt`` keep the
-    same semantics as the xprompt LSP.
+    same semantics as the macro LSP.
     """
     binding = require_rust_binding("filter_explicit_model_shortcut_entries")
     payload: Any = binding(model_completion_entry_wire_rows(entries), query)

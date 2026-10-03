@@ -125,7 +125,7 @@ def invoke_agent(
     This is the main entry point for sending prompts to any configured LLM
     backend. It handles the full lifecycle:
 
-    1. Preprocess the prompt (xprompt, file refs, jinja2, prettier).
+    1. Preprocess the prompt (macro, file refs, jinja2, prettier).
     2. Display decision counts and prompt (if not suppressed).
     3. Save prompt to artifacts directory.
     4. Get provider from registry and invoke.

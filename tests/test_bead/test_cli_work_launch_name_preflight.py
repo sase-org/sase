@@ -21,7 +21,7 @@ from tests._agent_loader_helpers import _empty_artifact_snapshot
 
 from .cli_work_helpers import seed_diamond, seed_task, write_bead_agent_meta
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 @pytest.fixture(autouse=True)

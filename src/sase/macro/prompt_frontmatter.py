@@ -11,18 +11,18 @@ Responsibilities:
 - :meth:`PromptFrontmatter.parse` rehydrates a structured model from a raw
   ``---``-delimited frontmatter block (or a bare YAML body), reusing the
   existing runtime parsers (:func:`parse_yaml_front_matter`,
-  :func:`parse_inputs_from_front_matter`, :func:`parse_local_xprompt_entries`)
+  :func:`parse_inputs_from_front_matter`, :func:`parse_local_macro_entries`)
   so the model never reimplements parsing.
 - :meth:`PromptFrontmatter.serialize` emits the **canonical** YAML form
   (including delimiters) for the parity field set (``name``, ``description``,
-  ``tags``, ``input``, ``xprompts``, ``skill``, ``snippet``).  The panel owns
+  ``tags``, ``input``, ``macros``, ``skill``, ``snippet``).  The panel owns
   this canonical form; round-tripping ``parse -> serialize -> parse`` is lossless
   for canonical forms.
 - ``input`` is canonical; a user-typed ``inputs`` is accepted as an alias and
   normalized to ``input`` on parse (design decision #1).
 
 Field/value *validation* and guidance live in ``sase-core`` (the same engine
-that backs the xprompt LSP); :meth:`PromptFrontmatter.diagnostics` returns those
+that backs the macro LSP); :meth:`PromptFrontmatter.diagnostics` returns those
 core diagnostics so the panel and editor never drift.  Validation is the only
 thing that needs the Rust binding; parse/serialize are pure Python.
 """
@@ -38,18 +38,18 @@ import yaml  # type: ignore[import-untyped]
 
 from .loader_parsing import (
     parse_inputs_from_front_matter,
-    parse_local_xprompt_entries,
+    parse_local_macro_entries,
     parse_yaml_front_matter,
 )
-from .models import UNSET, InputArg, XPrompt
+from .models import UNSET, InputArg, Macro
 
 if TYPE_CHECKING:
     from .frontmatter_schema import FrontmatterDiagnostic
 
-# Source identifier stamped onto local xprompts parsed out of a prompt's
+# Source identifier stamped onto local macros parsed out of a prompt's
 # frontmatter — matches :func:`sase.agent.multi_prompt.parse_multi_prompt` so a
 # model parsed here compares equal to one the launch path would build.
-LOCAL_XPROMPT_SOURCE = "user-prompt"
+LOCAL_MACRO_SOURCE = "user-prompt"
 
 # Canonical top-to-bottom field order, matching the core field schema
 # (``frontmatter_field_schema``) and the panel's row order.  Kept local so
@@ -79,7 +79,7 @@ class FrontmatterStateValue:
 class PromptFrontmatter:
     """Structured editing view over a prompt's YAML frontmatter.
 
-    Mirrors the xprompt ``.md`` field set exactly (parity, not expansion).  The
+    Mirrors the macro ``.md`` field set exactly (parity, not expansion).  The
     panel mutates these fields directly; :meth:`serialize` renders them back to
     the canonical YAML block stored on :class:`~sase.ace.tui.widgets.prompt_stack.PromptStackState`.
 
@@ -89,7 +89,7 @@ class PromptFrontmatter:
         tags: Ordered list of tag strings (free-form; core does not constrain
             ad-hoc prompt tags).
         inputs: Declared ``input`` arguments as :class:`InputArg` objects.
-        xprompts: Local ``xprompts`` keyed by ``_``-prefixed name.
+        macros: Local ``macros`` keyed by ``_``-prefixed name.
         skill: The ``skill`` value (``bool`` / provider list / ``None``).
         snippet: The ``snippet`` value (trigger string / ``bool`` / ``None``).
     """
@@ -98,7 +98,7 @@ class PromptFrontmatter:
     description: str | None = None
     tags: list[str] = field(default_factory=list)
     inputs: list[InputArg] = field(default_factory=list)
-    xprompts: dict[str, XPrompt] = field(default_factory=dict)
+    macros: dict[str, Macro] = field(default_factory=dict)
     skill: bool | list[str] | None = None
     snippet: str | bool | None = None
     # Unknown/non-parity mappings are deliberately retained.  They render as
@@ -129,7 +129,7 @@ class PromptFrontmatter:
             honored, normalized to :attr:`inputs`.
 
         Raises:
-            LocalXPromptNameError: If an ``xprompts`` entry name is not
+            LocalMacroNameError: If an ``macros`` entry name is not
                 ``_``-prefixed (mirrors the launch path's scoping rule).
         """
         mapping = _load_mapping(raw)
@@ -139,11 +139,11 @@ class PromptFrontmatter:
         # `input` is canonical; accept a user-typed `inputs` as an alias.
         input_data = mapping.get("input", mapping.get("inputs"))
 
-        xprompt_entries = mapping.get("xprompts")
-        xprompts: dict[str, XPrompt] = {}
-        if isinstance(xprompt_entries, dict):
-            xprompts = parse_local_xprompt_entries(
-                xprompt_entries, source_path=LOCAL_XPROMPT_SOURCE
+        macro_entries = mapping.get("xprompts")
+        macros: dict[str, Macro] = {}
+        if isinstance(macro_entries, dict):
+            macros = parse_local_macro_entries(
+                macro_entries, source_path=LOCAL_MACRO_SOURCE
             )
 
         return cls(
@@ -151,7 +151,7 @@ class PromptFrontmatter:
             description=_optional_str(mapping.get("description")),
             tags=_parse_tags(mapping.get("tags")),
             inputs=parse_inputs_from_front_matter(input_data),
-            xprompts=xprompts,
+            macros=macros,
             skill=mapping.get("skill"),
             snippet=mapping.get("snippet"),
             extras={
@@ -198,9 +198,9 @@ class PromptFrontmatter:
             mapping["tags"] = list(self.tags)
         if self.inputs:
             mapping["input"] = {arg.name: _input_to_yaml(arg) for arg in self.inputs}
-        if self.xprompts:
+        if self.macros:
             mapping["xprompts"] = {
-                name: _xprompt_to_yaml(xp) for name, xp in self.xprompts.items()
+                name: _macro_to_yaml(xp) for name, xp in self.macros.items()
             }
         if self.skill is not None:
             mapping["skill"] = self.skill
@@ -227,7 +227,7 @@ class PromptFrontmatter:
         if name == "input":
             return self.inputs
         if name == "xprompts":
-            return self.xprompts
+            return self.macros
         if name in self.extras:
             return self.extras[name]
         return getattr(self, name, None)
@@ -237,7 +237,7 @@ class PromptFrontmatter:
         if name == "input":
             self.inputs.clear()
         elif name == "xprompts":
-            self.xprompts.clear()
+            self.macros.clear()
         elif name == "tags":
             self.tags.clear()
         elif name in self.extras:
@@ -271,7 +271,7 @@ class PromptFrontmatter:
         """Return core validation diagnostics for the serialized frontmatter.
 
         Delegates to the shared ``sase-core`` engine (the same one backing the
-        xprompt LSP) so panel guidance never drifts from the editor.  An empty
+        macro LSP) so panel guidance never drifts from the editor.  An empty
         model has nothing to validate and returns no diagnostics.
 
         Requires the ``sase_core_rs`` binding (unlike parse/serialize).
@@ -308,20 +308,20 @@ class PromptFrontmatter:
                 return True
         return False
 
-    # -- xprompt mutators -----------------------------------------------------
+    # -- macro mutators -----------------------------------------------------
 
-    def get_xprompt(self, name: str) -> XPrompt | None:
-        """Return the local ``xprompts`` entry named *name*, or ``None``."""
-        return self.xprompts.get(name)
+    def get_macro(self, name: str) -> Macro | None:
+        """Return the local ``macros`` entry named *name*, or ``None``."""
+        return self.macros.get(name)
 
-    def set_xprompt(self, xprompt: XPrompt) -> None:
-        """Add or replace the local xprompt keyed by its name."""
-        self.xprompts[xprompt.name] = xprompt
+    def set_macro(self, macro_def: Macro) -> None:
+        """Add or replace the local macro keyed by its name."""
+        self.macros[macro_def.name] = macro_def
 
-    def remove_xprompt(self, name: str) -> bool:
-        """Remove the local xprompt named *name*; return whether one was removed."""
-        if name in self.xprompts:
-            del self.xprompts[name]
+    def remove_macro(self, name: str) -> bool:
+        """Remove the local macro named *name*; return whether one was removed."""
+        if name in self.macros:
+            del self.macros[name]
             return True
         return False
 
@@ -384,7 +384,7 @@ def _parse_tags(value: Any) -> list[str]:
     """Normalize ``tags`` from a comma-string or list into a list of strings.
 
     Ad-hoc prompt tags are free-form (core does not constrain them), so this
-    keeps the raw strings rather than validating against the xprompt tag enum.
+    keeps the raw strings rather than validating against the macro tag enum.
     """
     if value is None:
         return []
@@ -438,35 +438,35 @@ def _input_to_yaml(arg: InputArg) -> str | dict[str, Any]:
     return value
 
 
-def _xprompt_to_yaml(xprompt: XPrompt) -> str | dict[str, Any]:
-    """Render one :class:`XPrompt` to its canonical YAML value.
+def _macro_to_yaml(macro_def: Macro) -> str | dict[str, Any]:
+    """Render one :class:`Macro` to its canonical YAML value.
 
     A bare content string when the entry carries nothing but content; otherwise
     a structured mapping, emitting only the fields that differ from defaults so
-    the value round-trips through :func:`parse_local_xprompt_entries`.
+    the value round-trips through :func:`parse_local_macro_entries`.
     """
     if (
-        not xprompt.inputs
-        and not xprompt.tags
-        and xprompt.snippet is None
-        and xprompt.description is None
-        and xprompt.skill is None
-        and xprompt.log_skill_use
+        not macro_def.inputs
+        and not macro_def.tags
+        and macro_def.snippet is None
+        and macro_def.description is None
+        and macro_def.skill is None
+        and macro_def.log_skill_use
     ):
-        return xprompt.content
+        return macro_def.content
 
-    value: dict[str, Any] = {"content": xprompt.content}
-    if xprompt.inputs:
-        value["input"] = {arg.name: _input_to_yaml(arg) for arg in xprompt.inputs}
-    if xprompt.tags:
-        value["tags"] = ", ".join(sorted(tag.value for tag in xprompt.tags))
-    if xprompt.snippet is not None:
-        value["snippet"] = xprompt.snippet
-    if xprompt.description is not None:
-        value["description"] = xprompt.description
-    if xprompt.skill is not None:
-        value["skill"] = xprompt.skill
-    if not xprompt.log_skill_use:
+    value: dict[str, Any] = {"content": macro_def.content}
+    if macro_def.inputs:
+        value["input"] = {arg.name: _input_to_yaml(arg) for arg in macro_def.inputs}
+    if macro_def.tags:
+        value["tags"] = ", ".join(sorted(tag.value for tag in macro_def.tags))
+    if macro_def.snippet is not None:
+        value["snippet"] = macro_def.snippet
+    if macro_def.description is not None:
+        value["description"] = macro_def.description
+    if macro_def.skill is not None:
+        value["skill"] = macro_def.skill
+    if not macro_def.log_skill_use:
         value["log_skill_use"] = False
     return value
 
@@ -475,5 +475,5 @@ __all__ = [
     "FrontmatterStateValue",
     "FrontmatterValueState",
     "PromptFrontmatter",
-    "LOCAL_XPROMPT_SOURCE",
+    "LOCAL_MACRO_SOURCE",
 ]

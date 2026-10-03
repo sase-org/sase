@@ -28,7 +28,7 @@ from sase.macro.models import (
     UNSET,
     InputArg,
     InputType,
-    XPromptValidationError,
+    MacroValidationError,
 )
 
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -205,7 +205,7 @@ class InputItemModal(ModalScreen[InputArg | None]):
             default = InputArg(name=name, type=input_type).validate_and_convert(
                 default_text
             )
-        except XPromptValidationError as exc:
+        except MacroValidationError as exc:
             return None, str(exc)
         return (
             InputArg(

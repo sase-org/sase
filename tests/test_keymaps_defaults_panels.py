@@ -53,8 +53,8 @@ def test_saved_query_slot_mode_default_binding() -> None:
     assert reg.app.open_saved_query_picker == "asterisk"
 
 
-def test_start_last_vcs_xprompt_editor_default_binding() -> None:
-    """Ctrl+G opens the last VCS xprompt directly in the editor."""
+def test_start_last_vcs_macro_editor_default_binding() -> None:
+    """Ctrl+G opens the last VCS macro directly in the editor."""
     reg = load_keymap_registry({})
     assert reg.app.start_last_vcs_xprompt_in_editor == "ctrl+g"
 

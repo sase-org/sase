@@ -1,4 +1,4 @@
-"""XPrompt data models for typed prompt templates."""
+"""Macro data models for typed prompt templates."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from sase.macro.tags import XPromptTag
+    from sase.macro.tags import MacroTag
     from sase.macro.workflow_models import Workflow
 
 
@@ -22,7 +22,7 @@ MemoryType = Literal["core", "reference"]
 
 
 class InputType(Enum):
-    """Supported input argument types for XPrompt files."""
+    """Supported input argument types for Macro files."""
 
     WORD = "word"  # Single word, no whitespace
     LINE = "line"  # Single line, no newlines
@@ -37,7 +37,7 @@ class InputType(Enum):
 
 
 class OutputType(Enum):
-    """Supported output field types for XPrompt output schemas."""
+    """Supported output field types for Macro output schemas."""
 
     WORD = "word"  # Single word, no whitespace
     LINE = "line"  # Single line, no newlines
@@ -61,7 +61,7 @@ class OutputSpec:
     schema: dict[str, Any]
 
 
-class XPromptValidationError(Exception):
+class MacroValidationError(Exception):
     """Raised when input validation fails."""
 
     pass
@@ -82,7 +82,7 @@ class InputChoice:
 
 @dataclass
 class InputArg:
-    """Definition of an input argument for an XPrompt.
+    """Definition of an input argument for a Macro.
 
     Attributes:
         name: The argument name (used for named args like `name=value`).
@@ -110,17 +110,17 @@ class InputArg:
 
     def __post_init__(self) -> None:
         if self.type is InputType.ENUM and not self.choices:
-            raise XPromptValidationError(
+            raise MacroValidationError(
                 f"Argument '{self.name}' has type 'enum' but declares no choices"
             )
         if self.type is not InputType.ENUM and self.choices:
-            raise XPromptValidationError(
+            raise MacroValidationError(
                 f"Argument '{self.name}' declares choices but is not type 'enum'"
             )
         seen_values: set[str] = set()
         for choice in self.choices:
             if choice.value in seen_values:
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{self.name}' declares duplicate choice "
                     f"value '{choice.value}'"
                 )
@@ -136,21 +136,21 @@ class InputArg:
             The converted value in the appropriate type.
 
         Raises:
-            XPromptValidationError: If value cannot be converted to declared type.
+            MacroValidationError: If value cannot be converted to declared type.
         """
         if self.type in {InputType.WORD, InputType.AGENT}:
             if not value:
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{self.name}' expects a non-empty word"
                 )
             if any(c.isspace() for c in value):
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{self.name}' expects word (no spaces), got '{value}'"
                 )
             return value
         elif self.type == InputType.LINE:
             if "\n" in value:
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{self.name}' expects line (no newlines), "
                     f"got value with newlines"
                 )
@@ -159,7 +159,7 @@ class InputArg:
             return value  # No validation
         elif self.type == InputType.PATH:
             if "\n" in value:
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{self.name}' expects single-line path "
                     f"(no newlines), got value with newlines"
                 )
@@ -168,14 +168,14 @@ class InputArg:
             try:
                 return int(value)
             except ValueError:
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{self.name}' expects int, got '{value}'"
                 ) from None
         elif self.type == InputType.FLOAT:
             try:
                 return float(value)
             except ValueError:
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{self.name}' expects float, got '{value}'"
                 ) from None
         elif self.type == InputType.BOOL:
@@ -185,13 +185,13 @@ class InputArg:
             elif lower_value in ("false", "0", "no", "off"):
                 return False
             else:
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{self.name}' expects bool, got '{value}'"
                 )
         elif self.type == InputType.ENUM:
             allowed = tuple(choice.value for choice in self.choices)
             if value not in allowed:
-                raise XPromptValidationError(
+                raise MacroValidationError(
                     f"Argument '{self.name}' expects one of "
                     f"{', '.join(allowed)}, got '{value}'"
                 )
@@ -206,36 +206,36 @@ class InputArg:
 
 
 @dataclass
-class XPrompt:
-    """An XPrompt template with optional typed input arguments.
+class Macro:
+    """A Macro template with optional typed input arguments.
 
     Attributes:
-        name: The xprompt name (used in #name syntax).  Skills carry their
+        name: The macro name (used in #name syntax).  Skills carry their
             namespaced reference name here (``skill/foo``, ``app/skill/foo``).
         content: The template content (may contain Jinja2 or legacy placeholders).
         inputs: List of input argument definitions from YAML front matter.
-        source_path: File path or "config" indicating where this xprompt was loaded from.
+        source_path: File path or "config" indicating where this macro was loaded from.
         skill_name: The provider-visible skill name (``foo``) for definitions
             loaded from a canonical skill source, and ``None`` for every
-            ordinary xprompt.  Never derive this by splitting :attr:`name`.
+            ordinary macro.  Never derive this by splitting :attr:`name`.
     """
 
     name: str
     content: str
     inputs: list[InputArg] = field(default_factory=list)
     source_path: str | None = None
-    tags: frozenset[XPromptTag] = field(default_factory=frozenset)
+    tags: frozenset[MacroTag] = field(default_factory=frozenset)
     snippet: str | bool | None = None
     description: str | None = None
     skill: bool | list[str] | None = None
     skill_name: str | None = None
     log_skill_use: bool = True
-    local_xprompts: dict[str, XPrompt] = field(default_factory=dict)
+    local_macros: dict[str, Macro] = field(default_factory=dict)
     memory_type: MemoryType | None = None
     discovery_rank: int | None = None
 
-    def has_tag(self, tag: XPromptTag) -> bool:
-        """Check if this xprompt has the given tag."""
+    def has_tag(self, tag: MacroTag) -> bool:
+        """Check if this macro has the given tag."""
         return tag in self.tags
 
     def get_input_by_name(self, name: str) -> InputArg | None:
@@ -266,36 +266,36 @@ class XPrompt:
         return None
 
 
-def xprompt_to_workflow(xprompt: XPrompt) -> Workflow:
-    """Convert an XPrompt to a Workflow with a single prompt_part step.
+def macro_to_workflow(macro_def: Macro) -> Workflow:
+    """Convert a Macro to a Workflow with a single prompt_part step.
 
-    This enables uniform handling of xprompts and workflows - all xprompts
+    This enables uniform handling of macros and workflows - all macros
     can be treated as workflows with a single prompt_part step.
 
     Args:
-        xprompt: The XPrompt to convert.
+        macro: The Macro to convert.
 
     Returns:
-        A Workflow object with a single prompt_part step containing the xprompt content.
+        A Workflow object with a single prompt_part step containing the macro content.
     """
     from sase.macro.workflow_models import Workflow, WorkflowStep
 
     return Workflow(
-        name=xprompt.name,
-        inputs=xprompt.inputs,
+        name=macro_def.name,
+        inputs=macro_def.inputs,
         steps=[
             WorkflowStep(
                 name="main",
-                prompt_part=xprompt.content,
+                prompt_part=macro_def.content,
             )
         ],
-        source_path=xprompt.source_path,
-        tags=xprompt.tags,
-        description=xprompt.description,
-        xprompts=xprompt.local_xprompts,
-        skill_name=xprompt.skill_name,
-        memory_type=xprompt.memory_type,
-        discovery_rank=xprompt.discovery_rank,
+        source_path=macro_def.source_path,
+        tags=macro_def.tags,
+        description=macro_def.description,
+        macros=macro_def.local_macros,
+        skill_name=macro_def.skill_name,
+        memory_type=macro_def.memory_type,
+        discovery_rank=macro_def.discovery_rank,
     )
 
 

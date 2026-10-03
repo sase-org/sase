@@ -13,7 +13,7 @@ from sase.macro.code_value import (
 )
 from sase.macro.directives import DirectiveError, extract_prompt_directives
 from sase.macro.models import InputArg, InputType
-from sase.macro.processor import process_xprompt_references_with_catalog
+from sase.macro.processor import process_macro_references_with_catalog
 
 
 def test_flag_off_rejects_if_and_does_not_leak_to_cleaned_prompt() -> None:
@@ -189,7 +189,7 @@ def test_nested_expansion_does_not_expand_inside_owned_fence() -> None:
     catalog = {}
     prompt = "%if::\n```bash\necho #secret\n```\n#secret"
     with override_flags(typed_launch_units=True):
-        expanded = process_xprompt_references_with_catalog(prompt, catalog)
+        expanded = process_macro_references_with_catalog(prompt, catalog)
     assert "echo #secret" in expanded
 
 

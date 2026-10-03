@@ -215,7 +215,7 @@ class TestAgentXPromptHintMode:
             workspace_dir=str(workspace_dir),
             budget=HintContentBudget(),
             xprompt_agent=agent,
-            raw_xprompt=agent.get_raw_xprompt_content(),
+            raw_xprompt=agent.get_raw_prompt_content(),
         )
 
         assert text.plain == "#work(@plans:202608/design.md#L12) and [1] @src/raw.py"

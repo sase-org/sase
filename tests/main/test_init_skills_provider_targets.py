@@ -12,7 +12,7 @@ from sase.main.init_skills_handler import (
     _get_target_paths,
     handle_init_skills_command,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from tests.main.init_skills_handler_helpers import make_args
 
 
@@ -30,7 +30,7 @@ def test_agy_skill_generation_writes_antigravity_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A provider-scoped skill is written to that provider's deployment profile."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="skill/agy_only",
         content="Antigravity profile body.\n",
         description="Antigravity profile test skill.",
@@ -40,8 +40,8 @@ def test_agy_skill_generation_writes_antigravity_target(
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"skill/agy_only": xprompt},
+        "get_all_macros",
+        lambda project="": {"skill/agy_only": macro_def},
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -61,7 +61,7 @@ def test_grok_skill_generation_writes_native_target_and_renders_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """``sase skill init -p grok`` writes a Grok-native rendered skill file."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="skill/grok_only",
         content=(
             "Provider {{ provider_name }} uses {{ provider_tool_name }} "
@@ -74,8 +74,8 @@ def test_grok_skill_generation_writes_native_target_and_renders_context(
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"skill/grok_only": xprompt},
+        "get_all_macros",
+        lambda project="": {"skill/grok_only": macro_def},
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -98,13 +98,13 @@ def test_config_defined_skill_is_rejected_with_a_migration_diagnostic(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A config entry can never be a skill: it has no file to generate from."""
-    from sase.macro.loader_parsing import parse_xprompt_entries
+    from sase.macro.loader_parsing import parse_macro_entries
 
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": parse_xprompt_entries(
+        "get_all_macros",
+        lambda project="": parse_macro_entries(
             {
                 "sase_gmail": {
                     "content": "Use gog for Gmail.\n",
@@ -137,7 +137,7 @@ def test_skill_provider_list_respects_requested_provider(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """``skill: [codex]`` only renders for codex, including with --provider."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="skill/codex_only",
         content="Only for Codex.\n",
         description="Codex-only skill.",
@@ -147,8 +147,8 @@ def test_skill_provider_list_respects_requested_provider(
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"skill/codex_only": xprompt},
+        "get_all_macros",
+        lambda project="": {"skill/codex_only": macro_def},
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")

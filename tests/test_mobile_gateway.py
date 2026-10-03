@@ -302,7 +302,7 @@ def test_parser_accepts_mobile_helper_bridge_patch_tags() -> None:
     assert args.mobile_helper_bridge_subcommand == "changespec-tags"
 
 
-def test_parser_accepts_mobile_helper_bridge_xprompt_catalog() -> None:
+def test_parser_accepts_mobile_helper_bridge_macro_catalog() -> None:
     args = create_parser().parse_args(["mobile", "helper-bridge", "xprompt-catalog"])
 
     assert args.command == "mobile"

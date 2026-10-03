@@ -1,6 +1,6 @@
-"""YAML config xprompt insertion helpers.
+"""YAML config macro insertion helpers.
 
-Provides functions to generate and insert xprompt definitions into sase YAML
+Provides functions to generate and insert macro definitions into sase YAML
 config files (sase.yml, default_config.yml, etc.) without reflowing unrelated
 entries or comments. Sorted sections stay sorted; unsorted sections receive new
 entries at the end.
@@ -18,7 +18,7 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 
-# Matches an xprompt entry key at exactly 2-space indent (e.g. "  foo:" or
+# Matches a macro entry key at exactly 2-space indent (e.g. "  foo:" or
 # "  bd/next:").  The captured group is the entry name.
 _ENTRY_RE = re.compile(r"^  ([\w/.:-]+):")
 
@@ -41,7 +41,7 @@ def _atomic_write_text(path: Path, text: str) -> None:
 
 
 @dataclass(frozen=True, slots=True)
-class _XpromptsSection:
+class _MacrosSection:
     key_index: int
     start: int
     end: int
@@ -55,20 +55,20 @@ class _EntryBlock:
     end: int
 
 
-def generate_xprompt_yaml(
+def generate_macro_yaml(
     name: str,
     inputs: list[tuple[str, str]],
     content: str,
     *,
     frontmatter: PromptFrontmatter | None = None,
 ) -> list[str]:
-    """Generate indented YAML lines for a single xprompt entry.
+    """Generate indented YAML lines for a single macro entry.
 
-    Returns lines suitable for insertion under a ``xprompts:`` key (2-space
+    Returns lines suitable for insertion under a ``macros:`` key (2-space
     indent for the entry name, 4-space for its properties).
     """
     if frontmatter is not None:
-        return _generate_frontmatter_xprompt_yaml(name, frontmatter, content)
+        return _generate_frontmatter_macro_yaml(name, frontmatter, content)
 
     content = content.rstrip("\n")
 
@@ -90,7 +90,7 @@ def generate_xprompt_yaml(
     return result
 
 
-def _generate_frontmatter_xprompt_yaml(
+def _generate_frontmatter_macro_yaml(
     name: str,
     frontmatter: PromptFrontmatter,
     content: str,
@@ -133,8 +133,8 @@ def _indent_width(line: str) -> int:
     return len(line) - len(line.lstrip())
 
 
-def _find_xprompts_section(lines: list[str]) -> _XpromptsSection | None:
-    """Return the xprompts section span, if present."""
+def _find_macros_section(lines: list[str]) -> _MacrosSection | None:
+    """Return the macros section span, if present."""
     for i, line in enumerate(lines):
         stripped = line.rstrip()
         if stripped not in {"xprompts:", "xprompts: {}"}:
@@ -147,7 +147,7 @@ def _find_xprompts_section(lines: list[str]) -> _XpromptsSection | None:
                 section_end = j
                 break
 
-        return _XpromptsSection(
+        return _MacrosSection(
             key_index=i,
             start=section_start,
             end=section_end,
@@ -162,7 +162,7 @@ def _parse_entry_blocks(
     section_start: int,
     section_end: int,
 ) -> list[_EntryBlock]:
-    """Parse xprompt entry spans without absorbing surrounding scaffolding."""
+    """Parse macro entry spans without absorbing surrounding scaffolding."""
     blocks: list[_EntryBlock] = []
     i = section_start
     while i < section_end:
@@ -189,7 +189,7 @@ def _parse_entry_blocks(
 
 
 def config_entry_line_span(path: Path | str, name: str) -> tuple[int, int] | None:
-    """Return the 1-based inclusive line span for one config xprompt entry."""
+    """Return the 1-based inclusive line span for one config macro entry."""
     source = Path(path).expanduser()
     try:
         text = source.read_bytes().decode("utf-8")
@@ -197,7 +197,7 @@ def config_entry_line_span(path: Path | str, name: str) -> tuple[int, int] | Non
         return None
 
     lines = text.splitlines()
-    section = _find_xprompts_section(lines)
+    section = _find_macros_section(lines)
     if section is None:
         return None
 
@@ -282,7 +282,7 @@ def _insert_entry_lines(
     return lines[:insert_at] + inserted + lines[insert_at:]
 
 
-def insert_xprompt_into_config(
+def insert_macro_into_config(
     config_path: str,
     name: str,
     inputs: list[tuple[str, str]],
@@ -290,7 +290,7 @@ def insert_xprompt_into_config(
     *,
     frontmatter: PromptFrontmatter | None = None,
 ) -> bool:
-    """Insert an xprompt definition into a YAML config file.
+    """Insert a macro definition into a YAML config file.
 
     Existing entries, comments, and blank-line scaffolding are preserved
     byte-for-byte except for the one entry being inserted or overwritten. New
@@ -309,16 +309,16 @@ def insert_xprompt_into_config(
 
     lines = file_text.split("\n")
 
-    entry_lines = generate_xprompt_yaml(
+    entry_lines = generate_macro_yaml(
         name,
         inputs,
         content,
         frontmatter=frontmatter,
     )
 
-    section = _find_xprompts_section(lines)
+    section = _find_macros_section(lines)
     if section is None:
-        # No xprompts section - append one at the end of the file.
+        # No macros section - append one at the end of the file.
         while lines and lines[-1].strip() == "":
             lines.pop()
         if lines:
@@ -329,7 +329,7 @@ def insert_xprompt_into_config(
         _atomic_write_text(path, "\n".join(lines))
         return True
 
-    # Replace ``xprompts: {}`` with bare ``xprompts:``
+    # Replace ``macros: {}`` with bare ``macros:``
     if section.is_empty_mapping:
         lines[section.key_index] = "xprompts:"
 
@@ -355,6 +355,6 @@ def insert_xprompt_into_config(
 
 __all__ = [
     "config_entry_line_span",
-    "generate_xprompt_yaml",
-    "insert_xprompt_into_config",
+    "generate_macro_yaml",
+    "insert_macro_into_config",
 ]

@@ -192,7 +192,7 @@ def test_compose_followup_prompt_next_action_model_text_stays_inert_with_selecti
     assert prompt.startswith("#fork:acme--0\n%model:opus@high\n\n")
 
 
-def test_compose_followup_prompt_next_action_xprompt_refs_stay_literal() -> None:
+def test_compose_followup_prompt_next_action_macro_refs_stay_literal() -> None:
     common = dict(_COMMON)
     common["next_action"] = "Check PR #412, then run #commit only if the user asks."
     prompt = compose_followup_prompt(

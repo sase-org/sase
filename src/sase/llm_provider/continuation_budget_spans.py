@@ -13,7 +13,7 @@ the markers below at the exact point they build it, so discovery here parses
 only explicit, code-attributed spans -- never headings. Any marker-shaped
 substring already present in untrusted text is neutralized with
 ``sanitize_span_text`` before embedding, the same defense-in-depth precedent
-``xprompt._disabled_regions`` uses for its own marker syntax.
+``macro._disabled_regions`` uses for its own marker syntax.
 """
 
 from __future__ import annotations

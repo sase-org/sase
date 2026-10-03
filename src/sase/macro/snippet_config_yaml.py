@@ -11,7 +11,7 @@ Preview helpers are pure text transforms. Apply writes atomically and
 optionally checks an expected-content digest so stale editors conflict
 instead of clobbering.
 
-Patterned after :mod:`sase.macro.config_yaml` (the flat ``xprompts:`` writer)
+Patterned after :mod:`sase.macro.config_yaml` (the flat ``macros:`` writer)
 but nested one mapping level deeper.
 """
 
@@ -157,7 +157,7 @@ def _parse_entry_blocks(
 def _snippet_sort_key(name: str) -> str:
     """Sort key for a snippet entry: the trigger name itself.
 
-    Unlike the xprompt writer (which tie-breaks on a trailing ``:``), snippet
+    Unlike the macro writer (which tie-breaks on a trailing ``:``), snippet
     triggers are validated as ``[A-Za-z0-9_]+`` and are expected to sort by the
     plain trigger name, so ``foo`` sorts before ``foo1``.
     """

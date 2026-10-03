@@ -1,47 +1,47 @@
-"""Tests for user-prompt frontmatter (local xprompts) integration.
+"""Tests for user-prompt frontmatter (local macros) integration.
 
 Phase 2 of the multi-agent prompts plan (sase-2.2): verifies that
-frontmatter-defined local xprompts are wired into prompt preprocessing.
+frontmatter-defined local macros are wired into prompt preprocessing.
 """
 
 from unittest.mock import patch
 
 import pytest
 
-from sase.agent.multi_prompt import _LocalXPromptNameError, parse_multi_prompt
+from sase.agent.multi_prompt import _LocalMacroNameError, parse_multi_prompt
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Patch both get_all_xprompts (disk-based xprompts) and
-# resolve_xprompt_aliases (config-based aliases) so tests are isolated
+# Patch both get_all_macros (disk-based macros) and
+# resolve_macro_aliases (config-based aliases) so tests are isolated
 # from the user's filesystem.
-_PATCH_XPROMPTS = patch("sase.macro.processor.get_all_xprompts", side_effect=lambda: {})
+_PATCH_MACROS = patch("sase.macro.processor.get_all_macros", side_effect=lambda: {})
 _PATCH_ALIASES = patch(
-    "sase.macro.processor.resolve_xprompt_aliases", side_effect=lambda x: x
+    "sase.macro.processor.resolve_macro_aliases", side_effect=lambda x: x
 )
 
 
 def _expand_with_local(text: str) -> str:
-    """Parse frontmatter from *text* and expand local xprompts."""
-    from sase.macro.processor import process_xprompt_references
+    """Parse frontmatter from *text* and expand local macros."""
+    from sase.macro.processor import process_macro_references
 
     multi = parse_multi_prompt(text)
     body = "\n---\n".join(multi.segments)
-    return process_xprompt_references(body, extra_xprompts=multi.local_xprompts or None)
+    return process_macro_references(body, extra_macros=multi.local_macros or None)
 
 
 # ---------------------------------------------------------------------------
-# Local xprompt expansion
+# Local macro expansion
 # ---------------------------------------------------------------------------
 
 
 @_PATCH_ALIASES
-@_PATCH_XPROMPTS
-def test_local_xprompts_expand_in_prompt(_xp, _al) -> None:
-    """Local xprompts defined in frontmatter expand correctly."""
+@_PATCH_MACROS
+def test_local_macros_expand_in_prompt(_xp, _al) -> None:
+    """Local macros defined in frontmatter expand correctly."""
     text = '---\nxprompts:\n  _style: "be concise"\n---\nDo the thing. #_style'
     expanded = _expand_with_local(text)
     assert "be concise" in expanded
@@ -49,9 +49,9 @@ def test_local_xprompts_expand_in_prompt(_xp, _al) -> None:
 
 
 @_PATCH_ALIASES
-@_PATCH_XPROMPTS
-def test_local_xprompts_with_arguments(_xp, _al) -> None:
-    """Local xprompts with inputs expand with arguments."""
+@_PATCH_MACROS
+def test_local_macros_with_arguments(_xp, _al) -> None:
+    """Local macros with inputs expand with arguments."""
     text = (
         "---\n"
         "xprompts:\n"
@@ -66,26 +66,26 @@ def test_local_xprompts_with_arguments(_xp, _al) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Scoping: local xprompts don't leak
+# Scoping: local macros don't leak
 # ---------------------------------------------------------------------------
 
 
 @_PATCH_ALIASES
-@_PATCH_XPROMPTS
-def test_local_xprompts_scoped_to_extra(_xp, _al) -> None:
-    """Local xprompts only expand when passed as extra_xprompts."""
-    from sase.macro.processor import process_xprompt_references
+@_PATCH_MACROS
+def test_local_macros_scoped_to_extra(_xp, _al) -> None:
+    """Local macros only expand when passed as extra_macros."""
+    from sase.macro.processor import process_macro_references
 
     text = '---\nxprompts:\n  _secret: "classified"\n---\nSay #_secret'
     multi = parse_multi_prompt(text)
     body = "\n---\n".join(multi.segments)
 
-    # With local xprompts — should expand.
-    expanded = process_xprompt_references(body, extra_xprompts=multi.local_xprompts)
+    # With local macros — should expand.
+    expanded = process_macro_references(body, extra_macros=multi.local_macros)
     assert "classified" in expanded
 
-    # Without local xprompts — should NOT expand.
-    expanded_without = process_xprompt_references(body)
+    # Without local macros — should NOT expand.
+    expanded_without = process_macro_references(body)
     assert "#_secret" in expanded_without
 
 
@@ -95,9 +95,9 @@ def test_local_xprompts_scoped_to_extra(_xp, _al) -> None:
 
 
 def test_underscore_prefix_required() -> None:
-    """Local xprompt names must start with _."""
+    """Local macro names must start with _."""
     text = '---\nxprompts:\n  badname: "content"\n---\nbody'
-    with pytest.raises(_LocalXPromptNameError):
+    with pytest.raises(_LocalMacroNameError):
         parse_multi_prompt(text)
 
 
@@ -121,7 +121,7 @@ def test_no_frontmatter_passthrough() -> None:
     multi = parse_multi_prompt(text)
     body = "\n---\n".join(multi.segments)
     assert body == "Just a plain prompt"
-    assert multi.local_xprompts == {}
+    assert multi.local_macros == {}
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +130,7 @@ def test_no_frontmatter_passthrough() -> None:
 
 
 @_PATCH_ALIASES
-@_PATCH_XPROMPTS
+@_PATCH_MACROS
 def test_extract_directives_handles_frontmatter(_xp, _al, tmp_path) -> None:
     """extract_directives_and_write_meta correctly processes frontmatter prompts."""
     from sase.agent.multi_prompt import parse_multi_prompt
@@ -141,19 +141,19 @@ def test_extract_directives_handles_frontmatter(_xp, _al, tmp_path) -> None:
     multi = parse_multi_prompt(prompt)
     body = "\n---\n".join(multi.segments)
 
-    # Verify frontmatter is stripped and local xprompts are available.
+    # Verify frontmatter is stripped and local macros are available.
     assert "xprompts:" not in body
-    assert "_ctx" in multi.local_xprompts
-    assert multi.local_xprompts["_ctx"].content == "extra context"
+    assert "_ctx" in multi.local_macros
+    assert multi.local_macros["_ctx"].content == "extra context"
 
 
 # ---------------------------------------------------------------------------
-# Integration with anonymous workflow xprompts
+# Integration with anonymous workflow macros
 # ---------------------------------------------------------------------------
 
 
-def test_anonymous_workflow_gets_local_xprompts() -> None:
-    """Anonymous workflow's xprompts field is populated from frontmatter."""
+def test_anonymous_workflow_gets_local_macros() -> None:
+    """Anonymous workflow's macros field is populated from frontmatter."""
     from sase.macro.models import create_anonymous_workflow
 
     text = '---\nxprompts:\n  _hint: "think step by step"\n---\nSolve #_hint'
@@ -161,8 +161,8 @@ def test_anonymous_workflow_gets_local_xprompts() -> None:
     query_body = "\n---\n".join(multi.segments)
 
     anon = create_anonymous_workflow(query_body)
-    if multi.local_xprompts:
-        anon.xprompts = multi.local_xprompts
+    if multi.local_macros:
+        anon.macros = multi.local_macros
 
-    assert "_hint" in anon.xprompts
-    assert anon.xprompts["_hint"].content == "think step by step"
+    assert "_hint" in anon.macros
+    assert anon.macros["_hint"].content == "think step by step"

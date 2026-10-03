@@ -197,7 +197,7 @@ def test_launch_multi_prompt_plans_wait_derived_sibling_names(
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
             segments=["%wait:foo first", "%wait:foo second"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -307,7 +307,7 @@ def test_concurrent_multi_prompt_batches_reserve_distinct_template_names(
                 "%wait:research.@.cdx\n%id:research.@.final\nFinal",
                 "#fork:research.@.final\nFollow up",
             ],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -397,7 +397,7 @@ def test_unstarted_template_reservations_are_released_on_later_spawn_failure(
     ):
         launch_multi_prompt_agents(
             segments=["%id:build-@\nFirst", "%id:build-@\nSecond"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",

@@ -48,7 +48,7 @@ def _print_json(records: list[PromptHistoryRecord]) -> None:
 
 
 def _hints_text(record: PromptHistoryRecord) -> Text:
-    """Build a colored chip summary (project / xprompt / directive)."""
+    """Build a colored chip summary (project / macro / directive)."""
     text = Text()
     try:
         from sase.history.prompt_metadata import summarize_prompt_for_list
@@ -73,7 +73,7 @@ def _hints_text(record: PromptHistoryRecord) -> Text:
             )
         except Exception:
             parts.append((ref, "blue"))
-    parts.extend((chip, "green") for chip in summary.xprompts)
+    parts.extend((chip, "green") for chip in summary.macros)
     if summary.directive_token:
         parts.extend((tok, "yellow") for tok in summary.directive_token.split())
 

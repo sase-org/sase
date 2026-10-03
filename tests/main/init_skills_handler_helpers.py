@@ -12,7 +12,7 @@ import pytest
 
 from sase.main import _init_skills_manifest as manifest_module, init_skills_handler
 from sase.main.init_skills_handler import _get_target_path
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 _OLD_SHA = "1" * 40
 _NEW_SHA = "2" * 40
@@ -173,7 +173,7 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "---\nname: foo\ndescription: a test skill\nskill: [claude]\n---\n\nbody\n",
         encoding="utf-8",
     )
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="skill/foo",
         skill_name="foo",
         content="body\n",
@@ -187,8 +187,8 @@ def stub_skill_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     monkeypatch.setattr(
         init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"skill/foo": xprompt},
+        "get_all_macros",
+        lambda project="": {"skill/foo": macro_def},
     )
     return skills_dir
 
@@ -215,7 +215,7 @@ def stub_under_wrapped_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
         f"---\nname: foo\ndescription: a test skill\nskill: [claude]\n---\n\n{body}",
         encoding="utf-8",
     )
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="skill/foo",
         skill_name="foo",
         content=body,
@@ -226,7 +226,7 @@ def stub_under_wrapped_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
         init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"skill/foo": xprompt},
+        "get_all_macros",
+        lambda project="": {"skill/foo": macro_def},
     )
     return skills_dir

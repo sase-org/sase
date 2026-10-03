@@ -1,4 +1,4 @@
-"""Tests for anonymous xprompt workflow flattening."""
+"""Tests for anonymous macro workflow flattening."""
 
 import warnings
 from unittest.mock import MagicMock, patch
@@ -57,17 +57,17 @@ def test_flatten_anonymous_workflow_returns_none_for_unknown_ref(
 def test_flatten_anonymous_workflow_returns_none_for_prompt_part_ref(
     mock_get_all_prompts: MagicMock,
 ) -> None:
-    """Test that references to simple xprompts (with prompt_part) return None.
+    """Test that references to simple macros (with prompt_part) return None.
 
     Also verifies the workflow is renamed from its anonymous tmp_* name
     to the real workflow name.
     """
-    # A simple xprompt has a prompt_part step, not a prompt step
-    simple_xprompt_wf = Workflow(
+    # A simple macro has a prompt_part step, not a prompt step
+    simple_macro_wf = Workflow(
         name="greeting",
         steps=[WorkflowStep(name="main", prompt_part="Hello {{ name }}")],
     )
-    mock_get_all_prompts.return_value = {"greeting": simple_xprompt_wf}
+    mock_get_all_prompts.return_value = {"greeting": simple_macro_wf}
     workflow = _make_anonymous_workflow("#greeting")
     result = _flatten_anonymous_workflow(workflow)
     assert result is None
@@ -201,17 +201,17 @@ def test_flatten_anonymous_workflow_rejects_bang_for_embeddable(
 
 
 @patch("sase.macro.loader.get_all_prompts")
-def test_flatten_anonymous_workflow_slow_path_with_xprompt_and_workflow(
+def test_flatten_anonymous_workflow_slow_path_with_macro_and_workflow(
     mock_get_all_prompts: MagicMock,
 ) -> None:
-    """Test slow path: xprompt part + standalone workflow in same prompt.
+    """Test slow path: macro part + standalone workflow in same prompt.
 
     When a prompt like '#gh:sase #batch_split' is used, the fast path
     fails because 'gh' (with colon arg 'sase #batch_split') isn't in
     prompts. The slow path should scan all references and find the single
     standalone workflow.
     """
-    # gh is an xprompt part (has prompt_part)
+    # gh is a macro part (has prompt_part)
     gh_wf = Workflow(
         name="gh",
         steps=[WorkflowStep(name="main", prompt_part="GitHub setup: {{ 1 }}")],
@@ -268,7 +268,7 @@ def test_flatten_anonymous_workflow_slow_path_no_standalone_workflow(
 ) -> None:
     """Test slow path returns None when no standalone workflow is found.
 
-    If all references are xprompt parts (with prompt_part), the slow path
+    If all references are macro parts (with prompt_part), the slow path
     should return None.
     """
     gh_wf = Workflow(

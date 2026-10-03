@@ -9,12 +9,12 @@ from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
 # ============================================================================
-# Workflow.is_simple_xprompt() tests
+# Workflow.is_simple_macro() tests
 # ============================================================================
 
 
-def test_workflow_is_simple_xprompt_with_inputs() -> None:
-    """Test that single prompt_part with inputs is still simple xprompt."""
+def test_workflow_is_simple_macro_with_inputs() -> None:
+    """Test that single prompt_part with inputs is still simple macro."""
     workflow = Workflow(
         name="review",
         inputs=[InputArg(name="code", type=InputType.TEXT)],
@@ -22,7 +22,7 @@ def test_workflow_is_simple_xprompt_with_inputs() -> None:
             WorkflowStep(name="main", prompt_part="Review: {{ code }}"),
         ],
     )
-    assert workflow.is_simple_xprompt() is True
+    assert workflow.is_simple_macro() is True
 
 
 # ============================================================================

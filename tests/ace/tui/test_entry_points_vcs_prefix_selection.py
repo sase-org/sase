@@ -282,7 +282,7 @@ def test_space_mounts_bar_from_mru_head(
 
     monkeypatch.setattr(
         vcs_macro_mru,
-        "load_launchable_vcs_xprompt_mru_pairs",
+        "load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("#gh:gh_acme__widgets", "#gh:widgets")],
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("widgets"))
@@ -313,7 +313,7 @@ def test_space_offers_most_recently_launched_ref(
 
     monkeypatch.setattr(
         vcs_macro_mru,
-        "load_launchable_vcs_xprompt_mru_pairs",
+        "load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("#gh:projB", "#gh:projB"), ("#gh:projA", "#gh:projA")],
     )
     _patch_tag_peek(monkeypatch, _tag_catalog("projB", "projA"))
@@ -337,7 +337,7 @@ def test_space_opens_blank_home_prompt_when_mru_empty(
 
     monkeypatch.setattr(
         vcs_macro_mru,
-        "load_launchable_vcs_xprompt_mru_pairs",
+        "load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [],
     )
     app = _App()

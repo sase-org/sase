@@ -351,7 +351,7 @@ def test_renamed_handoff_skill_source_replaces_pipe() -> None:
     assert "skill/sase_pipe" not in skills
 
 
-def test_docs_xprompt_bundled_skills_table_matches_packaged_sources() -> None:
+def test_docs_macro_bundled_skills_table_matches_packaged_sources() -> None:
     docs_path = Path(__file__).resolve().parents[2] / "docs/xprompt.md"
     table_names: list[str] = []
     in_table = False

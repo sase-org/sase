@@ -86,7 +86,7 @@ async def _press(
                 await pilot.press(key)
         else:
             with patch(
-                "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
+                "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru",
                 return_value=mru,
             ):
                 for key in presses:
@@ -390,7 +390,7 @@ async def test_feedback_mode_does_not_cycle_delete_or_load_mru() -> None:
         ta.load_text("#git:foo fix")
         ta.focus()
         with patch(
-            "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
+            "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru",
             side_effect=AssertionError("feedback should not load MRU"),
         ):
             await pilot.press("ctrl+n")
@@ -411,7 +411,7 @@ async def test_file_completion_keeps_ctrl_n_precedence() -> None:
         ]
         ta._file_completion_index = 0
         with patch(
-            "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
+            "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru",
             side_effect=AssertionError("file completion should own ctrl+n"),
         ):
             await pilot.press("ctrl+n")

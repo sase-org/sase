@@ -38,7 +38,7 @@ from sase.macro.prompt_frontmatter import PromptFrontmatter
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 
-    from sase.macro.models import XPrompt
+    from sase.macro.models import Macro
 else:
     _MixinBase = object
 
@@ -224,12 +224,12 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         else:
             entries = [
                 xprompt_assist_entry_from_local_xprompt(name, xprompt)
-                for name, xprompt in model.xprompts.items()
+                for name, xprompt in model.macros.items()
             ]
         self._local_xprompt_cache = (scope.key, frontmatter, entries)
         return entries
 
-    def local_xprompts(self, text_area: object | None = None) -> dict[str, XPrompt]:
+    def local_macros(self, text_area: object | None = None) -> dict[str, Macro]:
         """Local xprompts from the live frontmatter, as real ``XPrompt`` objects.
 
         Parses the stack's current ``frontmatter`` string with
@@ -253,7 +253,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             model = PromptFrontmatter.parse(frontmatter)
         except Exception:
             return {}
-        return dict(model.xprompts)
+        return dict(model.macros)
 
     def frontmatter_model_for_text_area(
         self, text_area: object | None = None

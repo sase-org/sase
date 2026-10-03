@@ -1,12 +1,12 @@
-"""Resolve xprompt skill references to canonical source files."""
+"""Resolve macro skill references to canonical source files."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from sase.core.macro_skill_definition_facade import (
-    XpromptSkillDefinitionResolution,
-    resolve_xprompt_skill_definition,
+    MacroSkillDefinitionResolution,
+    resolve_macro_skill_definition,
 )
 from sase.pager._resolve_common import link_target_for_existing_path
 from sase.pager.link_context import LinkResolutionContext, default_link_context
@@ -15,7 +15,7 @@ from sase.pager.targets import LinkResolution
 _RETRYABLE_STATUSES = frozenset({"catalog_load_failure"})
 
 
-def resolve_xprompt_skill_link(
+def resolve_macro_skill_link(
     reference: str,
     *,
     context: LinkResolutionContext | None = None,
@@ -23,7 +23,7 @@ def resolve_xprompt_skill_link(
 ) -> LinkResolution:
     """Resolve one explicit or slash skill reference through Rust catalog rules."""
     resolved_context = context or default_link_context()
-    result = resolve_xprompt_skill_definition(
+    result = resolve_macro_skill_definition(
         reference,
         project=(
             None
@@ -68,7 +68,7 @@ def is_slash_skill_candidate(reference: str) -> bool:
 
 
 def _unresolved_skill(
-    result: XpromptSkillDefinitionResolution,
+    result: MacroSkillDefinitionResolution,
 ) -> LinkResolution:
     message = result.diagnostic or f"{result.authored_reference} could not be resolved"
     return LinkResolution(
@@ -107,5 +107,5 @@ def _is_slash_skill_reference(reference: str) -> bool:
 __all__ = [
     "is_skill_lookup_candidate",
     "is_slash_skill_candidate",
-    "resolve_xprompt_skill_link",
+    "resolve_macro_skill_link",
 ]

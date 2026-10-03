@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.macro.loader import get_sase_package_xprompts_dir
+from sase.macro.loader import get_sase_package_macros_dir
 from sase.macro.workflow_loader import _load_workflow_from_file
 
 
@@ -12,12 +12,12 @@ from sase.macro.workflow_loader import _load_workflow_from_file
 # Workflow loading tests
 # ---------------------------------------------------------------------------
 
-SYNC_YML = get_sase_package_xprompts_dir() / "sync.yml"
+SYNC_YML = get_sase_package_macros_dir() / "sync.yml"
 
 
 @pytest.fixture()
 def sync_workflow():
-    """Load xprompts/sync.yml and return the Workflow object."""
+    """Load macros/sync.yml and return the Workflow object."""
     wf = _load_workflow_from_file(SYNC_YML)
     assert wf is not None, "Failed to load sync.yml"
     return wf

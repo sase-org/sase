@@ -1,14 +1,14 @@
-"""Tests for xprompt snippet bridge conversion logic."""
+"""Tests for macro snippet bridge conversion logic."""
 
 from unittest.mock import patch
 
 import pytest
 
 from sase.core.snippet_catalog_facade import compose_snippet_catalog
-from sase.macro.models import UNSET, InputArg, XPrompt
+from sase.macro.models import UNSET, InputArg, Macro
 from sase.macro.snippet_bridge import (
-    _xprompt_to_snippet_template,
-    _get_xprompt_snippets,
+    _macro_to_snippet_template,
+    _get_macro_snippets,
 )
 
 
@@ -17,8 +17,8 @@ def _make_xp(
     inputs: list[InputArg] | None = None,
     snippet: str | bool | None = True,
     name: str = "test",
-) -> XPrompt:
-    return XPrompt(
+) -> Macro:
+    return Macro(
         name=name,
         content=content,
         inputs=inputs or [],
@@ -26,13 +26,13 @@ def _make_xp(
     )
 
 
-# --- _xprompt_to_snippet_template ---
+# --- _macro_to_snippet_template ---
 
 
 def test_plain_content_no_inputs() -> None:
-    """Xprompt with no inputs and no Jinja2 → content + $0."""
+    """Macro with no inputs and no Jinja2 → content + $0."""
     xp = _make_xp("Hello world")
-    assert _xprompt_to_snippet_template(xp) == "Hello world$0"
+    assert _macro_to_snippet_template(xp) == "Hello world$0"
 
 
 def test_single_required_input() -> None:
@@ -40,7 +40,7 @@ def test_single_required_input() -> None:
         "Hello {{ name }}!",
         inputs=[InputArg(name="name", default=UNSET)],
     )
-    assert _xprompt_to_snippet_template(xp) == "Hello $1!$0"
+    assert _macro_to_snippet_template(xp) == "Hello $1!$0"
 
 
 def test_multiple_required_inputs() -> None:
@@ -51,7 +51,7 @@ def test_multiple_required_inputs() -> None:
             InputArg(name="name", default=UNSET),
         ],
     )
-    assert _xprompt_to_snippet_template(xp) == "$1 $2!$0"
+    assert _macro_to_snippet_template(xp) == "$1 $2!$0"
 
 
 def test_input_with_default_prefilled() -> None:
@@ -59,7 +59,7 @@ def test_input_with_default_prefilled() -> None:
         "Count: {{ count }}",
         inputs=[InputArg(name="count", default=5)],
     )
-    assert _xprompt_to_snippet_template(xp) == "Count: 5$0"
+    assert _macro_to_snippet_template(xp) == "Count: 5$0"
 
 
 def test_mixed_required_and_defaulted() -> None:
@@ -70,7 +70,7 @@ def test_mixed_required_and_defaulted() -> None:
             InputArg(name="count", default=0),
         ],
     )
-    assert _xprompt_to_snippet_template(xp) == "$1 has 0 items$0"
+    assert _macro_to_snippet_template(xp) == "$1 has 0 items$0"
 
 
 def test_none_default_becomes_empty() -> None:
@@ -78,17 +78,17 @@ def test_none_default_becomes_empty() -> None:
         "Val: {{ x }}",
         inputs=[InputArg(name="x", default=None)],
     )
-    assert _xprompt_to_snippet_template(xp) == "Val: $0"
+    assert _macro_to_snippet_template(xp) == "Val: $0"
 
 
 def test_bail_on_jinja2_control() -> None:
     xp = _make_xp("{% if x %}yes{% endif %}")
-    assert _xprompt_to_snippet_template(xp) is None
+    assert _macro_to_snippet_template(xp) is None
 
 
 def test_bail_on_jinja2_comment() -> None:
     xp = _make_xp("{# comment #}Hello")
-    assert _xprompt_to_snippet_template(xp) is None
+    assert _macro_to_snippet_template(xp) is None
 
 
 def test_bail_on_computed_expression() -> None:
@@ -96,17 +96,17 @@ def test_bail_on_computed_expression() -> None:
         "{{ count + 1 }}",
         inputs=[InputArg(name="count", default=UNSET)],
     )
-    assert _xprompt_to_snippet_template(xp) is None
+    assert _macro_to_snippet_template(xp) is None
 
 
 def test_legacy_placeholder_numeric() -> None:
     xp = _make_xp("Hello {1}, welcome to {2}!")
-    assert _xprompt_to_snippet_template(xp) == "Hello $1, welcome to $2!$0"
+    assert _macro_to_snippet_template(xp) == "Hello $1, welcome to $2!$0"
 
 
 def test_legacy_placeholder_with_default() -> None:
     xp = _make_xp("Hello {1:world}!")
-    assert _xprompt_to_snippet_template(xp) == "Hello world!$0"
+    assert _macro_to_snippet_template(xp) == "Hello world!$0"
 
 
 def test_repeated_input_reference() -> None:
@@ -114,7 +114,7 @@ def test_repeated_input_reference() -> None:
         "{{ name }} says hi, {{ name }}!",
         inputs=[InputArg(name="name", default=UNSET)],
     )
-    assert _xprompt_to_snippet_template(xp) == "$1 says hi, $1!$0"
+    assert _macro_to_snippet_template(xp) == "$1 says hi, $1!$0"
 
 
 def test_only_defaulted_inputs() -> None:
@@ -126,7 +126,7 @@ def test_only_defaulted_inputs() -> None:
             InputArg(name="b", default="y"),
         ],
     )
-    assert _xprompt_to_snippet_template(xp) == "x and y$0"
+    assert _macro_to_snippet_template(xp) == "x and y$0"
 
 
 def test_tabstop_numbering_skips_defaulted() -> None:
@@ -139,7 +139,7 @@ def test_tabstop_numbering_skips_defaulted() -> None:
             InputArg(name="c", default=UNSET),
         ],
     )
-    assert _xprompt_to_snippet_template(xp) == "$1 mid $2$0"
+    assert _macro_to_snippet_template(xp) == "$1 mid $2$0"
 
 
 # --- #[snippet] reference resolution ---
@@ -240,11 +240,11 @@ def test_resolve_snippet_reference_golden_vectors(
     assert compose_snippet_catalog(catalog).templates[trigger] == expected
 
 
-# --- _get_xprompt_snippets composition ---
+# --- _get_macro_snippets composition ---
 
 
-def test_get_xprompt_snippets_composes_nested_xprompt_reference() -> None:
-    xprompts = {
+def test_get_macro_snippets_composes_nested_macro_reference() -> None:
+    macros = {
         "baz": _make_xp(
             "Don't forget to review bazbuz first!",
             name="baz",
@@ -259,32 +259,32 @@ def test_get_xprompt_snippets_composes_nested_xprompt_reference() -> None:
 
     with (
         patch("sase.config.load_merged_config", return_value={}),
-        patch("sase.macro.loader.get_all_xprompts", return_value=xprompts),
+        patch("sase.macro.loader.get_all_macros", return_value=macros),
     ):
-        snippets = _get_xprompt_snippets()
+        snippets = _get_macro_snippets()
 
     assert snippets["foo"] == (
         "Can you help me foobar? Don't forget to review bazbuz first!$0"
     )
 
 
-def test_get_xprompt_snippets_composes_non_snippet_reference() -> None:
-    xprompts = {
+def test_get_macro_snippets_composes_non_snippet_reference() -> None:
+    macros = {
         "baz": _make_xp("Nested content", name="baz", snippet=None),
         "foo": _make_xp("Outer #baz", name="foo", snippet=True),
     }
 
     with (
         patch("sase.config.load_merged_config", return_value={}),
-        patch("sase.macro.loader.get_all_xprompts", return_value=xprompts),
+        patch("sase.macro.loader.get_all_macros", return_value=macros),
     ):
-        snippets = _get_xprompt_snippets()
+        snippets = _get_macro_snippets()
 
     assert snippets == {"foo": "Outer Nested content$0"}
 
 
-def test_get_xprompt_snippets_composes_multiple_nested_levels() -> None:
-    xprompts = {
+def test_get_macro_snippets_composes_multiple_nested_levels() -> None:
+    macros = {
         "baz": _make_xp("baz", name="baz", snippet=None),
         "bar": _make_xp("bar #baz", name="bar", snippet=None),
         "foo": _make_xp("foo #bar", name="foo", snippet=True),
@@ -292,22 +292,22 @@ def test_get_xprompt_snippets_composes_multiple_nested_levels() -> None:
 
     with (
         patch("sase.config.load_merged_config", return_value={}),
-        patch("sase.macro.loader.get_all_xprompts", return_value=xprompts),
+        patch("sase.macro.loader.get_all_macros", return_value=macros),
     ):
-        snippets = _get_xprompt_snippets()
+        snippets = _get_macro_snippets()
 
     assert snippets == {"foo": "foo bar baz$0"}
 
 
-def test_get_xprompt_snippets_leaves_unknown_nested_references_literal() -> None:
-    xprompts = {
+def test_get_macro_snippets_leaves_unknown_nested_references_literal() -> None:
+    macros = {
         "foo": _make_xp("Outer #missing", name="foo", snippet=True),
     }
 
     with (
         patch("sase.config.load_merged_config", return_value={}),
-        patch("sase.macro.loader.get_all_xprompts", return_value=xprompts),
+        patch("sase.macro.loader.get_all_macros", return_value=macros),
     ):
-        snippets = _get_xprompt_snippets()
+        snippets = _get_macro_snippets()
 
     assert snippets == {"foo": "Outer #missing$0"}

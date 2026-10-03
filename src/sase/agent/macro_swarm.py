@@ -1,7 +1,7 @@
-"""Xprompt swarm expansion at dispatch time.
+"""Macro swarm expansion at dispatch time.
 
-When a user-prompt segment references an xprompt whose body contains ``---``
-segment separators, expand the xprompt body once (substituting the call-site's
+When a user-prompt segment references a macro whose body contains ``---``
+segment separators, expand the macro body once (substituting the call-site's
 arguments) and then split the substituted body on ``---``.
 
 A sole reference becomes one prompt per body segment.  A single embedded
@@ -17,63 +17,63 @@ from dataclasses import dataclass
 from itertools import count
 
 from sase.agent._macro_swarm_parsing import (
-    build_xprompt_call,
-    extract_top_level_xprompt_reference as _extract_top_level_xprompt_reference,
-    first_invalid_standalone_xprompt_reference,
-    invalid_explicit_xprompt_message,
+    build_macro_call,
+    extract_top_level_macro_reference as _extract_top_level_macro_reference,
+    first_invalid_standalone_macro_reference,
+    invalid_explicit_macro_message,
     leading_vcs_ref_text,
     prepend_inherited_vcs_ref,
-    xprompt_swarm_references,
+    macro_swarm_references,
 )
-from sase.agent._macro_swarm_rendering import render_xprompt_swarm
-from sase.macro._parsing import XPromptReference, XPromptReferenceMarker
-from sase.macro.loader import get_all_xprompts
-from sase.macro.models import XPrompt
-from sase.macro.segment_separators import xprompt_has_segment_separators
+from sase.agent._macro_swarm_rendering import render_macro_swarm
+from sase.macro._parsing import MacroReference, MacroReferenceMarker
+from sase.macro.loader import get_all_macros
+from sase.macro.models import Macro
+from sase.macro.segment_separators import macro_has_segment_separators
 
 
-class _XpromptSwarmError(ValueError):
-    """Base class for xprompt swarm expansion errors."""
+class _MacroSwarmError(ValueError):
+    """Base class for macro swarm expansion errors."""
 
 
-class _XpromptSwarmUsageError(_XpromptSwarmError):
-    """Raised when an xprompt swarm reference is ambiguous or invalid."""
+class _MacroSwarmUsageError(_MacroSwarmError):
+    """Raised when a macro swarm reference is ambiguous or invalid."""
 
 
-class _XpromptSwarmDepthError(_XpromptSwarmError):
-    """Raised when recursive xprompt swarm expansion exceeds the depth cap."""
+class _MacroSwarmDepthError(_MacroSwarmError):
+    """Raised when recursive macro swarm expansion exceeds the depth cap."""
 
 
 @dataclass(frozen=True)
-class _ExpandedXpromptSwarmSegment:
+class _ExpandedMacroSwarmSegment:
     """Expanded segment plus dispatch metadata."""
 
     prompt: str
     template_group: str | None = None
-    swarm_xprompts: tuple[str, ...] = ()
+    swarm_macros: tuple[str, ...] = ()
 
 
-def _expand_embedded_xprompt_swarm_reference(
+def _expand_embedded_macro_swarm_reference(
     segment: str,
-    ref: XPromptReference,
-    catalog: dict[str, XPrompt],
-    local_xprompts: dict[str, XPrompt] | None,
+    ref: MacroReference,
+    catalog: dict[str, Macro],
+    local_macros: dict[str, Macro] | None,
     max_depth: int,
     template_group: str | None,
-    swarm_xprompts: tuple[str, ...],
+    swarm_macros: tuple[str, ...],
     group_counter: Iterator[int],
     qualification_counter: Iterator[int],
-) -> list[_ExpandedXpromptSwarmSegment]:
+) -> list[_ExpandedMacroSwarmSegment]:
     if max_depth <= 0:
-        raise _XpromptSwarmDepthError(
+        raise _MacroSwarmDepthError(
             f"xprompt swarm expansion exceeded max depth at "
             f"#{ref.name} (possible self-reference)"
         )
 
-    call = build_xprompt_call(ref, [])
+    call = build_macro_call(ref, [])
     group = template_group or _next_template_group(call.name, group_counter)
-    current_swarm_xprompts = _append_swarm_xprompt(swarm_xprompts, call.name)
-    sub_segments = render_xprompt_swarm(
+    current_swarm_macros = _append_swarm_macro(swarm_macros, call.name)
+    sub_segments = render_macro_swarm(
         catalog[call.name],
         call.positional_args,
         call.named_args,
@@ -82,7 +82,7 @@ def _expand_embedded_xprompt_swarm_reference(
     if not sub_segments:
         reconstructed = segment[: ref.start] + segment[ref.end :]
         return (
-            [_ExpandedXpromptSwarmSegment(reconstructed, group, current_swarm_xprompts)]
+            [_ExpandedMacroSwarmSegment(reconstructed, group, current_swarm_macros)]
             if reconstructed.strip()
             else []
         )
@@ -91,48 +91,48 @@ def _expand_embedded_xprompt_swarm_reference(
     follow_ups = prepend_inherited_vcs_ref(
         sub_segments[1:], leading_vcs_ref_text(segment)
     )
-    return _expand_xprompt_swarms_with_metadata(
+    return _expand_macro_swarms_with_metadata(
         [first, *follow_ups],
-        local_xprompts=local_xprompts,
+        local_macros=local_macros,
         max_depth=max_depth - 1,
         template_group=group,
-        swarm_xprompts=current_swarm_xprompts,
+        swarm_macros=current_swarm_macros,
         group_counter=group_counter,
         qualification_counter=qualification_counter,
     )
 
 
-def _expand_multiple_embedded_xprompt_swarm_references(
+def _expand_multiple_embedded_macro_swarm_references(
     segment: str,
-    refs: list[XPromptReference],
-    catalog: dict[str, XPrompt],
-    local_xprompts: dict[str, XPrompt] | None,
+    refs: list[MacroReference],
+    catalog: dict[str, Macro],
+    local_macros: dict[str, Macro] | None,
     max_depth: int,
     strict_segment_check: bool,
-    swarm_xprompts: tuple[str, ...],
+    swarm_macros: tuple[str, ...],
     group_counter: Iterator[int],
     qualification_counter: Iterator[int],
-) -> list[_ExpandedXpromptSwarmSegment]:
-    """Expand multiple embedded xprompt swarm refs in document order.
+) -> list[_ExpandedMacroSwarmSegment]:
+    """Expand multiple embedded macro swarm refs in document order.
 
     The leading prose before the first reference attaches to the first generated
     segment only.  Text between references and after the last reference is
     intentionally discarded.
     """
     if max_depth <= 0:
-        raise _XpromptSwarmDepthError(
+        raise _MacroSwarmDepthError(
             f"xprompt swarm expansion exceeded max depth at "
             f"#{refs[0].name} (possible self-reference)"
         )
 
     leading_prose = segment[: refs[0].start]
     inherited_vcs_ref = leading_vcs_ref_text(segment)
-    expanded: list[_ExpandedXpromptSwarmSegment] = []
+    expanded: list[_ExpandedMacroSwarmSegment] = []
     for index, ref in enumerate(refs):
-        call = build_xprompt_call(ref, [])
+        call = build_macro_call(ref, [])
         group = _next_template_group(call.name, group_counter)
-        current_swarm_xprompts = _append_swarm_xprompt(swarm_xprompts, call.name)
-        sub_segments = render_xprompt_swarm(
+        current_swarm_macros = _append_swarm_macro(swarm_macros, call.name)
+        sub_segments = render_macro_swarm(
             catalog[call.name],
             call.positional_args,
             call.named_args,
@@ -149,13 +149,13 @@ def _expand_multiple_embedded_xprompt_swarm_references(
         else:
             sub_segments = prepend_inherited_vcs_ref(sub_segments, inherited_vcs_ref)
         expanded.extend(
-            _expand_xprompt_swarms_with_metadata(
+            _expand_macro_swarms_with_metadata(
                 sub_segments,
-                local_xprompts=local_xprompts,
+                local_macros=local_macros,
                 max_depth=max_depth - 1,
                 strict_segment_check=strict_segment_check,
                 template_group=group,
-                swarm_xprompts=current_swarm_xprompts,
+                swarm_macros=current_swarm_macros,
                 group_counter=group_counter,
                 qualification_counter=qualification_counter,
             )
@@ -163,52 +163,52 @@ def _expand_multiple_embedded_xprompt_swarm_references(
     return expanded
 
 
-def expand_xprompt_swarms_with_metadata(
+def expand_macro_swarms_with_metadata(
     segments: list[str],
-    local_xprompts: dict[str, XPrompt] | None = None,
+    local_macros: dict[str, Macro] | None = None,
     *,
     max_depth: int = 8,
     _strict_segment_check: bool = True,
     group_counter: Iterator[int] | None = None,
     qualification_counter: Iterator[int] | None = None,
-) -> list[_ExpandedXpromptSwarmSegment]:
-    """Expand any xprompt swarm references in *segments* into sub-segments.
+) -> list[_ExpandedMacroSwarmSegment]:
+    """Expand any macro swarm references in *segments* into sub-segments.
 
     For each segment:
         * If the segment is a sole top-level reference (per
-          :func:`extract_top_level_xprompt_reference`) to an xprompt whose body
+          :func:`extract_top_level_macro_reference`) to a macro whose body
           contains ``---`` separators, substitute the call's args into the
-          xprompt body and split the result on ``---``.  The call site's
+          macro body and split the result on ``---``.  The call site's
           leading directives (e.g. ``%id:custom``) attach to the *first*
           sub-segment only.
-        * If the segment contains multiple xprompt swarm references, each
+        * If the segment contains multiple macro swarm references, each
           reference fans out in document order.  Leading prose attaches to the
           first generated segment; inter-reference and trailing prose is
           discarded.
         * Otherwise, the segment is passed through unchanged.
 
     Recursion: each sub-segment is fed back through this function with
-    ``max_depth - 1`` so an xprompt swarm can compose another xprompt swarm.
+    ``max_depth - 1`` so a macro swarm can compose another macro swarm.
     When *max_depth* is exhausted on a still-qualifying reference,
     :class:`ValueError` is raised.
 
     Raises:
-        _XpromptSwarmUsageError: A segment uses the standalone marker for
-            an ordinary embeddable xprompt.
+        _MacroSwarmUsageError: A segment uses the standalone marker for
+            an ordinary embeddable macro.
         ValueError: Recursive expansion exceeded *max_depth*.
 
     ``group_counter`` and ``qualification_counter`` let callers that expand
     segments one call at a time (e.g. per-segment ``segment_extra_env``
     launches) share independent invocation counters. Distinct invocations of
-    the same xprompt then collide on neither template groups nor keyed-marker
+    the same macro then collide on neither template groups nor keyed-marker
     namespaces.
     """
-    return _expand_xprompt_swarms_with_metadata(
+    return _expand_macro_swarms_with_metadata(
         segments,
-        local_xprompts=local_xprompts,
+        local_macros=local_macros,
         max_depth=max_depth,
         strict_segment_check=_strict_segment_check,
-        swarm_xprompts=(),
+        swarm_macros=(),
         group_counter=group_counter if group_counter is not None else count(),
         qualification_counter=(
             qualification_counter if qualification_counter is not None else count()
@@ -216,53 +216,53 @@ def expand_xprompt_swarms_with_metadata(
     )
 
 
-def _expand_xprompt_swarms_with_metadata(
+def _expand_macro_swarms_with_metadata(
     segments: list[str],
     *,
-    local_xprompts: dict[str, XPrompt] | None,
+    local_macros: dict[str, Macro] | None,
     max_depth: int,
     strict_segment_check: bool = True,
     template_group: str | None = None,
-    swarm_xprompts: tuple[str, ...],
+    swarm_macros: tuple[str, ...],
     group_counter: Iterator[int],
     qualification_counter: Iterator[int],
-) -> list[_ExpandedXpromptSwarmSegment]:
-    # Fast path: if no segment contains '#', no xprompt reference is possible.
+) -> list[_ExpandedMacroSwarmSegment]:
+    # Fast path: if no segment contains '#', no macro reference is possible.
     if not any("#" in seg for seg in segments):
         return [
-            _ExpandedXpromptSwarmSegment(seg, template_group, swarm_xprompts)
+            _ExpandedMacroSwarmSegment(seg, template_group, swarm_macros)
             for seg in segments
         ]
 
-    catalog: dict[str, XPrompt] = dict(get_all_xprompts())
-    if local_xprompts:
-        catalog.update(local_xprompts)
+    catalog: dict[str, Macro] = dict(get_all_macros())
+    if local_macros:
+        catalog.update(local_macros)
     available = set(catalog.keys())
 
     swarm_names = {
-        name for name, xp in catalog.items() if xprompt_has_segment_separators(xp)
+        name for name, xp in catalog.items() if macro_has_segment_separators(xp)
     }
 
-    expanded: list[_ExpandedXpromptSwarmSegment] = []
+    expanded: list[_ExpandedMacroSwarmSegment] = []
     for segment in segments:
-        call = _extract_top_level_xprompt_reference(segment, available)
+        call = _extract_top_level_macro_reference(segment, available)
         if call is not None and call.name in swarm_names:
             if max_depth <= 0:
-                raise _XpromptSwarmDepthError(
+                raise _MacroSwarmDepthError(
                     f"xprompt swarm expansion exceeded max depth at "
                     f"#{call.name} (possible self-reference)"
                 )
             group = template_group or _next_template_group(call.name, group_counter)
-            current_swarm_xprompts = _append_swarm_xprompt(swarm_xprompts, call.name)
+            current_swarm_macros = _append_swarm_macro(swarm_macros, call.name)
             xp = catalog[call.name]
-            sub_segments = render_xprompt_swarm(
+            sub_segments = render_macro_swarm(
                 xp,
                 call.positional_args,
                 call.named_args,
                 qualification_counter,
             )
             if not sub_segments:
-                # An xprompt body that had separators but produces no content
+                # A macro body that had separators but produces no content
                 # after substitution (e.g. all-empty segments): drop entirely.
                 continue
             sub_segments = prepend_inherited_vcs_ref(
@@ -270,21 +270,21 @@ def _expand_xprompt_swarms_with_metadata(
             )
             if call.leading_directive_prefix:
                 sub_segments[0] = f"{call.leading_directive_prefix}{sub_segments[0]}"
-            recursively_expanded = _expand_xprompt_swarms_with_metadata(
+            recursively_expanded = _expand_macro_swarms_with_metadata(
                 sub_segments,
-                local_xprompts=local_xprompts,
+                local_macros=local_macros,
                 max_depth=max_depth - 1,
                 strict_segment_check=strict_segment_check,
                 template_group=group,
-                swarm_xprompts=current_swarm_xprompts,
+                swarm_macros=current_swarm_macros,
                 group_counter=group_counter,
                 qualification_counter=qualification_counter,
             )
             expanded.extend(recursively_expanded)
-        elif call is not None and call.marker is XPromptReferenceMarker.STANDALONE:
-            raise _XpromptSwarmUsageError(
-                invalid_explicit_xprompt_message(
-                    XPromptReference(
+        elif call is not None and call.marker is MacroReferenceMarker.STANDALONE:
+            raise _MacroSwarmUsageError(
+                invalid_explicit_macro_message(
+                    MacroReference(
                         marker=call.marker,
                         name=call.name,
                         start=0,
@@ -294,48 +294,48 @@ def _expand_xprompt_swarms_with_metadata(
                 )
             )
         else:
-            invalid_standalone = first_invalid_standalone_xprompt_reference(
+            invalid_standalone = first_invalid_standalone_macro_reference(
                 segment, catalog, swarm_names
             )
             if invalid_standalone is not None:
-                raise _XpromptSwarmUsageError(
-                    invalid_explicit_xprompt_message(invalid_standalone)
+                raise _MacroSwarmUsageError(
+                    invalid_explicit_macro_message(invalid_standalone)
                 )
 
             if strict_segment_check:
-                xprompt_swarm_refs = xprompt_swarm_references(segment, swarm_names)
-                if len(xprompt_swarm_refs) == 1:
+                macro_swarm_refs = macro_swarm_references(segment, swarm_names)
+                if len(macro_swarm_refs) == 1:
                     expanded.extend(
-                        _expand_embedded_xprompt_swarm_reference(
+                        _expand_embedded_macro_swarm_reference(
                             segment,
-                            xprompt_swarm_refs[0],
+                            macro_swarm_refs[0],
                             catalog,
-                            local_xprompts,
+                            local_macros,
                             max_depth,
                             template_group,
-                            swarm_xprompts,
+                            swarm_macros,
                             group_counter,
                             qualification_counter,
                         )
                     )
                     continue
-                if len(xprompt_swarm_refs) > 1:
+                if len(macro_swarm_refs) > 1:
                     expanded.extend(
-                        _expand_multiple_embedded_xprompt_swarm_references(
+                        _expand_multiple_embedded_macro_swarm_references(
                             segment,
-                            xprompt_swarm_refs,
+                            macro_swarm_refs,
                             catalog,
-                            local_xprompts,
+                            local_macros,
                             max_depth,
                             strict_segment_check,
-                            swarm_xprompts,
+                            swarm_macros,
                             group_counter,
                             qualification_counter,
                         )
                     )
                     continue
             expanded.append(
-                _ExpandedXpromptSwarmSegment(segment, template_group, swarm_xprompts)
+                _ExpandedMacroSwarmSegment(segment, template_group, swarm_macros)
             )
 
     return expanded
@@ -345,16 +345,14 @@ def _next_template_group(name: str, group_counter: Iterator[int]) -> str:
     return f"xprompt:{name}:{next(group_counter)}"
 
 
-def _append_swarm_xprompt(
-    swarm_xprompts: tuple[str, ...], name: str
-) -> tuple[str, ...]:
-    if name in swarm_xprompts:
-        return swarm_xprompts
-    return (*swarm_xprompts, name)
+def _append_swarm_macro(swarm_macros: tuple[str, ...], name: str) -> tuple[str, ...]:
+    if name in swarm_macros:
+        return swarm_macros
+    return (*swarm_macros, name)
 
 
 __all__ = [
-    "expand_xprompt_swarms_with_metadata",
-    "_extract_top_level_xprompt_reference",
-    "xprompt_has_segment_separators",
+    "expand_macro_swarms_with_metadata",
+    "_extract_top_level_macro_reference",
+    "macro_has_segment_separators",
 ]

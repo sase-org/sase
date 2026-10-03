@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 KEY_MARKER_PATTERN = r"\{@[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*!?\}"
 
 # Pattern to match directive references: %id, %id(, %id:arg, %id:`arg`, %id+
-# Mirrors _XPROMPT_PATTERN from processor.py but with % prefix.
-# The colon-arg character class is expanded to include # (for xprompt refs in args).
+# Mirrors _MACRO_PATTERN from processor.py but with % prefix.
+# The colon-arg character class is expanded to include # (for macro refs in args).
 _DIRECTIVE_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"%([a-zA-Z_][a-zA-Z0-9_]*)"  # Group 1: directive name

@@ -63,7 +63,7 @@ class _Agent:
     restartable: bool = True
     missing_requirements: tuple[str, ...] = ()
 
-    def get_raw_xprompt_content(self) -> str | None:
+    def get_raw_prompt_content(self) -> str | None:
         return self.raw_prompt
 
     @property

@@ -101,7 +101,7 @@ def test_plan_agent_launch_fanout_rust_strips_model_effort_suffix() -> None:
     assert plan.launch_kind == "model"
     assert len(plan.slots) == 4
     # Slots are named by the clean model (the `@effort` suffix is split off),
-    # mirroring the Python xprompt `split_model_effort` rule.
+    # mirroring the Python macro `split_model_effort` rule.
     assert plan.slots[0].model == "opus"
     assert plan.slots[3].model == "sonnet"
     # The branch body retains the `@effort` token for the launched agent's own

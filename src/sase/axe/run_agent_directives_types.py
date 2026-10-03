@@ -36,7 +36,7 @@ class AgentInfo(NamedTuple):
     tribe: str | None
     clan_summary_resolution: ClanSummaryResolutionRequest | None
     meta: dict[str, Any]
-    local_xprompts: dict[str, Any]
+    local_macros: dict[str, Any]
     hold: HoldFields | None = None
 
 

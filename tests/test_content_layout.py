@@ -10,7 +10,7 @@ from sase.content_layout import (
     display_path,
     resolve_memory_file_sources,
     resolve_project_layout,
-    resolve_xprompt_file_sources,
+    resolve_macro_file_sources,
 )
 from sase.core.paths import shorten_path
 
@@ -29,8 +29,8 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
     assert project.config.canonical.path == Path("/workspace/demo/sase/sase.yml")
     assert project.config.write_path == project.config.canonical.path
     assert project.config.legacy[0].path == Path("/workspace/demo/sase.yml")
-    assert project.xprompts.canonical.path == Path("/workspace/demo/sase/xprompts")
-    assert tuple(entry.path for entry in project.xprompts.legacy) == (
+    assert project.macros.canonical.path == Path("/workspace/demo/sase/macros")
+    assert tuple(entry.path for entry in project.macros.legacy) == (
         Path("/workspace/demo/.xprompts"),
         Path("/workspace/demo/xprompts"),
     )
@@ -39,15 +39,13 @@ def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
     assert project.memory.canonical.path == Path("/workspace/demo/sase/memory")
     assert project.repos.path == Path("/workspace/demo/sase/repos")
 
-    assert layout.home.xprompts.canonical.path == Path("/home/alice/sase/xprompts")
+    assert layout.home.macros.canonical.path == Path("/home/alice/sase/macros")
     assert layout.home.skills.path == Path("/home/alice/sase/skills")
     assert layout.home.refs.path == Path("/home/alice/sase/refs")
     assert layout.home.memory.canonical.path == Path("/home/alice/sase/memory")
     assert layout.home.global_config.path == Path("/home/alice/.config/sase/sase.yml")
     assert layout.chezmoi is not None
-    assert layout.chezmoi.xprompts.canonical.path == Path(
-        "/dotfiles/home/sase/xprompts"
-    )
+    assert layout.chezmoi.macros.canonical.path == Path("/dotfiles/home/sase/macros")
     assert layout.chezmoi.skills.path == Path("/dotfiles/home/sase/skills")
     assert layout.chezmoi.refs.path == Path("/dotfiles/home/sase/refs")
     assert layout.chezmoi.memory.canonical.path == Path("/dotfiles/home/sase/memory")
@@ -62,7 +60,7 @@ def test_path_classes_separate_tracked_generated_and_runtime_content() -> None:
     project = resolve_project_layout("/repo", home_root="/home/alice")
 
     assert project.config.canonical.tracking == "source_controlled"
-    assert project.xprompts.canonical.tracking == "source_controlled"
+    assert project.macros.canonical.tracking == "source_controlled"
     assert project.memory.canonical.tracking == "source_controlled"
     assert project.repos.tracking == "runtime_only"
     assert project.memory_readme.tracking == "generated"
@@ -81,10 +79,8 @@ def test_missing_project_root_keeps_home_layout_available() -> None:
 
     assert layout.project is None
     assert layout.home.namespace_root.path == Path("/home/alice/sase")
-    assert layout.xprompt_sources[0].id == "home_canonical"
-    assert all(
-        not source.id.startswith("project_") for source in layout.xprompt_sources
-    )
+    assert layout.macro_sources[0].id == "home_macros_canonical"
+    assert all(not source.id.startswith("project_") for source in layout.macro_sources)
 
 
 def test_legacy_only_config_is_read_but_writes_stay_canonical(
@@ -120,36 +116,39 @@ def test_exclusive_content_reports_canonical_legacy_collision(
     assert exc.value.paths == (canonical, legacy)
 
 
-def test_xprompt_directories_use_canonical_first_wins(tmp_path: Path) -> None:
+def test_macro_directories_use_canonical_first_wins(tmp_path: Path) -> None:
     project = resolve_project_layout(tmp_path)
-    for candidate in project.xprompts.candidates:
+    for candidate in project.macros.candidates:
         candidate.mkdir(parents=True, exist_ok=True)
 
-    resolution = project.xprompts.resolve()
+    resolution = project.macros.resolve()
 
     assert resolution.collision is False
-    assert resolution.selected == tmp_path / "sase" / "xprompts"
+    assert resolution.selected == tmp_path / "sase" / "macros"
     assert resolution.shadowed == (
         tmp_path / ".xprompts",
         tmp_path / "xprompts",
     )
 
 
-def test_xprompt_priority_contract_covers_every_source_and_shared_steps() -> None:
+def test_macro_priority_contract_covers_every_source_and_shared_steps() -> None:
     layout = _resolve_content_layout(
         project_root="/repo",
         home_root="/home/alice",
         project="demo",
     )
 
-    assert [source.id for source in layout.xprompt_sources] == [
-        "project_canonical",
+    assert [source.id for source in layout.macro_sources] == [
+        "project_macros_canonical",
+        "home_macros_canonical",
+        "home_project_macros_canonical",
+        "project_xprompt_canonical",
         "project_legacy_hidden",
         "project_legacy_visible",
-        "home_canonical",
+        "home_xprompt_canonical",
         "home_legacy_hidden",
         "home_legacy_visible",
-        "home_project_canonical",
+        "home_project_xprompt_canonical",
         "home_project_legacy_config",
         "project_config_canonical",
         "project_config_legacy",
@@ -157,19 +156,22 @@ def test_xprompt_priority_contract_covers_every_source_and_shared_steps() -> Non
         "user_config",
         "plugin_config",
         "package_default_config",
+        "plugin_macro_resources",
+        "package_macro_defaults",
+        "package_macro_internal",
         "plugin_resources",
         "package_defaults",
         "package_internal",
     ]
-    assert [source.priority for source in layout.xprompt_sources] == list(range(1, 18))
-    for source in layout.xprompt_sources[:8]:
+    assert [source.priority for source in layout.macro_sources] == list(range(1, 24))
+    for source in layout.macro_sources[:8]:
         assert source.formats == ("md", "yml", "yaml")
         assert source.path is not None
         assert source.steps_path == source.path / "steps"
-    assert layout.xprompt_sources[8].collision_group == "project_config"
-    assert layout.xprompt_sources[8].collision_policy == "error"
-    assert layout.xprompt_sources[10].ordering == "reverse_lexical_first_wins"
-    assert layout.xprompt_sources[-1].steps_locator == "package:xprompts/steps"
+    assert layout.macro_sources[11].collision_group == "project_config"
+    assert layout.macro_sources[11].collision_policy == "error"
+    assert layout.macro_sources[13].ordering == "reverse_lexical_first_wins"
+    assert layout.macro_sources[-1].steps_locator == "package:xprompts/steps"
 
 
 def test_memory_source_contract_orders_project_before_home(
@@ -230,7 +232,7 @@ def test_discover_project_root_resolves_symlinked_working_tree(
     )
 
 
-def test_deleted_cwd_degrades_to_home_only_xprompt_sources(
+def test_deleted_cwd_degrades_to_home_only_macro_sources(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -242,7 +244,7 @@ def test_deleted_cwd_degrades_to_home_only_xprompt_sources(
     assert discover_project_root() is None
     assert all(
         not source.id.startswith("project_")
-        for source in resolve_xprompt_file_sources(home_root=tmp_path)
+        for source in resolve_macro_file_sources(home_root=tmp_path)
     )
 
 

@@ -31,7 +31,7 @@ def stash_failed_launch_prompt(
     """Append *prompt* to the prompt-stash store as a failed-launch row.
 
     Blank prompts are skipped. A leading YAML frontmatter block (carrying local
-    xprompt definitions) is lifted into the entry ``frontmatter`` field and only
+    macro definitions) is lifted into the entry ``frontmatter`` field and only
     the prompt body is stored as ``text``; multi-prompt bodies are kept joined
     with the canonical ``\\n---\\n`` separator so restore expands them back into
     one pane per segment. Project metadata is best-effort -- losing the project

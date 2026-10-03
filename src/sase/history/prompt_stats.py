@@ -59,7 +59,7 @@ def _percentile(sorted_values: list[int], pct: float) -> int:
 
 
 def _prompt_chips(text: str) -> list[str]:
-    """Return xprompt/workflow/directive chips parsed from a prompt.
+    """Return macro/workflow/directive chips parsed from a prompt.
 
     Parsing is best-effort; any prompt that the metadata layer cannot parse
     contributes no chips rather than failing the whole stats computation.
@@ -74,7 +74,7 @@ def _prompt_chips(text: str) -> list[str]:
     chips: list[str] = []
     if summary.project_prefix:
         chips.append(summary.project_prefix.rstrip(":"))
-    chips.extend(summary.xprompts)
+    chips.extend(summary.macros)
     if summary.directive_token:
         chips.extend(summary.directive_token.split())
     return chips

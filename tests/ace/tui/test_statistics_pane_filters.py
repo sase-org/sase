@@ -275,18 +275,18 @@ async def test_empty_project_filter_clears_to_all_projects_in_either_direction(
         view: StatisticsView,
         selected_range: StatsRange,
         project_filter: str | None = None,
-        xprompt_focus: str | None = None,
+        macro_focus: str | None = None,
         perf_group_by: str = "subsystem",
     ) -> StatisticsViewData:
         del perf_group_by
-        calls.append((view, selected_range, project_filter, xprompt_focus))
+        calls.append((view, selected_range, project_filter, macro_focus))
         return _result(
             view,
             selected_range,
             empty=project_filter is not None,
             project_filter=project_filter,
             project_display_snapshot=snapshot,
-            xprompt_focus=xprompt_focus,
+            macro_focus=macro_focus,
         )
 
     monkeypatch.setattr(sp, "load_statistics_view", load)
@@ -350,11 +350,11 @@ async def test_project_filter_label_submits_canonical_key_across_reload_paths(
         view: StatisticsView,
         selected_range: StatsRange,
         project_filter: str | None = None,
-        xprompt_focus: str | None = None,
+        macro_focus: str | None = None,
         perf_group_by: str = "subsystem",
     ) -> StatisticsViewData:
         del perf_group_by
-        calls.append((view, selected_range, project_filter, xprompt_focus))
+        calls.append((view, selected_range, project_filter, macro_focus))
         payload = _run_payload(selected_range, "tribe")
         payload["workspaces"][0]["project"] = widgets_key
         payload["work"]["projects"][0]["project"] = widgets_key
@@ -369,7 +369,7 @@ async def test_project_filter_label_submits_canonical_key_across_reload_paths(
                 project_display_snapshot=snapshot,
             ),
             project_filter=project_filter,
-            xprompt_focus=xprompt_focus,
+            macro_focus=macro_focus,
             project_display_snapshot=snapshot,
         )
 

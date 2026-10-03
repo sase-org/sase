@@ -18,7 +18,7 @@ from .effort import split_model_effort
 if TYPE_CHECKING:
     from sase.core.agent_launch_wire import LaunchFanoutPlanWire, LaunchFanoutSlotWire
 
-    from .models import XPrompt
+    from .models import Macro
 
 
 @dataclass(frozen=True)
@@ -159,20 +159,20 @@ def runtime_label_for_model(model: str) -> str:
 def _model_value_for_naming(
     model: str,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
+    extra_macros: dict[str, Macro] | None = None,
 ) -> str:
-    """Resolve xprompt shorthand and configured aliases for naming only."""
+    """Resolve macro shorthand and configured aliases for naming only."""
     from sase.llm_provider.config import resolve_model_alias
 
     model = _strip_model_alias_prefix(model)
     if "#" not in model:
         return resolve_model_alias(model)
 
-    from .processor import process_xprompt_references
+    from .processor import process_macro_references
 
-    expanded = process_xprompt_references(
+    expanded = process_macro_references(
         model,
-        extra_xprompts=extra_xprompts or None,
+        extra_macros=extra_macros or None,
     ).strip()
     if expanded == model:
         return resolve_model_alias(model)
@@ -221,14 +221,14 @@ def _format_id_arg(value: str) -> str:
 def apply_fanout_naming(
     plan: LaunchFanoutPlanWire,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
+    extra_macros: dict[str, Macro] | None = None,
 ) -> list[str]:
     """Compatibility wrapper returning only per-slot fan-out prompt text."""
     return [
         named.prompt
         for named in apply_fanout_naming_with_metadata(
             plan,
-            extra_xprompts=extra_xprompts,
+            extra_macros=extra_macros,
         )
     ]
 
@@ -236,7 +236,7 @@ def apply_fanout_naming(
 def apply_fanout_naming_with_metadata(
     plan: LaunchFanoutPlanWire,
     *,
-    extra_xprompts: dict[str, XPrompt] | None = None,
+    extra_macros: dict[str, Macro] | None = None,
 ) -> list[_NamedFanoutPrompt]:
     """Add ``%id:<base>.<id>`` to each named child of a fan-out plan.
 
@@ -249,7 +249,7 @@ def apply_fanout_naming_with_metadata(
     sub_prompts = [slot.prompt for slot in slots]
     models_per_sub = [_slot_model_value(slot) for slot in slots]
     label_models_per_sub = [
-        _model_value_for_naming(model, extra_xprompts=extra_xprompts)
+        _model_value_for_naming(model, extra_macros=extra_macros)
         if model is not None
         else None
         for model in models_per_sub

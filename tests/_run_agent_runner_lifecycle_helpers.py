@@ -58,7 +58,7 @@ def make_context(
         artifacts_timestamp="20260712120000",
         artifacts_dir=str(tmp_path),
         output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
+        submitted_prompt="do work",
         prompt="do work",
         is_home_mode=is_home_mode,
     )

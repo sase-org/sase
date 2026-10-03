@@ -41,9 +41,9 @@ from sase.artifacts import (
 from sase.content import ensure_str_content
 from sase.workflows.base import BaseWorkflow
 from sase.workflows.utils import get_cl_name_from_branch
-from sase.macro import escape_for_xprompt
+from sase.macro import escape_for_macro
 from sase.macro.output_validation import extract_structured_content
-from sase.macro.tags import XPromptTag, get_by_tag, get_by_tag_strict
+from sase.macro.tags import MacroTag, get_by_tag, get_by_tag_strict
 from sase.macro.workflow_executor_utils import render_template
 
 log = logging.getLogger(__name__)
@@ -55,9 +55,9 @@ def _build_mentor_prompt(
     vcs_type: str,
     project: str | None = None,
 ) -> str:
-    """Build the mentor prompt by resolving the #mentor xprompt workflow.
+    """Build the mentor prompt by resolving the #mentor macro workflow.
 
-    Resolves the ``#mentor`` tagged xprompt, executes its pre-steps
+    Resolves the ``#mentor`` tagged macro, executes its pre-steps
     (focus area rendering), and returns the rendered prompt_part.
     The result contains embedded workflow references (workspace context and ``#json``)
     that must be expanded by ``expand_embedded_workflows_in_query``.
@@ -66,12 +66,12 @@ def _build_mentor_prompt(
         mentor: The mentor configuration.
         cl_name: Patch name passed to the embedded workflow.
         vcs_type: Registered workspace workflow type.
-        project: Optional project name for xprompt resolution.
+        project: Optional project name for macro resolution.
 
     Returns:
         The rendered prompt with embedded workflow references.
     """
-    mentor_wf = get_by_tag_strict(XPromptTag.mentor, project=project)
+    mentor_wf = get_by_tag_strict(MacroTag.mentor, project=project)
     if mentor_wf is None:
         raise RuntimeError(
             "No xprompt with tag 'mentor' found. "
@@ -83,8 +83,8 @@ def _build_mentor_prompt(
         [asdict(fa) for fa in mentor.focus_areas], ensure_ascii=False
     )
     schema = json.dumps(MENTOR_OUTPUT_JSON_SCHEMA, ensure_ascii=False)
-    # Resolve the diff_file-tagged xprompt (e.g., #pr_diff or #cl_diff)
-    diff_wf = get_by_tag(XPromptTag.diff_file, project=project, vcs_hint=vcs_type)
+    # Resolve the diff_file-tagged macro (e.g., #pr_diff or #cl_diff)
+    diff_wf = get_by_tag(MacroTag.diff_file, project=project, vcs_hint=vcs_type)
     diff_ref = diff_wf.name if diff_wf else ""
 
     context: dict[str, str] = {
@@ -117,19 +117,19 @@ def _build_mentor_prompt_invocation(
     cl_name: str,
     vcs_type: str,
 ) -> str:
-    """Build the generated top-level mentor xprompt invocation for reports."""
-    mentor_wf = get_by_tag(XPromptTag.mentor)
+    """Build the generated top-level mentor macro invocation for reports."""
+    mentor_wf = get_by_tag(MacroTag.mentor)
     mentor_name = mentor_wf.name if mentor_wf else "mentor"
     focus_areas_json = json.dumps(
         [asdict(fa) for fa in mentor.focus_areas], ensure_ascii=False
     )
     schema = json.dumps(MENTOR_OUTPUT_JSON_SCHEMA, ensure_ascii=False)
     return (
-        f'#{mentor_name}(role="{escape_for_xprompt(mentor.role)}", '
-        f'focus_areas_json="{escape_for_xprompt(focus_areas_json)}", '
-        f'cl_name="{escape_for_xprompt(cl_name)}", '
-        f'vcs_type="{escape_for_xprompt(vcs_type)}", '
-        f'schema="{escape_for_xprompt(schema)}")'
+        f'#{mentor_name}(role="{escape_for_macro(mentor.role)}", '
+        f'focus_areas_json="{escape_for_macro(focus_areas_json)}", '
+        f'cl_name="{escape_for_macro(cl_name)}", '
+        f'vcs_type="{escape_for_macro(vcs_type)}", '
+        f'schema="{escape_for_macro(schema)}")'
     )
 
 
@@ -228,7 +228,7 @@ class MentorWorkflow(BaseWorkflow):
         self._timestamp = timestamp
         self._who = who
         self.response_path: str | None = None
-        self.submitted_xprompt: str | None = None
+        self.submitted_prompt: str | None = None
         self.comment_count: int = 0
         self._mentor: MentorConfig | None = None
         self._console = Console()
@@ -314,9 +314,9 @@ class MentorWorkflow(BaseWorkflow):
                 artifacts_dir, f"mentor-{self.mentor_name}", workflow_tag
             )
 
-            # Build prompt via #mentor xprompt workflow
+            # Build prompt via #mentor macro workflow
             print_status("Building mentor prompt...", "progress")
-            self.submitted_xprompt = _build_mentor_prompt_invocation(
+            self.submitted_prompt = _build_mentor_prompt_invocation(
                 self._mentor, resolved_cl_name, vcs_type
             )
             prompt = _build_mentor_prompt(

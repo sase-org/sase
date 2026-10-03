@@ -25,7 +25,7 @@ class EntryPromptHistoryMixin:
         """
         from sase.core.time import generate_timestamp
         from sase.history.vcs_macro_mru import (
-            load_launchable_vcs_xprompt_mru_pairs,
+            load_launchable_vcs_macro_mru_pairs,
             mru_prefix_project_name,
         )
 
@@ -39,7 +39,7 @@ class EntryPromptHistoryMixin:
 
         pairs = peek_ready_mru_pairs(self)
         if pairs is None:
-            pairs = list(load_launchable_vcs_xprompt_mru_pairs(prune=False))
+            pairs = list(load_launchable_vcs_macro_mru_pairs(prune=False))
         if not pairs:
             self.notify("No previously launched VCS xprompt", severity="warning")  # type: ignore[attr-defined]
             return

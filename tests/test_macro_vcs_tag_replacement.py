@@ -1,4 +1,4 @@
-"""Tests for xprompt._parsing VCS tag replacement and inheritance helpers."""
+"""Tests for macro._parsing VCS tag replacement and inheritance helpers."""
 
 import re
 from unittest.mock import patch

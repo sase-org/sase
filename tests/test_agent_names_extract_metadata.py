@@ -12,7 +12,7 @@ from sase.agent.batch_predecessor import (
     batch_predecessor_context,
     encode_batch_predecessor_context,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from tests._agent_names_extract_fixtures import mock_provider, run_extract
 
 
@@ -246,19 +246,19 @@ class TestExtractDirectivesMetadata:
         assert result["info"].wait_identity_deps == [payload]
         assert result["meta"]["batch_predecessor_context"] == payload
 
-    def test_batch_predecessor_context_binds_local_xprompt_wait(
+    def test_batch_predecessor_context_binds_local_macro_wait(
         self,
         tmp_path: Path,
     ) -> None:
-        from sase.agent.multi_prompt_launcher import _serialize_local_xprompts
+        from sase.agent.multi_prompt_launcher import _serialize_local_macros
         from sase.axe.run_agent_phases import extract_directives_and_write_meta
 
         workspace = tmp_path / "workspace"
         artifacts = tmp_path / "artifacts"
         workspace.mkdir()
         artifacts.mkdir()
-        xprompts_path = _serialize_local_xprompts(
-            {"_review": XPrompt(name="_review", content="%w()\nReview")}
+        macros_path = _serialize_local_macros(
+            {"_review": Macro(name="_review", content="%w()\nReview")}
         )
         payload = _predecessor_context_payload(tmp_path, name=None)
 
@@ -267,7 +267,7 @@ class TestExtractDirectivesMetadata:
                 os.environ,
                 {
                     "SASE_AGENT_AUTO_DISMISS": "1",
-                    "SASE_AGENT_LOCAL_XPROMPTS": xprompts_path,
+                    "SASE_AGENT_LOCAL_XPROMPTS": macros_path,
                     SASE_AGENT_PREDECESSOR_CONTEXT_ENV: json.dumps(payload),
                 },
                 clear=False,
@@ -303,7 +303,7 @@ class TestExtractDirectivesMetadata:
         assert meta["wait_for_artifacts"] == [payload]
         assert meta["batch_predecessor_context"] == payload
         assert "wait_for" not in meta
-        assert not os.path.exists(xprompts_path)
+        assert not os.path.exists(macros_path)
 
     def test_skips_auto_name_when_auto_dismiss(self, tmp_path: Path) -> None:
         """Auto-dismiss agents should not get an auto-assigned name."""
@@ -458,9 +458,7 @@ class TestExtractDirectivesMetadata:
 
         with (
             patch.dict(os.environ, {"SASE_AGENT_AUTO_DISMISS": "1"}, clear=False),
-            patch(
-                "sase.macro.process_xprompt_references", side_effect=lambda p, **kw: p
-            ),
+            patch("sase.macro.process_macro_references", side_effect=lambda p, **kw: p),
             patch(
                 "sase.llm_provider.registry.get_default_provider_name",
                 return_value="test",

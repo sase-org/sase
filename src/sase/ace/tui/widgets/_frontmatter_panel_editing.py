@@ -236,7 +236,7 @@ class FrontmatterPanelEditingMixin(FrontmatterPanelCellEditingMixin):
         if kind == "input":
             self._model.remove_input(key)
         elif kind == "xprompt":
-            self._model.remove_xprompt(key)
+            self._model.remove_macro(key)
         else:
             self._model.clear_field(key)
         self._after_mutation()
@@ -257,7 +257,7 @@ class FrontmatterPanelEditingMixin(FrontmatterPanelCellEditingMixin):
             item = self._model.inputs.pop(index)
             self._model.inputs.insert(target, item)
         else:
-            entries = list(self._model.xprompts.items())
+            entries = list(self._model.macros.items())
             index = next(
                 i for i, (entry_name, _) in enumerate(entries) if entry_name == name
             )
@@ -267,7 +267,7 @@ class FrontmatterPanelEditingMixin(FrontmatterPanelCellEditingMixin):
                 return
             entry = entries.pop(index)
             entries.insert(target, entry)
-            self._model.xprompts = dict(entries)
+            self._model.macros = dict(entries)
         self._fields = self._model.present_fields()
         self._select_nav((kind, name))
         self._feedback = f"Moved {name} {'down' if delta > 0 else 'up'}"

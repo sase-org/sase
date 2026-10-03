@@ -25,7 +25,7 @@ from sase.ace.tui.launchable_mru import (
     LaunchableMruSnapshot,
     build_launchable_mru_data,
 )
-from sase.history.vcs_macro_mru import load_launchable_vcs_xprompt_mru
+from sase.history.vcs_macro_mru import load_launchable_vcs_macro_mru
 from tests._vcs_macro_mru_helpers import patched_mru_file
 from tests.ace.tui._prompt_key_io_probes import prompt_key_io_probe
 from tests.conftest import redirect_sase_home
@@ -80,7 +80,7 @@ def test_snapshot_ring_matches_loader_displays(
     built = build_launchable_mru_data(force=True)
     assert built is not None
     _signature, pairs, _token = built
-    assert [display for _, display in pairs] == load_launchable_vcs_xprompt_mru(
+    assert [display for _, display in pairs] == load_launchable_vcs_macro_mru(
         prune=False
     )
     # The build never writes: key paths must not prune the MRU file.
@@ -105,7 +105,7 @@ def test_build_failure_raises_for_error_snapshot(
     """Loader failure raises so the caller publishes ``error``, not stale data."""
     _seed_mru(tmp_path, monkeypatch, ["#git:foo"])
     with patch(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         side_effect=RuntimeError("boom"),
     ):
         with pytest.raises(RuntimeError):
@@ -342,7 +342,7 @@ async def test_snapshot_cycle_matches_loader_cycle_results(
 
     entries = ["#git:foo", "#git:bar"]
     _seed_mru(tmp_path, monkeypatch, entries)
-    expected_ring = load_launchable_vcs_xprompt_mru(prune=False)
+    expected_ring = load_launchable_vcs_macro_mru(prune=False)
 
     app = _SnapshotApp(_ready_snapshot(expected_ring))
     async with app.run_test() as pilot:
@@ -350,7 +350,7 @@ async def test_snapshot_cycle_matches_loader_cycle_results(
         ta.load_text("")
         ta.focus()
         with mock_patch(
-            "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru",
+            "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru",
             side_effect=AssertionError("snapshot path must not load"),
         ):
             await pilot.press("ctrl+p")

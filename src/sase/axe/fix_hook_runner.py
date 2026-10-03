@@ -48,7 +48,7 @@ from sase.main.query_handler import (
 )
 from sase.artifacts import create_artifacts_directory
 from sase.content import ensure_str_content
-from sase.macro import escape_for_xprompt, process_xprompt_references
+from sase.macro import escape_for_macro, process_macro_references
 
 
 def _update_hook_suffix(
@@ -131,7 +131,7 @@ def main() -> int:
     exit_code = 1
     error_summary: str | None = None
     error_traceback_str: str | None = None
-    submitted_xprompt: str | None = None
+    submitted_prompt: str | None = None
     propose_result: dict[str, object] | None = None
     start_time = time.time()
 
@@ -166,22 +166,22 @@ def main() -> int:
         print(f"Hook output: {hook_output_path}")
         print()
 
-        # Build the prompt using xprompt reference (tag-based lookup with fallback)
-        from sase.macro.tags import XPromptTag, get_by_tag
+        # Build the prompt using macro reference (tag-based lookup with fallback)
+        from sase.macro.tags import MacroTag, get_by_tag
 
-        fh_wf = get_by_tag(XPromptTag.fix_hook)
+        fh_wf = get_by_tag(MacroTag.fix_hook)
         fh_name = fh_wf.name if fh_wf else "fix_hook"
 
-        escaped_cmd = escape_for_xprompt(run_hook_command)
-        escaped_output = escape_for_xprompt(hook_output_path)
-        escaped_cl = escape_for_xprompt(changespec_name)
+        escaped_cmd = escape_for_macro(run_hook_command)
+        escaped_output = escape_for_macro(hook_output_path)
+        escaped_cl = escape_for_macro(changespec_name)
         prompt_ref = (
             f'#{fh_name}(hook_command="{escaped_cmd}", '
             f'output_file="{escaped_output}", '
             f'cl_name="{escaped_cl}", vcs_type="{vcs_type}")'
         )
-        submitted_xprompt = prompt_ref
-        prompt = process_xprompt_references(prompt_ref)
+        submitted_prompt = prompt_ref
+        prompt = process_macro_references(prompt_ref)
 
         # Expand embedded workflows (#propose from fix_hook.md). This also
         # publishes #propose's SASE_COMMIT_METHOD before the agent is invoked.
@@ -336,7 +336,7 @@ def main() -> int:
                 duration=duration,
                 error_summary=error_summary,
                 error_traceback=error_traceback_str,
-                submitted_xprompt=submitted_xprompt,
+                submitted_prompt=submitted_prompt,
                 output_path=output_log_path,
             )
 

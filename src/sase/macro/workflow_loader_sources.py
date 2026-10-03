@@ -5,22 +5,22 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 
-from sase.content_layout import resolve_xprompt_file_sources
+from sase.content_layout import resolve_macro_file_sources
 from sase.core.paths import get_sase_managed_tmpdir
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.macro.discovery_order import (
     RANK_FILESYSTEM_BASE,
-    RANK_PACKAGE_XPROMPTS,
+    RANK_PACKAGE_MACROS,
     RANK_PLUGIN,
     RANK_REGISTERED_PROJECT_BASE,
     source_rank,
 )
 from sase.macro.loader import (
-    get_sase_package_xprompts_dir,
-    get_xprompt_search_paths,
+    get_sase_package_macros_dir,
+    get_macro_search_paths,
 )
 from sase.macro.project_identity import (
-    canonical_xprompt_project,
+    canonical_macro_project,
     known_project_namespaces,
 )
 from sase.macro.workflow_loader_definition import (
@@ -34,16 +34,14 @@ def discover_workflow_files(
     project: str | None = None,
 ) -> list[tuple[Path, int, bool]]:
     """Find workflow files with source priority and locality information."""
-    sources = resolve_xprompt_file_sources(project=project)
+    sources = resolve_macro_file_sources(project=project)
     namespaced_dirs = {
         source.path
         for source in sources
         if source.path is not None and source.project_namespaced
     }
     search_paths = (
-        get_xprompt_search_paths()
-        if project is None
-        else get_xprompt_search_paths(project)
+        get_macro_search_paths() if project is None else get_macro_search_paths(project)
     )
     if not namespaced_dirs:
         cwd = Path.cwd()
@@ -92,7 +90,7 @@ def load_workflows_from_files(project: str | None = None) -> dict[str, Workflow]
 
 def load_workflows_from_internal() -> dict[str, Workflow]:
     """Load workflows bundled in the SASE package."""
-    internal_dir = get_sase_package_xprompts_dir()
+    internal_dir = get_sase_package_macros_dir()
     if not internal_dir.is_dir():
         return {}
 
@@ -103,26 +101,26 @@ def load_workflows_from_internal() -> dict[str, Workflow]:
                 continue
             workflow = load_workflow_from_file(workflow_file)
             if workflow:
-                workflow.discovery_rank = RANK_PACKAGE_XPROMPTS
+                workflow.discovery_rank = RANK_PACKAGE_MACROS
                 workflows[workflow.name] = workflow
 
     return workflows
 
 
 def load_workflows_from_plugins() -> dict[str, Workflow]:
-    """Load workflows from plugin ``sase_xprompts`` resources."""
+    """Load workflows from plugin ``sase_macros`` resources."""
     if is_plugin_disabled("XPROMPTS"):
         return {}
 
     workflows: dict[str, Workflow] = {}
     for module in discover_plugin_resources("sase_xprompts"):
         try:
-            xprompts_dir = importlib.resources.files(module).joinpath("xprompts")
+            macros_dir = importlib.resources.files(module).joinpath("xprompts")
         except (TypeError, AttributeError):
             continue
 
         try:
-            entries = list(xprompts_dir.iterdir())  # type: ignore[union-attr]
+            entries = list(macros_dir.iterdir())  # type: ignore[union-attr]
         except (FileNotFoundError, OSError, TypeError):
             continue
 
@@ -161,7 +159,7 @@ def load_workflows_from_project(project: str) -> dict[str, Workflow]:
     workflows: dict[str, Workflow] = {}
     project_dirs = [
         source.path
-        for source in resolve_xprompt_file_sources(project=project)
+        for source in resolve_macro_file_sources(project=project)
         if source.path is not None and source.scope == "home_project"
     ]
     rank_by_path = {
@@ -191,7 +189,7 @@ def load_workflows_from_project_workspace(
     detected_project: str | None,
 ) -> dict[str, Workflow]:
     """Load workflows from a registered project's primary workspace."""
-    if canonical_xprompt_project(detected_project) == project:
+    if canonical_macro_project(detected_project) == project:
         return {}
 
     workspace_dir = known_project_namespaces().get(project)
@@ -201,7 +199,7 @@ def load_workflows_from_project_workspace(
     workflows: dict[str, Workflow] = {}
     project_dirs = [
         source.path
-        for source in resolve_xprompt_file_sources(
+        for source in resolve_macro_file_sources(
             project_root=workspace_dir,
             project=project,
         )
@@ -211,19 +209,19 @@ def load_workflows_from_project_workspace(
         project_dir: source_rank(RANK_REGISTERED_PROJECT_BASE, index, len(project_dirs))
         for index, project_dir in enumerate(project_dirs)
     }
-    for xprompt_dir in reversed(project_dirs):
-        if not xprompt_dir.is_dir():
+    for macro_dir in reversed(project_dirs):
+        if not macro_dir.is_dir():
             continue
 
         for extension in ("*.yml", "*.yaml"):
-            for workflow_file in sorted(xprompt_dir.glob(extension)):
+            for workflow_file in sorted(macro_dir.glob(extension)):
                 if not workflow_file.is_file():
                     continue
                 workflow = load_workflow_from_file(workflow_file)
                 if not workflow:
                     continue
                 namespaced = namespace_workflow(project, workflow)
-                namespaced.discovery_rank = rank_by_path[xprompt_dir]
+                namespaced.discovery_rank = rank_by_path[macro_dir]
                 if (
                     namespaced.name in workflows
                     and workflows[namespaced.name].discovery_rank

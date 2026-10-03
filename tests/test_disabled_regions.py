@@ -1,4 +1,4 @@
-"""Tests for disabled region protection in xprompt processing."""
+"""Tests for disabled region protection in macro processing."""
 
 from unittest.mock import MagicMock, patch
 
@@ -166,21 +166,21 @@ class TestStripDisabledRegions:
         assert strip_disabled_regions(text) == text
 
 
-class TestProcessXpromptReferencesDisabledRegions:
-    """Integration: process_xprompt_references skips disabled region content."""
+class TestProcessMacroReferencesDisabledRegions:
+    """Integration: process_macro_references skips disabled region content."""
 
-    @patch("sase.macro.processor.get_all_xprompts")
+    @patch("sase.macro.processor.get_all_macros")
     def test_expansion_ensures_disabled_marker_at_line_start(
         self,
-        mock_get_xprompts: MagicMock,
+        mock_get_macros: MagicMock,
     ) -> None:
-        """When xprompt expands to content starting with %xprompts_enabled:false
+        """When macro expands to content starting with %macros_enabled:false
         and is mid-line (after an unexpanded ref), a newline is prepended."""
-        from sase.macro.models import XPrompt
-        from sase.macro.processor import process_xprompt_references
+        from sase.macro.models import Macro
+        from sase.macro.processor import process_macro_references
 
-        mock_get_xprompts.return_value = {
-            "fork_test": XPrompt(
+        mock_get_macros.return_value = {
+            "fork_test": Macro(
                 name="fork_test",
                 content=(
                     "%xprompts_enabled:false\n"
@@ -193,8 +193,8 @@ class TestProcessXpromptReferencesDisabledRegions:
         }
         # Simulate: unexpanded VCS ref followed by #fork_test
         prompt = "#unknown_vcs:sase #fork_test"
-        result = process_xprompt_references(prompt)
-        # The %xprompts_enabled:false must be at a line start (after \n)
+        result = process_macro_references(prompt)
+        # The %macros_enabled:false must be at a line start (after \n)
         idx = result.index("%xprompts_enabled:false")
         assert idx == 0 or result[idx - 1] == "\n"
 
@@ -205,7 +205,7 @@ class TestEmbeddedWorkflowExpansionDisabledRegions:
     Regression test for the sase-t8.1--1 launch failure: the expander used to
     compute its skip set with ``code_literal_ranges`` (fenced/inline code
     only), so a workflow name mentioned as prose inside a
-    ``%xprompts_enabled:false`` region was wrongly treated as a live
+    ``%macros_enabled:false`` region was wrongly treated as a live
     reference and expanded.
     """
 
@@ -274,7 +274,7 @@ class TestPreprocessPromptLateDisabledRegions:
         """@refs inside disabled region with inline closing marker are not validated.
 
         Regression test: the validator must not see @i18n inside a
-        %xprompts_enabled:false region whose closing marker is inline.
+        %macros_enabled:false region whose closing marker is inline.
         """
         from sase.llm_provider.preprocessing import preprocess_prompt_late
 
@@ -314,14 +314,14 @@ class TestPreprocessPromptLateDisabledRegions:
         """Markers must be stripped even when preceded by unexpanded refs.
 
         Regression test: when an unexpanded VCS ref like #git:sase sits on the
-        same line as %xprompts_enabled:false, the marker must still be stripped
+        same line as %macros_enabled:false, the marker must still be stripped
         as long as it starts on its own line (after the newline fix in
-        process_xprompt_references / embedded workflow expansion).
+        process_macro_references / embedded workflow expansion).
         """
         from sase.llm_provider.preprocessing import preprocess_prompt_late
 
         # After the newline fix, the prompt looks like:
-        # #git:sase \n%xprompts_enabled:false\n...
+        # #git:sase \n%macros_enabled:false\n...
         prompt = (
             "#git:sase \n"
             "%xprompts_enabled:false\n"
@@ -393,7 +393,7 @@ class TestPreprocessPromptLateDisabledRegions:
         """Full two-phase pipeline must protect @refs inside disabled regions.
 
         Regression test: preprocess_prompt_early used to eagerly strip the
-        %xprompts_enabled:false/true markers via extract_prompt_directives,
+        %macros_enabled:false/true markers via extract_prompt_directives,
         which exposed @refs inside the region to validate_file_references in
         preprocess_prompt_late — triggering SystemExit on annotations like
         @Input that are not real files.

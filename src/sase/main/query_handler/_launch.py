@@ -365,7 +365,7 @@ def launch_query(query: str) -> None:
 
     for result in results:
         print(f"Agent started (PID {result.pid})")
-    _record_launched_vcs_xprompt_usage(query)
+    _record_launched_vcs_macro_usage(query)
     result_payload: dict[str, object] = {
         "count": len(results),
         "pids": [result.pid for result in results],
@@ -440,7 +440,7 @@ def _dispatch_direct_typed_launch_if_active(
     print(message)
     for item in result.results:
         print(f"Agent started (PID {item.pid})")
-    _record_launched_vcs_xprompt_usage(query)
+    _record_launched_vcs_macro_usage(query)
     from sase.ops.commands.run import emit_run_launch_result
 
     emit_run_launch_result(success=True, message=message, payload=result_payload)
@@ -521,23 +521,23 @@ def _exception_summary(exc: BaseException) -> str:
     return type(exc).__name__
 
 
-def _record_launched_vcs_xprompt_usage(query: str) -> None:
+def _record_launched_vcs_macro_usage(query: str) -> None:
     """Record one VCS MRU entry per launched multi-prompt segment.
 
     Entries are recorded in launch order so the last-launched segment ends up
     at the MRU head; a single-segment query keeps today's behavior.
     """
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.history.vcs_macro_mru import record_vcs_xprompt_usage
+    from sase.history.vcs_macro_mru import record_vcs_macro_usage
 
     segments = parse_multi_prompt(query).segments
     for segment in segments:
-        prefix = _launched_vcs_xprompt_prefix(segment)
+        prefix = _launched_vcs_macro_prefix(segment)
         if prefix is not None:
-            record_vcs_xprompt_usage(prefix)
+            record_vcs_macro_usage(prefix)
 
 
-def _launched_vcs_xprompt_prefix(segment: str) -> str | None:
+def _launched_vcs_macro_prefix(segment: str) -> str | None:
     """Return ``#<workflow>:<ref>`` for *segment*'s leading VCS tag, if any.
 
     Uses the launcher's own leading-tag semantics (skips a ``%directive``

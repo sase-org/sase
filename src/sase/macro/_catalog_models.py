@@ -1,4 +1,4 @@
-"""Shared models for the xprompt catalog builders."""
+"""Shared models for the macro catalog builders."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from sase.macro.models import MemoryType, XPrompt
+from sase.macro.models import MemoryType, Macro
 from sase.macro.workflow_models import Workflow
 
 
@@ -14,13 +14,13 @@ class PdfEngineUnavailable(RuntimeError):
     """Raised when no HTML-capable PDF engine is available on PATH."""
 
 
-class NoXpromptsFound(RuntimeError):
-    """Raised when there are no xprompts to include in the catalog."""
+class NoMacrosFound(RuntimeError):
+    """Raised when there are no macros to include in the catalog."""
 
 
 @dataclass(frozen=True)
 class CatalogStats:
-    """Summary statistics for the xprompt catalog."""
+    """Summary statistics for the macro catalog."""
 
     total: int
     by_source: dict[str, int]
@@ -35,7 +35,7 @@ class CatalogStats:
 
 @dataclass(frozen=True)
 class CatalogArtifact:
-    """Result of building the xprompt catalog."""
+    """Result of building the macro catalog."""
 
     pdf_path: Path
     stats: CatalogStats
@@ -43,7 +43,7 @@ class CatalogArtifact:
 
 @dataclass(frozen=True)
 class StructuredCatalogInput:
-    """Mobile-safe structured xprompt input metadata."""
+    """Mobile-safe structured macro input metadata."""
 
     name: str
     type: str
@@ -56,7 +56,7 @@ class StructuredCatalogInput:
 
 @dataclass(frozen=True)
 class StructuredCatalogEntry:
-    """Structured xprompt catalog entry."""
+    """Structured macro catalog entry."""
 
     name: str
     display_label: str
@@ -80,7 +80,7 @@ class StructuredCatalogEntry:
 
 @dataclass(frozen=True)
 class StructuredCatalogStats:
-    """Stats needed by the mobile xprompt catalog picker."""
+    """Stats needed by the mobile macro catalog picker."""
 
     total_count: int
     project_count: int
@@ -91,7 +91,7 @@ class StructuredCatalogStats:
 
 @dataclass(frozen=True)
 class StructuredCatalogAttachment:
-    """Safe metadata for an optional generated xprompt PDF catalog."""
+    """Safe metadata for an optional generated macro PDF catalog."""
 
     display_name: str
     content_type: str | None
@@ -110,7 +110,7 @@ class StructuredCatalogSkipped:
 
 @dataclass(frozen=True)
 class StructuredCatalogProjection:
-    """Pure structured xprompt catalog plus optional PDF metadata."""
+    """Pure structured macro catalog plus optional PDF metadata."""
 
     entries: list[StructuredCatalogEntry]
     stats: StructuredCatalogStats
@@ -121,9 +121,9 @@ class StructuredCatalogProjection:
 
 @dataclass
 class CatalogEntry:
-    """Internal representation of an xprompt for rendering."""
+    """Internal representation of a macro for rendering."""
 
-    xprompt: XPrompt
+    macro_def: Macro
     bucket: str
     project: str | None
 
@@ -162,7 +162,7 @@ SOURCE_BUCKET_LABELS = {
     "plugin": "Plugin",
 }
 
-# Backwards-compatible private names exported by sase.xprompt.catalog.
+# Backwards-compatible private names exported by sase.macro.catalog.
 _CatalogEntry = CatalogEntry
 _StructuredCatalogSource = StructuredCatalogSource
 _CatalogDocument = CatalogDocument

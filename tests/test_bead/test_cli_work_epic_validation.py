@@ -14,7 +14,7 @@ from sase.bead.project import BeadProject
 
 from .cli_work_helpers import make_args, seed_patch_epic, seed_diamond, seed_task
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 def test_work_patch_epic_errors_without_project_context(

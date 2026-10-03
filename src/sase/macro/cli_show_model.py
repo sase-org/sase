@@ -1,4 +1,4 @@
-"""Versioned, I/O-free model for ``sase xprompt show``."""
+"""Versioned, I/O-free model for ``sase macro show``."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ class ShowInput:
 
 
 @dataclass(frozen=True, slots=True)
-class ShowLocalXPrompt:
+class ShowLocalMacro:
     name: str
     description: str | None
     input_signature: str | None
@@ -63,7 +63,7 @@ class ShowProvenance:
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptShowRecord:
+class MacroShowRecord:
     name: str
     reference: str
     prefix: str
@@ -82,7 +82,7 @@ class XPromptShowRecord:
     log_skill_use: bool | None
     input_signature: str | None
     inputs: list[ShowInput]
-    local_xprompts: list[ShowLocalXPrompt]
+    local_macros: list[ShowLocalMacro]
     steps: list[ShowStep]
     body: str | None
     body_first_line: int | None
@@ -108,9 +108,9 @@ class XPromptShowRecord:
 __all__ = [
     "SHOW_SCHEMA_VERSION",
     "ShowInput",
-    "ShowLocalXPrompt",
+    "ShowLocalMacro",
     "ShowProvenance",
     "ShowReference",
     "ShowStep",
-    "XPromptShowRecord",
+    "MacroShowRecord",
 ]

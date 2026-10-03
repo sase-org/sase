@@ -152,7 +152,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
     output_pipe: BoundedLogPipe | None = None
     try:
         proc = _claim_supervisor(proc, supervisor_id)
-        prepare_error = _prepare_xprompt_proc(proc, termination)
+        prepare_error = _prepare_prompt_proc(proc, termination)
         if prepare_error is not None:
             message = prepare_error
             status = "killed" if termination.requested else "error"
@@ -215,16 +215,16 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
     return 0 if status == "success" else 1
 
 
-def _prepare_xprompt_proc(proc: Proc, termination: _Termination) -> str | None:
+def _prepare_prompt_proc(proc: Proc, termination: _Termination) -> str | None:
     from sase.legacy_xprompt_names import prompt_proc_origin_matches
 
     if not prompt_proc_origin_matches(proc.origin):
         return None
-    from sase.agent.launch_proc_runtime import prepare_xprompt_proc_supervisor
+    from sase.agent.launch_proc_runtime import prepare_prompt_proc_supervisor
 
     if termination.requested:
         return "proc killed"
-    return prepare_xprompt_proc_supervisor(
+    return prepare_prompt_proc_supervisor(
         proc,
         cancelled=lambda: termination.requested,
     )

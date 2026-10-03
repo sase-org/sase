@@ -1,6 +1,6 @@
 """Compatibility imports for xprompt YAML config insertion helpers."""
 
-from sase.macro.config_yaml import generate_xprompt_yaml, insert_xprompt_into_config
+from sase.macro.config_yaml import generate_macro_yaml, insert_macro_into_config
 
 
 def _generate_xprompt_yaml(
@@ -9,7 +9,7 @@ def _generate_xprompt_yaml(
     content: str,
 ) -> list[str]:
     """Backward-compatible private test helper name."""
-    return generate_xprompt_yaml(name, inputs, content)
+    return generate_macro_yaml(name, inputs, content)
 
 
-__all__ = ["_generate_xprompt_yaml", "insert_xprompt_into_config"]
+__all__ = ["_generate_xprompt_yaml", "insert_macro_into_config"]

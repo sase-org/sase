@@ -14,7 +14,7 @@ from sase.macro.workflow_loader import (
     get_all_workflows,
 )
 from sase.macro.models import InputArg
-from sase.macro.project_identity import invalidate_xprompt_project_identity
+from sase.macro.project_identity import invalidate_macro_project_identity
 from sase.macro.workflow_models import Workflow
 from tests.main.project_handler_helpers import _disk_project_records, _write_project
 
@@ -37,9 +37,9 @@ def workflow_project_registry(
         _disk_project_records,
     )
     monkeypatch.setattr(loader_sources, "list_project_records", _disk_project_records)
-    invalidate_xprompt_project_identity()
+    invalidate_macro_project_identity()
     yield projects_root
-    invalidate_xprompt_project_identity()
+    invalidate_macro_project_identity()
 
 
 def _write_registered_workflow_project(
@@ -48,9 +48,9 @@ def _write_registered_workflow_project(
     *,
     state: str = "enabled",
 ) -> Path:
-    xprompts = workspace / "sase" / "xprompts"
-    xprompts.mkdir(parents=True)
-    flow = xprompts / "flow.yml"
+    macros = workspace / "sase" / "xprompts"
+    macros.mkdir(parents=True)
+    flow = macros / "flow.yml"
     flow.write_text(
         "steps:\n  - name: run\n    bash: echo registry\n",
         encoding="utf-8",
@@ -233,7 +233,7 @@ def test_yml_files_discovered_as_workflow_files() -> None:
         )
 
         with patch(
-            "sase.macro.workflow_loader.get_xprompt_search_paths",
+            "sase.macro.workflow_loader.get_macro_search_paths",
             return_value=[search_dir],
         ):
             discovered = _discover_workflow_files()
@@ -365,10 +365,10 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
     """Project-scoped workflows load from the known primary checkout."""
     workspace = tmp_path / "sase"
     other_cwd = tmp_path / "other"
-    xprompts = workspace / "sase" / "xprompts"
-    xprompts.mkdir(parents=True)
+    macros = workspace / "sase" / "xprompts"
+    macros.mkdir(parents=True)
     other_cwd.mkdir()
-    (xprompts / "maintenance.yml").write_text(
+    (macros / "maintenance.yml").write_text(
         "steps:\n  - name: run\n    bash: echo maintain\n",
         encoding="utf-8",
     )
@@ -396,9 +396,7 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
         workflows = get_all_workflows(project="sase")
 
     assert "sase/maintenance" in workflows
-    assert workflows["sase/maintenance"].source_path == str(
-        xprompts / "maintenance.yml"
-    )
+    assert workflows["sase/maintenance"].source_path == str(macros / "maintenance.yml")
 
 
 def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
@@ -407,18 +405,18 @@ def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
 ) -> None:  # type: ignore[no-untyped-def]
     """``#gh:sase-org/sase`` resolves to the ``sase`` workspace's workflows.
 
-    Confirms synthetic SASE workflows in ``sase/xprompts/`` are visible through
+    Confirms synthetic SASE workflows in ``sase/macros/`` are visible through
     the known-project workspace fallback
     once the resolver has normalized ``sase-org/sase`` to the registered
     ``sase`` project name.
     """
     workspace = tmp_path / "sase"
     other_cwd = tmp_path / "other"
-    xprompts = workspace / "sase" / "xprompts"
-    xprompts.mkdir(parents=True)
+    macros = workspace / "sase" / "xprompts"
+    macros.mkdir(parents=True)
     other_cwd.mkdir()
     for name in ("daily_checks", "weekly_cleanup", "release_notes"):
-        (xprompts / f"{name}.yml").write_text(
+        (macros / f"{name}.yml").write_text(
             "steps:\n  - name: run\n    bash: echo " + name + "\n",
             encoding="utf-8",
         )

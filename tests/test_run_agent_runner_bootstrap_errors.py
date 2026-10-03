@@ -153,7 +153,7 @@ def test_preprocessing_failure_records_failed_done_and_finalizes(
         stack.enter_context(
             patch.object(
                 run_agent_runner_bootstrap,
-                "preprocess_prompt_xprompts",
+                "preprocess_prompt_macros",
                 side_effect=RuntimeError("xprompt bootstrap failed"),
             )
         )
@@ -164,7 +164,7 @@ def test_preprocessing_failure_records_failed_done_and_finalizes(
     assert exc_info.value.code == 1
     done = json.loads((artifacts_dir / "done.json").read_text(encoding="utf-8"))
     assert done["error"] == "RuntimeError: xprompt bootstrap failed"
-    assert "preprocess_prompt_xprompts" in done["traceback"]
+    assert "preprocess_prompt_macros" in done["traceback"]
     assert finalize.call_count == 1
 
 
@@ -200,7 +200,7 @@ def test_refreshed_bootstrap_preserves_phase_launch_metadata(
         stack.enter_context(
             patch.object(
                 run_agent_runner_bootstrap,
-                "preprocess_prompt_xprompts",
+                "preprocess_prompt_macros",
                 side_effect=RuntimeError("stop after refreshed bootstrap"),
             )
         )
@@ -232,7 +232,7 @@ def test_user_kill_during_bootstrap_preserves_exit_and_skips_error_recording(
         stack.enter_context(
             patch.object(
                 run_agent_runner_bootstrap,
-                "preprocess_prompt_xprompts",
+                "preprocess_prompt_macros",
                 side_effect=SystemExit(143),
             )
         )

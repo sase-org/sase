@@ -1,4 +1,4 @@
-"""Display and insertion helpers for xprompt references."""
+"""Display and insertion helpers for macro references."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ def _workflow_uses_standalone_reference_marker(workflow: Workflow) -> bool:
 
 
 def workflow_kind_value(workflow: Workflow) -> str:
-    """Return the stable catalog kind for a workflow-like xprompt entry."""
+    """Return the stable catalog kind for a workflow-like macro entry."""
     if workflow.memory_type is not None:
         return "memory"
     kind = workflow.prompt_kind()
-    if kind is WorkflowKind.SIMPLE_XPROMPT:
+    if kind is WorkflowKind.SIMPLE_MACRO:
         return "xprompt"
     return kind.value
 
@@ -28,7 +28,7 @@ def workflow_reference_prefix(workflow: Workflow) -> str:
 
 
 def workflow_reference_insertion(name: str, workflow: Workflow) -> str:
-    """Return the complete text inserted for an xprompt reference."""
+    """Return the complete text inserted for a macro reference."""
     return f"{workflow_reference_prefix(workflow)}{name}"
 
 

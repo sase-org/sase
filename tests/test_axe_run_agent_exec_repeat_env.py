@@ -16,7 +16,7 @@ def _mock_exec_ctx(tmp_path: Path, **overrides: Any) -> MagicMock:
     ctx.cl_name = "test"
     ctx.workspace_num = 1
     ctx.workspace_dir = str(tmp_path)
-    ctx.local_xprompts = {}
+    ctx.local_macros = {}
     ctx.artifacts_dir = str(tmp_path)
     ctx.is_home_mode = False
     ctx.project_name = "test"
@@ -55,7 +55,7 @@ class TestRepeatIterationEnv:
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
-        mock_wf.xprompts = {}
+        mock_wf.macros = {}
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 
@@ -84,7 +84,7 @@ class TestRepeatIterationEnv:
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
-        mock_wf.xprompts = {}
+        mock_wf.macros = {}
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 
@@ -116,7 +116,7 @@ class TestWaitChatsInjection:
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
-        mock_wf.xprompts = {}
+        mock_wf.macros = {}
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 
@@ -146,7 +146,7 @@ class TestWaitChatsInjection:
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
-        mock_wf.xprompts = {}
+        mock_wf.macros = {}
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 
@@ -171,7 +171,7 @@ class TestWaitChatsInjection:
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
-        mock_wf.xprompts = {}
+        mock_wf.macros = {}
         mock_create.return_value = mock_wf
 
         def execute(*args: object, **_kwargs: object) -> MagicMock:
@@ -206,7 +206,7 @@ class TestInheritedVcsInjection:
 
         mock_wf = MagicMock()
         mock_wf.name = "anon"
-        mock_wf.xprompts = {}
+        mock_wf.macros = {}
         mock_create.return_value = mock_wf
         mock_execute.return_value = MagicMock(response_text="done")
 

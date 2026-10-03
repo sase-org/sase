@@ -1,7 +1,7 @@
-"""Dry-run / explain mode for xprompt workflows.
+"""Dry-run / explain mode for macro workflows.
 
 Shows the full execution plan without executing anything:
-- Expanded xprompt references
+- Expanded macro references
 - Resolved Jinja2 templates (where args allow)
 - Step order, conditions, loops
 - Output schemas and dependencies
@@ -339,12 +339,12 @@ def explain_workflow(
             line.append(repr(v), style="white")
             console.print(line)
 
-    # --- Local xprompts ---
-    if workflow.xprompts:
+    # --- Local macros ---
+    if workflow.macros:
         console.print()
         line = Text()
         line.append("Local xprompts: ", style="bold underline")
-        line.append(", ".join(sorted(workflow.xprompts)), style="magenta")
+        line.append(", ".join(sorted(workflow.macros)), style="magenta")
         console.print(line)
 
     # --- Execution plan ---

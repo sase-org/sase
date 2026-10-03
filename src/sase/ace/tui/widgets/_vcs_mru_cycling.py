@@ -437,9 +437,9 @@ class VcsMruCyclingMixin(_MixinBase):
             except Exception:  # noqa: BLE001 - hint is best-effort.
                 pass
             return None
-        from sase.history.vcs_macro_mru import load_launchable_vcs_xprompt_mru
+        from sase.history.vcs_macro_mru import load_launchable_vcs_macro_mru
 
-        return load_launchable_vcs_xprompt_mru(prune=False)
+        return load_launchable_vcs_macro_mru(prune=False)
 
     def _handle_vcs_mru_cycle_key(self, key: VcsMruCycleKey) -> bool:
         """Apply a directional VCS MRU cycle keypress if one is available.

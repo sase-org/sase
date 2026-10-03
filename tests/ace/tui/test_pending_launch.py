@@ -640,7 +640,7 @@ async def test_submit_time_vcs_replay_is_recorded_off_the_ui_thread(
     ui_thread = threading.get_ident()
     recorded: list[tuple[str, int]] = []
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.record_vcs_xprompt_usage",
+        "sase.history.vcs_macro_mru.record_vcs_macro_usage",
         lambda prefix: recorded.append((prefix, threading.get_ident())),
     )
     app = _FakeApp()

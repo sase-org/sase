@@ -34,13 +34,13 @@ def sanitize_resume_prompt(prompt: str) -> str:
     if not prompt:
         return prompt
 
-    # Lazy imports avoid import-cycle risk with sase.xprompt.
+    # Lazy imports avoid import-cycle risk with sase.macro.
     from sase.macro._disabled_regions import strip_disabled_region_markers
     from sase.macro._fenced_blocks import (
         protect_fenced_blocks,
         unprotect_fenced_blocks,
     )
-    from sase.macro._parsing_references import iter_xprompt_references
+    from sase.macro._parsing_references import iter_macro_references
     from sase.macro.directives import strip_known_directives
 
     fenced_blocks: list[str] = []
@@ -49,7 +49,7 @@ def sanitize_resume_prompt(prompt: str) -> str:
     protected = strip_disabled_region_markers(protected)
 
     refs = sorted(
-        iter_xprompt_references(protected), key=lambda ref: ref.start, reverse=True
+        iter_macro_references(protected), key=lambda ref: ref.start, reverse=True
     )
     for ref in refs:
         protected = protected[: ref.start] + protected[ref.end :]
@@ -66,8 +66,8 @@ def sanitize_resume_prompt(prompt: str) -> str:
 def find_resume_refs(text: str) -> list[tuple[str, str, str]]:
     """Find and flatten all current or legacy fork references in text."""
     results: list[tuple[str, str, str]] = []
-    for full_match, xprompt_name, arguments in find_resume_ref_groups(text):
-        results.extend((full_match, xprompt_name, argument) for argument in arguments)
+    for full_match, macro_name, arguments in find_resume_ref_groups(text):
+        results.extend((full_match, macro_name, argument) for argument in arguments)
     return results
 
 
@@ -76,30 +76,30 @@ def find_resume_ref_groups(text: str) -> list[tuple[str, str, list[str]]]:
     results: list[tuple[str, str, list[str]]] = []
     for match in _RESUME_REF_RE.finditer(text):
         full_match = match.group(0)
-        xprompt_name = match.group(1)
+        macro_name = match.group(1)
         raw_arg = match.group(2) or match.group(3)
         if raw_arg.startswith("`") and raw_arg.endswith("`"):
             arguments = [raw_arg[1:-1]]
-        elif xprompt_name in {"fork", "resume"}:
+        elif macro_name in {"fork", "resume"}:
             from sase.macro._parsing import parse_args
 
             arguments, _ = parse_args(raw_arg, preserve_empty_args=True)
             arguments = [argument for argument in arguments if argument]
         else:
             arguments = [raw_arg]
-        results.append((full_match, xprompt_name, arguments))
+        results.append((full_match, macro_name, arguments))
     return results
 
 
-def resolve_resume_to_chat_path(xprompt_name: str, argument: str) -> str | None:
+def resolve_resume_to_chat_path(macro_name: str, argument: str) -> str | None:
     """Resolve a fork/resume reference to a chat file path."""
-    if xprompt_name in {"fork_by_chat", "resume_by_chat"}:
+    if macro_name in {"fork_by_chat", "resume_by_chat"}:
         path = os.path.expanduser(argument)
         if not path.endswith(".md"):
             return resolve_chat_file_path(path)
         return path if os.path.exists(path) else None
 
-    if xprompt_name == "fork":
+    if macro_name == "fork":
         try:
             from sase.core.agent_tribe import parse_tribe_reference
 
@@ -234,10 +234,10 @@ def load_chat_for_resume(
     expanded_turns: list[tuple[str, str]] = []
     for prompt, response in turns:
         refs = find_resume_ref_groups(prompt) if find_resume_refs(prompt) else []
-        for full_match, xprompt_name, arguments in refs:
+        for full_match, macro_name, arguments in refs:
             needs_fallback = False
             for argument in arguments:
-                resolved_path = resolve_resume_to_chat_path(xprompt_name, argument)
+                resolved_path = resolve_resume_to_chat_path(macro_name, argument)
                 normalized_path = (
                     os.path.abspath(os.path.expanduser(resolved_path))
                     if resolved_path

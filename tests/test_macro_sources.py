@@ -1,4 +1,4 @@
-"""Tests for xprompt definition provenance resolution."""
+"""Tests for macro definition provenance resolution."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from sase._repo_inventory_models import RepoInventory, RepoRecord
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from sase.macro.macro_sources import (
-    collect_xprompt_sources,
+    collect_macro_sources,
     definition_line_for,
     _resolve_definition_repo,
 )
@@ -32,20 +32,20 @@ def _repo(name: str, root: Path) -> RepoRecord:
 
 def _patch_catalogs(
     monkeypatch: pytest.MonkeyPatch,
-    parts: dict[str, XPrompt],
+    parts: dict[str, Macro],
 ) -> None:
-    import sase.macro.used_macros as used_xprompts
+    import sase.macro.used_macros as used_macros
 
-    monkeypatch.setattr(used_xprompts, "get_all_xprompts", lambda: parts)
-    monkeypatch.setattr(used_xprompts, "get_all_workflows", lambda: {})
-    monkeypatch.setattr(used_xprompts, "resolve_xprompt_aliases", lambda value: value)
+    monkeypatch.setattr(used_macros, "get_all_macros", lambda: parts)
+    monkeypatch.setattr(used_macros, "get_all_workflows", lambda: {})
+    monkeypatch.setattr(used_macros, "resolve_macro_aliases", lambda value: value)
 
 
 def test_collects_project_definition_and_preserves_exact_vcs_token(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import sase.macro.used_macros as used_xprompts
+    import sase.macro.used_macros as used_macros
     import sase.macro.macro_sources as sources
 
     root = tmp_path / "project"
@@ -54,10 +54,10 @@ def test_collects_project_definition_and_preserves_exact_vcs_token(
     definition.write_text("Deploy it.\n", encoding="utf-8")
     _patch_catalogs(
         monkeypatch,
-        {"gh": XPrompt(name="gh", content="", source_path=str(definition))},
+        {"gh": Macro(name="gh", content="", source_path=str(definition))},
     )
     monkeypatch.setattr(
-        used_xprompts,
+        used_macros,
         "normalize_vcs_underscore_refs",
         lambda value: value.replace("#gh_project", "#gh:project"),
     )
@@ -68,7 +68,7 @@ def test_collects_project_definition_and_preserves_exact_vcs_token(
     )
     monkeypatch.setattr(sources, "get_use_chezmoi", lambda: True)
 
-    records = collect_xprompt_sources("Run #gh_project now")
+    records = collect_macro_sources("Run #gh_project now")
 
     assert records == [
         {
@@ -105,7 +105,7 @@ def test_home_markdown_definition_respects_chezmoi_setting(
     mapped.write_text("Remember this.\n", encoding="utf-8")
     _patch_catalogs(
         monkeypatch,
-        {"note": XPrompt(name="note", content="", source_path=str(home_definition))},
+        {"note": Macro(name="note", content="", source_path=str(home_definition))},
     )
     monkeypatch.setattr(sources, "get_use_chezmoi", lambda: use_chezmoi)
     monkeypatch.setattr(sources, "_is_relative_to", lambda path, root: True)
@@ -116,7 +116,7 @@ def test_home_markdown_definition_respects_chezmoi_setting(
         lambda: RepoInventory((_repo("chezmoi", chezmoi_root),)),
     )
 
-    record = collect_xprompt_sources("#note")[0]
+    record = collect_macro_sources("#note")[0]
 
     assert record["chezmoi"] is use_chezmoi
     assert record["repo"] == ("chezmoi" if use_chezmoi else None)
@@ -141,7 +141,7 @@ def test_user_config_definition_gets_unique_line_anchor(
     )
     _patch_catalogs(
         monkeypatch,
-        {"review": XPrompt(name="review", content="", source_path="config")},
+        {"review": Macro(name="review", content="", source_path="config")},
     )
     monkeypatch.setattr(sources, "CONFIG_DIR", config_dir)
     monkeypatch.setattr(sources, "get_use_chezmoi", lambda: False)
@@ -151,7 +151,7 @@ def test_user_config_definition_gets_unique_line_anchor(
         lambda: RepoInventory((_repo("dotfiles", config_dir),)),
     )
 
-    record = collect_xprompt_sources("Please #review")[0]
+    record = collect_macro_sources("Please #review")[0]
 
     assert record["source_path"] == str(config)
     assert record["source_kind"] == "yaml"
@@ -166,7 +166,7 @@ def test_package_default_definition_is_owned_by_primary_repo(
     root = Path.cwd()
     _patch_catalogs(
         monkeypatch,
-        {"plan": XPrompt(name="plan", content="", source_path="default_config")},
+        {"plan": Macro(name="plan", content="", source_path="default_config")},
     )
     monkeypatch.setattr(sources, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(
@@ -175,7 +175,7 @@ def test_package_default_definition_is_owned_by_primary_repo(
         lambda: RepoInventory((_repo("sase", root),)),
     )
 
-    record = collect_xprompt_sources("#plan")[0]
+    record = collect_macro_sources("#plan")[0]
 
     assert record["repo"] == "sase"
     assert record["repo_relpath"] == "src/sase/default_config.yml"
@@ -186,9 +186,9 @@ def test_package_default_definition_is_owned_by_primary_repo(
 def test_unknown_and_literal_zone_references_are_diagnostic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _patch_catalogs(monkeypatch, {"known": XPrompt(name="known", content="")})
+    _patch_catalogs(monkeypatch, {"known": Macro(name="known", content="")})
 
-    records = collect_xprompt_sources("```\n#known\n```\nRun #missing")
+    records = collect_macro_sources("```\n#known\n```\nRun #missing")
 
     assert [(record["raw_ref"], record["skipped_reason"]) for record in records] == [
         ("#missing", "unknown-reference")
@@ -207,7 +207,7 @@ def test_swarm_launch_records_definition_provenance(
     _patch_catalogs(
         monkeypatch,
         {
-            "research_swarm": XPrompt(
+            "research_swarm": Macro(
                 name="research_swarm",
                 content="",
                 source_path=str(definition),
@@ -221,9 +221,9 @@ def test_swarm_launch_records_definition_provenance(
         lambda: RepoInventory((_repo("research", tmp_path / "repo"),)),
     )
 
-    records = collect_xprompt_sources(
+    records = collect_macro_sources(
         "Rendered swarm segment",
-        swarm_xprompts=["research_swarm"],
+        swarm_macros=["research_swarm"],
     )
 
     assert [(record["raw_ref"], record["kind"]) for record in records] == [

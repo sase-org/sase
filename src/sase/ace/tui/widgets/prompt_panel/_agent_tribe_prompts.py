@@ -330,7 +330,7 @@ def _digest_chips(body: str, headline: str) -> tuple[str, ...]:
     false positives (such as Rich color markup) can never appear.
     """
     try:
-        chips = summarize_prompt_for_list(body).xprompts
+        chips = summarize_prompt_for_list(body).macros
     except Exception:
         return ()
     return tuple(chip for chip in chips if chip not in headline)[:3]

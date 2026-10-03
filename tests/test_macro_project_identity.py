@@ -9,8 +9,8 @@ from sase import project_aliases, project_display_names
 from sase.main import project_handler
 from sase.macro import loader_sources
 from sase.macro import project_identity
-from sase.macro.project_identity import canonical_xprompt_project
-from sase.macro.project_identity import invalidate_xprompt_project_identity
+from sase.macro.project_identity import canonical_macro_project
+from sase.macro.project_identity import invalidate_macro_project_identity
 from sase.macro.project_identity import known_project_namespaces
 from tests.main.project_handler_helpers import (
     _disk_project_records,
@@ -24,9 +24,9 @@ __all__ = ["lifecycle_stubs", "projects_root"]
 
 @pytest.fixture(autouse=True)
 def _clear_identity_cache() -> Iterator[None]:
-    invalidate_xprompt_project_identity()
+    invalidate_macro_project_identity()
     yield
-    invalidate_xprompt_project_identity()
+    invalidate_macro_project_identity()
 
 
 @pytest.fixture
@@ -59,7 +59,7 @@ def _write_identity_project(
     _write_project(projects_root, key, "\n".join(lines) + "\n")
 
 
-def test_canonical_xprompt_project_normalizes_known_spellings(
+def test_canonical_macro_project_normalizes_known_spellings(
     projects_root: Path,
     _lifecycle_reader: None,
     tmp_path: Path,
@@ -73,14 +73,14 @@ def test_canonical_xprompt_project_normalizes_known_spellings(
     )
     _write_identity_project(projects_root, "plain", tmp_path / "plain-ws")
 
-    assert canonical_xprompt_project("gh_acme__widgets") == "widgets"
-    assert canonical_xprompt_project("widgets") == "widgets"
-    assert canonical_xprompt_project("docs") == "widgets"
-    assert canonical_xprompt_project("w") == "widgets"
-    assert canonical_xprompt_project("plain") == "plain"
+    assert canonical_macro_project("gh_acme__widgets") == "widgets"
+    assert canonical_macro_project("widgets") == "widgets"
+    assert canonical_macro_project("docs") == "widgets"
+    assert canonical_macro_project("w") == "widgets"
+    assert canonical_macro_project("plain") == "plain"
 
 
-def test_canonical_xprompt_project_preserves_empty_and_unknown_refs(
+def test_canonical_macro_project_preserves_empty_and_unknown_refs(
     projects_root: Path,
     _lifecycle_reader: None,
     tmp_path: Path,
@@ -92,14 +92,14 @@ def test_canonical_xprompt_project_preserves_empty_and_unknown_refs(
         display_name="widgets",
     )
 
-    assert canonical_xprompt_project(None) is None
-    assert canonical_xprompt_project("") is None
-    assert canonical_xprompt_project("   ") is None
-    assert canonical_xprompt_project("bd") == "bd"
-    assert canonical_xprompt_project("research") == "research"
+    assert canonical_macro_project(None) is None
+    assert canonical_macro_project("") is None
+    assert canonical_macro_project("   ") is None
+    assert canonical_macro_project("bd") == "bd"
+    assert canonical_macro_project("research") == "research"
 
 
-def test_canonical_xprompt_project_degrades_to_input_on_registry_failure(
+def test_canonical_macro_project_degrades_to_input_on_registry_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fail_alias_map() -> dict[str, str]:
@@ -107,7 +107,7 @@ def test_canonical_xprompt_project_degrades_to_input_on_registry_failure(
 
     monkeypatch.setattr(project_aliases, "load_project_alias_map", fail_alias_map)
 
-    assert canonical_xprompt_project("widgets") == "widgets"
+    assert canonical_macro_project("widgets") == "widgets"
 
 
 def test_known_project_namespaces_uses_user_facing_names(
@@ -162,12 +162,12 @@ def test_known_project_namespaces_degrades_to_directory_keys_on_registry_failure
     assert known_project_namespaces() == {"gh_acme__widgets": workspace}
 
 
-def test_invalidate_xprompt_project_identity_refreshes_registered_project(
+def test_invalidate_macro_project_identity_refreshes_registered_project(
     projects_root: Path,
     _lifecycle_reader: None,
     tmp_path: Path,
 ) -> None:
-    assert canonical_xprompt_project("gh_acme__widgets") == "gh_acme__widgets"
+    assert canonical_macro_project("gh_acme__widgets") == "gh_acme__widgets"
 
     _write_identity_project(
         projects_root,
@@ -176,14 +176,14 @@ def test_invalidate_xprompt_project_identity_refreshes_registered_project(
         display_name="widgets",
     )
 
-    assert canonical_xprompt_project("gh_acme__widgets") == "gh_acme__widgets"
+    assert canonical_macro_project("gh_acme__widgets") == "gh_acme__widgets"
 
-    invalidate_xprompt_project_identity()
+    invalidate_macro_project_identity()
 
-    assert canonical_xprompt_project("gh_acme__widgets") == "widgets"
+    assert canonical_macro_project("gh_acme__widgets") == "widgets"
 
 
-def test_project_name_mutation_invalidates_xprompt_identity(
+def test_project_name_mutation_invalidates_macro_identity(
     projects_root: Path,
     _lifecycle_reader: None,
     lifecycle_stubs: Callable[[], None],
@@ -197,7 +197,7 @@ def test_project_name_mutation_invalidates_xprompt_identity(
         display_name="widgets",
     )
 
-    assert canonical_xprompt_project("gh_acme__widgets") == "widgets"
+    assert canonical_macro_project("gh_acme__widgets") == "widgets"
 
     project_aliases._set_project_name_locked(
         "gh_acme__widgets",
@@ -205,10 +205,10 @@ def test_project_name_mutation_invalidates_xprompt_identity(
         projects_root=projects_root,
     )
 
-    assert canonical_xprompt_project("gh_acme__widgets") == "gadgets"
+    assert canonical_macro_project("gh_acme__widgets") == "gadgets"
 
 
-def test_project_alias_mutation_invalidates_xprompt_identity(
+def test_project_alias_mutation_invalidates_macro_identity(
     projects_root: Path,
     _lifecycle_reader: None,
     lifecycle_stubs: Callable[[], None],
@@ -222,7 +222,7 @@ def test_project_alias_mutation_invalidates_xprompt_identity(
         display_name="widgets",
     )
 
-    assert canonical_xprompt_project("docs") == "docs"
+    assert canonical_macro_project("docs") == "docs"
 
     project_aliases.set_project_aliases_locked(
         "gh_acme__widgets",
@@ -230,10 +230,10 @@ def test_project_alias_mutation_invalidates_xprompt_identity(
         projects_root=projects_root,
     )
 
-    assert canonical_xprompt_project("docs") == "widgets"
+    assert canonical_macro_project("docs") == "widgets"
 
 
-def test_project_lifecycle_mutation_invalidates_xprompt_identity(
+def test_project_lifecycle_mutation_invalidates_macro_identity(
     projects_root: Path,
     _lifecycle_reader: None,
     lifecycle_stubs: Callable[[], None],
@@ -242,7 +242,7 @@ def test_project_lifecycle_mutation_invalidates_xprompt_identity(
     lifecycle_stubs()
     workspace = tmp_path / "widgets-ws"
 
-    assert canonical_xprompt_project("gh_acme__widgets") == "gh_acme__widgets"
+    assert canonical_macro_project("gh_acme__widgets") == "gh_acme__widgets"
 
     _write_identity_project(
         projects_root,

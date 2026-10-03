@@ -1,4 +1,4 @@
-"""Config schema coverage for xprompts, memory, hooks, and ACE settings."""
+"""Config schema coverage for macros, memory, hooks, and ACE settings."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from jsonschema.exceptions import ValidationError
 from tests._config_schema_helpers import format_schema_error, schema
 
 
-def test_config_schema_accepts_xprompt_input_descriptions() -> None:
+def test_config_schema_accepts_macro_input_descriptions() -> None:
     public_schema = schema()
     config = {
         "xprompts": {
@@ -44,7 +44,7 @@ def test_config_schema_accepts_xprompt_input_descriptions() -> None:
     assert errors == [], "\n".join(format_schema_error(error) for error in errors)
 
 
-def test_config_schema_accepts_xprompt_log_skill_use() -> None:
+def test_config_schema_accepts_macro_log_skill_use() -> None:
     public_schema = schema()
     config = {
         "xprompts": {

@@ -64,7 +64,7 @@ class Proc:
     settled_at: str | None = None
     finished_by: str | None = None
     result: Any | None = None
-    xprompt_proc: dict[str, Any] | None = None
+    prompt_proc: dict[str, Any] | None = None
     service: ProcServiceBlock | None = None
 
     def __post_init__(self) -> None:
@@ -151,15 +151,15 @@ class Proc:
 
         meta = prompt_proc_payload(data)
         if isinstance(meta, Mapping):
-            xprompt_proc = dict(meta)
+            prompt_proc = dict(meta)
             # Readers prefer the new spelling and fall back to the old one;
             # rewriting drops the legacy key.
-            inner_proc_name = xprompt_proc.get("proc_name")
+            inner_proc_name = prompt_proc.get("proc_name")
             if inner_proc_name is None:
-                inner_proc_name = xprompt_proc.get("shell_name")
+                inner_proc_name = prompt_proc.get("shell_name")
             if prompt_proc_origin_matches(data.get("origin")):
-                if "label" not in xprompt_proc and data.get("label") is not None:
-                    xprompt_proc["label"] = str(data["label"])
+                if "label" not in prompt_proc and data.get("label") is not None:
+                    prompt_proc["label"] = str(data["label"])
                 if inner_proc_name is None:
                     new_proc_name = data.get("proc_name")
                     if new_proc_name is None:
@@ -167,11 +167,11 @@ class Proc:
                     if new_proc_name is not None:
                         inner_proc_name = str(new_proc_name)
             if inner_proc_name is not None:
-                xprompt_proc["proc_name"] = str(inner_proc_name)
-            xprompt_proc.pop("shell_name", None)
-            values["xprompt_proc"] = xprompt_proc
+                prompt_proc["proc_name"] = str(inner_proc_name)
+            prompt_proc.pop("shell_name", None)
+            values["prompt_proc"] = prompt_proc
         else:
-            values["xprompt_proc"] = None
+            values["prompt_proc"] = None
         values["service"] = ProcServiceBlock.from_dict(data.get("service"))
         # Drop legacy keys that may have ridden along via known_field_kwargs.
         values.pop("shell_name", None)
@@ -263,7 +263,7 @@ class Proc:
         }
         from sase.legacy_xprompt_names import PROMPT_PROC_FIELD
 
-        payload[PROMPT_PROC_FIELD] = self.xprompt_proc
+        payload[PROMPT_PROC_FIELD] = self.prompt_proc
         payload["service"] = (
             self.service.to_dict() if self.service is not None else None
         )

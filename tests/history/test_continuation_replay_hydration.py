@@ -82,7 +82,7 @@ def _publish_agent_delta(
         agent_vcs_provider=None,
         agent_hidden=False,
         agent_meta=dict(meta),
-        local_xprompts={},
+        local_macros={},
     )
     record_prepared_prompt_capture(
         artifacts_dir,

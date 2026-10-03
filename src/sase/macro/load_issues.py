@@ -1,4 +1,4 @@
-"""Opt-in collection of xprompt definition load issues."""
+"""Opt-in collection of macro definition load issues."""
 
 from __future__ import annotations
 
@@ -9,15 +9,15 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class XPromptLoadIssue:
-    """A non-fatal xprompt/workflow definition loading issue."""
+class MacroLoadIssue:
+    """A non-fatal macro/workflow definition loading issue."""
 
     source: str
     error: str
     kind: str
 
 
-_ISSUES: ContextVar[list[XPromptLoadIssue] | None] = ContextVar(
+_ISSUES: ContextVar[list[MacroLoadIssue] | None] = ContextVar(
     "xprompt_load_issues",
     default=None,
 )
@@ -34,13 +34,13 @@ def record_load_issue(source: object, error: object, *, kind: str) -> None:
         issue.source == source_text and issue.error == error_text for issue in issues
     ):
         return
-    issues.append(XPromptLoadIssue(source_text, error_text, kind))
+    issues.append(MacroLoadIssue(source_text, error_text, kind))
 
 
 @contextmanager
-def collect_xprompt_load_issues() -> Generator[list[XPromptLoadIssue]]:
-    """Collect non-fatal xprompt definition loading issues in this context."""
-    issues: list[XPromptLoadIssue] = []
+def collect_macro_load_issues() -> Generator[list[MacroLoadIssue]]:
+    """Collect non-fatal macro definition loading issues in this context."""
+    issues: list[MacroLoadIssue] = []
     token = _ISSUES.set(issues)
     try:
         yield issues
@@ -49,7 +49,7 @@ def collect_xprompt_load_issues() -> Generator[list[XPromptLoadIssue]]:
 
 
 __all__ = [
-    "XPromptLoadIssue",
-    "collect_xprompt_load_issues",
+    "MacroLoadIssue",
+    "collect_macro_load_issues",
     "record_load_issue",
 ]

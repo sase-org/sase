@@ -198,7 +198,7 @@ class AgentTribeAssignmentMixin:
                         clan_afters[key] = after
             clan_prompt_declares = False
             if clan_bound and artifacts_dir:
-                raw_prompt = agent.get_raw_xprompt_content()
+                raw_prompt = agent.get_raw_prompt_content()
                 clan_prompt_declares = bool(
                     raw_prompt is not None and prompt_declares_clan(raw_prompt)
                 )

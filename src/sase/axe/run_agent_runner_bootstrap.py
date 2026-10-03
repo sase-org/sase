@@ -1,7 +1,7 @@
 """Pre-wait bootstrap phase for ``run_agent_runner``.
 
 Everything here runs before the runner blocks on dependencies: artifacts
-directory resolution, prompt loading, telemetry, xprompt preprocessing, and
+directory resolution, prompt loading, telemetry, macro preprocessing, and
 directive extraction. It stops at the point where the runner knows what it is
 waiting for, so ``run_agent_runner`` can own admission control.
 """
@@ -22,11 +22,11 @@ from sase.axe.run_agent_runner_setup import (
     apply_retry_chain_to_meta,
     enter_agent_workspace,
     load_retry_handoff_from_env,
-    preprocess_prompt_xprompts,
+    preprocess_prompt_macros,
     print_agent_start_banner,
     setup_artifacts_directory,
     write_agent_meta,
-    write_submitted_xprompt_artifact,
+    write_submitted_prompt_artifact,
 )
 from sase.axe.run_agent_runner_signals import (
     install_workspace_release_sigterm_handler,
@@ -180,9 +180,9 @@ def _load_submitted_prompt(state: RunnerRunState) -> None:
         state.prompt_file,
         refreshed_fallback_file=refreshed_prompt_fallback,
     )
-    state.submitted_xprompt = state.prompt
+    state.submitted_prompt = state.prompt
     try:
-        write_submitted_xprompt_artifact(state.artifacts_dir, state.submitted_xprompt)
+        write_submitted_prompt_artifact(state.artifacts_dir, state.submitted_prompt)
     except OSError as e:
         print(f"Warning: Failed to write submitted_prompt.md: {e}", file=sys.stderr)
 
@@ -316,7 +316,7 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
 
     # The preprocessed VCS tag is superseded by agent-ref resolution in the
     # launch phase, so only the rewritten prompts are carried forward.
-    state.prompt, _, raw_resolved_prompt = preprocess_prompt_xprompts(
+    state.prompt, _, raw_resolved_prompt = preprocess_prompt_macros(
         state.prompt, state.artifacts_dir
     )
     retry_handoff = load_retry_handoff_from_env()

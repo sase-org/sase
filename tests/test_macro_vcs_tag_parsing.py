@@ -1,4 +1,4 @@
-"""Tests for xprompt._parsing VCS tag parsing helpers."""
+"""Tests for macro._parsing VCS tag parsing helpers."""
 
 import re
 from unittest.mock import patch
@@ -11,7 +11,7 @@ from sase.macro._parsing import (
     find_vcs_workflow_tag_prepend_offset,
     find_vcs_workflow_tag_span,
     normalize_default_vcs_workflow_segment,
-    normalize_launch_xprompt_at_refs,
+    normalize_launch_macro_at_refs,
     normalize_vcs_underscore_refs,
     replace_ref_in_vcs_tag,
 )
@@ -26,8 +26,8 @@ def _restore_vcs_regex_caches():
     cache_attrs = (
         (compat, "_VCS_UNDERSCORE_NORMALIZER"),
         (refs, "_VCS_UNDERSCORE_NORMALIZER"),
-        (compat, "_LAUNCH_XPROMPT_AT_REF_RE"),
-        (refs, "_LAUNCH_XPROMPT_AT_REF_RE"),
+        (compat, "_LAUNCH_MACRO_AT_REF_RE"),
+        (refs, "_LAUNCH_MACRO_AT_REF_RE"),
         (compat, "_VCS_TAG_PATTERN"),
         (tags, "_VCS_TAG_PATTERN"),
         (compat, "_VCS_TAG_EMBEDDED_PATTERN"),
@@ -193,8 +193,8 @@ def test_find_vcs_workflow_tag_mid_line() -> None:
         assert result == "#gh:sase "
 
 
-def test_find_vcs_workflow_tag_after_xprompt_directive() -> None:
-    """Embedded tag after a non-%directive xprompt line is recovered."""
+def test_find_vcs_workflow_tag_after_macro_directive() -> None:
+    """Embedded tag after a non-%directive macro line is recovered."""
     with _patch_embedded_vcs_pattern():
         result = find_vcs_workflow_tag("#fast\n#gh:sase fix it")
         assert result == "#gh:sase "
@@ -384,7 +384,7 @@ def test_normalize_vcs_underscore_git() -> None:
 
 
 def test_normalize_vcs_underscore_not_vcs() -> None:
-    """Test non-VCS underscore names like #my_xprompt are NOT normalized."""
+    """Test non-VCS underscore names like #my_macro are NOT normalized."""
     import sase.macro._parsing as _mod
 
     _mod._VCS_UNDERSCORE_NORMALIZER = None
@@ -413,28 +413,25 @@ def test_normalize_vcs_underscore_mid_line() -> None:
         )
 
 
-def test_normalize_launch_xprompt_at_refs_scoped_to_workflows() -> None:
+def test_normalize_launch_macro_at_refs_scoped_to_workflows() -> None:
     import sase.macro._parsing as _mod
 
-    _mod._LAUNCH_XPROMPT_AT_REF_RE = None
+    _mod._LAUNCH_MACRO_AT_REF_RE = None
     with _patch_workflow_names({"gh", "git", "cd"}):
-        assert normalize_launch_xprompt_at_refs("#gh@sase Fix") == "#gh:sase Fix"
+        assert normalize_launch_macro_at_refs("#gh@sase Fix") == "#gh:sase Fix"
         assert (
-            normalize_launch_xprompt_at_refs("%i:a #git@repo Fix")
-            == "%i:a #git:repo Fix"
+            normalize_launch_macro_at_refs("%i:a #git@repo Fix") == "%i:a #git:repo Fix"
         )
-        assert normalize_launch_xprompt_at_refs("#topic@sase") == "#topic@sase"
+        assert normalize_launch_macro_at_refs("#topic@sase") == "#topic@sase"
 
 
-def test_normalize_launch_xprompt_at_refs_skips_markdown_code() -> None:
+def test_normalize_launch_macro_at_refs_skips_markdown_code() -> None:
     import sase.macro._parsing as _mod
 
-    _mod._LAUNCH_XPROMPT_AT_REF_RE = None
+    _mod._LAUNCH_MACRO_AT_REF_RE = None
     with _patch_workflow_names({"gh", "git"}):
         text = "run `#gh@sase` then #gh@zorg"
-        assert normalize_launch_xprompt_at_refs(text) == "run `#gh@sase` then #gh:zorg"
+        assert normalize_launch_macro_at_refs(text) == "run `#gh@sase` then #gh:zorg"
 
         fenced = "```\n#gh@sase\n```\n#git@repo"
-        assert (
-            normalize_launch_xprompt_at_refs(fenced) == "```\n#gh@sase\n```\n#git:repo"
-        )
+        assert normalize_launch_macro_at_refs(fenced) == "```\n#gh@sase\n```\n#git:repo"

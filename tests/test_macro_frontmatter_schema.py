@@ -2,7 +2,7 @@
 
 :mod:`sase.macro.frontmatter_schema` is a thin typed wrapper over the
 ``sase_core_rs`` bindings. The validation rules, guidance text, and field set
-all live in ``sase-core`` (the same engine that backs the xprompt LSP); these
+all live in ``sase-core`` (the same engine that backs the macro LSP); these
 tests pin the adapter's rehydration contract — the schema is non-empty and
 ordered, a known-good value validates clean, and a known-bad value yields the
 expected diagnostic — without reimplementing any rule on the Python side.

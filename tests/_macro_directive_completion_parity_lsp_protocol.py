@@ -1,7 +1,7 @@
 """LSP wire helpers and text-edit application for parity tests.
 
 Public names in this already-private module are the sharing surface for the
-other ``_xprompt_directive_completion_parity_lsp_*`` modules. New modules must
+other ``_macro_directive_completion_parity_lsp_*`` modules. New modules must
 import only these public names, never ``_``-prefixed names.
 """
 
@@ -47,7 +47,7 @@ def _model_catalog_payload() -> dict[str, Any]:
 model_catalog_payload = _model_catalog_payload
 
 
-def _xprompt_catalog_payload(
+def _macro_catalog_payload(
     catalog: dict[str, Any] | Sequence[Mapping[str, object]] | None,
 ) -> dict[str, Any]:
     if isinstance(catalog, dict) and "schema_version" in catalog:
@@ -75,7 +75,7 @@ def _xprompt_catalog_payload(
     }
 
 
-xprompt_catalog_payload = _xprompt_catalog_payload
+macro_catalog_payload = _macro_catalog_payload
 
 
 def _machine_catalog_payload() -> dict[str, Any]:

@@ -48,7 +48,7 @@ from sase.macro.snippet_config_yaml import (
     snippet_config_digest,
 )
 from sase.macro.snippet_targets import resolve_snippet_save_target
-from sase.macro.write_targets import resolve_xprompt_write_target
+from sase.macro.write_targets import resolve_macro_write_target
 
 SnippetConflictError = SnippetConfigConflictError
 
@@ -135,7 +135,7 @@ def upsert_snippet_at_path(
     """
     cleaned_trigger = _require_trigger(trigger)
     cleaned_template = _require_template(template)
-    write_target = resolve_xprompt_write_target(config_path)
+    write_target = resolve_macro_write_target(config_path)
     destination = str(write_target.write_path)
     catalog = load_snippet_catalog()
     if not force:
@@ -390,7 +390,7 @@ def _delete_targets(
         source_path = item.path
         if source_path is None:
             continue
-        write = resolve_xprompt_write_target(source_path)
+        write = resolve_macro_write_target(source_path)
         path = write.write_path
         original = path.read_bytes() if path.is_file() else None
         text = "" if original is None else original.decode("utf-8")

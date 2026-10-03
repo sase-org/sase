@@ -11,7 +11,7 @@ _RESUME_REF_RE = re.compile(
     r"(?P<open_paren>\()"
     r")"
 )
-_XPROMPT_REF_RE = re.compile(r"#([A-Za-z_][A-Za-z0-9_]*(?:/[A-Za-z_][A-Za-z0-9_]*)*)")
+_MACRO_REF_RE = re.compile(r"#([A-Za-z_][A-Za-z0-9_]*(?:/[A-Za-z_][A-Za-z0-9_]*)*)")
 
 
 def has_bare_resume_reference(prompt: str) -> bool:
@@ -70,7 +70,7 @@ def _is_bare_resume_match(text: str, match: re.Match[str]) -> bool:
     return text[match.end()] not in ":("
 
 
-def has_non_resume_xprompt_reference(prompt: str) -> bool:
+def has_non_resume_macro_reference(prompt: str) -> bool:
     if "#" not in prompt:
         return False
 
@@ -84,5 +84,5 @@ def has_non_resume_xprompt_reference(prompt: str) -> bool:
 
     return any(
         match.group(1) not in {"fork", "resume"}
-        for match in _XPROMPT_REF_RE.finditer(protected)
+        for match in _MACRO_REF_RE.finditer(protected)
     )

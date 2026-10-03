@@ -337,7 +337,7 @@ def _rebuild_exec_inputs(
         ),
         agent_hidden=False,
         agent_meta=base_meta,
-        local_xprompts={},
+        local_macros={},
         multi_agent_prompt_file=_str(
             _meta_get(
                 meta,

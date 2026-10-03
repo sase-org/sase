@@ -1,4 +1,4 @@
-"""Tests for xprompt show body highlighting and gutters."""
+"""Tests for macro show body highlighting and gutters."""
 
 from __future__ import annotations
 

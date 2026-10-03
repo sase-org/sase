@@ -54,7 +54,7 @@ class _FakeAgent:
     def display_name(self) -> str:
         return self.cl_name
 
-    def get_raw_xprompt_content(self) -> str | None:
+    def get_raw_prompt_content(self) -> str | None:
         return self.raw_prompt
 
 

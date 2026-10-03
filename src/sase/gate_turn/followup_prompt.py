@@ -6,11 +6,11 @@ tests without needing a real gate bundle or spawned process. Mirrors
 prefix (``#fork:``, ``%model:``, ``%effort:``) is deliberately live so the
 follow-up inherits conversation and model routing, while the decision
 metadata, reviewer note, command results, and output tail are enclosed in one
-disabled xprompt region so none of it can be interpreted as a directive.
+disabled macro region so none of it can be interpreted as a directive.
 Only ``## Your next action`` -- the author-declared ``prompt`` -- is meant to
 read as an instruction, and even that stays inside the disabled region
 because it is untrusted relative to the model: the region hides directive
-syntax from the xprompt processor, it does not grant the text authority.
+syntax from the macro processor, it does not grant the text authority.
 """
 
 from __future__ import annotations

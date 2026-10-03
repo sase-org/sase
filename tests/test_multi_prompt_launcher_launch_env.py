@@ -46,7 +46,7 @@ def test_launch_multi_prompt_passes_scoped_output_variable_upstreams(
                 "%i:build-@\nBuild",
                 '%w:build-@\nUse {{ agents["build"].path }}',
             ],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -112,7 +112,7 @@ def test_launch_multi_prompt_passes_digit_leading_fanout_output_variable_upstrea
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
             segments=["%id:0n.cld\nClaude work", "%id:0n.cdx\nCodex work"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
@@ -173,7 +173,7 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
 
     launch_multi_prompt_agents(
         segments=["seg1", "seg2"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -223,7 +223,7 @@ def test_launch_multi_prompt_injects_shared_multi_agent_prompt_file(
 
     launch_multi_prompt_agents(
         segments=["seg1", "seg2"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -268,13 +268,13 @@ def test_launch_multi_prompt_injects_per_segment_swarm_provenance(
 
     launch_multi_prompt_agents(
         segments=["seg1", "seg2"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
         is_home_mode=False,
         vcs_ref=None,
-        segment_swarm_xprompts=[
+        segment_swarm_macros=[
             ("outer", "inner"),
             ("outer",),
         ],
@@ -292,13 +292,13 @@ def test_launch_multi_prompt_validates_swarm_provenance_length() -> None:
     ):
         launch_multi_prompt_agents(
             segments=["seg1", "seg2"],
-            local_xprompts={},
+            local_macros={},
             cl_name="test",
             project_file="/test.sase",
             project_name="test",
             is_home_mode=False,
             vcs_ref=None,
-            segment_swarm_xprompts=[("swarm",)],
+            segment_swarm_macros=[("swarm",)],
         )
 
 
@@ -329,7 +329,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
 
     launch_multi_prompt_agents(
         segments=["%id:first\nseg1", "%wait\nseg2"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",
@@ -383,7 +383,7 @@ def test_launch_multi_prompt_does_not_infer_bead_env_from_tag(
 
     launch_multi_prompt_agents(
         segments=["%id(tribe=review)\nReview this"],
-        local_xprompts={},
+        local_macros={},
         cl_name="test",
         project_file="/test.sase",
         project_name="test",

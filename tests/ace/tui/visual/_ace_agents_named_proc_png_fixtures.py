@@ -15,7 +15,8 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
-from sase.procs import PROC_LIFECYCLE_NAMED_PROC, XPROMPT_PROC_ORIGIN
+from sase.procs import PROC_LIFECYCLE_NAMED_PROC
+from sase.legacy_xprompt_names import PROMPT_PROC_ORIGIN
 
 PROC_TURN_VISUAL_NOW = datetime(2026, 8, 20, 12, 30, 0)
 
@@ -65,7 +66,7 @@ def _named_proc_row(
         display_name=label,
         command=[language, f"sha256:{proc_id}"],
         cwd="/workspace/sase",
-        origin=XPROMPT_PROC_ORIGIN,
+        origin=PROMPT_PROC_ORIGIN,
         log_path=f"/tmp/{proc_id}.log",
         lifecycle=PROC_LIFECYCLE_NAMED_PROC,
         project="sase",
@@ -78,7 +79,7 @@ def _named_proc_row(
         request_fingerprint=f"sha256:{proc_id}",
         supervisor_id="supervisor-1",
         output=output,
-        xprompt_proc={
+        prompt_proc={
             "logical_id": logical_id,
             "label": label if record_label else None,
             "proc_name": proc_name,

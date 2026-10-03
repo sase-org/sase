@@ -34,7 +34,7 @@ from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import WORKFLOW_DURATION, WORKFLOW_EXECUTIONS
 from sase.artifacts import create_artifacts_directory
 from sase.ace.hooks.summarize_utils import get_file_summary
-from sase.macro import escape_for_xprompt
+from sase.macro import escape_for_macro
 
 # Workflow completion marker (same pattern as other axe runners)
 WORKFLOW_COMPLETE_MARKER = "===WORKFLOW_COMPLETE=== PROPOSAL_ID: "
@@ -65,9 +65,9 @@ def main() -> int:
     error_summary: str | None = None
     error_traceback_str: str | None = None
     summary_usage = "a hook failure suffix on a status line"
-    submitted_xprompt = (
-        f'#summarize(target_file="{escape_for_xprompt(hook_output_path)}", '
-        f'usage="{escape_for_xprompt(summary_usage)}")'
+    submitted_prompt = (
+        f'#summarize(target_file="{escape_for_macro(hook_output_path)}", '
+        f'usage="{escape_for_macro(summary_usage)}")'
     )
     start_time = time.time()
 
@@ -246,7 +246,7 @@ def main() -> int:
             duration=duration,
             error_summary=error_summary,
             error_traceback=error_traceback_str,
-            submitted_xprompt=submitted_xprompt,
+            submitted_prompt=submitted_prompt,
             output_path=output_log_path,
         )
 

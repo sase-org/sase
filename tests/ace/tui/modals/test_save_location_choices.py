@@ -222,7 +222,7 @@ def test_xprompt_current_matches_resolved_write_path(
     project_dir = str(rows[0].location.path)
     monkeypatch.setattr(
         choices_mod,
-        "resolve_xprompt_write_target",
+        "resolve_macro_write_target",
         lambda path: type(
             "_Target", (), {"write_path": "SOURCE", "via_chezmoi": False}
         )(),

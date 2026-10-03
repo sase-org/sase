@@ -14,7 +14,7 @@ from typing import Literal, Protocol
 
 from sase.version._git import run_git
 from sase.macro.loader import get_sase_package_skills_dir
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 SKILLS_MANIFEST_FILENAME = ".sase-skills-manifest.json"
 ManagedSkillState = Literal["active", "retired"]
@@ -107,7 +107,7 @@ class _SkillDeployManifest:
     """Provenance for the generated skill set in the chezmoi repository."""
 
     source_commit: str
-    xprompt_set_sha256: str
+    macro_set_sha256: str
     deployed_at: str
     managed_files: tuple[ManagedSkillFile, ...] = ()
 
@@ -123,7 +123,7 @@ class _SkillDeployManifest:
                         entry.to_json_dict() for entry in self.managed_files
                     ],
                     "source_commit": self.source_commit,
-                    MACRO_SET_SHA256_KEY: self.xprompt_set_sha256,
+                    MACRO_SET_SHA256_KEY: self.macro_set_sha256,
                 },
                 indent=2,
                 sort_keys=True,
@@ -142,22 +142,22 @@ class _SkillManifestWrite:
     retired_entries: tuple[ManagedSkillFile, ...] = ()
 
 
-def _skill_xprompt_set_sha256(skill_xprompts: Sequence[XPrompt]) -> str:
+def _skill_macro_set_sha256(skill_macros: Sequence[Macro]) -> str:
     """Hash the selected fields that determine generated skill content.
 
-    ``name`` is the provider skill name, not the ``skills/`` xprompt
+    ``name`` is the provider skill name, not the ``skills/`` macro
     reference, so the recorded hash tracks what was actually deployed.
     """
     entries = [
         {
-            "content": xprompt.content,
-            "description": xprompt.description or "",
-            "log_skill_use": xprompt.log_skill_use,
-            "name": xprompt.skill_name or xprompt.name,
-            "skill": xprompt.skill,
+            "content": macro_def.content,
+            "description": macro_def.description or "",
+            "log_skill_use": macro_def.log_skill_use,
+            "name": macro_def.skill_name or macro_def.name,
+            "skill": macro_def.skill,
         }
-        for xprompt in sorted(
-            skill_xprompts, key=lambda item: item.skill_name or item.name
+        for macro_def in sorted(
+            skill_macros, key=lambda item: item.skill_name or item.name
         )
     ]
     encoded = json.dumps(
@@ -170,7 +170,7 @@ def _skill_xprompt_set_sha256(skill_xprompts: Sequence[XPrompt]) -> str:
 
 
 def prepare_skill_manifest(
-    skill_xprompts: Sequence[XPrompt],
+    skill_macros: Sequence[Macro],
     *,
     chezmoi_home: Path,
     force: bool,
@@ -209,9 +209,9 @@ def prepare_skill_manifest(
             f"be resolved: {_git_error_detail(exc)}"
         )
 
-    incoming_hash = _skill_xprompt_set_sha256(skill_xprompts)
+    incoming_hash = _skill_macro_set_sha256(skill_macros)
     recorded = ownership_plan.recorded
-    if recorded is None and not ownership_plan.entries and not skill_xprompts:
+    if recorded is None and not ownership_plan.entries and not skill_macros:
         return (
             _SkillManifestWrite(
                 path=manifest_path,
@@ -244,7 +244,7 @@ def prepare_skill_manifest(
     if (
         recorded is not None
         and recorded.source_commit == incoming_commit
-        and recorded.xprompt_set_sha256 == incoming_hash
+        and recorded.macro_set_sha256 == incoming_hash
         and recorded.managed_files == ownership_plan.entries
     ):
         return (
@@ -259,7 +259,7 @@ def prepare_skill_manifest(
 
     manifest = _SkillDeployManifest(
         source_commit=incoming_commit,
-        xprompt_set_sha256=incoming_hash,
+        macro_set_sha256=incoming_hash,
         deployed_at=_utc_now(),
         managed_files=ownership_plan.entries,
     )
@@ -370,14 +370,14 @@ def _read_manifest(
         return None, None
     if not isinstance(raw, dict):
         return None, None
-    from sase.legacy_xprompt_names import macro_set_sha256
+    from sase.legacy_xprompt_names import macro_set_sha256 as read_macro_set_sha256
 
     source_commit = raw.get("source_commit")
-    xprompt_set_sha256 = macro_set_sha256(raw)
+    manifest_hash = read_macro_set_sha256(raw)
     deployed_at = raw.get("deployed_at")
     if not isinstance(source_commit, str) or not source_commit:
         return None, None
-    if not isinstance(xprompt_set_sha256, str) or not xprompt_set_sha256:
+    if not isinstance(manifest_hash, str) or not manifest_hash:
         return None, None
     if not isinstance(deployed_at, str) or not deployed_at:
         return None, None
@@ -403,7 +403,7 @@ def _read_manifest(
     return (
         _SkillDeployManifest(
             source_commit=source_commit,
-            xprompt_set_sha256=xprompt_set_sha256,
+            macro_set_sha256=manifest_hash,
             deployed_at=deployed_at,
             managed_files=managed_files,
         ),

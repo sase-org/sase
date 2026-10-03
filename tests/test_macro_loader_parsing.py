@@ -1,4 +1,4 @@
-"""Tests for xprompt.loader parsing functions."""
+"""Tests for macro.loader parsing functions."""
 
 import pytest
 
@@ -6,10 +6,10 @@ from sase.macro.loader_parsing import (
     _parse_input_choices,
     _parse_shortform_output,
     parse_inputs_from_front_matter,
-    parse_xprompt_entries,
+    parse_macro_entries,
     parse_yaml_front_matter,
 )
-from sase.macro.models import UNSET, InputChoice, InputType, XPromptValidationError
+from sase.macro.models import UNSET, InputChoice, InputType, MacroValidationError
 
 # Tests for parse_yaml_front_matter
 
@@ -161,41 +161,41 @@ def test_parse_inputs_longform_enum_choices() -> None:
 
 
 def test_parse_inputs_enum_without_choices_raises() -> None:
-    with pytest.raises(XPromptValidationError):
+    with pytest.raises(MacroValidationError):
         parse_inputs_from_front_matter({"mode": {"type": "enum"}})
 
 
 def test_parse_inputs_choices_on_non_enum_type_raises() -> None:
-    with pytest.raises(XPromptValidationError):
+    with pytest.raises(MacroValidationError):
         parse_inputs_from_front_matter(
             {"mode": {"type": "word", "choices": ["fast", "slow"]}}
         )
 
 
 def test_parse_inputs_duplicate_choice_values_raises() -> None:
-    with pytest.raises(XPromptValidationError):
+    with pytest.raises(MacroValidationError):
         parse_inputs_from_front_matter(
             {"mode": {"type": "enum", "choices": ["fast", "fast"]}}
         )
 
 
 def test_parse_input_choices_rejects_non_list() -> None:
-    with pytest.raises(XPromptValidationError):
+    with pytest.raises(MacroValidationError):
         _parse_input_choices("fast", "mode")
 
 
 def test_parse_input_choices_rejects_empty_list() -> None:
-    with pytest.raises(XPromptValidationError):
+    with pytest.raises(MacroValidationError):
         _parse_input_choices([], "mode")
 
 
 def test_parse_input_choices_rejects_mapping_without_value() -> None:
-    with pytest.raises(XPromptValidationError):
+    with pytest.raises(MacroValidationError):
         _parse_input_choices([{"label": "Fast mode"}], "mode")
 
 
 def test_parse_input_choices_rejects_bad_item_shape() -> None:
-    with pytest.raises(XPromptValidationError):
+    with pytest.raises(MacroValidationError):
         _parse_input_choices([["fast"]], "mode")
 
 
@@ -262,10 +262,10 @@ Skill content"""
     assert front_matter["skill"] == ["claude", "gemini"]
 
 
-# Tests for skill and description in parse_xprompt_entries
+# Tests for skill and description in parse_macro_entries
 
 
-def test_parse_xprompt_entries_keeps_description_without_a_skill_field() -> None:
+def test_parse_macro_entries_keeps_description_without_a_skill_field() -> None:
     """Test parsing description from structured dict format."""
     entries = {
         "my_prompt": {
@@ -273,7 +273,7 @@ def test_parse_xprompt_entries_keeps_description_without_a_skill_field() -> None
             "description": "A helpful prompt",
         }
     }
-    result = parse_xprompt_entries(entries, "test")
+    result = parse_macro_entries(entries, "test")
 
     xp = result["my_prompt"]
     assert xp.description == "A helpful prompt"
@@ -281,11 +281,11 @@ def test_parse_xprompt_entries_keeps_description_without_a_skill_field() -> None
 
 
 @pytest.mark.parametrize("skill", [True, ["gemini"]])
-def test_parse_xprompt_entries_rejects_config_defined_skills(
+def test_parse_macro_entries_rejects_config_defined_skills(
     skill: bool | list[str],
 ) -> None:
     """A skill needs a Markdown file in a canonical skill directory."""
-    from sase.macro.load_issues import collect_xprompt_load_issues
+    from sase.macro.load_issues import collect_macro_load_issues
 
     entries = {
         "hg_commit": {
@@ -293,28 +293,28 @@ def test_parse_xprompt_entries_rejects_config_defined_skills(
             "skill": skill,
         }
     }
-    with collect_xprompt_load_issues() as issues:
-        result = parse_xprompt_entries(entries, "test")
+    with collect_macro_load_issues() as issues:
+        result = parse_macro_entries(entries, "test")
 
     assert result == {}
     assert [issue.kind for issue in issues] == ["skill_placement"]
     assert "test:hg_commit" in issues[0].error
 
 
-def test_parse_xprompt_entries_simple_string_has_no_skill() -> None:
-    """Test that simple string xprompts have None for skill and description."""
+def test_parse_macro_entries_simple_string_has_no_skill() -> None:
+    """Test that simple string macros have None for skill and description."""
     entries = {"simple": "Just a string"}
-    result = parse_xprompt_entries(entries, "test")
+    result = parse_macro_entries(entries, "test")
 
     xp = result["simple"]
     assert xp.skill is None
     assert xp.description is None
 
 
-# Tests for log_skill_use in parse_xprompt_entries
+# Tests for log_skill_use in parse_macro_entries
 
 
-def test_parse_xprompt_entries_log_skill_use_false() -> None:
+def test_parse_macro_entries_log_skill_use_false() -> None:
     """Structured entries can disable the generated audit directive."""
     entries = {
         "quiet": {
@@ -322,26 +322,26 @@ def test_parse_xprompt_entries_log_skill_use_false() -> None:
             "log_skill_use": False,
         }
     }
-    result = parse_xprompt_entries(entries, "test")
+    result = parse_macro_entries(entries, "test")
 
     assert result["quiet"].log_skill_use is False
 
 
-def test_parse_xprompt_entries_log_skill_use_defaults_true() -> None:
+def test_parse_macro_entries_log_skill_use_defaults_true() -> None:
     """Structured entries default log_skill_use to True when absent."""
     entries = {
         "loud": {
             "content": "Do the thing",
         }
     }
-    result = parse_xprompt_entries(entries, "test")
+    result = parse_macro_entries(entries, "test")
 
     assert result["loud"].log_skill_use is True
 
 
-def test_parse_xprompt_entries_simple_string_log_skill_use_true() -> None:
-    """Simple string xprompts keep the default log_skill_use of True."""
+def test_parse_macro_entries_simple_string_log_skill_use_true() -> None:
+    """Simple string macros keep the default log_skill_use of True."""
     entries = {"simple": "Just a string"}
-    result = parse_xprompt_entries(entries, "test")
+    result = parse_macro_entries(entries, "test")
 
     assert result["simple"].log_skill_use is True

@@ -7,7 +7,7 @@ import pytest
 
 from sase.macro.catalog import _classify
 
-from tests._macro_catalog_helpers import make_xprompt
+from tests._macro_catalog_helpers import make_macro
 
 
 def test_classify_builtin(tmp_path: Path) -> None:
@@ -16,10 +16,10 @@ def test_classify_builtin(tmp_path: Path) -> None:
     source = pkg_dir / "foo.md"
     source.write_text("x")
 
-    xp = make_xprompt("foo", source_path=str(source))
+    xp = make_macro("foo", source_path=str(source))
 
     with (
-        patch("sase.macro.catalog.get_sase_package_xprompts_dir", return_value=pkg_dir),
+        patch("sase.macro.catalog.get_sase_package_macros_dir", return_value=pkg_dir),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
         entry = _classify(xp, project=None)
@@ -28,22 +28,22 @@ def test_classify_builtin(tmp_path: Path) -> None:
     assert entry.project is None
 
 
-def test_classify_default_xprompts_builtin(tmp_path: Path) -> None:
+def test_classify_default_macros_builtin(tmp_path: Path) -> None:
     pkg_dir = tmp_path / "pkg"
     default_dir = tmp_path / "default_xprompts"
     default_dir.mkdir()
     source = default_dir / "research_swarm.md"
     source.write_text("x")
 
-    xp = make_xprompt("research_swarm", source_path=str(source))
+    xp = make_macro("research_swarm", source_path=str(source))
 
     with (
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=pkg_dir,
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_default_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_default_macros_dir",
             return_value=default_dir,
         ),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
@@ -55,11 +55,11 @@ def test_classify_default_xprompts_builtin(tmp_path: Path) -> None:
 
 
 def test_classify_plugin_source() -> None:
-    xp = make_xprompt("foo", source_path="plugin:some_module/foo.md")
+    xp = make_macro("foo", source_path="plugin:some_module/foo.md")
     with (
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=Path("/nonexistent"),
         ),
     ):
@@ -68,11 +68,11 @@ def test_classify_plugin_source() -> None:
 
 
 def test_classify_config_label() -> None:
-    xp = make_xprompt("foo", source_path="config")
+    xp = make_macro("foo", source_path="config")
     with (
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=Path("/nonexistent"),
         ),
     ):
@@ -97,7 +97,7 @@ def test_classify_config_virtual_labels_are_global_from_project_cwd(
     cwd = tmp_path / "sase"
     cwd.mkdir()
     monkeypatch.chdir(cwd)
-    xp = make_xprompt(name, source_path=source_path)
+    xp = make_macro(name, source_path=source_path)
 
     with (
         patch(
@@ -105,11 +105,11 @@ def test_classify_config_virtual_labels_are_global_from_project_cwd(
             return_value={"sase": cwd},
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=tmp_path / "pkg",
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_default_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_default_macros_dir",
             return_value=tmp_path / "default_xprompts",
         ),
     ):
@@ -125,7 +125,7 @@ def test_classify_plugin_config_source_from_project_cwd(
     cwd = tmp_path / "sase"
     cwd.mkdir()
     monkeypatch.chdir(cwd)
-    xp = make_xprompt("foo", source_path="plugin_config:some_module")
+    xp = make_macro("foo", source_path="plugin_config:some_module")
 
     with (
         patch(
@@ -133,11 +133,11 @@ def test_classify_plugin_config_source_from_project_cwd(
             return_value={"sase": cwd},
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=tmp_path / "pkg",
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_default_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_default_macros_dir",
             return_value=tmp_path / "default_xprompts",
         ),
     ):
@@ -150,14 +150,14 @@ def test_classify_plugin_config_source_from_project_cwd(
 def test_classify_project_explicit(tmp_path: Path) -> None:
     ws = tmp_path / "ws"
     ws.mkdir()
-    xp = make_xprompt("foo", source_path=str(ws / "sase.yml"))
+    xp = make_macro("foo", source_path=str(ws / "sase.yml"))
     with (
         patch(
             "sase.macro.catalog.get_known_project_workspaces",
             return_value={"myproj": ws},
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=Path("/nonexistent"),
         ),
     ):
@@ -172,14 +172,14 @@ def test_classify_project_inferred_from_workspace(tmp_path: Path) -> None:
     source = ws / ".xprompts" / "bar.md"
     source.parent.mkdir(parents=True)
     source.write_text("x")
-    xp = make_xprompt("bar", source_path=str(source))
+    xp = make_macro("bar", source_path=str(source))
     with (
         patch(
             "sase.macro.catalog.get_known_project_workspaces",
             return_value={"inferred": ws},
         ),
         patch(
-            "sase.macro.catalog.get_sase_package_xprompts_dir",
+            "sase.macro.catalog.get_sase_package_macros_dir",
             return_value=Path("/nonexistent"),
         ),
     ):

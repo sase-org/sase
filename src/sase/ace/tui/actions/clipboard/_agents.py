@@ -66,7 +66,7 @@ class ClipboardAgentsMixin(ClipboardBase):
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-        content = agent.get_raw_xprompt_content()
+        content = agent.get_raw_prompt_content()
         if content is None:
             self.notify("No prompt available for this agent", severity="warning")  # type: ignore[attr-defined]
             return

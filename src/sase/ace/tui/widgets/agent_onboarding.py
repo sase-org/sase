@@ -24,7 +24,7 @@ from ._onboarding_common import (
 
 _DOCS_URL = "https://sase.sh"
 _ACE_DOCS_URL = "https://sase.sh/ace/"
-_XPROMPT_DOCS_URL = "https://sase.sh/xprompt/"
+_XPROMPT_DOCS_URL = "https://sase.sh/macro/"
 _AGENTS_ACCENT = "#87D7FF"
 _UPDATES_ACCENT = "#AF87FF"
 

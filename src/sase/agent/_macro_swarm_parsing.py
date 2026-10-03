@@ -1,4 +1,4 @@
-"""Reference and directive parsing helpers for xprompt swarm expansion."""
+"""Reference and directive parsing helpers for macro swarm expansion."""
 
 from __future__ import annotations
 
@@ -9,26 +9,26 @@ from sase.macro._disabled_regions import protect_disabled_regions
 from sase.macro._fenced_blocks import protect_fenced_blocks
 from sase.macro._literal_zones import literal_zone_ranges
 from sase.macro._parsing import (
-    XPromptReference,
-    XPromptReferenceArgKind,
-    XPromptReferenceMarker,
+    MacroReference,
+    MacroReferenceArgKind,
+    MacroReferenceMarker,
     extract_known_project_vcs_ref,
     find_matching_paren_for_args,
-    iter_xprompt_references,
+    iter_macro_references,
     normalize_vcs_underscore_refs,
 )
-from sase.macro._parsing_args import decode_xprompt_args
-from sase.macro.models import XPrompt
+from sase.macro._parsing_args import decode_macro_args
+from sase.macro.models import Macro
 
 _DIRECTIVE_LINE_RE = re.compile(r"^%[a-zA-Z][a-zA-Z0-9_]*(?:[:(].*)?\s*$")
 
 
 @dataclass
-class _XPromptCall:
-    """A parsed top-level xprompt reference in a segment."""
+class _MacroCall:
+    """A parsed top-level macro reference in a segment."""
 
     name: str
-    marker: XPromptReferenceMarker
+    marker: MacroReferenceMarker
     raw: str
     positional_args: list[str] = field(default_factory=list)
     named_args: dict[str, str] = field(default_factory=dict)
@@ -139,31 +139,31 @@ def _split_leading_directives(segment: str) -> tuple[list[str], str]:
     return split.directives, split.body.strip()
 
 
-def _parse_xprompt_reference_arguments(
-    ref: XPromptReference,
+def _parse_macro_reference_arguments(
+    ref: MacroReference,
 ) -> tuple[list[str], dict[str, str]]:
-    """Parse reference arguments using xprompt-compatible argument semantics."""
-    if ref.arg_kind is XPromptReferenceArgKind.NONE:
+    """Parse reference arguments using macro-compatible argument semantics."""
+    if ref.arg_kind is MacroReferenceArgKind.NONE:
         return [], {}
-    if ref.arg_kind is XPromptReferenceArgKind.PLUS:
+    if ref.arg_kind is MacroReferenceArgKind.PLUS:
         return ["true"], {}
-    if ref.arg_kind is XPromptReferenceArgKind.COLON:
+    if ref.arg_kind is MacroReferenceArgKind.COLON:
         colon_arg = ref.argument_source[1:]
         if colon_arg.startswith("`") and colon_arg.endswith("`"):
             return [colon_arg[1:-1]], {}
-        return decode_xprompt_args(colon_arg.split(","), {})
+        return decode_macro_args(colon_arg.split(","), {})
     return ref.parse_arguments()
 
 
-def build_xprompt_call(
-    ref: XPromptReference,
+def build_macro_call(
+    ref: MacroReference,
     leading_directives: list[str],
     *,
     leading_directive_prefix: str = "",
     leading_vcs_ref_text: str | None = None,
-) -> _XPromptCall:
-    positional_args, named_args = _parse_xprompt_reference_arguments(ref)
-    return _XPromptCall(
+) -> _MacroCall:
+    positional_args, named_args = _parse_macro_reference_arguments(ref)
+    return _MacroCall(
         name=ref.name,
         marker=ref.marker,
         raw=ref.raw,
@@ -175,8 +175,8 @@ def build_xprompt_call(
     )
 
 
-def _sole_xprompt_reference(body: str, available: set[str]) -> XPromptReference | None:
-    refs = iter_xprompt_references(body)
+def _sole_macro_reference(body: str, available: set[str]) -> MacroReference | None:
+    refs = iter_macro_references(body)
     if len(refs) != 1:
         return None
 
@@ -283,10 +283,10 @@ def leading_vcs_ref_text(segment: str) -> str | None:
     return stripped[0] if stripped is not None else None
 
 
-def extract_top_level_xprompt_reference(
+def extract_top_level_macro_reference(
     segment: str, available: set[str]
-) -> _XPromptCall | None:
-    """Return the call info if *segment* is a sole top-level xprompt reference.
+) -> _MacroCall | None:
+    """Return the call info if *segment* is a sole top-level macro reference.
 
     A segment qualifies if, after stripping leading blank/directive lines and
     trailing whitespace, what remains is exactly one ``#name`` or ``#!name``
@@ -297,9 +297,9 @@ def extract_top_level_xprompt_reference(
     if not body:
         return None
 
-    ref = _sole_xprompt_reference(body, available)
+    ref = _sole_macro_reference(body, available)
     if ref is not None:
-        return build_xprompt_call(
+        return build_macro_call(
             ref,
             directives,
             leading_directive_prefix=directive_split.prefix,
@@ -310,11 +310,11 @@ def extract_top_level_xprompt_reference(
         return None
 
     leading_vcs_ref_text, remaining_body = vcs_prefixed
-    ref = _sole_xprompt_reference(remaining_body, available)
+    ref = _sole_macro_reference(remaining_body, available)
     if ref is None:
         return None
 
-    return build_xprompt_call(
+    return build_macro_call(
         ref,
         directives,
         leading_directive_prefix=directive_split.prefix,
@@ -328,31 +328,29 @@ def _span_overlaps_ranges(start: int, end: int, ranges: list[tuple[int, int]]) -
     )
 
 
-def _real_xprompt_references(segment: str) -> list[XPromptReference]:
-    """Return lexical xprompt references in *segment*, excluding disabled examples."""
+def _real_macro_references(segment: str) -> list[MacroReference]:
+    """Return lexical macro references in *segment*, excluding disabled examples."""
     ignored_ranges = literal_zone_ranges(segment)
     return [
         ref
-        for ref in iter_xprompt_references(segment)
+        for ref in iter_macro_references(segment)
         if not _span_overlaps_ranges(ref.start, ref.end, ignored_ranges)
     ]
 
 
-def xprompt_swarm_references(
-    segment: str, swarm_names: set[str]
-) -> list[XPromptReference]:
+def macro_swarm_references(segment: str, swarm_names: set[str]) -> list[MacroReference]:
     if not swarm_names:
         return []
-    return [ref for ref in _real_xprompt_references(segment) if ref.name in swarm_names]
+    return [ref for ref in _real_macro_references(segment) if ref.name in swarm_names]
 
 
-def first_invalid_standalone_xprompt_reference(
+def first_invalid_standalone_macro_reference(
     segment: str,
-    catalog: dict[str, XPrompt],
+    catalog: dict[str, Macro],
     swarm_names: set[str],
-) -> XPromptReference | None:
-    """Return the first ``#!`` reference to an ordinary embeddable xprompt."""
-    for ref in _real_xprompt_references(segment):
+) -> MacroReference | None:
+    """Return the first ``#!`` reference to an ordinary embeddable macro."""
+    for ref in _real_macro_references(segment):
         if (
             ref.is_standalone_marker
             and ref.name in catalog
@@ -362,7 +360,7 @@ def first_invalid_standalone_xprompt_reference(
     return None
 
 
-def invalid_explicit_xprompt_message(ref: XPromptReference) -> str:
+def invalid_explicit_macro_message(ref: MacroReference) -> str:
     return (
         "Only standalone workflows use `#!`; "
         f"`{ref.raw}` resolves to an embeddable xprompt. "

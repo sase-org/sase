@@ -579,11 +579,11 @@ class Agent(AgentState):
 
         return extract_artifacts_timestamp(self)
 
-    def get_raw_xprompt_content(self) -> str | None:
+    def get_raw_prompt_content(self) -> str | None:
         """Get the raw xprompt content (before preprocessing/expansion)."""
-        from sase.ace.tui.models.artifact_files import get_raw_xprompt_content
+        from sase.ace.tui.models.artifact_files import get_raw_prompt_content
 
-        return get_raw_xprompt_content(self)
+        return get_raw_prompt_content(self)
 
     def get_live_reply_content(self) -> str | None:
         """Get the live reply content for running agents."""

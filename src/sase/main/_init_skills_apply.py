@@ -61,7 +61,7 @@ def run_init_skills(
         print(f"{runtime.command_label}: {provider_error}", file=sys.stderr)
         return 2
 
-    skill_xprompts, placement_errors = runtime.load_skill_sources()
+    skill_macros, placement_errors = runtime.load_skill_sources()
     if placement_errors:
         for error in placement_errors:
             print(f"{runtime.command_label}: {error}", file=sys.stderr)
@@ -71,7 +71,7 @@ def run_init_skills(
     try:
         if use_chezmoi:
             deployment_targets = runtime.render_skill_deployment_targets(
-                skill_xprompts,
+                skill_macros,
                 provider_filter=provider_filter,
                 use_prettier=use_prettier,
             )
@@ -94,7 +94,7 @@ def run_init_skills(
             )
         else:
             targets = runtime.render_skill_targets(
-                skill_xprompts,
+                skill_macros,
                 provider_filter=provider_filter,
                 use_chezmoi=use_chezmoi,
                 use_prettier=use_prettier,
@@ -120,7 +120,7 @@ def run_init_skills(
     manifest_write = None
     if use_chezmoi and not dry_run:
         manifest_write, manifest_error = runtime.prepare_skill_manifest(
-            skill_xprompts,
+            skill_macros,
             chezmoi_home=runtime.chezmoi_home,
             force=force,
             current_targets=deployment_targets,
@@ -228,7 +228,7 @@ def run_init_skills(
 
     _print_summary(
         dry_run=dry_run,
-        source_count=len(skill_xprompts),
+        source_count=len(skill_macros),
         written=written,
         deleted=deleted,
         skipped=skipped,

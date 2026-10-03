@@ -139,7 +139,7 @@ def test_scan_memory_links_skips_fenced_and_inline_code() -> None:
     assert [link.target for link in links] == ["live"]
 
 
-def test_scan_memory_links_ignores_real_xprompts_inline_code_case() -> None:
+def test_scan_memory_links_ignores_real_macros_inline_code_case() -> None:
     text = Path("sase/memory/xprompts.md").read_text(encoding="utf-8")
     body = parse_memory_note_text(text, "xprompts.md").body
 

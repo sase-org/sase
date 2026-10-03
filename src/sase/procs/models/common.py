@@ -27,7 +27,6 @@ PROC_LIFECYCLE_NAMED_PROC: Final = "named-proc"
 LEGACY_PROC_LIFECYCLE_PROC_SHELL: Final = "proc-shell"
 STORE_LOG_OWNER: Final = "proc-store"
 ARTIFACTS_LOG_OWNER: Final = "artifacts"
-XPROMPT_PROC_ORIGIN: Final = "xprompt-proc"
 
 
 def require_wire_schema(data: Mapping[str, Any]) -> None:
@@ -53,6 +52,5 @@ __all__ = [
     "SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS",
     "TERMINAL_PROC_STATUSES",
     "TUI_PROC_KIND",
-    "XPROMPT_PROC_ORIGIN",
     "require_wire_schema",
 ]

@@ -208,7 +208,7 @@ class AgentDisplayRenderMixin(
         if context is None:
             context = self._prompt_highlight_context(
                 agent,
-                agent.get_raw_xprompt_content() or "",
+                agent.get_raw_prompt_content() or "",
             )
         if not context.has_semantic_catalogs or exceeds_syntax_highlight_cap(
             content,
@@ -439,7 +439,7 @@ class AgentDisplayRenderMixin(
             return
 
         # AGENT XPROMPT section
-        raw_xprompt = agent.get_raw_xprompt_content()
+        raw_xprompt = agent.get_raw_prompt_content()
         highlight_context = self._prompt_highlight_context(
             agent,
             raw_xprompt or "",

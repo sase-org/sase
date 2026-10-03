@@ -140,7 +140,7 @@ def test_provider_guard_finish_records_history_prompt_before_remodel() -> None:
                 index=1,
                 prompt="expanded member prompt text here",
                 template_group=None,
-                swarm_xprompts=(),
+                swarm_macros=(),
                 remodeled=True,
             )
         ],
@@ -289,7 +289,7 @@ def test_retry_edit_marks_member_generated_and_standalone_typed() -> None:
             captured.append({"args": args, "kwargs": kwargs})
 
     member = _agent(agent_clan="clan-1")
-    member.get_raw_xprompt_content = lambda: "member prompt text here"  # type: ignore[attr-defined]
+    member.get_raw_prompt_content = lambda: "member prompt text here"  # type: ignore[attr-defined]
     member.agent_name = None
     member.project_file = "/tmp/home/home.sase"
     member.cl_name = "home"
@@ -299,7 +299,7 @@ def test_retry_edit_marks_member_generated_and_standalone_typed() -> None:
 
     captured.clear()
     standalone = _agent()
-    standalone.get_raw_xprompt_content = lambda: "standalone prompt here"  # type: ignore[attr-defined]
+    standalone.get_raw_prompt_content = lambda: "standalone prompt here"  # type: ignore[attr-defined]
     standalone.agent_name = None
     standalone.project_file = "/tmp/home/home.sase"
     standalone.cl_name = "home"

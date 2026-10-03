@@ -1,7 +1,7 @@
 """Entry-point-based plugin discovery for sase.
 
 Provides shared utilities for discovering plugin-contributed resources
-(xprompts, config defaults, VCS providers) via setuptools entry points.
+(macros, config defaults, VCS providers) via setuptools entry points.
 """
 
 import importlib.metadata
@@ -17,7 +17,7 @@ def is_plugin_disabled(group_suffix: str) -> bool:
 
     Returns ``True`` if ``SASE_DISABLE_PLUGINS`` is set (disables all plugin
     groups) or if ``SASE_DISABLE_PLUGIN_{GROUP_SUFFIX}`` is set (disables a
-    specific group, e.g. ``SASE_DISABLE_PLUGIN_XPROMPTS``).
+    specific group, e.g. ``SASE_DISABLE_PLUGIN_MACROS``).
     """
     if os.environ.get("SASE_DISABLE_PLUGINS"):
         return True
@@ -33,7 +33,7 @@ def discover_plugin_resources(group: str) -> list[ModuleType]:
     at debug level.
 
     Args:
-        group: Entry point group name (e.g. ``"sase_xprompts"``,
+        group: Entry point group name (e.g. ``"sase_macros"``,
             ``"sase_config"``).
 
     Returns:

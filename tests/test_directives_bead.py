@@ -75,7 +75,7 @@ def test_id_bead_without_name_allocates_automatic_name() -> None:
     assert directives.bead_id == "sase-1"
 
 
-def test_id_bead_expands_xprompt_reference() -> None:
+def test_id_bead_expands_macro_reference() -> None:
     _, directives = extract_with(
         "%id(worker, bead=#phase)\nWork",
         process_references=lambda value: value.replace("#phase", "sase-1.2"),
@@ -98,7 +98,7 @@ def test_id_bead_reports_targeted_argument_errors(prompt: str, message: str) -> 
         extract_prompt_directives(prompt)
 
 
-def test_id_bead_rejects_whitespace_after_xprompt_expansion() -> None:
+def test_id_bead_rejects_whitespace_after_macro_expansion() -> None:
     with pytest.raises(DirectiveError, match="non-empty, whitespace-free"):
         extract_with(
             "%id(worker, bead=#phase)",

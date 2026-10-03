@@ -19,12 +19,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from enum import Enum
 
-from sase.macro._exceptions import XPromptError
-from sase.macro.loader import get_all_xprompts
-from sase.macro.models import InputArg, XPrompt, XPromptValidationError
+from sase.macro._exceptions import MacroError
+from sase.macro.loader import get_all_macros
+from sase.macro.models import InputArg, Macro, MacroValidationError
 from sase.macro.processor import (
-    expand_single_xprompt,
-    process_xprompt_references_with_catalog,
+    expand_single_macro,
+    process_macro_references_with_catalog,
 )
 from sase.macro.workflow_models import (
     Workflow,
@@ -67,7 +67,7 @@ def expand_inline_xprompt(
     name: str,
     workflow: Workflow,
     *,
-    local_xprompts: dict[str, XPrompt] | None = None,
+    local_macros: dict[str, Macro] | None = None,
     project: str | None = None,
 ) -> _InlineExpansionResult:
     """Decide whether *workflow* can be inline-expanded and render it if so.
@@ -86,7 +86,7 @@ def expand_inline_xprompt(
         An inline expansion result carrying either the expanded body or
         a user-facing error message and a reason code.
     """
-    local_xprompts = local_xprompts or {}
+    local_macros = local_macros or {}
 
     # 1. Classify by xprompt reference semantics. Only simple, side-effect-free
     #    prompt-part entries can be rendered as inline text.
@@ -119,7 +119,7 @@ def expand_inline_xprompt(
     identity_scope = _identity_input_scope(inputs)
     render_xprompt = replace(xprompt, inputs=[]) if inputs else xprompt
     try:
-        rendered = expand_single_xprompt(
+        rendered = expand_single_macro(
             render_xprompt,
             [],
             identity_scope,
@@ -128,11 +128,11 @@ def expand_inline_xprompt(
         )
         rendered = _expand_nested_references(
             rendered,
-            local_xprompts=local_xprompts,
+            local_macros=local_macros,
             project=project,
             scope=identity_scope or None,
         )
-    except (XPromptError, XPromptValidationError, WorkflowValidationError) as exc:
+    except (MacroError, MacroValidationError, WorkflowValidationError) as exc:
         return _error(
             _InlineExpansionReason.EXPANSION_ERROR,
             f"Cannot inline-expand #{name}: {exc}",
@@ -161,21 +161,21 @@ def _error(reason: _InlineExpansionReason, message: str) -> _InlineExpansionResu
     return _InlineExpansionResult(expanded_text=None, error=message, reason=reason)
 
 
-def _workflow_to_xprompt(name: str, workflow: Workflow) -> XPrompt:
+def _workflow_to_xprompt(name: str, workflow: Workflow) -> Macro:
     """Project a simple prompt-part workflow back into an ``XPrompt``.
 
     The inverse of :func:`sase.macro.models.xprompt_to_workflow`, scoped to
     the single prompt-part body so it can be rendered through the same helper
     as a hand-authored xprompt.
     """
-    return XPrompt(
+    return Macro(
         name=name,
         content=workflow.get_prompt_part_content(),
         inputs=[inp for inp in workflow.inputs if not inp.is_step_input],
         source_path=workflow.source_path,
         tags=workflow.tags,
         description=workflow.description,
-        local_xprompts=dict(workflow.xprompts),
+        local_macros=dict(workflow.macros),
     )
 
 
@@ -194,7 +194,7 @@ def _identity_input_scope(inputs: list[InputArg]) -> dict[str, str]:
 def _expand_nested_references(
     rendered: str,
     *,
-    local_xprompts: dict[str, XPrompt],
+    local_macros: dict[str, Macro],
     project: str | None,
     scope: dict[str, str] | None,
 ) -> str:
@@ -207,14 +207,14 @@ def _expand_nested_references(
     if "#" not in rendered:
         return rendered
 
-    catalog: dict[str, XPrompt] = dict(get_all_xprompts(project))
-    if local_xprompts:
-        catalog.update(local_xprompts)
+    catalog: dict[str, Macro] = dict(get_all_macros(project))
+    if local_macros:
+        catalog.update(local_macros)
 
-    return process_xprompt_references_with_catalog(
+    return process_macro_references_with_catalog(
         rendered,
         catalog,
-        extra_xprompts=local_xprompts or None,
+        extra_macros=local_macros or None,
         scope=scope,
         aliases_resolved=True,
         preserve_segment_separators=True,

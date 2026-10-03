@@ -16,7 +16,7 @@ from sase.main.init_skills_handler import (
     run_init_skills,
 )
 from sase.markdown_width import prettier_markdown_argv
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from tests.main.init_skills_handler_helpers import (
     make_args,
     stub_under_wrapped_skill,
@@ -81,15 +81,15 @@ def test_handler_warns_once_when_prettier_missing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """When prettier is absent, emit one warning per invocation, not per skill."""
-    xprompts = {
-        "skill/foo": XPrompt(
+    macros = {
+        "skill/foo": Macro(
             name="skill/foo",
             content="body\n",
             description="x",
             skill=["claude"],
             skill_name="foo",
         ),
-        "skill/bar": XPrompt(
+        "skill/bar": Macro(
             name="skill/bar",
             content="body\n",
             description="y",
@@ -99,7 +99,7 @@ def test_handler_warns_once_when_prettier_missing(
     }
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(
-        init_skills_handler, "get_all_xprompts", lambda project="": xprompts
+        init_skills_handler, "get_all_macros", lambda project="": macros
     )
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -145,7 +145,7 @@ def test_duplicate_raw_outputs_are_formatted_once_and_reused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xprompt = init_skills_handler.XPrompt(
+    macro_def = init_skills_handler.Macro(
         name="skill/foo",
         content="body\n",
         description="a test skill",
@@ -174,7 +174,7 @@ def test_duplicate_raw_outputs_are_formatted_once_and_reused(
     )
 
     targets = init_skills_handler.render_skill_targets(
-        [xprompt],
+        [macro_def],
         provider_filter="claude",
         use_chezmoi=False,
         use_prettier=True,

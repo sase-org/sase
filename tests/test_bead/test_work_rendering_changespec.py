@@ -27,8 +27,8 @@ class TestPatchRendering:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 vcs_workflow="git",
@@ -65,8 +65,8 @@ class TestPatchRendering:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="custom/work"),
-            land_epic_xprompt=Workflow(name="custom/land"),
+            work_phase_macro=Workflow(name="custom/work"),
+            land_epic_macro=Workflow(name="custom/land"),
             patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 vcs_workflow="gh",
@@ -119,8 +119,8 @@ class TestPatchRendering:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 vcs_workflow="git",
@@ -143,8 +143,8 @@ class TestPatchRendering:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             patch_context=PatchLaunchContext(
                 changespec_name="feature_epic",
                 bug_id="12345",

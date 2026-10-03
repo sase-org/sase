@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 import sase.history.prompt_metadata as prompt_metadata
-import sase.macro._parsing as xprompt_parsing
+import sase.macro._parsing as macro_parsing
 from sase.history.prompt_metadata import (
     clean_prompt_preview,
     summarize_prompt_for_list,
@@ -26,12 +26,12 @@ def _workflow_names(monkeypatch: pytest.MonkeyPatch):
         lambda: workflow_names,
     )
     prompt_metadata.known_workflow_names.cache_clear()
-    xprompt_parsing._VCS_TAG_PATTERN = None
-    xprompt_parsing._VCS_TAG_EMBEDDED_PATTERN = None
+    macro_parsing._VCS_TAG_PATTERN = None
+    macro_parsing._VCS_TAG_EMBEDDED_PATTERN = None
     yield
     prompt_metadata.known_workflow_names.cache_clear()
-    xprompt_parsing._VCS_TAG_PATTERN = None
-    xprompt_parsing._VCS_TAG_EMBEDDED_PATTERN = None
+    macro_parsing._VCS_TAG_PATTERN = None
+    macro_parsing._VCS_TAG_EMBEDDED_PATTERN = None
 
 
 def test_summarize_prompt_for_list_extracts_columns_and_clean_preview() -> None:
@@ -41,7 +41,7 @@ def test_summarize_prompt_for_list_extracts_columns_and_clean_preview() -> None:
 
     assert summary.project_prefix == "gh:"
     assert summary.project_ref_display == "beads"
-    assert summary.xprompts == ("#fork", "#research")
+    assert summary.macros == ("#fork", "#research")
     assert summary.directive_token == "%mi"
     assert summary.clean_preview == "Fix parser"
 
@@ -51,7 +51,7 @@ def test_summarize_prompt_for_list_handles_missing_project() -> None:
 
     assert summary.project_prefix == ""
     assert summary.project_ref_display == ""
-    assert summary.xprompts == ("#research",)
+    assert summary.macros == ("#research",)
     assert summary.clean_preview == "Investigate history metadata"
 
 
@@ -60,7 +60,7 @@ def test_summarize_prompt_for_list_uses_underscore_vcs_basename() -> None:
 
     assert summary.project_prefix == "gh:"
     assert summary.project_ref_display == "beads"
-    assert summary.xprompts == ()
+    assert summary.macros == ()
     assert summary.clean_preview == "Fix parser"
 
 
@@ -76,7 +76,7 @@ def test_summarize_prompt_for_search_keeps_preview_when_workflows_fail(
     summary = summarize_prompt_for_search("#research Investigate history metadata")
 
     assert summary.clean_preview == "Investigate history metadata"
-    assert summary.xprompts == ()
+    assert summary.macros == ()
 
 
 def test_summarize_prompt_for_search_skips_literal_scan_without_controls(
@@ -95,7 +95,7 @@ def test_summarize_prompt_for_search_skips_literal_scan_without_controls(
     )
 
     assert summary.clean_preview == "Plain searchable title"
-    assert summary.xprompts == ()
+    assert summary.macros == ()
 
 
 def test_clean_prompt_preview_ignores_control_tokens_inside_fences() -> None:
@@ -103,7 +103,7 @@ def test_clean_prompt_preview_ignores_control_tokens_inside_fences() -> None:
 
     summary = summarize_prompt_for_list(prompt)
 
-    assert summary.xprompts == ("#fork",)
+    assert summary.macros == ("#fork",)
     assert summary.directive_token == "%i"
     assert summary.clean_preview == "Show this:"
 
@@ -128,7 +128,7 @@ def test_summarize_prompt_for_preview_preserves_verbose_metadata() -> None:
     )
 
     assert summary.vcs_tag == "#gh:steveyegge/beads "
-    assert summary.xprompts == ("#fork(prev)", "#research:topic")
+    assert summary.macros == ("#fork(prev)", "#research:topic")
     assert summary.directives == ("%model:opus",)
 
 

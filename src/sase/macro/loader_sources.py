@@ -1,4 +1,4 @@
-"""Per-source xprompt loaders (filesystem, config, plugins, projects)."""
+"""Per-source macro loaders (filesystem, config, plugins, projects)."""
 
 import importlib.resources
 import logging
@@ -8,10 +8,10 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.config import load_xprompts_by_source
+from sase.config import load_macros_by_source
 from sase.content_layout import (
     resolve_project_config_read_path,
-    resolve_xprompt_file_sources,
+    resolve_macro_file_sources,
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
@@ -24,8 +24,8 @@ from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disa
 from .discovery_order import (
     RANK_CONFIG_BASE,
     RANK_FILESYSTEM_BASE,
-    RANK_PACKAGE_DEFAULT_XPROMPTS,
-    RANK_PACKAGE_XPROMPTS,
+    RANK_PACKAGE_DEFAULT_MACROS,
+    RANK_PACKAGE_MACROS,
     RANK_PLUGIN,
     RANK_PROJECT_CONFIG,
     RANK_REGISTERED_PROJECT_BASE,
@@ -35,8 +35,8 @@ from .discovery_order import (
 )
 from .loader_parsing import (
     parse_inputs_from_front_matter,
-    parse_local_xprompt_entries,
-    parse_xprompt_entries,
+    parse_local_macro_entries,
+    parse_macro_entries,
     parse_yaml_front_matter,
     parse_yaml_front_matter_with_error,
 )
@@ -44,16 +44,16 @@ from .load_issues import record_load_issue
 from .loader_skills import (
     plugin_skill_destination,
     reject_misplaced_skill,
-    skill_destination_for_xprompt_dir,
+    skill_destination_for_macro_dir,
 )
-from .models import InputArg, XPrompt
+from .models import InputArg, Macro
 from .reserved_namespaces import reject_reserved_memory_namespace
 from .tags import parse_tags
 
 log = logging.getLogger(__name__)
 
 
-def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
+def namespace_macro(project: str, xp: Macro) -> Macro:
     """Return a copy of *xp* with its name prefixed by ``{project}/``.
 
     Skills are namespaced by :func:`sase.content_layout.skill_reference_name`
@@ -61,7 +61,7 @@ def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
     provider-visible name.
     """
     namespaced_name = f"{project}/{xp.name}"
-    return XPrompt(
+    return Macro(
         name=namespaced_name,
         content=xp.content,
         inputs=xp.inputs,
@@ -72,52 +72,52 @@ def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         skill=xp.skill,
         skill_name=xp.skill_name,
         log_skill_use=xp.log_skill_use,
-        local_xprompts=xp.local_xprompts,
+        local_macros=xp.local_macros,
         memory_type=xp.memory_type,
         discovery_rank=xp.discovery_rank,
     )
 
 
-def _load_ordinary_xprompts_from_dir(directory: Path) -> Iterator[XPrompt]:
-    """Yield loadable non-skill definitions from an ordinary xprompt dir.
+def _load_ordinary_macros_from_dir(directory: Path) -> Iterator[Macro]:
+    """Yield loadable non-skill definitions from an ordinary macro dir.
 
     A ``skill:`` declaration here is rejected with a migration diagnostic
     naming the scope's canonical ``sase/skills/`` directory, so a misplaced
     skill is reported rather than loaded under its bare name.
     """
-    destination = skill_destination_for_xprompt_dir(directory)
+    destination = skill_destination_for_macro_dir(directory)
     for md_file in sorted(directory.glob("*.md")):
         if not md_file.is_file():
             continue
-        xprompt = load_xprompt_from_file(md_file)
-        if xprompt is None:
+        macro_def = load_macro_from_file(md_file)
+        if macro_def is None:
             continue
-        if reject_reserved_memory_namespace(xprompt.name, source=md_file):
+        if reject_reserved_memory_namespace(macro_def.name, source=md_file):
             continue
-        if reject_misplaced_skill(xprompt, source=md_file, migrate_to=destination):
+        if reject_misplaced_skill(macro_def, source=md_file, migrate_to=destination):
             continue
-        yield xprompt
+        yield macro_def
 
 
-def _parse_markdown_local_xprompts(
+def _parse_markdown_local_macros(
     front_matter: dict[str, Any] | None, source_path: str
-) -> dict[str, XPrompt]:
+) -> dict[str, Macro]:
     if not front_matter:
         return {}
-    xprompts_data = front_matter.get("xprompts")
-    if not isinstance(xprompts_data, dict):
+    macros_data = front_matter.get("xprompts")
+    if not isinstance(macros_data, dict):
         return {}
-    return parse_local_xprompt_entries(xprompts_data, source_path)
+    return parse_local_macro_entries(macros_data, source_path)
 
 
-def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
-    """Load a single xprompt from a markdown file.
+def load_macro_from_file(file_path: Path) -> Macro | None:
+    """Load a single macro from a markdown file.
 
     Args:
         file_path: Path to the .md file.
 
     Returns:
-        XPrompt object if successfully loaded, None otherwise.
+        Macro object if successfully loaded, None otherwise.
     """
     try:
         content = file_path.read_text(encoding="utf-8")
@@ -155,12 +155,12 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     skill = front_matter.get("skill") if front_matter else None
     log_skill_use = front_matter.get("log_skill_use", True) if front_matter else True
 
-    local_xprompts = _parse_markdown_local_xprompts(front_matter, str(file_path))
+    local_macros = _parse_markdown_local_macros(front_matter, str(file_path))
 
     if reject_reserved_memory_namespace(name, source=file_path):
         return None
 
-    return XPrompt(
+    return Macro(
         name=name,
         content=body,
         inputs=inputs,
@@ -170,14 +170,14 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
         description=description,
         skill=skill,
         log_skill_use=log_skill_use,
-        local_xprompts=local_xprompts,
+        local_macros=local_macros,
     )
 
 
-def get_sase_package_xprompts_dir() -> Path:
-    """Get the path to the internal sase xprompts directory.
+def get_sase_package_macros_dir() -> Path:
+    """Get the path to the internal sase macros directory.
 
-    The built-in xprompts live at ``src/sase/macros/`` inside the package,
+    The built-in macros live at ``src/sase/macros/`` inside the package,
     so ``importlib.resources`` resolves them for both wheel and editable
     installs.
     """
@@ -191,10 +191,10 @@ def get_sase_package_xprompts_dir() -> Path:
     return candidate
 
 
-def get_sase_package_default_xprompts_dir() -> Path:
-    """Get the path to the internal sase default markdown xprompts directory.
+def get_sase_package_default_macros_dir() -> Path:
+    """Get the path to the internal sase default markdown macros directory.
 
-    Default file-backed xprompts live at ``src/sase/default_macros/`` inside
+    Default file-backed macros live at ``src/sase/default_macros/`` inside
     the package, so ``importlib.resources`` resolves them for both wheel and
     editable installs.
     """
@@ -209,12 +209,12 @@ def get_sase_package_default_xprompts_dir() -> Path:
     return candidate
 
 
-def get_xprompt_search_paths(
+def get_macro_search_paths(
     project: str | None = None,
     *,
     project_root: Path | None = None,
 ) -> list[Path]:
-    """Get the ordered list of directories to search for xprompt files.
+    """Get the ordered list of directories to search for macro files.
 
     The Rust content-layout contract owns the first-wins order: canonical
     project, legacy project, canonical home, legacy home, project-specific
@@ -226,7 +226,7 @@ def get_xprompt_search_paths(
     """
     return [
         source.path
-        for source in resolve_xprompt_file_sources(
+        for source in resolve_macro_file_sources(
             project_root=project_root,
             project=project,
         )
@@ -234,30 +234,28 @@ def get_xprompt_search_paths(
     ]
 
 
-def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
-    """Load xprompts from file system locations.
+def load_macros_from_files(project: str | None = None) -> dict[str, Macro]:
+    """Load macros from file system locations.
 
     Scans each search directory for ``.md`` files. Earlier directories in the
     search path take precedence over later ones.
 
-    When *project* is given, xprompts from project directories (canonical
-    ``sase/xprompts/`` and legacy fallbacks) are namespaced with
+    When *project* is given, macros from project directories (canonical
+    ``sase/macros/`` and legacy fallbacks) are namespaced with
     ``{project}/``.
 
     Returns:
-        Dictionary mapping xprompt name to XPrompt object.
+        Dictionary mapping macro name to Macro object.
         Earlier priority sources override later ones.
     """
-    sources = resolve_xprompt_file_sources(project=project)
+    sources = resolve_macro_file_sources(project=project)
     namespaced_dirs = {
         source.path
         for source in sources
         if source.path is not None and source.project_namespaced
     }
     search_paths = (
-        get_xprompt_search_paths()
-        if project is None
-        else get_xprompt_search_paths(project)
+        get_macro_search_paths() if project is None else get_macro_search_paths(project)
     )
     if not namespaced_dirs:
         cwd = Path.cwd()
@@ -270,7 +268,7 @@ def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
         search_dir: source_rank(RANK_FILESYSTEM_BASE, index, len(search_paths))
         for index, search_dir in enumerate(search_paths)
     }
-    xprompts: dict[str, XPrompt] = {}
+    macros: dict[str, Macro] = {}
 
     # Process directories in reverse priority order (lowest first),
     # so higher-priority directories overwrite.
@@ -279,26 +277,26 @@ def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
             continue
 
         is_local = search_dir in namespaced_dirs
-        for xprompt in _load_ordinary_xprompts_from_dir(search_dir):
+        for macro_def in _load_ordinary_macros_from_dir(search_dir):
             if project and is_local:
-                xprompt = namespace_xprompt(project, xprompt)
-            xprompt.discovery_rank = rank_by_path[search_dir]
-            if xprompt.name in xprompts:
-                del xprompts[xprompt.name]
-            xprompts[xprompt.name] = xprompt
+                macro_def = namespace_macro(project, macro_def)
+            macro_def.discovery_rank = rank_by_path[search_dir]
+            if macro_def.name in macros:
+                del macros[macro_def.name]
+            macros[macro_def.name] = macro_def
 
-    return xprompts
+    return macros
 
 
-def load_xprompts_from_config(project: str | None = None) -> dict[str, XPrompt]:
-    """Load xprompts from config sources with proper source attribution.
+def load_macros_from_config(project: str | None = None) -> dict[str, Macro]:
+    """Load macros from config sources with proper source attribution.
 
-    Loads xprompts from each config source separately (built-in defaults,
+    Loads macros from each config source separately (built-in defaults,
     plugin default configs, user sase.yml, overlay files) so that each
-    xprompt gets the correct source attribution instead of all being
+    macro gets the correct source attribution instead of all being
     tagged as ``"config"``.
 
-    When *project* is given, xprompts from the local ``sase/sase.yml``
+    When *project* is given, macros from the local ``sase/sase.yml``
     (``local_config`` source) are namespaced with ``{project}/``.
 
     Priority order (within config sources, later overrides earlier):
@@ -309,73 +307,73 @@ def load_xprompts_from_config(project: str | None = None) -> dict[str, XPrompt]:
     5. Local ``sase/sase.yml`` (root ``sase.yml`` is a legacy fallback)
 
     Returns:
-        Dictionary mapping xprompt name to XPrompt object.
+        Dictionary mapping macro name to Macro object.
     """
-    all_xprompts: dict[str, XPrompt] = {}
+    all_macros: dict[str, Macro] = {}
 
-    sources = load_xprompts_by_source()
-    for index, (source_label, xprompts_data) in enumerate(sources):
-        parsed = parse_xprompt_entries(xprompts_data, source_label)
+    sources = load_macros_by_source()
+    for index, (source_label, macros_data) in enumerate(sources):
+        parsed = parse_macro_entries(macros_data, source_label)
         if project and source_label == "local_config":
             parsed = {
-                f"{project}/{name}": namespace_xprompt(project, xp)
+                f"{project}/{name}": namespace_macro(project, xp)
                 for name, xp in parsed.items()
             }
         merge_by_discovery_order(
-            all_xprompts,
+            all_macros,
             parsed,
             fallback_rank=source_rank(RANK_CONFIG_BASE, index, len(sources)),
         )
 
-    return all_xprompts
+    return all_macros
 
 
-def load_xprompts_from_internal() -> dict[str, XPrompt]:
-    """Load xprompts from the internal sase package xprompts directory.
+def load_macros_from_internal() -> dict[str, Macro]:
+    """Load macros from the internal sase package macros directory.
 
     Returns:
-        Dictionary mapping xprompt name to XPrompt object.
+        Dictionary mapping macro name to Macro object.
     """
-    internal_dir = get_sase_package_xprompts_dir()
+    internal_dir = get_sase_package_macros_dir()
 
     if not internal_dir.is_dir():
         return {}
 
-    xprompts: dict[str, XPrompt] = {}
-    for xprompt in _load_ordinary_xprompts_from_dir(internal_dir):
-        xprompt.discovery_rank = RANK_PACKAGE_XPROMPTS
-        if xprompt.name not in xprompts:
-            xprompts[xprompt.name] = xprompt
+    macros: dict[str, Macro] = {}
+    for macro_def in _load_ordinary_macros_from_dir(internal_dir):
+        macro_def.discovery_rank = RANK_PACKAGE_MACROS
+        if macro_def.name not in macros:
+            macros[macro_def.name] = macro_def
 
-    return xprompts
+    return macros
 
 
-def load_xprompts_from_default_files() -> dict[str, XPrompt]:
-    """Load xprompts from the internal sase package default_xprompts directory.
+def load_macros_from_default_files() -> dict[str, Macro]:
+    """Load macros from the internal sase package default_macros directory.
 
     Returns:
-        Dictionary mapping xprompt name to XPrompt object.
+        Dictionary mapping macro name to Macro object.
     """
-    default_dir = get_sase_package_default_xprompts_dir()
+    default_dir = get_sase_package_default_macros_dir()
 
     if not default_dir.is_dir():
         return {}
 
     return assign_discovery_rank(
         {
-            xprompt.name: xprompt
-            for xprompt in _load_ordinary_xprompts_from_dir(default_dir)
+            macro_def.name: macro_def
+            for macro_def in _load_ordinary_macros_from_dir(default_dir)
         },
-        RANK_PACKAGE_DEFAULT_XPROMPTS,
+        RANK_PACKAGE_DEFAULT_MACROS,
     )
 
 
-def load_plugin_markdown_xprompts(
+def load_plugin_markdown_macros(
     module: Any, resource_dir: str
-) -> Iterator[tuple[str, XPrompt]]:
-    """Yield ``(source, xprompt)`` for one plugin resource directory.
+) -> Iterator[tuple[str, Macro]]:
+    """Yield ``(source, macro)`` for one plugin resource directory.
 
-    Skill placement is *not* applied here: ``xprompts/`` and ``skills/`` are
+    Skill placement is *not* applied here: ``macros/`` and ``skills/`` are
     sibling resource directories parsed identically, and each caller applies
     the rule for the directory it asked for.
     """
@@ -410,7 +408,7 @@ def load_plugin_markdown_xprompts(
         source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
         yield (
             source,
-            XPrompt(
+            Macro(
                 name=name,
                 content=body,
                 inputs=inputs,
@@ -422,60 +420,60 @@ def load_plugin_markdown_xprompts(
                 log_skill_use=(
                     front_matter.get("log_skill_use", True) if front_matter else True
                 ),
-                local_xprompts=_parse_markdown_local_xprompts(front_matter, source),
+                local_macros=_parse_markdown_local_macros(front_matter, source),
             ),
         )
 
 
-def load_xprompts_from_plugins() -> dict[str, XPrompt]:
-    """Load xprompts from plugin packages via ``sase_xprompts`` entry points.
+def load_macros_from_plugins() -> dict[str, Macro]:
+    """Load macros from plugin packages via ``sase_macros`` entry points.
 
     Each entry point should reference a module whose package contains an
-    ``xprompts/`` resource directory with ``.md`` files. Plugin skills live in
+    ``macros/`` resource directory with ``.md`` files. Plugin skills live in
     a sibling ``skills/`` resource directory instead, so a ``skill:``
     declaration here is rejected with that migration destination.
 
     Returns:
-        Dictionary mapping xprompt name to XPrompt object.
+        Dictionary mapping macro name to Macro object.
     """
     if is_plugin_disabled("XPROMPTS"):
         return {}
 
-    xprompts: dict[str, XPrompt] = {}
+    macros: dict[str, Macro] = {}
     for module in discover_plugin_resources("sase_xprompts"):
-        for source, xprompt in load_plugin_markdown_xprompts(module, "xprompts"):
-            if reject_reserved_memory_namespace(xprompt.name, source=source):
+        for source, macro_def in load_plugin_markdown_macros(module, "xprompts"):
+            if reject_reserved_memory_namespace(macro_def.name, source=source):
                 continue
             if reject_misplaced_skill(
-                xprompt,
+                macro_def,
                 source=source,
                 migrate_to=plugin_skill_destination(),
             ):
                 continue
-            xprompt.discovery_rank = RANK_PLUGIN
-            xprompts[xprompt.name] = xprompt
+            macro_def.discovery_rank = RANK_PLUGIN
+            macros[macro_def.name] = macro_def
 
-    return xprompts
+    return macros
 
 
-def load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
-    """Load xprompts from a project-specific directory.
+def load_macros_from_project(project: str) -> dict[str, Macro]:
+    """Load macros from a project-specific directory.
 
-    Loads xprompts from canonical ``~/sase/xprompts/{project}/`` and the
+    Loads macros from canonical ``~/sase/macros/{project}/`` and the
     legacy config-directory fallback, then namespaces them with the project
     name (e.g., bar.md → foo/bar for project 'foo').
 
     Args:
-        project: The project name to load xprompts for.
+        project: The project name to load macros for.
 
     Returns:
-        Dictionary mapping namespaced xprompt name to XPrompt object.
+        Dictionary mapping namespaced macro name to Macro object.
         Returns empty dict if directory doesn't exist.
     """
-    xprompts: dict[str, XPrompt] = {}
+    macros: dict[str, Macro] = {}
     project_dirs = [
         source.path
-        for source in resolve_xprompt_file_sources(project=project)
+        for source in resolve_macro_file_sources(project=project)
         if source.path is not None and source.scope == "home_project"
     ]
     rank_by_path = {
@@ -485,14 +483,14 @@ def load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
     for project_dir in reversed(project_dirs):
         if not project_dir.is_dir():
             continue
-        for xprompt in _load_ordinary_xprompts_from_dir(project_dir):
-            ns = namespace_xprompt(project, xprompt)
+        for macro_def in _load_ordinary_macros_from_dir(project_dir):
+            ns = namespace_macro(project, macro_def)
             ns.discovery_rank = rank_by_path[project_dir]
-            if ns.name in xprompts:
-                del xprompts[ns.name]
-            xprompts[ns.name] = ns
+            if ns.name in macros:
+                del macros[ns.name]
+            macros[ns.name] = ns
 
-    return xprompts
+    return macros
 
 
 def _project_ref_candidates(ref: str) -> tuple[str, ...]:
@@ -557,13 +555,11 @@ def get_known_project_workspaces(
     return result
 
 
-def load_project_local_xprompts(
-    workspace_dir: Path, project: str
-) -> dict[str, XPrompt]:
-    """Load xprompts from a project's ``sase.yml`` file.
+def load_project_local_macros(workspace_dir: Path, project: str) -> dict[str, Macro]:
+    """Load macros from a project's ``sase.yml`` file.
 
     Reads ``<workspace_dir>/sase.yml`` directly, bypassing the
-    ``_include_local_config`` flag.  Returns xprompts namespaced with
+    ``_include_local_config`` flag.  Returns macros namespaced with
     ``{project}/``.
     """
     sase_yml = resolve_project_config_read_path(
@@ -584,27 +580,26 @@ def load_project_local_xprompts(
     if not isinstance(data, dict):
         return {}
 
-    xprompts_data: dict[str, Any] = data.get("xprompts", {})
-    if not isinstance(xprompts_data, dict) or not xprompts_data:
+    macros_data: dict[str, Any] = data.get("xprompts", {})
+    if not isinstance(macros_data, dict) or not macros_data:
         return {}
 
     source_label = f"project_local_config:{project}"
-    parsed = parse_xprompt_entries(xprompts_data, source_label)
+    parsed = parse_macro_entries(macros_data, source_label)
     namespaced = {
-        f"{project}/{name}": namespace_xprompt(project, xp)
-        for name, xp in parsed.items()
+        f"{project}/{name}": namespace_macro(project, xp) for name, xp in parsed.items()
     }
     return assign_discovery_rank(namespaced, RANK_PROJECT_CONFIG)
 
 
-def load_project_file_xprompts(
+def load_project_file_macros(
     workspace_dir: Path,
     project: str,
-) -> dict[str, XPrompt]:
-    """Load namespaced Markdown xprompts from one known project workspace."""
+) -> dict[str, Macro]:
+    """Load namespaced Markdown macros from one known project workspace."""
     project_dirs = [
         source.path
-        for source in resolve_xprompt_file_sources(
+        for source in resolve_macro_file_sources(
             project_root=workspace_dir,
             project=project,
         )
@@ -614,14 +609,14 @@ def load_project_file_xprompts(
         project_dir: source_rank(RANK_REGISTERED_PROJECT_BASE, index, len(project_dirs))
         for index, project_dir in enumerate(project_dirs)
     }
-    xprompts: dict[str, XPrompt] = {}
+    macros: dict[str, Macro] = {}
     for project_dir in reversed(project_dirs):
         if not project_dir.is_dir():
             continue
-        for xprompt in _load_ordinary_xprompts_from_dir(project_dir):
-            namespaced = namespace_xprompt(project, xprompt)
+        for macro_def in _load_ordinary_macros_from_dir(project_dir):
+            namespaced = namespace_macro(project, macro_def)
             namespaced.discovery_rank = rank_by_path[project_dir]
-            if namespaced.name in xprompts:
-                del xprompts[namespaced.name]
-            xprompts[namespaced.name] = namespaced
-    return xprompts
+            if namespaced.name in macros:
+                del macros[namespaced.name]
+            macros[namespaced.name] = namespaced
+    return macros

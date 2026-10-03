@@ -17,14 +17,14 @@ from sase.ace.tui.widgets._jinja_highlight import (
 )
 from sase.macro.highlight import (
     HighlightSpan,
-    XPromptArgumentSource,
-    XPromptHighlightRole,
+    MacroArgumentSource,
+    MacroHighlightRole,
     highlight_spans,
 )
 from sase.project_accents import PROJECT_ACCENTS
 from sase.macro.highlight_theme import (
     derive_argument_color,
-    xprompt_argument_palette,
+    macro_argument_palette,
 )
 
 _PROJECT_TAG_ROLES = frozenset(
@@ -131,8 +131,8 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             spans = highlight_spans(
                 text,
                 known_skills=known_skills,
-                xprompt_arg_assist_entries=entries,
-                xprompt_arg_assist_entries_wire=wire_entries,
+                macro_arg_assist_entries=entries,
+                macro_arg_assist_entries_wire=wire_entries,
             )
         except Exception:
             return
@@ -183,7 +183,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             cached = getattr(self, "_xprompt_highlight_arg_entries_wire", None)
             if cached is not None:
                 return cached
-        wire = xprompt_highlight.xprompt_arg_assist_entries_to_wire(entries)
+        wire = xprompt_highlight.macro_arg_assist_entries_to_wire(entries)
         self._xprompt_highlight_arg_entries = entries
         self._xprompt_highlight_arg_entries_wire = wire
         return wire
@@ -199,7 +199,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
         background = app_theme.background or "#000000"
-        xprompt_argument_colors = xprompt_argument_palette(
+        xprompt_argument_colors = macro_argument_palette(
             app_theme.success,
             foreground=app_theme.foreground,
             background=background,
@@ -207,7 +207,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             accent=app_theme.accent,
             primary=app_theme.primary,
         )
-        directive_argument_colors = xprompt_argument_palette(
+        directive_argument_colors = macro_argument_palette(
             app_theme.warning,
             foreground=app_theme.foreground,
             background=background,
@@ -296,7 +296,7 @@ def _text_area_style_name(span: HighlightSpan) -> str:
 
 
 def _project_tag_style_name(
-    role: XPromptHighlightRole,
+    role: MacroHighlightRole,
     accent: str | None,
 ) -> str:
     """Return the registered TextArea style for a project-tag span (D6)."""
@@ -316,8 +316,8 @@ def _project_tag_style_name(
 
 
 def _argument_style_name(
-    role: XPromptHighlightRole,
-    source: XPromptArgumentSource | None,
+    role: MacroHighlightRole,
+    source: MacroArgumentSource | None,
 ) -> str:
     if role in _ARGUMENT_ROLES and source == "directive":
         return f"xprompt.directive.{role.removeprefix('xprompt.')}"
@@ -326,9 +326,9 @@ def _argument_style_name(
 
 def _update_argument_syntax_styles(
     syntax_styles: dict[str, Style],
-    colors: Mapping[XPromptHighlightRole, str | None],
+    colors: Mapping[MacroHighlightRole, str | None],
     *,
-    source: XPromptArgumentSource,
+    source: MacroArgumentSource,
 ) -> None:
     for role, color in colors.items():
         style_name = _argument_style_name(role, source)

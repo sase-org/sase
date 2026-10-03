@@ -218,8 +218,8 @@ class ActivityView:
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptCountRow:
-    """One xprompt cross-tab count and its within-xprompt share."""
+class MacroCountRow:
+    """One macro cross-tab count and its within-macro share."""
 
     key: str
     label: str
@@ -228,8 +228,8 @@ class XPromptCountRow:
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptRow:
-    """One ranked launch-boundary xprompt usage row."""
+class MacroRow:
+    """One ranked launch-boundary macro usage row."""
 
     name: str
     kind: str
@@ -245,17 +245,17 @@ class XPromptRow:
     first_run_ts: float
     last_run_ts: float
     share: float
-    models: tuple[XPromptCountRow, ...]
-    projects: tuple[XPromptCountRow, ...]
-    partners: tuple[XPromptCountRow, ...]
+    models: tuple[MacroCountRow, ...]
+    projects: tuple[MacroCountRow, ...]
+    partners: tuple[MacroCountRow, ...]
     models_truncated: int
     projects_truncated: int
     partners_truncated: int
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptFocusView:
-    """Full breakdown for one exact xprompt focus."""
+class MacroFocusView:
+    """Full breakdown for one exact macro focus."""
 
     name: str
     found: bool
@@ -271,26 +271,26 @@ class XPromptFocusView:
     mean_runtime_seconds: float | None
     first_run_ts: float
     last_run_ts: float
-    models: tuple[XPromptCountRow, ...]
-    projects: tuple[XPromptCountRow, ...]
-    partners: tuple[XPromptCountRow, ...]
-    providers: tuple[XPromptCountRow, ...]
-    tribes: tuple[XPromptCountRow, ...]
+    models: tuple[MacroCountRow, ...]
+    projects: tuple[MacroCountRow, ...]
+    partners: tuple[MacroCountRow, ...]
+    providers: tuple[MacroCountRow, ...]
+    tribes: tuple[MacroCountRow, ...]
     buckets: tuple[RunBucket, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptsView:
-    """Launch-boundary xprompt usage for the selected Statistics scope."""
+class MacrosView:
+    """Launch-boundary macro usage for the selected Statistics scope."""
 
     available: bool
-    runs_with_xprompts: int
-    runs_without_xprompts: int
-    distinct_xprompts: int
+    runs_with_macros: int
+    runs_without_macros: int
+    distinct_macros: int
     total_references: int
     truncated_rows: int
-    rows: tuple[XPromptRow, ...]
-    focus: XPromptFocusView | None
+    rows: tuple[MacroRow, ...]
+    focus: MacroFocusView | None
 
 
 @dataclass(frozen=True, slots=True)

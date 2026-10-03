@@ -16,7 +16,7 @@ from sase.stats._view_builders import (
     build_providers_view,
     build_runs_view,
     build_runtime_view,
-    build_xprompts_view,
+    build_macros_view,
 )
 from sase.stats._view_models import (
     ActivityView,
@@ -27,7 +27,7 @@ from sase.stats._view_models import (
     RunnersView,
     RunsView,
     RuntimeView,
-    XPromptsView,
+    MacrosView,
 )
 from sase.stats._view_payload import Payload, integer, mapping
 
@@ -45,7 +45,7 @@ class StatisticsViews:
     providers: ProvidersView
     runtime: RuntimeView
     activity: ActivityView
-    xprompts: XPromptsView
+    macros: MacrosView
     plans_questions: PlansQuestionsView
     runners: RunnersView
 
@@ -88,7 +88,7 @@ def build_statistics_views(
             activity_payload,
             display_snapshot,
         ),
-        xprompts=build_xprompts_view(
+        macros=build_macros_view(
             run_payload,
             display_snapshot,
             timezone=resolved_timezone,

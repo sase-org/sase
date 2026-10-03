@@ -1,8 +1,8 @@
 """Public facade for directive completion parity LSP helpers.
 
-The implementation lives in ``_xprompt_directive_completion_parity_lsp_rows``,
-``_xprompt_directive_completion_parity_lsp_protocol``, and
-``_xprompt_directive_completion_parity_lsp_session``. This module re-exports
+The implementation lives in ``_macro_directive_completion_parity_lsp_rows``,
+``_macro_directive_completion_parity_lsp_protocol``, and
+``_macro_directive_completion_parity_lsp_session``. This module re-exports
 only public names; private (``_``-prefixed) helpers must be imported directly
 from their defining module.
 """

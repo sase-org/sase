@@ -1,11 +1,11 @@
-"""Bridge between xprompt definitions and ACE snippet templates."""
+"""Bridge between macro definitions and ACE snippet templates."""
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 import re
 
-from sase.macro.models import UNSET, XPrompt
-from sase.macro.processor import process_xprompt_references_with_catalog
+from sase.macro.models import UNSET, Macro
+from sase.macro.processor import process_macro_references_with_catalog
 
 _JINJA2_CONTROL = re.compile(r"\{%.*?%\}", re.DOTALL)
 _JINJA2_COMMENT = re.compile(r"\{#.*?#\}", re.DOTALL)
@@ -15,12 +15,12 @@ _VALID_TRIGGER = re.compile(r"^[a-zA-Z0-9_]+$")
 
 
 @dataclass(frozen=True)
-class XPromptSnippetEntry:
-    """Snippet template derived from an xprompt definition."""
+class MacroSnippetEntry:
+    """Snippet template derived from a macro definition."""
 
     trigger: str
     template: str
-    xprompt_name: str
+    macro_name: str
     description: str | None = None
     source_path_display: str | None = None
 
@@ -30,10 +30,10 @@ def is_valid_snippet_trigger(trigger: str) -> bool:
     return bool(_VALID_TRIGGER.fullmatch(trigger))
 
 
-def _xprompt_to_snippet_template(xp: XPrompt) -> str | None:
-    """Convert an xprompt's content + inputs into a snippet template string.
+def _macro_to_snippet_template(xp: Macro) -> str | None:
+    """Convert a macro's content + inputs into a snippet template string.
 
-    Returns None if the xprompt can't be converted (complex Jinja2).
+    Returns None if the macro can't be converted (complex Jinja2).
     """
     content = xp.content
 
@@ -80,27 +80,27 @@ def _xprompt_to_snippet_template(xp: XPrompt) -> str | None:
     return result + "$0"
 
 
-def build_xprompt_snippet_entries_from_catalog(
-    xprompts: Mapping[str, XPrompt],
+def build_macro_snippet_entries_from_catalog(
+    macros: Mapping[str, Macro],
     *,
     include_shadowed: bool = False,
-) -> list[XPromptSnippetEntry]:
-    """Build xprompt snippets from an already-loaded xprompt catalog.
+) -> list[MacroSnippetEntry]:
+    """Build macro snippets from an already-loaded macro catalog.
 
     Args:
-        xprompts: XPrompt catalog in loader precedence order.
-        include_shadowed: When true, keep later xprompts that reuse a trigger
+        macros: Macro catalog in loader precedence order.
+        include_shadowed: When true, keep later macros that reuse a trigger
             already claimed by a higher-priority source.
 
     Returns:
-        Entries in loader priority order. The first xprompt wins on trigger
-        collision, matching :func:`_get_xprompt_snippets`, unless
+        Entries in loader priority order. The first macro wins on trigger
+        collision, matching :func:`_get_macro_snippets`, unless
         *include_shadowed* is true.
     """
-    entries: list[XPromptSnippetEntry] = []
+    entries: list[MacroSnippetEntry] = []
     seen_triggers: set[str] = set()
 
-    for xp in xprompts.values():
+    for xp in macros.values():
         if xp.snippet is None:
             continue
 
@@ -115,25 +115,25 @@ def build_xprompt_snippet_entries_from_catalog(
         if not is_valid_snippet_trigger(trigger):
             continue
 
-        composed_content = process_xprompt_references_with_catalog(
+        composed_content = process_macro_references_with_catalog(
             xp.content,
-            dict(xprompts),
+            dict(macros),
         )
         composed_xp = replace(xp, content=composed_content)
 
-        template = _xprompt_to_snippet_template(composed_xp)
+        template = _macro_to_snippet_template(composed_xp)
         if template is None:
             continue
 
-        # First xprompt wins on trigger collision (higher-priority source loaded first)
+        # First macro wins on trigger collision (higher-priority source loaded first)
         if trigger in seen_triggers and not include_shadowed:
             continue
         seen_triggers.add(trigger)
         entries.append(
-            XPromptSnippetEntry(
+            MacroSnippetEntry(
                 trigger=trigger,
                 template=template,
-                xprompt_name=xp.name,
+                macro_name=xp.name,
                 description=xp.description,
                 source_path_display=xp.source_path,
             )
@@ -142,34 +142,34 @@ def build_xprompt_snippet_entries_from_catalog(
     return entries
 
 
-def get_xprompt_snippet_entries(
+def get_macro_snippet_entries(
     project: str | None = None,
-) -> list[XPromptSnippetEntry]:
-    """Load xprompt snippets with metadata preserved for editor integrations.
+) -> list[MacroSnippetEntry]:
+    """Load macro snippets with metadata preserved for editor integrations.
 
     Args:
-        project: Optional project name for xprompt loading.
+        project: Optional project name for macro loading.
 
     Returns:
-        Entries in loader priority order. The first xprompt wins on trigger
-        collision, matching :func:`_get_xprompt_snippets`.
+        Entries in loader priority order. The first macro wins on trigger
+        collision, matching :func:`_get_macro_snippets`.
     """
-    from sase.macro.loader import get_all_xprompts
+    from sase.macro.loader import get_all_macros
 
-    return build_xprompt_snippet_entries_from_catalog(get_all_xprompts(project=project))
+    return build_macro_snippet_entries_from_catalog(get_all_macros(project=project))
 
 
-def _get_xprompt_snippets(project: str | None = None) -> dict[str, str]:
-    """Load all xprompts with ``snippet`` set and return a trigger-to-template dict.
+def _get_macro_snippets(project: str | None = None) -> dict[str, str]:
+    """Load all macros with ``snippet`` set and return a trigger-to-template dict.
 
     Args:
-        project: Optional project name for xprompt loading.
+        project: Optional project name for macro loading.
 
     Returns:
         Dict mapping trigger word to snippet template string.
     """
     snippets: dict[str, str] = {}
-    for entry in get_xprompt_snippet_entries(project=project):
+    for entry in get_macro_snippet_entries(project=project):
         snippets[entry.trigger] = entry.template
 
     return snippets

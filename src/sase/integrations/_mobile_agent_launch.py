@@ -14,7 +14,7 @@ from typing import Any
 
 from sase.artifacts import launch_artifacts_dir
 from sase.llm_provider.config import format_model_directive_value
-from sase.macro._parsing import normalize_launch_xprompt_at_refs
+from sase.macro._parsing import normalize_launch_macro_at_refs
 
 from ._mobile_agent_common import (
     MOBILE_AGENT_SCHEMA_VERSION,
@@ -108,7 +108,7 @@ def mobile_launch_prompt(payload: dict[str, Any]) -> str:
     if not isinstance(raw_prompt, str) or not raw_prompt.strip():
         raise MobileAgentBridgeError("prompt must be a non-empty string")
 
-    prompt = normalize_launch_xprompt_at_refs(raw_prompt.strip())
+    prompt = normalize_launch_macro_at_refs(raw_prompt.strip())
     directives: list[str] = []
     name = optional_str(payload.get("name"))
     if name:

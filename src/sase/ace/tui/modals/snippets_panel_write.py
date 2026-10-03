@@ -31,7 +31,7 @@ from sase.snippet.mutation import (
 )
 from sase.macro.write_targets import (
     PostWriteActionOffer,
-    XPromptWriteTarget,
+    MacroWriteTarget,
     build_post_write_action_offers,
     classify_written_file,
 )
@@ -51,7 +51,7 @@ class SnippetWritePayload:
     pending_saves: dict[str, str] | None = None
     composed_snippets: dict[str, str] | None = None
     offers: tuple[PostWriteActionOffer, ...] = ()
-    write_target: XPromptWriteTarget | None = None
+    write_target: MacroWriteTarget | None = None
     draft_trigger: str | None = None
     draft_template: str | None = None
     draft_target: str | None = None
@@ -139,7 +139,7 @@ def run_snippets_panel_write(
     else:
         pending[outcome.trigger] = outcome.template
     composed = _compose_pending(snapshot, pending)
-    write_target = XPromptWriteTarget(
+    write_target = MacroWriteTarget(
         read_path=Path(outcome.read_path),
         write_path=Path(outcome.write_path),
         apply_target=(
@@ -154,7 +154,7 @@ def run_snippets_panel_write(
         write_target,
         kind=kind_label,
         is_new=outcome.created,
-        xprompt_name=outcome.trigger,
+        macro_name=outcome.trigger,
         noun="snippet",
         commit_type="snippet",
     )

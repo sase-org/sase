@@ -35,7 +35,7 @@ def expand_embedded_workflows_in_query(
     artifacts_dir: str | None = None,
     *,
     only_workflow_names: Collection[str] | None = None,
-    preserve_existing_xprompt_metadata: bool = False,
+    preserve_existing_macro_metadata: bool = False,
 ) -> tuple[str, list[EmbeddedWorkflowResult]]:
     """Detect and expand embedded workflows in a query.
 
@@ -49,8 +49,8 @@ def expand_embedded_workflows_in_query(
         artifacts_dir: Optional directory for workflow artifacts.
         only_workflow_names: If provided, expand only workflows in this set and
             retain every other workflow reference verbatim.
-        preserve_existing_xprompt_metadata: Leave an existing shared
-            ``xprompts.json`` artifact untouched while still seeding it when
+        preserve_existing_macro_metadata: Leave an existing shared
+            ``macros.json`` artifact untouched while still seeding it when
             absent.
 
     Returns:
@@ -58,22 +58,22 @@ def expand_embedded_workflows_in_query(
     """
     raw_query = query
     if artifacts_dir:
-        from sase.macro.used_macros import write_used_xprompts
+        from sase.macro.used_macros import write_used_macros
 
-        write_used_xprompts(
+        write_used_macros(
             artifacts_dir,
             raw_query,
-            step_only=preserve_existing_xprompt_metadata,
+            step_only=preserve_existing_macro_metadata,
         )
 
     from sase.macro._literal_zones import literal_zone_ranges
     from sase.macro._parsing import (
-        iter_xprompt_references,
+        iter_macro_references,
         normalize_vcs_underscore_refs,
     )
     from sase.macro.loader import get_all_workflows
     from sase.macro.input_binding import InputBindingError, bind_input_args
-    from sase.macro.processor import process_xprompt_references
+    from sase.macro.processor import process_macro_references
     from sase.macro.workflow_executor_steps_embedded_types import (
         format_inline_workflow_reference_error,
         parse_workflow_reference_args,
@@ -97,7 +97,7 @@ def expand_embedded_workflows_in_query(
     literal_ranges = literal_zone_ranges(query)
 
     # Find all potential workflow references
-    refs = iter_xprompt_references(query)
+    refs = iter_macro_references(query)
 
     # Process from last to first to preserve positions
     for ref in reversed(refs):
@@ -183,7 +183,7 @@ def expand_embedded_workflows_in_query(
         prompt_part_content = workflow.get_prompt_part_content()
         if prompt_part_content:
             prompt_part_content = render_template(prompt_part_content, embedded_context)
-            prompt_part_content = process_xprompt_references(prompt_part_content)
+            prompt_part_content = process_macro_references(prompt_part_content)
 
             # Handle section markers (### or ---) with proper line positioning
             prompt_part_content = apply_section_marker_handling(

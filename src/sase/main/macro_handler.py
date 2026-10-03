@@ -1,4 +1,4 @@
-"""Handler for the 'sase xprompt' command."""
+"""Handler for the 'sase macro' command."""
 
 import argparse
 import sys
@@ -6,8 +6,8 @@ import sys
 from sase.macro.models import UNSET, InputArg
 
 
-def handle_xprompt_command(args: argparse.Namespace) -> None:
-    """Handle the 'sase xprompt' command."""
+def handle_macro_command(args: argparse.Namespace) -> None:
+    """Handle the 'sase macro' command."""
     subcommand = getattr(args, "xprompt_subcommand", None)
 
     if subcommand == "expand":
@@ -28,7 +28,7 @@ def handle_xprompt_command(args: argparse.Namespace) -> None:
 
 
 def _handle_expand(args: argparse.Namespace) -> None:
-    """Handle 'sase xprompt expand'."""
+    """Handle 'sase macro expand'."""
     from sase.llm_provider.preprocessing import (
         preprocess_prompt_early,
         preprocess_prompt_late,
@@ -40,19 +40,17 @@ def _handle_expand(args: argparse.Namespace) -> None:
 
     prompt = args.prompt if args.prompt else sys.stdin.read()
 
-    # Parse frontmatter for local xprompt definitions so that
+    # Parse frontmatter for local macro definitions so that
     # references like #_docs:telegram are expanded correctly.
     multi = parse_multi_prompt(prompt)
-    local_xprompts = multi.local_xprompts or None
+    local_macros = multi.local_macros or None
     prompt_body = "\n---\n".join(multi.segments)
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     prompt_body = canonicalize_project_aliases_in_prompt(prompt_body)
 
     trace = ExpansionTrace() if args.trace else None
-    early = preprocess_prompt_early(
-        prompt_body, extra_xprompts=local_xprompts, trace=trace
-    )
+    early = preprocess_prompt_early(prompt_body, extra_macros=local_macros, trace=trace)
     expanded, _post_workflows = expand_embedded_workflows_in_query(early.prompt)
 
     from sase.artifact_ref_prompt_context import (
@@ -73,7 +71,7 @@ def _handle_expand(args: argparse.Namespace) -> None:
 
     for name in find_unresolved_reference_names(
         processed,
-        extra_xprompts=local_xprompts,
+        extra_macros=local_macros,
     ):
         print(format_unresolved_reference_warning(name), file=sys.stderr)
     if trace is not None:
@@ -82,15 +80,15 @@ def _handle_expand(args: argparse.Namespace) -> None:
 
 
 def _handle_list() -> None:
-    """Handle 'sase xprompt list'."""
+    """Handle 'sase macro list'."""
     import json
 
     from sase.macro.loader import (
         get_all_prompts,
         get_all_workflows,
-        get_all_xprompts,
+        get_all_macros,
     )
-    from sase.macro.load_issues import collect_xprompt_load_issues
+    from sase.macro.load_issues import collect_macro_load_issues
     from sase.macro.reference_display import (
         workflow_kind_value,
         workflow_reference_insertion,
@@ -98,15 +96,15 @@ def _handle_list() -> None:
     )
     from sase.macro.workflow_step_display import workflow_step_type_label
 
-    with collect_xprompt_load_issues() as load_issues:
+    with collect_macro_load_issues() as load_issues:
         prompts = get_all_prompts()
-        xprompts = get_all_xprompts()
+        macros = get_all_macros()
         workflow_names = set(get_all_workflows())
     items = []
     for name, wf in sorted(prompts.items()):
-        is_simple = wf.is_simple_xprompt()
-        skill_xprompt = (
-            xprompts[name] if name in xprompts and name not in workflow_names else None
+        is_simple = wf.is_simple_macro()
+        skill_macro = (
+            macros[name] if name in macros and name not in workflow_names else None
         )
         user_inputs = [inp for inp in wf.inputs if not inp.is_step_input]
         inputs_json = []
@@ -136,7 +134,7 @@ def _handle_list() -> None:
             if user_inputs:
                 lines.append("## Inputs")
                 for inp in user_inputs:
-                    default_str = _xprompt_list_default_suffix(inp)
+                    default_str = _macro_list_default_suffix(inp)
                     description_str = f" - {inp.description}" if inp.description else ""
                     lines.append(
                         f"- {inp.name}: {inp.type.value}{default_str}{description_str}"
@@ -155,10 +153,10 @@ def _handle_list() -> None:
                 "prefix": workflow_reference_prefix(wf),
                 "insertion": workflow_reference_insertion(name, wf),
                 "memory_type": wf.memory_type,
-                "is_skill": bool(skill_xprompt and skill_xprompt.skill),
+                "is_skill": bool(skill_macro and skill_macro.skill),
                 # The provider-visible ``/`` name; ``name`` above stays the
-                # ``#skill/<name>`` xprompt reference.
-                "skill_name": skill_xprompt.skill_name if skill_xprompt else None,
+                # ``#skill/<name>`` macro reference.
+                "skill_name": skill_macro.skill_name if skill_macro else None,
                 "description": wf.description,
                 "source": wf.source_path,
                 "inputs": inputs_json,
@@ -172,7 +170,7 @@ def _handle_list() -> None:
     sys.exit(0)
 
 
-def _xprompt_list_default_suffix(inp: InputArg) -> str:
+def _macro_list_default_suffix(inp: InputArg) -> str:
     """Return a stable default suffix for list-preview input rows."""
     if inp.default is UNSET:
         return ""
@@ -182,7 +180,7 @@ def _xprompt_list_default_suffix(inp: InputArg) -> str:
 
 
 def _handle_graph(args: argparse.Namespace) -> None:
-    """Handle 'sase xprompt graph'."""
+    """Handle 'sase macro graph'."""
     from sase.macro.graph import (
         list_workflows,
         workflow_to_mermaid,
@@ -208,21 +206,21 @@ def _handle_graph(args: argparse.Namespace) -> None:
 
 
 def _handle_catalog(args: argparse.Namespace) -> None:
-    """Handle 'sase xprompt catalog'."""
+    """Handle 'sase macro catalog'."""
     import json
     from pathlib import Path
 
     from sase.macro.catalog import (
-        NoXpromptsFound,
+        NoMacrosFound,
         PdfEngineUnavailable,
-        build_xprompts_catalog,
+        build_macros_catalog,
     )
 
     out_dir = Path(args.out_dir).expanduser() if args.out_dir else None
 
     try:
-        artifact = build_xprompts_catalog(output_dir=out_dir)
-    except NoXpromptsFound as exc:
+        artifact = build_macros_catalog(output_dir=out_dir)
+    except NoMacrosFound as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(2)
     except PdfEngineUnavailable as exc:
@@ -247,14 +245,14 @@ def _handle_catalog(args: argparse.Namespace) -> None:
 
 
 def _handle_show(args: argparse.Namespace) -> None:
-    """Handle 'sase xprompt show'."""
+    """Handle 'sase macro show'."""
     from sase.macro.cli_show import handle_show
 
     sys.exit(handle_show(args))
 
 
 def _handle_explain(args: argparse.Namespace) -> None:
-    """Handle 'sase xprompt explain'."""
+    """Handle 'sase macro explain'."""
     from sase.macro.explain import explain_workflow
     from sase.macro.loader import get_all_prompts
 

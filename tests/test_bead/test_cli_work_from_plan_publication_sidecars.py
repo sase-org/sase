@@ -99,7 +99,7 @@ def test_plan_file_launch_pushes_split_plans_archive_and_bead_link(
     assert "Link approved epic plan to its bead: rollout" in subjects
 
 
-@pytest.mark.usefixtures("fake_cli_work_xprompts")
+@pytest.mark.usefixtures("fake_cli_work_macros")
 def test_git_sidecar_fresh_clone_sees_complete_graph_before_launch(
     project_dir: Path,
     tmp_path: Path,

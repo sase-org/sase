@@ -18,7 +18,7 @@ from sase.ace.tui.keymaps import (
 )
 from sase.ace.tui.widgets.typed_input_form import TypedInputForm
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
-from sase.macro.models import InputType, XPromptValidationError
+from sase.macro.models import InputType, MacroValidationError
 
 from .gate_input_panel_model import (
     GateBranchInputError,
@@ -228,7 +228,7 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
             option_inputs = collect_option_inputs(
                 self._request, self._typed_values(), self._raw_values()
             )
-        except (GateBranchInputError, XPromptValidationError) as exc:
+        except (GateBranchInputError, MacroValidationError) as exc:
             self.notify(str(exc), severity="warning")
             self._focus_first_invalid()
             return

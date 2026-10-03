@@ -101,7 +101,7 @@ def _assert_frontmatter_contains_local_xprompt(frontmatter: str) -> None:
     assert "xprompts:\n" in frontmatter
     assert f"  {_LOCAL_XPROMPT_NAME}: {_LOCAL_XPROMPT_CONTENT}\n" in frontmatter
     model = PromptFrontmatter.parse(frontmatter)
-    assert model.xprompts[_LOCAL_XPROMPT_NAME].content == _LOCAL_XPROMPT_CONTENT
+    assert model.macros[_LOCAL_XPROMPT_NAME].content == _LOCAL_XPROMPT_CONTENT
 
 
 # --- stripped-body cursor normalization ------------------------------------
@@ -254,7 +254,7 @@ async def test_gs_preserves_shared_frontmatter() -> None:
         assert all(p.frontmatter == "---\nmodel: claude\n---" for p in event.panes)
 
 
-async def test_gs_preserves_panel_authored_xprompt_properties() -> None:
+async def test_gs_preserves_panel_authored_macro_properties() -> None:
     app = _CaptureApp("alpha\n---\nbeta")
 
     async with app.run_test(size=(80, 30)) as pilot:

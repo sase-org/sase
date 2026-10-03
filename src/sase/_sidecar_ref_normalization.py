@@ -21,7 +21,7 @@ from sase._sidecar_ref_constants import (
     REF_KIND_CONFIG_KEY,
     REF_PATH_GLOBS_CONFIG_KEY,
     REF_USE_CONFIG_KEY,
-    REF_XPROMPT_CONFIG_KEY,
+    REF_MACRO_CONFIG_KEY,
 )
 from sase._sidecar_ref_policy import (
     SidecarRefPolicy,
@@ -265,11 +265,11 @@ def _ref_override(
             )
         )
         return None
-    if REF_XPROMPT_CONFIG_KEY in ref_config:
+    if REF_MACRO_CONFIG_KEY in ref_config:
         diagnostics.append(
             _diagnostic(
                 role,
-                f"ref.{REF_XPROMPT_CONFIG_KEY}",
+                f"ref.{REF_MACRO_CONFIG_KEY}",
                 "ref.xprompt was retired; use provider-backed or inline ref specs",
                 code="retired_ref_xprompt",
             )

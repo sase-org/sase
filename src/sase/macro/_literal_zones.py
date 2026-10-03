@@ -16,8 +16,8 @@ from ._fenced_blocks import fenced_block_ranges
 from ._inline_code import inline_code_spans
 from ._parsing_args import find_matching_paren_for_args
 from ._parsing_references import (
-    XPROMPT_REFERENCE_PATTERN,
-    xprompt_reference_from_match,
+    MACRO_REFERENCE_PATTERN,
+    macro_reference_from_match,
 )
 
 _DIRECTIVE_RE = re.compile(_DIRECTIVE_PATTERN, re.MULTILINE)
@@ -40,11 +40,11 @@ def _inline_literal_ranges(
     masks = [*fenced, *disabled]
     protected = _merge_ranges(masks)
     for match in _matches_outside_ranges(
-        XPROMPT_REFERENCE_PATTERN,
+        MACRO_REFERENCE_PATTERN,
         text,
         protected,
     ):
-        reference = xprompt_reference_from_match(text, match)
+        reference = macro_reference_from_match(text, match)
         masks.append((reference.start, reference.end))
     for match in _matches_outside_ranges(_DIRECTIVE_RE, text, protected):
         raw_name = match.group(1)

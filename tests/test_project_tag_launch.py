@@ -31,7 +31,7 @@ from sase.project_tags import ProjectTagCatalog, ProjectTagError, build_targets
 from sase.workspace_provider import reset_workflow_metadata_caches
 from sase.workspace_provider._hookspec import WorkflowMetadata
 from tests._workspace_provider_helpers import (
-    _restore_xprompt_vcs_caches_on_teardown,
+    _restore_macro_vcs_caches_on_teardown,
     git_metadata,
 )
 
@@ -134,7 +134,7 @@ def _patch_git_and_gh_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
         workspace_provider, "get_all_workflow_metadata", _git_and_gh_metadata
     )
     reset_workflow_metadata_caches()
-    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
+    _restore_macro_vcs_caches_on_teardown(monkeypatch)
 
 
 def _launch_result() -> AgentLaunchResult:
@@ -232,7 +232,7 @@ def test_launch_query_runs_tags_after_dispatch_before_reuse_spawn_and_mru(
         assert prefix == "#gh:sase"
 
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.record_vcs_xprompt_usage", _record_mru
+        "sase.history.vcs_macro_mru.record_vcs_macro_usage", _record_mru
     )
     monkeypatch.setattr(
         "sase.ops.commands.run.emit_run_launch_result", lambda **kwargs: None
@@ -258,9 +258,7 @@ def test_launch_query_tag_failure_blocks_spawn(
     spawn = MagicMock(return_value=[_launch_result()])
     monkeypatch.setattr("sase.main.query_handler._launch.launch_agents_from_cwd", spawn)
     record_mru = MagicMock()
-    monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.record_vcs_xprompt_usage", record_mru
-    )
+    monkeypatch.setattr("sase.history.vcs_macro_mru.record_vcs_macro_usage", record_mru)
     failed: list[str] = []
     monkeypatch.setattr(
         "sase.history.prompt.record_failed_launch_prompt",
@@ -478,14 +476,14 @@ def test_unit_guard_covers_swarm_expanded_segments(
     monkeypatch: pytest.MonkeyPatch, tag_catalog: ProjectTagCatalog
 ) -> None:
     """Each post-swarm segment enforces the one-target rule on its own."""
-    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
+    from sase.agent.macro_swarm import expand_macro_swarms_with_metadata
     from tests._macro_swarm_helpers import patch_catalog, xp
 
     _patch_tag_catalog(monkeypatch, tag_catalog)
     swarm = {"crew": xp("crew", "+sase do A\n---\n+bob do B")}
     with patch_catalog(swarm):
         segments = [
-            record.prompt for record in expand_xprompt_swarms_with_metadata(["#crew"])
+            record.prompt for record in expand_macro_swarms_with_metadata(["#crew"])
         ]
     assert segments == ["+sase do A", "+bob do B"]
 
@@ -504,8 +502,7 @@ def test_unit_guard_covers_swarm_expanded_segments(
         bad_swarm = {"crew": xp("crew", "+sase +bob do A\n---\n+bob do B")}
         with patch_catalog(bad_swarm):
             bad_segments = [
-                record.prompt
-                for record in expand_xprompt_swarms_with_metadata(["#crew"])
+                record.prompt for record in expand_macro_swarms_with_metadata(["#crew"])
             ]
         with pytest.raises(ProjectTagError, match="Only one workspace target"):
             guard_project_tags_for_launch_units(

@@ -15,7 +15,7 @@ def test_directory_workflow_is_not_registered_workspace_provider() -> None:
     assert "cd" not in get_ref_patterns()
 
 
-def test_directory_workflow_is_not_builtin_xprompt() -> None:
+def test_directory_workflow_is_not_builtin_macro() -> None:
     from sase.macro.loader import get_all_prompts
     from sase.macro.workflow_loader import get_all_workflows
 

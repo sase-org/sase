@@ -1,6 +1,6 @@
-"""Frontend-agnostic span inspection for xprompt prompt syntax.
+"""Frontend-agnostic span inspection for macro prompt syntax.
 
-This module is presentation-only. The canonical xprompt and directive grammar
+This module is presentation-only. The canonical macro and directive grammar
 lives in the Rust core; these scanners deliberately consume the same Python
 lexical mirrors used by the launch path so editable and read-only frontends
 render exactly the syntax that launch processing recognizes. Callers may opt
@@ -24,13 +24,13 @@ from ._directive_types import (
 from ._literal_zones import literal_zone_ranges
 from ._parsing import find_matching_paren_for_args
 from ._parsing_references import (
-    XPROMPT_REFERENCE_LEADING_CONTEXT,
-    XPROMPT_REFERENCE_PATTERN,
-    xprompt_reference_from_match,
+    MACRO_REFERENCE_LEADING_CONTEXT,
+    MACRO_REFERENCE_PATTERN,
+    macro_reference_from_match,
 )
 from .segment_separators import _SEGMENT_SEPARATOR_RE
 
-XPromptSpanKind = Literal[
+MacroSpanKind = Literal[
     "invocation",
     "invocation_arg",
     "directive",
@@ -43,15 +43,15 @@ XPromptSpanKind = Literal[
 
 _DIRECTIVE_RE = re.compile(_DIRECTIVE_PATTERN, re.MULTILINE)
 _SKILL_REFERENCE_RE = re.compile(
-    XPROMPT_REFERENCE_LEADING_CONTEXT
+    MACRO_REFERENCE_LEADING_CONTEXT
     + r"/(?P<name>[A-Za-z0-9_]+)(?=$|[\s'\"`?!;,()\[\]{}<>|&=+*^%$:\\])",
     re.MULTILINE,
 )
 
 
 @dataclass(frozen=True, slots=True)
-class XPromptSpan:
-    """A highlightable xprompt span using character offsets.
+class MacroSpan:
+    """A highlightable macro span using character offsets.
 
     ``project_tag`` spans are resolved tags and carry the project's
     accent (``None`` renders neutral, e.g. disabled projects and
@@ -62,7 +62,7 @@ class XPromptSpan:
 
     start: int
     end: int
-    kind: XPromptSpanKind
+    kind: MacroSpanKind
     accent: str | None = None
     tag_state: str | None = None
     name_start: int | None = None
@@ -72,10 +72,10 @@ def tokenize(
     text: str,
     *,
     known_skills: frozenset[str] = frozenset(),
-) -> list[XPromptSpan]:
-    """Return recognized xprompt spans, sorted by source offset.
+) -> list[MacroSpan]:
+    """Return recognized macro spans, sorted by source offset.
 
-    Fenced blocks, inline code, and ``%xprompts_enabled:false`` regions are
+    Fenced blocks, inline code, and ``%macros_enabled:false`` regions are
     excluded.
     Unknown directives remain unstyled, matching launch parsing behavior.
     Slash-skill spans are emitted only for names supplied in *known_skills*.
@@ -90,24 +90,22 @@ def tokenize(
         return []
 
     protected = literal_zone_ranges(text)
-    spans: list[XPromptSpan] = []
+    spans: list[MacroSpan] = []
 
     if "#" in text:
         for match in _matches_outside_ranges(
-            XPROMPT_REFERENCE_PATTERN,
+            MACRO_REFERENCE_PATTERN,
             text,
             protected,
             needle="#",
         ):
-            reference = xprompt_reference_from_match(text, match)
+            reference = macro_reference_from_match(text, match)
             if _overlaps_protected(reference.start, reference.end, protected):
                 continue
             argument_start = reference.end - len(reference.argument_source)
-            spans.append(XPromptSpan(reference.start, argument_start, "invocation"))
+            spans.append(MacroSpan(reference.start, argument_start, "invocation"))
             if argument_start < reference.end:
-                spans.append(
-                    XPromptSpan(argument_start, reference.end, "invocation_arg")
-                )
+                spans.append(MacroSpan(argument_start, reference.end, "invocation_arg"))
 
     if "%" in text:
         for match in _matches_outside_ranges(
@@ -123,9 +121,9 @@ def tokenize(
             end = _directive_end(text, match)
             if _overlaps_protected(match.start(), end, protected):
                 continue
-            spans.append(XPromptSpan(match.start(), match.end(1), "directive"))
+            spans.append(MacroSpan(match.start(), match.end(1), "directive"))
             if match.end(1) < end:
-                spans.append(XPromptSpan(match.end(1), end, "directive_arg"))
+                spans.append(MacroSpan(match.end(1), end, "directive_arg"))
 
     if "---" in text:
         for match in _matches_outside_ranges(
@@ -134,7 +132,7 @@ def tokenize(
             protected,
             needle="---",
         ):
-            spans.append(XPromptSpan(match.start(), match.end(), "separator"))
+            spans.append(MacroSpan(match.start(), match.end(), "separator"))
 
     if known_skills and "/" in text:
         for match in _matches_outside_ranges(
@@ -145,7 +143,7 @@ def tokenize(
         ):
             if match.group("name") not in known_skills:
                 continue
-            spans.append(XPromptSpan(match.start(), match.end(), "skill"))
+            spans.append(MacroSpan(match.start(), match.end(), "skill"))
 
     if "+" in text:
         spans.extend(_project_tag_spans(text, protected))
@@ -157,7 +155,7 @@ def tokenize(
 def _project_tag_spans(
     text: str,
     protected: list[tuple[int, int]],
-) -> list[XPromptSpan]:
+) -> list[MacroSpan]:
     """Return resolved-tag and anchored-unknown-tag spans (D5/D6).
 
     Uses the core expansion report against the warm catalog snapshot, so
@@ -192,7 +190,7 @@ def _project_tag_spans(
     raw_tags = report.get("tags")
     if not isinstance(raw_tags, list):
         return []
-    spans: list[XPromptSpan] = []
+    spans: list[MacroSpan] = []
     for raw_tag in raw_tags:
         span = _project_tag_span(raw_tag, text, catalog, protected)
         if span is not None:
@@ -205,7 +203,7 @@ def _project_tag_span(
     text: str,
     catalog: Any,
     protected: list[tuple[int, int]],
-) -> XPromptSpan | None:
+) -> MacroSpan | None:
     """Convert one core expansion tag to a span, or ``None`` to skip."""
     if not isinstance(raw_tag, Mapping):
         return None
@@ -240,7 +238,7 @@ def _project_tag_span(
             return None
         accent = getattr(target, "accent", None)
         state = getattr(target, "state", None)
-        return XPromptSpan(
+        return MacroSpan(
             start,
             end,
             "project_tag",
@@ -250,7 +248,7 @@ def _project_tag_span(
         )
     if not anchored:
         return None
-    return XPromptSpan(start, end, "project_tag_unknown", name_start=name_start)
+    return MacroSpan(start, end, "project_tag_unknown", name_start=name_start)
 
 
 def _directive_end(text: str, match: re.Match[str]) -> int:
@@ -286,4 +284,4 @@ def _matches_outside_ranges(
         yield from pattern.finditer(text, cursor)
 
 
-__all__ = ["XPromptSpan", "XPromptSpanKind", "tokenize"]
+__all__ = ["MacroSpan", "MacroSpanKind", "tokenize"]

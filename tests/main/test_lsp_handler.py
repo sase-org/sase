@@ -12,8 +12,8 @@ import pytest
 
 from sase.integrations.macro_lsp import (
     SASE_XPROMPT_LSP_CMD_ENV,
-    _XPromptLspLaunchError,
-    _build_xprompt_lsp_argv,
+    _MacroLspLaunchError,
+    _build_macro_lsp_argv,
 )
 from sase.main.parser import create_parser
 
@@ -32,7 +32,7 @@ def _point_sys_executable_at_tmp_venv(
 
 
 def _lsp_binary_name() -> str:
-    return "sase-xprompt-lsp.exe" if os.name == "nt" else "sase-xprompt-lsp"
+    return "sase-macro-lsp.exe" if os.name == "nt" else "sase-xprompt-lsp"
 
 
 def _write_executable(path: Path) -> None:
@@ -57,7 +57,7 @@ def test_build_lsp_argv_uses_env_override_and_version(
     python = _point_sys_executable_at_tmp_venv(monkeypatch, tmp_path)
     _write_executable(python.parent / _lsp_binary_name())
 
-    argv = _build_xprompt_lsp_argv(
+    argv = _build_macro_lsp_argv(
         args,
         environ={SASE_XPROMPT_LSP_CMD_ENV: "cargo run -p sase_xprompt_lsp --"},
         which=lambda _name: None,
@@ -77,7 +77,7 @@ def test_build_lsp_argv_uses_env_override_and_version(
 def test_build_lsp_argv_strips_remainder_separator() -> None:
     args = create_parser().parse_args(["lsp", "--", "--probe"])
 
-    argv = _build_xprompt_lsp_argv(
+    argv = _build_macro_lsp_argv(
         args,
         environ={SASE_XPROMPT_LSP_CMD_ENV: "sase-xprompt-lsp"},
         which=lambda _name: None,
@@ -95,13 +95,13 @@ def test_build_lsp_argv_errors_without_command(
     _point_sys_executable_at_tmp_venv(monkeypatch, tmp_path)
 
     try:
-        _build_xprompt_lsp_argv(
+        _build_macro_lsp_argv(
             args,
             environ={},
             which=lambda _name: None,
             repo_root=Path("/missing"),
         )
-    except _XPromptLspLaunchError as exc:
+    except _MacroLspLaunchError as exc:
         assert "SASE_XPROMPT_LSP_CMD" in str(exc)
     else:
         raise AssertionError("expected XPromptLspLaunchError")
@@ -116,7 +116,7 @@ def test_build_lsp_argv_prefers_venv_binary_over_path(
     venv_lsp = python.parent / _lsp_binary_name()
     _write_executable(venv_lsp)
 
-    argv = _build_xprompt_lsp_argv(
+    argv = _build_macro_lsp_argv(
         args,
         environ={},
         which=lambda _name: "/path/bin/sase-xprompt-lsp",
@@ -135,7 +135,7 @@ def test_build_lsp_argv_prefers_macro_binary_in_venv(
     _write_executable(python.parent / "sase-macro-lsp")
     _write_executable(python.parent / _lsp_binary_name())
 
-    argv = _build_xprompt_lsp_argv(
+    argv = _build_macro_lsp_argv(
         args,
         environ={},
         which=lambda _name: None,
@@ -152,7 +152,7 @@ def test_build_lsp_argv_uses_path_when_venv_binary_absent(
     args = create_parser().parse_args(["lsp"])
     _point_sys_executable_at_tmp_venv(monkeypatch, tmp_path)
 
-    argv = _build_xprompt_lsp_argv(
+    argv = _build_macro_lsp_argv(
         args,
         environ={},
         which=lambda _name: "/path/bin/sase-xprompt-lsp",
@@ -178,7 +178,7 @@ def test_build_lsp_argv_uses_newer_release_target_than_debug(
     os.utime(debug, (100, 100))
     os.utime(release, (200, 200))
 
-    argv = _build_xprompt_lsp_argv(
+    argv = _build_macro_lsp_argv(
         args,
         environ={},
         which=lambda _name: None,
@@ -204,7 +204,7 @@ def test_build_lsp_argv_uses_newer_debug_target_than_release(
     os.utime(debug, (300, 300))
     os.utime(release, (200, 200))
 
-    argv = _build_xprompt_lsp_argv(
+    argv = _build_macro_lsp_argv(
         args,
         environ={},
         which=lambda _name: None,

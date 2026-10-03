@@ -147,7 +147,7 @@ def test_prompt_archive_listing_does_not_hash_artifact_payloads(
     assert files[0].artifact_count == 1
 
 
-def test_xprompt_style_body_links_are_validated_as_ordinary_markdown(
+def test_macro_style_body_links_are_validated_as_ordinary_markdown(
     tmp_path: Path,
 ) -> None:
     repo = tmp_path / "agents"

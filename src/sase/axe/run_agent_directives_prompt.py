@@ -1,6 +1,6 @@
 """Prompt expansion and directive extraction for the run agent runner.
 
-Expands xprompt references, extracts prompt directives (model, name, waits,
+Expands macro references, extracts prompt directives (model, name, waits,
 clan membership), and checks bead and clan consistency before tab, tribe,
 and provider resolution.
 """
@@ -26,23 +26,23 @@ class PreparedPrompt:
 
 def prepare_prompt(
     prompt_body: str,
-    local_xprompts: dict[str, Any],
+    local_macros: dict[str, Any],
     *,
     raw_resolved_prompt: str | None,
     preserved_metadata: dict[str, Any],
 ) -> PreparedPrompt:
-    """Expand xprompts and extract directives with clan membership checks."""
+    """Expand macros and extract directives with clan membership checks."""
     from sase.macro import (
-        LAUNCH_DEFERRED_XPROMPT_NAMES,
-        process_xprompt_references,
+        LAUNCH_DEFERRED_MACRO_NAMES,
+        process_macro_references,
     )
 
-    # Expand xprompts before extracting directives so directives embedded in
-    # xprompts are discovered for agent metadata.
-    expanded_for_directives = process_xprompt_references(
+    # Expand macros before extracting directives so directives embedded in
+    # macros are discovered for agent metadata.
+    expanded_for_directives = process_macro_references(
         prompt_body,
-        extra_xprompts=local_xprompts or None,
-        defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+        extra_macros=local_macros or None,
+        defer_macro_names=LAUNCH_DEFERRED_MACRO_NAMES,
     )
     from sase.agent.agent_name_keys import has_unresolved_agent_name_key_marker
 

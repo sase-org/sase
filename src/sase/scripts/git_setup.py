@@ -1,4 +1,4 @@
-"""Setup step for the #git xprompt workflow."""
+"""Setup step for the #git macro workflow."""
 
 import os
 

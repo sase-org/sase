@@ -1,9 +1,9 @@
-"""Current project derived from the VCS xprompt MRU store.
+"""Current project derived from the VCS macro MRU store.
 
-The current project is the first VCS xprompt MRU entry that resolves to an
+The current project is the first VCS macro MRU entry that resolves to an
 enabled project. This module reads ``~/.sase/vcs_macro_mru.json`` and
 exposes one write path, :func:`set_current_project`, which promotes a
-project through :func:`sase.history.vcs_macro_mru.record_vcs_xprompt_usage`
+project through :func:`sase.history.vcs_macro_mru.record_vcs_macro_usage`
 — the same store a launch writes, not a second pin file.
 
 Walk the MRU head-first, skip structural refs and disabled projects, and
@@ -32,7 +32,7 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
     effective_project_name,
 )
-from sase.history.vcs_macro_mru import vcs_xprompt_mru_path
+from sase.history.vcs_macro_mru import vcs_macro_mru_path
 from sase.project_alias_records import project_alias_map_from_records
 from sase.macro import extract_project_from_vcs_tag
 from sase.macro._parsing import resolve_known_project_ref
@@ -54,7 +54,7 @@ _Origin = Literal["project", "patch"]
 
 @dataclass(frozen=True, slots=True)
 class CurrentProject:
-    """One enabled project derived from a VCS xprompt MRU entry."""
+    """One enabled project derived from a VCS macro MRU entry."""
 
     project_key: str
     display_name: str
@@ -90,7 +90,7 @@ def peek_current_project_change_token() -> tuple[object, ...]:
         token: tuple[object, ...]
         try:
             token = (
-                _stat_token(vcs_xprompt_mru_path()),
+                _stat_token(vcs_macro_mru_path()),
                 current_config_token(),
             )
         except Exception:  # noqa: BLE001 - display reads always degrade.
@@ -132,7 +132,7 @@ def set_current_project(
     *,
     projects_dir: Path | None = None,
 ) -> SetCurrentProjectOutcome:
-    """Promote *project_key* to the head of the VCS xprompt MRU.
+    """Promote *project_key* to the head of the VCS macro MRU.
 
     Looks the key up through the same alias map the resolver uses, so a
     display name, alias, or directory key all work. Eligibility failures
@@ -172,11 +172,11 @@ def set_current_project(
             message=f"{display} is already the current project.",
         )
 
-    from sase.history.vcs_macro_mru import record_vcs_xprompt_usage
+    from sase.history.vcs_macro_mru import record_vcs_macro_usage
 
-    # ``record_vcs_xprompt_usage`` rewrites the file unconditionally; the
+    # ``record_vcs_macro_usage`` rewrites the file unconditionally; the
     # short-circuit above keeps every ACE instance from re-resolving.
-    record_vcs_xprompt_usage(f"#{workflow_type}:{record.project_name}")
+    record_vcs_macro_usage(f"#{workflow_type}:{record.project_name}")
 
     verified = resolve_current_project(projects_dir=projects_dir)
     if verified is not None and verified.project_key == record.project_name:
@@ -213,9 +213,9 @@ def _ineligible(message: str) -> SetCurrentProjectOutcome:
 
 def _mru_prefixes() -> list[str]:
     """Load on-disk MRU prefixes without pruning or project-record reads."""
-    from sase.history.vcs_macro_mru import load_vcs_xprompt_mru_entries
+    from sase.history.vcs_macro_mru import load_vcs_macro_mru_entries
 
-    return load_vcs_xprompt_mru_entries()
+    return load_vcs_macro_mru_entries()
 
 
 def _project_snapshots(

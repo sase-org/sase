@@ -439,7 +439,7 @@ def validate_workflow_variables(workflow: Workflow) -> None:
             defined_vars.add(step.name)
             output_usage[step.name] = False
 
-    # Warn about unused inputs (but don't error - they might be used in nested xprompts)
+    # Warn about unused inputs (but don't error - they might be used in nested macros)
     # Warn about unused outputs (but don't error - final step output might be workflow result)
 
 

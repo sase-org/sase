@@ -180,7 +180,7 @@ def _append_tag_columns(
     directive_style: str,
 ) -> None:
     """Append the fixed-width xprompt/directive tag column."""
-    tokens = [(chip, xprompt_style) for chip in summary.xprompts]
+    tokens = [(chip, xprompt_style) for chip in summary.macros]
     if summary.directive_token:
         tokens.append((summary.directive_token, directive_style))
 

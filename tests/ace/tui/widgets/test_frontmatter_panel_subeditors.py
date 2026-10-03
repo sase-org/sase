@@ -98,7 +98,7 @@ async def test_xprompt_content_uses_bounded_multiline_editor() -> None:
         content = panel.query_one("#frontmatter-content", VimTextArea)
         content.text = "line one\nline two"
         panel._commit_cell_edit()
-        assert panel.model.xprompts["_rules"].content == "line one\nline two"
+        assert panel.model.macros["_rules"].content == "line one\nline two"
         assert panel._edit_mode == "rows"
 
 

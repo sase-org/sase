@@ -32,7 +32,7 @@ from sase.sidecar_ref_config import (
     REF_PROPERTIES_CONFIG_KEY,
     REF_PUBLICATION_CONFIG_KEY,
     REF_USE_CONFIG_KEY,
-    REF_XPROMPT_CONFIG_KEY,
+    REF_MACRO_CONFIG_KEY,
 )
 
 _SIDECAR_KEY = "repos.sidecar"
@@ -445,13 +445,13 @@ def _ref_policy_problems(
                         }
                     )
 
-    xprompt = raw_ref.get(REF_XPROMPT_CONFIG_KEY)
-    if xprompt is not None:
+    macro_def = raw_ref.get(REF_MACRO_CONFIG_KEY)
+    if macro_def is not None:
         problems.append(
             {
-                "key": f"{ref_key}.{REF_XPROMPT_CONFIG_KEY}",
+                "key": f"{ref_key}.{REF_MACRO_CONFIG_KEY}",
                 "message": (
-                    f"{ref_key}.{REF_XPROMPT_CONFIG_KEY} was retired; use "
+                    f"{ref_key}.{REF_MACRO_CONFIG_KEY} was retired; use "
                     "provider-backed or inline ref specs"
                 ),
             }
@@ -562,7 +562,7 @@ _KNOWN_REF_FIELDS = frozenset(
         REF_PUBLICATION_CONFIG_KEY,
         REF_CAPABILITIES_CONFIG_KEY,
         REF_FILTERS_CONFIG_KEY,
-        REF_XPROMPT_CONFIG_KEY,
+        REF_MACRO_CONFIG_KEY,
     }
 )
 

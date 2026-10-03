@@ -184,13 +184,13 @@ def test_xprompt_soft_builder_uses_warm_entries_only() -> None:
             text="#r",
             cursor_offset=2,
             settings=PromptCompletionSettings(),
-            xprompt_entries=entries,
+            macro_entries=entries,
         )
         cold = build_prompt_soft_completion(
             text="#r",
             cursor_offset=2,
             settings=PromptCompletionSettings(),
-            xprompt_entries=None,
+            macro_entries=None,
         )
 
     assert suggestion is not None

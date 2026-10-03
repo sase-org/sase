@@ -68,7 +68,7 @@ def test_resolve_workflow_project_home_mode_returns_none(tmp_path: Path) -> None
 
 def test_run_execution_loop_home_mode_passes_none_project(tmp_path: Path) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=True, project_name="home")
-    anon_workflow = SimpleNamespace(name="anon", xprompts={})
+    anon_workflow = SimpleNamespace(name="anon", macros={})
     final_result = _AgentExecResult(
         success=True,
         current_artifacts_dir=ctx.artifacts_dir,
@@ -104,7 +104,7 @@ def test_run_execution_loop_non_home_mode_passes_workspace_provider_project(
         is_home_mode=False,
         project_name="gh_sase-org__sase",
     )
-    anon_workflow = SimpleNamespace(name="anon", xprompts={})
+    anon_workflow = SimpleNamespace(name="anon", macros={})
     final_result = _AgentExecResult(
         success=True,
         current_artifacts_dir=ctx.artifacts_dir,
@@ -142,7 +142,7 @@ def test_run_execution_loop_backstop_raises_lost_gate_intent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=True, project_name="home")
-    anon_workflow = SimpleNamespace(name="anon", xprompts={})
+    anon_workflow = SimpleNamespace(name="anon", macros={})
 
     def _execute(*args: object, **kwargs: object) -> object:
         atomic_write_json(
@@ -184,7 +184,7 @@ def test_run_execution_loop_converts_workflow_error_to_lost_gate_intent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=True, project_name="home")
-    anon_workflow = SimpleNamespace(name="anon", xprompts={})
+    anon_workflow = SimpleNamespace(name="anon", macros={})
     atomic_write_json(
         Path(ctx.artifacts_dir) / f"{GATE_INTENT_PREFIX}999999999.json",
         {

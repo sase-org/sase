@@ -47,11 +47,11 @@ def snippet_candidates(project: str | None) -> list[Candidate]:
 
 def _snippet_description(item: Mapping[str, object]) -> str:
     source = item.get("source")
-    xprompt_name = item.get("xprompt_name")
+    macro_name = item.get("xprompt_name")
     source_path = item.get("source_path_display")
     parts = [
         part
-        for part in (source, xprompt_name, source_path)
+        for part in (source, macro_name, source_path)
         if isinstance(part, str) and part
     ]
     return " · ".join(parts)

@@ -20,7 +20,8 @@ from sase.ace.tui.models.agent_named_procs import (
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.widgets._agent_list_render_cache import agent_render_key
 from sase.ops.names import PROC_KILL
-from sase.procs import PROC_LIFECYCLE_NAMED_PROC, XPROMPT_PROC_ORIGIN
+from sase.procs import PROC_LIFECYCLE_NAMED_PROC
+from sase.legacy_xprompt_names import PROMPT_PROC_ORIGIN
 
 
 def _dt(value: str) -> datetime:
@@ -32,10 +33,10 @@ def _proc(
     *,
     status: str = "running",
     lifecycle: str = PROC_LIFECYCLE_NAMED_PROC,
-    origin: str = XPROMPT_PROC_ORIGIN,
+    origin: str = PROMPT_PROC_ORIGIN,
     label: str | None = "Build docs",
     proc_name: str | None = "agent--build",
-    xprompt_proc: dict[str, Any] | None = None,
+    prompt_proc: dict[str, Any] | None = None,
 ) -> ObservedProc:
     meta = {
         "logical_id": "unit-1",
@@ -71,7 +72,7 @@ def _proc(
         request_fingerprint="sha256:proc",
         supervisor_id="supervisor-1",
         output="ready\npassword=hunter2\ncomplete",
-        xprompt_proc=xprompt_proc if xprompt_proc is not None else meta,
+        prompt_proc=prompt_proc if prompt_proc is not None else meta,
     )
 
 
@@ -82,7 +83,7 @@ def _patch_projection_io(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_named_proc_projection_selects_standalone_xprompt_procs_and_dedupes(
+def test_named_proc_projection_selects_standalone_prompt_procs_and_dedupes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
@@ -162,7 +163,7 @@ def test_named_proc_projection_resolves_explicit_label_provenance(
             "label123456",
             label="Chosen label",
             proc_name="named-shell",
-            xprompt_proc={
+            prompt_proc={
                 "logical_id": "unit-1",
                 "label": "Chosen label",
                 "safe_preview": "echo label",
@@ -172,19 +173,19 @@ def test_named_proc_projection_resolves_explicit_label_provenance(
             "shell123456",
             label="unit-1",
             proc_name="named-shell",
-            xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo shell"},
+            prompt_proc={"logical_id": "unit-1", "safe_preview": "echo shell"},
         ),
         _proc(
             "compat123456",
             label="Old display",
             proc_name=None,
-            xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo compat"},
+            prompt_proc={"logical_id": "unit-1", "safe_preview": "echo compat"},
         ),
         _proc(
             "unit123456",
             label="unit-1",
             proc_name=None,
-            xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo synthetic"},
+            prompt_proc={"logical_id": "unit-1", "safe_preview": "echo synthetic"},
         ),
     ]
 
@@ -249,7 +250,7 @@ def test_named_proc_row_renders_derived_command_title(
             _proc(
                 label="unit-1",
                 proc_name=None,
-                xprompt_proc={
+                prompt_proc={
                     "logical_id": "unit-1",
                     "code_language": "bash",
                     "safe_preview": "echo hello && sleep 30 && echo world",
@@ -278,7 +279,7 @@ def test_named_proc_render_key_tracks_derived_title_inputs(
             _proc(
                 label="unit-1",
                 proc_name=None,
-                xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo one"},
+                prompt_proc={"logical_id": "unit-1", "safe_preview": "echo one"},
             )
         ]
     )
@@ -287,7 +288,7 @@ def test_named_proc_render_key_tracks_derived_title_inputs(
             _proc(
                 label="unit-1",
                 proc_name=None,
-                xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo two"},
+                prompt_proc={"logical_id": "unit-1", "safe_preview": "echo two"},
             )
         ]
     )

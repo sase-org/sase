@@ -14,7 +14,7 @@ from sase.core.agent_alias_history_wire import (
     AgentAliasHistoryWire,
     AgentAliasRunWire,
 )
-from sase.core.agent_scan_wire_markers import UsedXPromptWire
+from sase.core.agent_scan_wire_markers import UsedMacroWire
 from sase.llm_provider.alias_history import (
     _alias_history_duration_seconds,
     _classify_alias_history_provenance,
@@ -351,8 +351,8 @@ def test_load_classifies_each_provenance_case(
                             model_alias_trail=["large"],
                             started_at="2026-08-16T14:22:00+00:00",
                             finished_at=1_786_892_400.0,
-                            used_xprompts=[
-                                UsedXPromptWire(name="gh:sase", kind="reference")
+                            used_macros=[
+                                UsedMacroWire(name="gh:sase", kind="reference")
                             ],
                         ),
                         _run(
@@ -393,7 +393,7 @@ def test_load_classifies_each_provenance_case(
     labels = [run.provenance.label for run in view.groups[0].runs]
     assert labels == ["direct", "default", "via @coder", "unrecorded"]
     assert view.groups[0].runs[0].duration_seconds == 2280.0
-    assert view.groups[0].runs[0].used_xprompts[0].name == "gh:sase"
+    assert view.groups[0].runs[0].used_macros[0].name == "gh:sase"
     assert view.groups[0].runs[2].provenance.via_alias == "coder"
 
 

@@ -2,9 +2,9 @@
 
 A standalone pipeline that runs the shared preprocessing steps. The
 preprocessing functions themselves remain in their original modules
-(xprompt, file_references).
+(macro, file_references).
 
-The pipeline is split into early and late phases so callers (xprompt CLI,
+The pipeline is split into early and late phases so callers (macro CLI,
 invoke_agent, workflow executor) can insert logic between the two phases
 (e.g. embedded workflow expansion) while sharing the same canonical steps.
 """
@@ -63,32 +63,32 @@ _PreprocessResult = PreprocessResult
 def preprocess_prompt_early(
     prompt: str,
     *,
-    extra_xprompts: dict[str, Any] | None = None,
+    extra_macros: dict[str, Any] | None = None,
     scope: dict[str, Any] | None = None,
     context: dict[str, Any] | None = None,
     trace: ExpansionTrace | None = None,
 ) -> PreprocessResult:
-    """Early preprocessing phase: Jinja2 context, xprompt expansion, directives.
+    """Early preprocessing phase: Jinja2 context, macro expansion, directives.
 
     Steps:
         1. Render Jinja2 with *context* dict (for workflow variables).
-        2. Expand ``#name`` xprompt references.
-        3. Extract ``%id`` prompt directives (after xprompt expansion so
-           directives embedded in xprompts are also discovered).
+        2. Expand ``#name`` macro references.
+        3. Extract ``%id`` prompt directives (after macro expansion so
+           directives embedded in macros are also discovered).
 
     Args:
         prompt: The raw prompt text.
-        extra_xprompts: Additional xprompts (workflow-defined) for expansion.
-        scope: Variable scope for xprompt argument evaluation.
+        extra_macros: Additional macros (workflow-defined) for expansion.
+        scope: Variable scope for macro argument evaluation.
         context: Jinja2 template context dict.  When provided, the prompt is
-            rendered as a Jinja2 template *before* xprompt expansion.
+            rendered as a Jinja2 template *before* macro expansion.
         trace: Optional ExpansionTrace to collect expansion records into.
 
     Returns:
         A PreprocessResult with the partially processed prompt and extracted
         directives.
     """
-    from sase.macro import process_xprompt_references
+    from sase.macro import process_macro_references
 
     authored_prompt = prompt
     trace_start_index = len(trace.records) if trace is not None else 0
@@ -113,13 +113,13 @@ def preprocess_prompt_early(
 
     prompt = canonicalize_project_aliases_in_prompt(prompt)
 
-    # 2. Expand xprompt references
-    prompt = process_xprompt_references(
-        prompt, extra_xprompts=extra_xprompts, scope=scope, trace=trace
+    # 2. Expand macro references
+    prompt = process_macro_references(
+        prompt, extra_macros=extra_macros, scope=scope, trace=trace
     )
 
-    # 3. Directive extraction (after xprompt expansion so directives inside
-    #    expanded xprompts are also discovered; fenced-block protection is
+    # 3. Directive extraction (after macro expansion so directives inside
+    #    expanded macros are also discovered; fenced-block protection is
     #    built into extract_prompt_directives). Preserve disabled region
     #    markers so preprocess_prompt_late can still protect their contents
     #    from command substitution and file-reference validation.
@@ -128,7 +128,7 @@ def preprocess_prompt_early(
     from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
     from sase.continuation_capture import (
         local_authored_prompt_segment,
-        xprompt_trace_segments,
+        macro_trace_segments,
     )
 
     return PreprocessResult(
@@ -137,7 +137,7 @@ def preprocess_prompt_early(
         segment_vcs_refs=prompt_segment_vcs_refs(prompt),
         continuation_segments=(
             local_authored_prompt_segment(authored_prompt),
-            *xprompt_trace_segments(trace, start_index=trace_start_index),
+            *macro_trace_segments(trace, start_index=trace_start_index),
         ),
     )
 
@@ -193,7 +193,7 @@ def preprocess_prompt_late(
     )
     from sase.macro import is_jinja2_template, render_toplevel_jinja2
 
-    # 0. Protect disabled regions (%xprompts_enabled:false/true pairs)
+    # 0. Protect disabled regions (%macros_enabled:false/true pairs)
     disabled_regions: list[str] = []
     prompt = protect_disabled_regions(prompt, disabled_regions)
 

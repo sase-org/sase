@@ -18,7 +18,7 @@ from sase.ace.tui.widgets._local_xprompt_conversion import (
     validate_local_xprompt_name,
 )
 from sase.macro.models import InputType
-from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+from sase.macro.prompt_frontmatter import LOCAL_MACRO_SOURCE
 
 
 def _disable_placeholder_args(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -125,7 +125,7 @@ def test_infer_runtime_builtins_are_not_inputs() -> None:
 
 def test_skeleton_without_inputs_is_bare_reference() -> None:
     xprompt = build_local_xprompt("_rules", "do the thing", [])
-    assert xprompt.source_path == LOCAL_XPROMPT_SOURCE
+    assert xprompt.source_path == LOCAL_MACRO_SOURCE
     assert local_xprompt_invocation_skeleton(xprompt) == "#_rules"
 
 

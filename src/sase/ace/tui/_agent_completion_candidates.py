@@ -574,7 +574,7 @@ def _model_label(agent: Agent) -> str | None:
 
 
 def _raw_prompt_for_agent(agent: Agent, all_agents: Sequence[Agent]) -> str:
-    raw_content = agent.get_raw_xprompt_content() or ""
+    raw_content = agent.get_raw_prompt_content() or ""
     if not raw_content and agent.is_agent_session_root_entry:
         from sase.ace.tui.models.agent_session_members import (
             concrete_agent_session_member_rows,
@@ -583,14 +583,14 @@ def _raw_prompt_for_agent(agent: Agent, all_agents: Sequence[Agent]) -> str:
         for member in concrete_agent_session_member_rows(agent):
             if member is agent:
                 continue
-            raw_content = member.get_raw_xprompt_content() or ""
+            raw_content = member.get_raw_prompt_content() or ""
             if raw_content:
                 return raw_content
     if raw_content or not agent.parent_timestamp:
         return raw_content
     for parent in all_agents:
         if parent.raw_suffix == agent.parent_timestamp:
-            return parent.get_raw_xprompt_content() or ""
+            return parent.get_raw_prompt_content() or ""
     return ""
 
 

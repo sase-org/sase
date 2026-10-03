@@ -74,7 +74,7 @@ def render_task_prompt(
     *,
     model: str = "",
     size: PhaseSize | str | None = None,
-    work_task_xprompt: Workflow,
+    work_task_macro: Workflow,
     vcs_context: VCSLaunchContext,
     feedback: str | None = None,
 ) -> str:
@@ -91,7 +91,7 @@ def render_task_prompt(
         _vcs_launch_prefix(vcs_context.vcs_workflow, vcs_context.project_name),
         f"%id(!{bead_id}, bead={bead_id})",
         f"%m:{task_model_directive_value(model, size=size)}",
-        f"#{work_task_xprompt.name}:{bead_id}",
+        f"#{work_task_macro.name}:{bead_id}",
     ]
     if phase_requires_plan(size):
         lines.append("#plan")
@@ -107,8 +107,8 @@ def phase_requires_plan(size: PhaseSize | str | None) -> bool:
 
 def render_multi_prompt(
     plan: EpicWorkPlan,
-    work_phase_xprompt: Workflow,
-    land_epic_xprompt: Workflow,
+    work_phase_macro: Workflow,
+    land_epic_macro: Workflow,
     vcs_context: VCSLaunchContext | None = None,
     patch_context: PatchLaunchContext | None = None,
     *,
@@ -126,9 +126,9 @@ def render_multi_prompt(
     one ``%id``. The final land segment similarly joins the clan while
     associating the epic bead. When re-working an existing epic clan, callers
     pass ``declare_clan=False`` so every segment uses the join form. Segments
-    invoke the corresponding work xprompt, and the final land segment invokes
-    ``#<land_epic_xprompt.name>:<epic_id>``, and waits on every launched phase
-    agent. Tag-resolved xprompt names are substituted into the ``#...``
+    invoke the corresponding work macro, and the final land segment invokes
+    ``#<land_epic_macro.name>:<epic_id>``, and waits on every launched phase
+    agent. Tag-resolved macro names are substituted into the ``#...``
     references so user overrides flow through unchanged.
 
     The emitted ``%id`` directives use the force-reuse prefix
@@ -138,13 +138,13 @@ def render_multi_prompt(
     prompt to the launcher.
 
     When *vcs_context* is provided, every segment is prefixed with the project
-    VCS xprompt. When *patch_context* is provided, the first phase segment
+    VCS macro. When *patch_context* is provided, the first phase segment
     targets the project ref and includes ``#pr`` to create/own the Patch;
     later phase segments and the land segment target the Patch ref
     directly.
 
     When *extra_waits* is provided, its agents and beads are appended after
-    each unblocked segment's existing wait lines and before its ``#<xprompt>``
+    each unblocked segment's existing wait lines and before its ``#<macro>``
     line. Unblocked means a phase whose ``waits_on`` is empty, or the land
     segment when ``plan.land_waits_on`` is empty. Dependent segments inherit
     the wait transitively and do not repeat it.
@@ -201,7 +201,7 @@ def render_multi_prompt(
             )
             if not assignment.waits_on:
                 lines.extend(_extra_wait_lines(extra_waits))
-            lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
+            lines.append(f"#{work_phase_macro.name}:{assignment.bead_id}")
             if phase_requires_plan(assignment.size):
                 lines.append("#plan")
             segments.append("\n".join(lines))
@@ -236,7 +236,7 @@ def render_multi_prompt(
         land_lines.extend(f"%w(bead={bead_id})" for bead_id in plan.phase_bead_ids)
         if not plan.land_waits_on:
             land_lines.extend(_extra_wait_lines(extra_waits))
-        land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
+        land_lines.append(f"#{land_epic_macro.name}:{plan.epic_id}")
         segments.append("\n".join(land_lines))
 
     return "\n---\n".join(segments)

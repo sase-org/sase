@@ -82,7 +82,7 @@ def normalize_request_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
 def build_preview_plan(prompt: str) -> tuple[str, Any]:
     from sase.agent.launch_request_types import LaunchRequestError
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
+    from sase.agent.macro_swarm import expand_macro_swarms_with_metadata
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.macro._parsing import (
         normalize_default_vcs_workflow,
@@ -105,8 +105,8 @@ def build_preview_plan(prompt: str) -> tuple[str, Any]:
             pass
     submitted = canonicalize_project_aliases_in_prompt(prompt)
     multi = parse_multi_prompt(submitted)
-    expanded_records = expand_xprompt_swarms_with_metadata(
-        multi.segments, multi.local_xprompts
+    expanded_records = expand_macro_swarms_with_metadata(
+        multi.segments, multi.local_macros
     )
     expanded_segments = [record.prompt for record in expanded_records]
     if not expanded_segments:
@@ -137,15 +137,15 @@ def build_preview_plan(prompt: str) -> tuple[str, Any]:
     fanout_plan = plan_prompt_fanout_variants(query)
     if fanout_plan is None and "#" in query:
         from sase.macro.processor import (
-            LAUNCH_DEFERRED_XPROMPT_NAMES,
-            process_xprompt_references,
-            prompt_may_reference_xprompt,
+            LAUNCH_DEFERRED_MACRO_NAMES,
+            process_macro_references,
+            prompt_may_reference_macro,
         )
 
-        if prompt_may_reference_xprompt(query):
-            expanded = process_xprompt_references(
+        if prompt_may_reference_macro(query):
+            expanded = process_macro_references(
                 query,
-                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+                defer_macro_names=LAUNCH_DEFERRED_MACRO_NAMES,
             )
             fanout_plan = plan_prompt_fanout_variants(expanded)
     if fanout_plan is not None:
@@ -154,7 +154,7 @@ def build_preview_plan(prompt: str) -> tuple[str, Any]:
 
 
 def expand_prompt_for_typed_launch(prompt: str) -> str:
-    """Recursively expand xprompts without injecting a default VCS tag.
+    """Recursively expand macros without injecting a default VCS tag.
 
     ``normalize_default_vcs_workflow`` inserts ``#git:home`` after a leading
     directive prefix, which splits ``%if::`` / ``%proc(...)::`` from the fence
@@ -162,26 +162,26 @@ def expand_prompt_for_typed_launch(prompt: str) -> str:
     dispatch apply the default VCS tag to remaining agent prose.
     """
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
+    from sase.agent.macro_swarm import expand_macro_swarms_with_metadata
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.macro.processor import (
-        LAUNCH_DEFERRED_XPROMPT_NAMES,
-        process_xprompt_references,
-        prompt_may_reference_xprompt,
+        LAUNCH_DEFERRED_MACRO_NAMES,
+        process_macro_references,
+        prompt_may_reference_macro,
     )
 
     submitted = canonicalize_project_aliases_in_prompt(prompt)
     multi = parse_multi_prompt(submitted)
-    expanded_records = expand_xprompt_swarms_with_metadata(
-        multi.segments, multi.local_xprompts
+    expanded_records = expand_macro_swarms_with_metadata(
+        multi.segments, multi.local_macros
     )
     expanded_segments = [record.prompt for record in expanded_records]
     expanded: list[str] = []
     for segment in expanded_segments:
-        if "#" in segment and prompt_may_reference_xprompt(segment):
-            segment = process_xprompt_references(
+        if "#" in segment and prompt_may_reference_macro(segment):
+            segment = process_macro_references(
                 segment,
-                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+                defer_macro_names=LAUNCH_DEFERRED_MACRO_NAMES,
             )
         expanded.append(segment)
     return "\n---\n".join(expanded)

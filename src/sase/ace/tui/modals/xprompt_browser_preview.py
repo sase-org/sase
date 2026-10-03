@@ -13,7 +13,7 @@ from .xprompt_browser_helpers import BrowserItem
 
 def create_preview_content(workflow: Workflow) -> str:
     """Create the preview markdown for a workflow or simple xprompt."""
-    if workflow.is_simple_xprompt():
+    if workflow.is_simple_macro():
         return create_simple_preview(workflow)
     return create_workflow_preview(workflow)
 

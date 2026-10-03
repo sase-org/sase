@@ -102,7 +102,7 @@ def test_alias_history_query_round_trips_defaults_and_filters() -> None:
     assert run.alias_position == 1
     assert run.model_alias_trail == ["coder", "large"]
     assert run.model_alias_origin == "directive"
-    assert run.used_xprompts[0].name == "gh:sase"
+    assert run.used_macros[0].name == "gh:sase"
     assert restored.groups[1].runs == []
 
 
@@ -146,7 +146,7 @@ def test_alias_history_from_dict_tolerates_unknown_keys() -> None:
     assert run.alias_position == 0
     assert run.model_alias_trail == []
     assert run.model_alias_origin is None
-    assert run.used_xprompts == []
+    assert run.used_macros == []
 
 
 def test_query_agent_alias_history_takes_lock_and_converts_payload(

@@ -56,7 +56,7 @@ class PromptHit:
         artifact_count: Archive: number of entries in the ``ARTIFACTS`` header.
             Local: ``None``.
         tags: Sigil-stripped, de-duplicated tag tokens drawn from archive
-            ``prompt_tags`` frontmatter and the ``#xprompt`` chips embedded in
+            ``prompt_tags`` frontmatter and the ``#macro`` chips embedded in
             the body.
         cancelled: Local: the entry's cancelled flag. Archive: ``None``.
         also_in_local: ``True`` on an archive hit when a local entry with the same

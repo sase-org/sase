@@ -1,6 +1,6 @@
 """Canonical project/home content layout backed by :mod:`sase_core_rs`.
 
-The Rust contract owns path names, compatibility policies, and xprompt source
+The Rust contract owns path names, compatibility policies, and macro source
 ordering. This host adapter owns only filesystem concerns: finding a project
 root, checking candidate presence, resolving symlinks, formatting paths, and
 mapping home targets into a chezmoi source tree.
@@ -26,7 +26,7 @@ from sase.core.content_layout_wire import (
     SaseContentLayout,
     SkillPlacementIssue,
     SkillSource,
-    XpromptSource,
+    MacroSource,
     content_layout_from_mapping,
     skill_placement_issue_from_mapping,
 )
@@ -168,13 +168,13 @@ def resolve_project_config_write_path(root: Path | str) -> Path:
     return resolve_project_layout(root).config.write_path
 
 
-def resolve_xprompt_file_sources(
+def resolve_macro_file_sources(
     *,
     project_root: Path | str | None = None,
     home_root: Path | str | None = None,
     project: str | None = None,
-) -> tuple[XpromptSource, ...]:
-    """Return ordered filesystem-backed xprompt/workflow sources.
+) -> tuple[MacroSource, ...]:
+    """Return ordered filesystem-backed macro/workflow sources.
 
     The result is the Rust-owned first-wins order and includes canonical and
     compatibility directories.  When *project_root* is omitted, the nearest
@@ -197,7 +197,7 @@ def resolve_xprompt_file_sources(
     )
     return tuple(
         source
-        for source in layout.xprompt_sources
+        for source in layout.macro_sources
         if source.path is not None
         and any(extension in source.formats for extension in ("md", "yml", "yaml"))
     )
@@ -215,7 +215,7 @@ def resolve_skill_file_sources(
     specific home).  Package and plugin sources are resource locators without
     a filesystem path, so they are excluded here and loaded by their own
     ``importlib.resources`` loaders.  As with
-    :func:`resolve_xprompt_file_sources`, omitting *project_root* falls back
+    :func:`resolve_macro_file_sources`, omitting *project_root* falls back
     to the project containing the current directory.
     """
     if project_root is None:
@@ -242,7 +242,7 @@ def resolve_memory_file_sources(
     project: str | None = None,
     include_discovered_project: bool = True,
 ) -> tuple[MemoryFileSource, ...]:
-    """Return ordered filesystem-backed xprompt-memory sources.
+    """Return ordered filesystem-backed macro-memory sources.
 
     The Rust contract owns the ordered memory source records. This adapter only
     pairs each record with the project or home content root needed by the
@@ -282,9 +282,9 @@ def resolve_memory_file_sources(
 
 
 def skill_reference_name(skill_name: str, project: str | None = None) -> str:
-    """Return the canonical ``skill/<name>`` xprompt reference for a skill.
+    """Return the canonical ``skill/<name>`` macro reference for a skill.
 
-    The provider-visible skill name is unchanged; only the xprompt reference
+    The provider-visible skill name is unchanged; only the macro reference
     is namespaced, so ``#skill/foo`` expands what ``/foo`` invokes.
     """
     binding = require_rust_binding("skill_reference_name")
@@ -292,7 +292,7 @@ def skill_reference_name(skill_name: str, project: str | None = None) -> str:
 
 
 def memory_reference_name(stem: str) -> str:
-    """Return the canonical ``memory/<stem>`` xprompt reference."""
+    """Return the canonical ``memory/<stem>`` macro reference."""
     binding = require_rust_binding("memory_reference_name")
     return str(binding(stem))
 
@@ -303,7 +303,7 @@ def memory_note_issue(
     stem: str,
     note_type: str,
 ) -> SkillPlacementIssue | None:
-    """Apply the shared xprompt-memory note eligibility rule."""
+    """Apply the shared macro-memory note eligibility rule."""
     binding = require_rust_binding("memory_note_issue")
     payload: Mapping[str, Any] | None = binding(str(source), stem, note_type)
     if payload is None:
@@ -432,7 +432,7 @@ __all__ = [
     "SaseContentLayout",
     "SkillPlacementIssue",
     "SkillSource",
-    "XpromptSource",
+    "MacroSource",
     "chezmoi_source_path",
     "discover_project_root",
     "display_path",
@@ -443,7 +443,7 @@ __all__ = [
     "resolve_memory_file_sources",
     "resolve_project_layout",
     "resolve_skill_file_sources",
-    "resolve_xprompt_file_sources",
+    "resolve_macro_file_sources",
     "memory_note_issue",
     "memory_reference_name",
     "reserved_memory_namespace_issue",

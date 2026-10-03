@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from sase.main.query_handler._standalone_steps import _evaluate_standalone_condition
 from sase.content import dump_yaml
-from sase.macro._exceptions import XPromptArgumentError
+from sase.macro._exceptions import MacroArgumentError
 from sase.macro._jinja import (
     _substitute_legacy_placeholders,
     render_toplevel_jinja2,
@@ -16,9 +16,9 @@ from sase.macro._jinja import (
 from sase.macro.models import (
     InputArg,
     InputType,
-    XPrompt,
-    XPromptValidationError,
-    xprompt_to_workflow,
+    Macro,
+    MacroValidationError,
+    macro_to_workflow,
 )
 from sase.macro.workflow_executor_utils import (
     _finalize_value,
@@ -41,7 +41,7 @@ def test_evaluate_standalone_condition_missing_variable() -> None:
 
 def test_substitute_legacy_missing_arg_error() -> None:
     """Test _substitute_legacy_placeholders raises on missing required arg."""
-    with pytest.raises(XPromptArgumentError, match="requires argument"):
+    with pytest.raises(MacroArgumentError, match="requires argument"):
         _substitute_legacy_placeholders("{1}", [], "test")
 
 
@@ -77,7 +77,7 @@ def test_render_toplevel_jinja2_renders_outside_fenced_block() -> None:
 
 
 def test_substitute_placeholders_ignores_jinja_in_fenced_block() -> None:
-    """{{ _1 }} inside fenced blocks in xprompt content is preserved."""
+    """{{ _1 }} inside fenced blocks in macro content is preserved."""
     content = "Hello {{ _1 }}\n```\n{{ _1 }} should not expand\n```"
     result = substitute_placeholders(content, ["world"], {}, "test")
     assert "Hello world" in result
@@ -126,7 +126,7 @@ def test_input_arg_agent_matches_word_rules() -> None:
     """Test InputArg validates agent type with word-compatible rules."""
     arg = InputArg(name="name", type=InputType.AGENT)
     assert arg.validate_and_convert("planner.1") == "planner.1"
-    with pytest.raises(XPromptValidationError):
+    with pytest.raises(MacroValidationError):
         arg.validate_and_convert("planner one")
 
 
@@ -160,22 +160,22 @@ def test_input_arg_bool_false() -> None:
     assert arg.validate_and_convert("off") is False
 
 
-# Tests for XPrompt
+# Tests for Macro
 
 
-# Tests for xprompt_to_workflow
+# Tests for macro_to_workflow
 
 
-def test_xprompt_to_workflow_copies_local_xprompts() -> None:
-    xp = XPrompt(
+def test_macro_to_workflow_copies_local_macros() -> None:
+    xp = Macro(
         name="outer",
         content="#_helper",
-        local_xprompts={"_helper": XPrompt(name="_helper", content="Help")},
+        local_macros={"_helper": Macro(name="_helper", content="Help")},
     )
 
-    workflow = xprompt_to_workflow(xp)
+    workflow = macro_to_workflow(xp)
 
-    assert workflow.xprompts == xp.local_xprompts
+    assert workflow.macros == xp.local_macros
 
 
 # Tests for validate_and_convert_args
@@ -183,12 +183,12 @@ def test_xprompt_to_workflow_copies_local_xprompts() -> None:
 
 def test_validate_and_convert_args_extra_positional() -> None:
     """Scalar inputs reject surplus positional arguments."""
-    xp = XPrompt(
+    xp = Macro(
         name="test",
         content="hello",
         inputs=[InputArg(name="x", type=InputType.LINE)],
     )
-    with pytest.raises(XPromptArgumentError) as exc_info:
+    with pytest.raises(MacroArgumentError) as exc_info:
         validate_and_convert_args(xp, ["a", "extra"], {})
     message = str(exc_info.value)
     assert "XPrompt '#test' argument error:" in message
@@ -197,7 +197,7 @@ def test_validate_and_convert_args_extra_positional() -> None:
 
 
 def test_validate_and_convert_args_surplus_type_error_names_call() -> None:
-    xp = XPrompt(
+    xp = Macro(
         name="research_swarm",
         content="{{ prompt }}",
         inputs=[
@@ -206,7 +206,7 @@ def test_validate_and_convert_args_surplus_type_error_names_call() -> None:
             InputArg(name="priority", type=InputType.INT, default=None),
         ],
     )
-    with pytest.raises(XPromptArgumentError) as exc_info:
+    with pytest.raises(MacroArgumentError) as exc_info:
         validate_and_convert_args(
             xp,
             ["prose", "for example). leftover", "1", "fourth"],
@@ -220,7 +220,7 @@ def test_validate_and_convert_args_surplus_type_error_names_call() -> None:
 
 def test_validate_and_convert_args_unknown_named() -> None:
     """Test validate_and_convert_args passes through unknown named args."""
-    xp = XPrompt(
+    xp = Macro(
         name="test",
         content="hello",
         inputs=[InputArg(name="x", type=InputType.LINE)],
@@ -231,29 +231,29 @@ def test_validate_and_convert_args_unknown_named() -> None:
 
 def test_validate_and_convert_args_positional_error() -> None:
     """Test validate_and_convert_args raises on positional conversion error."""
-    xp = XPrompt(
+    xp = Macro(
         name="test",
         content="hello",
         inputs=[InputArg(name="n", type=InputType.INT)],
     )
-    with pytest.raises(XPromptArgumentError, match="argument error"):
+    with pytest.raises(MacroArgumentError, match="argument error"):
         validate_and_convert_args(xp, ["not_a_number"], {})
 
 
 def test_validate_and_convert_args_named_error() -> None:
     """Test validate_and_convert_args raises on named conversion error."""
-    xp = XPrompt(
+    xp = Macro(
         name="test",
         content="hello",
         inputs=[InputArg(name="n", type=InputType.INT)],
     )
-    with pytest.raises(XPromptArgumentError, match="argument error"):
+    with pytest.raises(MacroArgumentError, match="argument error"):
         validate_and_convert_args(xp, [], {"n": "not_a_number"})
 
 
 def test_validate_and_convert_args_null_positional_arg_uses_default() -> None:
     """Test that positional arg 'null' is skipped so callee's default applies."""
-    xp = XPrompt(
+    xp = Macro(
         name="test",
         content="hello",
         inputs=[InputArg(name="x", type=InputType.LINE, default="fallback")],
@@ -265,7 +265,7 @@ def test_validate_and_convert_args_null_positional_arg_uses_default() -> None:
 
 def test_validate_and_convert_args_null_value_no_default_skipped() -> None:
     """Test that 'null' with no callee default leaves arg out of result."""
-    xp = XPrompt(
+    xp = Macro(
         name="test",
         content="hello",
         inputs=[InputArg(name="x", type=InputType.LINE)],

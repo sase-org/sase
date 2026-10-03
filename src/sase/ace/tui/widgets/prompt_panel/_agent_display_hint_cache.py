@@ -105,7 +105,7 @@ def _source_digest_parts(agent: Agent) -> list[tuple[str, object]]:
                 ("identity", candidate.identity),
                 ("finalizer_status", repr(candidate.finalizer_status)),
                 ("error_traceback", candidate.error_traceback),
-                ("raw_xprompt", candidate.get_raw_xprompt_content()),
+                ("raw_xprompt", candidate.get_raw_prompt_content()),
                 ("prompt", get_prompt_content(candidate)),
                 ("reply_chunks", candidate.get_timestamped_reply_chunks()),
                 ("live_reply", candidate.get_live_reply_content()),
@@ -271,7 +271,7 @@ def agent_hint_render_cache_key(
             agent_state_digest = _digest_parts(agent)
         source_digest = _source_digest_cached(widget, agent)
         summary_key = detail_header_summary_cache_key(widget, agent)
-        raw_xprompt = agent.get_raw_xprompt_content()
+        raw_xprompt = agent.get_raw_prompt_content()
     return AgentHintRenderCacheKey(
         agent_identity=cast(tuple[object, ...], agent.identity),
         agent_state_digest=agent_state_digest,

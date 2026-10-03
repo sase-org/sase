@@ -1,4 +1,4 @@
-"""Tests for bead-automation xprompt tag wiring (sase-r.2)."""
+"""Tests for bead-automation macro tag wiring (sase-r.2)."""
 
 from __future__ import annotations
 
@@ -8,33 +8,33 @@ from unittest.mock import patch
 import pytest
 
 from sase.bead.macros import (
-    BeadXPromptNotFoundError,
-    _resolve_bead_xprompt,
-    resolve_land_epic_xprompt,
-    resolve_work_phase_xprompt,
-    resolve_work_task_xprompt,
+    BeadMacroNotFoundError,
+    _resolve_bead_macro,
+    resolve_land_epic_macro,
+    resolve_work_phase_macro,
+    resolve_work_task_macro,
 )
 from sase.macro.directives import extract_prompt_directives
 from sase.macro.loader import get_all_prompts
-from sase.macro.tags import XPromptTag, parse_tags
+from sase.macro.tags import MacroTag, parse_tags
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
 # ── Tag enum parsing ───────────────────────────────────────────────────
 
 
 def test_new_tags_parse_from_string() -> None:
-    assert parse_tags("create_epic_bead") == frozenset({XPromptTag.create_epic_bead})
-    assert parse_tags("work_phase_bead") == frozenset({XPromptTag.work_phase_bead})
-    assert parse_tags("work_task_bead") == frozenset({XPromptTag.work_task_bead})
-    assert parse_tags("land_epic") == frozenset({XPromptTag.land_epic})
+    assert parse_tags("create_epic_bead") == frozenset({MacroTag.create_epic_bead})
+    assert parse_tags("work_phase_bead") == frozenset({MacroTag.work_phase_bead})
+    assert parse_tags("work_task_bead") == frozenset({MacroTag.work_task_bead})
+    assert parse_tags("land_epic") == frozenset({MacroTag.land_epic})
 
 
 def test_new_tags_parse_from_list() -> None:
     parsed = parse_tags(["create_epic_bead", "land_epic"])
     assert parsed == frozenset(
         {
-            XPromptTag.create_epic_bead,
-            XPromptTag.land_epic,
+            MacroTag.create_epic_bead,
+            MacroTag.land_epic,
         }
     )
 
@@ -43,24 +43,24 @@ def test_new_tags_parse_from_list() -> None:
 
 
 def test_builtin_work_phase_resolves() -> None:
-    wf = resolve_work_phase_xprompt()
+    wf = resolve_work_phase_macro()
     assert wf.name == "bd/work_phase_bead"
-    assert XPromptTag.work_phase_bead in wf.tags
+    assert MacroTag.work_phase_bead in wf.tags
 
 
 def test_builtin_land_epic_resolves() -> None:
-    wf = resolve_land_epic_xprompt()
+    wf = resolve_land_epic_macro()
     assert wf.name == "bd/land_epic"
-    assert XPromptTag.land_epic in wf.tags
+    assert MacroTag.land_epic in wf.tags
 
 
 def test_builtin_work_task_resolves() -> None:
-    wf = resolve_work_task_xprompt()
+    wf = resolve_work_task_macro()
     assert wf.name == "bd/work_task"
-    assert XPromptTag.work_task_bead in wf.tags
+    assert MacroTag.work_task_bead in wf.tags
 
 
-def test_builtin_xprompts_loaded_from_config() -> None:
+def test_builtin_macros_loaded_from_config() -> None:
     """Confirm the bead automation built-ins are present in the loader registry."""
     prompts = get_all_prompts()
     assert "bd/new_epic" not in prompts
@@ -68,9 +68,9 @@ def test_builtin_xprompts_loaded_from_config() -> None:
     assert "bd/land_epic" in prompts
     assert "bd/work_phase_bead" in prompts
     assert "bd/work_task" in prompts
-    assert XPromptTag.land_epic in prompts["bd/land_epic"].tags
-    assert XPromptTag.work_phase_bead in prompts["bd/work_phase_bead"].tags
-    assert XPromptTag.work_task_bead in prompts["bd/work_task"].tags
+    assert MacroTag.land_epic in prompts["bd/land_epic"].tags
+    assert MacroTag.work_phase_bead in prompts["bd/work_phase_bead"].tags
+    assert MacroTag.work_task_bead in prompts["bd/work_task"].tags
 
 
 def _builtin_prompt_body(name: str) -> str:
@@ -112,7 +112,7 @@ def _assert_no_wait_directives(name: str, task_instruction: str) -> None:
         ),
     ],
 )
-def test_bead_worker_builtin_xprompts_do_not_author_wait_directives(
+def test_bead_worker_builtin_macros_do_not_author_wait_directives(
     name: str,
     task_instruction: str,
 ) -> None:
@@ -235,7 +235,7 @@ def test_builtin_plan_review_uses_prompt_archive_and_plan_glob(
 # ── User overrides win via precedence chain ────────────────────────────
 
 
-def _user_xprompt(name: str, tag: XPromptTag) -> Workflow:
+def _user_macro(name: str, tag: MacroTag) -> Workflow:
     return Workflow(
         name=name,
         steps=[WorkflowStep(name="main", prompt_part=f"override for {tag.value}")],
@@ -245,8 +245,8 @@ def _user_xprompt(name: str, tag: XPromptTag) -> Workflow:
 
 
 def test_user_override_wins() -> None:
-    """A user xprompt tagged with the same tag replaces the built-in."""
-    override = _user_xprompt("user/work_phase_override", XPromptTag.work_phase_bead)
+    """A user macro tagged with the same tag replaces the built-in."""
+    override = _user_macro("user/work_phase_override", MacroTag.work_phase_bead)
     # Single-entry registry simulates "only the override has this tag"
     # (the loader's precedence chain yields exactly one workflow per tag
     # when a user has overridden it, so get_by_tag_strict picks it).
@@ -254,24 +254,24 @@ def test_user_override_wins() -> None:
         "sase.macro.loader.get_all_prompts",
         return_value={override.name: override},
     ):
-        wf = resolve_work_phase_xprompt()
+        wf = resolve_work_phase_macro()
     assert wf is override
 
 
 def test_duplicate_tag_raises() -> None:
-    """Two xprompts with the same tag → strict resolver raises ValueError."""
-    a = _user_xprompt("user/a", XPromptTag.land_epic)
-    b = _user_xprompt("user/b", XPromptTag.land_epic)
+    """Two macros with the same tag → strict resolver raises ValueError."""
+    a = _user_macro("user/a", MacroTag.land_epic)
+    b = _user_macro("user/b", MacroTag.land_epic)
     with patch(
         "sase.macro.loader.get_all_prompts",
         return_value={a.name: a, b.name: b},
     ):
         with pytest.raises(ValueError, match="Multiple xprompts"):
-            resolve_land_epic_xprompt()
+            resolve_land_epic_macro()
 
 
 def test_missing_tag_raises_clear_error() -> None:
-    """No xprompt with the tag → BeadXPromptNotFoundError."""
+    """No macro with the tag → BeadMacroNotFoundError."""
     with patch("sase.macro.loader.get_all_prompts", return_value={}):
-        with pytest.raises(BeadXPromptNotFoundError, match="create_epic_bead"):
-            _resolve_bead_xprompt(XPromptTag.create_epic_bead)
+        with pytest.raises(BeadMacroNotFoundError, match="create_epic_bead"):
+            _resolve_bead_macro(MacroTag.create_epic_bead)

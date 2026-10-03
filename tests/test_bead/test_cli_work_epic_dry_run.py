@@ -19,7 +19,7 @@ from .cli_work_helpers import (
     seed_diamond,
 )
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 def test_work_dry_run_never_mutates_or_launches(

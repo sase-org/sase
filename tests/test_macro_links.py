@@ -1,4 +1,4 @@
-"""Tests for hosted URL resolution of xprompt definition provenance."""
+"""Tests for hosted URL resolution of macro definition provenance."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ import pytest
 from sase.sdd._store_types import SddStore
 from sase.sdd.hosted_links import HostedLinkResolver
 from sase.macro_links import (
-    XpromptSourceRecord,
-    XpromptTargetResolver,
+    MacroSourceRecord,
+    MacroTargetResolver,
 )
 
 _GITHUB_PRIMARY_REMOTE = "git@github.com:sase-org/sase.git"
@@ -83,7 +83,7 @@ def _record(
     repo_relpath: str | None,
     definition_line: int | None = None,
     chezmoi: bool = False,
-) -> XpromptSourceRecord:
+) -> MacroSourceRecord:
     return {
         "schema_version": 1,
         "raw_ref": "#plan",
@@ -103,7 +103,7 @@ def _record(
 def test_resolves_line_anchor_against_github_primary_repo(tmp_path: Path) -> None:
     primary = _repo(tmp_path, "sase")
     git = _FakeGit(remotes={primary: _GITHUB_PRIMARY_REMOTE})
-    resolver = XpromptTargetResolver(
+    resolver = MacroTargetResolver(
         primary_root=primary,
         primary_revision="a" * 40,
         hosted=_hosted(primary, git),
@@ -128,7 +128,7 @@ def test_resolves_line_anchor_against_github_primary_repo(tmp_path: Path) -> Non
 def test_resolves_markdown_definition_without_line_anchor(tmp_path: Path) -> None:
     primary = _repo(tmp_path, "sase")
     git = _FakeGit(remotes={primary: _GITHUB_PRIMARY_REMOTE})
-    resolver = XpromptTargetResolver(
+    resolver = MacroTargetResolver(
         primary_root=primary,
         primary_revision="a" * 40,
         hosted=_hosted(primary, git),
@@ -159,7 +159,7 @@ def test_chezmoi_repo_with_github_origin_resolves_against_recorded_root(
         remotes={primary: _GITHUB_PRIMARY_REMOTE, chezmoi_root: _GITHUB_CHEZMOI_REMOTE},
         heads={chezmoi_root: "f" * 40},
     )
-    resolver = XpromptTargetResolver(
+    resolver = MacroTargetResolver(
         primary_root=primary,
         primary_revision="a" * 40,
         hosted=_hosted(primary, git),
@@ -195,7 +195,7 @@ def test_non_github_remote_yields_no_link(
         remotes={primary: _GITHUB_PRIMARY_REMOTE, other: _GITLAB_REMOTE},
         heads={other: "b" * 40},
     )
-    resolver = XpromptTargetResolver(
+    resolver = MacroTargetResolver(
         primary_root=primary,
         primary_revision="a" * 40,
         hosted=_hosted(primary, git),
@@ -213,7 +213,7 @@ def test_unresolvable_head_yields_no_link(tmp_path: Path) -> None:
     git = _FakeGit(
         remotes={primary: _GITHUB_PRIMARY_REMOTE, other: _GITHUB_CHEZMOI_REMOTE}
     )
-    resolver = XpromptTargetResolver(
+    resolver = MacroTargetResolver(
         primary_root=primary,
         primary_revision="a" * 40,
         hosted=_hosted(primary, git),
@@ -228,7 +228,7 @@ def test_unresolvable_head_yields_no_link(tmp_path: Path) -> None:
 def test_record_with_no_repository_is_skipped(tmp_path: Path) -> None:
     primary = _repo(tmp_path, "sase")
     git = _FakeGit(remotes={primary: _GITHUB_PRIMARY_REMOTE})
-    resolver = XpromptTargetResolver(
+    resolver = MacroTargetResolver(
         primary_root=primary,
         primary_revision="a" * 40,
         hosted=_hosted(primary, git),
@@ -249,7 +249,7 @@ def test_disappeared_recorded_root_falls_back_to_inventory_root(
         remotes={primary: _GITHUB_PRIMARY_REMOTE, live_root: _GITHUB_CHEZMOI_REMOTE},
         heads={live_root: "c" * 40},
     )
-    resolver = XpromptTargetResolver(
+    resolver = MacroTargetResolver(
         primary_root=primary,
         primary_revision="a" * 40,
         hosted=_hosted(primary, git),

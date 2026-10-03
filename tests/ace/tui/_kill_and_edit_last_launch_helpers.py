@@ -46,7 +46,7 @@ class _FakeAgent:
     def agent_name(self) -> str:
         return self.name
 
-    def get_raw_xprompt_content(self) -> str | None:
+    def get_raw_prompt_content(self) -> str | None:
         return self.raw_prompt
 
     def get_artifacts_dir(self) -> str | None:

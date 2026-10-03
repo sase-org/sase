@@ -1,4 +1,4 @@
-"""Export and xprompt-save coverage for ``sase prompt``."""
+"""Export and macro-save coverage for ``sase prompt``."""
 
 from __future__ import annotations
 
@@ -104,12 +104,12 @@ def test_export_unknown_selector_exits_two(
     assert "No prompt matches selector" in capsys.readouterr().err
 
 
-def test_save_local_creates_loadable_xprompt(
+def test_save_local_creates_loadable_macro(
     history_file: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.macro.loader import load_xprompt_from_file
+    from sase.macro.loader import load_macro_from_file
 
     monkeypatch.chdir(tmp_path)
     text = "do the important refactor across the parser"
@@ -118,12 +118,12 @@ def test_save_local_creates_loadable_xprompt(
     handle_prompt_save(_save_ns(_prompt_id(text), name="fix-parser"))
 
     dest = tmp_path / "sase" / "xprompts" / "fix-parser.md"
-    xprompt = load_xprompt_from_file(dest)
-    assert xprompt is not None
-    assert xprompt.name == "fix-parser"
-    assert text in xprompt.content
+    macro_def = load_macro_from_file(dest)
+    assert macro_def is not None
+    assert macro_def.name == "fix-parser"
+    assert text in macro_def.content
     # Default description is the cleaned one-line preview.
-    assert xprompt.description == text
+    assert macro_def.description == text
 
 
 def test_save_tag_persists_prompt_tags_and_stays_loadable(
@@ -131,7 +131,7 @@ def test_save_tag_persists_prompt_tags_and_stays_loadable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.macro.loader import load_xprompt_from_file
+    from sase.macro.loader import load_macro_from_file
 
     monkeypatch.chdir(tmp_path)
     text = "review the authentication changes carefully"
@@ -149,14 +149,14 @@ def test_save_tag_persists_prompt_tags_and_stays_loadable(
     assert "review" in raw
     assert "\ntags:" not in raw
 
-    xprompt = load_xprompt_from_file(dest)
-    assert xprompt is not None
-    assert xprompt.name == "fix-auth-review"
+    macro_def = load_macro_from_file(dest)
+    assert macro_def is not None
+    assert macro_def.name == "fix-auth-review"
     # Free-form tags must not leak into the semantic tag set.
-    assert xprompt.tags == frozenset()
+    assert macro_def.tags == frozenset()
 
 
-def test_save_global_writes_home_xprompts(
+def test_save_global_writes_home_macros(
     history_file: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -206,7 +206,7 @@ def test_save_description_override(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.macro.loader import load_xprompt_from_file
+    from sase.macro.loader import load_macro_from_file
 
     monkeypatch.chdir(tmp_path)
     text = "prompt whose description is overridden"
@@ -216,9 +216,9 @@ def test_save_description_override(
         _save_ns(_prompt_id(text), name="custom", description="My summary")
     )
 
-    xprompt = load_xprompt_from_file(tmp_path / "sase" / "xprompts" / "custom.md")
-    assert xprompt is not None
-    assert xprompt.description == "My summary"
+    macro_def = load_macro_from_file(tmp_path / "sase" / "xprompts" / "custom.md")
+    assert macro_def is not None
+    assert macro_def.description == "My summary"
 
 
 def test_save_guards_overwrite(

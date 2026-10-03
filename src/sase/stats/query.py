@@ -43,9 +43,9 @@ def query_run_stats(
     top_n: int = 5,
     project: str | None = None,
     work_top_n: int = 50,
-    xprompt_top_n: int = 40,
-    xprompt_breakdown_top_n: int = 5,
-    xprompt_focus: str | None = None,
+    macro_top_n: int = 40,
+    macro_breakdown_top_n: int = 5,
+    macro_focus: str | None = None,
     index_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """Return the composite run-backed statistics payload for one window."""
@@ -70,9 +70,9 @@ def query_run_stats(
             "top_n": int(top_n),
             "project": project,
             "work_top_n": int(work_top_n),
-            "xprompt_top_n": int(xprompt_top_n),
-            "xprompt_breakdown_top_n": int(xprompt_breakdown_top_n),
-            "xprompt_focus": xprompt_focus,
+            "xprompt_top_n": int(macro_top_n),
+            "xprompt_breakdown_top_n": int(macro_breakdown_top_n),
+            "xprompt_focus": macro_focus,
         },
     )
     return payload

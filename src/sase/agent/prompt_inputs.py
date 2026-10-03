@@ -23,7 +23,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.macro._exceptions import XPromptArgumentError
+from sase.macro._exceptions import MacroArgumentError
 from sase.macro._disabled_regions import (
     protect_disabled_regions,
     unprotect_disabled_regions,
@@ -33,13 +33,13 @@ from sase.macro.loader_parsing import (
     parse_inputs_from_front_matter,
     parse_yaml_front_matter,
 )
-from sase.macro.models import UNSET, InputArg, XPromptValidationError
+from sase.macro.models import UNSET, InputArg, MacroValidationError
 
 # Frontmatter keys that declare prompt inputs (``input`` canonical, ``inputs``
 # accepted as an alias). Both are consumed/removed by ``render_prompt_with_inputs``.
 _INPUT_KEYS = ("input", "inputs")
 
-# ``xprompt_name`` handed to ``substitute_placeholders`` for error messages.
+# ``macro_name`` handed to ``substitute_placeholders`` for error messages.
 _SUBSTITUTION_SOURCE = "prompt-input"
 
 
@@ -125,7 +125,7 @@ def _resolve_input_values(
         if arg.name in raw_values:
             try:
                 resolved[arg.name] = arg.validate_and_convert(raw_values[arg.name])
-            except XPromptValidationError as exc:
+            except MacroValidationError as exc:
                 raise PromptInputError(str(exc)) from exc
         elif arg.default is UNSET:
             raise PromptInputError(f"Missing required input '{arg.name}'")
@@ -140,8 +140,8 @@ def render_prompt_with_inputs(prompt: str, raw_values: dict[str, str]) -> str:
     Resolves typed values (supplied values plus declared defaults), renders every
     Jinja placeholder in the body via :func:`substitute_placeholders`, and
     re-emits the prompt with the consumed ``input``/``inputs`` frontmatter keys
-    removed. Any other frontmatter (e.g. ``xprompts``) is preserved so local
-    xprompts still flow to launch. A prompt that declares no inputs is returned
+    removed. Any other frontmatter (e.g. ``macros``) is preserved so local
+    macros still flow to launch. A prompt that declares no inputs is returned
     unchanged.
 
     Args:
@@ -176,7 +176,7 @@ def render_prompt_with_inputs(prompt: str, raw_values: dict[str, str]) -> str:
                 ),
                 disabled_regions,
             )
-        except XPromptArgumentError as exc:
+        except MacroArgumentError as exc:
             raise PromptInputError(str(exc)) from exc
 
     remaining = {

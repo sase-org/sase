@@ -18,12 +18,12 @@ from sase.agent.launch_cwd_common import (
 from sase.agent.launch_types import AgentLaunchResult
 
 if TYPE_CHECKING:
-    from sase.macro.models import XPrompt
+    from sase.macro.models import Macro
 
 
 def launch_multi_prompt_branch(
     segments: Sequence[str],
-    local_xprompts: dict[str, XPrompt],
+    local_macros: dict[str, Macro],
     *,
     project_file: str,
     project_name: str,
@@ -31,7 +31,7 @@ def launch_multi_prompt_branch(
     extra_env: dict[str, str] | None,
     segment_extra_env: Sequence[dict[str, str] | None] | None,
     segment_template_groups: Sequence[str | None],
-    segment_swarm_xprompts: Sequence[tuple[str, ...]],
+    segment_swarm_macros: Sequence[tuple[str, ...]],
     submitted_query: str,
     recorder: LaunchHistoryRecorder,
 ) -> list[AgentLaunchResult]:
@@ -93,7 +93,7 @@ def launch_multi_prompt_branch(
 
         results = launch_multi_prompt_agents(
             segments=normalized_segments,
-            local_xprompts=local_xprompts,
+            local_macros=local_macros,
             cl_name=mp_cl_name,
             project_file=project_file,
             project_name=project_name,
@@ -102,7 +102,7 @@ def launch_multi_prompt_branch(
             extra_env=extra_env,
             segment_extra_env=segment_extra_env,
             segment_template_groups=segment_template_groups,
-            segment_swarm_xprompts=segment_swarm_xprompts,
+            segment_swarm_macros=segment_swarm_macros,
             allow_reserved_agent_session_separator_names=internal_agent_name_bypass_for_launch(
                 extra_env,
                 segment_extra_env,
@@ -193,7 +193,7 @@ def launch_repeat_branch_if_applicable(
 def launch_alt_branch_if_applicable(
     query: str,
     *,
-    local_xprompts: dict[str, XPrompt],
+    local_macros: dict[str, Macro],
     project_file: str,
     project_name: str,
     is_home_mode: bool,
@@ -206,15 +206,15 @@ def launch_alt_branch_if_applicable(
     alt_plan = plan_prompt_fanout_variants(query)
     if alt_plan is None and "#" in query:
         from sase.macro.processor import (
-            LAUNCH_DEFERRED_XPROMPT_NAMES,
-            process_xprompt_references,
-            prompt_may_reference_xprompt,
+            LAUNCH_DEFERRED_MACRO_NAMES,
+            process_macro_references,
+            prompt_may_reference_macro,
         )
 
-        if prompt_may_reference_xprompt(query):
-            expanded = process_xprompt_references(
+        if prompt_may_reference_macro(query):
+            expanded = process_macro_references(
                 query,
-                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+                defer_macro_names=LAUNCH_DEFERRED_MACRO_NAMES,
             )
             alt_plan = plan_prompt_fanout_variants(expanded)
     if alt_plan is None:
@@ -258,7 +258,7 @@ def launch_alt_branch_if_applicable(
 
         results = launch_multi_prompt_agents(
             segments=[query],
-            local_xprompts=local_xprompts,
+            local_macros=local_macros,
             cl_name=alt_cl_name,
             project_file=project_file,
             project_name=project_name,

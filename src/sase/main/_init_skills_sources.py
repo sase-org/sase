@@ -1,9 +1,9 @@
-"""Provider and xprompt discovery for generated skills."""
+"""Provider and macro discovery for generated skills."""
 
 from pathlib import Path
 
 from sase.llm_provider.registry import iter_plugins
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 def all_providers() -> list[str]:
@@ -76,18 +76,18 @@ def target_path_for_subpath(
     return Path.home() / subpath / "skills" / skill_name / "SKILL.md"
 
 
-def select_skill_xprompts(*catalogs: dict[str, XPrompt]) -> list[XPrompt]:
-    """Merge catalogs and return xprompts installable as provider skills.
+def select_skill_macros(*catalogs: dict[str, Macro]) -> list[Macro]:
+    """Merge catalogs and return macros installable as provider skills.
 
     Only definitions loaded from a canonical skill source carry a
     ``skill_name``, so that is the selector: a truthy ``skill`` value anywhere
     else was already rejected at load time. Ordering follows the provider
     skill name, which is what every generated target is keyed by.
     """
-    xprompts: dict[str, XPrompt] = {}
+    macros: dict[str, Macro] = {}
     for catalog in catalogs:
-        xprompts.update(catalog)
+        macros.update(catalog)
     return sorted(
-        (xp for xp in xprompts.values() if xp.skill and xp.skill_name),
+        (xp for xp in macros.values() if xp.skill and xp.skill_name),
         key=lambda xp: (xp.skill_name or "", xp.name),
     )

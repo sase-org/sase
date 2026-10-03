@@ -26,7 +26,7 @@ _PROJECT_DISPLAY_SNAPSHOT = ProjectDisplaySnapshot(
 
 def _xprompts_payload(
     selected_range: StatsRange,
-    xprompt_focus: str | None,
+    macro_focus: str | None,
 ) -> dict[str, object]:
     rows = [
         {
@@ -141,10 +141,10 @@ def _xprompts_payload(
         },
     ]
     focus: dict[str, object] | None = None
-    if xprompt_focus is not None:
-        found = xprompt_focus == "split_file"
+    if macro_focus is not None:
+        found = macro_focus == "split_file"
         focus = {
-            "name": xprompt_focus,
+            "name": macro_focus,
             "found": found,
             "kind": "part" if found else "unknown",
             "tags": ["files"] if found else [],

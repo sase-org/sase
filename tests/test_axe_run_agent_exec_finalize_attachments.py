@@ -219,7 +219,7 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
         agent_vcs_provider="git",
         agent_hidden=False,
         agent_meta={},
-        local_xprompts={},
+        local_macros={},
     )
     state = LoopState(
         current_prompt="create attachments",

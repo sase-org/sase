@@ -77,7 +77,7 @@ def _write_checkout_marker(
 def stale_epic_summary_launch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    fake_cli_work_xprompts: None,
+    fake_cli_work_macros: None,
 ) -> _PersistedEpicLaunch:
     """Persist a snapshot-backed plan summary while checkout copies are absent."""
     from sase.agent.clan_membership import (
@@ -269,7 +269,7 @@ Deliver the plan-first epic summary.
                 patch("sase.agent.names.claim_agent_name"),
                 patch("sase.agent.names.claim_registered_clan_name"),
                 patch(
-                    "sase.macro.process_xprompt_references",
+                    "sase.macro.process_macro_references",
                     side_effect=lambda value, **_: value,
                 ),
                 patch(

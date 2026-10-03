@@ -1,4 +1,4 @@
-"""Tests for project-local xprompt loading in TUI panels."""
+"""Tests for project-local macro loading in TUI panels."""
 
 from pathlib import Path
 from unittest.mock import patch
@@ -11,13 +11,13 @@ from sase.macro._catalog_sources import definition_path
 from sase.macro.loader import (
     get_all_prompts,
     get_all_project_local_prompts,
-    get_all_xprompts,
+    get_all_macros,
     get_known_project_workspaces,
-    load_project_local_xprompts,
+    load_project_local_macros,
 )
-from sase.macro.models import XPrompt
-from sase.macro.processor import process_xprompt_references
-from sase.macro.project_identity import invalidate_xprompt_project_identity
+from sase.macro.models import Macro
+from sase.macro.processor import process_macro_references
+from sase.macro.project_identity import invalidate_macro_project_identity
 from tests.main.project_handler_helpers import _disk_project_records
 
 
@@ -122,11 +122,11 @@ class TestGetKnownProjectWorkspaces:
             assert result == {}
 
 
-# --- load_project_local_xprompts ---
+# --- load_project_local_macros ---
 
 
-class TestLoadProjectLocalXprompts:
-    def test_loads_xprompts_from_sase_yml(self, tmp_path: Path) -> None:
+class TestLoadProjectLocalMacros:
+    def test_loads_macros_from_sase_yml(self, tmp_path: Path) -> None:
         sase_yml = tmp_path / "sase.yml"
         sase_yml.write_text(
             "xprompts:\n"
@@ -134,31 +134,31 @@ class TestLoadProjectLocalXprompts:
             "  test: 'Write tests for the code'\n"
         )
 
-        result = load_project_local_xprompts(tmp_path, "myproj")
+        result = load_project_local_macros(tmp_path, "myproj")
         assert "myproj/docs" in result
         assert "myproj/test" in result
         assert result["myproj/docs"].content == "Write documentation for the code"
         assert result["myproj/docs"].source_path == "project_local_config:myproj"
 
-    def test_empty_xprompts_section(self, tmp_path: Path) -> None:
+    def test_empty_macros_section(self, tmp_path: Path) -> None:
         sase_yml = tmp_path / "sase.yml"
         sase_yml.write_text("xprompts:\n")
 
-        result = load_project_local_xprompts(tmp_path, "myproj")
+        result = load_project_local_macros(tmp_path, "myproj")
         assert result == {}
 
     def test_no_sase_yml(self, tmp_path: Path) -> None:
-        result = load_project_local_xprompts(tmp_path, "myproj")
+        result = load_project_local_macros(tmp_path, "myproj")
         assert result == {}
 
-    def test_no_xprompts_key(self, tmp_path: Path) -> None:
+    def test_no_macros_key(self, tmp_path: Path) -> None:
         sase_yml = tmp_path / "sase.yml"
         sase_yml.write_text("some_other_key: value\n")
 
-        result = load_project_local_xprompts(tmp_path, "myproj")
+        result = load_project_local_macros(tmp_path, "myproj")
         assert result == {}
 
-    def test_structured_xprompt_entry(self, tmp_path: Path) -> None:
+    def test_structured_macro_entry(self, tmp_path: Path) -> None:
         sase_yml = tmp_path / "sase.yml"
         sase_yml.write_text(
             "xprompts:\n"
@@ -168,7 +168,7 @@ class TestLoadProjectLocalXprompts:
             "    content: 'Review the file {{file}}'\n"
         )
 
-        result = load_project_local_xprompts(tmp_path, "proj")
+        result = load_project_local_macros(tmp_path, "proj")
         assert "proj/review" in result
         assert result["proj/review"].content == "Review the file {{file}}"
         assert len(result["proj/review"].inputs) == 1
@@ -243,7 +243,7 @@ class TestGetAllProjectLocalPrompts:
             "list_project_records",
             _disk_project_records,
         )
-        invalidate_xprompt_project_identity()
+        invalidate_macro_project_identity()
 
     def test_aggregates_with_user_facing_namespace_for_display_name_project(
         self,
@@ -256,7 +256,7 @@ class TestGetAllProjectLocalPrompts:
         try:
             result = get_all_project_local_prompts()
         finally:
-            invalidate_xprompt_project_identity()
+            invalidate_macro_project_identity()
 
         assert list(result) == [f"{project_display_case.project_label}/docs"]
         workflow = result[f"{project_display_case.project_label}/docs"]
@@ -273,14 +273,14 @@ class TestGetAllProjectLocalPrompts:
     ) -> None:
         """The browser merge must not list a file once per project spelling."""
         from sase.ace.tui.modals.xprompt_browser_catalog import load_browser_items
-        from sase.macro.models import xprompt_to_workflow
+        from sase.macro.models import macro_to_workflow
 
         self._register_display_name_project(tmp_path, monkeypatch, project_display_case)
         namespace = project_display_case.project_label
         source = f"project_local_config:{namespace}"
         catalog = {
-            f"{namespace}/docs": xprompt_to_workflow(
-                XPrompt(
+            f"{namespace}/docs": macro_to_workflow(
+                Macro(
                     name=f"{namespace}/docs",
                     content="Project-local docs",
                     source_path=source,
@@ -295,7 +295,7 @@ class TestGetAllProjectLocalPrompts:
                 source_classifier=lambda src: ("Project Config", src or "", True),
             )
         finally:
-            invalidate_xprompt_project_identity()
+            invalidate_macro_project_identity()
 
         assert [item.name for item in items] == [f"{namespace}/docs"]
         assert [item.source_path for item in items] == [source]
@@ -320,7 +320,7 @@ class TestGetAllProjectLocalPrompts:
             lambda: namespaces,
         )
         monkeypatch.setattr(
-            "sase.macro._catalog_sources.canonical_xprompt_project",
+            "sase.macro._catalog_sources.canonical_macro_project",
             lambda ref: (
                 project_display_case.project_label
                 if ref == project_display_case.project_key
@@ -332,7 +332,7 @@ class TestGetAllProjectLocalPrompts:
             lambda: namespaces,
         )
         monkeypatch.setattr(
-            "sase.ace.tui.modals.xprompt_browser_helpers.canonical_xprompt_project",
+            "sase.ace.tui.modals.xprompt_browser_helpers.canonical_macro_project",
             lambda ref: (
                 project_display_case.project_label
                 if ref == project_display_case.project_key
@@ -340,7 +340,7 @@ class TestGetAllProjectLocalPrompts:
             ),
         )
         entry = CatalogEntry(
-            XPrompt(
+            Macro(
                 name=f"{project_display_case.project_label}/docs",
                 content="Project-local docs",
                 source_path=f"project_local_config:{project_display_case.project_label}",
@@ -364,22 +364,22 @@ class TestRegistryBackedProjectResolution:
         from sase.macro import loader, processor
 
         namespaces = {} if workspace is None else {"proj": workspace}
-        monkeypatch.setattr(loader, "canonical_xprompt_project", lambda ref: ref)
+        monkeypatch.setattr(loader, "canonical_macro_project", lambda ref: ref)
         monkeypatch.setattr(loader, "known_project_namespaces", lambda: namespaces)
         monkeypatch.setattr(loader, "detect_project", lambda: None)
-        monkeypatch.setattr(loader, "load_xprompts_from_internal", lambda: {})
-        monkeypatch.setattr(loader, "load_xprompts_from_default_files", lambda: {})
-        monkeypatch.setattr(loader, "load_xprompts_from_plugins", lambda: {})
-        monkeypatch.setattr(loader, "load_xprompts_from_config", lambda project: {})
-        monkeypatch.setattr(loader, "load_xprompts_from_project", lambda project: {})
-        monkeypatch.setattr(loader, "load_xprompts_from_files", lambda project: {})
+        monkeypatch.setattr(loader, "load_macros_from_internal", lambda: {})
+        monkeypatch.setattr(loader, "load_macros_from_default_files", lambda: {})
+        monkeypatch.setattr(loader, "load_macros_from_plugins", lambda: {})
+        monkeypatch.setattr(loader, "load_macros_from_config", lambda project: {})
+        monkeypatch.setattr(loader, "load_macros_from_project", lambda project: {})
+        monkeypatch.setattr(loader, "load_macros_from_files", lambda project: {})
         monkeypatch.setattr(
             "sase.macro.workflow_loader.get_all_workflows",
             lambda project=None: {},
         )
         monkeypatch.setattr(
             processor,
-            "canonical_xprompt_project",
+            "canonical_macro_project",
             lambda ref: ref,
         )
         monkeypatch.setattr(
@@ -387,17 +387,17 @@ class TestRegistryBackedProjectResolution:
             "known_project_namespaces",
             lambda: namespaces,
         )
-        monkeypatch.setattr(processor, "resolve_xprompt_aliases", lambda prompt: prompt)
+        monkeypatch.setattr(processor, "resolve_macro_aliases", lambda prompt: prompt)
 
-    def test_loads_and_expands_project_xprompt_outside_workspace(
+    def test_loads_and_expands_project_macro_outside_workspace(
         self,
         tmp_path: Path,
         monkeypatch,
     ) -> None:
         workspace = tmp_path / "primary"
-        xprompts_dir = workspace / "sase" / "xprompts"
-        xprompts_dir.mkdir(parents=True)
-        (xprompts_dir / "thing.md").write_text(
+        macros_dir = workspace / "sase" / "xprompts"
+        macros_dir.mkdir(parents=True)
+        (macros_dir / "thing.md").write_text(
             "Registry-backed body.\n",
             encoding="utf-8",
         )
@@ -411,7 +411,7 @@ class TestRegistryBackedProjectResolution:
         assert prompts["proj/thing"].get_prompt_part_content().strip() == (
             "Registry-backed body."
         )
-        assert process_xprompt_references("#proj/thing").strip() == (
+        assert process_macro_references("#proj/thing").strip() == (
             "Registry-backed body."
         )
 
@@ -429,23 +429,23 @@ class TestRegistryBackedProjectResolution:
         monkeypatch.setattr(loader, "detect_project", lambda: "proj")
         monkeypatch.setattr(
             loader,
-            "load_xprompts_from_files",
+            "load_macros_from_files",
             lambda project: {
-                "proj/thing": XPrompt(
+                "proj/thing": Macro(
                     name="proj/thing",
                     content="Alternate checkout body.",
                 )
             },
         )
         registry_loader = patch(
-            "sase.macro.loader.load_project_file_xprompts",
+            "sase.macro.loader.load_project_file_macros",
             side_effect=AssertionError("registry copy should not be read"),
         )
 
         with registry_loader:
-            xprompts = get_all_xprompts(project="proj")
+            macros = get_all_macros(project="proj")
 
-        assert xprompts["proj/thing"].content == "Alternate checkout body."
+        assert macros["proj/thing"].content == "Alternate checkout body."
 
     def test_disabled_project_stays_unresolved(
         self,
@@ -455,8 +455,8 @@ class TestRegistryBackedProjectResolution:
         self._isolate_loader(monkeypatch, None)
         monkeypatch.chdir(tmp_path)
 
-        assert "proj/thing" not in get_all_xprompts(project="proj")
-        assert process_xprompt_references("#proj/thing") == "#proj/thing"
+        assert "proj/thing" not in get_all_macros(project="proj")
+        assert process_macro_references("#proj/thing") == "#proj/thing"
 
 
 # --- classify_source for project_local_config ---

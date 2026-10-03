@@ -5,10 +5,10 @@ without a real monitor supervisor. The composer may read stored ToolRun triage
 (fail-open) to insert a Failure triage section.
 
 The composed prompt is launched as another agent's initial chat message, so
-it goes through the same xprompt/directive expansion as any user-typed
+it goes through the same macro/directive expansion as any user-typed
 prompt. The routing prefix (``#fork:``, ``%model:``, ``%effort:``) is
 deliberately live so the follow-up inherits conversation and model routing.
-The rest of the body is enclosed in a disabled xprompt region so monitor
+The rest of the body is enclosed in a disabled macro region so monitor
 reason, next-action text, table cells, and output are delivered as literal
 data. ``Command``/``Directory`` and retained output still use genuine fences
 as defense in depth and to keep persisted prompts readable.

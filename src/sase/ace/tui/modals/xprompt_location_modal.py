@@ -28,8 +28,8 @@ from sase.content_layout import (
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.macro.loader import (
     detect_project,
-    get_sase_package_default_xprompts_dir,
-    get_sase_package_xprompts_dir,
+    get_sase_package_default_macros_dir,
+    get_sase_package_macros_dir,
 )
 
 from .base import FilterInput, OptionListNavigationMixin
@@ -172,7 +172,7 @@ def get_all_xprompt_locations(
 
     # --- 4. Built-in locations ---
     # sase package xprompts dir
-    pkg_xprompts = get_sase_package_xprompts_dir()
+    pkg_xprompts = get_sase_package_macros_dir()
     builtin.append(
         XPromptLocation(
             label="Built-in xprompts/",
@@ -180,7 +180,7 @@ def get_all_xprompt_locations(
             location_type="directory",
         )
     )
-    pkg_default_xprompts = get_sase_package_default_xprompts_dir()
+    pkg_default_xprompts = get_sase_package_default_macros_dir()
     builtin.append(
         XPromptLocation(
             label="Built-in default_xprompts/",

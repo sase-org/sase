@@ -1,11 +1,11 @@
-"""Shared positional, named, and default binding for xprompt inputs."""
+"""Shared positional, named, and default binding for macro inputs."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
-from .models import UNSET, InputArg, XPromptValidationError
+from .models import UNSET, InputArg, MacroValidationError
 
 
 class InputBindingError(ValueError):
@@ -28,7 +28,7 @@ def validate_repeatable_input_order(inputs: list[InputArg]) -> None:
     if not repeatable:
         return
     if len(repeatable) > 1 or repeatable[0] is not visible[-1]:
-        raise XPromptValidationError(
+        raise MacroValidationError(
             "A repeatable input must be the final user-facing positional input"
         )
 
@@ -182,7 +182,7 @@ def _surplus_positional_message(
 def _convert_value(input_arg: InputArg, raw_value: Any) -> Any:
     try:
         return input_arg.validate_and_convert(str(raw_value))
-    except XPromptValidationError as exc:
+    except MacroValidationError as exc:
         raise InputBindingError(str(exc)) from exc
 
 

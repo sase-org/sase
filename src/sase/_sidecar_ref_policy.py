@@ -39,7 +39,7 @@ class SidecarRefPolicy:
     path_globs: tuple[str, ...] | None = None
     path_globs_configured: bool = False
     source_path: str | None = None
-    xprompt: str | None = None
+    macro_def: str | None = None
 
     @property
     def source_id(self) -> str:

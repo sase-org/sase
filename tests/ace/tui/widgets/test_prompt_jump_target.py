@@ -13,7 +13,7 @@ from sase.ace.tui.widgets._prompt_jump_target import (
     detect_jump_target_at_cursor,
     resolve_jump_target,
 )
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
@@ -89,8 +89,8 @@ def test_resolves_loadable_markdown_xprompt(
     source = tmp_path / "review.md"
     source.write_text("---\ndescription: Review\n---\nBody\n", encoding="utf-8")
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(
+        "sase.ace.tui.widgets._prompt_jump_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(
             name=name,
             content="fallback",
             source_path=str(source),
@@ -118,8 +118,8 @@ def test_resolves_skill_label_from_xprompt(
     source = tmp_path / "skill.md"
     source.write_text("Skill body\n", encoding="utf-8")
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(
+        "sase.ace.tui.widgets._prompt_jump_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(
             name=name,
             content="Skill body",
             source_path=str(source),
@@ -144,8 +144,8 @@ def test_resolves_slash_skill_to_same_definition_with_slash_identity(
     source = tmp_path / "skill.md"
     source.write_text("---\ndescription: Plan\n---\nSkill body\n", encoding="utf-8")
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(
+        "sase.ace.tui.widgets._prompt_jump_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(
             name=name,
             content="Skill body",
             source_path=str(source),
@@ -182,8 +182,8 @@ def test_slash_jump_rejects_stale_non_skill(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(name=name, content="Not a skill"),
+        "sase.ace.tui.widgets._prompt_jump_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(name=name, content="Not a skill"),
     )
 
     with pytest.raises(JumpError, match="No skill named '/sase_plan' found"):
@@ -218,7 +218,7 @@ def test_resolves_yaml_workflow_definition_line(
         source_path=str(source),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
+        "sase.ace.tui.widgets._prompt_jump_target.get_macro_or_workflow",
         lambda name, project=None: workflow,
     )
 
@@ -242,8 +242,8 @@ def test_resolves_config_source_to_real_yaml_file(
     source = tmp_path / "sase.yml"
     source.write_text("xprompts:\n  review:\n    content: Body\n", encoding="utf-8")
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(
+        "sase.ace.tui.widgets._prompt_jump_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(
             name=name,
             content="Body",
             source_path="config",
@@ -269,7 +269,7 @@ def test_missing_xprompt_and_definition_file_raise_distinct_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
+        "sase.ace.tui.widgets._prompt_jump_target.get_macro_or_workflow",
         lambda name, project=None: None,
     )
 
@@ -281,8 +281,8 @@ def test_missing_xprompt_and_definition_file_raise_distinct_errors(
         )
 
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
-        lambda name, project=None: XPrompt(name=name, content="", source_path=None),
+        "sase.ace.tui.widgets._prompt_jump_target.get_macro_or_workflow",
+        lambda name, project=None: Macro(name=name, content="", source_path=None),
     )
     with pytest.raises(JumpError, match="No definition file found for #builtin"):
         resolve_jump_target(

@@ -23,17 +23,17 @@ from textual.widgets import Label, Static, TextArea
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.macro.loader_parsing import (
-    LocalXPromptNameError,
+    LocalMacroNameError,
     parse_input_type,
-    parse_local_xprompt_entries,
+    parse_local_macro_entries,
 )
 from sase.macro.models import (
     UNSET,
     InputArg,
-    XPrompt,
-    XPromptValidationError,
+    Macro,
+    MacroValidationError,
 )
-from sase.macro.prompt_frontmatter import LOCAL_XPROMPT_SOURCE
+from sase.macro.prompt_frontmatter import LOCAL_MACRO_SOURCE
 
 from .input_item_modal import default_to_text
 
@@ -87,7 +87,7 @@ def _parse_compact_input_specs(text: str) -> list[InputArg]:
                 default = InputArg(name=name, type=input_type).validate_and_convert(
                     default_text
                 )
-            except XPromptValidationError as exc:
+            except MacroValidationError as exc:
                 raise ValueError(str(exc)) from None
         else:
             default = UNSET
@@ -117,8 +117,8 @@ def _validate_local_xprompt_name(name: str) -> str:
     if not name:
         return "name is required"
     try:
-        parse_local_xprompt_entries({name: ""}, source_path=LOCAL_XPROMPT_SOURCE)
-    except LocalXPromptNameError as exc:
+        parse_local_macro_entries({name: ""}, source_path=LOCAL_MACRO_SOURCE)
+    except LocalMacroNameError as exc:
         return str(exc)
     if not _NAME_RE.fullmatch(name):
         return "name must be a valid identifier"
@@ -129,7 +129,7 @@ class _ModalInput(SingleLineVimTextArea):
     """Single-line vim editor for compact xprompt fields."""
 
 
-class XPromptItemModal(ModalScreen["tuple[str, XPrompt] | None"]):
+class XPromptItemModal(ModalScreen["tuple[str, Macro] | None"]):
     """Add or edit a local xprompt; dismiss with ``(name, XPrompt)`` or ``None``."""
 
     BINDINGS = [
@@ -140,7 +140,7 @@ class XPromptItemModal(ModalScreen["tuple[str, XPrompt] | None"]):
     def __init__(
         self,
         *,
-        existing: tuple[str, XPrompt] | None = None,
+        existing: tuple[str, Macro] | None = None,
         used_names: list[str] | None = None,
     ) -> None:
         super().__init__()
@@ -226,7 +226,7 @@ class XPromptItemModal(ModalScreen["tuple[str, XPrompt] | None"]):
     def _current_name(self) -> str:
         return self.query_one("#xprompt-item-name", _ModalInput).text.strip()
 
-    def _build(self) -> tuple[tuple[str, XPrompt] | None, str]:
+    def _build(self) -> tuple[tuple[str, Macro] | None, str]:
         """Return ``(name, XPrompt)`` or a validation error string."""
         name = self._current_name()
         name_error = _validate_local_xprompt_name(name)
@@ -249,11 +249,11 @@ class XPromptItemModal(ModalScreen["tuple[str, XPrompt] | None"]):
             self.query_one("#xprompt-item-description", _ModalInput).text.strip()
             or None
         )
-        xprompt = XPrompt(
+        xprompt = Macro(
             name=name,
             content=content,
             inputs=inputs,
-            source_path=LOCAL_XPROMPT_SOURCE,
+            source_path=LOCAL_MACRO_SOURCE,
             description=description,
         )
         return (name, xprompt), ""

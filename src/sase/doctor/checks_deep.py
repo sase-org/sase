@@ -14,7 +14,7 @@ from sase.doctor.checks_deep_terminal import (
     check_truecolor,
 )
 from sase.doctor.checks_deep_purge_local_state import check_local_import_state
-from sase.doctor.checks_deep_macro_lsp import check_xprompt_lsp
+from sase.doctor.checks_deep_macro_lsp import check_macro_lsp
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
@@ -55,7 +55,7 @@ def deep_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             id="tools.xprompt_lsp",
             group="tools",
             title="xprompt LSP command",
-            runner=lambda: check_xprompt_lsp(context),
+            runner=lambda: check_macro_lsp(context),
             deep=True,
         ),
         CheckSpec(

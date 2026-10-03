@@ -12,7 +12,7 @@ from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.history.prompt_metadata import summarize_prompt_for_list
 from sase.macro._exceptions import DirectiveError
 from sase.macro.directives import extract_prompt_directives
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 def _launch_with_captured_spawns(
@@ -42,7 +42,7 @@ def _launch_with_captured_spawns(
     ):
         launch_multi_prompt_agents(
             segments=segments,
-            local_xprompts={},
+            local_macros={},
             cl_name="feature",
             project_file="/tmp/sase.sase",
             project_name="sase",
@@ -453,7 +453,7 @@ def test_deprecated_name_fails_launch_but_remains_display_safe(
     assert summary.clean_preview == "Review the parser"
 
 
-def test_xprompt_introduced_clan_tribe_conflict_spawns_nothing(
+def test_macro_introduced_clan_tribe_conflict_spawns_nothing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -468,8 +468,8 @@ def test_xprompt_introduced_clan_tribe_conflict_spawns_nothing(
     ):
         launch_multi_prompt_agents(
             segments=["%id(root.one, tribe=research)\n#_join"],
-            local_xprompts={
-                "_join": XPrompt(
+            local_macros={
+                "_join": Macro(
                     name="_join",
                     content="%clan(root, tribe=research)\nWork",
                 )

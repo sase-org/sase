@@ -1,4 +1,4 @@
-"""Tests for xprompt alias resolution."""
+"""Tests for macro alias resolution."""
 
 from pathlib import Path
 from unittest.mock import patch
@@ -13,7 +13,7 @@ from sase.project_aliases import (
     resolve_project_alias_ref,
 )
 from sase.workspace_provider._hookspec import WorkflowMetadata
-from sase.macro.processor import resolve_xprompt_aliases
+from sase.macro.processor import resolve_macro_aliases
 
 
 def _mock_config(aliases: dict[str, str]) -> dict:
@@ -407,7 +407,7 @@ def test_canonicalize_project_aliases_in_prompt_does_not_rewrite_non_exact_refs(
     )
 
 
-def test_resolve_xprompt_aliases_canonicalizes_project_aliases_first(
+def test_resolve_macro_aliases_canonicalizes_project_aliases_first(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -418,39 +418,39 @@ def test_resolve_xprompt_aliases_canonicalizes_project_aliases_first(
         "sase.config.load_merged_config",
         return_value=_mock_config({"gh_bob-cli": "gh:unexpected"}),
     ):
-        assert resolve_xprompt_aliases("#gh_bob do it") == "#gh:bob-cli do it"
+        assert resolve_macro_aliases("#gh_bob do it") == "#gh:bob-cli do it"
 
 
-class TestResolveXpromptAliases:
-    """Tests for resolve_xprompt_aliases()."""
+class TestResolveMacroAliases:
+    """Tests for resolve_macro_aliases()."""
 
     def test_no_aliases_configured(self) -> None:
         with patch(
             "sase.config.load_merged_config",
             return_value={"xprompt_aliases": {}},
         ):
-            assert resolve_xprompt_aliases("hello #foo") == "hello #foo"
+            assert resolve_macro_aliases("hello #foo") == "hello #foo"
 
     def test_missing_aliases_key(self) -> None:
         with patch(
             "sase.config.load_merged_config",
             return_value={},
         ):
-            assert resolve_xprompt_aliases("hello #foo") == "hello #foo"
+            assert resolve_macro_aliases("hello #foo") == "hello #foo"
 
     def test_simple_replacement(self) -> None:
         with patch(
             "sase.config.load_merged_config",
             return_value=_mock_config({"gh_sase": "gh:sase"}),
         ):
-            assert resolve_xprompt_aliases("#gh_sase") == "#gh:sase"
+            assert resolve_macro_aliases("#gh_sase") == "#gh:sase"
 
     def test_start_of_line(self) -> None:
         with patch(
             "sase.config.load_merged_config",
             return_value=_mock_config({"gh_sase": "gh:sase"}),
         ):
-            result = resolve_xprompt_aliases("#gh_sase do something")
+            result = resolve_macro_aliases("#gh_sase do something")
             assert result == "#gh:sase do something"
 
     def test_after_whitespace(self) -> None:
@@ -458,7 +458,7 @@ class TestResolveXpromptAliases:
             "sase.config.load_merged_config",
             return_value=_mock_config({"gh_sase": "gh:sase"}),
         ):
-            result = resolve_xprompt_aliases("run #gh_sase now")
+            result = resolve_macro_aliases("run #gh_sase now")
             assert result == "run #gh:sase now"
 
     def test_after_open_paren(self) -> None:
@@ -466,7 +466,7 @@ class TestResolveXpromptAliases:
             "sase.config.load_merged_config",
             return_value=_mock_config({"gh_sase": "gh:sase"}),
         ):
-            result = resolve_xprompt_aliases("(#gh_sase)")
+            result = resolve_macro_aliases("(#gh_sase)")
             assert result == "(#gh:sase)"
 
     def test_no_match_inside_word(self) -> None:
@@ -475,7 +475,7 @@ class TestResolveXpromptAliases:
             return_value=_mock_config({"foo": "bar"}),
         ):
             # "x#foo" should not match because # is preceded by a letter
-            result = resolve_xprompt_aliases("x#foo")
+            result = resolve_macro_aliases("x#foo")
             assert result == "x#foo"
 
     def test_no_partial_name_match(self) -> None:
@@ -484,7 +484,7 @@ class TestResolveXpromptAliases:
             return_value=_mock_config({"gh": "github"}),
         ):
             # #gh_sase should NOT be matched by alias "gh" due to negative lookahead
-            result = resolve_xprompt_aliases("#gh_sase")
+            result = resolve_macro_aliases("#gh_sase")
             assert result == "#gh_sase"
 
     def test_multiple_aliases(self) -> None:
@@ -492,7 +492,7 @@ class TestResolveXpromptAliases:
             "sase.config.load_merged_config",
             return_value=_mock_config({"gh_sase": "gh:sase", "gh_dot": "gh:dotfiles"}),
         ):
-            result = resolve_xprompt_aliases("#gh_sase and #gh_dot")
+            result = resolve_macro_aliases("#gh_sase and #gh_dot")
             assert result == "#gh:sase and #gh:dotfiles"
 
     def test_idempotent(self) -> None:
@@ -500,8 +500,8 @@ class TestResolveXpromptAliases:
             "sase.config.load_merged_config",
             return_value=_mock_config({"gh_sase": "gh:sase"}),
         ):
-            first = resolve_xprompt_aliases("#gh_sase")
-            second = resolve_xprompt_aliases(first)
+            first = resolve_macro_aliases("#gh_sase")
+            second = resolve_macro_aliases(first)
             assert first == second == "#gh:sase"
 
     def test_no_hash_early_return(self) -> None:
@@ -509,7 +509,7 @@ class TestResolveXpromptAliases:
             "sase.config.load_merged_config",
             return_value=_mock_config({"gh_sase": "gh:sase"}),
         ):
-            result = resolve_xprompt_aliases("no hash here")
+            result = resolve_macro_aliases("no hash here")
             assert result == "no hash here"
 
     def test_multiple_occurrences(self) -> None:
@@ -517,7 +517,7 @@ class TestResolveXpromptAliases:
             "sase.config.load_merged_config",
             return_value=_mock_config({"gh_sase": "gh:sase"}),
         ):
-            result = resolve_xprompt_aliases("#gh_sase #gh_sase")
+            result = resolve_macro_aliases("#gh_sase #gh_sase")
             assert result == "#gh:sase #gh:sase"
 
     def test_after_newline(self) -> None:
@@ -525,5 +525,5 @@ class TestResolveXpromptAliases:
             "sase.config.load_merged_config",
             return_value=_mock_config({"gh_sase": "gh:sase"}),
         ):
-            result = resolve_xprompt_aliases("line1\n#gh_sase")
+            result = resolve_macro_aliases("line1\n#gh_sase")
             assert result == "line1\n#gh:sase"

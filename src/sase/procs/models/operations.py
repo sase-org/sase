@@ -55,7 +55,7 @@ class ProcReserve:
     concurrency_keys: list[str] = field(default_factory=list)
     timeout_seconds: int | None = None
     idle_timeout_seconds: int | None = None
-    xprompt_proc: dict[str, Any] | None = None
+    prompt_proc: dict[str, Any] | None = None
     service: ProcServiceBlock | None = None
 
     @classmethod
@@ -80,7 +80,7 @@ class ProcReserve:
 
         meta = prompt_proc_payload(data)
         if isinstance(meta, Mapping):
-            values["xprompt_proc"] = dict(meta)
+            values["prompt_proc"] = dict(meta)
         values["service"] = ProcServiceBlock.from_dict(data.get("service"))
         values.pop("shell_name", None)
         values.pop("shell_kind", None)
@@ -90,7 +90,7 @@ class ProcReserve:
         from sase.legacy_xprompt_names import PROMPT_PROC_FIELD
 
         payload = {name: getattr(self, name) for name in self.__dataclass_fields__}
-        payload[PROMPT_PROC_FIELD] = payload.pop("xprompt_proc")
+        payload[PROMPT_PROC_FIELD] = payload.pop("prompt_proc")
         payload["service"] = (
             self.service.to_dict() if self.service is not None else None
         )
@@ -236,7 +236,7 @@ class ProcUpdate:
     settled_at: UpdateValue = UNSET
     finished_by: UpdateValue = UNSET
     result: UpdateValue = UNSET
-    xprompt_proc: UpdateValue = UNSET
+    prompt_proc: UpdateValue = UNSET
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProcUpdate:
@@ -250,7 +250,7 @@ class ProcUpdate:
 
         meta = prompt_proc_payload(data)
         if isinstance(meta, Mapping):
-            values["xprompt_proc"] = dict(meta)
+            values["prompt_proc"] = dict(meta)
         values.pop("shell_name", None)
         values.pop("shell_kind", None)
         return cls(**values)
@@ -265,8 +265,8 @@ class ProcUpdate:
             value = getattr(self, name)
             if value is not UNSET:
                 payload[name] = value
-        if "xprompt_proc" in payload:
-            payload[PROMPT_PROC_FIELD] = payload.pop("xprompt_proc")
+        if "prompt_proc" in payload:
+            payload[PROMPT_PROC_FIELD] = payload.pop("prompt_proc")
         return payload
 
 

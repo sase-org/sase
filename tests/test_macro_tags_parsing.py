@@ -1,10 +1,10 @@
-"""Tests for xprompt tag parsing, model tag support, and tags from various sources."""
+"""Tests for macro tag parsing, model tag support, and tags from various sources."""
 
 import json
 from pathlib import Path
 
-from sase.macro.models import XPrompt, xprompt_to_workflow
-from sase.macro.tags import XPromptTag, parse_tags
+from sase.macro.models import Macro, macro_to_workflow
+from sase.macro.tags import MacroTag, parse_tags
 from sase.macro.workflow_models import Workflow, WorkflowStep
 
 
@@ -20,17 +20,17 @@ def test_parse_tags_empty_string() -> None:
 
 
 def test_parse_tags_single() -> None:
-    assert parse_tags("vcs") == frozenset({XPromptTag.vcs})
+    assert parse_tags("vcs") == frozenset({MacroTag.vcs})
 
 
 def test_parse_tags_comma_separated() -> None:
     result = parse_tags("vcs, rollover")
-    assert result == frozenset({XPromptTag.vcs, XPromptTag.rollover})
+    assert result == frozenset({MacroTag.vcs, MacroTag.rollover})
 
 
 def test_parse_tags_list() -> None:
     result = parse_tags(["crs", "fix_hook"])
-    assert result == frozenset({XPromptTag.crs, XPromptTag.fix_hook})
+    assert result == frozenset({MacroTag.crs, MacroTag.fix_hook})
 
 
 def test_parse_tags_invalid_raises() -> None:
@@ -60,22 +60,22 @@ def test_parse_tags_all_values() -> None:
             "land_epic",
         ]
     )
-    assert result == frozenset(XPromptTag)
+    assert result == frozenset(MacroTag)
 
 
-# ── XPrompt.has_tag ────────────────────────────────────────────────────
+# ── Macro.has_tag ────────────────────────────────────────────────────
 
 
-def test_xprompt_has_tag() -> None:
-    xp = XPrompt(name="foo", content="bar", tags=frozenset({XPromptTag.vcs}))
-    assert xp.has_tag(XPromptTag.vcs) is True
-    assert xp.has_tag(XPromptTag.crs) is False
+def test_macro_has_tag() -> None:
+    xp = Macro(name="foo", content="bar", tags=frozenset({MacroTag.vcs}))
+    assert xp.has_tag(MacroTag.vcs) is True
+    assert xp.has_tag(MacroTag.crs) is False
 
 
-def test_xprompt_default_no_tags() -> None:
-    xp = XPrompt(name="foo", content="bar")
+def test_macro_default_no_tags() -> None:
+    xp = Macro(name="foo", content="bar")
     assert xp.tags == frozenset()
-    assert xp.has_tag(XPromptTag.vcs) is False
+    assert xp.has_tag(MacroTag.vcs) is False
 
 
 # ── Workflow.has_tag ────────────────────────────────────────────────────
@@ -85,10 +85,10 @@ def test_workflow_has_tag() -> None:
     wf = Workflow(
         name="git",
         steps=[WorkflowStep(name="main", prompt_part="hi")],
-        tags=frozenset({XPromptTag.vcs}),
+        tags=frozenset({MacroTag.vcs}),
     )
-    assert wf.has_tag(XPromptTag.vcs) is True
-    assert wf.has_tag(XPromptTag.rollover) is False
+    assert wf.has_tag(MacroTag.vcs) is True
+    assert wf.has_tag(MacroTag.rollover) is False
 
 
 def test_workflow_default_no_tags() -> None:
@@ -96,15 +96,15 @@ def test_workflow_default_no_tags() -> None:
     assert wf.tags == frozenset()
 
 
-# ── xprompt_to_workflow preserves tags ──────────────────────────────────
+# ── macro_to_workflow preserves tags ──────────────────────────────────
 
 
-def test_xprompt_to_workflow_copies_tags() -> None:
-    tags = frozenset({XPromptTag.crs})
-    xp = XPrompt(name="crs", content="body", tags=tags)
-    wf = xprompt_to_workflow(xp)
+def test_macro_to_workflow_copies_tags() -> None:
+    tags = frozenset({MacroTag.crs})
+    xp = Macro(name="crs", content="body", tags=tags)
+    wf = macro_to_workflow(xp)
     assert wf.tags == tags
-    assert wf.has_tag(XPromptTag.crs) is True
+    assert wf.has_tag(MacroTag.crs) is True
 
 
 # ── Tags from frontmatter (.md files) ──────────────────────────────────
@@ -112,20 +112,20 @@ def test_xprompt_to_workflow_copies_tags() -> None:
 
 def test_tags_from_frontmatter(tmp_path: Path) -> None:
     """Tags are parsed from .md file frontmatter."""
-    from sase.macro.loader import load_xprompt_from_file
+    from sase.macro.loader import load_macro_from_file
 
     md = tmp_path / "test.md"
     md.write_text("---\ntags: crs\n---\nBody content\n")
-    xp = load_xprompt_from_file(md)
+    xp = load_macro_from_file(md)
     assert xp is not None
-    assert xp.has_tag(XPromptTag.crs)
+    assert xp.has_tag(MacroTag.crs)
 
 
 # ── Tags from config entries ──────────────────────────────────────────
 
 
 def test_tags_from_config_entries() -> None:
-    from sase.macro.loader_parsing import parse_xprompt_entries
+    from sase.macro.loader_parsing import parse_macro_entries
 
     entries = {
         "my_hook": {
@@ -133,9 +133,9 @@ def test_tags_from_config_entries() -> None:
             "tags": ["fix_hook"],
         }
     }
-    result = parse_xprompt_entries(entries, "test_config")
+    result = parse_macro_entries(entries, "test_config")
     assert "my_hook" in result
-    assert result["my_hook"].has_tag(XPromptTag.fix_hook)
+    assert result["my_hook"].has_tag(MacroTag.fix_hook)
 
 
 # ── Tags from workflow YAML files ──────────────────────────────────────
@@ -148,7 +148,7 @@ def test_tags_from_workflow_yaml(tmp_path: Path) -> None:
     yml.write_text("tags: rollover\n\nsteps:\n  - name: main\n    prompt_part: body\n")
     wf = _load_workflow_from_file(yml)
     assert wf is not None
-    assert wf.has_tag(XPromptTag.rollover)
+    assert wf.has_tag(MacroTag.rollover)
 
 
 # ── wraps_all backward compat ──────────────────────────────────────────
@@ -162,7 +162,7 @@ def test_wraps_all_auto_adds_vcs_tag(tmp_path: Path) -> None:
     yml.write_text("wraps_all: true\n\nsteps:\n  - name: main\n    prompt_part: body\n")
     wf = _load_workflow_from_file(yml)
     assert wf is not None
-    assert wf.has_tag(XPromptTag.vcs)
+    assert wf.has_tag(MacroTag.vcs)
     assert wf.wraps_all is True
 
 
@@ -175,19 +175,19 @@ def test_vcs_tag_sets_wraps_all(tmp_path: Path) -> None:
     wf = _load_workflow_from_file(yml)
     assert wf is not None
     assert wf.wraps_all is True
-    assert wf.has_tag(XPromptTag.vcs)
+    assert wf.has_tag(MacroTag.vcs)
 
 
 # ── Tags preserved through namespace ────────────────────────────────────
 
 
-def testnamespace_xprompt_preserves_tags() -> None:
-    from sase.macro.loader import namespace_xprompt
+def testnamespace_macro_preserves_tags() -> None:
+    from sase.macro.loader import namespace_macro
 
-    xp = XPrompt(name="hook", content="body", tags=frozenset({XPromptTag.fix_hook}))
-    ns = namespace_xprompt("proj", xp)
+    xp = Macro(name="hook", content="body", tags=frozenset({MacroTag.fix_hook}))
+    ns = namespace_macro("proj", xp)
     assert ns.name == "proj/hook"
-    assert ns.tags == frozenset({XPromptTag.fix_hook})
+    assert ns.tags == frozenset({MacroTag.fix_hook})
 
 
 def test_namespace_workflow_preserves_tags() -> None:
@@ -196,12 +196,12 @@ def test_namespace_workflow_preserves_tags() -> None:
     wf = Workflow(
         name="git",
         steps=[WorkflowStep(name="main", prompt_part="body")],
-        tags=frozenset({XPromptTag.vcs}),
+        tags=frozenset({MacroTag.vcs}),
         wraps_all=True,
     )
     ns = _namespace_workflow("proj", wf)
     assert ns.name == "proj/git"
-    assert ns.tags == frozenset({XPromptTag.vcs})
+    assert ns.tags == frozenset({MacroTag.vcs})
     assert ns.wraps_all is True
 
 
@@ -209,11 +209,11 @@ def test_namespace_workflow_preserves_tags() -> None:
 
 
 def test_serialize_deserialize_preserves_tags(tmp_path: Path) -> None:
-    from sase.agent.multi_prompt_launcher import deserialize_local_xprompts
+    from sase.agent.multi_prompt_launcher import deserialize_local_macros
 
-    xp = XPrompt(name="hook", content="body", tags=frozenset({XPromptTag.fix_hook}))
+    xp = Macro(name="hook", content="body", tags=frozenset({MacroTag.fix_hook}))
 
-    # Manually serialize to replicate _serialize_local_xprompts behavior
+    # Manually serialize to replicate _serialize_local_macros behavior
     data = {
         "hook": {
             "name": xp.name,
@@ -227,29 +227,29 @@ def test_serialize_deserialize_preserves_tags(tmp_path: Path) -> None:
     path = tmp_path / "xprompts.json"
     path.write_text(json.dumps(data))
 
-    result = deserialize_local_xprompts(str(path))
+    result = deserialize_local_macros(str(path))
     assert "hook" in result
-    assert result["hook"].has_tag(XPromptTag.fix_hook)
+    assert result["hook"].has_tag(MacroTag.fix_hook)
 
 
 # ── New mentor-related tags ──────────────────────────────────────────────
 
 
 def test_parse_mentor_tag() -> None:
-    assert parse_tags("mentor") == frozenset({XPromptTag.mentor})
+    assert parse_tags("mentor") == frozenset({MacroTag.mentor})
 
 
 def test_parse_commit_tag() -> None:
-    assert parse_tags("commit") == frozenset({XPromptTag.commit})
+    assert parse_tags("commit") == frozenset({MacroTag.commit})
 
 
 def test_parse_propose_tag() -> None:
-    assert parse_tags("propose") == frozenset({XPromptTag.propose})
+    assert parse_tags("propose") == frozenset({MacroTag.propose})
 
 
 def test_parse_make_mentor_changes_tag() -> None:
     assert parse_tags("make_mentor_changes") == frozenset(
-        {XPromptTag.make_mentor_changes}
+        {MacroTag.make_mentor_changes}
     )
 
 
@@ -257,10 +257,10 @@ def test_parse_make_mentor_changes_tag() -> None:
 
 
 def test_parse_append_to_pr_tag() -> None:
-    assert parse_tags("append_to_pr") == frozenset({XPromptTag.append_to_pr})
+    assert parse_tags("append_to_pr") == frozenset({MacroTag.append_to_pr})
 
 
 def test_parse_append_to_commit_and_propose_tag() -> None:
     assert parse_tags("append_to_commit_and_propose") == frozenset(
-        {XPromptTag.append_to_commit_and_propose}
+        {MacroTag.append_to_commit_and_propose}
     )

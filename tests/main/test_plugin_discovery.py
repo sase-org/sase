@@ -39,24 +39,24 @@ def test_discover_plugin_resources_skips_failures() -> None:
     assert result == [good_mod]
 
 
-# === Tests for xprompt plugin discovery ===
+# === Tests for macro plugin discovery ===
 
 
-def test_xprompt_plugin_discovery_loads_md_files(tmp_path: Path) -> None:
-    """Plugin xprompts are loaded from entry point modules with xprompts/ dir."""
-    from sase.macro.loader_sources import load_xprompts_from_plugins
+def test_macro_plugin_discovery_loads_md_files(tmp_path: Path) -> None:
+    """Plugin macros are loaded from entry point modules with macros/ dir."""
+    from sase.macro.loader_sources import load_macros_from_plugins
 
-    # Create a fake module with an xprompts/ resource directory
-    xprompts_dir = tmp_path / "xprompts"
-    xprompts_dir.mkdir()
-    (xprompts_dir / "greet.md").write_text("Hello from plugin!")
+    # Create a fake module with a macros/ resource directory
+    macros_dir = tmp_path / "xprompts"
+    macros_dir.mkdir()
+    (macros_dir / "greet.md").write_text("Hello from plugin!")
 
     fake_module = types.ModuleType("fake_xprompt_plugin")
     fake_module.__name__ = "fake_xprompt_plugin"
 
     # Mock importlib.resources.files to return our tmp_path
     mock_files = MagicMock()
-    mock_files.joinpath.return_value = xprompts_dir
+    mock_files.joinpath.return_value = macros_dir
 
     with (
         patch(
@@ -72,19 +72,19 @@ def test_xprompt_plugin_discovery_loads_md_files(tmp_path: Path) -> None:
             return_value=False,
         ),
     ):
-        result = load_xprompts_from_plugins()
+        result = load_macros_from_plugins()
 
     assert "greet" in result
     assert result["greet"].content == "Hello from plugin!"
     assert "plugin:" in result["greet"].source_path
 
 
-def test_xprompt_plugin_disabled_returns_empty() -> None:
+def test_macro_plugin_disabled_returns_empty() -> None:
     """Disabled plugin group returns empty dict."""
-    from sase.macro.loader_sources import load_xprompts_from_plugins
+    from sase.macro.loader_sources import load_macros_from_plugins
 
     with patch("sase.macro.loader_sources.is_plugin_disabled", return_value=True):
-        result = load_xprompts_from_plugins()
+        result = load_macros_from_plugins()
 
     assert result == {}
 

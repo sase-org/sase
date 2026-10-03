@@ -22,7 +22,7 @@ from sase.macro.models import (
     InputArg,
     InputChoice,
     InputType,
-    XPromptValidationError,
+    MacroValidationError,
 )
 from tests._notification_gates_fixtures import custom_gate_spec
 
@@ -106,7 +106,7 @@ def test_compiled_pattern_and_validate_and_convert_agree(
     schema_accepts = first_schema_error({"value": value}, schema) is None
     try:
         arg.validate_and_convert(value)
-    except XPromptValidationError:
+    except MacroValidationError:
         typed_accepts = False
     else:
         typed_accepts = True

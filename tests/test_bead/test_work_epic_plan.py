@@ -120,8 +120,8 @@ class TestDiamond:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         expected = (
@@ -285,8 +285,8 @@ class TestClosedBlockers:
         plan = _build_epic_work_plan(conn, "e1")
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         assert "#bd/work_phase_bead:p1" not in rendered
@@ -315,8 +315,8 @@ class TestClosedBlockers:
         plan = _build_epic_work_plan(conn, "e1")
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         assert "#bd/work_phase_bead:p1" not in rendered
@@ -347,8 +347,8 @@ class TestClosedBlockers:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
         assert rendered.count("\n---\n") == 0
         assert "%id(!e1.land, bead=e1)" in rendered
@@ -364,8 +364,8 @@ class TestClosedBlockers:
 
         joined = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
             declare_clan=False,
         )
         assert "%clan" not in joined
@@ -431,8 +431,8 @@ class TestDelegatedPhases:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
         phase_segment, land_segment = rendered.split("\n---\n")
         assert "#bd/work_phase_bead:p1" not in rendered
@@ -463,8 +463,8 @@ class TestDelegatedPhases:
         plan = _build_epic_work_plan(conn, "e1")
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         assert plan.phase_bead_ids == ("p1", "p2", "p3")

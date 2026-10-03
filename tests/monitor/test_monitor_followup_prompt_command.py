@@ -58,7 +58,7 @@ def test_compose_followup_prompt_command_and_cwd_are_fenced_not_inline_code() ->
         **common,
     )
 
-    # A single backtick inline code span is not an xprompt literal zone; only
+    # A single backtick inline code span is not a macro literal zone; only
     # fenced code (and disabled regions) are. The command/cwd values must
     # therefore land inside a genuinely-detected fenced block.
     zones = code_literal_ranges(prompt)

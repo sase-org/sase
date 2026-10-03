@@ -252,7 +252,7 @@ def build_prompt_history_seed_from_draft(
     """Build the initial Ctrl+K history query from a single-line prompt draft.
 
     Uses the first active workspace reference recognized anywhere in
-    *draft* (skipping inline/fenced code and disabled xprompt regions),
+    *draft* (skipping inline/fenced code and disabled macro regions),
     consistent with the existing VCS span helper. ``+<project>`` tags count
     as workspace references alongside ``#`` VCS refs. The draft itself is
     never mutated; only the derived seed text is returned.

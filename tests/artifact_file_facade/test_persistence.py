@@ -83,7 +83,7 @@ def _source_key(path: str | None) -> str:
     return str(Path(path).resolve(strict=False))
 
 
-def test_persist_default_artifact_files_unions_media_paths_and_xprompt(
+def test_persist_default_artifact_files_unions_media_paths_and_macro(
     tmp_path: Path,
 ) -> None:
     artifacts_dir = agent_dir(tmp_path)

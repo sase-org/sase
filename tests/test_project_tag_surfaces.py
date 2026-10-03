@@ -181,7 +181,7 @@ def test_project_show_prints_tag(capsys) -> None:
     assert "Tag: +sase" in out
 
 
-def test_pager_xprompt_body_stays_plain_for_syntax_highlighting(
+def test_pager_macro_body_stays_plain_for_syntax_highlighting(
     warm_catalog,
 ) -> None:
     from sase.ace.tui.actions.agents._metadata_pager_conversation import (

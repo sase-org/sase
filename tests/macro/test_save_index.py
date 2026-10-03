@@ -51,7 +51,7 @@ def test_config_index_loads_keys_without_reconstructing_definitions(
         encoding="utf-8",
     )
     with patch(
-        "sase.macro.save_index.load_config_xprompt_markdown",
+        "sase.macro.save_index.load_config_macro_markdown",
         side_effect=AssertionError("definition reconstruction must stay lazy"),
     ):
         assert names_for_location("xprompt_config", str(config)) == {"alpha", "beta"}

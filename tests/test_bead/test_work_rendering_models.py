@@ -45,8 +45,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         phase_segment = rendered.split("\n---\n")[0]
@@ -98,8 +98,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         phase_segment = rendered.split("\n---\n")[0]
@@ -140,8 +140,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         land_segment = rendered.split("\n---\n")[-1]
@@ -171,8 +171,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         assert plan.total_phase_count == 5
@@ -196,8 +196,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         land_segment = rendered.split("\n---\n")[-1]
@@ -230,8 +230,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         assert "%model:codex/o3" in rendered.split("\n---\n")[-1]
@@ -245,8 +245,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
@@ -270,8 +270,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
@@ -294,8 +294,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         segments = rendered.split("\n---\n")
@@ -316,8 +316,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         segments = rendered.split("\n---\n")
@@ -354,8 +354,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         pre_model_baseline = (
@@ -404,8 +404,8 @@ class TestModelDirective:
 
         rendered = render_multi_prompt(
             plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            work_phase_macro=Workflow(name="bd/work_phase_bead"),
+            land_epic_macro=Workflow(name="bd/land_epic"),
         )
 
         phase_segment = rendered.split("\n---\n")[0]

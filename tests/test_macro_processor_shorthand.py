@@ -8,8 +8,8 @@ from sase.macro._parsing import (
     SHORTHAND_PATTERN,
     preprocess_shorthand_syntax,
 )
-from sase.macro.models import InputArg, InputType, XPrompt
-from sase.macro.processor import process_xprompt_references
+from sase.macro.models import InputArg, InputType, Macro
+from sase.macro.processor import process_macro_references
 
 
 # --- Shorthand syntax tests ---
@@ -30,7 +30,7 @@ def test_shorthand_pattern_after_newline() -> None:
 
 
 def test_shorthand_pattern_namespaced() -> None:
-    """Test that shorthand pattern matches namespaced xprompts."""
+    """Test that shorthand pattern matches namespaced macros."""
     match = re.search(SHORTHAND_PATTERN, "#mentor/aaa: some text")
     assert match is not None
     assert match.group(1) == "mentor/aaa"
@@ -78,7 +78,7 @@ def test_shorthand_pattern_requires_space_after_colon() -> None:
 
 
 def test_preprocess_shorthand_unknown_name_unchanged() -> None:
-    """Test that unknown xprompt names are not processed."""
+    """Test that unknown macro names are not processed."""
     prompt = "#unknown: some text"
     result = preprocess_shorthand_syntax(prompt, {"foo", "bar"})
     assert result == "#unknown: some text"
@@ -117,48 +117,48 @@ def test_preprocess_shorthand_mid_line_after_newline_content() -> None:
 # --- Structural shorthand binding (no [[...]] round-trip) ---
 
 
-def _patch_catalog(xprompt: XPrompt):
+def _patch_catalog(macro_def: Macro):
     return patch(
-        "sase.macro.processor.get_all_xprompts",
-        return_value={xprompt.name: xprompt},
+        "sase.macro.processor.get_all_macros",
+        return_value={macro_def.name: macro_def},
     )
 
 
 def test_double_colon_shorthand_survives_double_closing_bracket() -> None:
     """Prose containing "]]" is bound verbatim, not re-lexed as source syntax."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="research",
         content="{{ prompt }}",
         inputs=[InputArg(name="prompt", type=InputType.TEXT)],
     )
     prose = "see `sase memory read <web>:<keyword> [<web>:<keyword> [...]]` for details"
-    with _patch_catalog(xprompt):
-        result = process_xprompt_references(f"#research:: {prose}")
+    with _patch_catalog(macro_def):
+        result = process_macro_references(f"#research:: {prose}")
     assert result == prose
 
 
 def test_single_colon_shorthand_survives_commas_and_apostrophes() -> None:
     """Commas and apostrophes in free text are not treated as argument syntax."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="echo",
         content="{{ text }}",
         inputs=[InputArg(name="text", type=InputType.TEXT)],
     )
     prose = "it's fine, right (unbalanced"
-    with _patch_catalog(xprompt):
-        result = process_xprompt_references(f"#echo: {prose}")
+    with _patch_catalog(macro_def):
+        result = process_macro_references(f"#echo: {prose}")
     assert result == prose
 
 
 def test_paren_shorthand_appends_payload_as_extra_positional() -> None:
     """#name(args): text binds args and the trailing prose structurally."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="pr",
         content="{{ _1 }} | {{ status }} | {{ _2 }}",
         inputs=[],
     )
-    with _patch_catalog(xprompt):
-        result = process_xprompt_references(
+    with _patch_catalog(macro_def):
+        result = process_macro_references(
             "#pr(foo, status=ready): it's [[not]] balanced, has ]] too"
         )
     assert result == "foo | ready | it's [[not]] balanced, has ]] too"
@@ -166,11 +166,11 @@ def test_paren_shorthand_appends_payload_as_extra_positional() -> None:
 
 def test_paren_double_colon_shorthand_appends_payload_as_extra_positional() -> None:
     """#name(args):: text binds structurally, same as the single-colon form."""
-    xprompt = XPrompt(
+    macro_def = Macro(
         name="pr",
         content="{{ _1 }} :: {{ _2 }}",
         inputs=[],
     )
-    with _patch_catalog(xprompt):
-        result = process_xprompt_references("#pr(foo):: line one, has (unbalanced")
+    with _patch_catalog(macro_def):
+        result = process_macro_references("#pr(foo):: line one, has (unbalanced")
     assert result == "foo :: line one, has (unbalanced"

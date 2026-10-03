@@ -1,7 +1,7 @@
 """Project-aware snippet catalog loader.
 
 Resolves a project workspace without changing process CWD, replays the real
-config-layer order, overlays explicit ``ace.snippets`` on xprompt-derived
+config-layer order, overlays explicit ``ace.snippets`` on macro-derived
 entries, and delegates alias, composition, and graph semantics to Rust.
 """
 
@@ -36,10 +36,10 @@ from sase.snippet.models import (
 )
 from sase.macro._glossary_catalog_projects import select_project
 from sase.macro.glossary_catalog import enabled_project_records
-from sase.macro import loader as xprompt_loader
+from sase.macro import loader as macro_loader
 from sase.macro.snippet_bridge import (
-    XPromptSnippetEntry,
-    build_xprompt_snippet_entries_from_catalog,
+    MacroSnippetEntry,
+    build_macro_snippet_entries_from_catalog,
 )
 
 _KIND_BY_LAYER = {
@@ -59,15 +59,15 @@ def load_snippet_catalog(
 
     Never changes process CWD. *project_ref* may be a display name, alias, or
     project key. When omitted, the launch workspace (or CWD) selects the
-    project. Xprompt loading still receives the original ref so callers that
+    project. Macro loading still receives the original ref so callers that
     only know a namespace keep working when the lifecycle registry has no row.
     """
     context = resolve_snippet_catalog_context(
         project_ref, launch_workspace=launch_workspace
     )
-    xprompt_project = context.name or project_ref
-    xprompt_entries = build_xprompt_snippet_entries_from_catalog(
-        xprompt_loader.get_all_xprompts(project=xprompt_project),
+    macro_project = context.name or project_ref
+    macro_entries = build_macro_snippet_entries_from_catalog(
+        macro_loader.get_all_macros(project=macro_project),
         include_shadowed=True,
     )
     config_contributions, layer_diagnostics = _config_layer_contributions(
@@ -75,7 +75,7 @@ def load_snippet_catalog(
     )
     return _build_snippet_catalog(
         context,
-        xprompt_entries=xprompt_entries,
+        macro_entries=macro_entries,
         config_contributions=config_contributions,
         pending_saves=pending_saves,
         layer_diagnostics=layer_diagnostics,
@@ -117,7 +117,7 @@ def resolve_snippet_catalog_context(
 def _build_snippet_catalog(
     context: SnippetCatalogContext,
     *,
-    xprompt_entries: Sequence[XPromptSnippetEntry],
+    macro_entries: Sequence[MacroSnippetEntry],
     config_contributions: Sequence[SnippetSourceContribution],
     pending_saves: Mapping[str, str] | None = None,
     layer_diagnostics: Sequence[SnippetLayerDiagnostic] = (),
@@ -125,11 +125,11 @@ def _build_snippet_catalog(
     """Compose explicit templates from already-loaded source contributions."""
     by_trigger: dict[str, list[SnippetSourceContribution]] = {}
     explicit: dict[str, str] = {}
-    for entry in xprompt_entries:
+    for entry in macro_entries:
         _record_contribution(
             by_trigger,
             explicit,
-            _xprompt_contribution(entry),
+            _macro_contribution(entry),
             overlay=False,
         )
     effective_config: dict[str, str] = {}
@@ -209,7 +209,7 @@ def editor_helper_entries(catalog: SnippetCatalog) -> list[dict[str, str | None]
             "trigger": entry.trigger,
             "template": entry.raw_template,
             "source": _helper_source(origin.kind),
-            "xprompt_name": origin.xprompt_name,
+            "xprompt_name": origin.macro_name,
             "description": origin.description,
             "source_path_display": _helper_display_path(origin),
         }
@@ -343,7 +343,7 @@ def _is_writable(path: str | None) -> bool:
     return ancestor.exists() and os.access(ancestor, os.W_OK)
 
 
-def _xprompt_contribution(entry: XPromptSnippetEntry) -> SnippetSourceContribution:
+def _macro_contribution(entry: MacroSnippetEntry) -> SnippetSourceContribution:
     return SnippetSourceContribution(
         trigger=entry.trigger,
         template=entry.template,
@@ -351,7 +351,7 @@ def _xprompt_contribution(entry: XPromptSnippetEntry) -> SnippetSourceContributi
         path=entry.source_path_display,
         display_path=entry.source_path_display,
         writable=False,
-        xprompt_name=entry.xprompt_name,
+        macro_name=entry.macro_name,
         description=entry.description,
     )
 

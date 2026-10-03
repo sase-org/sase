@@ -8,16 +8,16 @@ import pytest
 
 from sase.core.paths import get_sase_managed_tmpdir
 from sase.macro.catalog import (
-    NoXpromptsFound,
+    NoMacrosFound,
     PdfEngineUnavailable,
     _compute_stats,
     _render_html,
-    build_xprompts_catalog,
+    build_macros_catalog,
 )
 from sase.macro.models import InputArg, InputType
-from sase.macro.tags import XPromptTag
+from sase.macro.tags import MacroTag
 
-from tests._macro_catalog_helpers import make_xprompt, seed_entries
+from tests._macro_catalog_helpers import make_macro, seed_entries
 
 
 def test_render_html_contains_sections() -> None:
@@ -41,7 +41,7 @@ def test_render_html_contains_input_descriptions() -> None:
 
     entries = [
         _CatalogEntry(
-            make_xprompt(
+            make_macro(
                 "review",
                 source_path="config",
                 inputs=[
@@ -69,7 +69,7 @@ def test_render_html_contains_memory_badges() -> None:
 
     entries = [
         _CatalogEntry(
-            make_xprompt(
+            make_macro(
                 "memory/glossary",
                 source_path="config",
                 memory_type="reference",
@@ -86,34 +86,34 @@ def test_render_html_contains_memory_badges() -> None:
     assert "1 memory notes" in html
 
 
-def test_build_raises_when_no_xprompts() -> None:
+def test_build_raises_when_no_macros() -> None:
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value={}),
+        patch("sase.macro.catalog.get_all_macros", return_value={}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        with pytest.raises(NoXpromptsFound):
-            build_xprompts_catalog()
+        with pytest.raises(NoMacrosFound):
+            build_macros_catalog()
 
 
 def test_build_raises_when_no_pdf_engine(tmp_path: Path) -> None:
-    xp = make_xprompt(
+    xp = make_macro(
         "hello",
         source_path="config",
         description="A test prompt",
     )
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value={"hello": xp}),
+        patch("sase.macro.catalog.get_all_macros", return_value={"hello": xp}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
         patch("sase.macro.catalog.shutil.which", return_value=None),
     ):
         with pytest.raises(PdfEngineUnavailable):
-            build_xprompts_catalog(output_dir=tmp_path)
+            build_macros_catalog(output_dir=tmp_path)
 
 
 def test_build_default_output_uses_managed_sase_tmp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    xp = make_xprompt(
+    xp = make_macro(
         "hello",
         source_path="config",
         description="A test prompt",
@@ -126,11 +126,11 @@ def test_build_default_output_uses_managed_sase_tmp(
 
     monkeypatch.delenv("SASE_TMPDIR", raising=False)
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value={"hello": xp}),
+        patch("sase.macro.catalog.get_all_macros", return_value={"hello": xp}),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
         patch("sase.macro._catalog_render.render_pdf", side_effect=fake_render_pdf),
     ):
-        artifact = build_xprompts_catalog()
+        artifact = build_macros_catalog()
 
     # The managed root itself is the pytest sandbox here, not ~/.sase/tmp; what
     # this asserts is that the catalog routes through the managed helper rather
@@ -150,14 +150,14 @@ def test_build_default_output_uses_managed_sase_tmp(
 )
 def test_build_integration_produces_pdf(tmp_path: Path) -> None:
     xps = {
-        "hello": make_xprompt(
+        "hello": make_macro(
             "hello",
             source_path="config",
-            tags=frozenset({XPromptTag.vcs}),
+            tags=frozenset({MacroTag.vcs}),
             description="A test",
             content="Hello from the test xprompt.",
         ),
-        "goodbye": make_xprompt(
+        "goodbye": make_macro(
             "goodbye",
             source_path="config",
             content="bye",
@@ -165,10 +165,10 @@ def test_build_integration_produces_pdf(tmp_path: Path) -> None:
     }
 
     with (
-        patch("sase.macro.catalog.get_all_xprompts", return_value=xps),
+        patch("sase.macro.catalog.get_all_macros", return_value=xps),
         patch("sase.macro.catalog.get_known_project_workspaces", return_value={}),
     ):
-        artifact = build_xprompts_catalog(output_dir=tmp_path)
+        artifact = build_macros_catalog(output_dir=tmp_path)
 
     assert artifact.pdf_path.is_file()
     header = artifact.pdf_path.read_bytes()[:4]

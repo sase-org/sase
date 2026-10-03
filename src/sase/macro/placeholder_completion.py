@@ -1,7 +1,7 @@
 """Typed facade over the Rust placeholder completion engine.
 
 The extraction and completion rules live in ``sase-core`` and are shared with
-the xprompt LSP.  This module only rehydrates the binding's JSON-shaped values
+the macro LSP.  This module only rehydrates the binding's JSON-shaped values
 so TUI callers do not depend on untyped dictionaries.
 """
 

@@ -1,4 +1,4 @@
-"""Tests for xprompt output validation module."""
+"""Tests for macro output validation module."""
 
 import pytest
 from sase.macro.models import OutputSpec

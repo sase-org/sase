@@ -25,7 +25,8 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import panel_keys_for
 from sase.ace.tui.models.agent_named_procs import named_proc_agents_from_observed
 from sase.ace.tui.proc_observer import ProcObserverSnapshot
-from sase.procs import PROC_LIFECYCLE_NAMED_PROC, XPROMPT_PROC_ORIGIN
+from sase.procs import PROC_LIFECYCLE_NAMED_PROC
+from sase.legacy_xprompt_names import PROMPT_PROC_ORIGIN
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 
@@ -109,7 +110,7 @@ def _observed_proc(
         started_at=_NOW,
         display_name="background job",
         command=["python", "-m", "sase", "demo"],
-        origin=XPROMPT_PROC_ORIGIN,
+        origin=PROMPT_PROC_ORIGIN,
         lifecycle=PROC_LIFECYCLE_NAMED_PROC,
         project=project,
         proc_name="background-job",
@@ -238,7 +239,7 @@ def test_unchanged_proc_projection_runs_one_finalize_pass() -> None:
 
 def test_empty_disk_load_publishes_projection_named_proc_on_first_finalize() -> None:
     app = NamedProcFakeApp()
-    row = replace(_observed_proc(), xprompt_proc={"tribe": "epic"})
+    row = replace(_observed_proc(), prompt_proc={"tribe": "epic"})
     app._proc_projection = ProcProjection(rows=(row,), active_count=1)
     app._proc_generation = 1
     app.current_tab = "agents"
@@ -272,7 +273,7 @@ def test_proc_generation_move_rebases_prepared_roster_before_finalize() -> None:
     old_row = _observed_proc(proc_id="oldprocoldprocold")
     new_row = replace(
         _observed_proc(proc_id="newprocnewprocnew"),
-        xprompt_proc={"tribe": "epic"},
+        prompt_proc={"tribe": "epic"},
     )
     app._proc_projection = ProcProjection(rows=(old_row,), active_count=1)
     app._proc_generation = 1

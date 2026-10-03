@@ -155,7 +155,7 @@ def test_static_choices_and_kind_calls() -> None:
     assert "(__fish_complete_directories)" in script
 
 
-def test_run_prompt_positional_combines_files_and_xprompts() -> None:
+def test_run_prompt_positional_combines_files_and_macros() -> None:
     prompt = _positional(
         metavar="PROMPT",
         dest="prompt",

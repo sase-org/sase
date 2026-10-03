@@ -1,4 +1,4 @@
-"""XPrompt write-target resolution."""
+"""Macro write-target resolution."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def test_resolver_defaults_to_read_path_when_chezmoi_disabled(
     source_path.write_text("source\n", encoding="utf-8")
     _set_home_and_chezmoi(monkeypatch, home, source_root, use_chezmoi=False)
 
-    target = write_targets.resolve_xprompt_write_target(read_path)
+    target = write_targets.resolve_macro_write_target(read_path)
 
     assert target.read_path == read_path
     assert target.write_path == read_path
@@ -49,7 +49,7 @@ def test_resolver_keeps_home_path_when_chezmoi_source_is_missing(
     read_path = home / "sase" / "xprompts" / "review.md"
     _set_home_and_chezmoi(monkeypatch, home, source_root, use_chezmoi=True)
 
-    target = write_targets.resolve_xprompt_write_target(read_path)
+    target = write_targets.resolve_macro_write_target(read_path)
 
     assert target.write_path == read_path
     assert target.apply_target is None
@@ -68,7 +68,7 @@ def test_resolver_remaps_home_path_to_existing_chezmoi_source(
     source_path.write_text("source\n", encoding="utf-8")
     _set_home_and_chezmoi(monkeypatch, home, source_root, use_chezmoi=True)
 
-    target = write_targets.resolve_xprompt_write_target(read_path)
+    target = write_targets.resolve_macro_write_target(read_path)
 
     assert target.read_path == read_path
     assert target.write_path == source_path
@@ -87,7 +87,7 @@ def test_resolver_does_not_remap_existing_chezmoi_source_path(
     source_path.write_text("source\n", encoding="utf-8")
     _set_home_and_chezmoi(monkeypatch, home, source_root, use_chezmoi=True)
 
-    target = write_targets.resolve_xprompt_write_target(source_path)
+    target = write_targets.resolve_macro_write_target(source_path)
 
     assert target.write_path == source_path
     assert target.apply_target is None
@@ -103,7 +103,7 @@ def test_resolver_does_not_remap_paths_outside_home(
     read_path = tmp_path / "repo" / "sase" / "xprompts" / "review.md"
     _set_home_and_chezmoi(monkeypatch, home, source_root, use_chezmoi=True)
 
-    target = write_targets.resolve_xprompt_write_target(read_path)
+    target = write_targets.resolve_macro_write_target(read_path)
 
     assert target.write_path == read_path
     assert target.via_chezmoi is False
@@ -157,7 +157,7 @@ def test_written_path_reverse_maps_chezmoi_source_to_apply_target(
     assert target.via_chezmoi is True
 
 
-def test_classifier_covers_skill_memory_config_and_plain_xprompt(
+def test_classifier_covers_skill_memory_config_and_plain_macro(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -188,7 +188,7 @@ def test_classifier_covers_skill_memory_config_and_plain_xprompt(
     )
     assert (
         write_targets.classify_written_file(tmp_path / "xprompts" / "review.md")
-        is write_targets.WrittenFileKind.XPROMPT
+        is write_targets.WrittenFileKind.MACRO
     )
 
 
@@ -227,7 +227,7 @@ def test_followup_offers_commit_and_scoped_apply_for_plain_chezmoi_target(
     monkeypatch,
 ) -> None:
     write_path = tmp_path / "repo" / "home" / "sase" / "xprompts" / "review.md"
-    target = write_targets.XPromptWriteTarget(
+    target = write_targets.MacroWriteTarget(
         read_path=tmp_path / "home" / "sase" / "xprompts" / "review.md",
         write_path=write_path,
         apply_target=tmp_path / "home" / "sase" / "xprompts" / "review.md",
@@ -242,9 +242,9 @@ def test_followup_offers_commit_and_scoped_apply_for_plain_chezmoi_target(
 
     offers = write_targets.build_post_write_action_offers(
         target,
-        kind=write_targets.WrittenFileKind.XPROMPT,
+        kind=write_targets.WrittenFileKind.MACRO,
         is_new=False,
-        xprompt_name="review",
+        macro_name="review",
     )
 
     assert [offer.kind for offer in offers] == [
@@ -254,12 +254,12 @@ def test_followup_offers_commit_and_scoped_apply_for_plain_chezmoi_target(
     assert offers[1].apply_target == str(target.apply_target)
 
 
-def test_followup_commit_offer_stamps_sase_type_xprompt(
+def test_followup_commit_offer_stamps_sase_type_macro(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     write_path = tmp_path / "repo" / "home" / "sase" / "xprompts" / "review.md"
-    target = write_targets.XPromptWriteTarget(
+    target = write_targets.MacroWriteTarget(
         read_path=tmp_path / "home" / "sase" / "xprompts" / "review.md",
         write_path=write_path,
         apply_target=None,
@@ -274,9 +274,9 @@ def test_followup_commit_offer_stamps_sase_type_xprompt(
 
     offers = write_targets.build_post_write_action_offers(
         target,
-        kind=write_targets.WrittenFileKind.XPROMPT,
+        kind=write_targets.WrittenFileKind.MACRO,
         is_new=False,
-        xprompt_name="review",
+        macro_name="review",
     )
 
     assert offers[0].kind is write_targets.PostWriteActionKind.COMMIT_PUSH
@@ -288,7 +288,7 @@ def test_followup_memory_init_has_message_and_cwd(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    target = write_targets.XPromptWriteTarget(
+    target = write_targets.MacroWriteTarget(
         read_path=tmp_path / "home" / "sase" / "memory" / "obsidian.md",
         write_path=tmp_path / "repo" / "home" / "sase" / "memory" / "obsidian.md",
         apply_target=tmp_path / "home" / "sase" / "memory" / "obsidian.md",
@@ -305,7 +305,7 @@ def test_followup_memory_init_has_message_and_cwd(
         target,
         kind=write_targets.WrittenFileKind.MEMORY_NOTE,
         is_new=False,
-        xprompt_name="obsidian",
+        macro_name="obsidian",
     )
 
     assert [offer.kind for offer in offers] == [
@@ -324,7 +324,7 @@ def test_followup_memory_init_has_message_and_cwd(
         target,
         kind=write_targets.WrittenFileKind.MEMORY_NOTE,
         is_new=True,
-        xprompt_name="obsidian",
+        macro_name="obsidian",
     )
 
     assert new_offers[0].command == (
@@ -340,7 +340,7 @@ def test_followup_skill_init_commits_dirty_source_before_deploy(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    target = write_targets.XPromptWriteTarget(
+    target = write_targets.MacroWriteTarget(
         read_path=tmp_path / "repo" / "sase" / "skills" / "foo.md",
         write_path=tmp_path / "repo" / "sase" / "skills" / "foo.md",
         apply_target=None,
@@ -357,7 +357,7 @@ def test_followup_skill_init_commits_dirty_source_before_deploy(
         target,
         kind=write_targets.WrittenFileKind.SKILL_SOURCE,
         is_new=False,
-        xprompt_name="foo",
+        macro_name="foo",
     )
 
     assert [offer.kind for offer in offers] == [
@@ -375,7 +375,7 @@ def test_followup_skill_init_without_dirty_source_skips_commit(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    target = write_targets.XPromptWriteTarget(
+    target = write_targets.MacroWriteTarget(
         read_path=tmp_path / "repo" / "sase" / "skills" / "foo.md",
         write_path=tmp_path / "repo" / "sase" / "skills" / "foo.md",
         apply_target=None,
@@ -392,7 +392,7 @@ def test_followup_skill_init_without_dirty_source_skips_commit(
         target,
         kind=write_targets.WrittenFileKind.SKILL_SOURCE,
         is_new=False,
-        xprompt_name="foo",
+        macro_name="foo",
     )
 
     assert [offer.kind for offer in offers] == [

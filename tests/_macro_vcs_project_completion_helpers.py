@@ -1,8 +1,8 @@
 """Shared fixtures and builders for ``+`` VCS project completion tests.
 
-Split from ``tests/test_xprompt_vcs_project_completion.py``: the catalog
+Split from ``tests/test_macro_vcs_project_completion.py``: the catalog
 builder, caching, payload, ordering, and filtering tests live in thematic
-``tests/test_xprompt_vcs_project_completion_*.py`` modules and share these
+``tests/test_macro_vcs_project_completion_*.py`` modules and share these
 helpers.
 """
 

@@ -21,13 +21,13 @@ def _xprompts() -> dict[str, Workflow]:
                 )
             ],
             steps=[WorkflowStep(name="prompt", prompt_part="Review {{ diff }}.")],
-            source_path="/home/visual/sase/xprompts/review.md",
+            source_path="/home/visual/sase/macros/review.md",
         ),
         "ship": Workflow(
             name="ship",
             description="Ship the current change end-to-end.",
             steps=[WorkflowStep(name="run", agent="ship the change")],
-            source_path="/home/visual/sase/xprompts/ship.yml",
+            source_path="/home/visual/sase/macros/ship.yml",
         ),
     }
 

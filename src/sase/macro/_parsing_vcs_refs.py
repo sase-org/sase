@@ -1,4 +1,4 @@
-"""VCS reference parsing helpers for xprompt prompt text."""
+"""VCS reference parsing helpers for macro prompt text."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _GENERIC_PROJECT_VCS_REF_PATTERN = re.compile(
 )
 _KNOWN_FALLBACK_VCS_PREFIXES = frozenset({"gh", "git", "jj", "p4"})
 _VCS_UNDERSCORE_NORMALIZER: re.Pattern[str] | None = None
-_LAUNCH_XPROMPT_AT_REF_RE: re.Pattern[str] | None = None
+_LAUNCH_MACRO_AT_REF_RE: re.Pattern[str] | None = None
 
 
 def _workspace_workflow_names() -> set[str]:
@@ -28,7 +28,7 @@ def _workspace_workflow_names() -> set[str]:
 def normalize_vcs_underscore_refs(prompt: str) -> str:
     """Normalize ``#gh_sase`` to ``#gh:sase`` for known VCS workflow names.
 
-    The xprompt and embedded-workflow regex patterns treat ``_`` as part of the
+    The macro and embedded-workflow regex patterns treat ``_`` as part of the
     identifier, so ``#gh_sase`` is parsed as a single name ``gh_sase`` which
     doesn't match any workflow. Converting the first ``_`` after a known VCS
     prefix to ``:`` lets downstream patterns correctly split the VCS prefix
@@ -79,13 +79,13 @@ def _inside_any_range(index: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start <= index < end for start, end in ranges)
 
 
-def _get_launch_xprompt_at_ref_pattern() -> re.Pattern[str]:
+def _get_launch_macro_at_ref_pattern() -> re.Pattern[str]:
     """Return the scoped ``#workflow@ref`` launch-shorthand normalizer."""
-    global _LAUNCH_XPROMPT_AT_REF_RE  # noqa: PLW0603
-    if _LAUNCH_XPROMPT_AT_REF_RE is None:
+    global _LAUNCH_MACRO_AT_REF_RE  # noqa: PLW0603
+    if _LAUNCH_MACRO_AT_REF_RE is None:
         workflows = _workspace_workflow_names()
         alts = "|".join(re.escape(name) for name in sorted(workflows))
-        _LAUNCH_XPROMPT_AT_REF_RE = re.compile(
+        _LAUNCH_MACRO_AT_REF_RE = re.compile(
             rf"(?P<context>^|(?<=[\s([{{\"']))"
             rf"#(?P<workflow>{alts})"
             r"(?P<marker>!!|\?\?)?"
@@ -93,10 +93,10 @@ def _get_launch_xprompt_at_ref_pattern() -> re.Pattern[str]:
             r"(?=$|[\s)\]},.!?;:\"'])",
             re.IGNORECASE,
         )
-    return _LAUNCH_XPROMPT_AT_REF_RE
+    return _LAUNCH_MACRO_AT_REF_RE
 
 
-def normalize_launch_xprompt_at_refs(prompt: str) -> str:
+def normalize_launch_macro_at_refs(prompt: str) -> str:
     """Normalize mobile/Telegram ``#workflow@ref`` launch shorthand.
 
     The rewrite is intentionally scoped to workspace/VCS workflow names and
@@ -113,7 +113,7 @@ def normalize_launch_xprompt_at_refs(prompt: str) -> str:
         marker = match.group("marker") or ""
         return f"{match.group('context')}#{match.group('workflow')}{marker}:{match.group('ref')}"
 
-    return _get_launch_xprompt_at_ref_pattern().sub(replace, prompt)
+    return _get_launch_macro_at_ref_pattern().sub(replace, prompt)
 
 
 def _known_project_workspace_path(value: object) -> Path | None:
@@ -212,7 +212,7 @@ def extract_known_project_vcs_ref(
     This recognizes project refs such as ``#gh:sase`` or ``#gh:sase-org/sase``
     even when the ``gh`` workspace provider is not registered in the current
     process. The project must be known via ``~/.sase/projects/*/*.sase`` (or
-    legacy ``.gp``) to avoid treating ordinary xprompt references as workspace
+    legacy ``.gp``) to avoid treating ordinary macro references as workspace
     selectors. The returned ``ref`` preserves the form that appears in
     *prompt*; callers needing the registered project name should pass it
     through :func:`resolve_known_project_ref`.
@@ -272,7 +272,7 @@ def iter_known_project_vcs_refs(
 __all__ = [
     "extract_known_project_vcs_ref",
     "iter_known_project_vcs_refs",
-    "normalize_launch_xprompt_at_refs",
+    "normalize_launch_macro_at_refs",
     "normalize_vcs_underscore_refs",
     "resolve_known_project_ref",
 ]

@@ -32,7 +32,7 @@ from sase._sidecar_ref_constants import (
     REF_PUBLICATION_CONFIG_KEY,
     REF_RELATIONS_CONFIG_KEY,
     REF_USE_CONFIG_KEY,
-    REF_XPROMPT_CONFIG_KEY,
+    REF_MACRO_CONFIG_KEY,
     SIDECAR_REF_CONFIG_SOURCE_PREFIX,
 )
 from sase._sidecar_ref_normalization import entry_role, policy_for_role
@@ -171,7 +171,7 @@ __all__ = [
     "REF_PROPERTIES_CONFIG_KEY",
     "REF_PUBLICATION_CONFIG_KEY",
     "REF_USE_CONFIG_KEY",
-    "REF_XPROMPT_CONFIG_KEY",
+    "REF_MACRO_CONFIG_KEY",
     "SIDECAR_REF_CONFIG_SOURCE_PREFIX",
     "SidecarRefPolicy",
     "effective_sidecar_ref_policies",

@@ -45,7 +45,7 @@ async def test_gL_prefills_body_and_commits_invocation() -> None:
         assert panel._cell_edit.values["content"] == "Do the thing"
         panel.query_one("#frontmatter-inline", SingleLineVimTextArea).text = "rules"
         panel._commit_cell_edit()
-        assert panel.model.xprompts["_rules"].content == "Do the thing"
+        assert panel.model.macros["_rules"].content == "Do the thing"
         assert bar.active_text_area().text == "#_rules"
 
 
@@ -69,7 +69,7 @@ async def test_gL_converts_placeholders_to_inputs_and_invocation_slots() -> None
         assert panel._cell_edit.values["inputs"] == ("the_plan:text, target_file:text")
         panel.query_one("#frontmatter-inline", SingleLineVimTextArea).text = "review"
         panel._commit_cell_edit()
-        saved = panel.model.xprompts["_review"]
+        saved = panel.model.macros["_review"]
         assert saved.content == "Review {{ the_plan }} for {{ target_file }}"
         assert [arg.name for arg in saved.inputs] == ["the_plan", "target_file"]
         assert bar.active_text_area().text == "#_review(the_plan=, target_file=)"
@@ -82,7 +82,7 @@ async def test_gL_preserves_existing_helpers() -> None:
         _bar, panel = await _open_ghost(app, pilot)
         panel.query_one("#frontmatter-inline", SingleLineVimTextArea).text = "new"
         panel._commit_cell_edit()
-        assert list(panel.model.xprompts) == ["_existing", "_new"]
+        assert list(panel.model.macros) == ["_existing", "_new"]
 
 
 async def test_gL_cancel_leaves_body_unchanged() -> None:
@@ -91,4 +91,4 @@ async def test_gL_cancel_leaves_body_unchanged() -> None:
         bar, panel = await _open_ghost(app, pilot)
         panel._cancel_active_edit()
         assert bar.active_text_area().text == "Do the thing"
-        assert panel.model.xprompts == {}
+        assert panel.model.macros == {}

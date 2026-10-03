@@ -1,27 +1,27 @@
-"""Tests for workflow-local xprompts in workflow_loader."""
+"""Tests for workflow-local macros in workflow_loader."""
 
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.macro.loader_parsing import parse_xprompt_entries
-from sase.macro.models import XPrompt
+from sase.macro.loader_parsing import parse_macro_entries
+from sase.macro.models import Macro
 from sase.macro.workflow_loader import _load_workflow_from_file
 from sase.macro.workflow_validator import validate_workflow
 
 
-def test_parse_xprompt_entries_skips_invalid_values() -> None:
+def test_parse_macro_entries_skips_invalid_values() -> None:
     """Test that non-string, non-dict values are skipped."""
     entries = {"good": "valid", "bad": 42, "also_bad": ["list"]}
-    result = parse_xprompt_entries(entries, "test")
+    result = parse_macro_entries(entries, "test")
 
     assert len(result) == 1
     assert "good" in result
 
 
-def test_workflow_local_xprompts_take_priority_over_globals() -> None:
-    """Test that workflow-local xprompts take priority over global ones."""
-    global_xprompt = XPrompt(
+def test_workflow_local_macros_take_priority_over_globals() -> None:
+    """Test that workflow-local macros take priority over global ones."""
+    global_macro = Macro(
         name="_shared",
         content="Global content requiring {{ missing_arg }}.",
         inputs=[],
@@ -44,14 +44,14 @@ steps:
 
         # Validate with global "_shared" that has issues, but local overrides it
         with patch(
-            "sase.macro.workflow_validator.get_all_xprompts",
-            return_value={"_shared": global_xprompt},
+            "sase.macro.workflow_validator.get_all_macros",
+            return_value={"_shared": global_macro},
         ):
-            # Should succeed because local xprompt (no args) overrides global
+            # Should succeed because local macro (no args) overrides global
             validate_workflow(workflow)
 
 
-def test_workflow_and_local_xprompt_descriptions_parse(tmp_path: Path) -> None:
+def test_workflow_and_local_macro_descriptions_parse(tmp_path: Path) -> None:
     workflow_content = """\
 description: Run a described workflow.
 input:
@@ -80,7 +80,7 @@ steps:
     assert len(workflow.inputs) == 1
     assert workflow.inputs[0].name == "prompt"
     assert workflow.inputs[0].description == "User request for the workflow."
-    local = workflow.xprompts["_local"]
+    local = workflow.macros["_local"]
     assert local.description == "Local helper prompt."
     assert local.inputs[0].name == "target"
     assert local.inputs[0].description == "Target name for the helper."

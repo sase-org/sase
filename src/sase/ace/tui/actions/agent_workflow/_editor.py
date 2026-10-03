@@ -98,11 +98,11 @@ class EditorMixin:
 
         import yaml  # type: ignore[import-untyped]
         from sase.core.time import generate_timestamp
-        from sase.macro.loader import get_sase_package_xprompts_dir
+        from sase.macro.loader import get_sase_package_macros_dir
 
         timestamp = generate_timestamp()
         default_name = f"adhoc_{timestamp}"
-        schema_path = get_sase_package_xprompts_dir() / "workflow.schema.json"
+        schema_path = get_sase_package_macros_dir() / "workflow.schema.json"
         template = (
             "# yaml-language-server: $schema=" + str(schema_path) + "\n"
             "\n"
@@ -155,15 +155,13 @@ class EditorMixin:
             # Save to the canonical home xprompt directory.
             from sase.content_layout import resolve_home_layout
 
-            xprompts_dir = str(resolve_home_layout().xprompts.write_path)
-            os.makedirs(xprompts_dir, exist_ok=True)
+            macros_dir = str(resolve_home_layout().xprompts.write_path)
+            os.makedirs(macros_dir, exist_ok=True)
 
-            dest_path = os.path.join(xprompts_dir, f"{workflow_name}.yml")
+            dest_path = os.path.join(macros_dir, f"{workflow_name}.yml")
             if os.path.exists(dest_path):
                 # Append timestamp to avoid collision
-                dest_path = os.path.join(
-                    xprompts_dir, f"{workflow_name}_{timestamp}.yml"
-                )
+                dest_path = os.path.join(macros_dir, f"{workflow_name}_{timestamp}.yml")
 
             with open(dest_path, "w", encoding="utf-8") as f:
                 f.write(content)

@@ -1,4 +1,4 @@
-"""XPrompt tag system for semantic role tagging."""
+"""Macro tag system for semantic role tagging."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ if TYPE_CHECKING:
     from sase.macro.workflow_models import Workflow
 
 
-class XPromptTag(Enum):
-    """Semantic role tags for xprompts and workflows."""
+class MacroTag(Enum):
+    """Semantic role tags for macros and workflows."""
 
     vcs = "vcs"
     crs = "crs"
@@ -29,8 +29,8 @@ class XPromptTag(Enum):
     land_epic = "land_epic"
 
 
-def parse_tags(raw: str | list[str] | None) -> frozenset[XPromptTag]:
-    """Parse tags from YAML data into a frozenset of XPromptTag.
+def parse_tags(raw: str | list[str] | None) -> frozenset[MacroTag]:
+    """Parse tags from YAML data into a frozenset of MacroTag.
 
     Accepts comma-separated string (``tags: vcs, rollover``),
     list (``tags: [vcs, rollover]``), or None.
@@ -46,19 +46,19 @@ def parse_tags(raw: str | list[str] | None) -> frozenset[XPromptTag]:
     else:
         names = [str(s).strip() for s in raw if str(s).strip()]
 
-    valid = {t.value for t in XPromptTag}
-    tags: list[XPromptTag] = []
+    valid = {t.value for t in MacroTag}
+    tags: list[MacroTag] = []
     for name in names:
         if name not in valid:
             raise ValueError(
                 f"Unknown xprompt tag {name!r}. Valid tags: {sorted(valid)}"
             )
-        tags.append(XPromptTag(name))
+        tags.append(MacroTag(name))
     return frozenset(tags)
 
 
 def _extract_plugin_module(source_path: str | None) -> str | None:
-    """Extract the plugin module name from an xprompt/workflow source_path."""
+    """Extract the plugin module name from a macro/workflow source_path."""
     if not source_path:
         return None
     if source_path.startswith("plugin:"):
@@ -71,11 +71,11 @@ def _extract_plugin_module(source_path: str | None) -> str | None:
 
 
 def get_by_tag(
-    tag: XPromptTag,
+    tag: MacroTag,
     project: str | None = None,
     vcs_hint: str | None = None,
 ) -> Workflow | None:
-    """Find the highest-priority xprompt/workflow with the given tag.
+    """Find the highest-priority macro/workflow with the given tag.
 
     Uses ``get_all_prompts()`` so the loader's explicit discovery rank
     (local > user > plugin > builtin) handles override order. The dict is
@@ -118,8 +118,8 @@ def get_by_tag(
     return matches[-1]
 
 
-def get_by_tag_strict(tag: XPromptTag, project: str | None = None) -> Workflow | None:
-    """Find the highest-priority xprompt/workflow with the given tag.
+def get_by_tag_strict(tag: MacroTag, project: str | None = None) -> Workflow | None:
+    """Find the highest-priority macro/workflow with the given tag.
 
     Like :func:`get_by_tag`, but raises :class:`ValueError` if the highest
     discovery rank has multiple matches. Lower-priority matches do not make a
@@ -129,7 +129,7 @@ def get_by_tag_strict(tag: XPromptTag, project: str | None = None) -> Workflow |
         The matching Workflow, or ``None`` if no match.
 
     Raises:
-        ValueError: If more than one xprompt/workflow has the tag.
+        ValueError: If more than one macro/workflow has the tag.
     """
     from sase.macro.loader import get_all_prompts
     from sase.macro.discovery_order import discovery_rank

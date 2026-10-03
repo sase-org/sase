@@ -1,4 +1,4 @@
-"""Flexoki-derived styles for semantic xprompt highlight roles."""
+"""Flexoki-derived styles for semantic macro highlight roles."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ from textual.color import Color
 
 from sase.ansi_style import ansi_sgr
 
-from .highlight import HighlightSpan, XPromptHighlightRole
+from .highlight import HighlightSpan, MacroHighlightRole
 
 ACE_THEME_NAME = "flexoki"
-_ARGUMENT_ROLES: frozenset[XPromptHighlightRole] = frozenset(
+_ARGUMENT_ROLES: frozenset[MacroHighlightRole] = frozenset(
     {
         "xprompt.arg_delimiter",
         "xprompt.arg_key",
@@ -29,7 +29,7 @@ _ARGUMENT_ROLES: frozenset[XPromptHighlightRole] = frozenset(
 _INVALID_ARGUMENT_VALIDITIES = frozenset(
     {"unknown_key", "type_mismatch", "duplicate_key"}
 )
-_PROJECT_TAG_ROLES: frozenset[XPromptHighlightRole] = frozenset(
+_PROJECT_TAG_ROLES: frozenset[MacroHighlightRole] = frozenset(
     {
         "xprompt.project_tag.sigil",
         "xprompt.project_tag.name",
@@ -81,7 +81,7 @@ def derive_argument_color(
     foreground: str | None,
     background: str,
 ) -> str | None:
-    """Return a theme-adaptive sibling color for an xprompt argument."""
+    """Return a theme-adaptive sibling color for a macro argument."""
     return _derive_blended_color(
         base,
         target=foreground,
@@ -113,7 +113,7 @@ def _derive_blended_color(
     return Color.parse(base).blend(target_color, ratio).hex
 
 
-def xprompt_argument_palette(
+def macro_argument_palette(
     family: str | None,
     *,
     foreground: str | None,
@@ -121,7 +121,7 @@ def xprompt_argument_palette(
     secondary: str | None,
     accent: str | None,
     primary: str | None,
-) -> Mapping[XPromptHighlightRole, str | None]:
+) -> Mapping[MacroHighlightRole, str | None]:
     """Return the theme-derived colors for structured argument roles."""
     return {
         "xprompt.arg_delimiter": _derive_blended_color(
@@ -169,15 +169,15 @@ def xprompt_argument_palette(
 
 
 def _argument_styles(
-    colors: Mapping[XPromptHighlightRole, str | None],
-) -> dict[XPromptHighlightRole, HighlightStyle]:
+    colors: Mapping[MacroHighlightRole, str | None],
+) -> dict[MacroHighlightRole, HighlightStyle]:
     return {role: HighlightStyle(colors[role]) for role in _ARGUMENT_ROLES}
 
 
 @functools.cache
 def _argument_highlight_theme(
     source: Literal["xprompt", "directive"],
-) -> Mapping[XPromptHighlightRole, HighlightStyle]:
+) -> Mapping[MacroHighlightRole, HighlightStyle]:
     """Return source-specific styles for structured argument roles."""
     from textual.theme import BUILTIN_THEMES
 
@@ -187,7 +187,7 @@ def _argument_highlight_theme(
     family = theme.warning if source == "directive" else theme.success
     return MappingProxyType(
         _argument_styles(
-            xprompt_argument_palette(
+            macro_argument_palette(
                 family,
                 foreground=foreground,
                 background=background,
@@ -202,7 +202,7 @@ def _argument_highlight_theme(
 def highlight_style_for_span(
     span: HighlightSpan,
     *,
-    styles: Mapping[XPromptHighlightRole, HighlightStyle] | None = None,
+    styles: Mapping[MacroHighlightRole, HighlightStyle] | None = None,
 ) -> HighlightStyle:
     """Return the Rich/ANSI style for a concrete semantic highlight span."""
     if span.role in _PROJECT_TAG_ROLES:
@@ -254,7 +254,7 @@ def _project_tag_base_colors() -> tuple[str, str | None]:
 
 
 @functools.cache
-def highlight_theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
+def highlight_theme() -> Mapping[MacroHighlightRole, HighlightStyle]:
     """Return the complete semantic palette derived from ACE's pinned theme."""
     from textual.theme import BUILTIN_THEMES
 
@@ -271,7 +271,7 @@ def highlight_theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
         foreground=foreground,
         background=background,
     )
-    arg_colors = xprompt_argument_palette(
+    arg_colors = macro_argument_palette(
         theme.success,
         foreground=foreground,
         background=background,
@@ -293,7 +293,7 @@ def highlight_theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
         .hex
     )
 
-    styles: dict[XPromptHighlightRole, HighlightStyle] = {
+    styles: dict[MacroHighlightRole, HighlightStyle] = {
         "xprompt.invocation": HighlightStyle(theme.success, bold=True),
         "xprompt.invocation_arg": HighlightStyle(invocation_arg),
         "xprompt.directive": HighlightStyle(theme.warning, bold=True),
@@ -331,5 +331,5 @@ __all__ = [
     "derive_argument_color",
     "highlight_style_for_span",
     "highlight_theme",
-    "xprompt_argument_palette",
+    "macro_argument_palette",
 ]

@@ -269,10 +269,10 @@ printf '%s\\n' "${{COMPREPLY[@]}}"
     assert call_count.read_text().strip() == "1"
 
 
-def test_run_prompt_offers_files_and_xprompts(tmp_path: Path) -> None:
+def test_run_prompt_offers_files_and_macros(tmp_path: Path) -> None:
     """`sase run`'s PROMPT positional completes filenames in cwd plus stored
-    xprompt names -- the combination the `#`/`%`/`@`-in-prompt polish item
-    leaves out of scope, but files-or-xprompt is in scope for this phase."""
+    macro names -- the combination the `#`/`%`/`@`-in-prompt polish item
+    leaves out of scope, but files-or-macro is in scope for this phase."""
     script = tmp_path / "sase.bash"
     script.write_text(emit_bash(_run_prompt_spec()), encoding="utf-8")
     bin_dir = tmp_path / "bin"

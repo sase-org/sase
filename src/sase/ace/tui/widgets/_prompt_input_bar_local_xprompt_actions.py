@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
     from sase.ace.tui.widgets.prompt_stack import PromptStackState
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-    from sase.macro.models import InputArg, XPrompt
+    from sase.macro.models import InputArg, Macro
 else:
     _MixinBase = object
 
@@ -32,9 +32,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
-        def local_xprompts(
-            self, text_area: object | None = None
-        ) -> dict[str, XPrompt]: ...
+        def local_macros(self, text_area: object | None = None) -> dict[str, Macro]: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
 
     def convert_active_pane_to_local_xprompt(
@@ -85,7 +83,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
             conversion.inputs,
         )
 
-        def _on_commit(saved: XPrompt) -> None:
+        def _on_commit(saved: Macro) -> None:
             skeleton = local_xprompt_invocation_skeleton(saved)
             enter_insert = bool(saved.inputs) or target_mode == "insert"
             self._replace_active_pane_with_skeleton(skeleton, enter_insert=enter_insert)
@@ -111,7 +109,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
             model = PromptFrontmatter.parse(self._stack.frontmatter)
         except Exception:
             model = PromptFrontmatter()
-        model.set_xprompt(xprompt)
+        model.set_macro(xprompt)
         self._stack.set_frontmatter_model(model)
         self.refresh_frontmatter_panel_from_stack()
 

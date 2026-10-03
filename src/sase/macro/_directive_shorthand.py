@@ -32,7 +32,7 @@ def preprocess_directive_double_colon_shorthand(prompt: str) -> str:
     """Rewrite allowlisted ``%directive...:: text`` forms to named args.
 
     Directive shorthands and capture boundaries inside fenced code, inline
-    code, or xprompt-disabled regions are ignored, matching normal directive
+    code, or macro-disabled regions are ignored, matching normal directive
     extraction semantics.
     """
     ignored_ranges = [
@@ -114,7 +114,7 @@ def find_directive_double_colon_text_end(
     *,
     ignored_ranges: list[tuple[int, int]] | None = None,
 ) -> int:
-    """Find the next line-start directive/xprompt reference or EOF."""
+    """Find the next line-start directive/macro reference or EOF."""
     ranges = ignored_ranges or []
     search_start = start
     while match := _NEXT_PROMPT_ITEM_PATTERN.search(prompt, search_start):

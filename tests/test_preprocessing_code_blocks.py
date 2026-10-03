@@ -159,17 +159,17 @@ class TestPreprocessPromptCodeBlockProtection:
 
     # Late-phase processors (command sub, file refs, prettier, HTML strip)
     # are protected by the late phase's own fenced-block protection.
-    # process_xprompt_references handles its own protection internally.
+    # process_macro_references handles its own protection internally.
     @patch("sase.file_references.strip_html_comments")
     @patch("sase.file_references.format_with_prettier")
     @patch("sase.file_references.process_file_references")
     @patch("sase.file_references.process_command_substitution")
-    @patch("sase.macro.process_xprompt_references")
+    @patch("sase.macro.process_macro_references")
     @patch("sase.llm_provider.preprocessing.extract_prompt_directives")
     def test_text_outside_code_blocks_still_processed(
         self,
         mock_directives: MagicMock,
-        mock_xprompt: MagicMock,
+        mock_macro: MagicMock,
         mock_cmd_sub: MagicMock,
         mock_file_refs: MagicMock,
         mock_prettier: MagicMock,
@@ -177,7 +177,7 @@ class TestPreprocessPromptCodeBlockProtection:
     ) -> None:
         """Text outside code blocks should still go through processors."""
         for mock in [
-            mock_xprompt,
+            mock_macro,
             mock_cmd_sub,
             mock_file_refs,
             mock_prettier,

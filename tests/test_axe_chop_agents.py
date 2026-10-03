@@ -201,20 +201,20 @@ def test_spawn_agent_subprocess_ignores_post_spawn_chop_record_failure(
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
-def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
+def test_spawn_agent_subprocess_prepares_vcs_and_local_macro_env(
     mock_spawn: MagicMock,
     mock_claim: MagicMock,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Rust preparation preserves launch env for VCS and local xprompts."""
+    """Rust preparation preserves launch env for VCS and local macros."""
     output_path = tmp_path / "out.txt"
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
     tmp_dir.mkdir()
-    xprompts_file = tmp_path / "xprompts.json"
-    xprompts_file.write_text("{}")
+    macros_file = tmp_path / "xprompts.json"
+    macros_file.write_text("{}")
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     mock_spawn.side_effect = _fake_spawn_success
@@ -236,7 +236,7 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
         project_name="proj",
         vcs_ref=("gh", "feature/test"),
         deferred_workspace=True,
-        local_xprompts_file=str(xprompts_file),
+        local_macros_file=str(macros_file),
         extra_env={"SASE_REPEAT_NAME": "task.1"},
     )
 
@@ -247,7 +247,7 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
     assert env["GH_PRE_ALLOCATED"] == "1"
     assert env["GH_WORKSPACE_NUM"] == "8"
     assert env["GH_WORKSPACE_DIR"] == str(workspace_dir)
-    assert env["SASE_AGENT_LOCAL_XPROMPTS"] == str(xprompts_file)
+    assert env["SASE_AGENT_LOCAL_XPROMPTS"] == str(macros_file)
     assert env["SASE_REPEAT_NAME"] == "task.1"
     mock_claim.assert_called_once()
     assert mock_claim.call_args.args[1] == 0

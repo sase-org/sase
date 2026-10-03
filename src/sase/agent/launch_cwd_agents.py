@@ -47,10 +47,10 @@ def launch_agents_from_cwd_impl(
     are launched sequentially.
 
     Args:
-        query: The prompt/xprompt string to run as an agent.
+        query: The prompt/macro string to run as an agent.
         timestamp: Optional preallocated launch timestamp for fan-out callers.
         launch_units: Optional ACE-resolved expanded units. When supplied,
-            these replace ``parse_multi_prompt`` + xprompt-swarm expansion.
+            these replace ``parse_multi_prompt`` + macro-swarm expansion.
         history_text: Optional ingress-owned canonical text the human
             submitted. When given, history records it instead of *query*,
             so swarm/force-reuse rewrites record what was submitted.
@@ -159,7 +159,7 @@ def launch_agents_from_cwd_impl(
     assert project_file is not None
     assert project_name is not None
 
-    # --- Multi-prompt detection and xprompt-swarm expansion ---
+    # --- Multi-prompt detection and macro-swarm expansion ---
     expanded = expand_launch_segments(
         query,
         launch_units=launch_units,
@@ -180,7 +180,7 @@ def launch_agents_from_cwd_impl(
         allow_short=(
             len(expanded.segments) > 1
             or launch_units is not None
-            or any(expanded.swarm_xprompts)
+            or any(expanded.swarm_macros)
             or _is_multi_prompt(recorded_text)
         ),
     )
@@ -189,7 +189,7 @@ def launch_agents_from_cwd_impl(
         submitted_query,
         expanded_segments=expanded.segments,
         template_groups=expanded.template_groups,
-        swarm_xprompts=expanded.swarm_xprompts,
+        swarm_macros=expanded.swarm_macros,
         recorder=recorder,
     )
     guard_project_tags_for_launch_units(
@@ -213,14 +213,14 @@ def launch_agents_from_cwd_impl(
     if len(expanded_segments) > 1:
         return launch_multi_prompt_branch(
             expanded_segments,
-            expanded.local_xprompts,
+            expanded.local_macros,
             project_file=project_file,
             project_name=project_name,
             is_home_mode=is_home_mode,
             extra_env=extra_env,
             segment_extra_env=expanded.segment_extra_env,
             segment_template_groups=expanded.template_groups,
-            segment_swarm_xprompts=expanded.swarm_xprompts,
+            segment_swarm_macros=expanded.swarm_macros,
             submitted_query=submitted_query,
             recorder=recorder,
         )
@@ -235,12 +235,12 @@ def launch_agents_from_cwd_impl(
     if expanded.segment_extra_env:
         segment_env = expanded.segment_extra_env[0] or {}
         extra_env = {**(extra_env or {}), **segment_env}
-    if expanded.swarm_xprompts[0]:
+    if expanded.swarm_macros[0]:
         from sase.macro.used_macros import launch_swarm_env_entries
 
         extra_env = {
             **(extra_env or {}),
-            **launch_swarm_env_entries(expanded.swarm_xprompts[0]),
+            **launch_swarm_env_entries(expanded.swarm_macros[0]),
         }
 
     # --- Repeat fan-out ---
@@ -262,7 +262,7 @@ def launch_agents_from_cwd_impl(
     # --- Alt-split detection ---
     alt_results = launch_alt_branch_if_applicable(
         query,
-        local_xprompts=expanded.local_xprompts,
+        local_macros=expanded.local_macros,
         project_file=project_file,
         project_name=project_name,
         is_home_mode=is_home_mode,

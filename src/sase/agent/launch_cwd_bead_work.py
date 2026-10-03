@@ -50,11 +50,11 @@ def launch_planned_bead_work_agents(
     ``sase bead work`` already knows everything the generic
     :func:`launch_agents_from_cwd` would otherwise rediscover: the segment
     split, the deterministic per-agent names, the per-segment env, and the
-    project context. Every rendered segment references exactly one bead xprompt
+    project context. Every rendered segment references exactly one bead macro
     (``#bd/work_phase_bead`` / ``#bd/work_task`` / ``#bd/land_epic``) and
     never fans out.
 
-    This adapter skips the generic discovery -- xprompt swarm expansion,
+    This adapter skips the generic discovery -- macro swarm expansion,
     per-segment fan-out probing, and the CWD project re-parse -- by feeding
     :func:`launch_multi_prompt_agents` preplanned one-slot fan-out plans. Name
     collision safety is unchanged: the launcher still validates every explicit
@@ -191,7 +191,7 @@ def launch_planned_bead_work_agents(
     try:
         return launch_multi_prompt_agents(
             segments=normalized_segments,
-            local_xprompts={},
+            local_macros={},
             cl_name=cl_name,
             project_file=project_file,
             project_name=project_name,

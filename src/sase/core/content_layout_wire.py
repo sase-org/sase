@@ -145,7 +145,7 @@ class ChezmoiContentLayout:
 
 
 @dataclass(frozen=True)
-class XpromptSource:
+class MacroSource:
     id: str
     priority: int
     scope: str
@@ -172,7 +172,7 @@ class SkillSource:
     """One ordered, first-wins source of canonical skill definitions.
 
     Skill sources are a separate, narrower contract than
-    :class:`XpromptSource`: they carry no legacy candidates and no shared
+    :class:`MacroSource`: they carry no legacy candidates and no shared
     ``steps/`` directory, and package/plugin entries are resource locators
     rather than filesystem paths.
     """
@@ -191,7 +191,7 @@ class SkillSource:
 
 @dataclass(frozen=True)
 class MemorySource:
-    """One ordered source of flat SASE memory notes exposed as xprompts."""
+    """One ordered source of flat SASE memory notes exposed as macros."""
 
     id: str
     priority: int
@@ -219,8 +219,8 @@ class SaseContentLayout:
     project: ProjectContentLayout | None
     home: HomeContentLayout
     chezmoi: ChezmoiContentLayout | None
-    xprompt_sources: tuple[XpromptSource, ...]
-    macro_sources: tuple[XpromptSource, ...]
+    xprompt_sources: tuple[MacroSource, ...]
+    macro_sources: tuple[MacroSource, ...]
     skill_sources: tuple[SkillSource, ...]
     memory_sources: tuple[MemorySource, ...]
 
@@ -244,11 +244,11 @@ def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
             _chezmoi_layout(_mapping(chezmoi_raw)) if chezmoi_raw is not None else None
         ),
         xprompt_sources=tuple(
-            _xprompt_source(_mapping(item))
+            _macro_source(_mapping(item))
             for item in cast(list[Any], raw.get("xprompt_sources", []))
         ),
         macro_sources=tuple(
-            _xprompt_source(_mapping(item))
+            _macro_source(_mapping(item))
             for item in cast(list[Any], raw.get("macro_sources", []))
         ),
         skill_sources=tuple(
@@ -286,7 +286,7 @@ def _macros_path(
     raw: Mapping[str, Any],
     xprompts: CompatibleLayoutPath,
 ) -> CompatibleLayoutPath:
-    """Return the canonical macros path, falling back to the xprompts value."""
+    """Return the canonical macros path, falling back to the macros value."""
     macros_raw = raw.get("macros")
     if macros_raw is None:
         return xprompts
@@ -343,9 +343,9 @@ def _chezmoi_layout(raw: Mapping[str, Any]) -> ChezmoiContentLayout:
     )
 
 
-def _xprompt_source(raw: Mapping[str, Any]) -> XpromptSource:
+def _macro_source(raw: Mapping[str, Any]) -> MacroSource:
     path = raw.get("path")
-    return XpromptSource(
+    return MacroSource(
         id=str(raw["id"]),
         priority=int(raw["priority"]),
         scope=str(raw["scope"]),
@@ -432,7 +432,7 @@ __all__ = [
     "SaseContentLayout",
     "SkillPlacementIssue",
     "SkillSource",
-    "XpromptSource",
+    "MacroSource",
     "content_layout_from_mapping",
     "skill_placement_issue_from_mapping",
 ]

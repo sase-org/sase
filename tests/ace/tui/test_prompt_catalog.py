@@ -13,7 +13,7 @@ from sase.ace.tui.actions._startup_prompt_catalog import StartupPromptCatalogMix
 from sase.ace.tui.actions._startup_watchers import StartupWatchersMixin
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 from sase.snippet.models import SnippetSourceContribution
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 
 
 def _config_contributions(
@@ -51,18 +51,16 @@ def test_prompt_source_token_changes_for_xprompt_file_create(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    xprompt_dir = tmp_path / ".xprompts"
-    xprompt_dir.mkdir()
+    macro_dir = tmp_path / ".xprompts"
+    macro_dir.mkdir()
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
-    monkeypatch.setattr(
-        prompt_catalog, "get_xprompt_search_paths", lambda: [xprompt_dir]
-    )
+    monkeypatch.setattr(prompt_catalog, "get_macro_search_paths", lambda: [macro_dir])
     monkeypatch.setattr(prompt_catalog, "current_config_token", lambda: ("config",))
 
     before = prompt_catalog._prompt_source_token([None])
-    (xprompt_dir / "new.md").write_text("hello", encoding="utf-8")
+    (macro_dir / "new.md").write_text("hello", encoding="utf-8")
     after = prompt_catalog._prompt_source_token([None])
 
     assert before != after
@@ -76,7 +74,7 @@ def test_prompt_source_token_changes_for_project_file(
     project_dir = config_dir / "xprompts" / "sase"
     project_dir.mkdir(parents=True)
     monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
-    monkeypatch.setattr(prompt_catalog, "get_xprompt_search_paths", lambda: [])
+    monkeypatch.setattr(prompt_catalog, "get_macro_search_paths", lambda: [])
     monkeypatch.setattr(prompt_catalog, "current_config_token", lambda: ("config",))
 
     before = prompt_catalog._prompt_source_token(["sase"])
@@ -95,7 +93,7 @@ def test_prompt_source_token_changes_for_memory_file_create(
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
-    monkeypatch.setattr(prompt_catalog, "get_xprompt_search_paths", lambda: [])
+    monkeypatch.setattr(prompt_catalog, "get_macro_search_paths", lambda: [])
     monkeypatch.setattr(prompt_catalog, "current_config_token", lambda: ("config",))
     monkeypatch.setattr(
         prompt_catalog,
@@ -123,7 +121,7 @@ def test_prompt_source_watch_paths_include_memory_roots(
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
-    monkeypatch.setattr(prompt_catalog, "get_xprompt_search_paths", lambda: [])
+    monkeypatch.setattr(prompt_catalog, "get_macro_search_paths", lambda: [])
     monkeypatch.setattr(
         prompt_catalog,
         "resolve_memory_file_sources",
@@ -167,9 +165,9 @@ def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
         lambda _projects: ("changed",),
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {
-            "review": XPrompt(
+            "review": Macro(
                 name="review",
                 content="Review this",
                 snippet=True,
@@ -227,11 +225,11 @@ def test_prompt_catalog_preserves_explicit_capitalized_collisions(
         lambda _projects: ("changed",),
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {
-            "foo": XPrompt(name="foo", content="xprompt lower", snippet=True),
-            "Foo": XPrompt(name="Foo", content="xprompt capital", snippet=True),
-            "bar": XPrompt(name="bar", content="xprompt bar", snippet=True),
+            "foo": Macro(name="foo", content="xprompt lower", snippet=True),
+            "Foo": Macro(name="Foo", content="xprompt capital", snippet=True),
+            "bar": Macro(name="bar", content="xprompt bar", snippet=True),
         },
     )
     monkeypatch.setattr(
@@ -286,7 +284,7 @@ def test_config_dirty_build_invalidates_warm_merged_config(monkeypatch) -> None:
         "_prompt_source_token",
         lambda _projects: ("fresh",) if state["fresh"] else ("stale",),
     )
-    monkeypatch.setattr("sase.macro.loader.get_all_xprompts", lambda project=None: {})
+    monkeypatch.setattr("sase.macro.loader.get_all_macros", lambda project=None: {})
     monkeypatch.setattr(
         prompt_catalog,
         "build_xprompt_assist_entries",

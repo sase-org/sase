@@ -17,7 +17,7 @@ from sase.bead.project import BeadProject
 
 from .cli_work_helpers import FakeLaunchResult, make_args, seed_diamond
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 def test_work_rolls_back_on_launch_failure(

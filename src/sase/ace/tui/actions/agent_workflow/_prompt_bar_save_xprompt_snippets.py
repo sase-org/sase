@@ -242,13 +242,13 @@ class PromptBarSaveSnippetMixin(
             f"{verb} snippet '{trigger}' in {display_path}"
         )
         from sase.macro.write_targets import (
-            XPromptWriteTarget,
+            MacroWriteTarget,
             classify_written_file,
             write_target_for_written_path,
         )
 
         if via_chezmoi or apply_target is not None:
-            post_write_target = XPromptWriteTarget(
+            post_write_target = MacroWriteTarget(
                 read_path=Path(read_path).expanduser(),
                 write_path=Path(write_path).expanduser(),
                 apply_target=(
@@ -268,7 +268,7 @@ class PromptBarSaveSnippetMixin(
             post_write_target,
             kind=kind,
             is_new=not exists,
-            xprompt_name=trigger,
+            macro_name=trigger,
             noun="snippet",
             commit_type="snippet",
             refresh_config_on_success=True,

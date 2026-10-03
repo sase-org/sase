@@ -30,7 +30,7 @@ from .cli_work_helpers import (
     write_bead_agent_meta,
 )
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 def _write_agent_session_member(

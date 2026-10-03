@@ -131,15 +131,15 @@ def prompt_key_io_probe() -> Iterator[PromptKeyIoCounts]:
         stack.enter_context(
             mock.patch.object(
                 mru_module,
-                "_load_vcs_xprompt_mru",
-                _counted("mru_reads", mru_module._load_vcs_xprompt_mru),
+                "_load_vcs_macro_mru",
+                _counted("mru_reads", mru_module._load_vcs_macro_mru),
             )
         )
         stack.enter_context(
             mock.patch.object(
                 mru_module,
-                "_save_vcs_xprompt_mru",
-                _counted("mru_writes", mru_module._save_vcs_xprompt_mru),
+                "_save_vcs_macro_mru",
+                _counted("mru_writes", mru_module._save_vcs_macro_mru),
             )
         )
 

@@ -29,7 +29,7 @@ from tests._macro_directive_completion_parity_lsp_protocol import (
     lsp_surface_row,
     machine_catalog_payload,
     model_catalog_payload,
-    xprompt_catalog_payload,
+    macro_catalog_payload,
 )
 from tests._macro_directive_completion_parity_lsp_rows import (
     LspCompletionList,
@@ -47,7 +47,7 @@ class LspSession:
         finalizer_catalog: dict[str, Any]
         | Sequence[Mapping[str, object]]
         | None = None,
-        xprompt_catalog: dict[str, Any] | Sequence[Mapping[str, object]] | None = None,
+        macro_catalog: dict[str, Any] | Sequence[Mapping[str, object]] | None = None,
         artifact_ref_catalog: Mapping[str, object] | None = None,
         model_catalog: Mapping[str, Any] | None = None,
         model_catalog_text: str | None = None,
@@ -58,7 +58,7 @@ class LspSession:
         self._tmp_path = tmp_path
         self._helper = helper
         self._finalizer_catalog = finalizer_catalog
-        self._xprompt_catalog = xprompt_catalog
+        self._macro_catalog = macro_catalog
         self._artifact_ref_catalog = artifact_ref_catalog
         self._model_catalog = model_catalog
         self._model_catalog_text = model_catalog_text
@@ -95,16 +95,16 @@ class LspSession:
             json.dumps(_finalizer_catalog_payload(self._finalizer_catalog)),
             encoding="utf-8",
         )
-        xprompt_catalog = self._tmp_path / "xprompt_catalog.json"
-        xprompt_catalog.write_text(
-            json.dumps(xprompt_catalog_payload(self._xprompt_catalog)),
+        macro_catalog = self._tmp_path / "xprompt_catalog.json"
+        macro_catalog.write_text(
+            json.dumps(macro_catalog_payload(self._macro_catalog)),
             encoding="utf-8",
         )
         env = os.environ.copy()
         env["SASE_MOBILE_HELPER_BRIDGE_COMMAND"] = shlex.join(
             [sys.executable, str(helper)]
         )
-        env["SASE_PARITY_XPROMPT_CATALOG"] = str(xprompt_catalog)
+        env["SASE_PARITY_XPROMPT_CATALOG"] = str(macro_catalog)
         if self._omit_model_catalog:
             env.pop("SASE_XPROMPT_MODEL_CATALOG", None)
         else:

@@ -198,7 +198,7 @@ class StatisticsViewData:
     generated_at: float
     views: StatisticsViews
     project_filter: str | None = None
-    xprompt_focus: str | None = None
+    macro_focus: str | None = None
     project_display_snapshot: ProjectDisplaySnapshot = field(
         default_factory=ProjectDisplaySnapshot
     )
@@ -209,7 +209,7 @@ def load_statistics_view(
     view: StatisticsView,
     selected_range: StatsRange,
     project_filter: str | None = None,
-    xprompt_focus: str | None = None,
+    macro_focus: str | None = None,
     perf_group_by: PerfGroupBy = "subsystem",
 ) -> StatisticsViewData:
     """Query composite bindings and build all view models off-thread."""
@@ -223,7 +223,7 @@ def load_statistics_view(
         end_ts=selected_range.end_ts,
         runtime_group_by=_FIXED_RUNTIME_GROUP_BY,
         project=project_filter,
-        xprompt_focus=xprompt_focus,
+        macro_focus=macro_focus,
     )
     activity_payload = query_activity_stats(
         start_ts=selected_range.start_ts,
@@ -261,7 +261,7 @@ def load_statistics_view(
             current_runner_limit=current_runner_limit,
         ),
         project_filter=project_filter,
-        xprompt_focus=xprompt_focus,
+        macro_focus=macro_focus,
         project_display_snapshot=project_display_snapshot,
         perf=perf,
     )

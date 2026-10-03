@@ -1,4 +1,4 @@
-"""Tests for the xprompt workflow JSON schema."""
+"""Tests for the macro workflow JSON schema."""
 
 import json
 from pathlib import Path
@@ -19,7 +19,7 @@ def _validator() -> Draft7Validator:
     return Draft7Validator(schema)
 
 
-def _load_xprompt_workflow(name: str) -> dict[str, Any]:
+def _load_macro_workflow(name: str) -> dict[str, Any]:
     data = yaml.safe_load((ROOT / "src/sase/macros" / name).read_text(encoding="utf-8"))
     assert isinstance(data, dict)
     return data
@@ -30,8 +30,8 @@ def _is_valid(instance: dict[str, Any]) -> bool:
 
 
 def test_checked_in_workflows_with_finally_and_artifact_validate() -> None:
-    assert _is_valid(_load_xprompt_workflow("git.yml"))
-    assert _is_valid(_load_xprompt_workflow("json.yml"))
+    assert _is_valid(_load_macro_workflow("git.yml"))
+    assert _is_valid(_load_macro_workflow("json.yml"))
 
 
 def test_workflow_schema_accepts_descriptions() -> None:

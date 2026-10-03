@@ -191,18 +191,18 @@ def test_snippet_candidates_degrade_on_native_error(
     assert candidates_for("snippet", "", project=None, limit=200) == []
 
 
-def test_tag_candidates_come_from_the_xprompt_tag_enum() -> None:
+def test_tag_candidates_come_from_the_macro_tag_enum() -> None:
     result = candidates_for("tag", "", project=None, limit=200)
 
     values = {candidate.value for candidate in result}
     assert {"vcs", "commit", "land_epic"} <= values
 
 
-def test_xprompt_and_skill_candidates_include_packaged_names() -> None:
-    xprompts = candidates_for("xprompt", "", project=None, limit=200)
+def test_macro_and_skill_candidates_include_packaged_names() -> None:
+    macros = candidates_for("xprompt", "", project=None, limit=200)
     skills = candidates_for("skill", "", project=None, limit=200)
 
-    assert any(candidate.value == "coder" for candidate in xprompts)
+    assert any(candidate.value == "coder" for candidate in macros)
     assert any(candidate.value == "sase_repo" for candidate in skills)
 
 

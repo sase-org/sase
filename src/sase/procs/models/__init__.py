@@ -16,7 +16,6 @@ from .common import (
     SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS,
     TERMINAL_PROC_STATUSES,
     TUI_PROC_KIND,
-    XPROMPT_PROC_ORIGIN,
 )
 from .operations import (
     UNSET,

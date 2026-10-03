@@ -30,7 +30,7 @@ class AgentExecContext:
     agent_vcs_provider: str | None
     agent_hidden: bool
     agent_meta: dict[str, Any]
-    local_xprompts: dict[str, Any]
+    local_macros: dict[str, Any]
     multi_agent_prompt_file: str | None = None
     wait_chats: list[str] = field(default_factory=list)
     wait_context: Any | None = None

@@ -10,7 +10,7 @@ from sase.content_layout import LayoutCollisionError
 from sase.config.core import (
     get_local_config_path,
     load_merged_config,
-    load_xprompts_by_source,
+    load_macros_by_source,
     set_include_local_config,
 )
 
@@ -128,8 +128,8 @@ def test_load_merged_config_local_concatenates_lists(tmp_path: Path) -> None:
     assert result["items"] == [1, 2, 3]
 
 
-def test_load_xprompts_by_source_includes_local_config(tmp_path: Path) -> None:
-    """Local sase.yml xprompts appear in load_xprompts_by_source output."""
+def test_load_macros_by_source_includes_local_config(tmp_path: Path) -> None:
+    """Local sase.yml macros appear in load_macros_by_source output."""
     local_dir = tmp_path / "local"
     local_dir.mkdir()
     (local_dir / "sase.yml").write_text(
@@ -140,7 +140,7 @@ def test_load_xprompts_by_source_includes_local_config(tmp_path: Path) -> None:
         patch("sase.config.core.CONFIG_DIR", tmp_path / "empty"),
         patch("sase.config.core.Path.cwd", return_value=local_dir),
     ):
-        results = load_xprompts_by_source()
+        results = load_macros_by_source()
 
     local_sources = [
         (label, data) for label, data in results if label == "local_config"

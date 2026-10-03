@@ -209,7 +209,7 @@ def expand_single_directive_args(
     model_had_alias_prefix: bool,
     process_references: ProcessReferences,
 ) -> dict[str, str]:
-    """Expand xprompt references in single-value directive arguments."""
+    """Expand macro references in single-value directive arguments."""
     expanded_args: dict[str, str] = {}
     for directive_name, raw_arg in seen.items():
         if raw_arg and "#" in raw_arg:
@@ -230,7 +230,7 @@ def expand_multi_directive_args(
     *,
     process_references: ProcessReferences,
 ) -> dict[str, list[str]]:
-    """Expand xprompt references in multi-value directive arguments."""
+    """Expand macro references in multi-value directive arguments."""
     expanded_multi: dict[str, list[str]] = {}
     for directive_name, raw_args in seen_multi.items():
         expanded_list: list[str] = []

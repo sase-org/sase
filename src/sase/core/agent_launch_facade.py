@@ -361,7 +361,7 @@ def evaluate_launch_condition(request: dict[str, Any]) -> dict[str, Any]:
     return dict(payload)
 
 
-def xprompt_proc_origin() -> str:
+def prompt_proc_origin() -> str:
     """Return the native stand-alone `%proc` origin string."""
 
     return str(require_rust_binding("prompt_proc_origin")())
@@ -540,5 +540,5 @@ __all__ = [
     "summarize_admission",
     "validate_proc_workspace_intent",
     "validate_standalone_named_proc_name",
-    "xprompt_proc_origin",
+    "prompt_proc_origin",
 ]

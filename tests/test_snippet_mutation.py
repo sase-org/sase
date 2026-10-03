@@ -23,7 +23,7 @@ from sase.snippet.mutation import (
     upsert_snippet_at_path,
 )
 from sase.macro import glossary_catalog as catalog_mod
-from sase.macro.models import XPrompt
+from sase.macro.models import Macro
 from sase.macro.snippet_config_yaml import snippet_config_digest
 
 
@@ -70,7 +70,7 @@ def _install_project(
         ],
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {},
     )
     return config_path
@@ -125,14 +125,14 @@ def test_add_refuses_overwrite_without_force(
     )
 
 
-def test_add_refuses_xprompt_shadow_without_force(
+def test_add_refuses_macro_shadow_without_force(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config_path = _install_project(tmp_path, monkeypatch, "timezone: UTC\n")
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {
-            "todo": XPrompt(name="todo", content="from xprompt", snippet=True)
+            "todo": Macro(name="todo", content="from xprompt", snippet=True)
         },
     )
 
@@ -193,9 +193,9 @@ def test_delete_reveals_shadowed_definition(
         "ace:\n  snippets:\n    todo: |\n      from config$0\n",
     )
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {
-            "todo": XPrompt(
+            "todo": Macro(
                 name="todo",
                 content="from xprompt",
                 snippet=True,
@@ -219,14 +219,14 @@ def test_delete_reveals_shadowed_definition(
     assert catalog.entry_for("todo").origin.kind == "xprompt"
 
 
-def test_delete_refuses_xprompt_only_definition(
+def test_delete_refuses_macro_only_definition(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _install_project(tmp_path, monkeypatch, "timezone: UTC\n")
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {
-            "todo": XPrompt(name="todo", content="from xprompt", snippet=True)
+            "todo": Macro(name="todo", content="from xprompt", snippet=True)
         },
     )
 
@@ -264,7 +264,7 @@ def test_upsert_at_path_rewires_prompt_save(
 ) -> None:
     config_path = tmp_path / "custom.yml"
     monkeypatch.setattr(
-        "sase.macro.loader.get_all_xprompts",
+        "sase.macro.loader.get_all_macros",
         lambda project=None: {},
     )
     monkeypatch.setattr(

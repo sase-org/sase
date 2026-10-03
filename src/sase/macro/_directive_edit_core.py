@@ -1,4 +1,4 @@
-"""Shared text-rewrite machinery for xprompt directive edits."""
+"""Shared text-rewrite machinery for macro directive edits."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from ._parsing import (
 )
 from ._parsing_args import double_colon_text_start
 
-_TIME_XPROMPT_RE = re.compile(
+_TIME_MACRO_RE = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#t(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/-]*[a-zA-Z0-9_~+/-]))"
 )
@@ -39,7 +39,7 @@ def set_prompt_directive(
     replacement: str | None,
     *,
     remove_deprecated: bool = False,
-    remove_time_xprompts: bool = False,
+    remove_time_macros: bool = False,
 ) -> str:
     protected, restore = protect_ignored_regions(prompt)
     protected = rewrite_protected_prompt(
@@ -47,7 +47,7 @@ def set_prompt_directive(
         directive_names,
         replacement,
         remove_deprecated=remove_deprecated,
-        remove_time_xprompts=remove_time_xprompts,
+        remove_time_macros=remove_time_macros,
     )
     return restore(protected)
 
@@ -73,7 +73,7 @@ def rewrite_protected_prompt(
     replacement: str | None,
     *,
     remove_deprecated: bool,
-    remove_time_xprompts: bool,
+    remove_time_macros: bool,
 ) -> str:
     spans = list(
         _directive_spans(
@@ -83,8 +83,8 @@ def rewrite_protected_prompt(
             remove_clan_shorthand=replacement is None,
         )
     )
-    if remove_time_xprompts:
-        spans.extend(_time_xprompt_spans(prompt))
+    if remove_time_macros:
+        spans.extend(_time_macro_spans(prompt))
     spans = _merge_spans(spans)
 
     cleaned = remove_spans(prompt, spans) if spans else prompt
@@ -136,9 +136,9 @@ def _directive_spans(
         yield match.start(), match_end
 
 
-def _time_xprompt_spans(prompt: str) -> Iterable[tuple[int, int]]:
+def _time_macro_spans(prompt: str) -> Iterable[tuple[int, int]]:
     alt_inner_regions = find_alt_inner_regions(prompt)
-    for match in _TIME_XPROMPT_RE.finditer(prompt):
+    for match in _TIME_MACRO_RE.finditer(prompt):
         if is_inside_regions(match.start(), alt_inner_regions):
             continue
         match_end = match.end()

@@ -149,7 +149,7 @@ from sase.config.loading import (
     merge_config_sources,
 )
 from sase.config.macro_sources import (
-    load_xprompts_by_source as _load_xprompts_by_source,
+    load_macros_by_source as _load_macros_by_source,
 )
 from sase.content_layout import discover_project_root, resolve_project_layout
 from sase.core.paths import machine_name_path
@@ -548,9 +548,9 @@ def _get_local_config_write_path() -> Path | None:
     return resolve_project_layout(project_root).config.write_path
 
 
-def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
-    """Load config-defined xprompts with source provenance."""
-    return _load_xprompts_by_source(
+def load_macros_by_source() -> list[tuple[str, dict[str, Any]]]:
+    """Load config-defined macros with source provenance."""
+    return _load_macros_by_source(
         config_dir=CONFIG_DIR,
         default_loader=_load_default_config,
         yaml_loader=_load_yaml_file,

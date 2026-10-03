@@ -17,8 +17,8 @@ from sase.agent.multi_prompt_reference_directives import (
     extract_static_clan_directive,
     extract_static_name_directive,
 )
-from sase.agent.macro_swarm import expand_xprompt_swarms_with_metadata
-from sase.macro.loader_sources import load_xprompt_from_file
+from sase.agent.macro_swarm import expand_macro_swarms_with_metadata
+from sase.macro.loader_sources import load_macro_from_file
 from tests._macro_swarm_helpers import patch_catalog
 
 
@@ -266,10 +266,10 @@ def test_checked_in_reads_swarm_declares_one_clan_per_invocation(
     assert "%g:" not in source
     assert "reads.{@1}" not in source
 
-    reads = load_xprompt_from_file(reads_path)
+    reads = load_macro_from_file(reads_path)
     assert reads is not None
     with patch_catalog({"reads": reads}):
-        records = expand_xprompt_swarms_with_metadata(
+        records = expand_macro_swarms_with_metadata(
             ["#reads(episodic agent memory)", "#reads(context rot)"]
         )
 

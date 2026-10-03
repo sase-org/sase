@@ -59,7 +59,7 @@ def _xprompt_rows() -> list[UnifiedSaveLocation]:
         ),
         _location(
             "CWD sase/xprompts/",
-            "./sase/xprompts",
+            "./sase/macros",
             "CWD directories",
             names=frozenset({"lint", "test"}),
             precedence=1,

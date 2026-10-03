@@ -1,4 +1,4 @@
-"""Workflow execution and embedding for xprompt workflows."""
+"""Workflow execution and embedding for macro workflows."""
 
 import logging
 import os
@@ -12,10 +12,10 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 
 from ._parsing import (
-    XPromptReference,
+    MacroReference,
     parse_workflow_reference,
 )
-from ._parsing_references import iter_xprompt_references
+from ._parsing_references import iter_macro_references
 from .loader import get_all_workflows
 from .input_binding import InputBindingError, bind_input_args
 from .workflow_models import (
@@ -77,7 +77,7 @@ def is_workflow_reference(name: str) -> bool:
     """Check if a name refers to a workflow.
 
     Args:
-        name: The xprompt/workflow name to check.
+        name: The macro/workflow name to check.
 
     Returns:
         True if the name matches a workflow, False otherwise.
@@ -87,7 +87,7 @@ def is_workflow_reference(name: str) -> bool:
 
 
 def _parse_standalone_ref(
-    ref: XPromptReference,
+    ref: MacroReference,
 ) -> tuple[list[str], dict[str, str]]:
     positional_args, named_args = ref.parse_arguments()
     if ref.hitl_override is not None:
@@ -104,13 +104,13 @@ def _find_standalone_workflow_ref(
 
     Used as a fallback when the fast-path single-reference check in
     ``_flatten_anonymous_workflow`` fails. The prompt may contain multiple
-    ``#name`` references — some xprompt parts, some workflows with
+    ``#name`` references — some macro parts, some workflows with
     ``prompt_part`` — but if exactly one is a pure multi-step workflow
     (no ``prompt_part``), return it with its parsed arguments.
 
     Args:
         prompt_text: The full prompt text to scan.
-        prompts: The combined prompts dict (xprompts + workflows).
+        prompts: The combined prompts dict (macros + workflows).
 
     Returns:
         Tuple of (workflow, positional_args, named_args) if exactly one
@@ -123,9 +123,9 @@ def _find_standalone_workflow_ref(
     fenced_blocks: list[str] = []
     protected_text = protect_fenced_blocks(prompt_text, fenced_blocks)
 
-    explicit_refs: list[XPromptReference] = []
-    legacy_refs: list[XPromptReference] = []
-    for ref in iter_xprompt_references(protected_text):
+    explicit_refs: list[MacroReference] = []
+    legacy_refs: list[MacroReference] = []
+    for ref in iter_macro_references(protected_text):
         if ref.name not in prompts:
             continue
         referenced = prompts[ref.name]
@@ -171,7 +171,7 @@ def _flatten_anonymous_workflow(
     that referenced workflow with the parsed args. Otherwise return None.
 
     Also handles the case where the prompt contains multiple references (e.g.,
-    ``#gh:sase #!batch_split``) where some are xprompt parts and exactly one
+    ``#gh:sase #!batch_split``) where some are macro parts and exactly one
     is a standalone workflow (no prompt_part). In that case, the standalone
     workflow is extracted and flattened.
 
@@ -224,7 +224,7 @@ def _flatten_anonymous_workflow(
         return updated
 
     # ── Fast path: entire prompt is a single #name/#!name reference ──
-    refs = iter_xprompt_references(prompt_text)
+    refs = iter_macro_references(prompt_text)
     exact_ref = (
         refs[0]
         if len(refs) == 1 and refs[0].start == 0 and refs[0].end == len(prompt_text)
@@ -287,7 +287,7 @@ def _flatten_anonymous_workflow(
             return referenced, positional_args, _attach_wrapper_model(named_args)
 
     # ── Slow path: multiple references, extract standalone workflow ──
-    # The prompt may mix xprompt parts (e.g., #gh:sase) with a single
+    # The prompt may mix macro parts (e.g., #gh:sase) with a single
     # standalone workflow (no prompt_part). Scan for exactly one standalone
     # workflow reference and flatten to it.
     logger.debug(
@@ -388,7 +388,7 @@ def execute_workflow(
     """Execute a workflow and return its result.
 
     Args:
-        name: The workflow name (can be a workflow or converted xprompt).
+        name: The workflow name (can be a workflow or converted macro).
         positional_args: Positional arguments.
         named_args: Named arguments.
         artifacts_dir: Optional directory for workflow artifacts.
@@ -424,7 +424,7 @@ def execute_workflow(
     if workflow_obj is not None:
         workflow = workflow_obj
     else:
-        # Use unified loader to get both workflows and converted xprompts
+        # Use unified loader to get both workflows and converted macros
         prompts = get_all_prompts(project=project)
         if name not in prompts:
             raise WorkflowExecutionError(f"Workflow '{name}' not found")
@@ -450,9 +450,9 @@ def execute_workflow(
             k: v for k, v in named_args.items() if k != _WORKFLOW_INHERITED_VCS_TAG_ARG
         }
 
-    # Handle simple xprompts: convert prompt_part to prompt step so they go
+    # Handle simple macros: convert prompt_part to prompt step so they go
     # through WorkflowExecutor (producing workflow_state.json and markers)
-    if workflow.is_simple_xprompt():
+    if workflow.is_simple_macro():
         from sase.macro.workflow_executor_utils import render_template
         from sase.macro.workflow_models import Workflow as WfModel
 
@@ -465,7 +465,7 @@ def execute_workflow(
             inputs=[],
             steps=[WorkflowStep(name="main", agent=rendered)],
             source_path=workflow.source_path,
-            xprompts=workflow.xprompts,
+            macros=workflow.macros,
         )
 
     # Flatten anonymous workflows that wrap a single multi-step workflow

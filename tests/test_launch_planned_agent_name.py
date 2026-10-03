@@ -259,10 +259,10 @@ def test_single_prompt_launch_result_carries_wait_derived_name(
     assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo.w0"
 
 
-def test_single_prompt_with_unexpanded_xprompt_leaves_agent_name_unset(
+def test_single_prompt_with_unexpanded_macro_leaves_agent_name_unset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A prompt whose name depends on xprompt expansion is not pre-planned."""
+    """A prompt whose name depends on macro expansion is not pre-planned."""
     patch_no_workspace_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
 

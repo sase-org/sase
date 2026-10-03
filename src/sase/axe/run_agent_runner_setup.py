@@ -25,10 +25,10 @@ from sase.axe.run_agent_runner_setup_meta import (
 )
 from sase.axe.run_agent_runner_setup_prompt import (
     build_output_variable_namespaces,
-    expand_deferred_launch_xprompts,
-    preprocess_prompt_xprompts,
+    expand_deferred_launch_macros,
+    preprocess_prompt_macros,
     print_agent_start_banner,
-    write_submitted_xprompt_artifact,
+    write_submitted_prompt_artifact,
 )
 from sase.axe.run_agent_runner_setup_workspace import (
     capture_instruction_snapshot,
@@ -49,16 +49,16 @@ __all__ = [
     "capture_sdd_base_sha",
     "capture_workspace_head",
     "enter_agent_workspace",
-    "expand_deferred_launch_xprompts",
+    "expand_deferred_launch_macros",
     "guard_workspace_not_occupied",
     "load_retry_handoff_from_env",
     "prepare_linked_repo_workspaces_if_needed",
     "prepare_workspace_if_needed",
-    "preprocess_prompt_xprompts",
+    "preprocess_prompt_macros",
     "print_agent_start_banner",
     "refresh_linked_repos_for_workspace",
     "setup_artifacts_directory",
     "write_agent_meta",
     "write_home_running_marker",
-    "write_submitted_xprompt_artifact",
+    "write_submitted_prompt_artifact",
 ]

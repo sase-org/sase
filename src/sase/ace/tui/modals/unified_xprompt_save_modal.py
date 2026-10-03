@@ -20,7 +20,7 @@ from sase.macro.naming import (
     markdown_save_plan,
     resolution_after_save,
     validate_snippet_trigger,
-    validate_xprompt_name,
+    validate_macro_name,
 )
 from sase.content_layout import skill_reference_name
 from sase.macro.prompt_frontmatter import PromptFrontmatter
@@ -247,7 +247,7 @@ class UnifiedXPromptSaveModal(
             if not self._snippet_body.strip():
                 return "The active pane is empty"
             return validate_snippet_trigger(name)
-        error = validate_xprompt_name(name)
+        error = validate_macro_name(name)
         if error is not None:
             return error
         row = self._selected_row()
@@ -255,7 +255,7 @@ class UnifiedXPromptSaveModal(
             prefix = f"{row.namespace}/"
             if not name.startswith(prefix):
                 return f"Names saved here must start with {prefix}"
-            return validate_xprompt_name(name.removeprefix(prefix))
+            return validate_macro_name(name.removeprefix(prefix))
         return None
 
     def _storage_name(self, row: UnifiedSaveLocation, name: str) -> str:

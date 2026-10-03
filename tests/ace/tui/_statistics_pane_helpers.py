@@ -306,7 +306,7 @@ def _result(
     project_filter: str | None = None,
     project_display_snapshot: ProjectDisplaySnapshot | None = None,
     project_display_case: ProjectDisplayCase | None = None,
-    xprompt_focus: str | None = None,
+    macro_focus: str | None = None,
     runtime_group_by: RuntimeGroupBy = "tribe",
     perf_group_by: PerfGroupBy = "subsystem",
     perf: PerfView | None = None,
@@ -316,10 +316,10 @@ def _result(
     )
     if runs_empty and not empty:
         run_payload = {"totals": {"runs": 0}}
-    if run_payload and xprompt_focus is not None:
-        found = xprompt_focus == "split_file"
+    if run_payload and macro_focus is not None:
+        found = macro_focus == "split_file"
         run_payload["xprompts"]["focus"] = {
-            "name": xprompt_focus,
+            "name": macro_focus,
             "found": found,
             "kind": "part" if found else "unknown",
             "tags": ["files"] if found else [],
@@ -380,7 +380,7 @@ def _result(
             current_runner_limit=2,
         ),
         project_filter=project_filter,
-        xprompt_focus=xprompt_focus,
+        macro_focus=macro_focus,
         project_display_snapshot=display_snapshot,
         perf=resolved_perf,
     )
@@ -399,16 +399,16 @@ def _patch_center(
         view: StatisticsView,
         selected_range: StatsRange,
         project_filter: str | None = None,
-        xprompt_focus: str | None = None,
+        macro_focus: str | None = None,
         perf_group_by: PerfGroupBy = "subsystem",
     ) -> StatisticsViewData:
-        calls.append((view, selected_range, project_filter, xprompt_focus))
+        calls.append((view, selected_range, project_filter, macro_focus))
         return _result(
             view,
             selected_range,
             project_filter=project_filter,
             project_display_case=project_display_case,
-            xprompt_focus=xprompt_focus,
+            macro_focus=macro_focus,
             perf_group_by=perf_group_by,
         )
 

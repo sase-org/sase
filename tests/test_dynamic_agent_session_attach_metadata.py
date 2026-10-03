@@ -111,7 +111,7 @@ def test_agent_session_attach_metadata_matches_runner_followup_and_tui_agent_ses
         ),
         patch("sase.agent.names.claim_agent_name"),
         patch(
-            "sase.macro.process_xprompt_references",
+            "sase.macro.process_macro_references",
             side_effect=lambda prompt, **_: prompt,
         ),
         patch(
@@ -244,7 +244,7 @@ def test_agent_session_attach_child_inherits_parent_clan_metadata(
         ),
         patch("sase.agent.names.claim_agent_name"),
         patch(
-            "sase.macro.process_xprompt_references",
+            "sase.macro.process_macro_references",
             side_effect=lambda prompt, **_: prompt,
         ),
         patch(
@@ -276,7 +276,7 @@ def test_agent_session_attach_child_inherits_parent_clan_metadata(
     with (
         patch("sase.agent.names.ensure_historical_auto_name_migration"),
         patch(
-            "sase.macro.process_xprompt_references",
+            "sase.macro.process_macro_references",
             side_effect=lambda prompt, **_: prompt,
         ),
         pytest.raises(
@@ -328,7 +328,7 @@ def test_agent_session_attach_parent_workspace_num_does_not_clobber_claimed_run(
         ),
         patch("sase.agent.names.claim_agent_name"),
         patch(
-            "sase.macro.process_xprompt_references",
+            "sase.macro.process_macro_references",
             side_effect=lambda prompt, **_: prompt,
         ),
         patch(
@@ -410,7 +410,7 @@ def test_agent_session_attach_child_preserves_queue_weight_provenance(
         ),
         patch("sase.agent.names.claim_agent_name"),
         patch(
-            "sase.macro.process_xprompt_references",
+            "sase.macro.process_macro_references",
             side_effect=lambda prompt, **_: prompt,
         ),
         patch(
@@ -484,7 +484,7 @@ def test_agent_session_attach_child_inherits_explicit_zero_from_parent(
         ),
         patch("sase.agent.names.claim_agent_name"),
         patch(
-            "sase.macro.process_xprompt_references",
+            "sase.macro.process_macro_references",
             side_effect=lambda prompt, **_: prompt,
         ),
         patch(
@@ -561,7 +561,7 @@ def test_agent_session_attach_child_skips_epic_launch_monitor_override(
         ),
         patch("sase.agent.names.claim_agent_name"),
         patch(
-            "sase.macro.process_xprompt_references",
+            "sase.macro.process_macro_references",
             side_effect=lambda prompt, **_: prompt,
         ),
         patch(

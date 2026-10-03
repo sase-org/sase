@@ -1,7 +1,7 @@
-"""Tests for xprompt processor internal parsing and substitution functions."""
+"""Tests for macro processor internal parsing and substitution functions."""
 
 import pytest
-from sase.macro._exceptions import XPromptArgumentError
+from sase.macro._exceptions import MacroArgumentError
 from sase.macro._jinja import substitute_placeholders
 from sase.macro._parsing import (
     _process_text_block,
@@ -9,8 +9,8 @@ from sase.macro._parsing import (
     parse_args,
     parse_workflow_reference,
 )
-from sase.macro.models import XPrompt
-from sase.macro.processor import expand_single_xprompt
+from sase.macro.models import Macro
+from sase.macro.processor import expand_single_macro
 
 # Tests for parse_named_arg
 
@@ -29,17 +29,17 @@ from sase.macro.processor import expand_single_xprompt
 
 def testsubstitute_placeholders_jinja2_missing_var_error() -> None:
     """Test that missing required variable raises error."""
-    with pytest.raises(XPromptArgumentError, match="template error"):
+    with pytest.raises(MacroArgumentError, match="template error"):
         substitute_placeholders("Hello {{ name }}!", [], {}, "test")
 
 
-# Tests for expand_single_xprompt
+# Tests for expand_single_macro
 
 
-def testexpand_single_xprompt_mixed_args_jinja2() -> None:
-    """Test expanding Jinja2 xprompt with mixed positional and named args."""
-    xprompt = XPrompt(name="msg", content="{{ _1 }} says {{ message }}")
-    result = expand_single_xprompt(xprompt, ["Alice"], {"message": "hello"})
+def testexpand_single_macro_mixed_args_jinja2() -> None:
+    """Test expanding Jinja2 macro with mixed positional and named args."""
+    macro_def = Macro(name="msg", content="{{ _1 }} says {{ message }}")
+    result = expand_single_macro(macro_def, ["Alice"], {"message": "hello"})
     assert result == "Alice says hello"
 
 

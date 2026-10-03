@@ -11,10 +11,10 @@ from pathlib import Path
 import pytest
 
 from sase.history.vcs_macro_mru import (
-    _load_vcs_xprompt_mru,
-    load_launchable_vcs_xprompt_mru,
-    load_launchable_vcs_xprompt_mru_pairs,
-    record_vcs_xprompt_usage,
+    _load_vcs_macro_mru,
+    load_launchable_vcs_macro_mru,
+    load_launchable_vcs_macro_mru_pairs,
+    record_vcs_macro_usage,
 )
 from sase.workspace_provider import reset_workflow_metadata_caches
 from sase.workspace_provider._hookspec import WorkflowMetadata
@@ -25,7 +25,7 @@ from tests._vcs_macro_mru_helpers import (
     write_project,
 )
 from tests._workspace_provider_helpers import (
-    _restore_xprompt_vcs_caches_on_teardown,
+    _restore_macro_vcs_caches_on_teardown,
     git_metadata,
 )
 from tests.conftest import redirect_sase_home
@@ -56,7 +56,7 @@ def _patch_git_and_gh_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
         workspace_provider, "get_all_workflow_metadata", _git_and_gh_metadata
     )
     reset_workflow_metadata_caches()
-    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
+    _restore_macro_vcs_caches_on_teardown(monkeypatch)
 
 
 def test_load_launchable_filters_known_stale_projects(
@@ -73,7 +73,7 @@ def test_load_launchable_filters_known_stale_projects(
     patch_discovered_workflow_type_as_git(monkeypatch)
 
     with patched_mru_file(fake):
-        result = load_launchable_vcs_xprompt_mru(projects_dir)
+        result = load_launchable_vcs_macro_mru(projects_dir)
 
     assert result == ["#gh:branch", "#gh:valid"]
     assert json.loads(fake.read_text()) == {"entries": ["#gh:branch", "#gh:valid"]}
@@ -92,7 +92,7 @@ def test_load_launchable_keeps_launchable_home_project(
     patch_discovered_workflow_type_as_git(monkeypatch)
 
     with patched_mru_file(fake):
-        result = load_launchable_vcs_xprompt_mru(projects_dir)
+        result = load_launchable_vcs_macro_mru(projects_dir)
 
     assert result == ["#gh:home"]
     assert json.loads(fake.read_text()) == {"entries": ["#gh:home"]}
@@ -113,8 +113,8 @@ def test_record_prunes_known_stale_project_prefix(
     patch_discovered_workflow_type_as_git(monkeypatch)
 
     with patched_mru_file(fake):
-        record_vcs_xprompt_usage("#gh:project")
-        result = _load_vcs_xprompt_mru()
+        record_vcs_macro_usage("#gh:project")
+        result = _load_vcs_macro_mru()
 
     assert result == ["#gh:valid"]
     assert json.loads(fake.read_text()) == {"entries": ["#gh:valid"]}
@@ -141,7 +141,7 @@ def test_load_launchable_prunes_default_git_home(
         lambda *a, **k: [],
     )
 
-    result = load_launchable_vcs_xprompt_mru()
+    result = load_launchable_vcs_macro_mru()
 
     assert result == ["#git:foo", "#git:bar"]
     assert json.loads(migrated_file.read_text()) == {
@@ -156,8 +156,8 @@ def test_record_does_not_persist_default_git_home(tmp_path: Path) -> None:
     fake = tmp_path / "vcs_xprompt_mru.json"
     fake.write_text(json.dumps({"entries": ["#gh:sase", "#git:home"]}))
     with patched_mru_file(fake):
-        record_vcs_xprompt_usage("#git:home")
-        result = _load_vcs_xprompt_mru()
+        record_vcs_macro_usage("#git:home")
+        result = _load_vcs_macro_mru()
 
     assert result == ["#gh:sase"]
     assert json.loads(fake.read_text()) == {"entries": ["#gh:sase"]}
@@ -186,7 +186,7 @@ def test_load_launchable_drops_refs_that_no_longer_resolve(
         lambda *a, **k: [_FakePatch("somecs")],
     )
 
-    result = load_launchable_vcs_xprompt_mru()
+    result = load_launchable_vcs_macro_mru()
 
     assert result == ["#git:sase", "#git:somecs"]
     assert json.loads(migrated_file.read_text()) == {
@@ -209,7 +209,7 @@ def test_load_launchable_keeps_entries_when_resolution_index_unavailable(
 
     monkeypatch.setattr("sase.ace.patch.cache.find_all_patches_cached", _boom)
 
-    result = load_launchable_vcs_xprompt_mru()
+    result = load_launchable_vcs_macro_mru()
 
     assert result == ["#git:sase", "#git:gone"]
     assert json.loads(mru_file.read_text()) == {"entries": ["#git:sase", "#git:gone"]}
@@ -263,7 +263,7 @@ def test_load_launchable_prunes_provider_mismatched_prefix(
         lambda project_file: "gh" if "gh_sase-org__sase" in project_file else "git",
     )
 
-    result = load_launchable_vcs_xprompt_mru()
+    result = load_launchable_vcs_macro_mru()
 
     assert result == ["#gh:sase", "#git:otherproj"]
     assert json.loads(migrated_file.read_text()) == {
@@ -300,9 +300,9 @@ def test_record_prunes_provider_mismatched_prefix(
         lambda _project_file: "gh",
     )
 
-    record_vcs_xprompt_usage("#git:gh_sase-org__sase")
+    record_vcs_macro_usage("#git:gh_sase-org__sase")
 
-    assert _load_vcs_xprompt_mru() == ["#gh:gh_sase-org__sase"]
+    assert _load_vcs_macro_mru() == ["#gh:gh_sase-org__sase"]
 
 
 def test_load_launchable_pairs_performs_at_most_one_pruning_write(
@@ -324,12 +324,12 @@ def test_load_launchable_pairs_performs_at_most_one_pruning_write(
     patch_discovered_workflow_type_as_git(monkeypatch)
     save_calls: list[list[str]] = []
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru._save_vcs_xprompt_mru",
+        "sase.history.vcs_macro_mru._save_vcs_macro_mru",
         lambda entries: save_calls.append(list(entries)),
     )
 
     with patched_mru_file(fake):
-        result = load_launchable_vcs_xprompt_mru_pairs(projects_dir)
+        result = load_launchable_vcs_macro_mru_pairs(projects_dir)
 
     assert result == [("#gh:valid", "#gh:valid")]
     assert len(save_calls) == 1

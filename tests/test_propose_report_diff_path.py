@@ -1,4 +1,4 @@
-"""Tests for diff_path and meta_* emission from the propose xprompt report step."""
+"""Tests for diff_path and meta_* emission from the propose macro report step."""
 
 import json
 import os

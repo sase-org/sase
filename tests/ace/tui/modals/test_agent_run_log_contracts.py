@@ -103,7 +103,7 @@ def test_run_log_detail_humanizes_xprompt_and_chat(
     agent = make_agent(cl_name="target_cl", raw_suffix="20250101120000")
     monkeypatch.setattr(
         agent,
-        "get_raw_xprompt_content",
+        "get_raw_prompt_content",
         lambda: "#gh:gh_acme__widgets inspect",
     )
     monkeypatch.setattr(

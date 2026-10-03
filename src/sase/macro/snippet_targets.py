@@ -21,7 +21,7 @@ from sase.content_layout import discover_project_root, resolve_project_layout
 
 from .naming import ResolutionSource, resolution_after_save
 from .save_index import names_for_location
-from .write_targets import resolve_xprompt_write_target
+from .write_targets import resolve_macro_write_target
 
 
 #: Canonical discovery labels matched by the save-location picker.
@@ -190,7 +190,7 @@ def resolve_snippet_save_target(configured: str | None) -> SnippetSaveTarget:
         )
         source = "default"
 
-    write_target = resolve_xprompt_write_target(resolved)
+    write_target = resolve_macro_write_target(resolved)
     return SnippetSaveTarget(
         read_path=write_target.read_path,
         write_path=write_target.write_path,

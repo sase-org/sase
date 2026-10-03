@@ -171,7 +171,7 @@ async def test_mru_history_opens_overlay_on_history_with_home_origin(
     _skip_without_lifecycle_bindings()
     _point_store_at(monkeypatch, tmp_path / "prompt_stash.jsonl")
     monkeypatch.setattr(
-        "sase.history.vcs_macro_mru.load_launchable_vcs_xprompt_mru_pairs",
+        "sase.history.vcs_macro_mru.load_launchable_vcs_macro_mru_pairs",
         lambda *a, **k: [("canon", "display")],
     )
     monkeypatch.setattr(

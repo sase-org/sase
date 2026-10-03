@@ -1,7 +1,7 @@
 """``sase prompt run``/``edit``/``select`` — replay stored prompts.
 
 These commands reuse the same dispatch path as a fresh ``sase run "<prompt>"``
-so multi-prompt, multi-model, and xprompt routing stay identical. ``--prefix``
+so multi-prompt, multi-model, and macro routing stay identical. ``--prefix``
 reuses the existing VCS-tag replacement logic so a prompt captured under one VCS
 workflow can be replayed under another without the compatibility path
 (``sase run "#vcs:ref ."``) drifting from this one.

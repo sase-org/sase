@@ -39,7 +39,7 @@ def make_ctx(
         agent_vcs_provider="github",
         agent_hidden=False,
         agent_meta={"model": agent_model or "default"},
-        local_xprompts={},
+        local_macros={},
     )
 
 

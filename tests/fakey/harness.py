@@ -236,7 +236,7 @@ class FakeyRetryHarness:
             agent_vcs_provider=None,
             agent_hidden=False,
             agent_meta={},
-            local_xprompts={},
+            local_macros={},
         )
 
     def seed_running_agent(self, *, started_at: datetime) -> None:

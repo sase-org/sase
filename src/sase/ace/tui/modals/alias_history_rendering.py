@@ -248,7 +248,7 @@ def alias_history_detail_text(
             "yes — press . to toggle hidden runs",
             style=_HIDDEN_ROW_STYLE,
         )
-    if run.used_xprompts:
+    if run.used_macros:
         text.append_text(_xprompts_line(run))
     return text
 
@@ -295,7 +295,7 @@ def _append_field(text: Text, label: str, value: str, *, style: str) -> None:
 def _xprompts_line(run: AliasHistoryRun) -> Text:
     text = Text(no_wrap=False)
     text.append("Xprompts: ", style=_LABEL_STYLE)
-    for index, used in enumerate(run.used_xprompts):
+    for index, used in enumerate(run.used_macros):
         if index:
             text.append("  ")
         glyph, style = _XPROMPT_GLYPHS.get(used.kind, _XPROMPT_DEFAULT_GLYPH)

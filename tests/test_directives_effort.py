@@ -1,4 +1,4 @@
-"""Tests for reasoning-effort parsing (Phase 1 of the xprompt effort epic).
+"""Tests for reasoning-effort parsing (Phase 1 of the macro effort epic).
 
 Covers the shared ``split_model_effort`` helper, ``%effort`` directive and
 ``%model:<model>@<effort>`` suffix extraction, the conflict rule, fan-out

@@ -1,4 +1,4 @@
-"""Build copyable xprompt tags for active Patches."""
+"""Build copyable macro tags for active Patches."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from sase.workspace_provider import detect_workflow_type
 
 @dataclass(frozen=True)
 class PatchTagEntry:
-    """A Patch with its corresponding VCS xprompt workflow tag."""
+    """A Patch with its corresponding VCS macro workflow tag."""
 
     project: str
     name: str
@@ -29,14 +29,14 @@ class PatchTagEntry:
 
 @dataclass(frozen=True)
 class PatchTagListing:
-    """Result of listing active Patch xprompt tags."""
+    """Result of listing active Patch macro tags."""
 
     entries: list[PatchTagEntry]
     skipped: list[str]
 
 
-def list_patch_xprompt_tags(project: str | None = None) -> PatchTagListing:
-    """List active Patches and their copyable VCS xprompt tags.
+def list_patch_macro_tags(project: str | None = None) -> PatchTagListing:
+    """List active Patches and their copyable VCS macro tags.
 
     Terminal Patches are excluded after normalizing STATUS suffixes. The
     optional project filter is an exact match against the parsed project name.

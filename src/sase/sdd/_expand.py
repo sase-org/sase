@@ -6,9 +6,9 @@ _logger = logging.getLogger(__name__)
 
 
 def expand_prompt_for_spec(prompt: str) -> str:
-    """Expand xprompt references and strip directives for prompt storage.
+    """Expand macro references and strip directives for prompt storage.
 
-    Performs a "dry" expansion: xprompts are resolved, directives are stripped,
+    Performs a "dry" expansion: macros are resolved, directives are stripped,
     and embedded workflow ``prompt_part`` content is inlined, but no pre/post
     steps are executed.
     """
@@ -32,7 +32,7 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
         unprotect_fenced_blocks,
     )
     from sase.macro._parsing import (
-        iter_xprompt_references,
+        iter_macro_references,
         normalize_vcs_underscore_refs,
     )
     from sase.macro.loader import get_all_workflows
@@ -49,7 +49,7 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
     prompt = normalize_vcs_underscore_refs(prompt)
 
-    refs = iter_xprompt_references(prompt)
+    refs = iter_macro_references(prompt)
     replacements: list[tuple[int, int, str]] = []
 
     for ref in refs:

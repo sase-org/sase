@@ -5,7 +5,7 @@ from collections.abc import Callable
 import pytest
 
 from sase.ace.patch import Patch
-from sase.integrations.changespec_tags import list_patch_xprompt_tags
+from sase.integrations.changespec_tags import list_patch_macro_tags
 
 
 def _cs(
@@ -58,7 +58,7 @@ def test_lists_active_patch_tags_and_sorts_deterministically(
 
     monkeypatch.setattr("sase.integrations.patch_tags.detect_workflow_type", detect)
 
-    listing = list_patch_xprompt_tags()
+    listing = list_patch_macro_tags()
 
     assert [
         (entry.project, entry.name, entry.status, entry.tag)
@@ -89,7 +89,7 @@ def test_excludes_terminal_statuses_after_suffix_normalization(
         lambda project_file: "gh",
     )
 
-    listing = list_patch_xprompt_tags()
+    listing = list_patch_macro_tags()
 
     assert [(entry.name, entry.status, entry.tag) for entry in listing.entries] == [
         ("active", "Ready", "#gh:active")
@@ -115,7 +115,7 @@ def test_filters_by_exact_project_before_workflow_detection(
 
     monkeypatch.setattr("sase.integrations.patch_tags.detect_workflow_type", detect)
 
-    listing = list_patch_xprompt_tags("target")
+    listing = list_patch_macro_tags("target")
 
     assert [entry.name for entry in listing.entries] == ["keep"]
     assert seen_files == ["/home/user/.sase/projects/target/target.sase"]
@@ -134,7 +134,7 @@ def test_detects_workflow_using_main_file_for_archive_patch(
 
     monkeypatch.setattr("sase.integrations.patch_tags.detect_workflow_type", detect)
 
-    listing = list_patch_xprompt_tags()
+    listing = list_patch_macro_tags()
 
     assert [entry.tag for entry in listing.entries] == ["#git:active-in-archive"]
     assert seen_files == ["/home/user/.sase/projects/proj/proj.sase"]
@@ -158,7 +158,7 @@ def test_records_workflow_detection_failure_and_keeps_other_entries(
 
     monkeypatch.setattr("sase.integrations.patch_tags.detect_workflow_type", detect)
 
-    listing = list_patch_xprompt_tags()
+    listing = list_patch_macro_tags()
 
     assert [entry.tag for entry in listing.entries] == ["#spy:good"]
     assert listing.skipped == [

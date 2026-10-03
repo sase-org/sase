@@ -24,7 +24,7 @@ def test_flattens_overlapping_invocation_and_jinja_by_precedence(
 ) -> None:
     monkeypatch.setattr(
         highlight,
-        "_get_xprompt_argument_spans_binding",
+        "_get_macro_argument_spans_binding",
         lambda: None,
     )
     text = "#foo({{ bar | upper }})"
@@ -50,7 +50,7 @@ def test_flattens_directive_argument_over_placeholder(
 ) -> None:
     monkeypatch.setattr(
         highlight,
-        "_get_xprompt_argument_spans_binding",
+        "_get_macro_argument_spans_binding",
         lambda: None,
     )
     text = "%model(<model>)"
@@ -102,7 +102,7 @@ def test_core_argument_spans_are_layered_over_container(
 
     monkeypatch.setattr(
         highlight,
-        "_get_xprompt_argument_spans_binding",
+        "_get_macro_argument_spans_binding",
         lambda: fake_binding,
     )
 
@@ -139,7 +139,7 @@ def test_alt_block_preserves_nested_invocations() -> None:
     ]
 
 
-def test_code_literals_suppress_xprompt_roles() -> None:
+def test_code_literals_suppress_macro_roles() -> None:
     text = "```text\n#fenced\n```\n`#inline` #outside"
 
     assert _parts(text) == [
@@ -180,7 +180,7 @@ def test_one_scanner_failure_degrades_to_remaining_roles(
     def fail(*args: object, **kwargs: object) -> list[object]:
         raise RuntimeError("scanner unavailable")
 
-    monkeypatch.setattr(highlight.xprompt_inspect, "tokenize", fail)
+    monkeypatch.setattr(highlight.macro_inspect, "tokenize", fail)
 
     assert _parts("#foo {{ value }}") == [
         ("{{", "jinja.delimiter"),
@@ -194,7 +194,7 @@ def test_identical_spans_resolve_by_role_precedence(
 ) -> None:
     _isolate_scanners(monkeypatch)
     monkeypatch.setattr(
-        highlight.xprompt_inspect,
+        highlight.macro_inspect,
         "tokenize",
         lambda text, *, known_skills: [
             SimpleNamespace(start=0, end=4, kind="invocation")
@@ -214,7 +214,7 @@ def test_adjacent_same_role_spans_are_not_merged(
 ) -> None:
     _isolate_scanners(monkeypatch)
     monkeypatch.setattr(
-        highlight.xprompt_inspect,
+        highlight.macro_inspect,
         "tokenize",
         lambda text, *, known_skills: [
             SimpleNamespace(start=0, end=1, kind="invocation"),
@@ -233,7 +233,7 @@ def test_clamps_ranges_and_drops_zero_width_spans(
 ) -> None:
     _isolate_scanners(monkeypatch)
     monkeypatch.setattr(
-        highlight.xprompt_inspect,
+        highlight.macro_inspect,
         "tokenize",
         lambda text, *, known_skills: [
             SimpleNamespace(start=-10, end=2, kind="invocation"),
@@ -258,7 +258,7 @@ def test_calls_each_scanner_once(monkeypatch: pytest.MonkeyPatch) -> None:
 
         return scanner
 
-    monkeypatch.setattr(highlight.xprompt_inspect, "tokenize", once("xprompt", []))
+    monkeypatch.setattr(highlight.macro_inspect, "tokenize", once("xprompt", []))
     monkeypatch.setattr(highlight.jinja_inspect, "tokenize", once("jinja", []))
     monkeypatch.setattr(highlight.alt_inspect, "tokenize", once("alt", []))
     monkeypatch.setattr(highlight, "placeholder_spans", once("placeholder", ()))
@@ -434,7 +434,7 @@ def test_alt_callers_share_one_binding_scan_per_text(
 
 def _isolate_scanners(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        highlight.xprompt_inspect,
+        highlight.macro_inspect,
         "tokenize",
         lambda text, *, known_skills: [],
     )

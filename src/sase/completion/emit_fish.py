@@ -270,7 +270,7 @@ def _positional_complete(
 ) -> str:
     if (command_path, positional.dest) == RUN_PROMPT_SLOT:
         # Force files (like the default, kind-less positional) *and* offer
-        # stored xprompt names or embedded #/%/@ prompt-reference fragments.
+        # stored macro names or embedded #/%/@ prompt-reference fragments.
         args = "-rFa '(__sase_run_prompt_candidates)'"
     else:
         args = _value_args(positional.choices, positional.kind)

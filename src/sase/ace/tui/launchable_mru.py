@@ -70,9 +70,9 @@ def _compute_launchable_mru_inputs_signature() -> tuple[object, ...]:
     """
     parts: list[object] = []
     try:
-        from sase.history.vcs_macro_mru import vcs_xprompt_mru_path
+        from sase.history.vcs_macro_mru import vcs_macro_mru_path
 
-        parts.append(_stat_parts(vcs_xprompt_mru_path()))
+        parts.append(_stat_parts(vcs_macro_mru_path()))
     except Exception:  # noqa: BLE001 - a broken stat degrades to "changed".
         parts.append(("mru-stat-error",))
     try:
@@ -116,14 +116,14 @@ def build_launchable_mru_data(
     """
     from sase.current_project import peek_current_project_change_token
     from sase.history.vcs_macro_mru import (
-        load_launchable_vcs_xprompt_mru_pairs,
+        load_launchable_vcs_macro_mru_pairs,
     )
 
     token = peek_current_project_change_token()
     signature = _compute_launchable_mru_inputs_signature()
     if not force and last_signature is not None and signature == last_signature:
         return None
-    pairs = load_launchable_vcs_xprompt_mru_pairs(prune=False)
+    pairs = load_launchable_vcs_macro_mru_pairs(prune=False)
     return (signature, pairs, token)
 
 

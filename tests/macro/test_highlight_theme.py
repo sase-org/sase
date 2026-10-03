@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import get_args
 
-from sase.macro.highlight import HighlightSpan, XPromptHighlightRole
+from sase.macro.highlight import HighlightSpan, MacroHighlightRole
 from sase.macro.highlight_theme import (
     HighlightStyle,
     derive_argument_color,
@@ -14,7 +14,7 @@ from sase.macro.highlight_theme import (
 def test_flexoki_role_palette_is_complete_and_stable() -> None:
     styles = highlight_theme()
 
-    assert set(styles) == set(get_args(XPromptHighlightRole))
+    assert set(styles) == set(get_args(MacroHighlightRole))
     assert styles == {
         "xprompt.invocation": HighlightStyle("#66800B", bold=True),
         "xprompt.invocation_arg": HighlightStyle("#A3B166"),

@@ -202,7 +202,7 @@ def test_model_completion_payload_exposes_the_advisory(contributor: str) -> None
 
 
 def test_model_completion_and_lsp_catalog_include_spark_13_metadata() -> None:
-    """The payload materializes the catalog consumed by the xprompt LSP."""
+    """The payload materializes the catalog consumed by the macro LSP."""
     from sase.macro.model_completion import model_completion_catalog_payload
 
     entries = {

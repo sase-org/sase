@@ -15,7 +15,7 @@ def turn_routing_prefix(
     reasoning_effort: str | None,
     next_model: str | None = None,
 ) -> str:
-    """Render live xprompt routing directives for a follow-up prompt."""
+    """Render live macro routing directives for a follow-up prompt."""
     lines: list[str] = []
     if fork_target:
         lines.append(f"#fork:{fork_target}")
@@ -62,7 +62,7 @@ def widen_fence(text: str) -> str:
 def fenced_block(label: str, text: str) -> list[str]:
     """Render *text* as its own genuinely-fenced literal zone.
 
-    A single-backtick inline code span is not a literal zone in the xprompt
+    A single-backtick inline code span is not a literal zone in the macro
     processor -- only fenced code (opening/closing fence each on their own
     line) and disabled regions are -- so a value that might contain a
     directive-shaped string (``#commit``, ``%model:x``) must be fenced this

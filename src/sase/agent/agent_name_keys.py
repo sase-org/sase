@@ -91,7 +91,7 @@ def resolve_agent_name_key_markers(segments: Sequence[str]) -> list[str]:
     """Resolve every keyed marker in *segments* from one registry snapshot.
 
     Keys are shared across the complete dispatch. Fenced code blocks and
-    disabled xprompt regions remain literal, while inline-code prose is
+    disabled macro regions remain literal, while inline-code prose is
     rewritten just like ordinary prose.
     """
     if not any("{@" in segment for segment in segments):

@@ -20,8 +20,8 @@ from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     resolve_file_path,
 )
 from sase.content_layout import skill_reference_name
-from sase.macro.loader import get_xprompt_or_workflow
-from sase.macro.models import XPrompt
+from sase.macro.loader import get_macro_or_workflow
+from sase.macro.models import Macro
 from sase.macro.workflow_models import Workflow
 
 JumpKind = Literal["xprompt", "file"]
@@ -194,20 +194,20 @@ def _resolve_xprompt_jump(
     # ``/foo`` is the provider skill name; its definition lives under the
     # canonical ``skill/foo`` xprompt reference.
     lookup = skill_reference_name(token.target) if slash_skill else token.target
-    obj = get_xprompt_or_workflow(lookup, project=project)
+    obj = get_macro_or_workflow(lookup, project=project)
     if obj is None:
         if slash_skill:
             raise JumpError(f"No skill named '{reference}' found")
         raise JumpError(f"No xprompt or skill named '{reference}' found")
 
-    if slash_skill and (not isinstance(obj, XPrompt) or not obj.skill):
+    if slash_skill and (not isinstance(obj, Macro) or not obj.skill):
         raise JumpError(f"No skill named '{reference}' found")
 
-    if isinstance(obj, XPrompt):
+    if isinstance(obj, Macro):
         kind_label = "skill" if obj.skill else "xprompt"
         source_id = obj.source_path
     elif isinstance(obj, Workflow):
-        kind_label = "xprompt" if obj.is_simple_xprompt() else "workflow"
+        kind_label = "xprompt" if obj.is_simple_macro() else "workflow"
         source_id = obj.source_path
     else:
         raise JumpError(f"Could not jump to '{reference}'")
@@ -219,7 +219,7 @@ def _resolve_xprompt_jump(
         source_path,
         source_text,
         name=token.target,
-        is_simple=(isinstance(obj, XPrompt) or obj.is_simple_xprompt()),
+        is_simple=(isinstance(obj, Macro) or obj.is_simple_macro()),
     )
     if loadable_markdown is not None:
         line = _first_markdown_body_line(source_text)
@@ -320,9 +320,9 @@ def _loadable_markdown(
 
     if is_yaml and is_simple and _is_config_source(source_id):
         try:
-            from sase.macro.save import load_config_xprompt_markdown
+            from sase.macro.save import load_config_macro_markdown
 
-            return load_config_xprompt_markdown(source_path, name)
+            return load_config_macro_markdown(source_path, name)
         except Exception:
             return None
     if is_yaml or source_path.suffix.lower() != ".md":

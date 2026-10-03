@@ -156,7 +156,7 @@ def test_execute_workflow_passes_inherited_vcs_tag_without_context_leak(
 
 
 @patch("sase.macro.workflow_executor.WorkflowExecutor")
-def test_execute_workflow_inherited_vcs_tag_not_visible_to_simple_xprompt_template(
+def test_execute_workflow_inherited_vcs_tag_not_visible_to_simple_macro_template(
     mock_workflow_executor: MagicMock,
 ) -> None:
     """Internal VCS metadata is stripped before prompt_part rendering."""

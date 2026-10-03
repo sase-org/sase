@@ -13,7 +13,7 @@ from sase.main.parser import create_parser
 
 from .cli_work_helpers import FakeLaunchResult, make_args, seed_diamond
 
-pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+pytestmark = pytest.mark.usefixtures("fake_cli_work_macros")
 
 
 def test_bead_work_parser_accepts_wait_short_and_long() -> None:

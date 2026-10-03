@@ -97,9 +97,9 @@ def test_run_execution_loop_publishes_phase_timestamp(
         agent_vcs_provider=None,
         agent_hidden=False,
         agent_meta={},
-        local_xprompts={},
+        local_macros={},
     )
-    anon_workflow = SimpleNamespace(name="anon", xprompts={})
+    anon_workflow = SimpleNamespace(name="anon", macros={})
     final_result = _AgentExecResult(success=True, current_artifacts_dir=str(artifacts))
     observed_timestamp: dict[str, str] = {}
     observed_root_timestamp: dict[str, str] = {}

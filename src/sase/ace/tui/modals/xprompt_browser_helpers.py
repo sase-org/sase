@@ -18,11 +18,11 @@ from sase.content_layout import (
 from sase.main.plugin_discovery import discover_plugin_resources
 from sase.project_display_names import project_display_name_for
 from sase.macro.loader import (
-    get_sase_package_default_xprompts_dir,
-    get_sase_package_xprompts_dir,
+    get_sase_package_default_macros_dir,
+    get_sase_package_macros_dir,
 )
 from sase.macro.project_identity import (
-    canonical_xprompt_project,
+    canonical_macro_project,
     known_project_namespaces,
 )
 from sase.macro.workflow_models import Workflow
@@ -54,8 +54,8 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
     home_layout = resolve_home_layout(home_path)
     home = str(home_path)
     sase_pkg_dirs = [
-        str(get_sase_package_xprompts_dir()),
-        str(get_sase_package_default_xprompts_dir()),
+        str(get_sase_package_macros_dir()),
+        str(get_sase_package_default_macros_dir()),
     ]
 
     # Plugin sources: "plugin:module_name/filename.md" (xprompts/ dirs)
@@ -232,10 +232,8 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
         for module in discover_plugin_resources("sase_xprompts"):
             if module.__name__ == module_name:
                 try:
-                    xprompts_dir = importlib.resources.files(module).joinpath(
-                        "xprompts"
-                    )
-                    return str(Path(str(xprompts_dir)) / filename)
+                    macros_dir = importlib.resources.files(module).joinpath("xprompts")
+                    return str(Path(str(macros_dir)) / filename)
                 except (TypeError, AttributeError):
                     pass
         return None
@@ -270,7 +268,7 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
     # project_local_config:{project} → project's workspace sase.yml
     if source_path.startswith("project_local_config:"):
         project_name = source_path.removeprefix("project_local_config:")
-        namespace = canonical_xprompt_project(project_name) or project_name
+        namespace = canonical_macro_project(project_name) or project_name
         ws_dir = known_project_namespaces().get(namespace)
         if ws_dir:
             path = resolve_project_config_read_path(

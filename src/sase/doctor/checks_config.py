@@ -26,9 +26,9 @@ from sase.doctor.checks_config_sdd import check_config_sdd
 from sase.doctor.checks_config_timezone import check_config_timezone
 from sase.doctor.checks_config_tribes import check_config_tribes
 from sase.doctor.checks_config_macros import (
-    check_config_model_xprompts,
-    check_config_xprompt_definitions,
-    check_config_xprompt_directives,
+    check_config_model_macros,
+    check_config_macro_definitions,
+    check_config_macro_directives,
 )
 
 if TYPE_CHECKING:
@@ -132,19 +132,19 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             id="config.model_xprompts",
             group="config",
             title="Model xprompt routing",
-            runner=lambda: check_config_model_xprompts(context),
+            runner=lambda: check_config_model_macros(context),
         ),
         CheckSpec(
             id="config.xprompt_definitions",
             group="config",
             title="XPrompt definitions",
-            runner=lambda: check_config_xprompt_definitions(context),
+            runner=lambda: check_config_macro_definitions(context),
         ),
         CheckSpec(
             id="config.xprompt_directives",
             group="config",
             title="Retired xprompt directives",
-            runner=lambda: check_config_xprompt_directives(context),
+            runner=lambda: check_config_macro_directives(context),
         ),
         CheckSpec(
             id="config.skills.applied",
@@ -171,9 +171,9 @@ _check_config_artifact_refs = check_config_artifact_refs
 _check_config_file_hooks = check_config_file_hooks
 _check_config_external_mirror = check_config_external_mirror
 _check_config_tribes = check_config_tribes
-_check_config_model_xprompts = check_config_model_xprompts
-_check_config_xprompt_definitions = check_config_xprompt_definitions
-_check_config_xprompt_directives = check_config_xprompt_directives
+_check_config_model_macros = check_config_model_macros
+_check_config_macro_definitions = check_config_macro_definitions
+_check_config_macro_directives = check_config_macro_directives
 _check_config_skills_applied = check_config_skills_applied
 
 

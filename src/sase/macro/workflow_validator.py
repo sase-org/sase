@@ -4,23 +4,23 @@ Validates workflows before execution to catch errors early with clear messages.
 """
 
 from sase.macro._parsing import preprocess_shorthand_syntax
-from sase.macro.loader import get_all_xprompts
+from sase.macro.loader import get_all_macros
 from sase.macro.workflow_models import Workflow, WorkflowValidationError
 from sase.macro.workflow_validator_checks import (
     detect_unused_inputs,
     detect_unused_outputs,
-    detect_unused_xprompt_inputs,
-    detect_unused_xprompts,
+    detect_unused_macro_inputs,
+    detect_unused_macros,
     validate_cross_step_field_refs,
     validate_finally_steps,
     validate_prompt_part_steps,
-    validate_xprompt_names,
+    validate_macro_names,
 )
 from sase.macro.workflow_validator_extract import (
     collect_step_content,
     collect_used_variables,
-    extract_xprompt_calls,
-    validate_xprompt_call,
+    extract_macro_calls,
+    validate_macro_call,
 )
 
 
@@ -28,9 +28,9 @@ def validate_workflow(workflow: Workflow) -> None:
     """Validate a workflow before execution.
 
     Performs compile-time checks:
-    - Validates xprompt names start with '_'
+    - Validates macro names start with '_'
     - Detects unused inputs (defined but never referenced)
-    - Validates xprompt calls (required args, named arg names, positional counts)
+    - Validates macro calls (required args, named arg names, positional counts)
     - Validates prompt_part steps (at most one, no control flow, no output, no hitl)
     - Validates finally steps are at the end of the workflow
 
@@ -42,14 +42,14 @@ def validate_workflow(workflow: Workflow) -> None:
     """
     errors: list[str] = []
 
-    # Validate xprompt names early (before other xprompt checks)
-    errors.extend(validate_xprompt_names(workflow))
+    # Validate macro names early (before other macro checks)
+    errors.extend(validate_macro_names(workflow))
 
     # Validate finally step ordering
     errors.extend(validate_finally_steps(workflow))
 
-    xprompts = get_all_xprompts()
-    xprompts.update(workflow.xprompts)  # workflow-local takes priority
+    macros = get_all_macros()
+    macros.update(workflow.macros)  # workflow-local takes priority
 
     # Validate prompt_part steps
     prompt_part_errors = validate_prompt_part_steps(workflow)
@@ -68,22 +68,22 @@ def validate_workflow(workflow: Workflow) -> None:
     # Check cross-step field references against output schemas
     errors.extend(validate_cross_step_field_refs(workflow))
 
-    # Check for unused workflow-local xprompts
-    errors.extend(detect_unused_xprompts(workflow, xprompts))
+    # Check for unused workflow-local macros
+    errors.extend(detect_unused_macros(workflow, macros))
 
-    # Check for unused workflow-local xprompt inputs
-    errors.extend(detect_unused_xprompt_inputs(workflow))
+    # Check for unused workflow-local macro inputs
+    errors.extend(detect_unused_macro_inputs(workflow))
 
-    # Validate xprompt calls in each step
+    # Validate macro calls in each step
     for step in workflow.steps:
         for content in collect_step_content(step):
             # Preprocess shorthand syntax (#name: text -> #name([[text]]))
-            preprocessed = preprocess_shorthand_syntax(content, set(xprompts.keys()))
-            calls = extract_xprompt_calls(preprocessed)
+            preprocessed = preprocess_shorthand_syntax(content, set(macros.keys()))
+            calls = extract_macro_calls(preprocessed)
             for call in calls:
-                if call.name in xprompts:
-                    xprompt = xprompts[call.name]
-                    call_errors = validate_xprompt_call(call, xprompt, step.name)
+                if call.name in macros:
+                    macro_def = macros[call.name]
+                    call_errors = validate_macro_call(call, macro_def, step.name)
                     errors.extend(call_errors)
 
     if errors:

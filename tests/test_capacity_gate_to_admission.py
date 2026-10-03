@@ -18,7 +18,7 @@ from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.service import create_gate
 from sase.plan_gate import build_plan_approval_gate_spec, translate_plan_gate_response
 from sase.macro.directives import extract_prompt_directives
-from sase.macro.processor import process_xprompt_references
+from sase.macro.processor import process_macro_references
 from sase.macro.workflow_models import Workflow
 from tests._plan_gate_fixtures import (
     plan_gate_home,  # noqa: F401 (registers the gate_home fixture)
@@ -57,7 +57,7 @@ def _epic_work_plan() -> EpicWorkPlan:
 
 
 def _expanded_directives(segment: str) -> Any:
-    expanded = process_xprompt_references(segment, raise_on_error=True)
+    expanded = process_macro_references(segment, raise_on_error=True)
     _cleaned, directives = extract_prompt_directives(expanded)
     return directives
 
@@ -139,8 +139,8 @@ def test_epic_gate_capacity_reaches_weighted_admission(
 
     rendered = render_multi_prompt(
         _epic_work_plan(),
-        work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-        land_epic_xprompt=Workflow(name="bd/land_epic"),
+        work_phase_macro=Workflow(name="bd/work_phase_bead"),
+        land_epic_macro=Workflow(name="bd/land_epic"),
         capacity=capacity,
     )
     segments = rendered.split("\n---\n")
@@ -216,8 +216,8 @@ def test_omitted_capacity_uses_default_weight_and_global_budget(
 
     rendered = render_multi_prompt(
         _epic_work_plan(),
-        work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-        land_epic_xprompt=Workflow(name="bd/land_epic"),
+        work_phase_macro=Workflow(name="bd/work_phase_bead"),
+        land_epic_macro=Workflow(name="bd/land_epic"),
         capacity=_capacity_from_argv(argv),
     )
     segments = rendered.split("\n---\n")

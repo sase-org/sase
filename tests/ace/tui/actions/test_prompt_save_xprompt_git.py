@@ -36,7 +36,7 @@ def test_commit_push_confirmation_submits_tracked_task(tmp_path: Path) -> None:
             return_value=True,
         ),
     ):
-        harness._offer_git_commit(str(path), is_new=True, xprompt_name="review")
+        harness._offer_git_commit(str(path), is_new=True, macro_name="review")
         modal, callback = harness.pushed[0]
         assert isinstance(modal, PostWriteActionsModal)
         assert callable(callback)
@@ -80,7 +80,7 @@ def test_successful_snippet_commit_refreshes_config_catalog(tmp_path: Path) -> N
         harness._offer_git_commit(
             str(path),
             is_new=False,
-            xprompt_name="review",
+            macro_name="review",
             noun="snippet",
             commit_type="snippet",
         )
@@ -120,7 +120,7 @@ def test_failed_or_skipped_snippet_commit_does_not_refresh_catalog(
         harness._offer_git_commit(
             str(path),
             is_new=False,
-            xprompt_name="review",
+            macro_name="review",
             noun="snippet",
             commit_type="snippet",
         )
@@ -252,7 +252,7 @@ def test_post_write_sequence_waits_for_success_before_next_task() -> None:
             default_on=True,
             file_path="/repo/review.md",
             rel_path="review.md",
-            apply_target="/home/u/sase/xprompts/review.md",
+            apply_target="/home/u/sase/macros/review.md",
         ),
     )
 
@@ -296,7 +296,7 @@ def test_post_write_sequence_stops_after_failed_task() -> None:
             default_on=True,
             file_path="/repo/review.md",
             rel_path="review.md",
-            apply_target="/home/u/sase/xprompts/review.md",
+            apply_target="/home/u/sase/macros/review.md",
         ),
     )
 

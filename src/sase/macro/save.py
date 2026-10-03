@@ -1,4 +1,4 @@
-"""Persistence helpers for saving prompt drafts as reusable xprompts."""
+"""Persistence helpers for saving prompt drafts as reusable macros."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ import tempfile
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.macro.config_yaml import insert_xprompt_into_config
+from sase.macro.config_yaml import insert_macro_into_config
 from sase.macro.loader_skills import config_skill_destination
 from sase.macro.prompt_frontmatter import PromptFrontmatter
 
 
 class SaveTargetFormat(StrEnum):
-    """Supported xprompt persistence formats."""
+    """Supported macro persistence formats."""
 
     MARKDOWN = "markdown"
     CONFIG = "config"
@@ -25,8 +25,8 @@ class SkillPlacementError(ValueError):
     """Raised when a write would place a skill outside a skill source."""
 
 
-def build_markdown_xprompt(frontmatter: PromptFrontmatter, body: str) -> str:
-    """Return the canonical markdown xprompt text for *frontmatter* and *body*."""
+def build_markdown_macro(frontmatter: PromptFrontmatter, body: str) -> str:
+    """Return the canonical markdown macro text for *frontmatter* and *body*."""
     clean_body = body.rstrip()
     frontmatter_block = frontmatter.serialize()
     if frontmatter_block and clean_body:
@@ -36,19 +36,19 @@ def build_markdown_xprompt(frontmatter: PromptFrontmatter, body: str) -> str:
     return f"{clean_body}\n"
 
 
-def save_markdown_xprompt(
+def save_markdown_macro(
     path: str | Path,
     frontmatter: PromptFrontmatter,
     body: str,
 ) -> None:
-    """Write a markdown xprompt file."""
+    """Write a markdown macro file."""
     file_path = Path(path)
     _reject_misplaced_skill_write(file_path, declares_skill=bool(frontmatter.skill))
-    _atomic_write_text(file_path, build_markdown_xprompt(frontmatter, body))
+    _atomic_write_text(file_path, build_markdown_macro(frontmatter, body))
 
 
 def save_markdown_document(path: str | Path, markdown: str) -> None:
-    """Atomically write already-assembled xprompt Markdown."""
+    """Atomically write already-assembled macro Markdown."""
     file_path = Path(path)
     _reject_misplaced_skill_write(
         file_path,
@@ -61,7 +61,7 @@ def _reject_misplaced_skill_write(path: Path, *, declares_skill: bool) -> None:
     """Refuse to write a skill definition outside a canonical skill source.
 
     Ordinary prompt destinations keep working unchanged; this only stops a
-    ``skill:`` declaration from being smuggled into ``sase/xprompts/`` or any
+    ``skill:`` declaration from being smuggled into ``sase/macros/`` or any
     other directory discovery would never read a skill from.
     """
     if not declares_skill:
@@ -77,13 +77,13 @@ def _reject_misplaced_skill_write(path: Path, *, declares_skill: bool) -> None:
     )
 
 
-def save_config_xprompt(
+def save_config_macro(
     config_path: str | Path,
     name: str,
     frontmatter: PromptFrontmatter,
     body: str,
 ) -> bool:
-    """Insert or replace a config-backed xprompt entry."""
+    """Insert or replace a config-backed macro entry."""
     if frontmatter.skill:
         # Config entries can never be skills: generation needs a Markdown
         # source in a canonical skill directory to render from.
@@ -91,7 +91,7 @@ def save_config_xprompt(
             f"{config_path} cannot define the skill {name!r}; "
             f"move it to {config_skill_destination()}"
         )
-    return insert_xprompt_into_config(
+    return insert_macro_into_config(
         str(config_path),
         name,
         [],
@@ -100,8 +100,8 @@ def save_config_xprompt(
     )
 
 
-def load_config_xprompt_markdown(config_path: str | Path, name: str) -> str:
-    """Reconstruct editable markdown for one simple config-backed xprompt."""
+def load_config_macro_markdown(config_path: str | Path, name: str) -> str:
+    """Reconstruct editable markdown for one simple config-backed macro."""
     path = Path(config_path)
     payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or not isinstance(payload.get("xprompts"), dict):
@@ -119,7 +119,7 @@ def load_config_xprompt_markdown(config_path: str | Path, name: str) -> str:
     frontmatter = PromptFrontmatter.parse(
         yaml.safe_dump(mapping, sort_keys=False, allow_unicode=True)
     )
-    return build_markdown_xprompt(frontmatter, body)
+    return build_markdown_macro(frontmatter, body)
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
@@ -143,13 +143,13 @@ def _atomic_write_text(path: Path, text: str) -> None:
 __all__ = [
     "SaveTargetFormat",
     "SkillPlacementError",
-    "build_markdown_xprompt",
-    "load_config_xprompt_markdown",
-    "save_config_xprompt",
-    "save_markdown_xprompt",
+    "build_markdown_macro",
+    "load_config_macro_markdown",
+    "save_config_macro",
+    "save_markdown_macro",
     "save_markdown_document",
 ]
 
 
 # Compatibility for callers that imported the former private helper.
-_build_markdown_xprompt = build_markdown_xprompt
+_build_markdown_macro = build_markdown_macro

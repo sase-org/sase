@@ -155,7 +155,7 @@ def test_prompt_history_label_caches_list_summary(
         return PromptListSummary(
             project_prefix="",
             project_ref_display="",
-            xprompts=(),
+            macros=(),
             directive_token="",
             clean_preview=text,
         )

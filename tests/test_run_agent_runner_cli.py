@@ -16,8 +16,8 @@ def test_read_prompt_file_falls_back_to_persisted_refreshed_prompt(
 ) -> None:
     prompt_file = tmp_path / "consumed-prompt.md"
     fallback_file = tmp_path / "submitted_xprompt.md"
-    submitted_xprompt = "%i(fix)\nKeep this exact prompt\n"
-    fallback_file.write_text(submitted_xprompt, encoding="utf-8")
+    submitted_prompt = "%i(fix)\nKeep this exact prompt\n"
+    fallback_file.write_text(submitted_prompt, encoding="utf-8")
     monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
 
     assert (
@@ -25,9 +25,9 @@ def test_read_prompt_file_falls_back_to_persisted_refreshed_prompt(
             str(prompt_file),
             refreshed_fallback_file=str(fallback_file),
         )
-        == submitted_xprompt
+        == submitted_prompt
     )
-    assert fallback_file.read_text(encoding="utf-8") == submitted_xprompt
+    assert fallback_file.read_text(encoding="utf-8") == submitted_prompt
 
 
 def test_read_prompt_file_does_not_fall_back_without_refresh_guard(

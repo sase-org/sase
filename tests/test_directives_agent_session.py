@@ -131,7 +131,7 @@ def test_clan_double_colon_shorthand_parses_parenthesized_form() -> None:
     assert directives.model == "opus"
 
 
-def test_clan_double_colon_shorthand_stops_at_xprompt_boundary() -> None:
+def test_clan_double_colon_shorthand_stops_at_macro_boundary() -> None:
     prompt = "%clan:research:: First paragraph\n\nSecond paragraph\n#next\nDo work"
 
     cleaned, directives = extract_prompt_directives(prompt)
