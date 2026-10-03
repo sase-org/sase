@@ -49,6 +49,7 @@ def sync_agents(
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float | None = None,
     retry_quarantined: bool = False,
+    retry_retired: bool = False,
     drop_retired: bool = False,
 ) -> tuple[SyncOutcome, ...]:
     """Synchronize every selected project without cross-project fail-fast."""
@@ -76,13 +77,16 @@ def sync_agents(
     for target in selection.targets:
         pending_publications: tuple[Any, ...] = ()
         try:
+            from sase.agents_sync.publication_completion import (
+                publication_request_fulfilled,
+            )
             from sase.agents_sync.publication_outbox import (
                 acknowledge_agent_publications,
-                clear_quarantined_agent_publications,
                 configured_publication_max_attempts,
                 drop_terminal_agent_publications,
                 list_agent_publications,
                 publication_quarantine_diagnostics,
+                revive_agent_publications,
                 update_agent_publications,
             )
             from sase.agents_sync.referenced_by_outbox import (
@@ -94,8 +98,14 @@ def sync_agents(
                 drain_referenced_by_requests,
             )
 
+            retry_diagnostics: tuple[str, ...] = ()
+            if retry_retired or retry_quarantined:
+                _revived, retry_diagnostics = revive_agent_publications(
+                    target.project_key,
+                    retry_retired=retry_retired,
+                    retry_quarantined=retry_quarantined,
+                )
             if retry_quarantined:
-                clear_quarantined_agent_publications(target.project_key)
                 clear_quarantined_referenced_by_requests(target.project_key)
             drop_diagnostics: tuple[str, ...] = ()
             if drop_retired:
@@ -125,7 +135,7 @@ def sync_agents(
                     item
                     for item in pending_publications
                     if item.logical_key not in prompt_failures
-                    and _publication_request_materialized(target, item.global_agent)
+                    and publication_request_fulfilled(target, item, owner)
                 )
                 if materialized:
                     acknowledge_agent_publications(
@@ -158,6 +168,7 @@ def sync_agents(
                     git_runner=git_runner,
                 )
             publication_diagnostics = (
+                *retry_diagnostics,
                 *drop_diagnostics,
                 *publication_quarantine_diagnostics(target.project_key),
                 *referenced_by_diagnostics,
@@ -229,15 +240,6 @@ def _dropped_referenced_by_diagnostics(
             for item in dropped
         ),
     )
-
-
-def _publication_request_materialized(
-    target: ProjectTarget,
-    global_agent: str,
-) -> bool:
-    agents_root = (target.sidecar_path / "agents").resolve(strict=False)
-    page = (agents_root / global_agent / "README.md").resolve(strict=False)
-    return page.is_relative_to(agents_root) and page.is_file()
 
 
 @dataclass(slots=True)

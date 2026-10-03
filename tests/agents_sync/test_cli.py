@@ -46,6 +46,36 @@ def test_parser_accepts_retry_quarantined_only_for_full_sync() -> None:
     assert exc_info.value.code == 2
 
 
+def test_parser_accepts_retry_retired_with_project_and_quarantine_combo() -> None:
+    args = create_parser().parse_args(["agent", "sync", "-t", "-q", "-p", "one"])
+    assert args.retry_retired
+    assert args.retry_quarantined
+    assert args.project == ["one"]
+
+
+def test_parser_rejects_retry_retired_without_project() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["agent", "sync", "--retry-retired"])
+    assert exc_info.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "extra",
+    (
+        ["--check"],
+        ["--drop-retired"],
+        ["--repair-digests"],
+        ["--repair-manifest"],
+    ),
+)
+def test_parser_rejects_retry_retired_with_incompatible_modes(extra: list[str]) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(
+            ["agent", "sync", "--retry-retired", "--project", "one", *extra]
+        )
+    assert exc_info.value.code == 2
+
+
 def test_parser_accepts_repair_digests_flag() -> None:
     args = create_parser().parse_args(
         ["agent", "sync", "--repair-digests", "--project", "one"]
@@ -90,6 +120,8 @@ def test_sync_help_distinguishes_full_cached_and_refresh_modes() -> None:
     assert "drain publication retries" in help_text
     assert "--check is local and network-free" in help_text
     assert "computing ahead/behind" in help_text
+    assert "-t, --retry-retired" in help_text
+    assert "requires --project" in help_text
 
 
 def test_agent_help_keeps_bare_list_delegation_and_sorted_commands() -> None:
@@ -147,7 +179,12 @@ def test_mutating_sync_json_allows_benign_skips(
     assert payload["mode"] == "sync"
     assert payload["projects"][0]["skip_reason"] == "project is disabled"
     assert exit_code == 0
-    sync.assert_called_once_with((), retry_quarantined=False, drop_retired=False)
+    sync.assert_called_once_with(
+        (),
+        retry_quarantined=False,
+        retry_retired=False,
+        drop_retired=False,
+    )
 
 
 def test_mutating_sync_forwards_drop_retired_and_renders_its_report(
@@ -179,7 +216,46 @@ def test_mutating_sync_forwards_drop_retired_and_renders_its_report(
     assert "dropped 1 retired publication request" in output
     assert "hood 'lt' has no publishable runs" in output
     assert exit_code == 0
-    sync.assert_called_once_with((), retry_quarantined=False, drop_retired=True)
+    sync.assert_called_once_with(
+        (),
+        retry_quarantined=False,
+        retry_retired=False,
+        drop_retired=True,
+    )
+
+
+def test_mutating_sync_forwards_retry_retired(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    outcomes = (
+        SyncOutcome(
+            "proj",
+            "Project",
+            pulled=True,
+            diagnostics=("retried 1 retired publication request",),
+        ),
+    )
+    args = argparse.Namespace(
+        project=["proj"],
+        check=False,
+        refresh=False,
+        json=False,
+        retry_retired=True,
+        retry_quarantined=False,
+        drop_retired=False,
+    )
+    with patch("sase.agents.cli_sync.sync_agents", return_value=outcomes) as sync:
+        exit_code = handle_agents_sync(args)
+
+    output = " ".join(capsys.readouterr().out.split())
+    assert "retried 1 retired publication request" in output
+    assert exit_code == 0
+    sync.assert_called_once_with(
+        ("proj",),
+        retry_quarantined=False,
+        retry_retired=True,
+        drop_retired=False,
+    )
 
 
 def test_mutating_sync_pretty_table_reports_counts_and_result(

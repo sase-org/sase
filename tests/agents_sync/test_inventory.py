@@ -107,6 +107,17 @@ def test_inventory_keeps_active_and_dismissed_states_but_rejects_imports(
     assert result.primary_repo_name == "primary"
 
 
+def test_richer_bytes_keeps_the_longer_archived_payload() -> None:
+    assert inventory._richer_bytes(None, b"archive") == b"archive"
+    assert inventory._richer_bytes(b"new", None) == b"new"
+    assert inventory._richer_bytes(b"short", b"much longer archived prompt") == (
+        b"much longer archived prompt"
+    )
+    assert inventory._richer_bytes(b"current longer body", b"old") == (
+        b"current longer body"
+    )
+
+
 def test_portable_metadata_sanitizes_output_variables() -> None:
     metadata = dict(
         inventory_io.portable_metadata(

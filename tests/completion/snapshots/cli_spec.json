@@ -3171,7 +3171,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "dedf30be2626cd19",
+            "description_digest": "d67370e4d79511c7",
             "hidden": false,
             "mutex_groups": [],
             "name": "sync",
@@ -3316,6 +3316,22 @@
                 "strings": [
                   "-q",
                   "--retry-quarantined"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "retry_retired",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-t",
+                  "--retry-retired"
                 ],
                 "takes_value": false,
                 "value_hint": null

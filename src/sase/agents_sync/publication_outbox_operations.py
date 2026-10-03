@@ -19,6 +19,10 @@ from sase.agents_sync.publication_outbox_store import (
     list_agent_publications,
     mutate_publication_outbox,
 )
+from sase.core.agent_publication_recovery import (
+    PublicationRetrySelected,
+    select_publication_retries,
+)
 
 DEFAULT_PUBLICATION_MAX_ATTEMPTS = 3
 _PUBLICATION_MAX_ATTEMPTS_ENV = "SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS"
@@ -190,6 +194,89 @@ def clear_quarantined_agent_publications(
     return mutate_publication_outbox(project_key, update)
 
 
+def revive_agent_publications(
+    project_key: str,
+    *,
+    retry_retired: bool,
+    retry_quarantined: bool,
+) -> tuple[tuple[AgentPublicationOutboxItem, ...], tuple[str, ...]]:
+    """Revive selected terminal rows once under the outbox lock.
+
+    Selection and the resulting state transition come from the Rust policy.
+    The transformation itself stays inside the existing locked atomic write.
+    Active rows, other projects, and the Referenced By queue are untouched.
+    """
+
+    if not retry_retired and not retry_quarantined:
+        return (), ()
+    now = time.time()
+    selected: list[PublicationRetrySelected] = []
+
+    def update(
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        selected.extend(
+            select_publication_retries(
+                tuple(
+                    {
+                        "global_agent": item.global_agent,
+                        "primary_revision": item.primary_revision,
+                        "terminal": item.terminal,
+                        "quarantined": item.quarantined,
+                        "last_error": item.last_error,
+                        "terminal_reason": item.terminal_reason,
+                    }
+                    for item in items
+                ),
+                retry_retired=retry_retired,
+                retry_quarantined=retry_quarantined,
+            )
+        )
+        chosen = {item.logical_key for item in selected}
+        return tuple(
+            replace(
+                item,
+                attempts=0,
+                last_error=None,
+                quarantined=False,
+                quarantined_at=None,
+                terminal=False,
+                terminal_reason=None,
+                updated_at=now,
+            )
+            if item.logical_key in chosen
+            else item
+            for item in items
+        )
+
+    mutate_publication_outbox(project_key, update)
+    return tuple(
+        item
+        for item in list_agent_publications(project_key)
+        if item.logical_key in {row.logical_key for row in selected}
+    ), _retry_diagnostics(selected)
+
+
+def _retry_diagnostics(
+    selected: list[PublicationRetrySelected],
+) -> tuple[str, ...]:
+    if not selected:
+        return ()
+    lines: list[str] = []
+    for class_name, verb in (("retired", "retried"), ("quarantined", "retried")):
+        matching = [item for item in selected if item.prior_class == class_name]
+        if not matching:
+            continue
+        plural = "" if len(matching) == 1 else "s"
+        lines.append(f"{verb} {len(matching)} {class_name} publication request{plural}")
+        lines.extend(
+            f"{verb} {class_name} publication request {item.global_agent}@"
+            f"{item.primary_revision[:12]}: {item.prior_failure}"
+            for item in matching
+        )
+    return tuple(lines)
+
+
 def drop_terminal_agent_publications(
     project_key: str,
 ) -> tuple[AgentPublicationOutboxItem, ...]:
@@ -255,5 +342,6 @@ __all__ = [
     "drop_terminal_agent_publications",
     "enqueue_agent_publication",
     "publication_quarantine_diagnostics",
+    "revive_agent_publications",
     "update_agent_publications",
 ]

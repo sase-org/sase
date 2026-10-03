@@ -64,6 +64,7 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
     outcomes = sync_agents(
         projects,
         retry_quarantined=bool(getattr(args, "retry_quarantined", False)),
+        retry_retired=bool(getattr(args, "retry_retired", False)),
         drop_retired=bool(getattr(args, "drop_retired", False)),
     )
     _emit_sync_outcomes(outcomes, mode="sync", as_json=as_json)

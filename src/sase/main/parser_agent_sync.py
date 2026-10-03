@@ -84,3 +84,12 @@ def register_agent_sync_parser(agents_sub: argparse._SubParsersAction) -> None:
             "this full sync"
         ),
     )
+    sync_parser.add_argument(
+        "-t",
+        "--retry-retired",
+        action="store_true",
+        help=(
+            "Revive this project's retired agent-publication requests once, "
+            "then run full reconciliation; requires --project"
+        ),
+    )

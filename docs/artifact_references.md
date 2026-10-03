@@ -275,10 +275,11 @@ The write-back workflow runs in this order:
 A failure before a successful local artifact-sidecar refresh leaves the request queued
 for a later mutating `sase agent sync`. The same `--retry-quarantined` and
 `--drop-retired` controls used for agent publication also operate on queued Referenced
-By requests; see [Agent Hood Synchronization](agents_sidecar.md#commands-and-status).
-Once the local refresh succeeds, however, the request is no longer in that outbox. A
-later detached-push failure is recorded in the managed SDD sync log and is not retried
-from the Referenced By outbox.
+By requests; `--retry-retired` revives retired agent-publication requests only. See
+[Agent Hood Synchronization](agents_sidecar.md#commands-and-status). Once the local
+refresh succeeds, however, the request is no longer in that outbox. A later
+detached-push failure is recorded in the managed SDD sync log and is not retried from
+the Referenced By outbox.
 
 The write-back attempt can delay the publishing command's return, but it begins only
 after the prompt archive has been pushed and cannot roll that publication back. Because

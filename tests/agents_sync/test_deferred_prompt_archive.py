@@ -26,6 +26,7 @@ from sase.agents_sync.publication_outbox import list_agent_publications
 from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from tests.agents_sync.commit_publication_fixtures import git, setup_target
+from tests.agents_sync.git_sync_fixtures import plant_fulfilled_publication
 
 _AGENT = "worker"
 _GLOBAL_AGENT = "alice.athena.worker"
@@ -157,9 +158,16 @@ def _stub_full_sync(
     )
 
     def reconcile(_target: ProjectTarget, repo: Path, **_kwargs: object):
-        page = repo / "agents" / _GLOBAL_AGENT / "README.md"
-        page.parent.mkdir(parents=True, exist_ok=True)
-        page.write_text("# worker\n", encoding="utf-8")
+        pending = list_agent_publications(_target.project_key)
+        for item in pending:
+            plant_fulfilled_publication(
+                repo,
+                local_agent=item.local_agent,
+                global_agent=item.global_agent,
+                revision=item.primary_revision,
+                local_hood=item.local_hood,
+                has_prompt_file=True,
+            )
         # The rest of the payload path set has to exist for staging to run.
         (repo / "README.md").write_text("# Agents\n", encoding="utf-8")
         (repo / "schema.json").write_text("{}\n", encoding="utf-8")
@@ -227,3 +235,28 @@ def test_full_sync_keeps_the_request_queued_when_the_archive_cannot_be_rebuilt(
     assert remaining.attempts == 1
     assert not remaining.terminal
     assert "prompt pool is unreadable" in str(remaining.last_error)
+
+
+def test_full_sync_keeps_the_request_when_the_original_prompt_source_is_gone(
+    deferred_publication: tuple[ProjectTarget, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    target, remote, artifacts_dir = deferred_publication
+    _stub_full_sync(monkeypatch, target, artifacts_dir)
+    for leftover in artifacts_dir.glob("raw_*.md"):
+        leftover.unlink()
+
+    [outcome] = git_sync.sync_agents(("proj",))
+
+    assert outcome.error is None
+    verify = tmp_path / "verify-missing-source"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert not (verify / "prompts").exists()
+    [remaining] = list_agent_publications("proj")
+    assert remaining.attempts == 1
+    assert not remaining.terminal
+    assert remaining.last_error is not None
+    assert "missing local source" in remaining.last_error or (
+        "unresolved" in remaining.last_error
+    )

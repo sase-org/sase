@@ -18,6 +18,7 @@ from sase.agents_sync.publication_outbox_operations import (
     drop_terminal_agent_publications,
     enqueue_agent_publication,
     publication_quarantine_diagnostics,
+    revive_agent_publications,
     update_agent_publications,
 )
 from sase.agents_sync.publication_outbox_serialization import (
@@ -47,6 +48,7 @@ __all__ = [
     "list_agent_publications",
     "publication_quarantine_diagnostics",
     "publication_request_subject",
+    "revive_agent_publications",
     "snapshot_agent_publications_from_path",
     "snapshot_publication_document_from_path",
     "update_agent_publications",

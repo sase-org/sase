@@ -381,17 +381,30 @@ Do not delete or hand-edit either publication outbox. `--retry-quarantined` clea
 quarantine flag for both hood and Referenced By requests and gives them a fresh retry
 budget before running the normal full reconciliation.
 
-A retired request cannot succeed on retry. After reviewing the diagnostic and accepting
-that its missing or invalid source cannot be reconstructed, drop only retired entries
-with:
+Retired agent-publication requests stay stopped until an explicit recovery. After a
+publisher fix that makes previously terminal work publishable, revive that project's
+retired hood requests once with:
+
+```bash
+sase agent sync --retry-retired -p project-alias   # -t
+```
+
+`--retry-retired` requires `--project`, reports the selected count and prior failure
+classes, and may be combined with `--retry-quarantined`. It does not touch the
+Referenced By terminal queue, other projects, or requests that fail again during the
+same command. It is rejected with `--check`, `--drop-retired`, and repair-only modes.
+
+A retired request whose source still cannot be reconstructed should be dropped after
+review, not revived. Drop only retired entries with:
 
 ```bash
 sase agent sync --drop-retired -p project-alias
 ```
 
 The command reports every removed hood or Referenced By request and its terminal reason,
-then continues the normal full sync for the selected projects. Both `--drop-retired` and
-`--retry-quarantined` mutate the outbox and are rejected with `--check`.
+then continues the normal full sync for the selected projects. `--drop-retired`,
+`--retry-quarantined`, and `--retry-retired` mutate the outbox and are rejected with
+`--check`.
 
 Two repair modes replace the normal sync for the selected projects. Each runs under the
 same bounded lock and pull/commit/push transaction, touches only the current owner's
@@ -481,9 +494,12 @@ Textual event loop.
   says prompt-archive publication was deferred. In this case that wording is misleading:
   the prompt archive was already pushed. Inspect the Referenced By diagnostic and outbox
   rather than republishing the primary commit.
-- If a request is reported as retired and its source truly cannot be reconstructed,
-  review the terminal reason and run `sase agent sync --drop-retired -p <project>`.
-  Retired requests are not reset by `--retry-quarantined`.
+- If a request is reported as retired after a publisher or validator fix, revive that
+  project's retired hood requests with `sase agent sync --retry-retired -p <project>`
+  (`-t`). Combine `--retry-quarantined` when quarantined work should move in the same
+  pass. If the source truly cannot be reconstructed, review the terminal reason and run
+  `sase agent sync --drop-retired -p <project>`. Retired requests are not reset by
+  `--retry-quarantined` alone.
 - A general push or fetch failure leaves local agent history intact. Fix
   credentials/connectivity and retry.
 - A rebase conflict is aborted before the command returns. Resolve unexpected state in

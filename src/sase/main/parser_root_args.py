@@ -114,9 +114,26 @@ class SaseArgumentParser(argparse.ArgumentParser):
             for flag, attribute in (
                 ("--drop-retired", "drop_retired"),
                 ("--retry-quarantined", "retry_quarantined"),
+                ("--retry-retired", "retry_retired"),
             ):
                 if getattr(parsed, attribute, False):
                     self.error(f"sase agent sync {flag} cannot be used with --check")
+        if (
+            getattr(parsed, "command", None) == "agent"
+            and getattr(parsed, "agent_subcommand", None) == "sync"
+            and getattr(parsed, "retry_retired", False)
+        ):
+            if not getattr(parsed, "project", None):
+                self.error("sase agent sync --retry-retired requires --project")
+            for flag, attribute in (
+                ("--drop-retired", "drop_retired"),
+                ("--repair-digests", "repair_digests"),
+                ("--repair-manifest", "repair_manifest"),
+            ):
+                if getattr(parsed, attribute, False):
+                    self.error(
+                        f"sase agent sync --retry-retired cannot be used with {flag}"
+                    )
         if (
             getattr(parsed, "command", None) == "init"
             and getattr(parsed, "json", False)

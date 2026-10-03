@@ -122,13 +122,13 @@ def build_project_hood_inventory(
             commits=tuple(
                 sorted(commits.values(), key=lambda item: (item.committed_at, item.sha))
             ),
-            prompt_bytes=preferred.prompt_bytes or existing.prompt_bytes,
-            chat_bytes=preferred.chat_bytes or existing.chat_bytes,
-            embedded_workflows_bytes=(
-                preferred.embedded_workflows_bytes or existing.embedded_workflows_bytes
+            prompt_bytes=_richer_bytes(preferred.prompt_bytes, existing.prompt_bytes),
+            chat_bytes=_richer_bytes(preferred.chat_bytes, existing.chat_bytes),
+            embedded_workflows_bytes=_richer_bytes(
+                preferred.embedded_workflows_bytes, existing.embedded_workflows_bytes
             ),
-            prompt_steps_bytes=(
-                preferred.prompt_steps_bytes or existing.prompt_steps_bytes
+            prompt_steps_bytes=_richer_bytes(
+                preferred.prompt_steps_bytes, existing.prompt_steps_bytes
             ),
         )
     _add_commit_only_runs(
@@ -162,6 +162,16 @@ def build_project_hood_inventory(
         primary_repo_name=target.primary_repo_name,
         lane_commits=history.lane_commits,
     )
+
+
+def _richer_bytes(preferred: bytes | None, existing: bytes | None) -> bytes | None:
+    """Keep the longer payload when merging historical runs."""
+
+    if preferred is None:
+        return existing
+    if existing is None:
+        return preferred
+    return preferred if len(preferred) >= len(existing) else existing
 
 
 def _run_preference(run: InventoryRun) -> tuple[int, int, str]:

@@ -61,8 +61,17 @@ def build_hood_snapshot(
 
         raise AgentsSyncFormatError(f"hood {hood!r} has no publishable runs")
     payload: dict[str, bytes] = {}
+    previous_by_global = (
+        {run.global_name: run for run in previous.runs} if previous is not None else {}
+    )
     current_records = tuple(
-        _published_run(run, owner, project, payload) for run in current
+        _merge_richer_run_files(
+            _published_run(run, owner, project, payload),
+            previous_by_global.get(run.global_name),
+            repo_root,
+            payload,
+        )
+        for run in current
     )
     current_ids = {run.source_run_id for run in current_records}
     current_globals = {run.global_name for run in current_records}
@@ -179,6 +188,51 @@ def _published_run(
         files=tuple(files),
         capabilities=capabilities,
     )
+
+
+def _merge_richer_run_files(
+    current: V2RunRecord,
+    previous: V2RunRecord | None,
+    repo_root: Path,
+    payload: dict[str, bytes],
+) -> V2RunRecord:
+    """Keep recoverable prompt/chat bytes instead of commit-only placeholders."""
+
+    if previous is None:
+        return current
+    previous_files = dict(previous.files)
+    current_files = dict(current.files)
+    files = list(current.files)
+    changed = False
+    for kind in ("prompt", "chat", "embedded_workflows", "prompt_steps"):
+        prior = previous_files.get(kind)
+        if prior is None:
+            continue
+        prior_path = repo_root / prior.path
+        if not prior_path.is_file():
+            continue
+        prior_bytes = prior_path.read_bytes()
+        current_ref = current_files.get(kind)
+        current_bytes = (
+            payload.get(current_ref.path) if current_ref is not None else None
+        )
+        if current_bytes is not None and len(current_bytes) >= len(prior_bytes):
+            continue
+        payload[prior.path] = prior_bytes
+        if current_ref is not None and current_ref.path != prior.path:
+            payload.pop(current_ref.path, None)
+        files = [
+            (item_kind, prior if item_kind == kind else ref) for item_kind, ref in files
+        ]
+        if kind not in current_files:
+            files.append((kind, prior))
+        changed = True
+    if not changed:
+        return current
+    capabilities = capabilities_from_v2_run(
+        dict(current.metadata), {kind for kind, _ref in files}
+    )
+    return replace(current, files=tuple(files), capabilities=capabilities)
 
 
 def _build_containers(
