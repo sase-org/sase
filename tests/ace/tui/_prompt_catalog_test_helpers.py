@@ -1,0 +1,17 @@
+"""Shared public helpers for prompt catalog tests."""
+
+from __future__ import annotations
+
+from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+
+
+def entry(name: str) -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name=name,
+        insertion=f"#{name}",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature=None,
+        inputs=(),
+        content_preview=None,
+    )
