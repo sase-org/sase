@@ -504,7 +504,7 @@ def load_macros_from_project_with_base(
         if md_file.is_file():
             macro_def = load_macro_from_file(md_file)
             if macro_def:
-                namespaced_name = f"{project}/{xprompt.name}"
+                namespaced_name = f"{project}/{macro_def.name}"
                 macros[namespaced_name] = Macro(
                     name=namespaced_name,
                     content=macro_def.content,
