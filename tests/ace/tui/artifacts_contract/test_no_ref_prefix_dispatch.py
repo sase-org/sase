@@ -29,7 +29,7 @@ _ALLOWLIST = {
     TUI_ROOT / "actions" / "clipboard" / "_artifact_reference_resolution.py",
     # Parses the ``ref:`` encoding of git HEAD files for stat-only
     # history change tokens, not pane dispatch.
-    TUI_ROOT / "memory_history.py",
+    TUI_ROOT / "_memory_history_tokens.py",
 }
 
 _DISPATCH_RE = re.compile(
